@@ -1,0 +1,1865 @@
+{
+  "common": {
+    "appName": "GV Mart",
+    "adminApp": "GV Mart Admin",
+    "tagline": "Sales | Service | Spares",
+    "loading": "Loading…",
+    "noData": "No data yet",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "search": "Search",
+    "save": "Save",
+    "cancel": "Cancel",
+    "remove": "Remove",
+    "back": "Back",
+    "yes": "Yes",
+    "no": "No",
+    "thisMonth": "this month",
+    "language": "Language",
+    "delete": "Delete"
+  },
+  "roles": {
+    "master": "Owner",
+    "operation_admin": "Operations",
+    "sales_admin": "Sales",
+    "technician": "Technician",
+    "customer": "Customer"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "login": "Login",
+    "customers": "Customers",
+    "sales": "Sales",
+    "quotations": "Quotations",
+    "leads": "Leads",
+    "service": "Service",
+    "amcWarranty": "AMC & Warranty",
+    "technicians": "Technicians",
+    "inventory": "Inventory",
+    "suppliers": "Suppliers",
+    "automation": "Automation",
+    "hr": "HR & Payroll",
+    "reports": "Reports",
+    "masters": "Masters / Settings",
+    "workspace": "My Workspace",
+    "purchase": "Purchase",
+    "notifications": "Notifications",
+    "approvals": "Approvals",
+    "campaigns": "Campaigns",
+    "complaints": "Complaints",
+    "returns": "Returns",
+    "auditLog": "Audit Log"
+  },
+  "auth": {
+    "heroTitle": "Sign in to your workspace",
+    "heroSubtitle": "Each role has its own secure login. You'll only see the dashboard and tools your role allows — nothing more.",
+    "secureAccessBadge": "Role-based secure access",
+    "signInEyebrow": "Secure sign-in",
+    "signInTitle": "Sign in",
+    "signInSubtitle": "Enter your email and password to continue",
+    "emailLabel": "Email address",
+    "emailPlaceholder": "you@gvmart.in",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "••••••••",
+    "forgotPassword": "Forgot password?",
+    "signInButton": "Sign in",
+    "signingIn": "Signing in…",
+    "invalidCredentials": "Incorrect email or password.",
+    "genericSignInError": "Couldn't sign in. Please try again.",
+    "profileLoadError": "Couldn't load your account. Please retry, or sign out and sign in again.",
+    "trustNote": "Role is read from your account on sign-in. Permissions are enforced server-side (RLS), never in the UI alone.",
+    "demoCredentialsToggle": "Demo credentials (dev only)",
+    "demoCredentialsPassword": "Password (all)",
+    "passwordResetSent": "If an account exists for that email, a reset link has been sent."
+  },
+  "shell": {
+    "searchPlaceholder": "Search customers, tickets, invoices…",
+    "notifications": "Notifications",
+    "signOut": "Sign out",
+    "comingSoonTitle": "{{module}} is coming soon",
+    "comingSoonBody": "This module is scheduled for a later build phase. The route, navigation, and role access are already wired.",
+    "technicianAppTitle": "Technician App",
+    "technicianAppBody": "Attendance, jobs, and field service ship in a later run (Stage 2).",
+    "customerAppTitle": "Customer App",
+    "customerAppBody": "Service booking and self-service ship in a later run (Stage 3)."
+  },
+  "tabs": {
+    "home": "Home",
+    "map": "Map",
+    "attendance": "Attendance",
+    "history": "History",
+    "profile": "Profile",
+    "myProducts": "My Products",
+    "bookings": "Bookings"
+  },
+  "dashboard": {
+    "welcomeBack": "Welcome back, {{name}}",
+    "masterSubtitle": "Here's how GV Mart is doing across every module today.",
+    "operationAdminSubtitle": "Today's service operations at a glance.",
+    "salesAdminSubtitle": "Today's sales pipeline at a glance.",
+    "totalRevenue": "Total Revenue",
+    "todaysSales": "Today's Sales",
+    "openTickets": "Open Tickets",
+    "activeTechnicians": "Active Technicians",
+    "leadConversion": "Lead → Sale Conversion",
+    "amcDueThisWeek": "AMCs Due This Week",
+    "slaOverdue": "SLA Overdue",
+    "openQuotations": "Open Quotations"
+  },
+  "customers": {
+    "title": "Customers",
+    "subtitle": "Every registered customer, their address and family members.",
+    "addButton": "Add Customer",
+    "exportButton": "Export",
+    "searchPlaceholder": "Search by name or mobile…",
+    "table": {
+      "name": "Name",
+      "area": "Area",
+      "profession": "Profession",
+      "members": "Members",
+      "amc": "AMC",
+      "lastService": "Last Service",
+      "notAvailable": "Not yet"
+    },
+    "filters": {
+      "allTypes": "All types",
+      "residential": "Residential",
+      "commercial": "Commercial",
+      "area": "Area",
+      "pincodePlaceholder": "PIN code",
+      "hasAmc": "Has AMC",
+      "hasWarranty": "Has warranty",
+      "clearFilters": "Clear filters"
+    },
+    "empty": {
+      "title": "No customers found",
+      "titleFiltered": "No customers match these filters",
+      "subtitle": "Try a different search, or add a new customer to get started.",
+      "clearFiltersButton": "Clear filters",
+      "addFirstButton": "Add your first customer"
+    },
+    "error": {
+      "loadFailed": "Couldn't load customers. Check your connection and try again."
+    },
+    "pagination": {
+      "pageInfo": "Page {{page}} of {{totalPages}} · {{count}} customers",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "detail": {
+      "backToList": "Back to Customers",
+      "call": "Call",
+      "whatsapp": "WhatsApp",
+      "noAddress": "No address on file yet",
+      "membersTitle": "Family Members ({{count}}/5)",
+      "addMember": "Add member",
+      "setPrimary": "Set primary",
+      "primary": "Primary",
+      "primaryLocked": "Set another member primary to remove",
+      "remove": "Remove",
+      "moveOut": "Move out to new customer",
+      "confirm": "Confirm",
+      "tabs": {
+        "products": "Products",
+        "service": "Service History",
+        "invoices": "Invoices",
+        "leads": "Leads"
+      },
+      "emptyTabs": {
+        "products": "No products yet — appears once a sale is made.",
+        "service": "No service history yet — appears once a job is completed.",
+        "invoices": "No invoices yet — appears once a sale is billed.",
+        "leads": "No leads yet — appears once an enquiry is captured."
+      },
+      "actions": {
+        "newSale": "New Sale",
+        "newTicket": "New Ticket",
+        "sellAmc": "Sell AMC",
+        "edit": "Edit",
+        "comingSoonReason": "Ships with the Sales/Service modules in a later phase"
+      }
+    },
+    "form": {
+      "createTitle": "Add Customer",
+      "editTitle": "Edit Customer",
+      "stepPeople": "People",
+      "stepAddress": "Address",
+      "profession": "Profession",
+      "professionPlaceholder": "e.g. Teacher, Shop Owner",
+      "memberName": "Full name",
+      "memberMobile": "Mobile number",
+      "maxMembersReached": "Maximum of 5 family members reached",
+      "duplicateWarning": "This number is already linked to {{name}}",
+      "doorNo": "Door No.",
+      "flatNo": "Flat / Building No.",
+      "streetCross": "Street / Cross",
+      "area": "Area",
+      "pincode": "PIN code",
+      "landmark": "Landmark",
+      "district": "District",
+      "state": "State",
+      "addressType": "Address type",
+      "ownership": "Ownership",
+      "residential": "Residential",
+      "commercial": "Commercial",
+      "own": "Own",
+      "rental": "Rental",
+      "back": "Back",
+      "next": "Next"
+    },
+    "errors": {
+      "nameRequired": "Enter a name (at least 2 characters)",
+      "mobileInvalid": "Enter a valid 10-digit mobile number",
+      "memberRequired": "Add at least one member",
+      "memberMax": "A customer can have at most 5 members",
+      "doorNoRequired": "Door/Flat number is required",
+      "areaRequired": "Area is required",
+      "pincodeInvalid": "Enter a valid 6-digit PIN code"
+    }
+  },
+  "masters": {
+    "subtitle": "Product, spare and business rule masters — every value here is admin-set, nothing is hardcoded.",
+    "loadFailed": "Couldn't load this data. Check your connection and try again.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirmDelete": "Delete?",
+    "tabs": {
+      "brands": "Brands",
+      "models": "Models",
+      "products": "Products",
+      "spares": "Spares",
+      "gifts": "Gifts",
+      "amcPlans": "AMC Plans",
+      "incentives": "Incentives",
+      "settings": "Settings"
+    },
+    "categories": {
+      "ro": "RO / Water Purifier",
+      "ac": "AC",
+      "inverter": "Inverter",
+      "battery": "Battery"
+    },
+    "brands": {
+      "name": "Brand name",
+      "category": "Category",
+      "add": "Add brand",
+      "empty": "No brands yet — add your first one."
+    },
+    "models": {
+      "name": "Model name",
+      "brand": "Brand",
+      "type": "Type",
+      "typePlaceholder": "e.g. Split, Window, Domestic",
+      "add": "Add model",
+      "empty": "No models yet — add your first one.",
+      "needsBrandFirst": "Add a brand first — models belong to a brand."
+    },
+    "products": {
+      "name": "Product name",
+      "brand": "Brand",
+      "model": "Model",
+      "category": "Category",
+      "price": "Price",
+      "hsn": "HSN code",
+      "warrantyMonths": "Warranty (months)",
+      "add": "Add product",
+      "empty": "No products yet — add your first one.",
+      "needsBrandModelFirst": "Add a brand and model first — products need both."
+    },
+    "spares": {
+      "name": "Spare name",
+      "sku": "SKU",
+      "price": "Price",
+      "hsn": "HSN code",
+      "add": "Add spare",
+      "empty": "No spares yet — add your first one."
+    },
+    "gifts": {
+      "name": "Gift name",
+      "threshold": "Threshold amount",
+      "add": "Add gift",
+      "empty": "No gifts yet — add your first one."
+    },
+    "amcPlans": {
+      "name": "Plan name",
+      "namePlaceholder": "e.g. Gold, Silver, Platinum",
+      "years": "Years",
+      "price": "Price",
+      "visitsPerYear": "Visits / year",
+      "gift": "Included gift",
+      "noGift": "No gift",
+      "inclusions": "Inclusions",
+      "inclusionsPlaceholder": "Comma-separated, e.g. Filter change, Sanitization",
+      "add": "Add plan",
+      "empty": "No AMC plans yet — add your first one."
+    },
+    "incentives": {
+      "type": "Type",
+      "types": {
+        "service_income": "Extra service income",
+        "sales_income": "Sales income",
+        "review": "Google review"
+      },
+      "threshold": "Threshold",
+      "amount": "Amount",
+      "add": "Add rule",
+      "empty": "No incentive rules yet — set your first one."
+    }
+  },
+  "settings": {
+    "groups": {
+      "travel": "Travel & Geofence",
+      "attendance": "Work Hours & Attendance",
+      "discounts": "Discount Limits",
+      "amcReferral": "AMC & Referral",
+      "inventory": "Inventory Defaults",
+      "sla": "Service SLA (hours by priority)"
+    },
+    "perKmMinutes": "Travel time (minutes per km)",
+    "geofenceRadius": "Office geofence radius (m, internal — never shown to staff)",
+    "workStart": "Work start",
+    "workEnd": "Work end",
+    "lateCutoff": "Late cutoff (attendance locks after)",
+    "lunchAllowed": "Lunch allowed (minutes)",
+    "lunchRed": "Lunch shows red after (minutes)",
+    "discountTechMax": "Technician discount cap (%)",
+    "discountAdminMax": "Admin discount cap (%)",
+    "gstRate": "GST rate (%)",
+    "discountAbsoluteNote": "Anything above the admin cap is never allowed, for any role.",
+    "amcBookWindow": "AMC self-booking window (days before renewal)",
+    "referralPointValue": "Referral point value (₹, minimum 50)",
+    "reviewLinkMinStars": "Google review link shows at (stars, minimum)",
+    "defaultMinStock": "Default minimum stock",
+    "defaultReorderQty": "Default reorder quantity",
+    "slaVeryUrgent": "Very urgent (hours)",
+    "slaUrgent": "Urgent (hours)",
+    "slaNormal": "Normal (hours)",
+    "saved": "Settings saved.",
+    "errors": {
+      "required": "This field is required",
+      "positive": "Must be greater than zero",
+      "nonNegative": "Cannot be negative",
+      "percentRange": "Must be between 0 and 100",
+      "referralMin": "Must be at least ₹50 (v2.2 minimum)",
+      "starsRange": "Must be between 1 and 5",
+      "lunchRedAfterAllowed": "Must be greater than the allowed minutes",
+      "adminMaxAboveTech": "Admin cap must be at or above the technician cap"
+    }
+  },
+  "inventory": {
+    "subtitle": "Live stock across products and spares — v2.2 default thresholds are 10 / 10.",
+    "loadFailed": "Couldn't load inventory. Check your connection and try again.",
+    "empty": "No inventory rows yet.",
+    "item": "Item",
+    "stock": "Stock",
+    "thresholds": "Min / Reorder",
+    "minReorder": "{{min}} / {{reorder}}",
+    "adjustStock": "Adjust stock",
+    "status": {
+      "label": "Status",
+      "in": "In stock",
+      "low": "Low stock",
+      "out": "Out of stock"
+    }
+  },
+  "suppliers": {
+    "subtitle": "Suppliers and which items they provide, with per-item pricing.",
+    "loadFailed": "Couldn't load suppliers. Check your connection and try again.",
+    "empty": "No suppliers yet — add your first one.",
+    "name": "Supplier name",
+    "contact": "Contact",
+    "whatsapp": "WhatsApp",
+    "rating": "Rating",
+    "add": "Add supplier",
+    "manageItems": "Manage items",
+    "itemsFor": "Items supplied by {{name}}",
+    "linkItem": "Link item",
+    "itemType": "Item type",
+    "item": "Item",
+    "selectItem": "Select an item",
+    "price": "Price",
+    "leadTime": "Lead time",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "preferred": "Preferred",
+    "preferredYes": "Preferred",
+    "markPreferred": "Mark preferred",
+    "noItemsLinked": "No items linked to this supplier yet."
+  },
+  "sales": {
+    "newSale": {
+      "title": "New Sale",
+      "back": "Back",
+      "next": "Next",
+      "generate": "Generate Invoice(s)"
+    },
+    "steps": {
+      "customer": "Customer",
+      "items": "Items",
+      "discount": "Discount",
+      "gift": "Gift",
+      "payment": "Payment",
+      "review": "Review"
+    },
+    "customer": {
+      "searchLabel": "Find customer",
+      "searchPlaceholder": "Search by name or mobile…",
+      "notFound": "Don't see this customer?",
+      "addNew": "Add a new customer"
+    },
+    "items": {
+      "productTab": "Product",
+      "spareTab": "Spares",
+      "selectBrand": "Select brand",
+      "selectModel": "Select model",
+      "selectProduct": "Select product",
+      "selectSpare": "Select spare",
+      "selectAmcPlan": "Select AMC plan",
+      "qty": "Qty",
+      "add": "Add",
+      "stockHint": "{{count}} in stock (warehouse)",
+      "stockShort": "{{count}} in stock",
+      "pickProductHint": "Pick a brand, model and product to add it",
+      "emptyCart": "No items added yet.",
+      "warranty": "Warranty",
+      "warrantyMonths": "months",
+      "installation": "Installation",
+      "installationNote": "A service ticket will be auto-created and assigned on generate.",
+      "amcAddonTitle": "AMC add-on for {{product}} (RO only)"
+    },
+    "discount": {
+      "label": "Discount (%)",
+      "freeUpTo": "Up to {{max}}% — no approval needed.",
+      "approvalBand": "{{min}}–{{max}}% — needs a manager's approval (sale still completes).",
+      "blockedAbove": "Above {{max}}% is never allowed.",
+      "blockedMessage": "This discount exceeds the admin limit of {{max}}%. Lower it to continue.",
+      "needsApprovalMessage": "This discount will be flagged for manager approval."
+    },
+    "gift": {
+      "title": "Gift",
+      "none": "No gift",
+      "noneEligible": "This sale doesn't yet qualify for a gift.",
+      "thresholdNote": "eligible above {{amount}}"
+    },
+    "payment": {
+      "method": "Payment method",
+      "cash": "Cash",
+      "transfer": "Bank transfer",
+      "txnId": "Transaction ID",
+      "description": "Description",
+      "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually."
+    },
+    "review": {
+      "title": "Review",
+      "customer": "Customer: {{customer}}",
+      "discount": "Discount: {{percent}}%",
+      "payment": "Payment: {{method}}"
+    },
+    "errors": {
+      "txnIdRequired": "Enter the transaction ID for a bank transfer",
+      "paymentDescriptionRequired": "Enter a short description for the bank transfer",
+      "paymentInvalid": "Check the payment details and try again"
+    },
+    "summary": {
+      "title": "Summary",
+      "productBill": "Product bill",
+      "spareBill": "Spares bill",
+      "amcBill": "AMC bill",
+      "subtotal": "Subtotal",
+      "discount": "Discount",
+      "gst": "GST ({{rate}}%)",
+      "total": "Total",
+      "grandTotal": "Grand total",
+      "twoBillNotice": "Products and spares are billed separately (two invoices).",
+      "giftApplied": "Gift: {{gift}}"
+    },
+    "list": {
+      "title": "Sales",
+      "subtitle": "Every invoice generated from a sale.",
+      "newSaleButton": "New Sale",
+      "customer": "Customer",
+      "type": "Type",
+      "total": "Total",
+      "paymentStatus": "Payment",
+      "date": "Date",
+      "empty": {
+        "title": "No sales yet",
+        "subtitle": "Start your first sale to see it here."
+      },
+      "error": {
+        "loadFailed": "Couldn't load sales. Check your connection and try again."
+      }
+    },
+    "invoice": {
+      "loadFailed": "Couldn't load this invoice. Check your connection and try again.",
+      "print": "Print",
+      "shareWhatsapp": "Share on WhatsApp",
+      "gstNo": "GSTIN {{gst}}",
+      "invoiceNo": "Invoice #{{id}}",
+      "billedTo": "Billed to",
+      "item": "Item",
+      "qty": "Qty",
+      "price": "Price",
+      "lineDiscount": "Discount",
+      "lineTotal": "Total",
+      "noLineItemsNote": "This is a plan invoice — see the AMC contract below for what was sold.",
+      "totalWithoutGst": "Total (excl. GST)",
+      "gstAmount": "GST amount",
+      "totalWithGst": "Total (incl. GST)",
+      "paymentMethod": "Payment method",
+      "generatedTitle": "Generated from this sale",
+      "warrantyLine": "Warranty registered, expires {{date}}",
+      "ticketLine": "Installation ticket — {{status}}",
+      "amcLine": "AMC contract: {{plan}}, expires {{date}}",
+      "type": {
+        "product": "Product sale",
+        "spare": "Spares sale",
+        "amc": "AMC sale"
+      },
+      "paymentStatus": {
+        "paid": "Paid",
+        "partial": "Partial",
+        "due": "Due"
+      },
+      "ticketStatus": {
+        "open": "Open",
+        "assigned": "Assigned",
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      }
+    }
+  },
+  "quotations": {
+    "title": "Quotations",
+    "subtitle": "Quotes created for customers, and how many convert to sales.",
+    "addButton": "New Quotation",
+    "convertButton": "Convert to Sale",
+    "markLostButton": "Mark Lost",
+    "confirmLost": "Confirm lost",
+    "lostReasonLabel": "Lost reason",
+    "lostReasonPlaceholder": "Why was this quotation lost?",
+    "stats": {
+      "open": "Open",
+      "converted": "Converted",
+      "lost": "Lost",
+      "conversionRate": "Conversion rate"
+    },
+    "table": {
+      "customer": "Customer",
+      "amount": "Amount",
+      "validUntil": "Valid until",
+      "date": "Date",
+      "status": "Status"
+    },
+    "status": {
+      "open": "Open",
+      "converted": "Converted",
+      "lost": "Lost"
+    },
+    "form": {
+      "title": "New Quotation",
+      "validUntil": "Valid until",
+      "itemsTitle": "Items",
+      "create": "Create Quotation"
+    },
+    "empty": {
+      "title": "No quotations yet",
+      "subtitle": "Create a quotation to track it through to a sale."
+    },
+    "error": {
+      "loadFailed": "Couldn't load quotations. Check your connection and try again."
+    }
+  },
+  "service": {
+    "subtitle": "Service tickets and job assignments.",
+    "loadFailed": "Couldn't load tickets. Check your connection and try again.",
+    "empty": "No tickets yet.",
+    "view": {
+      "table": "Table",
+      "kanban": "Kanban"
+    },
+    "table": {
+      "ticket": "Ticket",
+      "customer": "Customer",
+      "product": "Product",
+      "complaint": "Complaint",
+      "type": "Type",
+      "priority": "Priority",
+      "technician": "Technician",
+      "appointment": "Appointment",
+      "sla": "SLA",
+      "unassigned": "Unassigned",
+      "repeatComplaint": "Repeat complaint (within 90 days)"
+    },
+    "filters": {
+      "all": "All",
+      "status": "Status",
+      "priority": "Priority",
+      "type": "Type",
+      "technician": "Technician",
+      "area": "Area",
+      "date": "Date",
+      "clear": "Clear filters"
+    },
+    "status": {
+      "open": "Open",
+      "assigned": "Assigned",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "very_urgent": "Very urgent",
+      "urgent": "Urgent",
+      "normal": "Normal"
+    },
+    "type": {
+      "paid": "Paid",
+      "warranty": "Warranty",
+      "amc": "AMC",
+      "installation": "Installation"
+    },
+    "appointment": {
+      "always": "Always"
+    },
+    "kanban": {
+      "empty": "No tickets in this status."
+    },
+    "sla": {
+      "none": "No SLA",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "overdueBy": "Overdue by {{hours}}h {{minutes}}m",
+      "dueIn": "Due in {{hours}}h {{minutes}}m"
+    },
+    "newComplaint": {
+      "title": "New Complaint",
+      "stepCustomer": "Customer",
+      "stepEquipment": "Equipment",
+      "stepComplaint": "Complaint",
+      "stepType": "Type",
+      "stepPriority": "Priority",
+      "stepAppointment": "Appointment",
+      "customerSearch": "Customer",
+      "customerSearchHint": "Search and select a customer to proceed.",
+      "address": "Service address",
+      "addressNone": "No specific address",
+      "equipmentMode": {
+        "owned": "Owned",
+        "new": "New",
+        "none": "None"
+      },
+      "noOwnedEquipment": "No products in the customer's history. Select 'New' to add one.",
+      "brand": "Brand",
+      "model": "Model",
+      "product": "Product",
+      "nameOfComplaint": "Name of complaint",
+      "nameOfComplaintPlaceholder": "e.g. Water flow stopped, Not cooling",
+      "natureOfComplaint": "Nature of complaint (optional)",
+      "natureOfComplaintPlaceholder": "e.g. Issue observed for past 2 days",
+      "natureOfComplaintHint": "Additional details to help the technician.",
+      "priority": "Priority",
+      "appointmentMode": "Appointment mode",
+      "scheduledAt": "Scheduled date & time",
+      "workHoursHint": "Appointments are scheduled during working hours.",
+      "autoAssign": "Auto-assign to available technician",
+      "create": "Create complaint",
+      "typeNotSelectable": "Type is auto-detected and non-selectable.",
+      "amcCoverage": "AMC coverage: {{start}} to {{expiry}}",
+      "warrantyCoverage": "Warranty coverage: {{start}} to {{expiry}}",
+      "paidHint": "This is a paid service — no coverage applies."
+    },
+    "appointments": {
+      "title": "Appointments",
+      "subtitle": "Technician workload and drag-to-assign.",
+      "timeline": "Day schedule",
+      "noTechnicians": "No technicians yet.",
+      "noJobs": "No jobs",
+      "dropToUnassignHint": "Drag here to unassign and view ticket details.",
+      "autoAssignEngine": "Auto-assign engine",
+      "autoAssignDescription": "Bulk-assign unscheduled jobs by availability.",
+      "unassigned": "Unassigned ({{count}})",
+      "noUnassigned": "All jobs assigned for today.",
+      "selected": "Selected",
+      "viewTicket": "View ticket",
+      "forceReassign": "Force reassign"
+    },
+    "detail": {
+      "createdFromInvoice": "Created from invoice #{{id}}",
+      "status": "Status",
+      "assignment": "Assignment",
+      "assignedTo": "Assigned to {{name}}",
+      "autoAssign": "Auto-assign",
+      "pickTechnician": "Pick a technician",
+      "offDuty": "Off duty",
+      "assignManually": "Assign manually",
+      "noAppointment": "No appointment yet.",
+      "jobReport": "Job report",
+      "startTime": "Start time",
+      "closeTime": "Close time",
+      "totalTime": "Total time",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "charge": "Service charge",
+      "noVisitYet": "No visit yet."
+    },
+    "error": {
+      "loadFailed": "Couldn't load ticket. Check your connection and try again."
+    },
+    "assign": {
+      "noneAvailable": "No technicians available for auto-assign.",
+      "technicianBusy": "Technician is busy at scheduled time."
+    }
+  },
+  "amc": {
+    "tabs": {
+      "amc": "AMC",
+      "warranty": "Warranty"
+    },
+    "list": {
+      "subtitle": "Coverage due within the admin window ({{days}} days) is highlighted.",
+      "customer": "Customer",
+      "product": "Product",
+      "plan": "Plan",
+      "start": "Start",
+      "expiry": "Expiry",
+      "nextService": "Next service",
+      "status": "Status",
+      "loadFailed": "Couldn't load this data. Check your connection and try again.",
+      "emptyAmc": "No AMC contracts yet.",
+      "emptyWarranty": "No warranties yet."
+    },
+    "status": {
+      "active": "Active",
+      "due_soon": "Due soon",
+      "expired": "Expired"
+    },
+    "sellAmc": {
+      "title": "Sell AMC",
+      "customer": "Customer",
+      "roProduct": "RO product",
+      "roOnlyHint": "AMC is available for RO products only.",
+      "plan": "Plan",
+      "startDate": "Start date",
+      "submit": "Sell plan"
+    },
+    "errors": {
+      "customerRequired": "Customer is required",
+      "roProductRequired": "RO product is required",
+      "planRequired": "Plan is required",
+      "startDateRequired": "Start date is required",
+      "nameRequired": "Plan name is required (2 characters min)",
+      "yearsPositive": "Years must be greater than zero",
+      "priceNonNegative": "Price cannot be negative",
+      "visitsPositive": "Visits per year must be greater than zero"
+    }
+  },
+  "customerApp": {
+    "home": {
+      "deliverTo": "Deliver to",
+      "noAddressYet": "No address on file yet",
+      "nextServiceDue": "Next service due",
+      "nextServiceOverdue": "Service overdue on {{date}}",
+      "nextServiceInDays_one": "Service in {{count}} day ({{date}})",
+      "nextServiceInDays_other": "Service in {{count}} days ({{date}})",
+      "noProductsYet": "No products registered yet",
+      "viewMyProducts": "View my products",
+      "amcCoverage": "AMC",
+      "warrantyCoverage": "Warranty",
+      "warrantyActive": "Active",
+      "warrantyExpired": "Expired",
+      "expiresOn": "Expires {{date}}",
+      "expiredOn": "Expired {{date}}",
+      "quickActions": "Quick actions",
+      "tileService": "Book Service",
+      "tileSpare": "Spare Enquiry",
+      "tileProduct": "Product Enquiry",
+      "tileAmc": "AMC",
+      "coverageStatus": "Coverage status",
+      "viewAll": "View all"
+    },
+    "tracking": {
+      "noLocationYet": "Technician location not yet available",
+      "onTheWay": "Technician on the way",
+      "onTheWayNamed": "{{name}} is on the way",
+      "updatedJustNow": "Just now",
+      "updatedMinutesAgo_one": "{{count}} minute ago",
+      "updatedMinutesAgo_other": "{{count}} minutes ago"
+    },
+    "errors": {
+      "doorNoRequired": "Door/Flat number is required",
+      "areaRequired": "Area is required",
+      "pincodeInvalid": "Enter a valid 6-digit PIN code",
+      "nameRequired": "Enter a name (at least 2 characters)",
+      "mobileInvalid": "Enter a valid 10-digit mobile number",
+      "addressRequired": "Select an address",
+      "complaintRequired": "Describe the complaint (at least 3 characters)",
+      "descriptionRequired": "Enter a description (at least 3 characters)",
+      "productRequired": "Select a product"
+    },
+    "profile": {
+      "title": "Profile",
+      "edit": "Edit",
+      "notSet": "Not set",
+      "profession": "Profession",
+      "loadError": "Couldn't load your profile. Please retry.",
+      "referralWallet": "Referral wallet",
+      "referralPoints": "{{count}} points",
+      "noReferralActivity": "No referral activity yet.",
+      "addressesTitle": "Addresses",
+      "addAddress": "Add address",
+      "noAddresses": "No addresses yet. Add one so we know where to send the technician.",
+      "primary": "Primary",
+      "setPrimary": "Set primary",
+      "confirm": "Confirm",
+      "address": {
+        "doorNo": "Door No.",
+        "flatNo": "Flat No.",
+        "streetCross": "Street / Cross",
+        "area": "Area",
+        "pincode": "Pincode",
+        "landmark": "Landmark",
+        "district": "District",
+        "state": "State",
+        "type": "Address type",
+        "residential": "Residential",
+        "commercial": "Commercial",
+        "ownership": "Ownership",
+        "own": "Own",
+        "rental": "Rental"
+      },
+      "membersTitle": "Family members ({{count}}/{{max}})",
+      "maxMembersReached": "Maximum of 5 family members reached",
+      "addMember": "Add member",
+      "noMembers": "No family members added yet.",
+      "memberName": "Name",
+      "memberMobile": "Mobile number"
+    },
+    "products": {
+      "title": "My Products",
+      "loadError": "Couldn't load your products. Please retry.",
+      "empty": "No products registered yet.",
+      "registerViaQr": "Register via QR",
+      "registerTitle": "Register a product",
+      "registerHint": "Enter the serial number printed on your product (camera QR scanning is coming soon — this is a manual entry for now).",
+      "selectProduct": "Product",
+      "selectProductPlaceholder": "Select a product",
+      "serialNo": "Serial number",
+      "serialNoPlaceholder": "e.g. GV-2024-00123",
+      "purchaseDate": "Purchase date",
+      "register": "Register",
+      "unknownProduct": "Product",
+      "warrantyActive": "Warranty active",
+      "warrantyExpired": "Warranty expired",
+      "expiresOn": "Expires on {{date}}",
+      "nextServiceOn": "Next service on {{date}}",
+      "bookService": "Book service"
+    },
+    "bookings": {
+      "title": "Bookings",
+      "loadError": "Couldn't load your bookings. Please retry.",
+      "newBooking": "New booking",
+      "empty": "No bookings yet.",
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "anytime": "Anytime",
+      "generalService": "Service request",
+      "status": {
+        "open": "Open",
+        "assigned": "Assigned",
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      }
+    },
+    "bookingDetail": {
+      "loadError": "Couldn't load this booking. Please retry.",
+      "back": "Back to bookings",
+      "complaint": "Issue",
+      "scheduledFor": "Scheduled for {{date}}",
+      "technician": "Technician",
+      "assignedTechnician": "Assigned technician",
+      "liveTracking": "Live tracking",
+      "serviceImages": "Service photos",
+      "before": "Before",
+      "after": "After",
+      "yourRating": "Your rating",
+      "invoice": "Invoice",
+      "invoiceSubtotal": "Subtotal",
+      "invoiceDiscount": "Discount",
+      "invoiceGst": "GST",
+      "invoiceTotal": "Total",
+      "txnId": "Txn: {{id}}",
+      "paymentStatus": {
+        "paid": "Paid",
+        "partial": "Partially paid",
+        "due": "Payment due"
+      }
+    },
+    "amc": {
+      "title": "AMC",
+      "loadError": "Couldn't load AMC details. Please retry.",
+      "renewedTitle": "AMC renewed",
+      "renewedBody": "Your AMC is now active until {{date}}.",
+      "viewMyProducts": "View my products",
+      "yourCoverage": "Your coverage",
+      "noCoverage": "No AMC or warranty coverage yet.",
+      "planLabel": "Plan: {{plan}}",
+      "expiresOn": "Expires on {{date}}",
+      "nextServiceOn": "Next service on {{date}}",
+      "warrantyCoverage": "Warranty",
+      "renewOrBook": "Renew or book AMC",
+      "noRoProducts": "No RO products found to renew AMC for.",
+      "selectProduct": "Product",
+      "selectProductPlaceholder": "Select a product",
+      "tooEarly": "Renewal isn't open yet for this product.",
+      "tooEarlyWithDays": "Renewal opens {{days}} day(s) before expiry — please check back closer to the due date.",
+      "selectPlan": "Select a plan",
+      "noPlans": "No AMC plans are configured yet.",
+      "planDetail": "{{years}} year(s) · {{visits}} visits/year",
+      "renewNow": "Renew now",
+      "paymentSimulatedNote": "This is a simulated payment confirmation for this environment — no real charge will occur.",
+      "payAmount": "Pay {{amount}}",
+      "status": {
+        "active": "Active",
+        "due_soon": "Due soon",
+        "expired": "Expired"
+      }
+    },
+    "productEnquiry": {
+      "title": "Product Enquiry",
+      "subtitle": "Browse a topic to see helpful videos, or request a quotation directly.",
+      "loadError": "Couldn't load enquiry content. Please retry.",
+      "close": "Close",
+      "noContentForTopic": "No content available for this topic yet.",
+      "requestQuotation": "Request quotation",
+      "description": "Tell us what you're looking for",
+      "descriptionPlaceholder": "e.g. Looking for a 3-stage RO for a family of 4",
+      "submittedTitle": "Enquiry submitted",
+      "submittedBody": "Our team will get back to you shortly.",
+      "backHome": "Back to home",
+      "topics": {
+        "online": "Online",
+        "price": "Price",
+        "quality": "Quality",
+        "customization": "Customization",
+        "water_premium": "Water Premium",
+        "budget": "Budget"
+      }
+    },
+    "spareEnquiry": {
+      "title": "Spare Part Enquiry",
+      "subtitle": "Tell us which part you need and we'll follow up.",
+      "loadError": "Couldn't load your products. Please retry.",
+      "close": "Close",
+      "selectProduct": "Product",
+      "selectProductPlaceholder": "Select an owned product",
+      "orTypeProductName": "Or type your product name",
+      "productNamePlaceholder": "e.g. GV Aqua Pro RO",
+      "partDescription": "Which part do you need?",
+      "partDescriptionPlaceholder": "e.g. Membrane, pre-filter, pump…",
+      "photoHint": "A text description is enough — photo upload is coming soon.",
+      "submit": "Submit enquiry",
+      "submittedTitle": "Enquiry submitted",
+      "submittedBody": "Our team will get back to you shortly.",
+      "backHome": "Back to home"
+    },
+    "bookService": {
+      "title": "Book a Service",
+      "back": "Back",
+      "stepProduct": "Product",
+      "stepIssue": "Issue",
+      "stepAddress": "Address",
+      "stepConfirm": "Confirm",
+      "loadError": "Couldn't load your details. Please retry.",
+      "productPrompt": "Which product needs service?",
+      "noProductsKnown": "No products found — that's okay, you can continue without one.",
+      "productUnknown": "I'm not sure / not listed",
+      "nameOfComplaint": "What's the issue?",
+      "nameOfComplaintPlaceholder": "e.g. Water leakage, low output…",
+      "natureOfComplaint": "Any more details? (optional)",
+      "natureOfComplaintPlaceholder": "Add any extra details that might help the technician",
+      "noAddresses": "You don't have any saved addresses yet.",
+      "addAddressCta": "Add an address",
+      "selectAddress": "Service address",
+      "appointmentMode": "When would you like the visit?",
+      "mode": {
+        "always": "Anytime",
+        "datetime": "Pick a date & time"
+      },
+      "workHoursHint": "Please pick a time within our working hours — we'll confirm your slot.",
+      "confirmTitle": "Review your booking",
+      "next": "Next",
+      "confirmBooking": "Confirm booking",
+      "bookedTitle": "Booking confirmed",
+      "bookedBody": "We've received your service request and will assign a technician shortly.",
+      "backHome": "Back to home",
+      "viewBookings": "View bookings"
+    }
+  },
+  "technician": {
+    "attendance": {
+      "title": "Mark Attendance",
+      "checkingLocation": "Checking location…",
+      "insideOffice": "You are inside the office",
+      "outsideOffice": "You are outside the office geofence",
+      "recheckLocation": "Recheck location",
+      "locationError": "Unable to get your location. Please enable location services and try again.",
+      "selfieLabel": "Take a selfie",
+      "markButton": "Mark Attendance",
+      "disabledOutsideGeofence": "You must be inside the office to mark attendance.",
+      "disabledNoSelfie": "Please take a selfie first.",
+      "markedTitle": "Attendance Marked",
+      "markedAt": "Marked at {{time}}",
+      "onTimeBadge": "On time",
+      "lateBadge": "Late",
+      "checklistTitle": "Completion Checklist",
+      "tick": {
+        "affirmation": "Affirmation",
+        "pledge": "Pledge",
+        "meeting": "Team meeting attended"
+      },
+      "tickHint": "Complete these items in order to mark your day's attendance.",
+      "lockedBanner": "Attendance locked after {{time}}",
+      "lunch": {
+        "title": "Lunch Break",
+        "start": "Start Lunch",
+        "end": "End Lunch",
+        "elapsedLabel": "{{minutes}} min elapsed",
+        "durationLabel": "{{minutes}} min lunch",
+        "allowedHint": "{{allowed}} min allowed, red after {{red}} min",
+        "overLimit": "Over the allowed lunch time"
+      }
+    },
+    "photo": {
+      "capture": "Capture",
+      "retake": "Retake photo"
+    },
+    "signature": {
+      "placeholder": "Sign here",
+      "captured": "Signature captured",
+      "clear": "Clear"
+    },
+    "sync": {
+      "offline": "Offline",
+      "syncing": "Syncing…",
+      "pending": "{{count}} pending",
+      "synced": "Synced"
+    },
+    "jobType": {
+      "paid": "Paid service",
+      "warranty": "Warranty",
+      "amc": "AMC",
+      "installation": "Installation"
+    },
+    "priority": {
+      "very_urgent": "Very Urgent",
+      "urgent": "Urgent",
+      "normal": "Normal"
+    },
+    "errors": {
+      "loadFailed": "Couldn't load this data. Check your connection and try again.",
+      "selfieRequired": "Please take a selfie.",
+      "signatureRequired": "Please provide a signature.",
+      "nonNegative": "Cannot be negative.",
+      "clientNameRequired": "Enter the client's name.",
+      "mobileInvalid": "Enter a valid 10-digit mobile number.",
+      "nameRequired": "Enter a name (at least 2 characters).",
+      "txnIdRequired": "Enter the transaction ID for a bank transfer.",
+      "paymentDescriptionRequired": "Enter a short description for the bank transfer.",
+      "starsRequired": "Select a rating.",
+      "lowRatingReasonRequired": "Please explain why you're giving a low rating.",
+      "paymentInvalid": "Check the payment details and try again"
+    },
+    "spareHandover": {
+      "title": "Spare Receipt",
+      "emptyTitle": "No handover for today yet",
+      "emptyBody": "Your admin hasn't created a spare allocation for today.",
+      "itemsTitle": "Allocated spares",
+      "noItems": "No spares allocated.",
+      "qty": "Qty",
+      "adminSignTitle": "Admin signature",
+      "adminSignPending": "Waiting for admin signature",
+      "confirmedTitle": "Handover confirmed",
+      "techSignTitle": "Your signature",
+      "confirmButton": "Confirm received"
+    },
+    "home": {
+      "unknownCustomer": "Customer",
+      "inProgress": "In progress",
+      "spareReceipt": "Spare receipt",
+      "searchCustomers": "Search customers",
+      "todaysJobs": "Today's jobs",
+      "jobCount_one": "{{count}} job",
+      "jobCount_other": "{{count}} jobs",
+      "noJobsTitle": "No jobs today",
+      "noJobsBody": "Your schedule is clear — check back later or pull to refresh."
+    },
+    "map": {
+      "title": "Map",
+      "locationError": "Unable to get your location. Please enable location services.",
+      "statusOnRoute": "On route",
+      "statusIdle": "Idle / off-route",
+      "statusTracking": "Tracking…",
+      "noDestinationTitle": "No destination selected",
+      "noDestinationBody": "Open this from a job card to navigate to a customer.",
+      "refreshLocation": "Refresh location",
+      "distance": "Distance",
+      "distanceKm": "{{km}} km",
+      "eta": "ETA",
+      "etaMinutes": "{{minutes}} min",
+      "openInMaps": "Open in Maps",
+      "arrivedTitle": "You've arrived",
+      "productivityTimerNote": "Your productivity timer starts when you tap \"I've arrived\".",
+      "startService": "Start service",
+      "arrivedButton": "I've arrived"
+    },
+    "search": {
+      "title": "Customer Search",
+      "placeholder": "Search by address, area or PIN…",
+      "hint": "Search by area, door number or PIN code.",
+      "empty": "No matches found.",
+      "call": "Call",
+      "navigate": "Navigate"
+    },
+    "jobDetail": {
+      "title": "Job Detail",
+      "availabilityAlways": "Always available",
+      "appointmentAt": "Appointment at {{time}}",
+      "noAppointment": "No appointment time set",
+      "productTitle": "Product",
+      "product": "Product",
+      "brand": "Brand",
+      "model": "Model",
+      "complaintTitle": "Complaint",
+      "costingRuleTitle": "Costing rule",
+      "costingRulePaid": "Paid service — quantity and cost from the master price list.",
+      "costingRuleFree": "Warranty/AMC — cost is ₹0, but quantity used is still recorded.",
+      "historyTitle": "Previous service history",
+      "noHistory": "No previous service history for this customer.",
+      "startVisit": "Start visit"
+    },
+    "onsite": {
+      "title": "On-Site Service",
+      "steps": {
+        "sop": "SOP",
+        "spares": "Spares",
+        "charges": "Charges",
+        "ro": "RO Checklist",
+        "invoice": "Invoice",
+        "signatures": "Signatures",
+        "payment": "Payment"
+      },
+      "beforeImage": "Before photo",
+      "afterImage": "After photo",
+      "sopTitle": "SOP Checklist",
+      "sopHint": "Add each step you complete, with its expected time.",
+      "sopEmpty": "No steps added yet.",
+      "sopExpected": "Expected {{minutes}} min",
+      "sopStepName": "Step name",
+      "sopStepNamePlaceholder": "e.g. Filter replacement",
+      "sopStepMinutes": "Expected minutes",
+      "next": "Next",
+      "spares": {
+        "title": "Spares Used",
+        "searchPlaceholder": "Search spares…",
+        "empty": "No spares found.",
+        "noneSelected": "No spares selected."
+      },
+      "charges": {
+        "serviceCharge": "Service charge",
+        "notChargeableNote": "This is a warranty/AMC visit — the charge is ₹0, but any spares used are still recorded.",
+        "discountLabel": "Discount (%)",
+        "freeUpTo": "Up to {{max}}% — no approval needed.",
+        "approvalBand": "{{min}}–{{max}}% — needs a manager's approval (visit still completes).",
+        "blockedAbove": "Above {{max}}% is never allowed.",
+        "blockedMessage": "This discount exceeds the admin limit of {{max}}%. Lower it to continue.",
+        "needsApprovalMessage": "This discount will be flagged for manager approval.",
+        "subtotal": "Subtotal",
+        "discountAmount": "Discount",
+        "total": "Total"
+      },
+      "ro": {
+        "title": "RO Checklist",
+        "tdsBefore": "TDS before",
+        "tdsAfter": "TDS after",
+        "tankCleaned": "Tank cleaned",
+        "productExplained": "Product explained to customer",
+        "clientName": "Client name",
+        "save": "Save checklist"
+      },
+      "invoice": {
+        "title": "Invoice",
+        "queued": "Invoice queued — it will sync automatically.",
+        "create": "Create invoice"
+      },
+      "signatures": {
+        "techTitle": "Technician signature",
+        "customerTitle": "Customer signature"
+      },
+      "payment": {
+        "method": "Payment method",
+        "cash": "Cash",
+        "transfer": "Bank transfer",
+        "txnId": "Transaction ID",
+        "description": "Description",
+        "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually.",
+        "complete": "Complete visit"
+      },
+      "enquiry": {
+        "toggle": "Generate Enquiry",
+        "sent": "Enquiry sent.",
+        "namePlaceholder": "Customer name",
+        "mobilePlaceholder": "Mobile number",
+        "notePlaceholder": "What are they interested in?",
+        "send": "Send enquiry",
+        "type": {
+          "online": "Online",
+          "price": "Price",
+          "quality": "Quality",
+          "customization": "Customization",
+          "water_premium": "Water Premium",
+          "budget": "Budget"
+        }
+      }
+    },
+    "rating": {
+      "noVisitTitle": "No visit found",
+      "noVisitBody": "This rating link isn't linked to a completed visit.",
+      "backHome": "Back to home",
+      "thankYouTitle": "Thank you!",
+      "googleReviewButton": "Leave a Google review",
+      "googleReviewLinkMissing": "Google review link isn't configured yet.",
+      "title": "Rate this service",
+      "subtitle": "Please hand the phone to the customer.",
+      "starAria": "Rate {{count}} stars",
+      "starLabel": {
+        "1": "Poor",
+        "2": "Fair",
+        "3": "Good",
+        "4": "Very good",
+        "5": "Excellent"
+      },
+      "tapToRate": "Tap a star to rate",
+      "reviewLabel": "Review (optional)",
+      "reviewPlaceholder": "Tell us about the service…",
+      "lowRatingReasonLabel": "What went wrong?",
+      "lowRatingReasonPlaceholder": "This helps us improve",
+      "lowRatingNotice": "Your operations team will be notified.",
+      "submit": "Submit rating"
+    },
+    "history": {
+      "title": "History",
+      "from": "From",
+      "to": "To",
+      "allTypes": "All types",
+      "emptyTitle": "No past jobs",
+      "emptyBody": "Completed jobs will show up here.",
+      "detailUnavailable": "This job's details aren't available.",
+      "detailTitle": "Job Summary",
+      "visitSummary": "Visit summary",
+      "duration": "Duration",
+      "durationMinutes": "{{minutes}} min",
+      "charge": "Charge",
+      "photosTitle": "Photos"
+    },
+    "profile": {
+      "title": "Profile",
+      "earningsTitle": "Earnings",
+      "revenue30d": "Revenue (30 days)",
+      "jobs30d": "Jobs (30 days)",
+      "ratingValue": "{{stars}} ★",
+      "noRatingsYet": "No ratings yet",
+      "ratingCount_one": "{{count}} rating",
+      "ratingCount_other": "{{count}} ratings",
+      "kpiTitle": "KPI score",
+      "kpiNote": "A composite KPI score isn't computed yet — this shows the raw numbers behind it."
+    },
+    "daySheet": {
+      "title": "Day Sheet",
+      "jobsDone": "Jobs Done",
+      "jobsPending": "Jobs Pending",
+      "earningsToday": "Today's Earnings",
+      "attendanceTitle": "Attendance",
+      "goToAttendance": "Go to Attendance",
+      "attendance": {
+        "notMarked": "Not marked yet",
+        "late": "Late",
+        "onTime": "On time"
+      }
+    }
+  },
+  "leads": {
+    "subtitle": "Track enquiries from field, WhatsApp, referrals and the customer app through to a won or lost sale.",
+    "loadFailed": "Could not load leads.",
+    "new": {
+      "title": "New Lead",
+      "name": "Name",
+      "mobile": "Mobile",
+      "source": "Source",
+      "enquiryType": "Enquiry type"
+    },
+    "kpi": {
+      "total": "Total leads",
+      "won": "Won",
+      "conversionRate": "Conversion rate"
+    },
+    "kanban": {
+      "empty": "No leads here"
+    },
+    "status": {
+      "new": "New",
+      "contacted": "Contacted",
+      "quoted": "Quoted",
+      "won": "Won",
+      "lost": "Lost"
+    },
+    "source": {
+      "field": "Field",
+      "customer_app": "Customer app",
+      "whatsapp": "WhatsApp",
+      "walk_in": "Walk-in",
+      "referral": "Referral",
+      "other": "Other"
+    },
+    "enquiryType": {
+      "online": "Online",
+      "price": "Price",
+      "quality": "Quality",
+      "customization": "Customization",
+      "water_premium": "Water premium",
+      "budget": "Budget"
+    },
+    "activityType": {
+      "call": "Call",
+      "note": "Note",
+      "whatsapp": "WhatsApp",
+      "meeting": "Meeting",
+      "status_change": "Status change"
+    },
+    "detail": {
+      "selectHint": "Select a lead to view activity and update status.",
+      "logActivity": "Log activity",
+      "notePlaceholder": "Optional note",
+      "addActivity": "Add",
+      "history": "History",
+      "noActivity": "No activity logged yet.",
+      "referralPoints": "Referral points",
+      "awardPoints": "Award points",
+      "referralReason": "Referral: {{name}} converted"
+    }
+  },
+  "automation": {
+    "subtitle": "Map enquiry triggers to WhatsApp/AI responses, manage the video library, and test inbound messages.",
+    "loadFailed": "Could not load automation data.",
+    "tabs": {
+      "flows": "Flow Builder",
+      "videos": "Video Library",
+      "inbox": "Inbox / Test"
+    },
+    "flows": {
+      "trigger": "Trigger",
+      "action": "Action",
+      "assetUrl": "Asset URL",
+      "active": "Active",
+      "add": "Add Flow",
+      "empty": "No flows configured yet.",
+      "actions": {
+        "send_video": "Send video",
+        "quotation": "Send quotation",
+        "link": "Send link"
+      }
+    },
+    "videos": {
+      "topic": "Topic",
+      "url": "URL",
+      "add": "Add Video",
+      "empty": "No videos added yet."
+    },
+    "inbox": {
+      "testTitle": "Simulate inbound WhatsApp",
+      "testHint": "This app has no live WhatsApp Cloud API credentials — every send is logged here instead of dispatched. Use this panel to verify flow matching end-to-end.",
+      "fromMobile": "From mobile",
+      "body": "Message body",
+      "bodyPlaceholder": "e.g. What's the price for an RO?",
+      "send": "Simulate",
+      "time": "Time",
+      "direction": "Direction",
+      "directions": {
+        "inbound": "Inbound",
+        "outbound": "Outbound"
+      },
+      "contact": "Contact",
+      "milestone": "Milestone",
+      "template": "Template",
+      "status": "Status",
+      "empty": "No messages logged yet."
+    }
+  },
+  "purchase": {
+    "subtitle": "Purchase orders auto-draft when stock runs low, or create one manually; record supplier bills here.",
+    "loadFailed": "Could not load purchase data.",
+    "tabs": {
+      "orders": "Purchase Orders",
+      "bills": "Bill Entry"
+    },
+    "po": {
+      "supplier": "Supplier",
+      "total": "Total",
+      "channel": "Sent via",
+      "status": "Status",
+      "created": "Created",
+      "create": "Create PO",
+      "send": "Send PO",
+      "empty": "No purchase orders yet.",
+      "items": "Items",
+      "statuses": {
+        "draft": "Draft",
+        "sent": "Sent",
+        "received": "Received"
+      }
+    },
+    "bill": {
+      "title": "Bill Entry",
+      "linkedPo": "Linked PO",
+      "noPo": "Not linked to a PO",
+      "date": "Bill date",
+      "amount": "Amount",
+      "gst": "GST",
+      "empty": "No bills recorded yet."
+    },
+    "items": {
+      "selectItem": "Select…",
+      "qty": "Qty",
+      "price": "Price",
+      "addRow": "Add item"
+    }
+  },
+  "technicians": {
+    "list": {
+      "title": "Technicians",
+      "subtitle": "Field technicians, duty status and today's performance",
+      "viewMap": "View Map",
+      "kpiTotal": "Total Technicians",
+      "kpiOnDuty": "On Duty",
+      "kpiJobsToday": "Jobs Today",
+      "kpiRevenueToday": "Revenue Today",
+      "searchPlaceholder": "Search by name or phone",
+      "filter": {
+        "all": "All",
+        "on": "On Duty",
+        "off": "Off Duty"
+      },
+      "name": "Name",
+      "zone": "Zone",
+      "status": "Status",
+      "onDuty": "On Duty",
+      "offDuty": "Off Duty",
+      "todaysJobs": "Today's Jobs",
+      "todaysRevenue": "Today's Revenue",
+      "avgRating": "Avg Rating",
+      "active": "Active",
+      "edit": "Edit",
+      "editTitle": "Edit Technician",
+      "skills": "Skills",
+      "skillOptions": {
+        "ro": "RO",
+        "ac": "AC",
+        "inverter": "Inverter",
+        "battery": "Battery"
+      },
+      "empty": "No technicians yet",
+      "loadFailed": "Failed to load technicians"
+    },
+    "map": {
+      "title": "Live Tracking",
+      "subtitle": "See where every technician is right now",
+      "sideListTitle": "Technicians",
+      "pinBoardTitle": "Locations",
+      "statusOnRoute": "On Route",
+      "statusIdle": "Idle",
+      "updatedMinutesAgo": "Updated {{count}}m ago",
+      "noLocationYet": "No location yet",
+      "noPinsTitle": "No live locations",
+      "noPinsBody": "Technicians will appear here once they start sharing location",
+      "empty": "No technicians found",
+      "loadFailed": "Failed to load technicians"
+    },
+    "attendance": {
+      "title": "Attendance",
+      "subtitle": "Daily attendance and punctuality by technician",
+      "date": "Date",
+      "technician": "Technician",
+      "checkInTime": "Check-in Time",
+      "insideGeofence": "Inside Office",
+      "affirmation": "Affirmation",
+      "pledge": "Pledge",
+      "meeting": "Meeting",
+      "late": "Late",
+      "lateYes": "Late",
+      "lateNo": "On Time",
+      "empty": "No attendance recorded for this date",
+      "loadFailed": "Failed to load attendance",
+      "lunch": "Lunch",
+      "lunchMinutes": "{{minutes}} min"
+    },
+    "spares": {
+      "title": "Spare Handover",
+      "subtitle": "Distribute and track spares given to technicians",
+      "newHandover": "New Handover",
+      "selectTechnician": "Select technician",
+      "selectSpare": "Select spare",
+      "technician": "Technician",
+      "date": "Date",
+      "items": "Items",
+      "itemsGiven": "Items Given",
+      "qty": "Qty",
+      "addLine": "Add Item",
+      "returned": "returned",
+      "adminSign": "Admin Sign",
+      "adminSignTitle": "Admin Signature",
+      "techSign": "Technician Sign",
+      "signed": "Signed",
+      "signNow": "Sign Now",
+      "pending": "Pending",
+      "status": "Status",
+      "statusValues": {
+        "pending": "Pending",
+        "confirmed": "Confirmed"
+      },
+      "historyTitle": "Handover History",
+      "empty": "No handovers yet",
+      "loadFailed": "Failed to load handovers",
+      "errors": {
+        "spareRequired": "Select a spare",
+        "qtyPositive": "Quantity must be positive",
+        "technicianRequired": "Select a technician",
+        "dateRequired": "Date is required",
+        "itemsRequired": "Add at least one item"
+      }
+    }
+  },
+  "hr": {
+    "subtitle": "Salary, incentives and rewards for your team",
+    "tabs": {
+      "salary": "Salary",
+      "incentives": "Incentives",
+      "rewards": "Rewards"
+    },
+    "salary": {
+      "month": "Month",
+      "computeAll": "Compute All",
+      "recompute": "Recompute",
+      "technician": "Technician",
+      "base": "Base",
+      "revenueComponent": "Revenue Component",
+      "lateDeduction": "Late Deduction",
+      "incentives": "Incentives",
+      "net": "Net",
+      "payslip": "Payslip",
+      "print": "Print",
+      "empty": "No salary records for this month",
+      "loadFailed": "Failed to load salaries"
+    },
+    "incentives": {
+      "month": "Month",
+      "compute": "Compute Incentives",
+      "technician": "Technician",
+      "ruleType": "Rule Type",
+      "threshold": "Threshold",
+      "amountEarned": "Amount Earned",
+      "totalEarned": "Total earned: {{amount}}",
+      "empty": "No incentives earned for this month yet",
+      "loadFailed": "Failed to load incentives"
+    },
+    "rewards": {
+      "month": "Month",
+      "category": "Category",
+      "winner": "Winner",
+      "givenAt": "Given On",
+      "note": "Note",
+      "categories": {
+        "attendance": "On-time Attendance",
+        "highest_review": "Highest Reviews",
+        "highest_revenue": "Highest Revenue"
+      },
+      "minimums": {
+        "attendance": "No late check-ins this month",
+        "highest_review": "Minimum 51 reviews",
+        "highest_revenue": "Minimum ₹1,50,000 revenue"
+      },
+      "noEligible": "No one qualifies yet",
+      "metric": "Score: {{value}}",
+      "given": "Given",
+      "give": "Give Reward",
+      "logTitle": "Rewards Given",
+      "empty": "No rewards logged for this month",
+      "loadFailed": "Failed to load rewards"
+    },
+    "errors": {
+      "periodRequired": "Select a valid month",
+      "categoryRequired": "Select a category",
+      "winnerRequired": "Select a winner"
+    }
+  },
+  "reports": {
+    "subtitle": "Sales, service, P&L and performance — all in one place.",
+    "empty": "No data for this range yet.",
+    "loadFailed": "Could not load report data.",
+    "tabs": {
+      "salesService": "Sales & Service",
+      "pnl": "P&L",
+      "performance": "Performance",
+      "feedback": "Feedback"
+    },
+    "filters": {
+      "from": "From",
+      "to": "To",
+      "exportCsv": "Export CSV"
+    },
+    "invoiceType": {
+      "product": "Product",
+      "spare": "Spare",
+      "amc": "AMC"
+    },
+    "salesService": {
+      "salesCalls": "Sales Calls",
+      "invoiceTypeRatio": "Product vs Spare vs AMC",
+      "invoiceCount": "Invoices",
+      "totalRevenue": "Total Revenue",
+      "technicianServiceCounts": "Technician-wise Service Counts",
+      "technician": "Technician",
+      "serviceCount": "Services",
+      "avgValuePerCall": "Avg Value per Call",
+      "revenue": "Revenue"
+    },
+    "pnl": {
+      "withGst": "With GST",
+      "withoutGst": "Without GST",
+      "revenue": "Revenue",
+      "totalExpenses": "Total Expenses",
+      "netProfit": "Net Profit",
+      "expenseBreakdown": "Expense Breakdown",
+      "category": "Category",
+      "amount": "Amount",
+      "dataSafetyNote": "Figures are computed live from invoices and expenses — nothing is cached or estimated.",
+      "masterOnlyNote": "Visible to master role only.",
+      "expenseCategory": {
+        "marketing": "Marketing",
+        "stationery": "Stationery",
+        "salary": "Salary",
+        "petrol": "Petrol",
+        "purchase": "Purchase",
+        "other": "Other"
+      },
+      "gstToggle": "View"
+    },
+    "performance": {
+      "person": "Name",
+      "jobsDone": "Jobs Done",
+      "onTimePercent": "On-time %",
+      "revenue": "Revenue",
+      "avgRating": "Avg Rating",
+      "conversion": "Conversion",
+      "opsKpiLabel": "Ops KPI: tickets resolved within 24h",
+      "kpiNote": "Operation Admin KPI = complaints resolved within 24h; Sales Admin KPI = call-to-lead ratio."
+    },
+    "feedback": {
+      "starsDistribution": "Star Rating Distribution",
+      "stars": "Stars",
+      "trendTitle": "Average Rating Trend",
+      "averageRating": "Average Rating",
+      "lowRatingsTitle": "Ratings Below 4.5★",
+      "customer": "Customer",
+      "technician": "Technician",
+      "date": "Date",
+      "reason": "Reason",
+      "noReason": "No reason captured",
+      "noLowRatings": "No low ratings in this range — great work."
+    }
+  },
+  "workspace": {
+    "subtitle": "Your daily checklist, notifications and follow-ups.",
+    "loadFailed": "Could not load workspace data.",
+    "todaysList": "Today's List",
+    "addTask": "Add Task",
+    "newTaskPlaceholder": "What needs to get done?",
+    "completedToday": "Completed Today",
+    "rolledOver": "Rolled over from a previous day",
+    "upcoming": "Upcoming",
+    "noTasksToday": "Nothing on your list today.",
+    "notificationsFeed": "Notifications & Reminders",
+    "noNotifications": "No notifications yet.",
+    "confirmationCall": {
+      "title": "Confirmation Call",
+      "body": "Confirm the customer is available before the technician departs.",
+      "markConfirmed": "Mark Confirmed",
+      "confirmedLabel": "Confirmed",
+      "genericLabel": "Pending confirmation",
+      "stubNote": "This app has no live telephony/AI integration — confirming here just logs the action."
+    },
+    "markDone": "Mark done",
+    "markOpen": "Mark open"
+  },
+  "notifications": {
+    "subtitle": "Everything sent to you or your role.",
+    "loadFailed": "Could not load notifications.",
+    "empty": "No notifications yet.",
+    "markAllRead": "Mark all read",
+    "markRead": "Mark read",
+    "readLabel": "Read",
+    "filters": {
+      "status": "Status",
+      "all": "All",
+      "unread": "Unread",
+      "read": "Read",
+      "type": "Type"
+    }
+  },
+  "approvals": {
+    "subtitle": "Discount and purchase-order approvals awaiting master review.",
+    "loadFailed": "Could not load approvals.",
+    "empty": "Nothing pending approval.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "requestedBy": "Requested by",
+    "decidedBy": "Decided by",
+    "filters": {
+      "type": "Type",
+      "status": "Status",
+      "all": "All"
+    },
+    "type": {
+      "discount": "Discount",
+      "po": "Purchase Order",
+      "price_override": "Price Override",
+      "leave": "Leave"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    }
+  },
+  "complaints": {
+    "subtitle": "Overdue-SLA and repeat complaints needing attention.",
+    "loadFailed": "Could not load complaints.",
+    "tabs": {
+      "overdueSla": "Overdue SLA",
+      "repeat": "Repeat Complaints"
+    },
+    "noOverdue": "Nothing overdue right now.",
+    "noRepeat": "No repeat complaints in the last 90 days.",
+    "table": {
+      "customer": "Customer",
+      "mobile": "Mobile",
+      "product": "Product",
+      "complaint": "Complaint",
+      "priority": "Priority",
+      "status": "Status",
+      "slaDue": "SLA Due"
+    }
+  },
+  "campaigns": {
+    "subtitle": "Track marketing campaigns from draft to completion.",
+    "loadFailed": "Could not load campaigns.",
+    "empty": "No campaigns yet.",
+    "newCampaign": "New Campaign",
+    "noSendIntegrationNote": "This app has no live send integration — campaigns here are create/track only.",
+    "table": {
+      "name": "Name",
+      "channel": "Channel",
+      "segment": "Segment",
+      "status": "Status",
+      "dates": "Dates"
+    },
+    "form": {
+      "name": "Name",
+      "channel": "Channel",
+      "segment": "Target Segment",
+      "segmentPlaceholder": "e.g. AMC due this month",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "message": "Message"
+    },
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "sms": "SMS",
+      "email": "Email",
+      "call": "Call"
+    },
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "completed": "Completed"
+    },
+    "actions": {
+      "activate": "Activate",
+      "complete": "Mark Completed"
+    }
+  },
+  "returns": {
+    "subtitle": "Product returns and replacements against past invoices.",
+    "loadFailed": "Could not load returns.",
+    "empty": "No returns recorded yet.",
+    "newReturn": "New Return / Replacement",
+    "table": {
+      "customer": "Customer",
+      "itemType": "Item Type",
+      "qty": "Qty",
+      "kind": "Kind",
+      "reason": "Reason",
+      "status": "Status"
+    },
+    "form": {
+      "selectInvoice": "Select invoice",
+      "invoice": "Invoice",
+      "selectItem": "Select item",
+      "item": "Item",
+      "qty": "Qty",
+      "qtyBought": "Qty on invoice: {{qty}}",
+      "reason": "Reason",
+      "isReplacement": "This is a replacement (not a refund)"
+    },
+    "kind": {
+      "return": "Return",
+      "replacement": "Replacement"
+    },
+    "itemType": {
+      "product": "Product",
+      "spare": "Spare"
+    },
+    "status": {
+      "requested": "Requested",
+      "approved": "Approved",
+      "completed": "Completed",
+      "rejected": "Rejected"
+    },
+    "actions": {
+      "moveTo": {
+        "approved": "Approve",
+        "completed": "Mark Completed"
+      },
+      "reject": "Reject"
+    }
+  },
+  "auditLog": {
+    "subtitle": "Searchable history of every sensitive change across the system.",
+    "loadFailed": "Could not load the audit log.",
+    "none": "No matching audit entries.",
+    "systemActor": "System",
+    "before": "Before",
+    "after": "After",
+    "filters": {
+      "table": "Table",
+      "search": "Search",
+      "searchPlaceholder": "Search by table or row…",
+      "from": "From",
+      "to": "To",
+      "all": "All",
+      "clear": "Clear filters"
+    },
+    "empty": "No audit log entries yet."
+  }
+}

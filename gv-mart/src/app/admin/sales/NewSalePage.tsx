@@ -1,0 +1,342 @@
+import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { Loader2, Search } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Stepper } from "@/components/shared/Stepper"
+import { Autocomplete } from "@/components/shared/Autocomplete"
+import { FullPageLoader } from "@/components/shared/FullPageLoader"
+import { useProfile } from "@/hooks/useProfile"
+import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
+import { useSettings, giftsHooks, brandsHooks, modelsHooks, productsHooks, sparesHooks } from "@/hooks/useMasters"
+import { useCreateSale } from "@/hooks/useSales"
+import { useQuotation } from "@/hooks/useQuotations"
+import { discountNeedsApproval, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
+import { formatCurrency } from "@/lib/sale-calc"
+import { ItemsStep } from "./ItemsStep"
+import { SaleSummaryPanel } from "./SaleSummaryPanel"
+import { cartIsEmpty, combinedSubtotal, type CartProductLine, type CartSpareLine, type SaleCartState } from "./types"
+import type { Enums } from "@/types/database"
+
+const STEP_KEYS = ["customer", "items", "discount", "gift", "payment", "review"] as const
+
+/**
+ * ADM-05 (New Sale) and ADM-06 (Product Sale sub-flow) are one stepper, not
+ * two screens: choosing "Product" in the Items step is what surfaces the
+ * per-line Warranty/Installation toggles ADM-06 describes — see ItemsStep.
+ * The cart itself is a genuine mix of product + spare lines (not an
+ * exclusive type choice), which is what makes the "two separate bills"
+ * rule in create_sale meaningful.
+ */
+export function NewSalePage() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const quotationId = searchParams.get("fromQuotation")
+
+  const { data: profile, isLoading: profileLoading } = useProfile()
+  const orgId = profile?.org_id
+
+  const [step, setStep] = useState(0)
+  const [customerId, setCustomerId] = useState<string | null>(null)
+  const [customerLabel, setCustomerLabel] = useState("")
+  const [customerSearch, setCustomerSearch] = useState("")
+  const customerResults = useCustomerAutocomplete(orgId, customerSearch)
+
+  const [cart, setCart] = useState<SaleCartState>({ productLines: [], spareLines: [], amc: null })
+  const [discountInput, setDiscountInput] = useState("0")
+  const discountPercent = Math.max(0, Number(discountInput) || 0)
+  const [giftId, setGiftId] = useState<string | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method">>("cash")
+  const [txnId, setTxnId] = useState("")
+  const [paymentDescription, setPaymentDescription] = useState("")
+  const [paymentError, setPaymentError] = useState<string | null>(null)
+
+  const { data: settings } = useSettings(orgId)
+  const { data: gifts } = giftsHooks.useList(orgId)
+  const createSale = useCreateSale()
+
+  // Convert-a-quotation: prefill the cart once from the quotation's items,
+  // and preselect its customer — the sale itself is still built through the
+  // normal stepper (discount/gift/payment aren't carried over, matching
+  // "New Quotation = sale flow minus payment").
+  const quotationData = useQuotation(orgId, quotationId ?? undefined)
+  const { data: allBrands } = brandsHooks.useList(orgId)
+  const { data: allModels } = modelsHooks.useList(orgId)
+  const { data: allProducts } = productsHooks.useList(orgId)
+  const { data: allSpares } = sparesHooks.useList(orgId)
+  const quotationCustomer = useCustomer(quotationData.data?.customer_id ?? undefined)
+  // A ref, not state: state set inside an effect isn't guaranteed visible to
+  // a StrictMode-driven second invocation of the same effect (dev-only
+  // double-invoke), which duplicated every prefilled line the first time
+  // this used useState — a ref mutates synchronously so the guard holds.
+  const prefilledRef = useRef(false)
+
+  useEffect(() => {
+    if (prefilledRef.current || !quotationData.data || !allProducts || !allSpares) return
+    prefilledRef.current = true
+    const productLines: CartProductLine[] = []
+    const spareLines: CartSpareLine[] = []
+    for (const item of quotationData.data.quotation_items) {
+      if (item.item_type === "product") {
+        const p = allProducts.find((x) => x.id === item.item_id)
+        if (!p) continue
+        const brand = allBrands?.find((b) => b.id === p.brand_id)
+        const model = allModels?.find((m) => m.id === p.model_id)
+        productLines.push({
+          productId: p.id,
+          name: p.name,
+          brandName: brand?.name ?? "—",
+          modelName: model?.name ?? "—",
+          category: p.category,
+          price: Number(p.price),
+          qty: item.qty,
+          warranty: false,
+          warrantyMonths: p.warranty_months,
+          installation: false,
+        })
+      } else {
+        const s = allSpares.find((x) => x.id === item.item_id)
+        if (!s) continue
+        spareLines.push({ spareId: s.id, name: s.name, price: Number(s.price), qty: item.qty })
+      }
+    }
+    setCart((c) => ({ ...c, productLines: [...c.productLines, ...productLines], spareLines: [...c.spareLines, ...spareLines] }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotationData.data, allProducts, allSpares, allBrands, allModels])
+
+  useEffect(() => {
+    if (quotationCustomer.data && !customerId) {
+      setCustomerId(quotationCustomer.data.id)
+      setCustomerLabel(`${quotationCustomer.data.name} — ${quotationCustomer.data.mobile}`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotationCustomer.data])
+
+  const techMax = settings ? Number(settings.discount_tech_max) : 5
+  const adminMax = settings ? Number(settings.discount_admin_max) : 10
+  const combined = combinedSubtotal(cart)
+  const eligibleGifts = (gifts ?? []).filter((g) => combined >= Number(g.threshold_amount))
+  const selectedGift = (gifts ?? []).find((g) => g.id === giftId) ?? null
+
+  const steps = STEP_KEYS.map((key) => ({ key, label: t(`sales.steps.${key}`) }))
+
+  function canAdvanceFrom(index: number) {
+    if (index === 0) return !!customerId
+    if (index === 1) return !cartIsEmpty(cart)
+    if (index === 2) return !isDiscountBlocked(discountPercent, adminMax)
+    return true
+  }
+
+  function handlePaymentContinue() {
+    const result = paymentDetailsSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription })
+    if (!result.success) {
+      setPaymentError(result.error.issues[0]?.message ?? "sales.errors.paymentInvalid")
+      return
+    }
+    setPaymentError(null)
+    setStep(5)
+  }
+
+  async function handleGenerate() {
+    if (!orgId || !customerId) return
+    const result = await createSale.mutateAsync({
+      orgId,
+      customerId,
+      cart: {
+        spareItems: cart.spareLines.map((l) => ({ itemId: l.spareId, qty: l.qty })),
+        productItems: cart.productLines.map((l) => ({
+          itemId: l.productId,
+          qty: l.qty,
+          warranty: l.warranty,
+          warrantyMonths: l.warrantyMonths,
+          installation: l.installation,
+        })),
+        amc: cart.amc ? { productId: cart.amc.productId, planId: cart.amc.planId } : null,
+        discountPercent,
+        giftId,
+        paymentMethod,
+        txnId: paymentMethod === "transfer" ? txnId : null,
+        paymentDescription: paymentMethod === "transfer" ? paymentDescription : null,
+      },
+      quotationId,
+    })
+    const primaryInvoiceId = result.product_invoice_id ?? result.spare_invoice_id ?? result.amc_invoice_id
+    if (primaryInvoiceId) navigate(`/admin/sales/invoices/${primaryInvoiceId}`)
+    else navigate("/admin/sales")
+  }
+
+  if (profileLoading || !orgId) return <FullPageLoader label={t("common.loading")} />
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-4 pt-2">
+      <h1 className="text-2xl font-bold text-text">{t("sales.newSale.title")}</h1>
+      <Card>
+        <Stepper steps={steps} currentIndex={step} />
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-4">
+          {step === 0 ? (
+            <Card className="gap-3">
+              <Label htmlFor="customer-search">{t("sales.customer.searchLabel")}</Label>
+              <Autocomplete
+                id="customer-search"
+                value={customerId ? customerLabel : customerSearch}
+                onChange={(v) => {
+                  setCustomerSearch(v)
+                  setCustomerId(null)
+                }}
+                suggestions={customerResults.data ?? []}
+                loading={customerResults.isFetching}
+                icon={<Search className="size-4" />}
+                placeholder={t("sales.customer.searchPlaceholder")}
+                emptyMessage={t("common.noData")}
+                getKey={(c) => c.id}
+                getLabel={(c) => (
+                  <span>
+                    <span className="font-medium">{c.name}</span> <span className="text-text-muted">{c.mobile}</span>
+                  </span>
+                )}
+                onSelect={(c) => {
+                  setCustomerId(c.id)
+                  setCustomerLabel(`${c.name} — ${c.mobile}`)
+                }}
+              />
+              <p className="px-1 text-xs text-text-muted">
+                {t("sales.customer.notFound")}{" "}
+                <a className="text-accent underline" href="/admin/customers/new" target="_blank" rel="noreferrer">
+                  {t("sales.customer.addNew")}
+                </a>
+              </p>
+            </Card>
+          ) : null}
+
+          {step === 1 ? <ItemsStep orgId={orgId} cart={cart} setCart={setCart} /> : null}
+
+          {step === 2 ? (
+            <Card className="gap-3">
+              <Label htmlFor="discount">{t("sales.discount.label")}</Label>
+              <Input
+                id="discount"
+                type="number"
+                min={0}
+                max={adminMax}
+                step="0.5"
+                value={discountInput}
+                onChange={(e) => setDiscountInput(e.target.value)}
+                className="w-32"
+              />
+              <p className="text-xs text-text-muted">{t("sales.discount.freeUpTo", { max: techMax })}</p>
+              <p className="text-xs text-warning">{t("sales.discount.approvalBand", { min: techMax, max: adminMax })}</p>
+              <p className="text-xs text-danger">{t("sales.discount.blockedAbove", { max: adminMax })}</p>
+              {isDiscountBlocked(discountPercent, adminMax) ? (
+                <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{t("sales.discount.blockedMessage", { max: adminMax })}</p>
+              ) : discountNeedsApproval(discountPercent, techMax, adminMax) ? (
+                <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{t("sales.discount.needsApprovalMessage")}</p>
+              ) : null}
+            </Card>
+          ) : null}
+
+          {step === 3 ? (
+            <Card className="gap-3">
+              <p className="text-sm font-semibold text-text">{t("sales.gift.title")}</p>
+              {eligibleGifts.length === 0 ? (
+                <p className="text-sm text-text-muted">{t("sales.gift.noneEligible")}</p>
+              ) : (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setGiftId(null)}
+                    className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm ${!giftId ? "border-accent bg-accent-soft text-accent" : "border-border text-text"}`}
+                  >
+                    {t("sales.gift.none")}
+                  </button>
+                  {eligibleGifts.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setGiftId(g.id)}
+                      className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm ${giftId === g.id ? "border-accent bg-accent-soft text-accent" : "border-border text-text"}`}
+                    >
+                      {g.name} — {t("sales.gift.thresholdNote", { amount: formatCurrency(Number(g.threshold_amount)) })}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ) : null}
+
+          {step === 4 ? (
+            <Card className="gap-3">
+              <Label>{t("sales.payment.method")}</Label>
+              <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
+                {(["cash", "transfer"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPaymentMethod(m)}
+                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${paymentMethod === m ? "bg-ink text-white" : "text-text-muted"}`}
+                  >
+                    {t(`sales.payment.${m}`)}
+                  </button>
+                ))}
+              </div>
+              {paymentMethod === "transfer" ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="txnId">{t("sales.payment.txnId")}</Label>
+                    <Input id="txnId" value={txnId} onChange={(e) => setTxnId(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="paymentDescription">{t("sales.payment.description")}</Label>
+                    <Input id="paymentDescription" value={paymentDescription} onChange={(e) => setPaymentDescription(e.target.value)} />
+                  </div>
+                </div>
+              ) : null}
+              <p className="text-xs text-text-muted">{t("sales.payment.noGatewayNote")}</p>
+              {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
+            </Card>
+          ) : null}
+
+          {step === 5 ? (
+            <Card className="gap-3">
+              <p className="text-sm font-semibold text-text">{t("sales.review.title")}</p>
+              <p className="text-sm text-text">{t("sales.review.customer", { customer: customerLabel })}</p>
+              <p className="text-sm text-text">{t("sales.review.discount", { percent: discountPercent })}</p>
+              <p className="text-sm text-text">{t("sales.review.payment", { method: t(`sales.payment.${paymentMethod}`) })}</p>
+              {selectedGift ? <p className="text-sm text-success">{t("sales.summary.giftApplied", { gift: selectedGift.name })}</p> : null}
+              {createSale.isError ? (
+                <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createSale.error as Error).message}</p>
+              ) : null}
+            </Card>
+          ) : null}
+        </div>
+
+        <SaleSummaryPanel orgId={orgId} cart={cart} discountPercent={discountPercent} giftName={selectedGift?.name} />
+      </div>
+
+      <div className="flex justify-between">
+        <Button type="button" variant="outline" onClick={() => (step === 0 ? navigate(-1) : setStep(step - 1))}>
+          {step === 0 ? t("common.cancel") : t("sales.newSale.back")}
+        </Button>
+        {step < 4 ? (
+          <Button type="button" disabled={!canAdvanceFrom(step)} onClick={() => setStep(step + 1)}>
+            {t("sales.newSale.next")}
+          </Button>
+        ) : step === 4 ? (
+          <Button type="button" onClick={handlePaymentContinue}>
+            {t("sales.newSale.next")}
+          </Button>
+        ) : (
+          <Button type="button" onClick={handleGenerate} disabled={createSale.isPending}>
+            {createSale.isPending ? <Loader2 className="size-4 animate-spin" /> : t("sales.newSale.generate")}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}

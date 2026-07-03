@@ -1,0 +1,61 @@
+import { z } from "zod"
+
+/**
+ * Zod schemas for the Customer App (Phase 8). Messages are i18n *keys*, not
+ * literal English text — see lib/validation/customer.ts for why (forms
+ * render `t(errors.field.message)` to resolve them).
+ */
+
+// ── CUST-08 Profile: address form (mirrors ADM-04's address step) ────────
+export const customerAddressSchema = z.object({
+  doorNo: z.string().trim().min(1, "customerApp.errors.doorNoRequired"),
+  flatNo: z.string().trim().optional().or(z.literal("")),
+  streetCross: z.string().trim().optional().or(z.literal("")),
+  area: z.string().trim().min(1, "customerApp.errors.areaRequired"),
+  pincode: z.string().regex(/^\d{6}$/, "customerApp.errors.pincodeInvalid"),
+  landmark: z.string().trim().optional().or(z.literal("")),
+  district: z.string().trim().optional().or(z.literal("")),
+  state: z.string().trim().optional().or(z.literal("")),
+  addressType: z.enum(["residential", "commercial"]),
+  ownership: z.enum(["own", "rental"]),
+})
+export type CustomerAddressInput = z.infer<typeof customerAddressSchema>
+
+// ── CUST-08 Profile: family member (mirrors ADM-04, max 5 enforced by the
+// existing DB trigger + a client-side count check in the hook) ───────────
+const MOBILE_REGEX = /^[6-9]\d{9}$/
+export const customerMemberSchema = z.object({
+  name: z.string().trim().min(2, "customerApp.errors.nameRequired"),
+  mobile: z.string().regex(MOBILE_REGEX, "customerApp.errors.mobileInvalid"),
+})
+export type CustomerMemberInput = z.infer<typeof customerMemberSchema>
+
+// ── CUST-02 Service Booking stepper ───────────────────────────────────────
+export const serviceBookingSchema = z.object({
+  addressId: z.string().uuid("customerApp.errors.addressRequired"),
+  productId: z.string().uuid().nullable(),
+  brandId: z.string().uuid().nullable(),
+  modelId: z.string().uuid().nullable(),
+  nameOfComplaint: z.string().trim().min(3, "customerApp.errors.complaintRequired"),
+  natureOfComplaint: z.string().trim().optional().or(z.literal("")),
+  photoUrl: z.string().trim().optional().or(z.literal("")),
+  priority: z.enum(["very_urgent", "urgent", "normal"]),
+  appointmentMode: z.enum(["always", "datetime"]),
+  scheduledAt: z.string().optional().or(z.literal("")),
+})
+export type ServiceBookingInput = z.infer<typeof serviceBookingSchema>
+
+// ── CUST-04 Product Enquiry / CUST-05 Spare Enquiry ───────────────────────
+export const enquirySchema = z.object({
+  description: z.string().trim().min(3, "customerApp.errors.descriptionRequired"),
+  photoUrl: z.string().trim().optional().or(z.literal("")),
+})
+export type EnquiryInput = z.infer<typeof enquirySchema>
+
+// ── CUST-06 register-via-QR ───────────────────────────────────────────────
+export const registerProductSchema = z.object({
+  productId: z.string().uuid("customerApp.errors.productRequired"),
+  serialNo: z.string().trim().optional().or(z.literal("")),
+  purchaseDate: z.string().trim().optional().or(z.literal("")),
+})
+export type RegisterProductInput = z.infer<typeof registerProductSchema>
