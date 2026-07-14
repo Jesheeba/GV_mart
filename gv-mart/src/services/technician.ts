@@ -53,11 +53,12 @@ export async function getSettings(orgId: string): Promise<SettingsRow> {
   throw new Error("settings_unavailable_offline")
 }
 
-// GV Mart office location — used as the geofence center for attendance
-// (v2.2 §6.8: "inside office" only, no distance figure shown to the user).
-// Not in `settings` (that table holds only numeric/time parameters); a
-// single fixed office coordinate is app-level config.
-export const OFFICE_LOCATION = { lat: 13.0827, lng: 80.2707 } // Chennai HQ placeholder, admin can relocate via env later
+// Last-resort fallback origin for the Map page's distance-reach indicator
+// (TECH-04) when GPS hasn't returned a fix yet — NOT the attendance
+// geofence center. Attendance (TECH-01) reads the real, admin-editable
+// office coordinate from settings.office_lat/office_lng instead (v2.2
+// §6.8: "inside office" only, no distance figure ever shown to the user).
+export const OFFICE_LOCATION = { lat: 13.0827, lng: 80.2707 } // matches settings' office_lat/lng default
 
 // ── TECH-01 Attendance ───────────────────────────────────────────────────
 
@@ -247,6 +248,21 @@ export async function queueLocationPing(orgId: string, technicianId: string, lat
   })
 }
 
+/**
+ * Continuous live-tracking stream (v2.2 §6.6) — a direct, best-effort write,
+ * unlike queueLocationPing's offline-queued "arrived" event. A stale
+ * position replayed minutes later from the outbox is worse than useless for
+ * a "where is the technician right now" admin map, so a ping dropped while
+ * offline is simply skipped rather than queued for later delivery.
+ */
+export async function pingLiveLocation(orgId: string, technicianId: string, lat: number, lng: number) {
+  const { error } = await supabase.from("technician_locations").insert({ org_id: orgId, technician_id: technicianId, lat, lng })
+  // Best-effort (see doc comment above) — logged, not swallowed, so a real
+  // RLS/network failure is diagnosable instead of just silently never
+  // appearing on the admin map with no trace of why.
+  if (error) console.error("Failed to send live location ping:", error)
+}
+
 // ── TECH-05 Customer search & call ────────────────────────────────────────
 
 export async function searchAddressesForTechnician(orgId: string, term: string) {
@@ -269,6 +285,31 @@ export async function searchAddressesForTechnician(orgId: string, term: string) 
 
 // ── TECH-07 On-site stepper ───────────────────────────────────────────────
 
+/**
+ * A visit can now be started from two places — MapPage's arrival detection
+ * (auto or the "I've arrived" fallback tap) and OnSiteVisitPage's own mount
+ * effect, reached directly from JobDetailPage's "Start visit" without going
+ * through Map at all. Both must check for an already-open visit first (timer
+ * started, not yet ended) so arriving-then-continuing doesn't create a
+ * second, orphaned service_visits row with none of the on-site work attached
+ * to it.
+ */
+export function findOpenVisit(visits: { id: string; timer_start: string | null; timer_end: string | null }[]) {
+  return visits.find((v) => v.timer_start && !v.timer_end) ?? null
+}
+
+/**
+ * `completed`/`cancelled` are terminal — once a ticket reaches either, no
+ * screen should let a technician start a *new* service_visits row for it.
+ * Callers (MapPage, JobDetailPage, OnSiteVisitPage) all gate on this before
+ * offering "Navigate"/"Start visit"/arrival auto-start, since findOpenVisit
+ * alone only stops a duplicate of the *current* visit, not re-opening a job
+ * that already finished (e.g. via a stale ?ticketId= URL or browser back).
+ */
+export function isTicketClosed(status: Enums<"ticket_status"> | null | undefined) {
+  return status === "completed" || status === "cancelled"
+}
+
 export async function queueStartVisit(visit: {
   id: string
   orgId: string
@@ -285,9 +326,18 @@ export async function queueStartVisit(visit: {
   }
   await db.draftVisits.put({ clientId: visit.id, ticketId: visit.ticketId, serverId: visit.id, data: row, updatedAt: Date.now() })
   await enqueue("service_visit.start", row)
-  // Arrival also triggers the productivity timer; appointment flips to in_progress.
+  // Arrival also triggers the productivity timer; appointment flips to
+  // in_progress — scoped to appointments still scheduled/in_progress so this
+  // can never silently resurrect an appointment already flipped to
+  // completed/cancelled by create_service_invoice, as a last line of defense
+  // if a UI guard elsewhere has a gap.
   if (navigator.onLine) {
-    await supabase.from("appointments").update({ status: "in_progress" }).eq("ticket_id", visit.ticketId).eq("technician_id", visit.technicianId)
+    await supabase
+      .from("appointments")
+      .update({ status: "in_progress" })
+      .eq("ticket_id", visit.ticketId)
+      .eq("technician_id", visit.technicianId)
+      .in("status", ["scheduled", "in_progress"])
   }
 }
 

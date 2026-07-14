@@ -1,66 +1,94 @@
+import { lazy, Suspense, type ComponentType } from "react"
 import { createBrowserRouter, Navigate } from "react-router-dom"
 import { LoginPage } from "@/app/auth/LoginPage"
-import { AdminShell } from "@/app/admin/AdminShell"
-import { DashboardPage } from "@/app/admin/DashboardPage"
-import { TechnicianShell } from "@/app/technician/TechnicianShell"
-import { TechnicianHomePage } from "@/app/technician/TechnicianHomePage"
-import { AttendancePage } from "@/app/technician/AttendancePage"
-import { MapPage } from "@/app/technician/MapPage"
-import { SearchPage } from "@/app/technician/SearchPage"
-import { SpareHandoverPage } from "@/app/technician/SpareHandoverPage"
-import { JobDetailPage } from "@/app/technician/JobDetailPage"
-import { OnSiteVisitPage } from "@/app/technician/onsite/OnSiteVisitPage"
-import { RatingPage } from "@/app/technician/RatingPage"
-import { HistoryPage } from "@/app/technician/HistoryPage"
-import { HistoryDetailPage } from "@/app/technician/HistoryDetailPage"
-import { ProfilePage as TechnicianProfilePage } from "@/app/technician/ProfilePage"
-import { CustomerShell } from "@/app/customer/CustomerShell"
-import { CustomerHomePage } from "@/app/customer/CustomerHomePage"
-import { CustomerProfilePage } from "@/app/customer/CustomerProfilePage"
-import { CustomerProductsPage } from "@/app/customer/CustomerProductsPage"
-import { CustomerBookingsPage } from "@/app/customer/CustomerBookingsPage"
-import { CustomerBookingDetailPage } from "@/app/customer/CustomerBookingDetailPage"
-import { CustomerAmcPage } from "@/app/customer/CustomerAmcPage"
-import { CustomerProductEnquiryPage } from "@/app/customer/CustomerProductEnquiryPage"
-import { CustomerSpareEnquiryPage } from "@/app/customer/CustomerSpareEnquiryPage"
-import { BookServicePage } from "@/app/customer/service/BookServicePage"
 import { NotFoundPage } from "@/app/NotFoundPage"
-import { CustomersListPage } from "@/app/admin/customers/CustomersListPage"
-import { CustomerDetailPage } from "@/app/admin/customers/CustomerDetailPage"
-import { CustomerFormPage } from "@/app/admin/customers/CustomerFormPage"
-import { MastersPage } from "@/app/admin/masters/MastersPage"
-import { InventoryPage } from "@/app/admin/inventory/InventoryPage"
-import { SuppliersPage } from "@/app/admin/suppliers/SuppliersPage"
-import { SalesListPage } from "@/app/admin/sales/SalesListPage"
-import { NewSalePage } from "@/app/admin/sales/NewSalePage"
-import { InvoicePage } from "@/app/admin/sales/InvoicePage"
-import { QuotationsListPage } from "@/app/admin/quotations/QuotationsListPage"
-import { QuotationFormPage } from "@/app/admin/quotations/QuotationFormPage"
-import { QuotationDetailPage } from "@/app/admin/quotations/QuotationDetailPage"
-import { TicketsListPage } from "@/app/admin/service/TicketsListPage"
-import { NewComplaintPage } from "@/app/admin/service/NewComplaintPage"
-import { TicketDetailPage } from "@/app/admin/service/TicketDetailPage"
-import { AppointmentsPage } from "@/app/admin/service/AppointmentsPage"
-import { AmcWarrantyListPage } from "@/app/admin/amc/AmcWarrantyListPage"
-import { LeadsPage } from "@/app/admin/leads/LeadsPage"
-import { AutomationPage } from "@/app/admin/automation/AutomationPage"
-import { PurchasePage } from "@/app/admin/purchase/PurchasePage"
-import { TechniciansListPage } from "@/app/admin/technicians/TechniciansListPage"
-import { TechniciansMapPage } from "@/app/admin/technicians/TechniciansMapPage"
-import { TechniciansAttendancePage } from "@/app/admin/technicians/TechniciansAttendancePage"
-import { TechniciansSpareHandoverPage } from "@/app/admin/technicians/TechniciansSpareHandoverPage"
-import { HrPage } from "@/app/admin/hr/HrPage"
-import { ReportsPage } from "@/app/admin/reports/ReportsPage"
-import { WorkspacePage } from "@/app/admin/workspace/WorkspacePage"
-import { NotificationsPage } from "@/app/admin/notifications/NotificationsPage"
-import { ApprovalsPage } from "@/app/admin/approvals/ApprovalsPage"
-import { ComplaintsPage } from "@/app/admin/complaints/ComplaintsPage"
-import { CampaignsPage } from "@/app/admin/campaigns/CampaignsPage"
-import { ReturnsPage } from "@/app/admin/returns/ReturnsPage"
-import { AuditLogPage } from "@/app/admin/audit-log/AuditLogPage"
-import { DaySheetPage } from "@/app/technician/DaySheetPage"
+import { RouteFallback } from "@/components/shared/RouteFallback"
 import { RequireAuth, RequireRole } from "@/lib/guards"
 import { STAFF_ROLES } from "@/lib/roles"
+
+/**
+ * Admin/technician/customer are logically separate apps that different user
+ * types never simultaneously need, but every route component used to be a
+ * static import here — one 1.79MB JS chunk downloaded by every user
+ * regardless of role. `lazyPage` wraps each route component in
+ * `React.lazy(() => import(...))` (all of them are named, not default,
+ * exports, hence the `.then(m => ({ default: m[name] }))`), so Vite emits a
+ * separate async chunk per component and a technician's phone never
+ * downloads the admin bundle (and vice versa). The three shells
+ * (AdminShell/TechnicianShell/CustomerShell) are each wrapped in their own
+ * <Suspense> below — that single boundary also covers every lazy page
+ * rendered through that shell's <Outlet/>, since Suspense catches any
+ * suspending descendant, not just its direct child.
+ */
+function lazyPage<K extends string>(loader: () => Promise<Record<K, ComponentType>>, name: K) {
+  return lazy(() => loader().then((m) => ({ default: m[name] })))
+}
+
+// --- Admin ---
+const AdminShell = lazyPage(() => import("@/app/admin/AdminShell"), "AdminShell")
+const DashboardPage = lazyPage(() => import("@/app/admin/DashboardPage"), "DashboardPage")
+const CustomersListPage = lazyPage(() => import("@/app/admin/customers/CustomersListPage"), "CustomersListPage")
+const CustomerDetailPage = lazyPage(() => import("@/app/admin/customers/CustomerDetailPage"), "CustomerDetailPage")
+const CustomerFormPage = lazyPage(() => import("@/app/admin/customers/CustomerFormPage"), "CustomerFormPage")
+const MastersPage = lazyPage(() => import("@/app/admin/masters/MastersPage"), "MastersPage")
+const InventoryPage = lazyPage(() => import("@/app/admin/inventory/InventoryPage"), "InventoryPage")
+const SuppliersPage = lazyPage(() => import("@/app/admin/suppliers/SuppliersPage"), "SuppliersPage")
+const SalesListPage = lazyPage(() => import("@/app/admin/sales/SalesListPage"), "SalesListPage")
+const NewSalePage = lazyPage(() => import("@/app/admin/sales/NewSalePage"), "NewSalePage")
+const InvoicePage = lazyPage(() => import("@/app/admin/sales/InvoicePage"), "InvoicePage")
+const QuotationsListPage = lazyPage(() => import("@/app/admin/quotations/QuotationsListPage"), "QuotationsListPage")
+const QuotationFormPage = lazyPage(() => import("@/app/admin/quotations/QuotationFormPage"), "QuotationFormPage")
+const QuotationDetailPage = lazyPage(() => import("@/app/admin/quotations/QuotationDetailPage"), "QuotationDetailPage")
+const TicketsListPage = lazyPage(() => import("@/app/admin/service/TicketsListPage"), "TicketsListPage")
+const NewComplaintPage = lazyPage(() => import("@/app/admin/service/NewComplaintPage"), "NewComplaintPage")
+const TicketDetailPage = lazyPage(() => import("@/app/admin/service/TicketDetailPage"), "TicketDetailPage")
+const AppointmentsPage = lazyPage(() => import("@/app/admin/service/AppointmentsPage"), "AppointmentsPage")
+const AmcWarrantyListPage = lazyPage(() => import("@/app/admin/amc/AmcWarrantyListPage"), "AmcWarrantyListPage")
+const AmcContractDetailPage = lazyPage(() => import("@/app/admin/amc/AmcContractDetailPage"), "AmcContractDetailPage")
+const LeadsPage = lazyPage(() => import("@/app/admin/leads/LeadsPage"), "LeadsPage")
+const AutomationPage = lazyPage(() => import("@/app/admin/automation/AutomationPage"), "AutomationPage")
+const PurchasePage = lazyPage(() => import("@/app/admin/purchase/PurchasePage"), "PurchasePage")
+const TechniciansListPage = lazyPage(() => import("@/app/admin/technicians/TechniciansListPage"), "TechniciansListPage")
+const TechnicianDetailPage = lazyPage(() => import("@/app/admin/technicians/TechnicianDetailPage"), "TechnicianDetailPage")
+const TechniciansMapPage = lazyPage(() => import("@/app/admin/technicians/TechniciansMapPage"), "TechniciansMapPage")
+const TechniciansAttendancePage = lazyPage(() => import("@/app/admin/technicians/TechniciansAttendancePage"), "TechniciansAttendancePage")
+const TechniciansSpareHandoverPage = lazyPage(() => import("@/app/admin/technicians/TechniciansSpareHandoverPage"), "TechniciansSpareHandoverPage")
+const HrPage = lazyPage(() => import("@/app/admin/hr/HrPage"), "HrPage")
+const ReportsPage = lazyPage(() => import("@/app/admin/reports/ReportsPage"), "ReportsPage")
+const WorkspacePage = lazyPage(() => import("@/app/admin/workspace/WorkspacePage"), "WorkspacePage")
+const NotificationsPage = lazyPage(() => import("@/app/admin/notifications/NotificationsPage"), "NotificationsPage")
+const ApprovalsPage = lazyPage(() => import("@/app/admin/approvals/ApprovalsPage"), "ApprovalsPage")
+const ComplaintsPage = lazyPage(() => import("@/app/admin/complaints/ComplaintsPage"), "ComplaintsPage")
+const CampaignsPage = lazyPage(() => import("@/app/admin/campaigns/CampaignsPage"), "CampaignsPage")
+const ReturnsPage = lazyPage(() => import("@/app/admin/returns/ReturnsPage"), "ReturnsPage")
+const AuditLogPage = lazyPage(() => import("@/app/admin/audit-log/AuditLogPage"), "AuditLogPage")
+
+// --- Technician ---
+const TechnicianShell = lazyPage(() => import("@/app/technician/TechnicianShell"), "TechnicianShell")
+const TechnicianHomePage = lazyPage(() => import("@/app/technician/TechnicianHomePage"), "TechnicianHomePage")
+const AttendancePage = lazyPage(() => import("@/app/technician/AttendancePage"), "AttendancePage")
+const MapPage = lazyPage(() => import("@/app/technician/MapPage"), "MapPage")
+const SearchPage = lazyPage(() => import("@/app/technician/SearchPage"), "SearchPage")
+const SpareHandoverPage = lazyPage(() => import("@/app/technician/SpareHandoverPage"), "SpareHandoverPage")
+const JobDetailPage = lazyPage(() => import("@/app/technician/JobDetailPage"), "JobDetailPage")
+const OnSiteVisitPage = lazyPage(() => import("@/app/technician/onsite/OnSiteVisitPage"), "OnSiteVisitPage")
+const RatingPage = lazyPage(() => import("@/app/technician/RatingPage"), "RatingPage")
+const HistoryPage = lazyPage(() => import("@/app/technician/HistoryPage"), "HistoryPage")
+const HistoryDetailPage = lazyPage(() => import("@/app/technician/HistoryDetailPage"), "HistoryDetailPage")
+const TechnicianProfilePage = lazyPage(() => import("@/app/technician/ProfilePage"), "ProfilePage")
+const DaySheetPage = lazyPage(() => import("@/app/technician/DaySheetPage"), "DaySheetPage")
+
+// --- Customer ---
+const CustomerShell = lazyPage(() => import("@/app/customer/CustomerShell"), "CustomerShell")
+const CustomerHomePage = lazyPage(() => import("@/app/customer/CustomerHomePage"), "CustomerHomePage")
+const CustomerProfilePage = lazyPage(() => import("@/app/customer/CustomerProfilePage"), "CustomerProfilePage")
+const CustomerProductsPage = lazyPage(() => import("@/app/customer/CustomerProductsPage"), "CustomerProductsPage")
+const CustomerBookingsPage = lazyPage(() => import("@/app/customer/CustomerBookingsPage"), "CustomerBookingsPage")
+const CustomerBookingDetailPage = lazyPage(() => import("@/app/customer/CustomerBookingDetailPage"), "CustomerBookingDetailPage")
+const CustomerAmcPage = lazyPage(() => import("@/app/customer/CustomerAmcPage"), "CustomerAmcPage")
+const CustomerProductEnquiryPage = lazyPage(() => import("@/app/customer/CustomerProductEnquiryPage"), "CustomerProductEnquiryPage")
+const CustomerSpareEnquiryPage = lazyPage(() => import("@/app/customer/CustomerSpareEnquiryPage"), "CustomerSpareEnquiryPage")
+const BookServicePage = lazyPage(() => import("@/app/customer/service/BookServicePage"), "BookServicePage")
 
 const SALES_ROLES = ["master", "sales_admin"] as const
 const OPS_ROLES = ["master", "operation_admin"] as const
@@ -77,7 +105,11 @@ export const router = createBrowserRouter([
         element: <RequireRole roles={[...STAFF_ROLES]} />,
         children: [
           {
-            element: <AdminShell />,
+            element: (
+              <Suspense fallback={<RouteFallback />}>
+                <AdminShell />
+              </Suspense>
+            ),
             children: [
               { index: true, element: <DashboardPage /> },
               {
@@ -131,6 +163,7 @@ export const router = createBrowserRouter([
                       { path: "map", element: <TechniciansMapPage /> },
                       { path: "attendance", element: <TechniciansAttendancePage /> },
                       { path: "spares", element: <TechniciansSpareHandoverPage /> },
+                      { path: ":id", element: <TechnicianDetailPage /> },
                     ],
                   },
                   { path: "inventory", element: <InventoryPage /> },
@@ -143,7 +176,13 @@ export const router = createBrowserRouter([
               {
                 element: <RequireRole roles={[...MASTER_ONLY]} />,
                 children: [
-                  { path: "amc", element: <AmcWarrantyListPage /> },
+                  {
+                    path: "amc",
+                    children: [
+                      { index: true, element: <AmcWarrantyListPage /> },
+                      { path: ":id", element: <AmcContractDetailPage /> },
+                    ],
+                  },
                   { path: "hr", element: <HrPage /> },
                   { path: "reports", element: <ReportsPage /> },
                   { path: "masters", element: <MastersPage /> },
@@ -171,7 +210,11 @@ export const router = createBrowserRouter([
         element: <RequireRole roles={["technician"]} />,
         children: [
           {
-            element: <TechnicianShell />,
+            element: (
+              <Suspense fallback={<RouteFallback />}>
+                <TechnicianShell />
+              </Suspense>
+            ),
             children: [
               { index: true, element: <TechnicianHomePage /> },
               { path: "map", element: <MapPage /> },
@@ -188,8 +231,17 @@ export const router = createBrowserRouter([
           },
           // Full-screen on-site stepper — deliberately outside TechnicianShell
           // so the bottom tab bar doesn't compete with the stepper's own
-          // chrome while a technician is mid-job.
-          { path: "jobs/:ticketId/visit", element: <OnSiteVisitPage /> },
+          // chrome while a technician is mid-job. Not a descendant of the
+          // shell's <Suspense> above (it's a sibling route), so it needs its
+          // own boundary.
+          {
+            path: "jobs/:ticketId/visit",
+            element: (
+              <Suspense fallback={<RouteFallback />}>
+                <OnSiteVisitPage />
+              </Suspense>
+            ),
+          },
         ],
       },
       {
@@ -197,7 +249,11 @@ export const router = createBrowserRouter([
         element: <RequireRole roles={["customer"]} />,
         children: [
           {
-            element: <CustomerShell />,
+            element: (
+              <Suspense fallback={<RouteFallback />}>
+                <CustomerShell />
+              </Suspense>
+            ),
             children: [
               { index: true, element: <CustomerHomePage /> },
               { path: "products", element: <CustomerProductsPage /> },

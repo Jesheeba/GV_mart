@@ -1,14 +1,42 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Award, CheckCircle2 } from "lucide-react"
+import { Award, CheckCircle2, Inbox, TriangleAlert } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard } from "@/components/shared/KpiCard"
-import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useOpsResolutionKpi, usePerformanceReport } from "@/hooks/useReports"
 import { defaultDateRange, downloadCsv, toCsv, type DateRange } from "@/services/reports"
-import type { PerformanceRow } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
+import { cn } from "@/lib/utils"
 import { DateRangeFilter } from "./DateRangeFilter"
+
+// Design's scoreboard grid track widths (design-template-decoded.html line
+// 1242: "0.5fr 1.6fr 1fr 1fr 1fr 1fr 0.9fr") — fractional tracks a <table>
+// can't express, same rationale AmcWarrantyListPage.tsx uses for its
+// bespoke CSS-grid rows instead of the shared <table>-based DataTable.
+const SCOREBOARD_GRID = "grid-cols-[0.5fr_1.6fr_1fr_1fr_1fr_1fr_0.9fr]"
+
+// Avatar swatch cycles through real design tokens only (ink/accent/info/
+// success) — purely presentational, keyed to row order, not identity.
+const AVATAR_COLORS = ["bg-ink", "bg-accent", "bg-info", "bg-success"]
+
+function initials(name: string) {
+  if (!name || name === "—") return "—"
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("")
+}
+
+// Thresholds mirror the design's legend (≥90 strong / 80–89 watch / <80
+// coach) applied to the real onTimePercent field — see reports.ts's comment
+// on PerformanceRow.onTimePercent: "closest available signal of a clean
+// first-time fix" (no needs_revisit on the visit == counted on-time).
+function firstFixTone(percent: number | null) {
+  if (percent == null) return "text-text-muted"
+  if (percent >= 90) return "text-success"
+  if (percent >= 80) return "text-warning"
+  return "text-danger"
+}
 
 export function PerformanceReportTab() {
   const { t } = useTranslation()
@@ -18,23 +46,7 @@ export function PerformanceReportTab() {
   const { data, isLoading, isError, refetch } = usePerformanceReport(profile?.org_id, range)
   const opsKpi = useOpsResolutionKpi(profile?.org_id, range)
 
-  const columns: DataTableColumn<PerformanceRow>[] = [
-    {
-      key: "name",
-      header: t("reports.performance.person"),
-      render: (r) => (
-        <div className="flex items-center gap-1.5">
-          {r.revenue > 0 && data && data[0]?.id === r.id ? <Award className="size-3.5 text-warning" /> : null}
-          <span className="font-medium text-text">{r.name}</span>
-        </div>
-      ),
-    },
-    { key: "jobs", header: t("reports.performance.jobsDone"), render: (r) => r.jobsDone },
-    { key: "onTime", header: t("reports.performance.onTimePercent"), render: (r) => (r.onTimePercent != null ? `${r.onTimePercent}%` : "—") },
-    { key: "revenue", header: t("reports.performance.revenue"), render: (r) => formatCurrency(r.revenue) },
-    { key: "rating", header: t("reports.performance.avgRating"), render: (r) => (r.avgRating != null ? `${r.avgRating} ★ (${r.reviewCount})` : "—") },
-    { key: "conversion", header: t("reports.performance.conversion"), render: (r) => (r.conversionPercent != null ? `${r.conversionPercent}%` : "—") },
-  ]
+  const topPerformerId = data && data.length > 0 && data[0].revenue > 0 ? data[0].id : null
 
   function handleExport() {
     if (!data) return
@@ -63,19 +75,103 @@ export function PerformanceReportTab() {
           icon={<CheckCircle2 className="size-4" />}
           loading={opsKpi.isLoading}
         />
-        <div className="rounded-card border border-border bg-surface p-4 text-xs text-text-muted">{t("reports.performance.kpiNote")}</div>
+        <div className="rounded-card border border-border bg-surface-alt p-4 text-xs text-text-muted">{t("reports.performance.kpiNote")}</div>
       </div>
 
-      {isError ? (
-        <p className="text-sm text-danger">
-          {t("reports.loadFailed")}{" "}
-          <button type="button" className="underline" onClick={() => refetch()}>
-            {t("common.retry")}
-          </button>
-        </p>
-      ) : (
-        <DataTable columns={columns} rows={data ?? []} rowKey={(r) => r.id} loading={isLoading} emptyMessage={t("reports.empty")} />
-      )}
+      <div className="rounded-card border border-border bg-surface p-[22px] shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-[17px] font-bold tracking-tight text-text">{t("reports.performance.scoreboardTitle")}</h3>
+          <span className="text-[11px] font-semibold text-text-muted">{t("reports.performance.scoreboardCaption")}</span>
+        </div>
+
+        {isError ? (
+          <div className="flex flex-col items-center gap-3 py-12 text-center">
+            <TriangleAlert className="size-6 text-danger" />
+            <p className="text-sm text-text-muted">{t("reports.loadFailed")}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-[10px] border border-border">
+            <div className={cn("grid items-center bg-surface-alt px-3.5 py-2.5", SCOREBOARD_GRID)}>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.rank")}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.person")}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.jobsShort")}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.avgPerCall")}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.firstFix")}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.reviewsShort")}</span>
+              <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.conversion")}</span>
+            </div>
+
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className={cn("grid items-center border-t border-[#F1EDE6] px-3.5 py-3", SCOREBOARD_GRID)}>
+                  {Array.from({ length: 7 }).map((_, j) => (
+                    <Skeleton key={j} className="h-4 w-3/4 max-w-24" />
+                  ))}
+                </div>
+              ))
+            ) : (data ?? []).length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <Inbox className="size-6 text-text-muted" />
+                <p className="text-sm text-text-muted">{t("reports.empty")}</p>
+              </div>
+            ) : (
+              (data ?? []).map((r, i) => {
+                const avgPerCall = r.jobsDone > 0 ? r.revenue / r.jobsDone : null
+                return (
+                  <div key={r.id} className={cn("grid items-center border-t border-[#F1EDE6] px-3.5 py-3", SCOREBOARD_GRID)}>
+                    <span className={cn("text-xs font-extrabold", i === 0 ? "text-accent" : "text-text-muted")}>{i + 1}</span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "flex size-7 shrink-0 items-center justify-center rounded-[8px] text-[10px] font-bold text-white",
+                          AVATAR_COLORS[i % AVATAR_COLORS.length]
+                        )}
+                      >
+                        {initials(r.name)}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-semibold text-text">
+                        {r.name}
+                        {r.id === topPerformerId ? <Award className="size-3.5 text-warning" /> : null}
+                      </span>
+                    </div>
+                    <span className="text-xs font-semibold tabular-nums text-text">{r.jobsDone}</span>
+                    <span className="text-xs font-semibold tabular-nums text-text">{avgPerCall != null ? formatCurrency(avgPerCall) : "—"}</span>
+                    <span className={cn("text-xs font-semibold tabular-nums", firstFixTone(r.onTimePercent))}>
+                      {r.onTimePercent != null ? `${r.onTimePercent}%` : "—"}
+                    </span>
+                    <span className="text-xs font-semibold tabular-nums text-text">
+                      {r.reviewCount}
+                      {r.avgRating != null ? <span className="ml-1 font-medium text-text-muted">({r.avgRating}★)</span> : null}
+                    </span>
+                    <span className="text-right text-xs font-semibold tabular-nums text-text">
+                      {r.conversionPercent != null ? `${r.conversionPercent}%` : "—"}
+                    </span>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        )}
+
+        <div className="mt-3.5 flex flex-wrap items-center gap-4">
+          <span className="text-[10px] font-semibold text-text-muted">{t("reports.performance.legendCaption")}</span>
+          <LegendDot toneClass="text-success" dotClass="bg-success" label={t("reports.performance.legendStrong")} />
+          <LegendDot toneClass="text-warning" dotClass="bg-warning" label={t("reports.performance.legendWatch")} />
+          <LegendDot toneClass="text-danger" dotClass="bg-danger" label={t("reports.performance.legendCoach")} />
+        </div>
+      </div>
     </div>
+  )
+}
+
+function LegendDot({ toneClass, dotClass, label }: { toneClass: string; dotClass: string; label: string }) {
+  return (
+    <span className={cn("flex items-center gap-1.5 text-[10px] font-semibold", toneClass)}>
+      <span className={cn("size-2 shrink-0 rounded-full", dotClass)} />
+      {label}
+    </span>
   )
 }

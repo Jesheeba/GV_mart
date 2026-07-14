@@ -2,12 +2,13 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Coins, Home as HomeIcon, Loader2, LogOut, Plus, Star, Trash2, User, UserPlus } from "lucide-react"
+import { Coins, Home as HomeIcon, Loader2, LogOut, Pencil, Plus, Star, Trash2, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { signOut } from "@/services/auth"
 import {
@@ -120,6 +121,7 @@ function AddressForm({
 
 function AddressesSection({ customerId, orgId }: { customerId: string; orgId: string | undefined }) {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null)
@@ -177,12 +179,17 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {!a.is_primary ? (
-                  <Button size="xs" variant="ghost" disabled={setPrimary.isPending} onClick={() => setPrimary.mutate(a.id)}>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    disabled={setPrimary.isPending}
+                    onClick={() => setPrimary.mutate(a.id, { onError: () => toast.error(t("common.actionFailed")) })}
+                  >
                     {t("customerApp.profile.setPrimary")}
                   </Button>
                 ) : null}
-                <Button size="icon-xs" variant="ghost" title={t("common.save")} onClick={() => setEditingId(a.id)}>
-                  <User className="size-3.5" />
+                <Button size="icon-xs" variant="ghost" title={t("customerApp.profile.edit")} onClick={() => setEditingId(a.id)}>
+                  <Pencil className="size-3.5" />
                 </Button>
                 {!a.is_primary && confirmingDelete !== a.id ? (
                   <Button size="icon-xs" variant="ghost" title={t("common.remove")} onClick={() => setConfirmingDelete(a.id)}>
@@ -195,7 +202,12 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
                       type="button"
                       className="text-danger hover:underline"
                       disabled={deleteAddress.isPending}
-                      onClick={() => deleteAddress.mutate(a.id, { onSuccess: () => setConfirmingDelete(null) })}
+                      onClick={() =>
+                        deleteAddress.mutate(a.id, {
+                          onSuccess: () => setConfirmingDelete(null),
+                          onError: () => toast.error(t("common.actionFailed")),
+                        })
+                      }
                     >
                       {deleteAddress.isPending ? <Loader2 className="size-3 animate-spin" /> : t("customerApp.profile.confirm")}
                     </button>
@@ -226,6 +238,7 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
 
 function MembersSection({ customerId, orgId }: { customerId: string; orgId: string | undefined }) {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const [showAddForm, setShowAddForm] = useState(false)
   const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null)
 
@@ -298,7 +311,12 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
                     type="button"
                     className="text-danger hover:underline"
                     disabled={removeMember.isPending}
-                    onClick={() => removeMember.mutate(m.id, { onSuccess: () => setConfirmingRemove(null) })}
+                    onClick={() =>
+                      removeMember.mutate(m.id, {
+                        onSuccess: () => setConfirmingRemove(null),
+                        onError: () => toast.error(t("common.actionFailed")),
+                      })
+                    }
                   >
                     {removeMember.isPending ? <Loader2 className="size-3 animate-spin" /> : t("customerApp.profile.confirm")}
                   </button>
@@ -345,6 +363,7 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
 
 function ProfessionField({ customerId, profession }: { customerId: string; profession: string | null }) {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(profession ?? "")
   const updateProfession = useUpdateMyProfession(customerId)
@@ -374,7 +393,12 @@ function ProfessionField({ customerId, profession }: { customerId: string; profe
       <Button
         size="sm"
         disabled={updateProfession.isPending}
-        onClick={() => updateProfession.mutate(value, { onSuccess: () => setEditing(false) })}
+        onClick={() =>
+          updateProfession.mutate(value, {
+            onSuccess: () => setEditing(false),
+            onError: () => toast.error(t("common.actionFailed")),
+          })
+        }
       >
         {updateProfession.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
       </Button>

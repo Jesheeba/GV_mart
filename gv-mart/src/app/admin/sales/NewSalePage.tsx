@@ -9,11 +9,13 @@ import { Label } from "@/components/ui/label"
 import { Stepper } from "@/components/shared/Stepper"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
+import { DraftBanner } from "@/components/shared/DraftBanner"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useSettings, giftsHooks, brandsHooks, modelsHooks, productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { useCreateSale } from "@/hooks/useSales"
 import { useQuotation } from "@/hooks/useQuotations"
+import { useLocalDraft } from "@/hooks/useLocalDraft"
 import { discountNeedsApproval, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
 import { formatCurrency } from "@/lib/sale-calc"
 import { ItemsStep } from "./ItemsStep"
@@ -22,6 +24,24 @@ import { cartIsEmpty, combinedSubtotal, type CartProductLine, type CartSpareLine
 import type { Enums } from "@/types/database"
 
 const STEP_KEYS = ["customer", "items", "discount", "gift", "payment", "review"] as const
+const DRAFT_KEY = "gv_mart_draft:admin_new_sale"
+
+/** Restorable subset of the wizard's state — see useLocalDraft. Skipped
+ * entirely (key is null) for the "convert this quotation" entry point,
+ * where resurrecting an unrelated older draft over the fresh quotation
+ * prefill would silently discard/overwrite that prefill instead of helping. */
+type NewSaleDraftData = {
+  step: number
+  customerId: string | null
+  customerLabel: string
+  customerSearch: string
+  cart: SaleCartState
+  discountInput: string
+  giftId: string | null
+  paymentMethod: Enums<"payment_method">
+  txnId: string
+  paymentDescription: string
+}
 
 /**
  * ADM-05 (New Sale) and ADM-06 (Product Sale sub-flow) are one stepper, not
@@ -116,6 +136,38 @@ export function NewSalePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quotationCustomer.data])
 
+  // Local draft persistence — see useLocalDraft's doc comment. Disabled for
+  // the fromQuotation entry point (see NewSaleDraftData).
+  const draftKey = quotationId ? null : DRAFT_KEY
+  const draftSnapshot: NewSaleDraftData = {
+    step,
+    customerId,
+    customerLabel,
+    customerSearch,
+    cart,
+    discountInput,
+    giftId,
+    paymentMethod,
+    txnId,
+    paymentDescription,
+  }
+  const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
+  const appliedDraftRef = useRef(false)
+  useEffect(() => {
+    if (appliedDraftRef.current || !restoredDraft) return
+    appliedDraftRef.current = true
+    if (restoredDraft.step != null) setStep(restoredDraft.step)
+    if (restoredDraft.customerId) setCustomerId(restoredDraft.customerId)
+    if (restoredDraft.customerLabel) setCustomerLabel(restoredDraft.customerLabel)
+    if (restoredDraft.customerSearch) setCustomerSearch(restoredDraft.customerSearch)
+    if (restoredDraft.cart) setCart(restoredDraft.cart)
+    if (restoredDraft.discountInput != null) setDiscountInput(restoredDraft.discountInput)
+    if (restoredDraft.giftId !== undefined) setGiftId(restoredDraft.giftId)
+    if (restoredDraft.paymentMethod) setPaymentMethod(restoredDraft.paymentMethod)
+    if (restoredDraft.txnId) setTxnId(restoredDraft.txnId)
+    if (restoredDraft.paymentDescription) setPaymentDescription(restoredDraft.paymentDescription)
+  }, [restoredDraft])
+
   const techMax = settings ? Number(settings.discount_tech_max) : 5
   const adminMax = settings ? Number(settings.discount_admin_max) : 10
   const combined = combinedSubtotal(cart)
@@ -164,6 +216,7 @@ export function NewSalePage() {
       },
       quotationId,
     })
+    clearDraft()
     const primaryInvoiceId = result.product_invoice_id ?? result.spare_invoice_id ?? result.amc_invoice_id
     if (primaryInvoiceId) navigate(`/admin/sales/invoices/${primaryInvoiceId}`)
     else navigate("/admin/sales")
@@ -174,14 +227,38 @@ export function NewSalePage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 pt-2">
       <h1 className="text-2xl font-bold text-text">{t("sales.newSale.title")}</h1>
-      <Card>
+      {draftKey ? (
+        <DraftBanner
+          restored={wasRestored}
+          autosaveNote={t("sales.newSale.draft.autosaveNote")}
+          restoredNote={t("sales.newSale.draft.restoredNote")}
+          discardLabel={t("sales.newSale.draft.discard")}
+          discardWarning={t("sales.newSale.draft.discardWarning")}
+          confirmDiscardLabel={t("sales.newSale.draft.confirmDiscard")}
+          cancelLabel={t("common.cancel")}
+          onConfirmDiscard={() => {
+            discardDraft()
+            setStep(0)
+            setCustomerId(null)
+            setCustomerLabel("")
+            setCustomerSearch("")
+            setCart({ productLines: [], spareLines: [], amc: null })
+            setDiscountInput("0")
+            setGiftId(null)
+            setPaymentMethod("cash")
+            setTxnId("")
+            setPaymentDescription("")
+          }}
+        />
+      ) : null}
+      <Card className="px-5">
         <Stepper steps={steps} currentIndex={step} />
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">
           {step === 0 ? (
-            <Card className="gap-3">
+            <Card className="gap-3 px-5">
               <Label htmlFor="customer-search">{t("sales.customer.searchLabel")}</Label>
               <Autocomplete
                 id="customer-search"
@@ -218,7 +295,7 @@ export function NewSalePage() {
           {step === 1 ? <ItemsStep orgId={orgId} cart={cart} setCart={setCart} /> : null}
 
           {step === 2 ? (
-            <Card className="gap-3">
+            <Card className="gap-3 px-5">
               <Label htmlFor="discount">{t("sales.discount.label")}</Label>
               <Input
                 id="discount"
@@ -242,7 +319,7 @@ export function NewSalePage() {
           ) : null}
 
           {step === 3 ? (
-            <Card className="gap-3">
+            <Card className="gap-3 px-5">
               <p className="text-sm font-semibold text-text">{t("sales.gift.title")}</p>
               {eligibleGifts.length === 0 ? (
                 <p className="text-sm text-text-muted">{t("sales.gift.noneEligible")}</p>
@@ -271,7 +348,7 @@ export function NewSalePage() {
           ) : null}
 
           {step === 4 ? (
-            <Card className="gap-3">
+            <Card className="gap-3 px-5">
               <Label>{t("sales.payment.method")}</Label>
               <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
                 {(["cash", "transfer"] as const).map((m) => (
@@ -303,7 +380,7 @@ export function NewSalePage() {
           ) : null}
 
           {step === 5 ? (
-            <Card className="gap-3">
+            <Card className="gap-3 px-5">
               <p className="text-sm font-semibold text-text">{t("sales.review.title")}</p>
               <p className="text-sm text-text">{t("sales.review.customer", { customer: customerLabel })}</p>
               <p className="text-sm text-text">{t("sales.review.discount", { percent: discountPercent })}</p>

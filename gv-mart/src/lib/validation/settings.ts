@@ -10,6 +10,8 @@ export const settingsSchema = z
   .object({
     per_km_minutes: z.coerce.number().positive("settings.errors.positive"),
     geofence_radius_m: z.coerce.number().int().positive("settings.errors.positive"),
+    office_lat: z.coerce.number().min(-90, "settings.errors.latRange").max(90, "settings.errors.latRange"),
+    office_lng: z.coerce.number().min(-180, "settings.errors.lngRange").max(180, "settings.errors.lngRange"),
     work_start: z.string().min(1, "settings.errors.required"),
     work_end: z.string().min(1, "settings.errors.required"),
     late_cutoff: z.string().min(1, "settings.errors.required"),
@@ -20,6 +22,7 @@ export const settingsSchema = z
     amc_book_window_days: z.coerce.number().int().positive("settings.errors.positive"),
     referral_point_value: z.coerce.number().min(50, "settings.errors.referralMin"),
     review_link_min_stars: z.coerce.number().min(1).max(5, "settings.errors.starsRange"),
+    google_review_url: z.string().trim().url("settings.errors.urlInvalid").optional().or(z.literal("")),
     default_min_stock: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     default_reorder_qty: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     gst_rate: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),

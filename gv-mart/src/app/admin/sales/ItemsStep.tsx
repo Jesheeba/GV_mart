@@ -10,7 +10,7 @@ import { useInventoryList } from "@/hooks/useInventory"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { CartAmc, CartProductLine, SaleCartState } from "./types"
 
-const selectClass = "h-10 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none disabled:opacity-50"
+const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none disabled:opacity-50"
 
 export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleCartState; setCart: (updater: (c: SaleCartState) => SaleCartState) => void }) {
   const { t } = useTranslation()
@@ -108,7 +108,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
 
   return (
     <div className="space-y-4">
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <Tabs defaultValue="product">
           <TabsList>
             <TabsTrigger value="product">{t("sales.items.productTab")}</TabsTrigger>
@@ -157,7 +157,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                   </option>
                 ))}
               </select>
-              <Input type="number" min={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} />
+              <Input type="number" min={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
             </div>
             <div className="flex items-center justify-between px-1 pt-2">
               <p className="text-xs text-text-muted">
@@ -182,7 +182,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                   </option>
                 ))}
               </select>
-              <Input type="number" min={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} />
+              <Input type="number" min={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
             </div>
             <div className="flex justify-end px-1 pt-2">
               <Button type="button" size="sm" disabled={!selectedSpare} onClick={addSpare}>
@@ -199,7 +199,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
       ) : null}
 
       {cart.productLines.map((line, i) => (
-        <Card key={`${line.productId}-${i}`} size="sm" className="gap-2">
+        <Card key={`${line.productId}-${i}`} size="sm" className="gap-2 px-4">
           <div className="flex items-start justify-between px-1">
             <div>
               <p className="text-sm font-semibold text-text">{line.name}</p>
@@ -248,7 +248,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
       ))}
 
       {cart.spareLines.map((line, i) => (
-        <Card key={`${line.spareId}-${i}`} size="sm" className="gap-2">
+        <Card key={`${line.spareId}-${i}`} size="sm" className="gap-2 px-4">
           <div className="flex items-center justify-between px-1">
             <p className="text-sm font-semibold text-text">{line.name}</p>
             <Button type="button" size="icon-xs" variant="ghost" onClick={() => removeSpareLine(i)}>
@@ -269,7 +269,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
       ))}
 
       {roProductLine ? (
-        <Card size="sm" className="gap-2 border-accent/40">
+        <Card size="sm" className="gap-2 px-4 border-accent/40">
           <p className="px-1 text-sm font-semibold text-text">{t("sales.items.amcAddonTitle", { product: roProductLine.name })}</p>
           {cart.amc ? (
             <div className="flex items-center justify-between px-1">

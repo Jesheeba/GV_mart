@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SignaturePad } from "./components/SignaturePad"
+import { useToast } from "@/components/ui/toast-context"
 import { useConfirmHandover, useMyTechnician, useTodayHandover } from "@/hooks/useTechnician"
 import { spareHandoverSignSchema } from "@/lib/validation/technician"
 
 export function SpareHandoverPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const technician = useMyTechnician()
   const handover = useTodayHandover(technician.data?.id)
@@ -33,7 +35,11 @@ export function SpareHandoverPage() {
 
   async function handleConfirm() {
     if (!data || !techSign) return
-    await confirmHandover.mutateAsync({ handoverId: data.id, techSignUrl: techSign, adminSignUrl: data.admin_sign_url ?? "" })
+    try {
+      await confirmHandover.mutateAsync({ handoverId: data.id, techSignUrl: techSign, adminSignUrl: data.admin_sign_url ?? "" })
+    } catch {
+      toast.error(t("common.actionFailed"))
+    }
   }
 
   return (

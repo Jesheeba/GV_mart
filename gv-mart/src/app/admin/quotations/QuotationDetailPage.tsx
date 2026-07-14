@@ -38,7 +38,7 @@ export function QuotationDetailPage() {
         <StatusDot tone={STATUS_TONE[quotation.status] ?? "neutral"} label={t(`quotations.status.${quotation.status}`)} />
       </div>
 
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <p className="text-lg font-bold text-text">{quotation.customers?.name}</p>
         <p className="text-sm text-text-muted">{quotation.customers?.mobile}</p>
         {quotation.valid_until ? (
@@ -75,7 +75,7 @@ export function QuotationDetailPage() {
             </Button>
           </div>
           {showLostForm ? (
-            <Card className="gap-2">
+            <Card className="gap-2 px-5">
               <Input value={lostReason} onChange={(e) => setLostReason(e.target.value)} placeholder={t("quotations.lostReasonPlaceholder")} />
               <Button
                 type="button"

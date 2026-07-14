@@ -33,6 +33,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Default 2 MiB cap started rejecting the main bundle as the app grew
+        // across all phases (Admin + Technician + Customer). Raised with
+        // headroom above the current build size rather than tuned to the
+        // exact byte count, so routine growth doesn't silently break the
+        // build again.
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
       },
     }),
   ],

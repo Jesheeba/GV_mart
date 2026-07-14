@@ -92,7 +92,7 @@ export function ProductsTab() {
         { key: "warranty", header: t("masters.products.warrantyMonths"), render: (r) => r.warranty_months },
       ]}
       onCreate={(v) =>
-        createMut.mutate({
+        createMut.mutateAsync({
           org_id: orgId!,
           name: v.name,
           brand_id: v.brand_id,
@@ -104,7 +104,7 @@ export function ProductsTab() {
         })
       }
       onUpdate={(id, v) =>
-        updateMut.mutate({
+        updateMut.mutateAsync({
           id,
           patch: {
             name: v.name,
@@ -117,7 +117,7 @@ export function ProductsTab() {
           },
         })
       }
-      onDelete={(id) => deleteMut.mutate(id)}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

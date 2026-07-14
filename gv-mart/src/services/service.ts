@@ -114,6 +114,13 @@ export async function getTicket(id: string) {
   return data
 }
 
+/** Sets/changes a ticket's service address after creation (e.g. it was created with none). */
+export async function updateTicketAddress(ticketId: string, addressId: string | null) {
+  const { data, error } = await supabase.from("service_tickets").update({ address_id: addressId }).eq("id", ticketId).select().single()
+  if (error) throw error
+  return data
+}
+
 /** Repeat-complaint flag (ADM-09): >1 ticket for the same customer within the lookback window. */
 export async function customersWithRepeatComplaints(orgId: string, lookbackDays = 90): Promise<Set<string>> {
   const since = new Date(Date.now() - lookbackDays * 86_400_000).toISOString()
@@ -210,6 +217,12 @@ export async function updateAppointmentSchedule(id: string, patch: { scheduled_a
   return data
 }
 
+export async function unassignAppointment(id: string) {
+  const { data, error } = await supabase.from("appointments").update({ technician_id: null }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+
 // ── Technicians (for filters / assignment panel) ─────────────────────────
 export type TechnicianOption = { id: string; full_name: string; is_on_duty: boolean }
 
@@ -300,14 +313,17 @@ export type AppointmentListItem = AppointmentRow & {
 }
 
 export async function listAppointments(orgId: string, fromDate: string, toDate: string): Promise<AppointmentListItem[]> {
+  // mode="always" appointments have scheduled_at = null — `NULL >= x` and
+  // `NULL <= x` both evaluate to NULL in Postgres, so a plain .gte/.lte range
+  // filter silently excludes every "always" appointment from the board. Also
+  // match rows with mode="always" regardless of scheduled_at.
   const { data, error } = await supabase
     .from("appointments")
     .select(
       "*, service_tickets(id, name_of_complaint, priority, type, customer_id, customers(name)), technicians(id, profiles(full_name))"
     )
     .eq("org_id", orgId)
-    .gte("scheduled_at", fromDate)
-    .lte("scheduled_at", toDate)
+    .or(`and(scheduled_at.gte.${fromDate},scheduled_at.lte.${toDate}),mode.eq.always`)
     .order("scheduled_at")
   if (error) throw error
   return (data ?? []) as unknown as AppointmentListItem[]

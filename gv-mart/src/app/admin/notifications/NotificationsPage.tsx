@@ -34,14 +34,14 @@ export function NotificationsPage() {
         </Button>
       </div>
 
-      <Card size="sm" className="flex-row flex-wrap items-center gap-2">
+      <Card size="sm" className="flex-row flex-wrap items-center gap-2 px-4">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("notifications.filters.type")}</label>
           <select value={type} onChange={(e) => setType(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("notifications.filters.all")}</option>
             {typeOptions.map((tOpt) => (
               <option key={tOpt} value={tOpt}>
-                {tOpt}
+                {t(`notifications.types.${tOpt}`, { defaultValue: tOpt })}
               </option>
             ))}
           </select>
@@ -61,29 +61,31 @@ export function NotificationsPage() {
       </Card>
 
       {isError ? (
-        <Card className="items-center gap-2 py-8 text-center">
+        <Card className="items-center gap-2 py-8 text-center px-5">
           <p className="text-sm text-danger">{t("notifications.loadFailed")}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
             {t("common.retry")}
           </Button>
         </Card>
       ) : isLoading ? (
-        <Card className="items-center py-8 text-center">
+        <Card className="items-center py-8 text-center px-5">
           <p className="text-sm text-text-muted">{t("common.loading")}</p>
         </Card>
       ) : (data?.length ?? 0) === 0 ? (
-        <Card className="items-center gap-2 py-10 text-center">
+        <Card className="items-center gap-2 py-10 text-center px-5">
           <Bell className="size-6 text-text-muted" />
           <p className="text-sm text-text-muted">{t("notifications.empty")}</p>
         </Card>
       ) : (
         <div className="space-y-2">
           {data!.map((n) => (
-            <Card key={n.id} size="sm" className={cn("flex-row items-start justify-between gap-3", !n.is_read && "border-info/40 bg-info/5")}>
+            <Card key={n.id} size="sm" className={cn("flex-row items-start justify-between gap-3 px-4", !n.is_read && "border-info/40 bg-info/5")}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-text">{n.title}</p>
-                  <span className="rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-medium text-text-muted">{n.type}</span>
+                  <span className="rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-medium text-text-muted">
+                    {t(`notifications.types.${n.type}`, { defaultValue: n.type })}
+                  </span>
                 </div>
                 {n.body ? <p className="mt-0.5 text-xs text-text-muted">{n.body}</p> : null}
                 <p className="mt-1 text-[10px] text-text-muted">{new Date(n.created_at).toLocaleString()}</p>

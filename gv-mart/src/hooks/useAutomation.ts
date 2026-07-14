@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as automation from "@/services/automation"
-import type { LeadStatus, PoItemInput } from "@/services/automation"
+import type { LeadFilters, LeadStatus, PoItemInput } from "@/services/automation"
 
 // ── Leads ─────────────────────────────────────────────────────────────────
-export function useLeads(orgId: string | undefined) {
-  return useQuery({ queryKey: ["leads", "list", orgId], queryFn: () => automation.listLeads(orgId!), enabled: !!orgId })
+export function useLeads(orgId: string | undefined, filters: LeadFilters = {}) {
+  return useQuery({
+    queryKey: ["leads", "list", orgId, filters],
+    queryFn: () => automation.listLeads(orgId!, filters),
+    enabled: !!orgId,
+  })
 }
 export function useCreateLead() {
   const qc = useQueryClient()

@@ -18,6 +18,22 @@ export function useWarranties(orgId: string | undefined) {
   })
 }
 
+export function useAmcContract(id: string | undefined) {
+  return useQuery({
+    queryKey: ["amc_contracts", "detail", id],
+    queryFn: () => amc.getAmcContract(id!),
+    enabled: !!id,
+  })
+}
+
+export function useAmcContractVisits(contractId: string | undefined) {
+  return useQuery({
+    queryKey: ["amc_contracts", "visits", contractId],
+    queryFn: () => amc.listAmcContractVisits(contractId!),
+    enabled: !!contractId,
+  })
+}
+
 export function useRoProducts(orgId: string | undefined) {
   return useQuery({
     queryKey: ["products", "ro", orgId],

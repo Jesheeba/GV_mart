@@ -37,9 +37,9 @@ export function VideoLibraryTab() {
         { key: "topic", header: t("automation.videos.topic"), render: (r) => t(`leads.enquiryType.${r.topic}`) },
         { key: "url", header: t("automation.videos.url"), render: (r) => r.url },
       ]}
-      onCreate={(v) => createMut.mutate({ org_id: orgId!, topic: v.topic as VideoLibraryRow["topic"], url: v.url })}
-      onUpdate={(id, v) => updateMut.mutate({ id, patch: { topic: v.topic as VideoLibraryRow["topic"], url: v.url } })}
-      onDelete={(id) => deleteMut.mutate(id)}
+      onCreate={(v) => createMut.mutateAsync({ org_id: orgId!, topic: v.topic as VideoLibraryRow["topic"], url: v.url })}
+      onUpdate={(id, v) => updateMut.mutateAsync({ id, patch: { topic: v.topic as VideoLibraryRow["topic"], url: v.url } })}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

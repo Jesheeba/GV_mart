@@ -5,18 +5,28 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { PhotoCapture } from "./components/PhotoCapture"
+import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useLunchToggle, useMarkAttendance, useMyTechnician, useTechnicianSettings, useTodayAttendance } from "@/hooks/useTechnician"
-import { getCurrentPosition, isInsideGeofence, type GeoPoint } from "@/lib/offline/geo"
-import { OFFICE_LOCATION } from "@/services/technician"
+import { classifyGeoError, getCurrentPosition, isInsideGeofence, type GeoPoint } from "@/lib/offline/geo"
 import { attendanceSchema } from "@/lib/validation/technician"
 import { cn } from "@/lib/utils"
 
 type Tick = "affirmation" | "pledge" | "meeting"
 const TICK_ORDER: Tick[] = ["affirmation", "pledge", "meeting"]
 
+const GEO_ERROR_KEYS: Record<ReturnType<typeof classifyGeoError>, string> = {
+  unsupported: "technician.attendance.locationUnsupported",
+  permissionDenied: "technician.attendance.locationPermissionDenied",
+  unavailable: "technician.attendance.locationUnavailable",
+  timeout: "technician.attendance.locationTimeout",
+  unknown: "technician.attendance.locationError",
+}
+const geoErrorKey = (err: unknown) => GEO_ERROR_KEYS[classifyGeoError(err)]
+
 export function AttendancePage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const { data: profile } = useProfile()
   const technician = useMyTechnician()
   const settings = useTechnicianSettings(profile?.org_id)
@@ -42,8 +52,8 @@ export function AttendancePage() {
     try {
       const pos = await getCurrentPosition()
       setPosition(pos)
-    } catch {
-      setGeoError(t("technician.attendance.locationError"))
+    } catch (err) {
+      setGeoError(t(geoErrorKey(err)))
     } finally {
       setCheckingGeo(false)
     }
@@ -63,7 +73,8 @@ export function AttendancePage() {
   }
 
   const radiusM = settings.data.geofence_radius_m
-  const insideGeofence = position ? isInsideGeofence(position, OFFICE_LOCATION, radiusM) : false
+  const officeLocation: GeoPoint = { lat: Number(settings.data.office_lat), lng: Number(settings.data.office_lng) }
+  const insideGeofence = position ? isInsideGeofence(position, officeLocation, radiusM) : false
   const alreadyMarked = !!attendance.data
   const lateCutoff = settings.data.late_cutoff // "HH:MM:SS"
   const [cutH, cutM] = lateCutoff.split(":").map(Number)
@@ -80,29 +91,35 @@ export function AttendancePage() {
   const canMark = !alreadyMarked && insideGeofence && !!selfie && !checkingGeo
   const disabledReason = alreadyMarked
     ? null
-    : !insideGeofence
-      ? t("technician.attendance.disabledOutsideGeofence")
-      : !selfie
-        ? t("technician.attendance.disabledNoSelfie")
-        : null
+    : geoError && !position
+      ? t("technician.attendance.locationUnknown")
+      : !insideGeofence
+        ? t("technician.attendance.disabledOutsideGeofence")
+        : !selfie
+          ? t("technician.attendance.disabledNoSelfie")
+          : null
 
   async function handleMark() {
     if (!position || !selfie || !technician.data || !profile) return
     const parsed = attendanceSchema.safeParse({ selfieDataUrl: selfie, affirmation: false, pledge: false, meeting: false })
     if (!parsed.success) return
     const checkInAt = new Date().toISOString()
-    await markAttendance.mutateAsync({
-      orgId: profile.org_id,
-      technicianId: technician.data.id,
-      date: new Date().toISOString().slice(0, 10),
-      checkInAt,
-      insideGeofence: true,
-      selfieUrl: selfie,
-      isLate: isPastCutoff,
-      affirmation: false,
-      pledge: false,
-      meeting: false,
-    })
+    try {
+      await markAttendance.mutateAsync({
+        orgId: profile.org_id,
+        technicianId: technician.data.id,
+        date: new Date().toISOString().slice(0, 10),
+        checkInAt,
+        insideGeofence: true,
+        selfieUrl: selfie,
+        isLate: isPastCutoff,
+        affirmation: false,
+        pledge: false,
+        meeting: false,
+      })
+    } catch {
+      toast.error(t("common.actionFailed"))
+    }
   }
 
   const lunchAllowedMin = settings.data?.lunch_minutes_allowed ?? 30
@@ -129,7 +146,7 @@ export function AttendancePage() {
       setTicks((prev) => ({ ...prev, [tick]: true }))
       return
     }
-    void markAttendance.mutateAsync({
+    markAttendance.mutateAsync({
       orgId: profile!.org_id,
       technicianId: technician.data!.id,
       date: attendance.data!.date,
@@ -140,7 +157,7 @@ export function AttendancePage() {
       affirmation: tick === "affirmation" ? true : currentTicks.affirmation,
       pledge: tick === "pledge" ? true : currentTicks.pledge,
       meeting: tick === "meeting" ? true : currentTicks.meeting,
-    })
+    }).catch(() => toast.error(t("common.actionFailed")))
   }
 
   return (
@@ -196,13 +213,15 @@ export function AttendancePage() {
       {!alreadyMarked ? (
         <Card className="gap-4">
           <div className="flex items-center gap-2 px-1">
-            <MapPin className={cn("size-4", insideGeofence ? "text-success" : "text-danger")} />
+            <MapPin className={cn("size-4", geoError && !position ? "text-text-muted" : insideGeofence ? "text-success" : "text-danger")} />
             <p className="text-sm text-text">
               {checkingGeo
                 ? t("technician.attendance.checkingLocation")
-                : insideGeofence
-                  ? t("technician.attendance.insideOffice")
-                  : t("technician.attendance.outsideOffice")}
+                : geoError && !position
+                  ? t("technician.attendance.locationUnknown")
+                  : insideGeofence
+                    ? t("technician.attendance.insideOffice")
+                    : t("technician.attendance.outsideOffice")}
             </p>
             <Button type="button" size="xs" variant="outline" className="ml-auto" onClick={refreshLocation} disabled={checkingGeo}>
               {checkingGeo ? <Loader2 className="size-3 animate-spin" /> : t("technician.attendance.recheckLocation")}

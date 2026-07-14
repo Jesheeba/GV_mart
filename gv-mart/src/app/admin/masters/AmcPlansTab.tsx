@@ -69,7 +69,7 @@ export function AmcPlansTab() {
         { key: "visits", header: t("masters.amcPlans.visitsPerYear"), render: (r) => r.visits_per_year },
       ]}
       onCreate={(v) =>
-        createMut.mutate({
+        createMut.mutateAsync({
           org_id: orgId!,
           name: v.name,
           years: Number(v.years) || 1,
@@ -80,7 +80,7 @@ export function AmcPlansTab() {
         })
       }
       onUpdate={(id, v) =>
-        updateMut.mutate({
+        updateMut.mutateAsync({
           id,
           patch: {
             name: v.name,
@@ -92,7 +92,7 @@ export function AmcPlansTab() {
           },
         })
       }
-      onDelete={(id) => deleteMut.mutate(id)}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

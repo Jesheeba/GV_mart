@@ -31,18 +31,25 @@ export const customerMemberSchema = z.object({
 export type CustomerMemberInput = z.infer<typeof customerMemberSchema>
 
 // ── CUST-02 Service Booking stepper ───────────────────────────────────────
-export const serviceBookingSchema = z.object({
-  addressId: z.string().uuid("customerApp.errors.addressRequired"),
-  productId: z.string().uuid().nullable(),
-  brandId: z.string().uuid().nullable(),
-  modelId: z.string().uuid().nullable(),
-  nameOfComplaint: z.string().trim().min(3, "customerApp.errors.complaintRequired"),
-  natureOfComplaint: z.string().trim().optional().or(z.literal("")),
-  photoUrl: z.string().trim().optional().or(z.literal("")),
-  priority: z.enum(["very_urgent", "urgent", "normal"]),
-  appointmentMode: z.enum(["always", "datetime"]),
-  scheduledAt: z.string().optional().or(z.literal("")),
-})
+export const serviceBookingSchema = z
+  .object({
+    addressId: z.string().uuid("customerApp.errors.addressRequired"),
+    productId: z.string().uuid().nullable(),
+    brandId: z.string().uuid().nullable(),
+    modelId: z.string().uuid().nullable(),
+    nameOfComplaint: z.string().trim().min(3, "customerApp.errors.complaintRequired"),
+    natureOfComplaint: z.string().trim().optional().or(z.literal("")),
+    photoUrl: z.string().trim().optional().or(z.literal("")),
+    priority: z.enum(["very_urgent", "urgent", "normal"]),
+    appointmentMode: z.enum(["always", "datetime"]),
+    scheduledAt: z.string().optional().or(z.literal("")),
+  })
+  // v2.2 §6.4: "datetime" mode must have an actual time picked — mirrors
+  // service.ts's complaintAppointmentStepSchema (the admin-side equivalent).
+  .refine((v) => v.appointmentMode === "always" || !!v.scheduledAt, {
+    message: "customerApp.errors.scheduledAtRequired",
+    path: ["scheduledAt"],
+  })
 export type ServiceBookingInput = z.infer<typeof serviceBookingSchema>
 
 // ── CUST-04 Product Enquiry / CUST-05 Spare Enquiry ───────────────────────

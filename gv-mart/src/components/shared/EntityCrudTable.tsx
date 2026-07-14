@@ -6,13 +6,36 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 
+// Supabase/PostgREST rejections (PostgrestError) are plain objects with a
+// `.message` string but are not `instanceof Error`, so a naive instanceof
+// check falls through to `String(e)` → the literal text "[object Object]".
+function extractErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (typeof e === "object" && e !== null && "message" in e && typeof (e as { message: unknown }).message === "string") {
+    return (e as { message: string }).message
+  }
+  return String(e)
+}
+
+export type CrudFieldOption = { value: string; label: string }
+
 export type CrudFieldDef = {
   key: string
   label: string
   type: "text" | "number" | "select"
-  options?: { value: string; label: string }[]
+  // Either a static list, or derived from the form's current in-progress
+  // values — e.g. a Model select filtered down to whichever Brand is
+  // currently selected in the same open form. Re-evaluated on every render
+  // while the form is open, so it stays in sync as the user edits other
+  // fields.
+  options?: CrudFieldOption[] | ((values: Record<string, string>) => CrudFieldOption[])
   step?: string
   placeholder?: string
+}
+
+function resolveOptions(field: CrudFieldDef, values: Record<string, string>): CrudFieldOption[] {
+  if (!field.options) return []
+  return typeof field.options === "function" ? field.options(values) : field.options
 }
 
 /**
@@ -43,9 +66,9 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   loading: boolean
   error: string | null
   onRetry: () => void
-  onCreate: (values: Record<string, string>) => void
-  onUpdate: (id: string, values: Record<string, string>) => void
-  onDelete: (id: string) => void
+  onCreate: (values: Record<string, string>) => Promise<unknown>
+  onUpdate: (id: string, values: Record<string, string>) => Promise<unknown>
+  onDelete: (id: string) => Promise<unknown>
   isMutating: boolean
   addLabel: string
   emptyMessage: string
@@ -56,6 +79,14 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [values, setValues] = useState<Record<string, string>>({})
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
+  // Mutations are fire-and-forget from this component's point of view unless
+  // we await them — without this, a failed create/update/delete (network,
+  // RLS, validation) closed the form / cleared the confirm row exactly as if
+  // it had succeeded, with no error shown anywhere and the row silently
+  // never appearing. Every onCreate/onUpdate/onDelete caller now passes a
+  // mutateAsync-backed promise so we can catch and surface failures here.
+  const [formError, setFormError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   function openAddForm() {
     setEditingId(null)
@@ -63,22 +94,42 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
     // <select> visually shows its first <option> even when the controlled
     // value doesn't match any option, so an untouched select would submit ""
     // while displaying something else entirely (and "" fails enum columns).
-    setValues(Object.fromEntries(fields.map((f) => [f.key, f.type === "select" ? (f.options?.[0]?.value ?? "") : ""])))
+    setValues(Object.fromEntries(fields.map((f) => [f.key, f.type === "select" ? (resolveOptions(f, {})[0]?.value ?? "") : ""])))
+    setFormError(null)
     setFormOpen(true)
   }
   function openEditForm(row: T) {
     setEditingId(getId(row))
     setValues(toFormValues(row))
+    setFormError(null)
     setFormOpen(true)
   }
   function closeForm() {
     setFormOpen(false)
     setEditingId(null)
+    setFormError(null)
   }
-  function submit() {
-    if (editingId) onUpdate(editingId, values)
-    else onCreate(values)
-    closeForm()
+  async function submit() {
+    setFormError(null)
+    try {
+      if (editingId) await onUpdate(editingId, values)
+      else await onCreate(values)
+      closeForm()
+    } catch (e) {
+      setFormError(extractErrorMessage(e))
+    }
+  }
+  async function handleConfirmDelete(id: string) {
+    setFormError(null)
+    setIsDeleting(true)
+    try {
+      await onDelete(id)
+      setConfirmingDeleteId(null)
+    } catch (e) {
+      setFormError(extractErrorMessage(e))
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const actionColumn: DataTableColumn<T> = {
@@ -93,15 +144,18 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
             <span className="flex items-center gap-1.5 text-xs">
               <button
                 type="button"
-                className="text-danger hover:underline"
-                onClick={() => {
-                  onDelete(id)
-                  setConfirmingDeleteId(null)
-                }}
+                className="text-danger hover:underline disabled:opacity-50"
+                disabled={isDeleting}
+                onClick={() => handleConfirmDelete(id)}
               >
-                {t("masters.confirmDelete")}
+                {isDeleting ? <Loader2 className="size-3 animate-spin" /> : t("masters.confirmDelete")}
               </button>
-              <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingDeleteId(null)}>
+              <button
+                type="button"
+                className="text-text-muted hover:underline disabled:opacity-50"
+                disabled={isDeleting}
+                onClick={() => setConfirmingDeleteId(null)}
+              >
                 {t("common.cancel")}
               </button>
             </span>
@@ -129,6 +183,8 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
         </Button>
       </div>
 
+      {formError ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{formError}</p> : null}
+
       {formOpen ? (
         <div className="rounded-xl border border-border p-3.5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -142,7 +198,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
                     className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                   >
-                    {f.options?.map((o) => (
+                    {resolveOptions(f, values).map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
                       </option>

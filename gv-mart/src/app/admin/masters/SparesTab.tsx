@@ -40,12 +40,12 @@ export function SparesTab() {
         { key: "hsn", header: t("masters.spares.hsn"), render: (r) => r.hsn_code || "—" },
       ]}
       onCreate={(v) =>
-        createMut.mutate({ org_id: orgId!, name: v.name, sku: v.sku || null, price: Number(v.price) || 0, hsn_code: v.hsn_code || null })
+        createMut.mutateAsync({ org_id: orgId!, name: v.name, sku: v.sku || null, price: Number(v.price) || 0, hsn_code: v.hsn_code || null })
       }
       onUpdate={(id, v) =>
-        updateMut.mutate({ id, patch: { name: v.name, sku: v.sku || null, price: Number(v.price) || 0, hsn_code: v.hsn_code || null } })
+        updateMut.mutateAsync({ id, patch: { name: v.name, sku: v.sku || null, price: Number(v.price) || 0, hsn_code: v.hsn_code || null } })
       }
-      onDelete={(id) => deleteMut.mutate(id)}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

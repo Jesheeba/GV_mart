@@ -40,6 +40,55 @@ export function useCustomer(id: string | undefined) {
   })
 }
 
+export function useCustomerFilterCounts(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "filterCounts", orgId],
+    queryFn: () => customers.getCustomerFilterCounts(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useCustomerListEnrichment(orgId: string | undefined, customerIds: string[]) {
+  const key = [...customerIds].sort()
+  return useQuery({
+    queryKey: ["customers", "listEnrichment", orgId, key],
+    queryFn: () => customers.getCustomerListEnrichment(orgId!, customerIds),
+    enabled: !!orgId && customerIds.length > 0,
+  })
+}
+
+export function useCustomerProducts(orgId: string | undefined, customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "products", customerId],
+    queryFn: () => customers.getCustomerProducts(orgId!, customerId!),
+    enabled: !!orgId && !!customerId,
+  })
+}
+
+export function useCustomerServiceHistory(orgId: string | undefined, customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "serviceHistory", customerId],
+    queryFn: () => customers.getCustomerServiceHistory(orgId!, customerId!),
+    enabled: !!orgId && !!customerId,
+  })
+}
+
+export function useCustomerInvoices(orgId: string | undefined, customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "invoices", customerId],
+    queryFn: () => customers.getCustomerInvoices(orgId!, customerId!),
+    enabled: !!orgId && !!customerId,
+  })
+}
+
+export function useCustomerLifetimeSummary(orgId: string | undefined, customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "lifetimeSummary", customerId],
+    queryFn: () => customers.getCustomerLifetimeSummary(orgId!, customerId!),
+    enabled: !!orgId && !!customerId,
+  })
+}
+
 export function useCustomerAutocomplete(orgId: string | undefined, term: string) {
   return useQuery({
     queryKey: ["customers", "autocomplete", orgId, term],
@@ -80,7 +129,7 @@ export function useUpdateCustomerProfession(customerId: string) {
 export function useAddMember(orgId: string | undefined, customerId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (member: { name: string; mobile: string }) => customers.addMember(orgId!, customerId, member),
+    mutationFn: (member: Parameters<typeof customers.addMember>[2]) => customers.addMember(orgId!, customerId, member),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
       queryClient.invalidateQueries({ queryKey: ["customers", "list"] })

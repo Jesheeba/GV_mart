@@ -10,13 +10,37 @@ import { db, type OutboxJob } from "./db"
  * `supabase/migrations/20260702120000_technician_phase7_functions.sql`).
  *
  * Failure handling: a job that fails is marked `failed` with the error
- * message and retried on the next flush pass (network blips, RLS races)
- * rather than being dropped — offline-first means "eventually consistent",
- * not "best effort". `attempts` is kept for future backoff/give-up UI but
- * nothing currently gives up permanently, matching "everything must queue
- * and work offline" in the DoD (silently losing a technician's field data
- * would violate that).
+ * message and retried (network blips, RLS races) rather than being dropped —
+ * offline-first means "eventually consistent", not "best effort". A failed
+ * job backs off exponentially (`backoffDelayMs`) instead of being retried on
+ * every 20s tick, and after `MAX_ATTEMPTS_BEFORE_STUCK` consecutive failures
+ * it's marked `stuck` and stops being auto-retried — but it is NOT dropped:
+ * `stuck` means "needs a human to look at it" (surfaced via the sync-status
+ * chip's stuck-jobs panel), never "given up on for good". A technician can
+ * manually retry a stuck job (`retryStuckJob` in outbox.ts), which puts it
+ * straight back in the normal rotation. This still honors "everything must
+ * queue and work offline" in the DoD — silently losing a technician's field
+ * data would violate that; going quiet about a job that keeps failing would
+ * violate it just as much, which is why `stuck` exists.
  */
+
+/** A job that just failed waits at least one full poll tick before its next try — 20s, 40s, 80s, ... capped at 10 minutes. */
+const BASE_BACKOFF_MS = 20_000
+const MAX_BACKOFF_MS = 10 * 60_000
+/**
+ * After this many consecutive failures (with the schedule above, roughly 40
+ * minutes of retrying — 20+40+80+160+320+600+600+600s), stop auto-retrying
+ * and mark the job `stuck` instead of retrying forever indistinguishably
+ * from a job that has only just failed once. Chosen to comfortably outlast
+ * a flaky connection or a brief Supabase/RLS blip while still surfacing a
+ * genuinely broken job (bad payload, permanently revoked access, etc.)
+ * within the same shift rather than retrying it silently forever.
+ */
+const MAX_ATTEMPTS_BEFORE_STUCK = 8
+
+function backoffDelayMs(attempts: number): number {
+  return Math.min(BASE_BACKOFF_MS * 2 ** (attempts - 1), MAX_BACKOFF_MS)
+}
 
 type Listener = (state: SyncState) => void
 export type SyncState = { syncing: boolean; lastError: string | null; lastSyncedAt: number | null }
@@ -152,21 +176,33 @@ export async function flushOutbox() {
   flushing = true
   setState({ syncing: true })
   try {
+    const now = Date.now()
+    // "stuck" jobs are deliberately excluded — they only leave that state via
+    // an explicit technician retry (outbox.ts's retryStuckJob), not this loop.
     const jobs = await db.outbox.where("status").anyOf(["pending", "failed"]).sortBy("createdAt")
-    for (const job of jobs) {
+    // A job that has never failed has no nextRetryAt and is always due —
+    // this is what keeps the happy path (succeeds on 1st/2nd try) exactly as
+    // fast as before; only jobs that have already failed at least once wait.
+    const due = jobs.filter((job) => !job.nextRetryAt || job.nextRetryAt <= now)
+    for (const job of due) {
       if (!navigator.onLine) break
       try {
         await db.outbox.update(job.id!, { status: "syncing", updatedAt: Date.now() })
         await runJob(job)
         await db.outbox.delete(job.id!)
       } catch (err) {
+        const attempts = job.attempts + 1
+        const lastError = err instanceof Error ? err.message : String(err)
+        const stuck = attempts >= MAX_ATTEMPTS_BEFORE_STUCK
         await db.outbox.update(job.id!, {
-          status: "failed",
-          attempts: job.attempts + 1,
-          lastError: err instanceof Error ? err.message : String(err),
+          status: stuck ? "stuck" : "failed",
+          attempts,
+          lastError,
+          firstFailedAt: job.firstFailedAt ?? Date.now(),
+          nextRetryAt: stuck ? undefined : Date.now() + backoffDelayMs(attempts),
           updatedAt: Date.now(),
         })
-        setState({ lastError: err instanceof Error ? err.message : String(err) })
+        setState({ lastError })
       }
     }
     setState({ lastSyncedAt: Date.now() })

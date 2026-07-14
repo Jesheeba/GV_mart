@@ -6,21 +6,30 @@ import { queryClient } from "@/lib/queryClient"
 import { ThemeProvider } from "@/lib/theme/ThemeProvider"
 import { I18nProvider } from "@/lib/i18n/I18nProvider"
 import { AuthProvider } from "@/hooks/useAuth"
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
+import { ToastProvider } from "@/components/ui/toast"
 import { router } from "./router"
 import "./index.css"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Suspense fallback={null}>
-      <I18nProvider>
-        <ThemeProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <RouterProvider router={router} />
-            </AuthProvider>
-          </QueryClientProvider>
-        </ThemeProvider>
-      </I18nProvider>
-    </Suspense>
+    {/* Outside everything else (including the router) so a render error
+        anywhere — including during navigation — still hits this boundary
+        instead of producing a white screen. */}
+    <ErrorBoundary>
+      <Suspense fallback={null}>
+        <I18nProvider>
+          <ThemeProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <ToastProvider>
+                  <RouterProvider router={router} />
+                </ToastProvider>
+              </AuthProvider>
+            </QueryClientProvider>
+          </ThemeProvider>
+        </I18nProvider>
+      </Suspense>
+    </ErrorBoundary>
   </StrictMode>
 )

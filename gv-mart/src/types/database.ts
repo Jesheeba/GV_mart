@@ -2678,6 +2678,8 @@ export type Database = {
           org_id: string
           per_km_minutes: number
           geofence_radius_m: number
+          office_lat: number
+          office_lng: number
           work_start: string
           work_end: string
           late_cutoff: string
@@ -2688,6 +2690,7 @@ export type Database = {
           amc_book_window_days: number
           referral_point_value: number
           review_link_min_stars: number
+          google_review_url: string | null
           default_min_stock: number
           default_reorder_qty: number
           gst_rate: number
@@ -2703,6 +2706,8 @@ export type Database = {
           org_id: string
           per_km_minutes?: number
           geofence_radius_m?: number
+          office_lat?: number
+          office_lng?: number
           work_start?: string
           work_end?: string
           late_cutoff?: string
@@ -2713,6 +2718,7 @@ export type Database = {
           amc_book_window_days?: number
           referral_point_value?: number
           review_link_min_stars?: number
+          google_review_url?: string | null
           default_min_stock?: number
           default_reorder_qty?: number
           gst_rate?: number
@@ -2728,6 +2734,8 @@ export type Database = {
           org_id?: string
           per_km_minutes?: number
           geofence_radius_m?: number
+          office_lat?: number
+          office_lng?: number
           work_start?: string
           work_end?: string
           late_cutoff?: string
@@ -2738,6 +2746,7 @@ export type Database = {
           amc_book_window_days?: number
           referral_point_value?: number
           review_link_min_stars?: number
+          google_review_url?: string | null
           default_min_stock?: number
           default_reorder_qty?: number
           gst_rate?: number

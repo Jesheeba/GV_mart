@@ -68,7 +68,7 @@ export function SuppliersPage() {
           },
         ]}
         onCreate={(v) =>
-          createMut.mutate({
+          createMut.mutateAsync({
             org_id: orgId!,
             name: v.name,
             contact: v.contact || null,
@@ -77,12 +77,12 @@ export function SuppliersPage() {
           })
         }
         onUpdate={(id, v) =>
-          updateMut.mutate({
+          updateMut.mutateAsync({
             id,
             patch: { name: v.name, contact: v.contact || null, whatsapp: v.whatsapp || null, rating: v.rating ? Number(v.rating) : null },
           })
         }
-        onDelete={(id) => deleteMut.mutate(id)}
+        onDelete={(id) => deleteMut.mutateAsync(id)}
       />
 
       {selected ? <SupplierItemsPanel supplier={selected} /> : null}

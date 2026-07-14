@@ -41,7 +41,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   }
 
   return (
-    <Card className="gap-3">
+    <Card className="gap-3 px-5">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-text">{t("amc.sellAmc.title")}</h2>
         <Button size="sm" variant="ghost" onClick={onClose}>
@@ -98,7 +98,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
             <option value="">{t("service.filters.all")}</option>
             {(plans ?? []).map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} · {p.years}y · ₹{p.price}
+                {p.name} · {p.years}y · ₹{p.price.toLocaleString("en-IN")}
               </option>
             ))}
           </select>

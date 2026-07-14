@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { isAmcRenewalOpen } from "@/lib/amc-window"
 import {
   useAmcPlans,
   useCustomerAppSettings,
@@ -49,10 +50,7 @@ export function CustomerAmcPage() {
   const contractsByProduct = new Map((amcContracts ?? []).map((c) => [c.product_id, c]))
 
   function windowInfo(nextDueDateStr: string | null | undefined) {
-    if (!nextDueDateStr) return { withinWindow: true, daysUntil: null as number | null }
-    const due = new Date(nextDueDateStr)
-    const daysUntil = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    return { withinWindow: daysUntil <= bookWindowDays, daysUntil }
+    return isAmcRenewalOpen(nextDueDateStr, bookWindowDays, today)
   }
 
   const selectedProduct = roOwned.find((p) => p.id === selectedProductId)

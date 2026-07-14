@@ -31,7 +31,7 @@ export function SaleSummaryPanel({
   ].filter((b) => b.bill)
 
   return (
-    <Card className="sticky top-4 gap-3">
+    <Card className="sticky top-4 gap-3 px-5">
       <p className="px-1 text-sm font-semibold text-text">{t("sales.summary.title")}</p>
       {bills.length === 0 ? (
         <p className="px-1 text-sm text-text-muted">{t("sales.items.emptyCart")}</p>

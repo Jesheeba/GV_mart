@@ -10,15 +10,19 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import {
   addressStepSchema,
   peopleStepSchema,
+  FAMILY_RELATIONS,
   type AddressStepInput,
   type PeopleStepInput,
 } from "@/lib/validation/customer"
 import { useProfile } from "@/hooks/useProfile"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { useGeocodeAddress } from "@/hooks/useMaps"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
@@ -86,6 +90,24 @@ function MemberFieldRow({
           ) : null}
         </div>
       </div>
+      {/* Primary member IS the customer — relation-to-household doesn't apply to them. */}
+      {!isPrimary ? (
+        <div className="mt-2 space-y-1">
+          <select
+            aria-label={t("customers.form.memberRelation")}
+            defaultValue=""
+            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            {...register(`members.${index}.relation`)}
+          >
+            <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
+            {FAMILY_RELATIONS.map((r) => (
+              <option key={r} value={r}>
+                {t(`customers.form.relation.${r}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -123,12 +145,21 @@ export function CustomerFormPage() {
       state: "",
       addressType: "residential",
       ownership: "own",
+      lat: undefined,
+      lng: undefined,
     },
   })
   const area = addressForm.watch("area")
   const pincode = addressForm.watch("pincode")
+  const streetCross = addressForm.watch("streetCross")
+  const landmark = addressForm.watch("landmark")
+  const district = addressForm.watch("district")
+  const state = addressForm.watch("state")
+  const lat = addressForm.watch("lat")
+  const lng = addressForm.watch("lng")
   const areaAutocomplete = useAreaAutocomplete(orgId, area)
   const pincodeLookup = usePincodeLookup(orgId, pincode)
+  const autoLocate = useGeocodeAddress()
 
   useEffect(() => {
     if (pincodeLookup.data && !addressForm.getValues("district")) {
@@ -137,6 +168,33 @@ export function CustomerFormPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pincodeLookup.data])
+
+  // Auto-places the map pin from the address fields already typed above
+  // (v2.2 feedback: typing the same address twice — once here, once again
+  // into the map's own search box — was redundant and error-prone), once
+  // there's enough to geocode meaningfully. Fires only while no pin exists
+  // yet: once set, by this or by the technician's own search/drag, later
+  // edits to these fields must not silently yank an already-placed pin out
+  // from under them.
+  const autoLocateQuery = [streetCross, area, landmark, district, state].filter(Boolean).join(", ")
+  const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
+  useEffect(() => {
+    if (lat != null && lng != null) return
+    if (!area.trim() || pincode.trim().length !== 6) return
+    autoLocate.mutate(debouncedAutoLocateQuery, {
+      onSuccess: (results) => {
+        const top = results[0]
+        if (!top) return
+        // Re-check fresh values, not the stale closure above — the request
+        // was in flight for a moment, and the technician may have already
+        // searched/dragged a pin themselves in that window.
+        if (addressForm.getValues("lat") != null && addressForm.getValues("lng") != null) return
+        addressForm.setValue("lat", top.lat, { shouldValidate: true })
+        addressForm.setValue("lng", top.lon, { shouldValidate: true })
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedAutoLocateQuery, pincode, lat, lng])
 
   useEffect(() => {
     if (mode === "edit" && existing.data) {
@@ -154,6 +212,8 @@ export function CustomerFormPage() {
           state: primary.state ?? "",
           addressType: primary.address_type,
           ownership: primary.ownership,
+          lat: primary.lat ?? undefined,
+          lng: primary.lng ?? undefined,
         })
       }
     }
@@ -192,7 +252,12 @@ export function CustomerFormPage() {
       const newId = await createCustomer.mutateAsync({
         orgId: orgId!,
         profession: peopleValues.profession,
-        members: peopleValues.members.map((m, i) => ({ name: m.name, mobile: m.mobile, isPrimary: i === peopleValues.primaryIndex })),
+        members: peopleValues.members.map((m, i) => ({
+          name: m.name,
+          mobile: m.mobile,
+          isPrimary: i === peopleValues.primaryIndex,
+          relation: i === peopleValues.primaryIndex ? undefined : m.relation,
+        })),
         address: {
           doorNo: addressValues.doorNo,
           flatNo: addressValues.flatNo,
@@ -204,6 +269,8 @@ export function CustomerFormPage() {
           state: addressValues.state,
           addressType: addressValues.addressType,
           ownership: addressValues.ownership,
+          lat: addressValues.lat,
+          lng: addressValues.lng,
         },
       })
       navigate(`/admin/customers/${newId}`)
@@ -227,12 +294,12 @@ export function CustomerFormPage() {
         {mode === "create" ? t("customers.form.createTitle") : t("customers.form.editTitle")}
       </h1>
 
-      <Card>
+      <Card className="px-5">
         <Stepper steps={steps} currentIndex={step} />
       </Card>
 
       {step === 0 ? (
-        <Card className="gap-4">
+        <Card className="gap-4 px-5">
           <div className="space-y-1.5 px-1">
             <Label htmlFor="profession">{t("customers.form.profession")}</Label>
             <Input id="profession" placeholder={t("customers.form.professionPlaceholder")} {...peopleForm.register("profession")} />
@@ -285,7 +352,7 @@ export function CustomerFormPage() {
           )}
         </Card>
       ) : (
-        <Card className="gap-4">
+        <Card className="gap-4 px-5">
           <div className="grid grid-cols-2 gap-3 px-1">
             <div className="space-y-1.5">
               <Label htmlFor="doorNo">{t("customers.form.doorNo")}</Label>
@@ -338,6 +405,40 @@ export function CustomerFormPage() {
               <Label htmlFor="state">{t("customers.form.state")}</Label>
               <Input id="state" {...addressForm.register("state")} />
             </div>
+          </div>
+
+          <div className="space-y-1.5 border-t border-border px-1 pt-3">
+            <div className="flex items-center gap-1.5">
+              <Label>{t("customers.form.map.title")}</Label>
+              {autoLocate.isPending && lat == null ? (
+                <span className="flex items-center gap-1 text-xs text-text-muted">
+                  <Loader2 className="size-3 animate-spin" />
+                  {t("customers.form.map.autoLocating")}
+                </span>
+              ) : null}
+            </div>
+            <AddressMapPicker
+              lat={addressForm.watch("lat")}
+              lng={addressForm.watch("lng")}
+              onConfirm={({ lat: newLat, lng: newLng }) => {
+                addressForm.setValue("lat", newLat, { shouldValidate: true })
+                addressForm.setValue("lng", newLng, { shouldValidate: true })
+              }}
+              onAddressSelect={(r) => {
+                if (!addressForm.getValues("area") && (r.suburb || r.city)) {
+                  addressForm.setValue("area", r.suburb ?? r.city ?? "", { shouldValidate: true })
+                }
+                if (!addressForm.getValues("pincode") && r.postcode) {
+                  addressForm.setValue("pincode", r.postcode, { shouldValidate: true })
+                }
+                if (!addressForm.getValues("district") && r.district) {
+                  addressForm.setValue("district", r.district, { shouldValidate: true })
+                }
+                if (!addressForm.getValues("state") && r.state) {
+                  addressForm.setValue("state", r.state, { shouldValidate: true })
+                }
+              }}
+            />
           </div>
 
           <div className="flex flex-wrap gap-4 border-t border-border px-1 pt-3">

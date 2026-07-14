@@ -18,6 +18,14 @@ export function useTicket(id: string | undefined) {
   })
 }
 
+export function useUpdateTicketAddress() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, addressId }: { ticketId: string; addressId: string | null }) => service.updateTicketAddress(ticketId, addressId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service_tickets"] }),
+  })
+}
+
 export function useRepeatComplaintCustomers(orgId: string | undefined) {
   return useQuery({
     queryKey: ["service_tickets", "repeatComplaints", orgId],
@@ -62,6 +70,17 @@ export function useAssignTicketTechnician() {
   return useMutation({
     mutationFn: ({ appointmentId, technicianId, force }: { appointmentId: string; technicianId: string; force?: boolean }) =>
       service.assignTicketTechnician(appointmentId, technicianId, force),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["service_tickets"] })
+      qc.invalidateQueries({ queryKey: ["appointments"] })
+    },
+  })
+}
+
+export function useUnassignAppointment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (appointmentId: string) => service.unassignAppointment(appointmentId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["service_tickets"] })
       qc.invalidateQueries({ queryKey: ["appointments"] })

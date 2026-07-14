@@ -1,11 +1,19 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { Loader2, UserCog } from "lucide-react"
+import { Loader2, Pencil, UserCog } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { useAssignTicketTechnician, useAutoAssignTicket, useTechnicians, useTicket } from "@/hooks/useService"
+import { useToast } from "@/components/ui/toast-context"
+import {
+  useAssignTicketTechnician,
+  useAutoAssignTicket,
+  useCustomerAddresses,
+  useTechnicians,
+  useTicket,
+  useUpdateTicketAddress,
+} from "@/hooks/useService"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
 
@@ -16,6 +24,7 @@ function minutesBetween(start: string | null, end: string | null) {
 
 export function TicketDetailPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { data: ticket, isLoading, isError, refetch } = useTicket(id)
@@ -23,6 +32,11 @@ export function TicketDetailPage() {
   const autoAssign = useAutoAssignTicket()
   const assign = useAssignTicketTechnician()
   const [pickerTechId, setPickerTechId] = useState("")
+
+  const [editingAddress, setEditingAddress] = useState(false)
+  const [addressPickerId, setAddressPickerId] = useState("")
+  const addresses = useCustomerAddresses(editingAddress ? ticket?.customer_id : undefined)
+  const updateAddress = useUpdateTicketAddress()
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !ticket) {
@@ -32,6 +46,17 @@ export function TicketDetailPage() {
   const appointment = ticket.appointments[0]
   const visit = ticket.service_visits?.[0]
   const totalMinutes = visit ? minutesBetween(visit.timer_start, visit.timer_end) : null
+
+  function startEditingAddress() {
+    setAddressPickerId(ticket!.address_id ?? "")
+    setEditingAddress(true)
+  }
+  function saveAddress() {
+    updateAddress.mutate(
+      { ticketId: ticket!.id, addressId: addressPickerId || null },
+      { onSuccess: () => setEditingAddress(false), onError: () => toast.error(t("common.actionFailed")) }
+    )
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 pt-2">
@@ -45,7 +70,7 @@ export function TicketDetailPage() {
         </Button>
       </div>
 
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <div className="flex flex-wrap items-center gap-2">
           <TicketTypeBadge type={ticket.type} />
           <PriorityBadge priority={ticket.priority} />
@@ -60,11 +85,46 @@ export function TicketDetailPage() {
           <Field label={t("service.newComplaint.natureOfComplaint")} value={ticket.nature_of_complaint || "—"} />
           <Field label={t("service.table.appointment")} value={appointment?.mode === "always" ? t("service.appointment.always") : appointment?.scheduled_at ? new Date(appointment.scheduled_at).toLocaleString() : "—"} />
           <Field label={t("service.detail.status")} value={t(`service.status.${ticket.status}`)} />
-          <Field label={t("service.table.area")} value={ticket.addresses?.area ?? "—"} />
+          {!editingAddress ? (
+            <div>
+              <div className="flex items-center gap-1.5 text-xs text-text-muted">
+                {t("service.table.area")}
+                <button type="button" onClick={startEditingAddress} className="text-accent" title={t("service.detail.editAddress")}>
+                  <Pencil className="size-3" />
+                </button>
+              </div>
+              <div className="text-text">{ticket.addresses?.area ?? "—"}</div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="text-xs text-text-muted">{t("service.table.area")}</div>
+              <select
+                value={addressPickerId}
+                onChange={(e) => setAddressPickerId(e.target.value)}
+                className="h-8 w-full rounded-xl border border-border bg-surface px-2.5 text-sm text-text outline-none"
+              >
+                <option value="">{t("service.newComplaint.addressNone")}</option>
+                {(addresses.data ?? []).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {[a.door_no, a.area].filter(Boolean).join(", ") || a.id.slice(0, 8)}
+                    {a.is_primary ? ` (${t("customers.detail.primary")})` : ""}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <Button size="xs" disabled={updateAddress.isPending} onClick={saveAddress}>
+                  {updateAddress.isPending ? <Loader2 className="size-3 animate-spin" /> : t("common.save")}
+                </Button>
+                <Button size="xs" variant="ghost" onClick={() => setEditingAddress(false)}>
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
 
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <h2 className="text-sm font-semibold text-text">{t("service.detail.assignment")}</h2>
         {appointment?.technician_id ? (
           <p className="text-sm text-text">
@@ -72,14 +132,18 @@ export function TicketDetailPage() {
           </p>
         ) : appointment ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => autoAssign.mutate(ticket.id)} disabled={autoAssign.isPending}>
+            <Button
+              size="sm"
+              onClick={() => autoAssign.mutate(ticket.id, { onError: () => toast.error(t("common.actionFailed")) })}
+              disabled={autoAssign.isPending}
+            >
               {autoAssign.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UserCog className="size-3.5" />}
               {t("service.detail.autoAssign")}
             </Button>
             <select
               value={pickerTechId}
               onChange={(e) => setPickerTechId(e.target.value)}
-              className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+              className="h-8 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
             >
               <option value="">{t("service.detail.pickTechnician")}</option>
               {(technicians ?? []).map((tc) => (
@@ -92,7 +156,13 @@ export function TicketDetailPage() {
               size="sm"
               variant="outline"
               disabled={!pickerTechId || assign.isPending}
-              onClick={() => appointment && assign.mutate({ appointmentId: appointment.id, technicianId: pickerTechId })}
+              onClick={() =>
+                appointment &&
+                assign.mutate(
+                  { appointmentId: appointment.id, technicianId: pickerTechId },
+                  { onError: () => toast.error(t("common.actionFailed")) }
+                )
+              }
             >
               {t("service.detail.assignManually")}
             </Button>
@@ -106,14 +176,14 @@ export function TicketDetailPage() {
         {assign.data && !assign.data.assigned ? <p className="text-xs text-warning">{t(assign.data.reason_key ?? "service.assign.technicianBusy")}</p> : null}
       </Card>
 
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <h2 className="text-sm font-semibold text-text">{t("service.detail.jobReport")}</h2>
         {visit ? (
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <Field label={t("service.detail.startTime")} value={visit.timer_start ? new Date(visit.timer_start).toLocaleString() : "—"} />
             <Field label={t("service.detail.closeTime")} value={visit.timer_end ? new Date(visit.timer_end).toLocaleString() : "—"} />
             <Field label={t("service.detail.totalTime")} value={totalMinutes != null ? t("service.detail.minutes", { count: totalMinutes }) : "—"} />
-            <Field label={t("service.detail.charge")} value={`₹${visit.service_charge}`} />
+            <Field label={t("service.detail.charge")} value={`₹${visit.service_charge.toLocaleString("en-IN")}`} />
           </div>
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noVisitYet")}</p>

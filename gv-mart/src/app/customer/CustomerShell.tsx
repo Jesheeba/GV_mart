@@ -6,7 +6,6 @@ import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { UserMenu } from "@/components/shared/UserMenu"
 import { useProfile } from "@/hooks/useProfile"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { GVMartMark } from "@/components/shared/GVMartMark"
 
 export function CustomerShell() {
   const { t } = useTranslation()
@@ -28,8 +27,8 @@ export function CustomerShell() {
     <div className="min-h-screen bg-bg pb-20">
       <header className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex size-8 items-center justify-center rounded-md bg-accent p-1.5 text-white">
-            <GVMartMark variant="mono" className="size-full" />
+          <span className="flex size-8 items-center justify-center rounded-md border border-border bg-white p-1">
+            <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
           </span>
           <span className="text-sm font-semibold text-text">{t("shell.customerAppTitle")}</span>
         </div>

@@ -1,25 +1,57 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
+import { ArrowLeft, CheckCircle2, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Stepper } from "@/components/shared/Stepper"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { useBookServiceTicket, useMyAddresses, useMyCustomerId, useOwnedProducts } from "@/hooks/useCustomerApp"
+import { DraftBanner } from "@/components/shared/DraftBanner"
+import {
+  useBookServiceTicket,
+  useCustomerAppSettings,
+  useMyAddresses,
+  useMyCustomerId,
+  useMyOwnedProducts,
+  useOwnedProducts,
+} from "@/hooks/useCustomerApp"
+import { useLocalDraft } from "@/hooks/useLocalDraft"
+
+const DRAFT_KEY = "gv_mart_draft:customer_book_service"
+const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
+type ProductView = "owned" | "categories" | "category"
+
+/** Restorable subset of the wizard's state — see useLocalDraft. */
+type BookServiceDraftData = {
+  step: number
+  productId: string
+  productUnknown: boolean
+  nameOfComplaint: string
+  natureOfComplaint: string
+  addressId: string
+  appointmentMode: "always" | "datetime"
+  scheduledAt: string
+}
 
 export function BookServicePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { customerId, orgId, isLoading: loadingId } = useMyCustomerId()
   const { data: addresses, isLoading: loadingAddresses, isError: errorAddresses, refetch: refetchAddresses } = useMyAddresses(customerId)
+  // "products" = full catalog (used for lookup + the "choose another product" browser).
   const { data: products, isLoading: loadingProducts } = useOwnedProducts(orgId)
+  // The customer's actually-owned products (warranty/AMC on file) — the default, primary picker path.
+  const { data: myProducts, isLoading: loadingMyProducts } = useMyOwnedProducts(customerId)
+  const { data: settings } = useCustomerAppSettings(orgId)
 
   const [step, setStep] = useState(0)
   const [productId, setProductId] = useState<string>("")
   const [productUnknown, setProductUnknown] = useState(false)
+  const [productView, setProductView] = useState<ProductView>("owned")
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [nameOfComplaint, setNameOfComplaint] = useState("")
   const [natureOfComplaint, setNatureOfComplaint] = useState("")
   const [addressId, setAddressId] = useState("")
@@ -29,6 +61,64 @@ export function BookServicePage() {
   const bookTicket = useBookServiceTicket()
 
   const selectedProduct = useMemo(() => (products ?? []).find((p) => p.id === productId), [products, productId])
+
+  // Local draft persistence — see useLocalDraft's doc comment.
+  const draftSnapshot: BookServiceDraftData = {
+    step,
+    productId,
+    productUnknown,
+    nameOfComplaint,
+    natureOfComplaint,
+    addressId,
+    appointmentMode,
+    scheduledAt,
+  }
+  const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<BookServiceDraftData>(DRAFT_KEY, draftSnapshot)
+  const appliedDraftRef = useRef(false)
+  useEffect(() => {
+    if (appliedDraftRef.current || !restoredDraft) return
+    appliedDraftRef.current = true
+    if (restoredDraft.step != null) setStep(restoredDraft.step)
+    if (restoredDraft.productId) setProductId(restoredDraft.productId)
+    if (restoredDraft.productUnknown) setProductUnknown(restoredDraft.productUnknown)
+    if (restoredDraft.nameOfComplaint) setNameOfComplaint(restoredDraft.nameOfComplaint)
+    if (restoredDraft.natureOfComplaint) setNatureOfComplaint(restoredDraft.natureOfComplaint)
+    if (restoredDraft.addressId) setAddressId(restoredDraft.addressId)
+    if (restoredDraft.appointmentMode) setAppointmentMode(restoredDraft.appointmentMode)
+    if (restoredDraft.scheduledAt) setScheduledAt(restoredDraft.scheduledAt)
+  }, [restoredDraft])
+
+  // The booking is done — the local draft has served its purpose and would
+  // otherwise sit around as stale dead data offering to "resume" a booking
+  // that's already been submitted.
+  useEffect(() => {
+    if (bookTicket.isSuccess) clearDraft()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookTicket.isSuccess])
+
+  // Default straight to the primary address — listMyAddresses already orders
+  // is_primary first, so [0] is always the right one — instead of asking the
+  // customer to pick again on every booking. Only fires while addressId is
+  // still empty, so it never overrides a restored draft's own choice.
+  // Changing address is a Profile action, not part of this flow.
+  useEffect(() => {
+    if (!addressId && addresses && addresses.length > 0) {
+      setAddressId(addresses[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addresses])
+
+  function discardBookingDraft() {
+    discardDraft()
+    setStep(0)
+    setProductId("")
+    setProductUnknown(false)
+    setNameOfComplaint("")
+    setNatureOfComplaint("")
+    setAddressId("")
+    setAppointmentMode("always")
+    setScheduledAt("")
+  }
 
   const steps = [
     { key: "product", label: t("customerApp.bookService.stepProduct") },
@@ -63,10 +153,22 @@ export function BookServicePage() {
     )
   }
 
+  // v2.2 §6.4 working hours (09:00–19:30) — settings.work_start/end are the
+  // admin-editable source of truth; these literals are only the fallback for
+  // the brief window before settings has loaded.
+  const workStart = (settings?.work_start ?? "09:00").slice(0, 5)
+  const workEnd = (settings?.work_end ?? "19:30").slice(0, 5)
+  const scheduledTime = scheduledAt.slice(11, 16)
+  const scheduledAtWithinHours = !!scheduledAt && scheduledTime >= workStart && scheduledTime <= workEnd
+  // "Anytime" needs nothing further; "datetime" mode isn't valid until a
+  // time is actually picked and it falls within working hours — previously
+  // this wasn't checked at all, letting an empty/out-of-hours pick through.
+  const appointmentValid = appointmentMode === "always" || scheduledAtWithinHours
+
   const canGoNext =
     (step === 0 && (productUnknown || !!productId)) ||
     (step === 1 && nameOfComplaint.trim().length >= 3) ||
-    (step === 2 && (!!addressId || (addresses ?? []).length === 0)) ||
+    (step === 2 && !!addressId && appointmentValid) ||
     false
 
   function goNext() {
@@ -97,36 +199,123 @@ export function BookServicePage() {
       </button>
       <h1 className="text-xl font-bold text-text">{t("customerApp.bookService.title")}</h1>
 
+      <DraftBanner
+        restored={wasRestored}
+        autosaveNote={t("customerApp.bookService.draft.autosaveNote")}
+        restoredNote={t("customerApp.bookService.draft.restoredNote")}
+        discardLabel={t("customerApp.bookService.draft.discard")}
+        discardWarning={t("customerApp.bookService.draft.discardWarning")}
+        confirmDiscardLabel={t("customerApp.bookService.draft.confirmDiscard")}
+        cancelLabel={t("common.cancel")}
+        onConfirmDiscard={discardBookingDraft}
+      />
+
       <Card>
-        <Stepper steps={steps} currentIndex={step} />
+        <Stepper steps={steps} currentIndex={step} onStepClick={setStep} />
       </Card>
 
       {step === 0 ? (
         <Card className="gap-3">
-          <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.productPrompt")}</p>
-          {(products ?? []).length === 0 ? (
-            <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.noProductsKnown")}</p>
-          ) : (
-            <div className="space-y-2 px-1">
-              {(products ?? []).map((p) => (
+          {productView === "owned" ? (
+            <>
+              <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.myProductsPrompt")}</p>
+              {loadingMyProducts ? (
+                <Skeleton className="h-24 w-full" />
+              ) : (myProducts ?? []).length === 0 ? (
+                <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.noOwnedProducts")}</p>
+              ) : (
+                <div className="space-y-2 px-1">
+                  {(myProducts ?? []).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setProductId(p.id)
+                        setProductUnknown(false)
+                      }}
+                      className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
+                        !productUnknown && productId === p.id ? "border-accent bg-accent-soft" : "border-border"
+                      }`}
+                    >
+                      <span className="font-medium text-text">{p.name}</span>{" "}
+                      <span className="text-text-muted">{[p.brands?.name, p.models?.name].filter(Boolean).join(" · ")}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="px-1">
                 <button
-                  key={p.id}
                   type="button"
-                  onClick={() => {
-                    setProductId(p.id)
-                    setProductUnknown(false)
-                  }}
-                  className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
-                    !productUnknown && productId === p.id ? "border-accent bg-accent-soft" : "border-border"
-                  }`}
+                  onClick={() => setProductView("categories")}
+                  className="block w-full rounded-xl border border-border px-3.5 py-2.5 text-left text-sm text-accent"
                 >
-                  <span className="font-medium text-text">{p.name}</span>{" "}
-                  <span className="text-text-muted">{[p.brands?.name, p.models?.name].filter(Boolean).join(" · ")}</span>
+                  {t("customerApp.bookService.chooseAnotherProduct")}
                 </button>
-              ))}
-            </div>
+              </div>
+            </>
+          ) : productView === "categories" ? (
+            <>
+              <button type="button" onClick={() => setProductView("owned")} className="flex items-center gap-1.5 px-1 text-xs font-medium text-text-muted">
+                <ArrowLeft className="size-3.5" />
+                {t("common.back")}
+              </button>
+              <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.chooseCategoryPrompt")}</p>
+              <div className="space-y-2 px-1">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(cat)
+                      setProductView("category")
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl border border-border px-3.5 py-2.5 text-left text-sm"
+                  >
+                    <span className="font-medium text-text">{t(`customerApp.bookService.category.${cat}`)}</span>
+                    <ChevronRight className="size-4 text-text-muted" />
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setProductView("categories")} className="flex items-center gap-1.5 px-1 text-xs font-medium text-text-muted">
+                <ArrowLeft className="size-3.5" />
+                {t("common.back")}
+              </button>
+              <p className="px-1 text-sm font-semibold text-text">{t(`customerApp.bookService.category.${selectedCategory}`)}</p>
+              {loadingProducts ? (
+                <Skeleton className="h-24 w-full" />
+              ) : (
+                (() => {
+                  const categoryProducts = (products ?? []).filter((p) => p.category === selectedCategory)
+                  return categoryProducts.length === 0 ? (
+                    <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.noProductsInCategory")}</p>
+                  ) : (
+                    <div className="space-y-2 px-1">
+                      {categoryProducts.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setProductId(p.id)
+                            setProductUnknown(false)
+                          }}
+                          className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
+                            !productUnknown && productId === p.id ? "border-accent bg-accent-soft" : "border-border"
+                          }`}
+                        >
+                          <span className="font-medium text-text">{p.name}</span>{" "}
+                          <span className="text-text-muted">{[p.brands?.name, p.models?.name].filter(Boolean).join(" · ")}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()
+              )}
+            </>
           )}
-          <div className="px-1">
+          <div className="border-t border-border px-1 pt-3">
             <button
               type="button"
               onClick={() => {
@@ -178,21 +367,20 @@ export function BookServicePage() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-2 px-1">
+            <div className="space-y-1.5 px-1">
               <Label>{t("customerApp.bookService.selectAddress")}</Label>
-              {(addresses ?? []).map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => setAddressId(a.id)}
-                  className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
-                    addressId === a.id ? "border-accent bg-accent-soft" : "border-border"
-                  }`}
-                >
-                  <span className="text-text">{[a.door_no, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}</span>
-                  {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customerApp.profile.primary")}</span> : null}
-                </button>
-              ))}
+              {(() => {
+                const a = (addresses ?? []).find((row) => row.id === addressId) ?? addresses![0]
+                return (
+                  <div className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm">
+                    <span className="text-text">{[a.door_no, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}</span>
+                    {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customerApp.profile.primary")}</span> : null}
+                  </div>
+                )
+              })()}
+              <button type="button" onClick={() => navigate("/customer/profile")} className="text-xs font-medium text-accent">
+                {t("customerApp.bookService.changeAddressInProfile")}
+              </button>
             </div>
           )}
 
@@ -214,8 +402,13 @@ export function BookServicePage() {
             </div>
             {appointmentMode === "datetime" ? (
               <div className="space-y-1.5">
-                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} aria-invalid={!appointmentValid} />
                 <p className="text-xs text-text-muted">{t("customerApp.bookService.workHoursHint")}</p>
+                {!scheduledAt ? (
+                  <p className="text-xs text-warning">{t("customerApp.bookService.timeRequired")}</p>
+                ) : !scheduledAtWithinHours ? (
+                  <p className="text-xs text-danger">{t("customerApp.bookService.timeOutsideWorkHours", { start: workStart, end: workEnd })}</p>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -268,7 +461,7 @@ export function BookServicePage() {
             {t("customerApp.bookService.next")}
           </Button>
         ) : (
-          <Button type="button" onClick={handleSubmit} disabled={bookTicket.isPending || !addressId} className="w-full">
+          <Button type="button" onClick={handleSubmit} disabled={bookTicket.isPending || !addressId || !appointmentValid} className="w-full">
             {bookTicket.isPending ? <Loader2 className="size-4 animate-spin" /> : t("customerApp.bookService.confirmBooking")}
           </Button>
         )}

@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as tech from "@/services/technician"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { subscribeSyncState } from "@/lib/offline/sync"
-import { watchPendingCount } from "@/lib/offline/outbox"
+import { watchPendingCount, watchStuckJobs } from "@/lib/offline/outbox"
+import { watchPosition } from "@/lib/offline/geo"
 import type { Enums } from "@/types/database"
+import type { OutboxJob } from "@/lib/offline/db"
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
@@ -43,6 +45,17 @@ export function useSyncStatus() {
   }, [])
 
   return { pending, ...syncState }
+}
+
+/** Live list of outbox jobs that have failed enough times to stop auto-retrying (see sync.ts's MAX_ATTEMPTS_BEFORE_STUCK) — feeds the sync-status chip's stuck-jobs panel. */
+export function useStuckJobs() {
+  const [jobs, setJobs] = useState<OutboxJob[]>([])
+
+  useEffect(() => {
+    return watchStuckJobs(setJobs)
+  }, [])
+
+  return jobs
 }
 
 // ── TECH-01 Attendance ───────────────────────────────────────────────────
@@ -142,12 +155,70 @@ export function useQueueLocationPing() {
   })
 }
 
+/**
+ * Streams the technician's live GPS position to `technician_locations` for
+ * the admin tracking map (v2.2 §6.6), for as long as the technician is
+ * logged into the app — mounted once at the shell root in TechnicianShell so
+ * it keeps running across every screen, not just while an active job exists
+ * (the admin map already renders a neutral "no active job" marker for a
+ * tracked technician with none — see TechniciansMapPage's "no-job" status —
+ * so there's nothing to gate here; ETA/on-time logic is what's scoped to an
+ * active job, not the position stream itself).
+ * Throttled to one write per ~20s: watchPosition can fire far more often
+ * than the admin map needs a fresh point, and every write is a Realtime
+ * broadcast + DB row.
+ */
+export function useLiveLocationStream(orgId: string | undefined, technicianId: string | undefined) {
+  const lastSentRef = useRef(0)
+  useEffect(() => {
+    if (!orgId || !technicianId) return
+    lastSentRef.current = 0
+    const stop = watchPosition((pos) => {
+      const now = Date.now()
+      if (now - lastSentRef.current < 20_000) return
+      lastSentRef.current = now
+      void tech.pingLiveLocation(orgId, technicianId, pos.lat, pos.lng)
+    })
+    return stop
+  }, [orgId, technicianId])
+}
+
 // ── TECH-07 On-site stepper ───────────────────────────────────────────────
 
+/**
+ * A visit can be started from two independent places for the same job —
+ * MapPage's arrival detection and OnSiteVisitPage's own mount effect (see
+ * findOpenVisit's doc comment) — and both decide whether to start one by
+ * reading the *cached* `["jobDetail", ticketId]` query. Without patching
+ * that cache synchronously here, a technician who taps "Continue to
+ * service" right after arriving could land on OnSiteVisitPage before the
+ * network write lands, see the stale (pre-arrival) visit list, and create a
+ * second, orphaned service_visits row. `onMutate` runs synchronously before
+ * the write even starts, so the cache reflects the new open visit
+ * immediately — no race window regardless of how fast the technician
+ * navigates.
+ *
+ * Deliberately does NOT invalidate/refetch `["jobDetail", ticketId]` on
+ * success: `queueStartVisit` enqueues the actual insert to the offline
+ * outbox rather than writing it straight to Supabase (sync.ts flushes it on
+ * a ~20s poll), so a refetch fired right after `onSuccess` almost always
+ * lands before the real row exists server-side — it would overwrite this
+ * correct optimistic entry with stale data that still shows no open visit,
+ * which previously caused MapPage to flip back to "not arrived" and create
+ * a duplicate visit once the confirm window re-ran. The optimistic patch
+ * above is already the correct state; nothing needs to re-fetch it.
+ */
 export function useStartVisit() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: tech.queueStartVisit,
+    onMutate: (visit) => {
+      qc.setQueryData<tech.JobDetail>(["jobDetail", visit.ticketId], (prev) =>
+        prev && !prev.service_visits.some((v) => v.id === visit.id)
+          ? { ...prev, service_visits: [...prev.service_visits, { id: visit.id, timer_start: visit.timerStart, timer_end: null, service_charge: 0, before_image_url: null, after_image_url: null }] }
+          : prev
+      )
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs", "today"] }),
   })
 }

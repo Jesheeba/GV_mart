@@ -16,14 +16,36 @@ export function getCurrentPosition(options?: PositionOptions): Promise<GeoPoint>
   })
 }
 
-export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: GeolocationPositionError) => void) {
-  if (!("geolocation" in navigator)) return () => {}
+export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: GeolocationPositionError | Error) => void) {
+  if (!("geolocation" in navigator)) {
+    onError?.(new Error("geolocation_unsupported"))
+    return () => {}
+  }
   const id = navigator.geolocation.watchPosition(
     (pos) => cb({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
     onError,
     { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }
   )
   return () => navigator.geolocation.clearWatch(id)
+}
+
+/**
+ * Maps a Geolocation failure (native GeolocationPositionError, or the plain
+ * Error("geolocation_unsupported") thrown by this module on an unsupported
+ * browser) to a stable kind so callers can show actionable, distinct
+ * guidance instead of one generic "location error" message — permission
+ * denied, GPS/network unavailable, and a stale timeout each need a
+ * different fix from the technician.
+ */
+export type GeoErrorKind = "unsupported" | "permissionDenied" | "unavailable" | "timeout" | "unknown"
+
+export function classifyGeoError(err: unknown): GeoErrorKind {
+  if (err instanceof Error && err.message === "geolocation_unsupported") return "unsupported"
+  const code = (err as GeolocationPositionError | undefined)?.code
+  if (code === 1) return "permissionDenied"
+  if (code === 2) return "unavailable"
+  if (code === 3) return "timeout"
+  return "unknown"
 }
 
 /** Haversine distance in kilometres. */

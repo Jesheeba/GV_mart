@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { CalendarClock, ChevronRight, MapPin, Phone } from "lucide-react"
+import { CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigation, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { JobTypeBadge, PriorityBadge } from "./components/JobBadges"
 import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician } from "@/hooks/useTechnician"
-import { isChargeableTicketType } from "@/services/technician"
+import { isChargeableTicketType, isTicketClosed } from "@/services/technician"
 
 function formatDateTime(iso: string | null) {
   if (!iso) return null
@@ -118,10 +118,24 @@ export function JobDetailPage() {
         )}
       </Card>
 
-      <Button type="button" onClick={() => navigate(`/technician/jobs/${ticketId}/visit`)}>
-        {t("technician.jobDetail.startVisit")}
-        <ChevronRight className="size-4" />
-      </Button>
+      {isTicketClosed(ticket.status) ? (
+        <Card className="items-center gap-1.5 py-6 text-center">
+          <CheckCircle2 className="size-7 text-success" />
+          <p className="text-sm font-medium text-text">{t("technician.jobDetail.closedTitle")}</p>
+          <p className="text-xs text-text-muted">{t(`service.status.${ticket.status}`)}</p>
+        </Card>
+      ) : (
+        <>
+          <Button type="button" variant="outline" onClick={() => navigate(`/technician/map?ticketId=${ticketId}`)}>
+            <Navigation className="size-4" />
+            {t("technician.jobDetail.navigate")}
+          </Button>
+          <Button type="button" onClick={() => navigate(`/technician/jobs/${ticketId}/visit`)}>
+            {t("technician.jobDetail.startVisit")}
+            <ChevronRight className="size-4" />
+          </Button>
+        </>
+      )}
       <Button type="button" variant="outline" onClick={() => navigate(-1)}>
         {t("common.back")}
       </Button>

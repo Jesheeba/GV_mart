@@ -47,7 +47,7 @@ export function AutomationFlowsTab() {
         { key: "is_active", header: t("automation.flows.active"), render: (r) => (r.is_active ? t("common.yes") : t("common.no")) },
       ]}
       onCreate={(v) =>
-        createMut.mutate({
+        createMut.mutateAsync({
           org_id: orgId!,
           trigger: v.trigger as AutomationFlowRow["trigger"],
           action: v.action as AutomationFlowRow["action"],
@@ -56,12 +56,12 @@ export function AutomationFlowsTab() {
         })
       }
       onUpdate={(id, v) =>
-        updateMut.mutate({
+        updateMut.mutateAsync({
           id,
           patch: { trigger: v.trigger as AutomationFlowRow["trigger"], action: v.action as AutomationFlowRow["action"], asset_url: v.asset_url || null, is_active: v.is_active === "true" },
         })
       }
-      onDelete={(id) => deleteMut.mutate(id)}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

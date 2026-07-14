@@ -1,17 +1,19 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { CheckCircle2, Loader2, Plus, Trash2 } from "lucide-react"
+import { CheckCircle2, Loader2, Plus, Save, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Stepper } from "@/components/shared/Stepper"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { useToast } from "@/components/ui/toast-context"
 import { PhotoCapture } from "../components/PhotoCapture"
 import { SignaturePad } from "../components/SignaturePad"
 import { SpareSelectStep, type SelectedSpare } from "./SpareSelectStep"
 import { useProfile } from "@/hooks/useProfile"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import {
   useCacheVisitSignature,
   useCreateServiceInvoice,
@@ -25,14 +27,53 @@ import {
   useStartVisit,
   useTechnicianSettings,
 } from "@/hooks/useTechnician"
-import { isChargeableTicketType } from "@/services/technician"
+import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema } from "@/lib/validation/technician"
 import { formatCurrency } from "@/lib/sale-calc"
+import { db } from "@/lib/offline/db"
 import { startSyncEngine } from "@/lib/offline/sync"
 import type { Enums } from "@/types/database"
 
-const STEP_KEYS = ["sop", "spares", "charges", "ro", "invoice", "signatures", "payment"] as const
+const STEP_KEYS = ["sop", "spares", "charges", "ro", "afterphoto", "invoice", "signatures", "payment"] as const
 type SopStep = { id: string; name: string; expectedMinutes: number; doneAt: string | null }
+
+/**
+ * Everything in the stepper that has no server representation until its own
+ * section's explicit save button is tapped — SOP items not yet marked done,
+ * spares picked but no invoice created yet, typed-but-unsaved charges/RO
+ * fields, captured-but-unsynced photos/signatures, which step/payment
+ * fields, and the enquiry sub-form. Snapshotted into `visitFormDrafts` on
+ * every change (debounced for text fields, immediate for discrete captures)
+ * and restored on mount so navigating away and back — accidental or not —
+ * never silently discards work in progress.
+ */
+type VisitDraftData = {
+  beforeImage: string | null
+  afterImage: string | null
+  sopSteps: SopStep[]
+  newStepName: string
+  newStepMinutes: string
+  selectedSpares: SelectedSpare[]
+  discountInput: string
+  serviceChargeInput: string
+  tdsBefore: string
+  tdsAfter: string
+  tankCleaned: boolean | null
+  productExplained: boolean | null
+  roClientName: string
+  techSign: string | null
+  customerSign: string | null
+  paymentMethod: Enums<"payment_method">
+  txnId: string
+  paymentDescription: string
+  step: number
+  invoiceQueued: boolean
+  showEnquiry: boolean
+  enquiryName: string
+  enquiryMobile: string
+  enquiryType: Enums<"enquiry_type">
+  enquiryNote: string
+}
 
 function useVisitTimer(startedAt: number | null) {
   const [elapsedSec, setElapsedSec] = useState(0)
@@ -46,6 +87,7 @@ function useVisitTimer(startedAt: number | null) {
 
 export function OnSiteVisitPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const { ticketId } = useParams<{ ticketId: string }>()
   const { data: profile } = useProfile()
@@ -99,6 +141,17 @@ export function OnSiteVisitPage() {
   const [enquiryNote, setEnquiryNote] = useState("")
   const [enquirySent, setEnquirySent] = useState(false)
 
+  const [draftHydrated, setDraftHydrated] = useState(false)
+  const [draftRestored, setDraftRestored] = useState(false)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+  const hydratingTicketRef = useRef<string | null>(null)
+  // Set right before discardDraft() resets every field to its default —
+  // without this, the reset itself changes draftSnapshot, and ~500ms later
+  // the still-active autosave effect below would dutifully write that
+  // all-defaults snapshot right back to Dexie, resurrecting an empty draft
+  // moments after the technician explicitly deleted it.
+  const suppressNextAutosaveRef = useRef(false)
+
   // Idempotent — guards its own "already started" flag — so this is safe even
   // if this screen ends up routed outside TechnicianShell (a full-screen
   // stepper pushed on top, per the BuildSpec), where the shell's own
@@ -107,19 +160,149 @@ export function OnSiteVisitPage() {
     startSyncEngine()
   }, [])
 
-  // Arrival: if the technician came from TECH-04's "I've arrived", a timer may
-  // already be conceptually running (client-only, not persisted across a full
-  // reload); starting the visit here (once) is what actually creates the
-  // service_visits row + timer_start that the invoice is built against.
+  // Arrival: MapPage's arrival detection (auto or the "I've arrived"
+  // fallback tap) already starts the real productivity timer, so this page
+  // can be reached with a service_visits row already open for this ticket —
+  // adopt it instead of creating a second, orphaned one. Only when reached
+  // directly from JobDetailPage's "Start visit" (bypassing Map entirely) is
+  // there no existing visit yet, in which case this creates it — unless the
+  // ticket is already completed/cancelled (a stale URL/browser-back into a
+  // finished job), in which case it must NOT spin up a new visit at all;
+  // the render below shows a blocking "already closed" state instead.
   useEffect(() => {
-    if (!ticketId || !technician.data || !profile || visitId) return
+    if (!ticketId || !technician.data || !profile || visitId || !jobDetail.data) return
+    const existing = findOpenVisit(jobDetail.data.service_visits)
+    if (existing) {
+      setVisitId(existing.id)
+      setStartedAt(new Date(existing.timer_start!).getTime())
+      return
+    }
+    if (isTicketClosed(jobDetail.data.status)) return
     const id = crypto.randomUUID()
     const nowIso = new Date().toISOString()
     setVisitId(id)
     setStartedAt(Date.now())
     void startVisit.mutateAsync({ id, orgId: profile.org_id, ticketId, technicianId: technician.data.id, timerStart: nowIso })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticketId, technician.data, profile])
+  }, [ticketId, technician.data, profile, jobDetail.data])
+
+  // Restores whatever was locally saved for this ticket before rendering
+  // proceeds any further — runs once per ticketId (guarded via the ref, not
+  // state, so it can't fire twice from a render caused by its own restore).
+  useEffect(() => {
+    if (!ticketId || hydratingTicketRef.current === ticketId) return
+    hydratingTicketRef.current = ticketId
+    db.visitFormDrafts.get(ticketId).then((draft) => {
+      if (!draft) {
+        setDraftHydrated(true)
+        return
+      }
+      const d = draft.data as Partial<VisitDraftData>
+      if (d.beforeImage) setBeforeImage(d.beforeImage)
+      if (d.afterImage) setAfterImage(d.afterImage)
+      if (d.sopSteps?.length) setSopSteps(d.sopSteps)
+      if (d.newStepName) setNewStepName(d.newStepName)
+      if (d.newStepMinutes) setNewStepMinutes(d.newStepMinutes)
+      if (d.selectedSpares?.length) setSelectedSpares(d.selectedSpares)
+      if (d.discountInput != null) setDiscountInput(d.discountInput)
+      if (d.serviceChargeInput != null) setServiceChargeInput(d.serviceChargeInput)
+      if (d.tdsBefore != null) setTdsBefore(d.tdsBefore)
+      if (d.tdsAfter != null) setTdsAfter(d.tdsAfter)
+      if (d.tankCleaned !== undefined) setTankCleaned(d.tankCleaned)
+      if (d.productExplained !== undefined) setProductExplained(d.productExplained)
+      if (d.roClientName) setRoClientName(d.roClientName)
+      if (d.techSign) setTechSign(d.techSign)
+      if (d.customerSign) setCustomerSign(d.customerSign)
+      if (d.paymentMethod) setPaymentMethod(d.paymentMethod)
+      if (d.txnId) setTxnId(d.txnId)
+      if (d.paymentDescription) setPaymentDescription(d.paymentDescription)
+      if (d.step != null) setStep(d.step)
+      if (d.invoiceQueued != null) setInvoiceQueued(d.invoiceQueued)
+      if (d.showEnquiry != null) setShowEnquiry(d.showEnquiry)
+      if (d.enquiryName) setEnquiryName(d.enquiryName)
+      if (d.enquiryMobile) setEnquiryMobile(d.enquiryMobile)
+      if (d.enquiryType) setEnquiryType(d.enquiryType)
+      if (d.enquiryNote) setEnquiryNote(d.enquiryNote)
+      setDraftRestored(true)
+      setDraftHydrated(true)
+    })
+  }, [ticketId])
+
+  // Debounced local autosave — covers every text/selection field that has no
+  // server representation until its own section is explicitly saved (see
+  // VisitDraftData's doc comment). Skipped until hydration has run once, so
+  // restoring a draft can't immediately overwrite itself with the
+  // pre-restore defaults it started from.
+  const draftSnapshot: VisitDraftData = {
+    beforeImage,
+    afterImage,
+    sopSteps,
+    newStepName,
+    newStepMinutes,
+    selectedSpares,
+    discountInput,
+    serviceChargeInput,
+    tdsBefore,
+    tdsAfter,
+    tankCleaned,
+    productExplained,
+    roClientName,
+    techSign,
+    customerSign,
+    paymentMethod,
+    txnId,
+    paymentDescription,
+    step,
+    invoiceQueued,
+    showEnquiry,
+    enquiryName,
+    enquiryMobile,
+    enquiryType,
+    enquiryNote,
+  }
+  const debouncedDraftKey = useDebouncedValue(JSON.stringify(draftSnapshot), 500)
+
+  useEffect(() => {
+    if (!ticketId || !draftHydrated) return
+    if (suppressNextAutosaveRef.current) {
+      suppressNextAutosaveRef.current = false
+      return
+    }
+    void db.visitFormDrafts.put({ ticketId, visitId, data: JSON.parse(debouncedDraftKey), updatedAt: Date.now() })
+  }, [debouncedDraftKey, ticketId, draftHydrated, visitId])
+
+  async function discardDraft() {
+    if (ticketId) await db.visitFormDrafts.delete(ticketId)
+    suppressNextAutosaveRef.current = true
+    setBeforeImage(null)
+    setAfterImage(null)
+    setSopSteps([])
+    setNewStepName("")
+    setNewStepMinutes("10")
+    setSelectedSpares([])
+    setDiscountInput("0")
+    setServiceChargeInput("0")
+    setTdsBefore("")
+    setTdsAfter("")
+    setTankCleaned(null)
+    setProductExplained(null)
+    setRoClientName("")
+    setTechSign(null)
+    setCustomerSign(null)
+    setPaymentMethod("cash")
+    setTxnId("")
+    setPaymentDescription("")
+    setStep(0)
+    setInvoiceQueued(false)
+    setShowEnquiry(false)
+    setEnquiryName("")
+    setEnquiryMobile("")
+    setEnquiryType("online")
+    setEnquiryNote("")
+    setEnquirySent(false)
+    setDraftRestored(false)
+    setShowDiscardConfirm(false)
+  }
 
   const ticket = jobDetail.data
   const chargeable = ticket ? isChargeableTicketType(ticket.type) : false
@@ -130,11 +313,28 @@ export function OnSiteVisitPage() {
   }, [chargeable])
 
   if (technician.isLoading || settings.isLoading || jobDetail.isLoading) return <FullPageLoader label={t("common.loading")} />
+  if (technician.isError || !technician.data) {
+    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => technician.refetch()} retryLabel={t("common.retry")} />
+  }
   if (jobDetail.isError || !ticket) {
     return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobDetail.refetch()} retryLabel={t("common.retry")} />
   }
   if (settings.isError || !settings.data) {
     return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => settings.refetch()} retryLabel={t("common.retry")} />
+  }
+  if (isTicketClosed(ticket.status) && !visitId) {
+    return (
+      <div className="pt-2">
+        <Card className="items-center gap-2 py-8 text-center">
+          <CheckCircle2 className="size-8 text-success" />
+          <p className="text-sm font-medium text-text">{t("technician.onsite.jobClosedTitle")}</p>
+          <p className="text-xs text-text-muted">{t("technician.onsite.jobClosedBody")}</p>
+          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+            {t("common.back")}
+          </Button>
+        </Card>
+      </div>
+    )
   }
 
   const techMax = Number(settings.data.discount_tech_max)
@@ -151,7 +351,11 @@ export function OnSiteVisitPage() {
   const activeStepKeys = STEP_KEYS.filter((k) => k !== "ro" || isRo)
   const currentKey = activeStepKeys[step]
 
-  const sopAllDone = sopSteps.length > 0 && sopSteps.every((s) => s.doneAt)
+  // Vacuously true when empty — SOP items are free-text/technician-added (no
+  // predefined template; a "SOP master" screen is explicitly out of v2.2
+  // scope), so a job with nothing worth logging must not be stuck forever
+  // waiting for an item that will never be added.
+  const sopAllDone = sopSteps.every((s) => s.doneAt)
   const roValid = !isRo || roChecklistSchema.safeParse({
     tdsBefore: tdsBefore === "" ? undefined : Number(tdsBefore),
     tdsAfter: tdsAfter === "" ? undefined : Number(tdsAfter),
@@ -161,10 +365,11 @@ export function OnSiteVisitPage() {
   }).success
 
   function canAdvanceFrom(key: (typeof STEP_KEYS)[number]) {
-    if (key === "sop") return !!beforeImage && sopAllDone && !!afterImage
+    if (key === "sop") return !!beforeImage && sopAllDone
     if (key === "spares") return true
     if (key === "charges") return !isDiscountBlocked(discountPercent, adminMax)
     if (key === "ro") return roValid
+    if (key === "afterphoto") return !!afterImage
     if (key === "invoice") return invoiceQueued
     if (key === "signatures") return !!techSign && !!customerSign
     return true
@@ -234,8 +439,16 @@ export function OnSiteVisitPage() {
       return
     }
     setPaymentError(null)
-    if (visitId) await endVisit.mutateAsync({ visitId, timerEnd: new Date().toISOString() })
-    navigate(`/technician/jobs/${ticketId}/rating`, { state: { visitId } })
+    try {
+      if (visitId) await endVisit.mutateAsync({ visitId, timerEnd: new Date().toISOString() })
+      // The visit is done — its local draft has served its purpose and would
+      // otherwise sit around as stale dead data (or, worse, confusingly
+      // "resume" into a job this ticket can no longer be re-entered for).
+      if (ticketId) await db.visitFormDrafts.delete(ticketId)
+      navigate(`/technician/jobs/${ticketId}/rating`, { state: { visitId } })
+    } catch {
+      toast.error(t("common.actionFailed"))
+    }
   }
 
   function handleTechSign(dataUrl: string | null) {
@@ -253,15 +466,19 @@ export function OnSiteVisitPage() {
     const parsed = enquiryLeadSchema.safeParse({ name: enquiryName, mobile: enquiryMobile, enquiryType, note: enquiryNote })
     if (!parsed.success) return
     if (!ticket) return
-    await generateEnquiry.mutateAsync({
-      orgId: profile.org_id,
-      customerId: ticket.customer_id,
-      name: parsed.data.name,
-      mobile: parsed.data.mobile || undefined,
-      enquiryType: parsed.data.enquiryType,
-      note: parsed.data.note || undefined,
-    })
-    setEnquirySent(true)
+    try {
+      await generateEnquiry.mutateAsync({
+        orgId: profile.org_id,
+        customerId: ticket.customer_id,
+        name: parsed.data.name,
+        mobile: parsed.data.mobile || undefined,
+        enquiryType: parsed.data.enquiryType,
+        note: parsed.data.note || undefined,
+      })
+      setEnquirySent(true)
+    } catch {
+      toast.error(t("common.actionFailed"))
+    }
   }
 
   const minutes = String(Math.floor(elapsedSec / 60)).padStart(2, "0")
@@ -276,6 +493,31 @@ export function OnSiteVisitPage() {
         </span>
       </div>
       <p className="px-1 text-sm text-text-muted">{ticket.customers?.name} — {ticket.products?.name ?? ticket.name_of_complaint}</p>
+
+      <div className="flex items-center justify-between gap-2 px-1">
+        <p className="flex items-center gap-1.5 text-xs text-text-muted">
+          <Save className="size-3.5" />
+          {draftRestored ? t("technician.onsite.draft.restoredNote") : t("technician.onsite.draft.autosaveNote")}
+        </p>
+        {draftRestored ? (
+          <button type="button" className="text-xs font-medium text-danger" onClick={() => setShowDiscardConfirm((v) => !v)}>
+            {t("technician.onsite.draft.discard")}
+          </button>
+        ) : null}
+      </div>
+      {showDiscardConfirm ? (
+        <Card className="gap-2 px-3.5 py-3">
+          <p className="text-xs text-text-muted">{t("technician.onsite.draft.discardWarning")}</p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowDiscardConfirm(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" variant="destructive" size="sm" onClick={() => void discardDraft()}>
+              {t("technician.onsite.draft.confirmDiscard")}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <Stepper steps={steps} currentIndex={step} />
@@ -329,8 +571,6 @@ export function OnSiteVisitPage() {
               </Button>
             </div>
           </Card>
-
-          <PhotoCapture label={t("technician.onsite.afterImage")} dataUrl={afterImage} onCaptured={handleAfterImage} />
         </div>
       ) : null}
 
@@ -406,6 +646,13 @@ export function OnSiteVisitPage() {
             {queueRoChecklist.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.ro.save")}
           </Button>
         </Card>
+      ) : null}
+
+      {currentKey === "afterphoto" ? (
+        <div className="space-y-4">
+          <p className="px-1 text-sm text-text-muted">{t("technician.onsite.afterImageHint")}</p>
+          <PhotoCapture label={t("technician.onsite.afterImage")} dataUrl={afterImage} onCaptured={handleAfterImage} />
+        </div>
       ) : null}
 
       {currentKey === "invoice" ? (
@@ -493,6 +740,7 @@ export function OnSiteVisitPage() {
         <button type="button" className="px-1 text-left text-sm font-semibold text-accent" onClick={() => setShowEnquiry((v) => !v)}>
           {t("technician.onsite.enquiry.toggle")}
         </button>
+        {showEnquiry ? <p className="px-1 text-xs text-text-muted">{t("technician.onsite.enquiry.hint")}</p> : null}
         {showEnquiry ? (
           enquirySent ? (
             <p className="px-1 text-sm text-success">{t("technician.onsite.enquiry.sent")}</p>

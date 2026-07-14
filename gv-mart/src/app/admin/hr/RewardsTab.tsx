@@ -84,7 +84,7 @@ export function RewardsTab() {
         {CATEGORIES.map((category) => {
           const list = candidatesByCategory.get(category) ?? []
           return (
-            <Card key={category} size="default" className="gap-2">
+            <Card key={category} size="default" className="gap-2 px-5">
               <div className="flex items-center gap-1.5 px-1">
                 <Trophy className="size-4 text-warning" />
                 <p className="text-sm font-semibold text-text">{t(`hr.rewards.categories.${category}`)}</p>

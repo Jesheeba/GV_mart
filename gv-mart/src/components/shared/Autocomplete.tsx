@@ -20,6 +20,7 @@ export function Autocomplete<T>({
   emptyMessage,
   icon,
   className,
+  inputClassName,
 }: {
   id?: string
   value: string
@@ -33,6 +34,8 @@ export function Autocomplete<T>({
   emptyMessage: string
   icon?: ReactNode
   className?: string
+  /** Overrides the input's own classes (e.g. a pill-shaped search box) instead of the wrapper's. */
+  inputClassName?: string
 }) {
   const [open, setOpen] = useState(false)
 
@@ -49,7 +52,7 @@ export function Autocomplete<T>({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
-        className={icon ? "pl-10" : undefined}
+        className={cn(icon && "pl-10", inputClassName)}
         autoComplete="off"
       />
       {open && value.trim() ? (

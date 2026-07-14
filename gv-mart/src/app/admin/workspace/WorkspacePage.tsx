@@ -76,6 +76,14 @@ export function WorkspacePage() {
   const [newDueDate, setNewDueDate] = useState(todayIso())
   const [confirmed, setConfirmed] = useState(false)
 
+  // Derive from the fetched feed too (not just the local click flag) so the
+  // "Confirmed" state survives a page reload/revisit instead of silently
+  // resetting and letting the same call get logged again.
+  const confirmedToday = (notifications.data ?? []).some(
+    (n) => n.type === "confirmation_call_stub" && n.created_at.slice(0, 10) === todayIso()
+  )
+  const isConfirmed = confirmed || confirmedToday
+
   const parsed = createTaskSchema.safeParse({ title: newTitle, dueDate: newDueDate })
 
   function handleAddTask() {
@@ -104,7 +112,7 @@ export function WorkspacePage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <Card size="default">
+          <Card size="default" className="px-5">
             <p className="mb-3 text-sm font-semibold text-text">{t("workspace.todaysList")}</p>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <Input
@@ -141,7 +149,7 @@ export function WorkspacePage() {
           </Card>
 
           {(upcomingTasks.data?.length ?? 0) > 0 ? (
-            <Card size="default">
+            <Card size="default" className="px-5">
               <p className="mb-3 text-sm font-semibold text-text">{t("workspace.upcoming")}</p>
               <div className="space-y-2">
                 {upcomingTasks.data!.map((task) => (
@@ -152,7 +160,7 @@ export function WorkspacePage() {
           ) : null}
 
           {(completedTasks.data?.length ?? 0) > 0 ? (
-            <Card size="default">
+            <Card size="default" className="px-5">
               <p className="mb-3 text-sm font-semibold text-text">{t("workspace.completedToday")}</p>
               <div className="space-y-2">
                 {completedTasks.data!.slice(0, 10).map((task) => (
@@ -164,24 +172,24 @@ export function WorkspacePage() {
         </div>
 
         <div className="space-y-4">
-          <Card size="default" className="gap-2">
+          <Card size="default" className="gap-2 px-5">
             <p className="text-sm font-semibold text-text">{t("workspace.confirmationCall.title")}</p>
             <p className="text-xs text-text-muted">{t("workspace.confirmationCall.body")}</p>
             <p className="text-[11px] text-text-muted italic">{t("workspace.confirmationCall.stubNote")}</p>
             <Button
               type="button"
               size="sm"
-              variant={confirmed ? "outline" : "accent"}
-              disabled={confirmed || logConfirmationCall.isPending}
+              variant={isConfirmed ? "outline" : "accent"}
+              disabled={isConfirmed || logConfirmationCall.isPending}
               onClick={handleConfirmationCall}
               className="mt-1"
             >
-              {logConfirmationCall.isPending ? <Loader2 className="size-3.5 animate-spin" /> : confirmed ? <CheckCircle2 className="size-3.5" /> : null}
-              {confirmed ? t("workspace.confirmationCall.confirmedLabel") : t("workspace.confirmationCall.markConfirmed")}
+              {logConfirmationCall.isPending ? <Loader2 className="size-3.5 animate-spin" /> : isConfirmed ? <CheckCircle2 className="size-3.5" /> : null}
+              {isConfirmed ? t("workspace.confirmationCall.confirmedLabel") : t("workspace.confirmationCall.markConfirmed")}
             </Button>
           </Card>
 
-          <Card size="default">
+          <Card size="default" className="px-5">
             <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-text">
               <Bell className="size-4" /> {t("workspace.notificationsFeed")}
             </p>

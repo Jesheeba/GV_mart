@@ -54,7 +54,7 @@ export function PurchaseOrdersTab() {
       </div>
 
       {showNew ? (
-        <Card className="gap-3">
+        <Card className="gap-3 px-5">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-text">{t("purchase.po.supplier")}</label>
             <select
@@ -92,7 +92,7 @@ export function PurchaseOrdersTab() {
       />
 
       {expandedId ? (
-        <Card className="gap-2">
+        <Card className="gap-2 px-5">
           <h3 className="text-sm font-semibold text-text">{t("purchase.po.items")}</h3>
           {poItems.isLoading ? (
             <p className="text-xs text-text-muted">{t("common.loading")}</p>

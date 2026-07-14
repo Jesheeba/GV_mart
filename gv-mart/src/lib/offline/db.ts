@@ -29,7 +29,12 @@ export type OutboxKind =
   | "lead.generate"
   | "location.ping"
 
-export type OutboxStatus = "pending" | "syncing" | "failed"
+/**
+ * "stuck" = failed `MAX_ATTEMPTS_BEFORE_STUCK` times (see sync.ts) and no
+ * longer auto-retried; it still needs a technician/admin to look at it, it
+ * has NOT been dropped (see sync.ts's file-level comment on that guarantee).
+ */
+export type OutboxStatus = "pending" | "syncing" | "failed" | "stuck"
 
 export interface OutboxJob {
   id?: number
@@ -40,6 +45,10 @@ export interface OutboxJob {
   status: OutboxStatus
   attempts: number
   lastError?: string
+  /** Timestamp of the job's first failure (set once, kept across retries) — lets the UI show "failing since …" instead of just an attempt count. */
+  firstFailedAt?: number
+  /** Earliest time (ms epoch) this job is eligible to be retried again — backoff scheduling (sync.ts). Undefined means "eligible now", which is also true for every job that has never failed, so the happy path is unaffected. */
+  nextRetryAt?: number
   createdAt: number
   updatedAt: number
 }
@@ -92,6 +101,24 @@ export interface CachedSettings {
   updatedAt: number
 }
 
+/**
+ * On-device draft of the TECH-07 on-site stepper's own form state — SOP
+ * checklist items, spares picked, charges/discount typed, RO checklist
+ * fields, photos, signatures, payment fields, which step the technician was
+ * on, etc. This is distinct from `DraftVisit` (which only ever held the
+ * visit-creation row) and from the outbox (write-and-forget job payloads,
+ * never read back into the UI): most of these fields have no server
+ * representation at all until their section's own explicit save button is
+ * tapped, so without a local copy they simply vanish on navigating away and
+ * back. One row per ticket — matches "one open visit per ticket".
+ */
+export interface VisitFormDraft {
+  ticketId: string
+  visitId: string | null
+  data: Record<string, unknown>
+  updatedAt: number
+}
+
 const db = new Dexie("gv_mart_technician") as Dexie & {
   outbox: EntityTable<OutboxJob, "id">
   attendanceCache: EntityTable<CachedAttendance, "id">
@@ -100,6 +127,7 @@ const db = new Dexie("gv_mart_technician") as Dexie & {
   draftVisits: EntityTable<DraftVisit, "clientId">
   media: EntityTable<CachedMedia, "id">
   settingsCache: EntityTable<CachedSettings, "orgId">
+  visitFormDrafts: EntityTable<VisitFormDraft, "ticketId">
 }
 
 db.version(1).stores({
@@ -110,6 +138,23 @@ db.version(1).stores({
   draftVisits: "clientId, ticketId, serverId",
   media: "id, kind, createdAt",
   settingsCache: "orgId",
+})
+
+// Only the new/changed table needs listing — v1's tables carry over as-is.
+db.version(2).stores({
+  visitFormDrafts: "ticketId",
+})
+
+// v3 adds a `nextRetryAt` index to `outbox` for backoff scheduling (sync.ts)
+// and the "stuck" status value (status was already indexed, so a new value
+// for it needs no schema change). This is purely additive: existing rows in
+// an already-installed client's IndexedDB simply have `nextRetryAt`
+// undefined, which retry logic treats as "eligible immediately" — matching
+// today's behavior for anything that hasn't failed yet — and Dexie doesn't
+// require a data migration for a new optional/index field. No existing rows
+// or tables are touched.
+db.version(3).stores({
+  outbox: "++id, kind, status, createdAt, nextRetryAt",
 })
 
 export { db }

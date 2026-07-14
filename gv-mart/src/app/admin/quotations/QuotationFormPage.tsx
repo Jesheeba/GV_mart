@@ -15,7 +15,7 @@ import { useCreateQuotation } from "@/hooks/useQuotations"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { Enums } from "@/types/database"
 
-const selectClass = "h-10 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
+const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
 
 type QuoteLine = { itemType: Enums<"item_type">; itemId: string; name: string; price: number; qty: number }
 
@@ -78,7 +78,7 @@ export function QuotationFormPage() {
     <div className="mx-auto max-w-2xl space-y-4 pt-2">
       <h1 className="text-2xl font-bold text-text">{t("quotations.form.title")}</h1>
 
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <Label htmlFor="quote-customer">{t("sales.customer.searchLabel")}</Label>
         <Autocomplete
           id="quote-customer"
@@ -109,7 +109,7 @@ export function QuotationFormPage() {
         </div>
       </Card>
 
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <p className="px-1 text-sm font-semibold text-text">{t("quotations.form.itemsTitle")}</p>
         <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
           <select className={selectClass} value={productId} onChange={(e) => setProductId(e.target.value)}>
@@ -120,7 +120,7 @@ export function QuotationFormPage() {
               </option>
             ))}
           </select>
-          <Input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} />
+          <Input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
           <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={addProductLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}
@@ -135,7 +135,7 @@ export function QuotationFormPage() {
               </option>
             ))}
           </select>
-          <Input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} />
+          <Input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
           <Button type="button" size="sm" variant="outline" disabled={!spareId} onClick={addSpareLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}

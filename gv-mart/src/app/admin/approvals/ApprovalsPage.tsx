@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { CheckSquare } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useApprovals, useDecideApproval } from "@/hooks/useSystemPages"
 import { ApprovalRow } from "./ApprovalRow"
@@ -11,6 +12,7 @@ const STATUS_OPTIONS = ["pending", "approved", "rejected"] as const
 
 export function ApprovalsPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const { data: profile } = useProfile()
   const [type, setType] = useState("")
   const [status, setStatus] = useState("")
@@ -21,7 +23,7 @@ export function ApprovalsPage() {
 
   function handleDecide(id: string, next: "approved" | "rejected") {
     if (!profile) return
-    decide.mutate({ id, approverId: profile.id, status: next })
+    decide.mutate({ id, approverId: profile.id, status: next }, { onError: () => toast.error(t("common.actionFailed")) })
   }
 
   return (
@@ -31,7 +33,7 @@ export function ApprovalsPage() {
         <p className="text-sm text-text-muted">{t("approvals.subtitle")}</p>
       </div>
 
-      <Card size="sm" className="flex-row flex-wrap items-center gap-2">
+      <Card size="sm" className="flex-row flex-wrap items-center gap-2 px-4">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("approvals.filters.type")}</label>
           <select value={type} onChange={(e) => setType(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">

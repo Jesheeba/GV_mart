@@ -9,13 +9,19 @@ import { LeadsKanban } from "./LeadsKanban"
 import { LeadDetailPanel } from "./LeadDetailPanel"
 import { NewLeadForm } from "./NewLeadForm"
 import type { LeadListItem } from "@/services/automation"
+import type { Enums } from "@/types/database"
+
+const SOURCE_OPTIONS: Enums<"lead_source">[] = ["field", "customer_app", "whatsapp", "walk_in", "referral", "other"]
+const TOPIC_OPTIONS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
 
 export function LeadsPage() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
-  const leads = useLeads(orgId)
+  const [source, setSource] = useState<Enums<"lead_source"> | "">("")
+  const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
+  const leads = useLeads(orgId, { source: source || undefined, enquiryType: enquiryType || undefined })
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState<LeadListItem | null>(null)
 
@@ -57,8 +63,52 @@ export function LeadsPage() {
 
       {showNew ? <NewLeadForm onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); leads.refetch() }} /> : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <select
+          value={source}
+          onChange={(e) => setSource(e.target.value as Enums<"lead_source"> | "")}
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+        >
+          <option value="">{t("leads.filters.allSources")}</option>
+          {SOURCE_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {t(`leads.source.${s}`)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={enquiryType}
+          onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type"> | "")}
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+        >
+          <option value="">{t("leads.filters.allTopics")}</option>
+          {TOPIC_OPTIONS.map((et) => (
+            <option key={et} value={et}>
+              {t(`leads.enquiryType.${et}`)}
+            </option>
+          ))}
+        </select>
+        {source || enquiryType ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSource("")
+              setEnquiryType("")
+            }}
+            className="text-xs font-semibold text-text-muted hover:text-text"
+          >
+            {t("leads.filters.clear")}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* The board needs room for 5 status columns — a fixed-width detail
+            sidebar (rather than a 2:1 grid fraction) keeps the columns from
+            getting cramped while the panel stays a comfortable reading width
+            instead of stretching to a third of the page when nothing (or a
+            single lead) is shown there. */}
+        <div className="min-w-0 lg:flex-1">
           <LeadsKanban
             rows={leads.data ?? []}
             loading={leads.isLoading}
@@ -67,7 +117,7 @@ export function LeadsPage() {
             onCardClick={setSelected}
           />
         </div>
-        <div>
+        <div className="lg:w-80 lg:shrink-0">
           {selected ? (
             <LeadDetailPanel lead={selected} onClose={() => setSelected(null)} />
           ) : (

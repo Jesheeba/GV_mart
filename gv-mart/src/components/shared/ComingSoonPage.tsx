@@ -10,7 +10,7 @@ export function ComingSoonPage({ labelKey }: { labelKey: string }) {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center pt-2">
-      <Card className="max-w-md items-center gap-3 text-center">
+      <Card className="max-w-md items-center gap-3 text-center px-5">
         <span className="flex size-12 items-center justify-center rounded-full bg-surface-alt text-text-muted">
           <Construction className="size-6" />
         </span>

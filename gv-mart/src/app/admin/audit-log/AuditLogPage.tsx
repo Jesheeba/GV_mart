@@ -34,7 +34,7 @@ function AuditLogEntry({ row }: { row: AuditLogRow }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <Card size="sm" className="gap-2">
+    <Card size="sm" className="gap-2 px-4">
       <button type="button" onClick={() => setExpanded((v) => !v)} className="flex w-full items-center justify-between gap-3 text-left">
         <div className="flex min-w-0 items-center gap-2">
           {expanded ? <ChevronDown className="size-3.5 shrink-0 text-text-muted" /> : <ChevronRight className="size-3.5 shrink-0 text-text-muted" />}
@@ -78,7 +78,7 @@ export function AuditLogPage() {
         <p className="text-sm text-text-muted">{t("auditLog.subtitle")}</p>
       </div>
 
-      <Card size="sm" className="flex-row flex-wrap items-end gap-2">
+      <Card size="sm" className="flex-row flex-wrap items-end gap-2 px-4">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("auditLog.filters.search")}</label>
           <div className="relative">

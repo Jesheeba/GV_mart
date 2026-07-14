@@ -3,7 +3,12 @@ import { useTranslation } from "react-i18next"
 import { MapPin, Navigation } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useLatestTechnicianLocation } from "@/hooks/useCustomerApp"
+import { useMapApiKey } from "@/hooks/useMaps"
+import { Map, MapMarker, MapMarkerLabel, type MapViewport } from "@/components/ui/map"
 import type { TechnicianLocationRow } from "@/services/customerApp"
+
+const LABEL_CLASS =
+  "whitespace-nowrap rounded-md border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-text shadow-sm"
 
 /**
  * CUST-07 live technician ETA tracking. Reuses Supabase Realtime on
@@ -13,14 +18,18 @@ import type { TechnicianLocationRow } from "@/services/customerApp"
  * this component is safe to mount for any technicianId the caller passes in
  * as long as it came from that customer's own ticket/appointment data.
  *
- * No map SDK key is configured in this environment, so this renders a
- * lightweight coordinate + "last updated" readout instead of an embedded
- * map tile — swapping in Google Maps/Leaflet later only touches this file.
+ * Renders the technician's live position on the same Google Map used by
+ * TechniciansMapPage/MapPage (see src/components/ui/map.tsx +
+ * useMapApiKey) — no separate key/setup needed, it's the same already-
+ * configured Maps Platform project.
  */
 export function LiveTracking({ technicianId, technicianName }: { technicianId: string; technicianName?: string }) {
   const { t } = useTranslation()
   const { data: initialLocation, isLoading } = useLatestTechnicianLocation(technicianId)
   const [location, setLocation] = useState<TechnicianLocationRow | null>(null)
+  const { data: apiKey, isError: apiKeyError } = useMapApiKey()
+  const [viewport, setViewport] = useState<MapViewport | null>(null)
+  const [mapLoadFailed, setMapLoadFailed] = useState(false)
 
   useEffect(() => {
     setLocation(initialLocation ?? null)
@@ -40,6 +49,14 @@ export function LiveTracking({ technicianId, technicianName }: { technicianId: s
       supabase.removeChannel(channel)
     }
   }, [technicianId])
+
+  // Re-centers on every fresh Realtime ping so the map follows the
+  // technician's live position instead of requiring the customer to
+  // manually pan back to a moving marker.
+  useEffect(() => {
+    if (!location) return
+    setViewport({ center: [location.lng, location.lat], zoom: 15 })
+  }, [location])
 
   if (isLoading) {
     return <div className="animate-pulse rounded-xl bg-surface-alt px-3.5 py-6 text-center text-sm text-text-muted">{t("common.loading")}</div>
@@ -72,11 +89,29 @@ export function LiveTracking({ technicianId, technicianName }: { technicianId: s
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 text-xs text-text-muted">
-        <MapPin className="size-3.5" />
-        <span className="tabular-nums">
-          {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-        </span>
+      <div className="relative h-48 w-full overflow-hidden rounded-lg border border-border">
+        {!apiKey ? (
+          <div className="flex h-full items-center justify-center">
+            {apiKeyError ? (
+              <p className="px-3 text-center text-xs text-text-muted">{t("customerApp.tracking.mapLoadFailed")}</p>
+            ) : (
+              <p className="text-xs text-text-muted">{t("common.loading")}</p>
+            )}
+          </div>
+        ) : mapLoadFailed ? (
+          <div className="flex h-full items-center justify-center">
+            <p className="px-3 text-center text-xs text-text-muted">{t("customerApp.tracking.mapLoadFailed")}</p>
+          </div>
+        ) : viewport ? (
+          <Map apiKey={apiKey} viewport={viewport} onViewportChange={setViewport} onLoadError={() => setMapLoadFailed(true)}>
+            <MapMarker longitude={location.lng} latitude={location.lat} title={technicianName} />
+            {technicianName ? (
+              <MapMarkerLabel longitude={location.lng} latitude={location.lat} className={LABEL_CLASS}>
+                {technicianName}
+              </MapMarkerLabel>
+            ) : null}
+          </Map>
+        ) : null}
       </div>
     </div>
   )

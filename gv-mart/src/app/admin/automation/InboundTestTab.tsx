@@ -45,12 +45,12 @@ export function InboundTestTab() {
     { key: "to", header: t("automation.inbox.contact"), render: (r) => r.to_mobile ?? "—" },
     { key: "milestone", header: t("automation.inbox.milestone"), render: (r) => r.milestone ?? "—" },
     { key: "template", header: t("automation.inbox.template"), render: (r) => r.template },
-    { key: "status", header: t("automation.inbox.status"), render: (r) => r.status },
+    { key: "status", header: t("automation.inbox.status"), render: (r) => t(`automation.inbox.statuses.${r.status}`) },
   ]
 
   return (
     <div className="space-y-4">
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <h2 className="text-sm font-semibold text-text">{t("automation.inbox.testTitle")}</h2>
         <p className="text-xs text-text-muted">{t("automation.inbox.testHint")}</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

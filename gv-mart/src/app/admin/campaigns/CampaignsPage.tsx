@@ -108,7 +108,7 @@ export function CampaignsPage() {
       <p className="rounded-xl bg-surface-alt px-3 py-2 text-xs text-text-muted">{t("campaigns.noSendIntegrationNote")}</p>
 
       {formOpen ? (
-        <Card size="default" className="gap-3">
+        <Card size="default" className="gap-3 px-5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="c-name">{t("campaigns.form.name")}</Label>

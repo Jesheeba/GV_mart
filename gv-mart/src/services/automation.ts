@@ -11,12 +11,27 @@ export type LeadListItem = LeadRow & {
   technicians: { profiles: { full_name: string } | null } | null
 }
 
-export async function listLeads(orgId: string): Promise<LeadListItem[]> {
-  const { data, error } = await supabase
+export type LeadFilters = {
+  source?: Enums<"lead_source">
+  enquiryType?: Enums<"enquiry_type">
+}
+
+/**
+ * `enquiryType` filters on the real `leads.enquiry_type` column — despite
+ * the name, this is a Product-Enquiry topic tag (online/price/quality/
+ * customization/water_premium/budget), not a "Service/Spare/Product/AMC"
+ * category (no such column exists — see ADM-22 notes). `source` is the
+ * real, useful discriminator for "which channel did this come from."
+ */
+export async function listLeads(orgId: string, filters: LeadFilters = {}): Promise<LeadListItem[]> {
+  let query = supabase
     .from("leads")
     .select("*, customers(name, mobile), technicians(profiles(full_name))")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
+  if (filters.source) query = query.eq("source", filters.source)
+  if (filters.enquiryType) query = query.eq("enquiry_type", filters.enquiryType)
+  const { data, error } = await query
   if (error) throw error
   return (data ?? []) as unknown as LeadListItem[]
 }

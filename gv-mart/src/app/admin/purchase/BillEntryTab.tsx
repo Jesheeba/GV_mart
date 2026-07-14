@@ -54,7 +54,7 @@ export function BillEntryTab() {
 
   return (
     <div className="space-y-4">
-      <Card className="gap-3">
+      <Card className="gap-3 px-5">
         <h2 className="text-sm font-semibold text-text">{t("purchase.bill.title")}</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">

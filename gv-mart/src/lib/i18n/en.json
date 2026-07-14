@@ -16,7 +16,13 @@
     "no": "No",
     "thisMonth": "this month",
     "language": "Language",
-    "delete": "Delete"
+    "delete": "Delete",
+    "today": "today",
+    "viewAll": "View all",
+    "actionFailed": "Something went wrong. Please try again.",
+    "errorBoundaryTitle": "Something went wrong",
+    "errorBoundaryBody": "An unexpected error occurred. Reloading the page usually fixes it.",
+    "reload": "Reload"
   },
   "roles": {
     "master": "Owner",
@@ -104,24 +110,103 @@
     "leadConversion": "Lead → Sale Conversion",
     "amcDueThisWeek": "AMCs Due This Week",
     "slaOverdue": "SLA Overdue",
-    "openQuotations": "Open Quotations"
+    "openQuotations": "Open Quotations",
+    "newComplaint": "New Complaint",
+    "newSale": "New Sale",
+    "open": "open",
+    "leads": "leads",
+    "profitLoss": "Profit & Loss",
+    "last7Months": "Last 7 months · with GST",
+    "profit": "Profit",
+    "cost": "Cost",
+    "salesVsService": "Sales vs Service",
+    "revenueMix": "Revenue mix · this month",
+    "total": "total",
+    "productSales": "Product Sales",
+    "serviceAndSpares": "Service & Spares",
+    "amcContracts": "AMC Contracts",
+    "recentTickets": "Recent Tickets",
+    "tableCustomer": "Customer",
+    "tableProduct": "Product",
+    "tableType": "Type",
+    "tableStatus": "Status",
+    "noTickets": "No tickets yet",
+    "topTechnicians": "Top Technicians",
+    "jobs": "jobs",
+    "noTechnicianActivity": "No technician activity this month yet",
+    "needsAttention": "Needs Attention",
+    "lowStockCount": "{{count}} spares out of stock",
+    "lowStockSubtitle": "Below minimum stock level",
+    "amcDueCount": "{{count}} AMCs due soon",
+    "amcDueSubtitle": "Renewal follow-up needed",
+    "openTicketsCount": "{{count}} tickets open",
+    "openTicketsSubtitle": "Awaiting assignment or completion",
+    "allClear": "All clear — nothing needs attention right now.",
+    "liveTracking": "Live Tracking",
+    "assignJobs": "Assign Jobs",
+    "completedToday": "Completed Today",
+    "urgent": "urgent",
+    "onDutyTechs": "On-duty Techs",
+    "absentToday": "absent today",
+    "todaysAppointments": "Today's Appointments",
+    "tableTime": "Time",
+    "tableTechnician": "Technician",
+    "noAppointmentsToday": "No appointments scheduled for today",
+    "unassigned": "Unassigned",
+    "attendanceToday": "Attendance — Today",
+    "present": "present",
+    "onTime": "On time",
+    "lateAfter": "Late",
+    "absent": "Absent",
+    "escalations": "Escalations",
+    "noEscalations": "No urgent tickets open right now",
+    "newQuotation": "New Quotation",
+    "newLead": "New Lead",
+    "salesThisMonth": "Sales This Month",
+    "openLeads": "Open Leads",
+    "quotationToSale": "Quotation → Sale",
+    "of": "of",
+    "won": "won",
+    "leadPipeline": "Lead Pipeline",
+    "leadsWonThisMonth": "leads won this month",
+    "recentLeads": "Recent Leads",
+    "tableLead": "Lead",
+    "tableSource": "Source",
+    "tableInterest": "Interest",
+    "tableStage": "Stage",
+    "noLeads": "No leads yet",
+    "sourceConversion": "Source Conversion"
   },
   "customers": {
     "title": "Customers",
     "subtitle": "Every registered customer, their address and family members.",
+    "eyebrow": "GV Mart · Customers",
+    "statsLine": "{{total}} total · {{hasAmc}} with AMC · {{dormant}} dormant",
     "addButton": "Add Customer",
     "exportButton": "Export",
     "searchPlaceholder": "Search by name or mobile…",
     "table": {
-      "name": "Name",
+      "customer": "Customer",
       "area": "Area",
-      "profession": "Profession",
-      "members": "Members",
+      "products": "Products",
       "amc": "AMC",
+      "noAmc": "No AMC",
       "lastService": "Last Service",
       "notAvailable": "Not yet"
     },
+    "export": {
+      "name": "Name",
+      "mobile": "Mobile",
+      "profession": "Profession",
+      "area": "Area",
+      "pincode": "Pincode",
+      "members": "Members"
+    },
     "filters": {
+      "quickAll": "All",
+      "amcDueSoon": "AMC due soon",
+      "dormant": "Dormant",
+      "moreFilters": "Filters",
       "allTypes": "All types",
       "residential": "Residential",
       "commercial": "Commercial",
@@ -148,9 +233,17 @@
     },
     "detail": {
       "backToList": "Back to Customers",
+      "breadcrumbList": "Customers",
       "call": "Call",
       "whatsapp": "WhatsApp",
       "noAddress": "No address on file yet",
+      "customerSince": "Customer since {{date}}",
+      "lifetimeValue": "Lifetime Value",
+      "acrossInvoices": "across {{count}} invoices",
+      "nextBestAction": "Next best action",
+      "amcRenewsIn": "AMC renews in {{days}} day(s) — contact for renewal",
+      "amcRenewsToday": "AMC renews today — contact for renewal",
+      "noUpcomingRenewals": "No upcoming renewals right now",
       "membersTitle": "Family Members ({{count}}/5)",
       "addMember": "Add member",
       "setPrimary": "Set primary",
@@ -159,24 +252,36 @@
       "remove": "Remove",
       "moveOut": "Move out to new customer",
       "confirm": "Confirm",
+      "serviceHistoryTitle": "Service history",
       "tabs": {
         "products": "Products",
         "service": "Service History",
         "invoices": "Invoices",
-        "leads": "Leads"
+        "family": "Family"
       },
       "emptyTabs": {
         "products": "No products yet — appears once a sale is made.",
         "service": "No service history yet — appears once a job is completed.",
-        "invoices": "No invoices yet — appears once a sale is billed.",
-        "leads": "No leads yet — appears once an enquiry is captured."
+        "invoices": "No invoices yet — appears once a sale is billed."
+      },
+      "productCard": {
+        "bought": "Bought {{date}}",
+        "serial": "SN {{serial}}",
+        "noCoverage": "No AMC or warranty on record",
+        "warrantyTo": "Warranty to {{date}}",
+        "warrantyExpired": "Warranty expired"
+      },
+      "invoicesTable": {
+        "invoice": "Invoice",
+        "items": "Items",
+        "amount": "Amount",
+        "date": "Date"
       },
       "actions": {
         "newSale": "New Sale",
         "newTicket": "New Ticket",
         "sellAmc": "Sell AMC",
-        "edit": "Edit",
-        "comingSoonReason": "Ships with the Sales/Service modules in a later phase"
+        "edit": "Edit"
       }
     },
     "form": {
@@ -188,6 +293,16 @@
       "professionPlaceholder": "e.g. Teacher, Shop Owner",
       "memberName": "Full name",
       "memberMobile": "Mobile number",
+      "memberRelation": "Relation",
+      "memberRelationPlaceholder": "Relation to primary contact",
+      "relation": {
+        "spouse": "Spouse",
+        "son": "Son",
+        "daughter": "Daughter",
+        "parent": "Parent",
+        "sibling": "Sibling",
+        "other": "Other"
+      },
       "maxMembersReached": "Maximum of 5 family members reached",
       "duplicateWarning": "This number is already linked to {{name}}",
       "doorNo": "Door No.",
@@ -205,7 +320,21 @@
       "own": "Own",
       "rental": "Rental",
       "back": "Back",
-      "next": "Next"
+      "next": "Next",
+      "map": {
+        "title": "Pin location on map",
+        "autoLocating": "Locating from the address above…",
+        "searchPlaceholder": "Search for the address…",
+        "searchError": "Couldn't search right now. Check your connection and try again.",
+        "selectError": "Couldn't get details for that place. Try another result.",
+        "noResults": "No matches found for that search.",
+        "searchAnywayFor": "Search for \"{{query}}\" anyway",
+        "mapError": "Couldn't load the map right now.",
+        "emptyHint": "Search above or use your location to drop a pin",
+        "draftPin": "Drag to fine-tune, then confirm",
+        "confirmedPin": "Location confirmed · {{lat}}, {{lng}}",
+        "confirmLocation": "Confirm location"
+      }
     },
     "errors": {
       "nameRequired": "Enter a name (at least 2 characters)",
@@ -218,11 +347,22 @@
     }
   },
   "masters": {
+    "pageTitle": "Masters & Settings",
     "subtitle": "Product, spare and business rule masters — every value here is admin-set, nothing is hardcoded.",
     "loadFailed": "Couldn't load this data. Check your connection and try again.",
     "edit": "Edit",
     "delete": "Delete",
     "confirmDelete": "Delete?",
+    "overview": {
+      "brandsDesc": "{{count}} brands configured",
+      "modelsDesc": "{{count}} models configured",
+      "productsDesc": "{{count}} products configured",
+      "sparesDesc": "{{count}} spares configured",
+      "giftsDesc": "{{count}} gift tiers",
+      "amcPlansDesc": "{{count}} AMC plans",
+      "incentivesDesc": "{{count}} incentive rules",
+      "settingsDesc": "Discount, travel, hours & SLA"
+    },
     "tabs": {
       "brands": "Brands",
       "models": "Models",
@@ -310,13 +450,30 @@
     "groups": {
       "travel": "Travel & Geofence",
       "attendance": "Work Hours & Attendance",
-      "discounts": "Discount Limits",
+      "discounts": "GST / Tax",
       "amcReferral": "AMC & Referral",
       "inventory": "Inventory Defaults",
       "sla": "Service SLA (hours by priority)"
     },
+    "discountGift": {
+      "title": "Discount & Gift Limits",
+      "auditLogged": "Audit-logged",
+      "selfApprove": "Technician self-approve",
+      "needsApproval": "Needs admin approval",
+      "blockedAbove": "Blocked above",
+      "upTo": "≤ {{value}}%",
+      "rangeLabel": "{{from}} – {{to}}%",
+      "above": "> {{value}}%",
+      "freeGiftThreshold": "Free gift threshold",
+      "freeGiftThresholdDesc": "Auto-suggest \"{{name}}\" when the invoice total exceeds this",
+      "saveLimits": "Save limits",
+      "noGifts": "No gift tiers configured yet — add one in the Gifts tab to set a free-gift threshold."
+    },
     "perKmMinutes": "Travel time (minutes per km)",
     "geofenceRadius": "Office geofence radius (m, internal — never shown to staff)",
+    "officeLat": "Office latitude",
+    "officeLng": "Office longitude",
+    "officeLocationHint": "The exact office coordinates — technicians can only mark attendance within the radius above.",
     "workStart": "Work start",
     "workEnd": "Work end",
     "lateCutoff": "Late cutoff (attendance locks after)",
@@ -329,6 +486,9 @@
     "amcBookWindow": "AMC self-booking window (days before renewal)",
     "referralPointValue": "Referral point value (₹, minimum 50)",
     "reviewLinkMinStars": "Google review link shows at (stars, minimum)",
+    "googleReviewUrl": "Google review link",
+    "googleReviewUrlPlaceholder": "https://g.page/r/.../review",
+    "googleReviewUrlHint": "Shown to the customer as a \"Leave a Google review\" button once they rate at or above the threshold above. Leave blank to keep the button disabled.",
     "defaultMinStock": "Default minimum stock",
     "defaultReorderQty": "Default reorder quantity",
     "slaVeryUrgent": "Very urgent (hours)",
@@ -343,17 +503,28 @@
       "referralMin": "Must be at least ₹50 (v2.2 minimum)",
       "starsRange": "Must be between 1 and 5",
       "lunchRedAfterAllowed": "Must be greater than the allowed minutes",
-      "adminMaxAboveTech": "Admin cap must be at or above the technician cap"
+      "adminMaxAboveTech": "Admin cap must be at or above the technician cap",
+      "latRange": "Must be between -90 and 90",
+      "lngRange": "Must be between -180 and 180",
+      "urlInvalid": "Must be a valid URL (e.g. https://...)"
     }
   },
   "inventory": {
+    "eyebrow": "GV Mart · Inventory",
+    "pageTitle": "Products & Spares",
     "subtitle": "Live stock across products and spares — v2.2 default thresholds are 10 / 10.",
+    "headerStats": "{{total}} SKUs · {{low}} low stock · {{out}} out of stock",
+    "autoPo": "Auto-PO ({{count}})",
+    "searchProducts": "Search products…",
+    "searchSpares": "Search spares…",
     "loadFailed": "Couldn't load inventory. Check your connection and try again.",
     "empty": "No inventory rows yet.",
     "item": "Item",
+    "brand": "Brand",
     "stock": "Stock",
+    "min": "Min",
+    "level": "Level",
     "thresholds": "Min / Reorder",
-    "minReorder": "{{min}} / {{reorder}}",
     "adjustStock": "Adjust stock",
     "status": {
       "label": "Status",
@@ -391,7 +562,14 @@
       "title": "New Sale",
       "back": "Back",
       "next": "Next",
-      "generate": "Generate Invoice(s)"
+      "generate": "Generate Invoice(s)",
+      "draft": {
+        "autosaveNote": "Everything you enter here is saved on this device automatically.",
+        "restoredNote": "Restored your saved draft for this sale.",
+        "discard": "Discard draft",
+        "discardWarning": "This clears everything you've entered on this device for this sale (customer, cart, discount, gift, payment). Nothing already saved to the server is affected.",
+        "confirmDiscard": "Yes, discard"
+      }
     },
     "steps": {
       "customer": "Customer",
@@ -474,14 +652,41 @@
       "giftApplied": "Gift: {{gift}}"
     },
     "list": {
-      "title": "Sales",
+      "title": "Sales & Invoices",
       "subtitle": "Every invoice generated from a sale.",
+      "stats": "{{amount}} this month · {{count}} invoices · {{quotationsOpen}} quotations open",
+      "newQuotationButton": "New Quotation",
       "newSaleButton": "New Sale",
-      "customer": "Customer",
-      "type": "Type",
-      "total": "Total",
-      "paymentStatus": "Payment",
-      "date": "Date",
+      "kpi": {
+        "todaySales": "Today's Sales",
+        "vsYesterday": "vs yesterday",
+        "firstSaleToday": "First sale today",
+        "noSalesToday": "No sales yet today",
+        "productSales": "Product Sales",
+        "ofRevenue": "{{pct}}% of revenue",
+        "avgTicket": "Avg Ticket Value",
+        "invoicesThisMonth": "{{count}} invoices this month",
+        "vsLastMonth": "vs last month",
+        "quotationToSale": "Quotation → Sale",
+        "convertedOf": "{{converted}} of {{decided}} decided"
+      },
+      "table": {
+        "heading": "Recent Invoices",
+        "countThisMonth": "{{count}} this month",
+        "invoice": "Invoice",
+        "customer": "Customer",
+        "items": "Items",
+        "type": "Type",
+        "amount": "Amount",
+        "method": "Method",
+        "status": "Status"
+      },
+      "filters": {
+        "all": "All types",
+        "product": "Product",
+        "spare": "Spare",
+        "amc": "AMC"
+      },
       "empty": {
         "title": "No sales yet",
         "subtitle": "Start your first sale to see it here."
@@ -494,6 +699,7 @@
       "loadFailed": "Couldn't load this invoice. Check your connection and try again.",
       "print": "Print",
       "shareWhatsapp": "Share on WhatsApp",
+      "whatsappMessage": "GV Mart invoice {{id}} — total {{total}}. Thank you for your business!",
       "gstNo": "GSTIN {{gst}}",
       "invoiceNo": "Invoice #{{id}}",
       "billedTo": "Billed to",
@@ -573,11 +779,19 @@
   },
   "service": {
     "subtitle": "Service tickets and job assignments.",
+    "stats": "{{open}} open · {{overdue}} overdue",
     "loadFailed": "Couldn't load tickets. Check your connection and try again.",
     "empty": "No tickets yet.",
     "view": {
       "table": "Table",
       "kanban": "Kanban"
+    },
+    "quickFilters": {
+      "allOpen": "All open",
+      "overdue": "Overdue",
+      "amc": "AMC",
+      "warranty": "Warranty",
+      "unassigned": "Unassigned"
     },
     "table": {
       "ticket": "Ticket",
@@ -589,6 +803,7 @@
       "technician": "Technician",
       "appointment": "Appointment",
       "sla": "SLA",
+      "area": "Area",
       "unassigned": "Unassigned",
       "repeatComplaint": "Repeat complaint (within 90 days)"
     },
@@ -612,7 +827,12 @@
     "priority": {
       "very_urgent": "Very urgent",
       "urgent": "Urgent",
-      "normal": "Normal"
+      "normal": "Normal",
+      "short": {
+        "very_urgent": "High",
+        "urgent": "Med",
+        "normal": "Low"
+      }
     },
     "type": {
       "paid": "Paid",
@@ -623,8 +843,25 @@
     "appointment": {
       "always": "Always"
     },
+    "appointmentStatus": {
+      "scheduled": "Scheduled",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
     "kanban": {
-      "empty": "No tickets in this status."
+      "empty": "No tickets in this status.",
+      "overdue": "Overdue",
+      "done": "Done",
+      "hoursLeft": "{{count}}h",
+      "minutesLeft": "{{count}}m",
+      "columns": {
+        "open": "Open",
+        "assigned": "Assigned",
+        "in_progress": "In progress",
+        "completed": "Done",
+        "cancelled": "Cancelled"
+      }
     },
     "sla": {
       "none": "No SLA",
@@ -668,7 +905,14 @@
       "typeNotSelectable": "Type is auto-detected and non-selectable.",
       "amcCoverage": "AMC coverage: {{start}} to {{expiry}}",
       "warrantyCoverage": "Warranty coverage: {{start}} to {{expiry}}",
-      "paidHint": "This is a paid service — no coverage applies."
+      "paidHint": "This is a paid service — no coverage applies.",
+      "draft": {
+        "autosaveNote": "Everything you enter here is saved on this device automatically.",
+        "restoredNote": "Restored your saved draft for this complaint.",
+        "discard": "Discard draft",
+        "discardWarning": "This clears everything you've entered on this device for this complaint (customer, equipment, details, appointment). Nothing already saved to the server is affected.",
+        "confirmDiscard": "Yes, discard"
+      }
     },
     "appointments": {
       "title": "Appointments",
@@ -676,7 +920,7 @@
       "timeline": "Day schedule",
       "noTechnicians": "No technicians yet.",
       "noJobs": "No jobs",
-      "dropToUnassignHint": "Drag here to unassign and view ticket details.",
+      "dropToUnassignHint": "Drag here to view ticket details.",
       "autoAssignEngine": "Auto-assign engine",
       "autoAssignDescription": "Bulk-assign unscheduled jobs by availability.",
       "unassigned": "Unassigned ({{count}})",
@@ -692,6 +936,7 @@
       "assignedTo": "Assigned to {{name}}",
       "autoAssign": "Auto-assign",
       "pickTechnician": "Pick a technician",
+      "editAddress": "Edit address",
       "offDuty": "Off duty",
       "assignManually": "Assign manually",
       "noAppointment": "No appointment yet.",
@@ -718,22 +963,39 @@
       "warranty": "Warranty"
     },
     "list": {
-      "subtitle": "Coverage due within the admin window ({{days}} days) is highlighted.",
+      "stats": "{{active}} active contracts · {{dueSoon}} due in {{days}} days · {{atRisk}} renewal at risk",
+      "recordCount": "{{count}} records",
       "customer": "Customer",
       "product": "Product",
-      "plan": "Plan",
-      "start": "Start",
+      "tier": "Tier",
       "expiry": "Expiry",
-      "nextService": "Next service",
+      "nextSvc": "Next svc",
+      "serialNo": "Serial no",
       "status": "Status",
       "loadFailed": "Couldn't load this data. Check your connection and try again.",
       "emptyAmc": "No AMC contracts yet.",
       "emptyWarranty": "No warranties yet."
     },
+    "plans": {
+      "empty": "No AMC plans configured yet. Add plans from Masters to see them here.",
+      "servicesPerYear": "{{count}} services / year",
+      "perYear": "/yr",
+      "activeCount": "{{count}} active",
+      "mostPopular": "Most popular"
+    },
     "status": {
       "active": "Active",
       "due_soon": "Due soon",
       "expired": "Expired"
+    },
+    "detail": {
+      "breadcrumbList": "AMC & Warranty",
+      "startDate": "Start date",
+      "visitsScheduleTitle": "Visit schedule",
+      "visitsCount": "{{count}} visits scheduled",
+      "visitLabel": "Visit {{n}} of {{total}}",
+      "noVisits": "No visits scheduled yet.",
+      "notFound": "This AMC contract could not be found."
     },
     "sellAmc": {
       "title": "Sell AMC",
@@ -785,7 +1047,8 @@
       "onTheWayNamed": "{{name}} is on the way",
       "updatedJustNow": "Just now",
       "updatedMinutesAgo_one": "{{count}} minute ago",
-      "updatedMinutesAgo_other": "{{count}} minutes ago"
+      "updatedMinutesAgo_other": "{{count}} minutes ago",
+      "mapLoadFailed": "Couldn't load the map right now."
     },
     "errors": {
       "doorNoRequired": "Door/Flat number is required",
@@ -795,6 +1058,7 @@
       "mobileInvalid": "Enter a valid 10-digit mobile number",
       "addressRequired": "Select an address",
       "complaintRequired": "Describe the complaint (at least 3 characters)",
+      "scheduledAtRequired": "Please pick a date and time",
       "descriptionRequired": "Enter a description (at least 3 characters)",
       "productRequired": "Select a product"
     },
@@ -933,6 +1197,8 @@
       "loadError": "Couldn't load enquiry content. Please retry.",
       "close": "Close",
       "noContentForTopic": "No content available for this topic yet.",
+      "noContentForTopicCta": "Tell us what you need instead",
+      "videoCaption": "{{topic}} video {{index}}",
       "requestQuotation": "Request quotation",
       "description": "Tell us what you're looking for",
       "descriptionPlaceholder": "e.g. Looking for a 3-stage RO for a family of 4",
@@ -975,6 +1241,17 @@
       "loadError": "Couldn't load your details. Please retry.",
       "productPrompt": "Which product needs service?",
       "noProductsKnown": "No products found — that's okay, you can continue without one.",
+      "myProductsPrompt": "Select from your products",
+      "noOwnedProducts": "We don't have any products on file for you yet.",
+      "chooseAnotherProduct": "Choose another product",
+      "chooseCategoryPrompt": "Select a category",
+      "category": {
+        "ro": "RO Purifier",
+        "ac": "AC",
+        "inverter": "Inverter",
+        "battery": "Battery"
+      },
+      "noProductsInCategory": "No products found in this category.",
       "productUnknown": "I'm not sure / not listed",
       "nameOfComplaint": "What's the issue?",
       "nameOfComplaintPlaceholder": "e.g. Water leakage, low output…",
@@ -983,19 +1260,29 @@
       "noAddresses": "You don't have any saved addresses yet.",
       "addAddressCta": "Add an address",
       "selectAddress": "Service address",
+      "changeAddressInProfile": "Change address in Profile",
       "appointmentMode": "When would you like the visit?",
       "mode": {
         "always": "Anytime",
         "datetime": "Pick a date & time"
       },
       "workHoursHint": "Please pick a time within our working hours — we'll confirm your slot.",
+      "timeRequired": "Please pick a date and time.",
+      "timeOutsideWorkHours": "Please pick a time between {{start}} and {{end}}.",
       "confirmTitle": "Review your booking",
       "next": "Next",
       "confirmBooking": "Confirm booking",
       "bookedTitle": "Booking confirmed",
       "bookedBody": "We've received your service request and will assign a technician shortly.",
       "backHome": "Back to home",
-      "viewBookings": "View bookings"
+      "viewBookings": "View bookings",
+      "draft": {
+        "autosaveNote": "Everything you enter here is saved on this device automatically.",
+        "restoredNote": "Restored your saved booking draft.",
+        "discard": "Discard draft",
+        "discardWarning": "This clears everything you've entered on this device for this booking (product, issue, address, appointment). Nothing already submitted is affected.",
+        "confirmDiscard": "Yes, discard"
+      }
     }
   },
   "technician": {
@@ -1006,6 +1293,11 @@
       "outsideOffice": "You are outside the office geofence",
       "recheckLocation": "Recheck location",
       "locationError": "Unable to get your location. Please enable location services and try again.",
+      "locationUnknown": "Location unknown",
+      "locationPermissionDenied": "Location access denied. Enable location permission for this site in your browser settings, then recheck.",
+      "locationUnavailable": "Couldn't determine your location. Move to an area with a clearer GPS/network signal and try again.",
+      "locationTimeout": "Location request timed out. Please try again.",
+      "locationUnsupported": "Your browser doesn't support location services, so attendance can't be verified here.",
       "selfieLabel": "Take a selfie",
       "markButton": "Mark Attendance",
       "disabledOutsideGeofence": "You must be inside the office to mark attendance.",
@@ -1045,7 +1337,45 @@
       "offline": "Offline",
       "syncing": "Syncing…",
       "pending": "{{count}} pending",
-      "synced": "Synced"
+      "synced": "Synced",
+      "stuck": "{{count}} stuck",
+      "close": "Close",
+      "stuckPanelTitle": "{{count}} item(s) need attention",
+      "stuckPanelDescription": "These couldn't be synced after several tries. They're still saved on this device — retry them once you're back online, or ask an admin for help.",
+      "stuckPanelEmpty": "Nothing stuck right now.",
+      "failingSince": "Failing since {{time}}",
+      "jobKind": {
+        "attendance": {
+          "mark": "Attendance check-in",
+          "lunch": "Lunch break update"
+        },
+        "spare_handover": {
+          "confirm": "Spare handover confirmation"
+        },
+        "service_visit": {
+          "start": "Visit start",
+          "arrive": "Visit arrival",
+          "image": "Visit photo upload"
+        },
+        "sop_step": {
+          "complete": "SOP step completion"
+        },
+        "ro_checklist": {
+          "save": "RO checklist save"
+        },
+        "service_invoice": {
+          "create": "Invoice creation"
+        },
+        "rating": {
+          "submit": "Customer rating"
+        },
+        "lead": {
+          "generate": "Lead creation"
+        },
+        "location": {
+          "ping": "Location update"
+        }
+      }
     },
     "jobType": {
       "paid": "Paid service",
@@ -1099,20 +1429,27 @@
     "map": {
       "title": "Map",
       "locationError": "Unable to get your location. Please enable location services.",
+      "locationPermissionDenied": "Location access denied. Enable location permission for this site in your browser settings.",
+      "locationUnavailable": "Couldn't determine your location. Move to an area with a clearer GPS/network signal.",
+      "locationTimeout": "Location request timed out. Retrying…",
+      "locationUnsupported": "Your browser doesn't support location services, so navigation and arrival detection can't work here.",
       "statusOnRoute": "On route",
+      "statusConfirming": "Confirming arrival…",
       "statusIdle": "Idle / off-route",
       "statusTracking": "Tracking…",
       "noDestinationTitle": "No destination selected",
       "noDestinationBody": "Open this from a job card to navigate to a customer.",
-      "refreshLocation": "Refresh location",
+      "jobClosedTitle": "This job is already completed",
+      "jobClosedBody": "It's already been finished and rated — no need to navigate or start it again.",
       "distance": "Distance",
       "distanceKm": "{{km}} km",
       "eta": "ETA",
       "etaMinutes": "{{minutes}} min",
       "openInMaps": "Open in Maps",
       "arrivedTitle": "You've arrived",
-      "productivityTimerNote": "Your productivity timer starts when you tap \"I've arrived\".",
-      "startService": "Start service",
+      "confirmingArrivalNote": "You're near the customer's location — confirming arrival…",
+      "productivityTimerNote": "Your productivity timer started automatically on arrival.",
+      "continueToService": "Continue to service",
       "arrivedButton": "I've arrived"
     },
     "search": {
@@ -1138,21 +1475,34 @@
       "costingRuleFree": "Warranty/AMC — cost is ₹0, but quantity used is still recorded.",
       "historyTitle": "Previous service history",
       "noHistory": "No previous service history for this customer.",
-      "startVisit": "Start visit"
+      "navigate": "Navigate",
+      "startVisit": "Start visit",
+      "closedTitle": "This job is already closed"
     },
     "onsite": {
       "title": "On-Site Service",
+      "jobClosedTitle": "This job is already completed",
+      "jobClosedBody": "It's already been finished and rated — no need to start it again. Check History if you want to review it.",
+      "draft": {
+        "autosaveNote": "Everything you enter here is saved on this device automatically.",
+        "restoredNote": "Restored your saved draft for this job.",
+        "discard": "Discard draft",
+        "discardWarning": "This clears everything you've entered on this device for this job (checklist, spares, charges, photos, signatures). Anything already saved to the server won't be affected.",
+        "confirmDiscard": "Yes, discard"
+      },
       "steps": {
         "sop": "SOP",
         "spares": "Spares",
         "charges": "Charges",
         "ro": "RO Checklist",
+        "afterphoto": "After Photo",
         "invoice": "Invoice",
         "signatures": "Signatures",
         "payment": "Payment"
       },
       "beforeImage": "Before photo",
       "afterImage": "After photo",
+      "afterImageHint": "Take this once the repair, spares, and RO checklist (if applicable) are done — it should show the completed work.",
       "sopTitle": "SOP Checklist",
       "sopHint": "Add each step you complete, with its expected time.",
       "sopEmpty": "No steps added yet.",
@@ -1208,7 +1558,8 @@
         "complete": "Complete visit"
       },
       "enquiry": {
-        "toggle": "Generate Enquiry",
+        "toggle": "Generate Enquiry (optional)",
+        "hint": "Only if the customer mentioned a new product or service interest — skip this if not.",
         "sent": "Enquiry sent.",
         "namePlaceholder": "Customer name",
         "mobilePlaceholder": "Mobile number",
@@ -1278,6 +1629,7 @@
     },
     "daySheet": {
       "title": "Day Sheet",
+      "viewLink": "View Day Sheet",
       "jobsDone": "Jobs Done",
       "jobsPending": "Jobs Pending",
       "earningsToday": "Today's Earnings",
@@ -1293,6 +1645,11 @@
   "leads": {
     "subtitle": "Track enquiries from field, WhatsApp, referrals and the customer app through to a won or lost sale.",
     "loadFailed": "Could not load leads.",
+    "filters": {
+      "allSources": "All sources",
+      "allTopics": "All topics",
+      "clear": "Clear filters"
+    },
     "new": {
       "title": "New Lead",
       "name": "Name",
@@ -1336,7 +1693,9 @@
       "note": "Note",
       "whatsapp": "WhatsApp",
       "meeting": "Meeting",
-      "status_change": "Status change"
+      "status_change": "Status change",
+      "product_enquiry": "Product enquiry",
+      "spare_enquiry": "Spare enquiry"
     },
     "detail": {
       "selectHint": "Select a lead to view activity and update status.",
@@ -1390,6 +1749,11 @@
         "inbound": "Inbound",
         "outbound": "Outbound"
       },
+      "statuses": {
+        "sent": "Sent",
+        "failed": "Failed",
+        "received": "Received"
+      },
       "contact": "Contact",
       "milestone": "Milestone",
       "template": "Template",
@@ -1440,9 +1804,9 @@
     "list": {
       "title": "Technicians",
       "subtitle": "Field technicians, duty status and today's performance",
-      "viewMap": "View Map",
-      "kpiTotal": "Total Technicians",
-      "kpiOnDuty": "On Duty",
+      "stats": "{{total}} total · {{onDuty}} on duty · {{jobs}} jobs today",
+      "viewMap": "Live Tracking",
+      "kpiOnDuty": "On Duty Now",
       "kpiJobsToday": "Jobs Today",
       "kpiRevenueToday": "Revenue Today",
       "searchPlaceholder": "Search by name or phone",
@@ -1451,16 +1815,13 @@
         "on": "On Duty",
         "off": "Off Duty"
       },
-      "name": "Name",
       "zone": "Zone",
       "status": "Status",
+      "statusInactive": "Inactive",
       "onDuty": "On Duty",
       "offDuty": "Off Duty",
-      "todaysJobs": "Today's Jobs",
-      "todaysRevenue": "Today's Revenue",
       "avgRating": "Avg Rating",
       "active": "Active",
-      "edit": "Edit",
       "editTitle": "Edit Technician",
       "skills": "Skills",
       "skillOptions": {
@@ -1469,8 +1830,45 @@
         "inverter": "Inverter",
         "battery": "Battery"
       },
+      "table": {
+        "technician": "Technician",
+        "phone": "Phone",
+        "jobs": "Jobs",
+        "revenue": "Revenue",
+        "rating": "Rating"
+      },
       "empty": "No technicians yet",
-      "loadFailed": "Failed to load technicians"
+      "loadFailed": "Failed to load technicians",
+      "addTechnician": "Add Technician",
+      "addTechnicianHint": "A brand-new login can't be created from here — pick someone who already has an account (added via Supabase) but isn't a technician yet.",
+      "noEligibleProfiles": "No eligible logins found. Create the person's account first, then they'll appear here.",
+      "pickProfile": "Select a person"
+    },
+    "detail": {
+      "backToList": "Technicians",
+      "notFound": "Technician not found",
+      "edit": "Edit",
+      "deactivate": "Deactivate",
+      "reactivate": "Reactivate",
+      "confirmDeactivate": "Deactivate {{name}}? They'll be hidden from active lists and can't be assigned new jobs, but their history stays intact.",
+      "confirmReactivate": "Reactivate {{name}}? They'll be assignable again.",
+      "totalJobs": "Total Jobs",
+      "tabs": {
+        "current": "Current Job",
+        "history": "History",
+        "attendance": "Attendance",
+        "rewards": "Rewards"
+      },
+      "noCurrentJob": "No active job right now.",
+      "noHistory": "No jobs assigned yet.",
+      "noAttendance": "No attendance recorded yet.",
+      "noRewards": "No rewards given yet.",
+      "viewTicket": "View ticket",
+      "outsideGeofence": "Outside office",
+      "jobStatus": {
+        "scheduled": "Scheduled",
+        "in_progress": "In progress"
+      }
     },
     "map": {
       "title": "Live Tracking",
@@ -1479,10 +1877,15 @@
       "pinBoardTitle": "Locations",
       "statusOnRoute": "On Route",
       "statusIdle": "Idle",
+      "statusOffRoute": "Off Route",
+      "noActiveJob": "No active job",
+      "idleForMinutes": "Idle for {{count}} min",
+      "offRoute": "Taking a longer route than expected",
       "updatedMinutesAgo": "Updated {{count}}m ago",
       "noLocationYet": "No location yet",
       "noPinsTitle": "No live locations",
       "noPinsBody": "Technicians will appear here once they start sharing location",
+      "mapLoadFailed": "Couldn't load the map right now.",
       "empty": "No technicians found",
       "loadFailed": "Failed to load technicians"
     },
@@ -1635,9 +2038,14 @@
       "revenue": "Revenue"
     },
     "pnl": {
+      "title": "Profit & Loss",
       "withGst": "With GST",
       "withoutGst": "Without GST",
       "revenue": "Revenue",
+      "costOfGoods": "Cost of Goods",
+      "operatingExpenses": "Operating Expenses",
+      "gstCollected": "GST Collected",
+      "gstCollectedNote": "Included in revenue above — not deducted from net profit.",
       "totalExpenses": "Total Expenses",
       "netProfit": "Net Profit",
       "expenseBreakdown": "Expense Breakdown",
@@ -1656,14 +2064,25 @@
       "gstToggle": "View"
     },
     "performance": {
-      "person": "Name",
+      "scoreboardTitle": "Performance Scoreboard",
+      "scoreboardCaption": "Technician-wise",
+      "rank": "#",
+      "person": "Technician",
       "jobsDone": "Jobs Done",
+      "jobsShort": "Jobs",
+      "avgPerCall": "Avg/call",
       "onTimePercent": "On-time %",
+      "firstFix": "1st-fix",
       "revenue": "Revenue",
       "avgRating": "Avg Rating",
+      "reviewsShort": "Reviews",
       "conversion": "Conversion",
       "opsKpiLabel": "Ops KPI: tickets resolved within 24h",
-      "kpiNote": "Operation Admin KPI = complaints resolved within 24h; Sales Admin KPI = call-to-lead ratio."
+      "kpiNote": "Operation Admin KPI = complaints resolved within 24h; Sales Admin KPI = lead conversion rate.",
+      "legendCaption": "1st-fix rate, technician-wise",
+      "legendStrong": "≥ 90% strong",
+      "legendWatch": "80–89% watch",
+      "legendCoach": "< 80% coach"
     },
     "feedback": {
       "starsDistribution": "Star Rating Distribution",
@@ -1715,6 +2134,9 @@
       "unread": "Unread",
       "read": "Read",
       "type": "Type"
+    },
+    "types": {
+      "confirmation_call_stub": "Confirmation call"
     }
   },
   "approvals": {
@@ -1861,5 +2283,9 @@
       "clear": "Clear filters"
     },
     "empty": "No audit log entries yet."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "backToLogin": "Back to login"
   }
 }

@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useSubmitRating, useTechnicianSettings } from "@/hooks/useTechnician"
 import { ratingSchema, showsGoogleReviewLink } from "@/lib/validation/technician"
@@ -14,6 +15,7 @@ const textareaClass =
 
 export function RatingPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
   const visitId = (location.state as { visitId?: string } | null)?.visitId
@@ -48,21 +50,25 @@ export function RatingPage() {
   const minStars = settings.data.review_link_min_stars
   const parsed = ratingSchema.safeParse({ stars, review, lowRatingReason })
   const showReviewLink = showsGoogleReviewLink(stars, minStars)
-  // No Google Business review URL exists anywhere in settings/env yet — always
-  // render the button, disabled, with an explanatory note (BuildSpec's
-  // explicit fallback for "no real Google Business URL exists").
-  const reviewUrl: string | null = null
+  // Admin-set in Masters & Settings (settings.google_review_url) — until an
+  // org configures its own listing's review link, fall back to the same
+  // disabled-button-with-note state this page always had.
+  const reviewUrl = settings.data.google_review_url || null
 
   async function handleSubmit() {
     if (!parsed.success || !profile) return
-    await submitRating.mutateAsync({
-      orgId: profile.org_id,
-      visitId: visitId!,
-      stars,
-      review: review.trim() || undefined,
-      lowRatingReason: lowRatingReason.trim() || undefined,
-    })
-    setSubmitted(true)
+    try {
+      await submitRating.mutateAsync({
+        orgId: profile.org_id,
+        visitId: visitId!,
+        stars,
+        review: review.trim() || undefined,
+        lowRatingReason: lowRatingReason.trim() || undefined,
+      })
+      setSubmitted(true)
+    } catch {
+      toast.error(t("common.actionFailed"))
+    }
   }
 
   if (submitted) {
@@ -99,7 +105,7 @@ export function RatingPage() {
       <Card className="items-center gap-4 py-6">
         <div className="flex gap-2">
           {[1, 2, 3, 4, 5].map((n) => (
-            <button key={n} type="button" onClick={() => setStars(n)} aria-label={t("technician.rating.starAria", { n })}>
+            <button key={n} type="button" onClick={() => setStars(n)} aria-label={t("technician.rating.starAria", { count: n })}>
               <Star className={`size-9 ${n <= stars ? "fill-warning text-warning" : "text-border"}`} />
             </button>
           ))}

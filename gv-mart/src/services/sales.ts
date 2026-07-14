@@ -63,19 +63,35 @@ export async function createSale(
   return data as SaleResult
 }
 
-export type InvoiceListItem = InvoiceRow & { customers: { name: string; mobile: string } | null }
+export type InvoiceListItem = InvoiceRow & {
+  customers: { name: string; mobile: string } | null
+  /** Human-readable summary of the invoice's line items, e.g. "Kent RO · Grand" or "RO Filter Set +2 more". Built from a real invoice_items → product/spare name lookup, not mock data. */
+  itemsSummary: string
+}
 
 export async function listInvoices(orgId: string): Promise<InvoiceListItem[]> {
   const { data, error } = await supabase
     .from("invoices")
-    .select("*, customers(name,mobile)")
+    .select("*, customers(name,mobile), invoice_items(item_type,item_id,qty)")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
   if (error) throw error
-  return (data ?? []) as InvoiceListItem[]
+
+  const rows = (data ?? []) as (InvoiceRow & {
+    customers: { name: string; mobile: string } | null
+    invoice_items: { item_type: Enums<"item_type">; item_id: string; qty: number }[]
+  })[]
+
+  const names = await itemNameLookup(orgId, rows.flatMap((r) => r.invoice_items))
+  return rows.map(({ invoice_items, ...r }) => {
+    const itemNames = invoice_items.map((it) => names.get(it.item_id) ?? "—")
+    const itemsSummary = itemNames.length === 0 ? "—" : itemNames.length === 1 ? itemNames[0] : `${itemNames[0]} +${itemNames.length - 1} more`
+    return { ...r, itemsSummary }
+  })
 }
 
-async function itemNameLookup(orgId: string, items: { item_type: Enums<"item_type">; item_id: string }[]) {
+/** Exported for reuse by services/customers.ts (customer-level invoice history needs the same item→name join). */
+export async function itemNameLookup(orgId: string, items: { item_type: Enums<"item_type">; item_id: string }[]) {
   const productIds = [...new Set(items.filter((i) => i.item_type === "product").map((i) => i.item_id))]
   const spareIds = [...new Set(items.filter((i) => i.item_type === "spare").map((i) => i.item_id))]
   const [productsRes, sparesRes] = await Promise.all([

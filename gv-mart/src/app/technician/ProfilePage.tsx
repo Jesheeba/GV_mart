@@ -71,7 +71,7 @@ export function ProfilePage() {
             </span>
             <div>
               <p className="text-sm font-semibold text-text">
-                {stats.data.avgRating != null ? t("technician.profile.ratingValue", { rating: stats.data.avgRating.toFixed(1) }) : t("technician.profile.noRatingsYet")}
+                {stats.data.avgRating != null ? t("technician.profile.ratingValue", { stars: stats.data.avgRating.toFixed(1) }) : t("technician.profile.noRatingsYet")}
               </p>
               <p className="text-xs text-text-muted">{t("technician.profile.ratingCount", { count: stats.data.ratingCount })}</p>
             </div>

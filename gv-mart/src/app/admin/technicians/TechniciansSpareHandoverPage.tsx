@@ -193,6 +193,10 @@ export function TechniciansSpareHandoverPage() {
             </Button>
           </div>
 
+          {createMut.error ? (
+            <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createMut.error as Error).message}</p>
+          ) : null}
+
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={resetForm}>
               {t("common.cancel")}
@@ -208,6 +212,9 @@ export function TechniciansSpareHandoverPage() {
         <Card size="default" className="gap-3">
           <p className="text-sm font-semibold text-text">{t("technicians.spares.adminSignTitle")}</p>
           <SignaturePad onChange={setAdminSign} disabled={adminSignMut.isPending} />
+          {adminSignMut.error ? (
+            <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(adminSignMut.error as Error).message}</p>
+          ) : null}
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => { setSigningId(null); setAdminSign(null) }}>
               {t("common.cancel")}

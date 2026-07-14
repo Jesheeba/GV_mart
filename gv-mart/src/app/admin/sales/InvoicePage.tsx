@@ -12,11 +12,10 @@ import type { StatusTone } from "@/components/shared/StatusDot"
 
 const PAYMENT_STATUS_TONE: Record<string, StatusTone> = { paid: "success", partial: "warning", due: "danger" }
 
-function toWhatsappLink(mobile: string, invoiceId: string, total: number) {
+function toWhatsappLink(mobile: string, message: string) {
   const digits = mobile.replace(/\D/g, "")
   const withCountryCode = digits.length === 10 ? `91${digits}` : digits
-  const text = encodeURIComponent(`GV Mart invoice ${invoiceId.slice(0, 8)} — total ${formatCurrency(total)}. Thank you for your business!`)
-  return `https://wa.me/${withCountryCode}?text=${text}`
+  return `https://wa.me/${withCountryCode}?text=${encodeURIComponent(message)}`
 }
 
 export function InvoicePage() {
@@ -52,7 +51,16 @@ export function InvoicePage() {
           <Button
             variant="accent"
             nativeButton={false}
-            render={<a href={toWhatsappLink(invoice.customers?.mobile ?? "", invoice.id, invoice.total)} target="_blank" rel="noreferrer" />}
+            render={
+              <a
+                href={toWhatsappLink(
+                  invoice.customers?.mobile ?? "",
+                  t("sales.invoice.whatsappMessage", { id: invoice.id.slice(0, 8), total: formatCurrency(invoice.total) })
+                )}
+                target="_blank"
+                rel="noreferrer"
+              />
+            }
           >
             <MessageCircle className="size-4" />
             {t("sales.invoice.shareWhatsapp")}
@@ -60,7 +68,7 @@ export function InvoicePage() {
         </div>
       </div>
 
-      <Card className="gap-4">
+      <Card className="gap-4 px-5">
         <div className="flex items-start justify-between border-b border-border px-1 pb-3">
           <div>
             <p className="text-lg font-bold text-text">{org?.name ?? t("common.appName")}</p>
@@ -150,7 +158,7 @@ export function InvoicePage() {
       </Card>
 
       {extras && (extras.warranties.length > 0 || extras.tickets.length > 0 || extras.amcContract) ? (
-        <Card className="gap-2">
+        <Card className="gap-2 px-5">
           <p className="px-1 text-sm font-semibold text-text">{t("sales.invoice.generatedTitle")}</p>
           {extras.warranties.map((w) => (
             <p key={w.id} className="px-1 text-sm text-text-muted">

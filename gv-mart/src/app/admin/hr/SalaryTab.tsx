@@ -109,7 +109,7 @@ export function SalaryTab() {
 
       {printing ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:static print:bg-transparent print:p-0">
-          <Card size="default" className="w-full max-w-md gap-3 print:shadow-none">
+          <Card size="default" className="w-full max-w-md gap-3 px-5 print:shadow-none">
             <p className="text-lg font-bold text-text">{t("hr.salary.payslip")}</p>
             <p className="text-sm text-text-muted">
               {printing.technicians?.profiles?.full_name ?? "—"} · {month}

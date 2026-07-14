@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
-import { useAppointmentsRange, useAssignTicketTechnician, useAutoAssignTicket, useTechnicians } from "@/hooks/useService"
+import { useAppointmentsRange, useAssignTicketTechnician, useAutoAssignTicket, useTechnicians, useUnassignAppointment } from "@/hooks/useService"
 import type { AppointmentListItem } from "@/services/service"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 
@@ -29,6 +29,7 @@ export function AppointmentsPage() {
   const { data: technicians } = useTechnicians(orgId)
   const autoAssign = useAutoAssignTicket()
   const assign = useAssignTicketTechnician()
+  const unassign = useUnassignAppointment()
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [conflict, setConflict] = useState<{ appointmentId: string; technicianId: string; reasonKey: string } | null>(null)
@@ -87,7 +88,7 @@ export function AppointmentsPage() {
       </div>
 
       {conflict ? (
-        <Card size="sm" className="flex-row items-center gap-3 border-warning/40 bg-warning/5">
+        <Card size="sm" className="flex-row items-center gap-3 border-warning/40 bg-warning/5 px-4">
           <AlertTriangle className="size-4 shrink-0 text-warning" />
           <p className="flex-1 text-sm text-text">{t(conflict.reasonKey)}</p>
           <Button size="sm" variant="outline" onClick={() => setConflict(null)}>
@@ -99,9 +100,18 @@ export function AppointmentsPage() {
         </Card>
       ) : null}
 
+      {assign.isError || autoAssign.isError || unassign.isError ? (
+        <Card size="sm" className="flex-row items-center gap-3 border-danger/40 bg-danger/5 px-4">
+          <AlertTriangle className="size-4 shrink-0 text-danger" />
+          <p className="flex-1 text-sm text-danger">
+            {((assign.error ?? autoAssign.error ?? unassign.error) as Error).message}
+          </p>
+        </Card>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
         {/* Left: per-technician day timeline */}
-        <Card className="gap-3">
+        <Card className="gap-3 px-5">
           <h2 className="text-sm font-semibold text-text">{t("service.appointments.timeline")}</h2>
           {isError ? (
             <p className="text-sm text-danger">
@@ -162,7 +172,9 @@ export function AppointmentsPage() {
                   if (!draggingId) return
                   const appt = (appointments ?? []).find((a) => a.id === draggingId)
                   setDraggingId(null)
-                  if (appt) navigate(`/admin/service/${appt.service_tickets?.id}`)
+                  if (!appt) return
+                  if (appt.technician_id) unassign.mutate(appt.id)
+                  navigate(`/admin/service/${appt.service_tickets?.id}`)
                 }}
                 className="rounded-xl border border-dashed border-border p-3 text-center text-xs text-text-muted"
               >
@@ -174,14 +186,14 @@ export function AppointmentsPage() {
 
         {/* Right: auto-assign engine + unassigned queue */}
         <div className="space-y-4">
-          <Card className="gap-2">
+          <Card className="gap-2 px-5">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text">
               <Wand2 className="size-4" /> {t("service.appointments.autoAssignEngine")}
             </h2>
             <p className="text-xs text-text-muted">{t("service.appointments.autoAssignDescription")}</p>
           </Card>
 
-          <Card className="gap-3">
+          <Card className="gap-3 px-5">
             <h2 className="text-sm font-semibold text-text">{t("service.appointments.unassigned", { count: unassigned.length })}</h2>
             {isLoading ? (
               <Skeleton className="h-32 w-full" />
@@ -216,7 +228,7 @@ export function AppointmentsPage() {
           </Card>
 
           {selected ? (
-            <Card size="sm" className="gap-2">
+            <Card size="sm" className="gap-2 px-4">
               <h3 className="text-xs font-semibold text-text-muted">{t("service.appointments.selected")}</h3>
               <p className="text-sm text-text">{selected.service_tickets?.name_of_complaint}</p>
               <Button size="sm" variant="outline" onClick={() => selected.service_tickets && navigate(`/admin/service/${selected.service_tickets.id}`)}>

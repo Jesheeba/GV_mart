@@ -55,9 +55,9 @@ export function ModelsTab() {
         { key: "brand", header: t("masters.models.brand"), render: (r) => r.brands?.name ?? "—" },
         { key: "type", header: t("masters.models.type"), render: (r) => r.type || "—" },
       ]}
-      onCreate={(v) => createMut.mutate({ org_id: orgId!, brand_id: v.brand_id, name: v.name, type: v.type || null })}
-      onUpdate={(id, v) => updateMut.mutate({ id, patch: { brand_id: v.brand_id, name: v.name, type: v.type || null } })}
-      onDelete={(id) => deleteMut.mutate(id)}
+      onCreate={(v) => createMut.mutateAsync({ org_id: orgId!, brand_id: v.brand_id, name: v.name, type: v.type || null })}
+      onUpdate={(id, v) => updateMut.mutateAsync({ id, patch: { brand_id: v.brand_id, name: v.name, type: v.type || null } })}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

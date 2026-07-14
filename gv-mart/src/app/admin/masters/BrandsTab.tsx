@@ -42,9 +42,9 @@ export function BrandsTab() {
         { key: "name", header: t("masters.brands.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
         { key: "category", header: t("masters.brands.category"), render: (r) => t(`masters.categories.${r.category}`) },
       ]}
-      onCreate={(v) => createMut.mutate({ org_id: orgId!, name: v.name, category: v.category as BrandRow["category"] })}
-      onUpdate={(id, v) => updateMut.mutate({ id, patch: { name: v.name, category: v.category as BrandRow["category"] } })}
-      onDelete={(id) => deleteMut.mutate(id)}
+      onCreate={(v) => createMut.mutateAsync({ org_id: orgId!, name: v.name, category: v.category as BrandRow["category"] })}
+      onUpdate={(id, v) => updateMut.mutateAsync({ id, patch: { name: v.name, category: v.category as BrandRow["category"] } })}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

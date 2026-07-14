@@ -49,7 +49,7 @@ export function IncentiveRulesTab() {
         { key: "amount", header: t("masters.incentives.amount"), render: (r) => `₹${r.amount}` },
       ]}
       onCreate={(v) =>
-        createMut.mutate({
+        createMut.mutateAsync({
           org_id: orgId!,
           type: v.type as IncentiveRuleRow["type"],
           threshold: Number(v.threshold) || 0,
@@ -57,12 +57,12 @@ export function IncentiveRulesTab() {
         })
       }
       onUpdate={(id, v) =>
-        updateMut.mutate({
+        updateMut.mutateAsync({
           id,
           patch: { type: v.type as IncentiveRuleRow["type"], threshold: Number(v.threshold) || 0, amount: Number(v.amount) || 0 },
         })
       }
-      onDelete={(id) => deleteMut.mutate(id)}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

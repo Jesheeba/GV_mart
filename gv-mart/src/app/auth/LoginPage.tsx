@@ -16,7 +16,6 @@ import { useProfile } from "@/hooks/useProfile"
 import { roleHomePath } from "@/lib/roles"
 import { signInWithPassword } from "@/services/auth"
 import { supabase } from "@/lib/supabase"
-import { GVMartMark } from "@/components/shared/GVMartMark"
 
 const loginSchema = z.object({
   email: z.string().min(1).email(),
@@ -83,7 +82,7 @@ export function LoginPage() {
           aria-hidden="true"
         />
         <div className="relative flex items-center gap-3">
-          <GVMartMark className="size-10" />
+          <img src="/logo-icon.svg" alt="GV Mart" className="size-12" />
           <div>
             <p className="text-lg font-bold leading-none">
               <span className="text-accent">GV</span>mart
@@ -104,7 +103,7 @@ export function LoginPage() {
       {/* Form panel */}
       <div className="flex w-full flex-col items-center justify-center px-6 py-10 lg:w-1/2">
         <div className="mb-6 flex w-full max-w-sm items-center justify-between lg:hidden">
-          <GVMartMark className="size-9" />
+          <img src="/logo-icon.svg" alt="GV Mart" className="size-11" />
           <LanguageToggle />
         </div>
 

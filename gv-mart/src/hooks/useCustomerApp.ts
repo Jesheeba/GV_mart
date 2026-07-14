@@ -131,12 +131,59 @@ export function useMyAmcContracts(customerId: string | undefined) {
   })
 }
 
+// Despite the name, this is the org's full product catalog (no
+// customer/ownership filter) — used for the QR-registration picker and as
+// the "browse the full catalog" fallback in BookServicePage's product step.
+// For the customer's actually-owned products, see useMyOwnedProducts below.
 export function useOwnedProducts(orgId: string | undefined) {
   return useQuery({
     queryKey: ["customerApp", "ownedProducts", orgId],
     queryFn: () => api.listOwnedProducts(orgId!),
     enabled: !!orgId,
   })
+}
+
+export type MyOwnedProduct = {
+  id: string
+  name: string
+  category: string
+  brands: { name: string } | null
+  models: { name: string } | null
+}
+
+/**
+ * The customer's real owned products — same warranty+AMC union
+ * CustomerProductsPage already displays (a product counts as "owned" once
+ * it has a warranty or AMC contract on file), deduplicated by product_id.
+ * This is what "My Products" in the Book Service picker should show first,
+ * per v2.2 §6.7 ("the existing product shows automatically") — unlike
+ * useOwnedProducts above, which is actually the unfiltered catalog.
+ */
+export function useMyOwnedProducts(customerId: string | undefined) {
+  const warranties = useMyWarranties(customerId)
+  const amcContracts = useMyAmcContracts(customerId)
+  const data =
+    warranties.data && amcContracts.data
+      ? (() => {
+          const byProduct = new Map<string, MyOwnedProduct>()
+          for (const w of warranties.data) {
+            if (w.products && !byProduct.has(w.product_id)) byProduct.set(w.product_id, { id: w.product_id, ...w.products })
+          }
+          for (const a of amcContracts.data) {
+            if (a.products && !byProduct.has(a.product_id)) byProduct.set(a.product_id, { id: a.product_id, ...a.products })
+          }
+          return Array.from(byProduct.values())
+        })()
+      : undefined
+  return {
+    data,
+    isLoading: warranties.isLoading || amcContracts.isLoading,
+    isError: warranties.isError || amcContracts.isError,
+    refetch: () => {
+      warranties.refetch()
+      amcContracts.refetch()
+    },
+  }
 }
 
 export function useRegisterProductViaQr(orgId: string | undefined, customerId: string | undefined) {

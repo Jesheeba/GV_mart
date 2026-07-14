@@ -23,6 +23,16 @@ export function useAllMyNotifications(
   })
 }
 
+/** Polls every 30s so the header bell badge reflects new notifications without a manual page visit/refresh. */
+export function useUnreadNotificationCount(orgId: string | undefined, userId: string | undefined, role: Enums<"user_role"> | undefined) {
+  return useQuery({
+    queryKey: ["notifications", "unreadCount", orgId, userId, role],
+    queryFn: () => sys.countUnreadNotifications(orgId!, userId!, role!),
+    enabled: !!orgId && !!userId && !!role,
+    refetchInterval: 30_000,
+  })
+}
+
 export function useMarkNotificationRead() {
   const qc = useQueryClient()
   return useMutation({

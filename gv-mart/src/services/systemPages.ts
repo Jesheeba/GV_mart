@@ -37,6 +37,23 @@ export async function listAllMyNotifications(
   return merged
 }
 
+/**
+ * Lightweight unread count for the header bell badge — row-count only (no
+ * data fetched). Notifications previously only surfaced on navigating to
+ * the Notifications Center itself (no badge, no polling), so a real event
+ * (e.g. a technician assignment, a customer's AMC self-book) could sit
+ * unseen indefinitely. Paired with a refetchInterval on the hook side.
+ */
+export async function countUnreadNotifications(orgId: string, userId: string, role: Enums<"user_role">): Promise<number> {
+  const [ownRes, roleRes] = await Promise.all([
+    supabase.from("notifications").select("*", { count: "exact", head: true }).eq("org_id", orgId).eq("user_id", userId).eq("is_read", false),
+    supabase.from("notifications").select("*", { count: "exact", head: true }).eq("org_id", orgId).eq("role", role).eq("is_read", false),
+  ])
+  if (ownRes.error) throw ownRes.error
+  if (roleRes.error) throw roleRes.error
+  return (ownRes.count ?? 0) + (roleRes.count ?? 0)
+}
+
 export async function markNotificationRead(id: string, isRead = true): Promise<void> {
   const { error } = await supabase.from("notifications").update({ is_read: isRead }).eq("id", id)
   if (error) throw error

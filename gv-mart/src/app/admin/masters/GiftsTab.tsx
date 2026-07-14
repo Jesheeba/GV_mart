@@ -35,9 +35,9 @@ export function GiftsTab() {
         { key: "name", header: t("masters.gifts.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
         { key: "threshold", header: t("masters.gifts.threshold"), render: (r) => `₹${r.threshold_amount}+` },
       ]}
-      onCreate={(v) => createMut.mutate({ org_id: orgId!, name: v.name, threshold_amount: Number(v.threshold_amount) || 0 })}
-      onUpdate={(id, v) => updateMut.mutate({ id, patch: { name: v.name, threshold_amount: Number(v.threshold_amount) || 0 } })}
-      onDelete={(id) => deleteMut.mutate(id)}
+      onCreate={(v) => createMut.mutateAsync({ org_id: orgId!, name: v.name, threshold_amount: Number(v.threshold_amount) || 0 })}
+      onUpdate={(id, v) => updateMut.mutateAsync({ id, patch: { name: v.name, threshold_amount: Number(v.threshold_amount) || 0 } })}
+      onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
 }

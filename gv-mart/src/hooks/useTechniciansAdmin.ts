@@ -21,12 +21,62 @@ export function useUpdateTechnician() {
   })
 }
 
+export function useEligibleTechnicianProfiles(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicians", "eligibleProfiles", orgId],
+    queryFn: () => techniciansAdmin.listEligibleTechnicianProfiles(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useCreateTechnician() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, profileId }: { orgId: string; profileId: string }) => techniciansAdmin.createTechnician(orgId, profileId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["technicians"] }),
+  })
+}
+
+export function useTechnicianCurrentJob(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicians", "currentJob", technicianId],
+    queryFn: () => techniciansAdmin.getTechnicianCurrentJob(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
+export function useTechnicianAttendanceHistory(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["attendance", "history", technicianId],
+    queryFn: () => techniciansAdmin.getTechnicianAttendanceHistory(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
+export function useTechnicianRewards(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["rewards", "byTechnician", technicianId],
+    queryFn: () => techniciansAdmin.listTechnicianRewards(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
 export function useTechniciansWithLocation(orgId: string | undefined) {
   return useQuery({
     queryKey: ["technicians", "withLocation", orgId],
     queryFn: () => techniciansAdmin.listTechniciansWithLatestLocation(orgId!),
     enabled: !!orgId,
     refetchInterval: 30_000,
+  })
+}
+
+/** Each technician's current/next job today + destination coords, for the live-tracking ETA/off-route logic (v2.2 §6.6). */
+export function useTechniciansActiveJobs(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicians", "activeJobs", orgId],
+    queryFn: () => techniciansAdmin.listTechniciansActiveJobs(orgId!),
+    enabled: !!orgId,
+    refetchInterval: 60_000,
   })
 }
 

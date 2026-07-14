@@ -113,6 +113,114 @@ export async function updateTechnician(
   return data
 }
 
+// ── Add technician (link an existing login) ───────────────────────────────
+// Real account creation needs the service_role key (see file header) — this
+// links a profile that already has a login (created outside this app, e.g.
+// via the Supabase dashboard) but has no technicians row yet.
+
+export type EligibleProfile = { id: string; full_name: string; phone: string | null }
+
+export async function listEligibleTechnicianProfiles(orgId: string): Promise<EligibleProfile[]> {
+  const [profilesRes, techniciansRes] = await Promise.all([
+    supabase.from("profiles").select("id, full_name, phone").eq("org_id", orgId).eq("role", "technician"),
+    supabase.from("technicians").select("profile_id").eq("org_id", orgId),
+  ])
+  if (profilesRes.error) throw profilesRes.error
+  if (techniciansRes.error) throw techniciansRes.error
+  const linked = new Set((techniciansRes.data ?? []).map((t) => t.profile_id))
+  return (profilesRes.data ?? []).filter((p) => !linked.has(p.id))
+}
+
+export async function createTechnician(orgId: string, profileId: string): Promise<TechnicianRow> {
+  const { data, error } = await supabase
+    .from("technicians")
+    .insert({ org_id: orgId, profile_id: profileId } as never)
+    .select()
+    .single()
+  if (error) throw error
+  return data as unknown as TechnicianRow
+}
+
+// ── Technician detail page ────────────────────────────────────────────────
+
+export type TechnicianCurrentJob = {
+  appointmentId: string
+  ticketId: string
+  status: string
+  mode: string
+  scheduledAt: string | null
+  customerName: string | null
+  customerMobile: string | null
+  area: string | null
+  productName: string | null
+  complaintName: string | null
+}
+
+/** A technician can hold at most one open appointment at a time (enforced by assign_ticket_technician's conflict check), so this is unambiguously "their current/next job." */
+export async function getTechnicianCurrentJob(technicianId: string): Promise<TechnicianCurrentJob | null> {
+  const { data, error } = await supabase
+    .from("appointments")
+    .select(
+      "id, ticket_id, status, mode, scheduled_at, service_tickets(name_of_complaint, customers(name, mobile), addresses(area), products(name))"
+    )
+    .eq("technician_id", technicianId)
+    .in("status", ["scheduled", "in_progress"])
+    .order("scheduled_at", { ascending: true, nullsFirst: true })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  const row = data as unknown as {
+    id: string
+    ticket_id: string
+    status: string
+    mode: string
+    scheduled_at: string | null
+    service_tickets: {
+      name_of_complaint: string | null
+      customers: { name: string; mobile: string } | null
+      addresses: { area: string | null } | null
+      products: { name: string } | null
+    } | null
+  }
+  return {
+    appointmentId: row.id,
+    ticketId: row.ticket_id,
+    status: row.status,
+    mode: row.mode,
+    scheduledAt: row.scheduled_at,
+    customerName: row.service_tickets?.customers?.name ?? null,
+    customerMobile: row.service_tickets?.customers?.mobile ?? null,
+    area: row.service_tickets?.addresses?.area ?? null,
+    productName: row.service_tickets?.products?.name ?? null,
+    complaintName: row.service_tickets?.name_of_complaint ?? null,
+  }
+}
+
+export async function getTechnicianAttendanceHistory(technicianId: string, limit = 30): Promise<AttendanceRow[]> {
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("technician_id", technicianId)
+    .order("date", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+export type TechnicianRewardItem = Tables<"rewards">
+
+export async function listTechnicianRewards(technicianId: string, limit = 20): Promise<TechnicianRewardItem[]> {
+  const { data, error } = await supabase
+    .from("rewards")
+    .select("*")
+    .eq("winner_id", technicianId)
+    .order("given_at", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
 // ── ADM-15: Live tracking (map) ───────────────────────────────────────────
 
 export type TechnicianWithLatestLocation = TechnicianRow & {
@@ -142,6 +250,68 @@ export async function listTechniciansWithLatestLocation(orgId: string): Promise<
     profiles: { full_name: string; phone: string | null } | null
   })[]
   return rows.map((t) => ({ ...t, latestLocation: latestByTech.get(t.id) ?? null }))
+}
+
+/** Seeds the admin map's idle-detection buffer — Realtime INSERTs append to
+ * this after mount, but without an initial window the map would need ~5
+ * minutes of fresh events before it could flag anyone as idle. */
+export async function listRecentTechnicianLocations(orgId: string, sinceIso: string): Promise<TechnicianLocationRow[]> {
+  const { data, error } = await supabase
+    .from("technician_locations")
+    .select("*")
+    .eq("org_id", orgId)
+    .gte("recorded_at", sinceIso)
+    .order("recorded_at", { ascending: true })
+    .limit(2000)
+  if (error) throw error
+  return data ?? []
+}
+
+// ── ETA / off-route (v2.2 §6.6) ───────────────────────────────────────────
+
+export type TechnicianActiveJob = {
+  ticketId: string
+  lat: number
+  lng: number
+  scheduledAt: string | null
+  customerName: string | null
+  addressLabel: string | null
+}
+
+/** Each technician's current job-in-progress-or-next-up today, address coordinates included — the destination the live-tracking map compares live position against. */
+export async function listTechniciansActiveJobs(orgId: string): Promise<Map<string, TechnicianActiveJob>> {
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("technician_id, scheduled_at, ticket_id, service_tickets!inner(addresses(lat, lng, door_no, area), customers(name))")
+    .eq("org_id", orgId)
+    .in("status", ["scheduled", "in_progress"])
+    .not("technician_id", "is", null)
+    .order("scheduled_at", { ascending: true, nullsFirst: true })
+  if (error) throw error
+  const rows = (data ?? []) as unknown as {
+    technician_id: string
+    scheduled_at: string | null
+    ticket_id: string
+    service_tickets: {
+      addresses: { lat: number | null; lng: number | null; door_no: string | null; area: string | null } | null
+      customers: { name: string } | null
+    } | null
+  }[]
+  const byTech = new Map<string, TechnicianActiveJob>()
+  for (const r of rows) {
+    if (byTech.has(r.technician_id)) continue
+    const addr = r.service_tickets?.addresses
+    if (addr?.lat == null || addr?.lng == null) continue
+    byTech.set(r.technician_id, {
+      ticketId: r.ticket_id,
+      lat: addr.lat,
+      lng: addr.lng,
+      scheduledAt: r.scheduled_at,
+      customerName: r.service_tickets?.customers?.name ?? null,
+      addressLabel: [addr.door_no, addr.area].filter(Boolean).join(", ") || null,
+    })
+  }
+  return byTech
 }
 
 // ── ADM-16: Attendance ─────────────────────────────────────────────────────

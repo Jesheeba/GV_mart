@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { Loader2, Search, ShieldCheck, TriangleAlert } from "lucide-react"
@@ -10,9 +10,11 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { DraftBanner } from "@/components/shared/DraftBanner"
 import { useProfile } from "@/hooks/useProfile"
-import { useCustomerAutocomplete } from "@/hooks/useCustomers"
+import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
+import { useLocalDraft } from "@/hooks/useLocalDraft"
 import {
   useCreateComplaintTicket,
   useCustomerAddresses,
@@ -28,10 +30,33 @@ import {
 import { TicketTypeBadge } from "./TicketBadges"
 
 const PRIORITIES = ["very_urgent", "urgent", "normal"] as const
+const DRAFT_KEY = "gv_mart_draft:admin_new_complaint"
+
+/** Restorable subset of the wizard's state — see useLocalDraft. Skipped
+ * entirely (key is null) when arriving via a customer's own "New Ticket"
+ * link (?customerId=…): that's a fresh, context-established flow, and
+ * resurrecting an older draft for a different customer over it would be
+ * actively wrong, not helpful. */
+type NewComplaintDraftData = {
+  step: number
+  customerId: string
+  customerLabel: string
+  customerSearch: string
+  addressId: string
+  equipmentMode: "owned" | "new" | "none"
+  selectedOwnedProductId: string
+  newBrandId: string
+  newModelId: string
+  newProductId: string
+  details: ComplaintDetailsStepInput
+  appointment: ComplaintAppointmentStepInput
+}
 
 export function NewComplaintPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const prefilledCustomerId = searchParams.get("customerId")
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
@@ -42,6 +67,11 @@ export function NewComplaintPage() {
   const [customerId, setCustomerId] = useState("")
   const [customerLabel, setCustomerLabel] = useState("")
   const customerAutocomplete = useCustomerAutocomplete(orgId, customerSearch)
+
+  // Arrived here from a customer's own detail page ("New Ticket") — that
+  // customer is already established by context, so skip straight past the
+  // redundant "search for them again" step instead of re-asking.
+  const prefilledCustomer = useCustomer(prefilledCustomerId ?? undefined)
 
   // Step 2: equipment
   const owned = useOwnedEquipment(orgId, customerId || undefined)
@@ -55,6 +85,29 @@ export function NewComplaintPage() {
   const { data: brands } = brandsHooks.useList(orgId)
   const { data: models } = modelsHooks.useList(orgId)
   const { data: products } = productsHooks.useList(orgId)
+
+  useEffect(() => {
+    if (prefilledCustomer.data && !customerId) {
+      setCustomerId(prefilledCustomer.data.id)
+      setCustomerLabel(`${prefilledCustomer.data.name} · ${prefilledCustomer.data.mobile}`)
+      setEquipmentMode("owned")
+      setStep(1)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefilledCustomer.data])
+
+  // `listCustomerAddresses` orders is_primary first, so [0] is always the
+  // customer's primary address when one exists — default the ticket's
+  // service address there instead of "None" (the previous default), since a
+  // service call with no address is the exceptional case, not the norm.
+  // Only fires while addressId is still empty, so it never clobbers an
+  // admin's deliberate choice (including "None").
+  useEffect(() => {
+    if (!addressId && addresses.data && addresses.data.length > 0) {
+      setAddressId(addresses.data[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addresses.data])
 
   const filteredModels = useMemo(() => (models ?? []).filter((m) => !newBrandId || m.brand_id === newBrandId), [models, newBrandId])
   const filteredProducts = useMemo(
@@ -86,6 +139,59 @@ export function NewComplaintPage() {
   })
 
   const createTicket = useCreateComplaintTicket()
+
+  // Local draft persistence — see useLocalDraft's doc comment. Disabled for
+  // the prefilled-customer entry point (see NewComplaintDraftData).
+  const draftKey = prefilledCustomerId ? null : DRAFT_KEY
+  const draftSnapshot: NewComplaintDraftData = {
+    step,
+    customerId,
+    customerLabel,
+    customerSearch,
+    addressId,
+    equipmentMode,
+    selectedOwnedProductId,
+    newBrandId,
+    newModelId,
+    newProductId,
+    details: detailsForm.watch(),
+    appointment: appointmentForm.watch(),
+  }
+  const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewComplaintDraftData>(draftKey, draftSnapshot)
+  const appliedDraftRef = useRef(false)
+  useEffect(() => {
+    if (appliedDraftRef.current || !restoredDraft) return
+    appliedDraftRef.current = true
+    if (restoredDraft.step != null) setStep(restoredDraft.step)
+    if (restoredDraft.customerId) setCustomerId(restoredDraft.customerId)
+    if (restoredDraft.customerLabel) setCustomerLabel(restoredDraft.customerLabel)
+    if (restoredDraft.customerSearch) setCustomerSearch(restoredDraft.customerSearch)
+    if (restoredDraft.addressId) setAddressId(restoredDraft.addressId)
+    if (restoredDraft.equipmentMode) setEquipmentMode(restoredDraft.equipmentMode)
+    if (restoredDraft.selectedOwnedProductId) setSelectedOwnedProductId(restoredDraft.selectedOwnedProductId)
+    if (restoredDraft.newBrandId) setNewBrandId(restoredDraft.newBrandId)
+    if (restoredDraft.newModelId) setNewModelId(restoredDraft.newModelId)
+    if (restoredDraft.newProductId) setNewProductId(restoredDraft.newProductId)
+    if (restoredDraft.details) detailsForm.reset(restoredDraft.details)
+    if (restoredDraft.appointment) appointmentForm.reset(restoredDraft.appointment)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restoredDraft])
+
+  function discardComplaintDraft() {
+    discardDraft()
+    setStep(0)
+    setCustomerId("")
+    setCustomerLabel("")
+    setCustomerSearch("")
+    setAddressId("")
+    setEquipmentMode("owned")
+    setSelectedOwnedProductId("")
+    setNewBrandId("")
+    setNewModelId("")
+    setNewProductId("")
+    detailsForm.reset({ nameOfComplaint: "", natureOfComplaint: "", priority: "normal" })
+    appointmentForm.reset({ mode: "always", scheduledAt: "", autoAssign: true })
+  }
 
   const steps = [
     { key: "customer", label: t("service.newComplaint.stepCustomer") },
@@ -130,6 +236,7 @@ export function NewComplaintPage() {
       scheduledAt: appt.mode === "datetime" && appt.scheduledAt ? new Date(appt.scheduledAt).toISOString() : null,
       autoAssign: appt.autoAssign,
     })
+    clearDraft()
     navigate(`/admin/service/${result.ticket_id}`)
   }
 
@@ -145,12 +252,25 @@ export function NewComplaintPage() {
     <div className="mx-auto max-w-4xl space-y-4 pt-2">
       <h1 className="text-2xl font-bold text-text">{t("service.newComplaint.title")}</h1>
 
-      <Card>
-        <Stepper steps={steps} currentIndex={step} />
+      {draftKey ? (
+        <DraftBanner
+          restored={wasRestored}
+          autosaveNote={t("service.newComplaint.draft.autosaveNote")}
+          restoredNote={t("service.newComplaint.draft.restoredNote")}
+          discardLabel={t("service.newComplaint.draft.discard")}
+          discardWarning={t("service.newComplaint.draft.discardWarning")}
+          confirmDiscardLabel={t("service.newComplaint.draft.confirmDiscard")}
+          cancelLabel={t("common.cancel")}
+          onConfirmDiscard={discardComplaintDraft}
+        />
+      ) : null}
+
+      <Card className="px-5">
+        <Stepper steps={steps} currentIndex={step} onStepClick={setStep} />
       </Card>
 
       {step === 0 ? (
-        <Card className="gap-3">
+        <Card className="gap-3 px-5">
           <Label htmlFor="customer-search">{t("service.newComplaint.customerSearch")}</Label>
           <Autocomplete
             id="customer-search"
@@ -174,6 +294,7 @@ export function NewComplaintPage() {
               setCustomerLabel(`${c.name} · ${c.mobile}`)
               setEquipmentMode("owned")
               setSelectedOwnedProductId("")
+              setAddressId("")
             }}
           />
           {!customerId ? <p className="text-xs text-text-muted">{t("service.newComplaint.customerSearchHint")}</p> : null}
@@ -181,7 +302,7 @@ export function NewComplaintPage() {
       ) : null}
 
       {step === 1 ? (
-        <Card className="gap-3">
+        <Card className="gap-3 px-5">
           <div className="space-y-1.5">
             <Label>{t("service.newComplaint.address")}</Label>
             <select
@@ -298,7 +419,7 @@ export function NewComplaintPage() {
       ) : null}
 
       {step === 2 ? (
-        <Card className="gap-3">
+        <Card className="gap-3 px-5">
           <div className="space-y-1.5">
             <Label htmlFor="nameOfComplaint">{t("service.newComplaint.nameOfComplaint")}</Label>
             <Input
@@ -324,7 +445,7 @@ export function NewComplaintPage() {
       ) : null}
 
       {step === 3 ? (
-        <Card className="gap-3">
+        <Card className="gap-3 px-5">
           {detected.isLoading ? (
             <p className="flex items-center gap-2 text-sm text-text-muted">
               <Loader2 className="size-4 animate-spin" /> {t("common.loading")}
@@ -366,7 +487,7 @@ export function NewComplaintPage() {
       ) : null}
 
       {step === 4 ? (
-        <Card className="gap-3">
+        <Card className="gap-3 px-5">
           <Label>{t("service.newComplaint.priority")}</Label>
           <div className="flex gap-2">
             {PRIORITIES.map((p) => (
@@ -386,7 +507,7 @@ export function NewComplaintPage() {
       ) : null}
 
       {step === 5 ? (
-        <Card className="gap-3">
+        <Card className="gap-3 px-5">
           <Label>{t("service.newComplaint.appointmentMode")}</Label>
           <div className="flex gap-1 rounded-full bg-surface-alt p-1">
             {(["always", "datetime"] as const).map((m) => (

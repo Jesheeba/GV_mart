@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { Inbox, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -48,6 +49,7 @@ export function DataTable<T>({
   skeletonRowCount?: number
   className?: string
 }) {
+  const { t } = useTranslation()
   return (
     <div className={cn("overflow-hidden rounded-subcard border border-border", className)}>
       <Table>
@@ -69,7 +71,7 @@ export function DataTable<T>({
                   <p className="text-sm text-text-muted">{error}</p>
                   {onRetry ? (
                     <Button variant="outline" size="sm" onClick={onRetry}>
-                      Retry
+                      {t("common.retry")}
                     </Button>
                   ) : null}
                 </div>

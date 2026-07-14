@@ -1,17 +1,32 @@
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Briefcase, MapPin, MessageCircle, Package, Phone, Pencil, ReceiptText, Target, Wrench } from "lucide-react"
+import { BatteryCharging, ChevronLeft, Droplet, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, Wind, Wrench, Zap } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { useCustomer } from "@/hooks/useCustomers"
+import { useCustomer, useCustomerInvoices, useCustomerLifetimeSummary, useCustomerProducts, useCustomerServiceHistory } from "@/hooks/useCustomers"
 import { useProfile } from "@/hooks/useProfile"
+import { avatarPalette, initials } from "@/lib/avatar"
+import { formatCurrency } from "@/lib/sale-calc"
+import { cn } from "@/lib/utils"
+import type { Enums } from "@/types/database"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/)
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase()
+const AMC_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
+
+const CATEGORY_STYLE: Record<Enums<"brand_category">, { icon: typeof Droplet; bg: string; fg: string }> = {
+  ro: { icon: Droplet, bg: "#E6EEFC", fg: "#2E6BE6" },
+  ac: { icon: Wind, bg: "#FDE7DD", fg: "#F5612C" },
+  inverter: { icon: BatteryCharging, bg: "#F0EBE3", fg: "#1A1A1A" },
+  battery: { icon: BatteryCharging, bg: "#E2F3EA", fg: "#16855B" },
+}
+
+function fmtDate(iso: string | null | undefined, opts?: Intl.DateTimeFormatOptions) {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("en-IN", opts ?? { day: "2-digit", month: "short", year: "numeric" })
 }
 
 function EmptyTab({ icon: Icon, label }: { icon: typeof Package; label: string }) {
@@ -25,12 +40,51 @@ function EmptyTab({ icon: Icon, label }: { icon: typeof Package; label: string }
   )
 }
 
+function ProductCard({
+  icon: Icon,
+  iconBg,
+  iconFg,
+  title,
+  subtitle,
+  coverage,
+}: {
+  icon: typeof Package
+  iconBg: string
+  iconFg: string
+  title: string
+  subtitle: string
+  coverage: { tone: StatusTone; label: string } | { plain: string }
+}) {
+  return (
+    <div className="flex items-center gap-3.5 rounded-[18px] border border-border bg-surface p-4.5 shadow-[0_1px_2px_rgba(26,26,26,.04)]">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-[13px]" style={{ background: iconBg, color: iconFg }}>
+        <Icon className="size-5.5" strokeWidth={1.6} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-bold text-text">{title}</div>
+        <div className="truncate text-xs font-medium text-text-muted">{subtitle}</div>
+      </div>
+      {"tone" in coverage ? (
+        <StatusDot tone={coverage.tone} label={coverage.label} className="shrink-0" />
+      ) : (
+        <span className="shrink-0 text-xs font-medium text-text-muted">{coverage.plain}</span>
+      )}
+    </div>
+  )
+}
+
 export function CustomerDetailPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { data: profile } = useProfile()
+  const orgId = profile?.org_id
   const { data: customer, isLoading, isError, refetch } = useCustomer(id)
+
+  const products = useCustomerProducts(orgId, customer?.id)
+  const serviceHistory = useCustomerServiceHistory(orgId, customer?.id)
+  const invoices = useCustomerInvoices(orgId, customer?.id)
+  const lifetime = useCustomerLifetimeSummary(orgId, customer?.id)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !customer) {
@@ -39,113 +93,243 @@ export function CustomerDetailPage() {
 
   const primaryAddress = customer.addresses.find((a) => a.is_primary) ?? customer.addresses[0]
   const waNumber = customer.mobile.replace(/\D/g, "")
+  const palette = avatarPalette(customer.name)
+  const subtitleParts = [
+    customer.profession || null,
+    t("customers.detail.customerSince", { date: fmtDate(customer.created_at, { month: "short", year: "numeric" }) }),
+  ].filter(Boolean)
+
+  const nextAmcAction = lifetime.data?.nextAmcAction ?? null
+  const nextActionLabel = lifetime.isLoading
+    ? "—"
+    : nextAmcAction
+      ? nextAmcAction.daysUntil <= 0
+        ? t("customers.detail.amcRenewsToday")
+        : t("customers.detail.amcRenewsIn", { days: nextAmcAction.daysUntil })
+      : t("customers.detail.noUpcomingRenewals")
+
+  // Products and Service History are separate tabs (see TabsList below) and
+  // must render distinct content — they previously both called the same
+  // combined renderer, which made switching tabs a visual no-op.
+  function renderProducts() {
+    return (
+      <div className="flex flex-col gap-3.5">
+        {products.isLoading ? (
+          <>
+            <Skeleton className="h-19 w-full rounded-[18px]" />
+            <Skeleton className="h-19 w-full rounded-[18px]" />
+          </>
+        ) : (products.data ?? []).length === 0 ? (
+          <div className="rounded-[18px] border border-border bg-surface">
+            <EmptyTab icon={Package} label={t("customers.detail.emptyTabs.products")} />
+          </div>
+        ) : (
+          (products.data ?? []).map((p) => {
+            const style = p.category ? CATEGORY_STYLE[p.category] : null
+            const Icon = style?.icon ?? Package
+            const title = [p.brandName, p.modelName].filter(Boolean).join(" · ") || p.productName
+            const subtitle =
+              [
+                p.boughtAt ? t("customers.detail.productCard.bought", { date: fmtDate(p.boughtAt, { month: "short", year: "numeric" }) }) : null,
+                p.serialNo ? t("customers.detail.productCard.serial", { serial: p.serialNo }) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "—"
+            const coverage: { tone: StatusTone; label: string } | { plain: string } = p.amcStatus
+              ? { tone: AMC_STATUS_TONE[p.amcStatus] ?? "neutral", label: `${p.amcPlanName ?? "—"} · ${t(`amc.status.${p.amcStatus}`)}` }
+              : p.warrantyExpiry
+                ? new Date(p.warrantyExpiry) >= new Date()
+                  ? { tone: "success", label: t("customers.detail.productCard.warrantyTo", { date: fmtDate(p.warrantyExpiry) }) }
+                  : { tone: "danger", label: t("customers.detail.productCard.warrantyExpired") }
+                : { plain: t("customers.detail.productCard.noCoverage") }
+            return <ProductCard key={p.productId} icon={Icon} iconBg={style?.bg ?? "#F0EBE3"} iconFg={style?.fg ?? "#1A1A1A"} title={title} subtitle={subtitle} coverage={coverage} />
+          })
+        )}
+      </div>
+    )
+  }
+
+  function renderServiceHistory() {
+    return (
+      <div className="rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+        <h3 className="mb-4.5 text-base font-bold tracking-tight text-text">{t("customers.detail.serviceHistoryTitle")}</h3>
+        {serviceHistory.isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (serviceHistory.data ?? []).length === 0 ? (
+          <EmptyTab icon={Wrench} label={t("customers.detail.emptyTabs.service")} />
+        ) : (
+          <div className="flex flex-col">
+            {(serviceHistory.data ?? []).map((visit, i, arr) => (
+              <div key={visit.ticketId} className="flex gap-3.25">
+                <div className="flex flex-col items-center">
+                  <span className={cn("size-2.75 shrink-0 rounded-full", visit.status === "completed" ? "border-2.5 border-success/20 bg-success" : "bg-[#C9C4BA]")} />
+                  {i < arr.length - 1 ? <span className="w-0.5 flex-1 bg-border" /> : null}
+                </div>
+                <div className={cn("min-w-0", i < arr.length - 1 && "pb-4.5")}>
+                  <div className="text-sm font-semibold text-text">{visit.title}</div>
+                  <div className="text-[11px] font-medium text-text-muted">
+                    {[visit.technicianName, fmtDate(visit.date), visit.type ? t(`service.type.${visit.type}`) : t(`service.status.${visit.status}`), formatCurrency(visit.amount)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 pt-2">
-      <button
-        type="button"
-        onClick={() => navigate("/admin/customers")}
-        className="flex items-center gap-1.5 text-sm font-medium text-text-muted hover:text-text"
-      >
-        <ArrowLeft className="size-4" />
-        {t("customers.detail.backToList")}
-      </button>
+      <div className="flex items-center gap-2 text-sm">
+        <button
+          type="button"
+          onClick={() => navigate("/admin/customers")}
+          title={t("customers.detail.backToList")}
+          className="flex items-center gap-1 font-semibold text-text-muted hover:text-text"
+        >
+          <ChevronLeft className="size-4" />
+          {t("customers.detail.breadcrumbList")}
+        </button>
+        <span className="text-[#C9C4BA]">/</span>
+        <span className="font-semibold text-text">{customer.name}</span>
+      </div>
 
-      <Card className="gap-4">
-        <div className="flex flex-wrap items-start justify-between gap-4 px-1">
-          <div className="flex items-start gap-4">
-            <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-ink text-lg font-semibold text-white">
-              {initials(customer.name)}
-            </span>
-            <div>
-              <h1 className="text-xl font-bold text-text">{customer.name}</h1>
-              <p className="text-sm text-text-muted">{customer.mobile}</p>
-              {customer.profession ? (
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-text-muted">
-                  <Briefcase className="size-3.5" />
-                  {customer.profession}
-                </p>
-              ) : null}
-              {primaryAddress ? (
-                <p className="mt-1 flex items-start gap-1.5 text-sm text-text-muted">
-                  <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                  <span>
-                    {[primaryAddress.door_no, primaryAddress.street_cross, primaryAddress.area, primaryAddress.pincode]
-                      .filter(Boolean)
-                      .join(", ")}
-                    <span className="ml-2 rounded-full bg-surface-alt px-2 py-0.5 text-xs capitalize">
-                      {t(`customers.form.${primaryAddress.address_type}`)}
-                    </span>
-                  </span>
-                </p>
-              ) : (
-                <p className="mt-1 text-sm text-text-muted">{t("customers.detail.noAddress")}</p>
-              )}
+      <div className="grid grid-cols-1 gap-4.5 lg:grid-cols-[2fr_1fr]">
+        <Card className="gap-5">
+          <div className="flex flex-wrap items-start justify-between gap-3 px-1">
+            <div className="flex items-start gap-4.5">
+              <span
+                className="flex size-16 shrink-0 items-center justify-center rounded-[18px] text-[22px] font-extrabold"
+                style={{ background: palette.bg, color: palette.fg }}
+              >
+                {initials(customer.name)}
+              </span>
+              <div>
+                <h1 className="mb-1 text-[23px] font-extrabold tracking-tight text-text">{customer.name}</h1>
+                <p className="mb-2.5 text-sm font-medium text-text-muted">{subtitleParts.join(" · ")}</p>
+                <div className="flex flex-wrap gap-2">
+                  {primaryAddress ? (
+                    <>
+                      <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
+                        {t(`customers.form.${primaryAddress.address_type}`)} · {t(`customers.form.${primaryAddress.ownership}`)}
+                      </span>
+                      <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
+                        <MapPin className="size-3" />
+                        {[primaryAddress.door_no, primaryAddress.flat_no, primaryAddress.street_cross, primaryAddress.area, primaryAddress.pincode].filter(Boolean).join(", ")}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-text-muted">{t("customers.detail.noAddress")}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
+                <Phone className="size-4" />
+              </Button>
+              <Button variant="outline" size="icon" title={t("customers.detail.actions.edit")} onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
+                <Pencil className="size-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              title={t("customers.detail.call")}
-              nativeButton={false}
-              render={<a href={`tel:${customer.mobile}`} />}
-            >
-              <Phone className="size-4" />
+
+          <div className="flex flex-wrap gap-2.25 border-t border-border px-1 pt-4">
+            <Button onClick={() => navigate("/admin/sales/new")}>{t("customers.detail.actions.newSale")}</Button>
+            <Button variant="outline" className="border-[#DAD5CC]" onClick={() => navigate(`/admin/service/new?customerId=${customer.id}`)}>
+              {t("customers.detail.actions.newTicket")}
+            </Button>
+            <Button variant="ghost" className="bg-accent-soft text-accent hover:bg-accent-soft/80" onClick={() => navigate("/admin/amc")}>
+              {t("customers.detail.actions.sellAmc")}
             </Button>
             <Button
-              variant="outline"
-              size="icon"
-              title={t("customers.detail.whatsapp")}
+              variant="ghost"
+              className="bg-success/15 text-success hover:bg-success/25"
               nativeButton={false}
               render={<a href={`https://wa.me/91${waNumber}`} target="_blank" rel="noreferrer" />}
             >
-              <MessageCircle className="size-4" />
-            </Button>
-            <Button onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
-              <Pencil className="size-4" />
-              {t("customers.detail.actions.edit")}
+              <MessageCircle className="size-3.5" />
+              {t("customers.detail.whatsapp")}
             </Button>
           </div>
+        </Card>
+
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-card bg-gradient-to-br from-ink to-[#33302C] p-5.5 text-white shadow-[0_14px_30px_-18px_rgba(26,26,26,.6)]">
+          <div className="absolute -top-6 -right-6 size-27.5 rounded-full bg-accent/20" />
+          <div className="relative">
+            <span className="text-xs font-semibold text-white/70">{t("customers.detail.lifetimeValue")}</span>
+            <div className="gv-tnum my-2 text-[30px] leading-none font-extrabold tracking-tight">
+              {lifetime.isLoading ? "—" : formatCurrency(lifetime.data?.total ?? 0)}
+            </div>
+            <span className="text-xs font-medium text-white/70">{t("customers.detail.acrossInvoices", { count: lifetime.data?.invoiceCount ?? 0 })}</span>
+          </div>
+          <div className="relative mt-4.5 flex items-center gap-2.5 rounded-[14px] bg-white/10 p-3.25">
+            <span className="flex size-7.5 shrink-0 items-center justify-center rounded-[9px] bg-accent">
+              <Zap className="size-4 text-white" />
+            </span>
+            <div className="min-w-0 leading-tight">
+              <div className="text-xs font-bold">{t("customers.detail.nextBestAction")}</div>
+              <div className="truncate text-[11px] font-medium text-white/75">{nextActionLabel}</div>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <div className="flex flex-wrap gap-2 border-t border-border px-1 pt-3">
-          <Button variant="outline" disabled title={t("customers.detail.actions.comingSoonReason")}>
-            {t("customers.detail.actions.newSale")}
-          </Button>
-          <Button variant="outline" disabled title={t("customers.detail.actions.comingSoonReason")}>
-            {t("customers.detail.actions.newTicket")}
-          </Button>
-          <Button variant="outline" disabled title={t("customers.detail.actions.comingSoonReason")}>
-            {t("customers.detail.actions.sellAmc")}
-          </Button>
-        </div>
-      </Card>
+      <Tabs defaultValue="products">
+        <TabsList className="border border-border bg-surface p-1.25">
+          <TabsTrigger value="products">
+            {t("customers.detail.tabs.products")} ({products.data?.length ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="service">{t("customers.detail.tabs.service")}</TabsTrigger>
+          <TabsTrigger value="invoices">{t("customers.detail.tabs.invoices")}</TabsTrigger>
+          <TabsTrigger value="family">
+            {t("customers.detail.tabs.family")} ({customer.customer_members.length})
+          </TabsTrigger>
+        </TabsList>
 
-      <FamilyMembersPanel orgId={profile?.org_id} customerId={customer.id} members={customer.customer_members} />
+        <TabsContent value="products" className="mt-3.5">
+          {renderProducts()}
+        </TabsContent>
+        <TabsContent value="service" className="mt-3.5">
+          {renderServiceHistory()}
+        </TabsContent>
 
-      <Card size="default">
-        <Tabs defaultValue="products">
-          <TabsList>
-            <TabsTrigger value="products">{t("customers.detail.tabs.products")}</TabsTrigger>
-            <TabsTrigger value="service">{t("customers.detail.tabs.service")}</TabsTrigger>
-            <TabsTrigger value="invoices">{t("customers.detail.tabs.invoices")}</TabsTrigger>
-            <TabsTrigger value="leads">{t("customers.detail.tabs.leads")}</TabsTrigger>
-          </TabsList>
-          <TabsContent value="products">
-            <EmptyTab icon={Package} label={t("customers.detail.emptyTabs.products")} />
-          </TabsContent>
-          <TabsContent value="service">
-            <EmptyTab icon={Wrench} label={t("customers.detail.emptyTabs.service")} />
-          </TabsContent>
-          <TabsContent value="invoices">
-            <EmptyTab icon={ReceiptText} label={t("customers.detail.emptyTabs.invoices")} />
-          </TabsContent>
-          <TabsContent value="leads">
-            <EmptyTab icon={Target} label={t("customers.detail.emptyTabs.leads")} />
-          </TabsContent>
-        </Tabs>
-      </Card>
+        <TabsContent value="invoices" className="mt-3.5">
+          <div className="overflow-hidden rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+            <div className="grid grid-cols-[1fr_2fr_1fr_1fr] border-b border-border bg-surface-alt px-5.5 py-2.75">
+              <span className="text-[11px] font-semibold tracking-wide text-text-muted uppercase">{t("customers.detail.invoicesTable.invoice")}</span>
+              <span className="text-[11px] font-semibold tracking-wide text-text-muted uppercase">{t("customers.detail.invoicesTable.items")}</span>
+              <span className="text-[11px] font-semibold tracking-wide text-text-muted uppercase">{t("customers.detail.invoicesTable.amount")}</span>
+              <span className="text-[11px] font-semibold tracking-wide text-text-muted uppercase">{t("customers.detail.invoicesTable.date")}</span>
+            </div>
+            {invoices.isLoading ? (
+              <div className="p-5.5">
+                <Skeleton className="h-4 w-full" />
+              </div>
+            ) : (invoices.data ?? []).length === 0 ? (
+              <EmptyTab icon={ReceiptText} label={t("customers.detail.emptyTabs.invoices")} />
+            ) : (
+              (invoices.data ?? []).map((inv, i, arr) => (
+                <div key={inv.id} className={cn("grid grid-cols-[1fr_2fr_1fr_1fr] items-center px-5.5 py-3.25", i < arr.length - 1 && "border-b border-[#F1EDE6]")}>
+                  <span className="gv-tnum text-xs font-bold text-text">#{inv.id.slice(0, 8).toUpperCase()}</span>
+                  <span className="truncate pr-2 text-sm font-medium text-[#3A3A36]">{inv.itemsLabel}</span>
+                  <span className="gv-tnum text-sm font-bold text-text">{formatCurrency(inv.total)}</span>
+                  <span className="text-xs font-medium text-text-muted">{fmtDate(inv.createdAt)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="family" className="mt-3.5">
+          <Card size="default">
+            <FamilyMembersPanel orgId={orgId} customerId={customer.id} members={customer.customer_members} />
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

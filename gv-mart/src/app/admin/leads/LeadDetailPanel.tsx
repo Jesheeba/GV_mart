@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useAwardReferralPoints, useLeadActivities, useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
@@ -16,6 +17,7 @@ const ACTIVITY_TYPES = ["call", "note", "whatsapp", "meeting"] as const
 
 export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose: () => void }) {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
@@ -35,7 +37,7 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
   const referrerAutocomplete = useCustomerAutocomplete(orgId, referrerSearch)
 
   return (
-    <Card className="gap-3.5">
+    <Card className="gap-3.5 px-5">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-sm font-semibold text-text">{lead.customers?.name ?? lead.name}</h2>
@@ -145,16 +147,20 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
                   size="sm"
                   disabled={!referrerId || !points || awardPoints.isPending}
                   onClick={async () => {
-                    await awardPoints.mutateAsync({
-                      orgId: orgId!,
-                      customerId: referrerId,
-                      points: Number(points) || 0,
-                      reason: t("leads.detail.referralReason", { name: lead.customers?.name ?? lead.name }),
-                      refId: lead.id,
-                    })
-                    setShowReferral(false)
-                    setReferrerId("")
-                    setReferrerSearch("")
+                    try {
+                      await awardPoints.mutateAsync({
+                        orgId: orgId!,
+                        customerId: referrerId,
+                        points: Number(points) || 0,
+                        reason: t("leads.detail.referralReason", { name: lead.customers?.name ?? lead.name }),
+                        refId: lead.id,
+                      })
+                      setShowReferral(false)
+                      setReferrerId("")
+                      setReferrerSearch("")
+                    } catch {
+                      toast.error(t("common.actionFailed"))
+                    }
                   }}
                 >
                   {awardPoints.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}

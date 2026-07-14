@@ -75,7 +75,7 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
         confirmingId === r.id ? (
           <span className="flex items-center justify-end gap-1.5 text-xs">
             <button type="button" className="text-danger hover:underline" onClick={() => { unlinkMut.mutate(r.id); setConfirmingId(null) }}>
-              {t("customers.detail.confirm")}
+              {t("masters.confirmDelete")}
             </button>
             <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingId(null)}>
               {t("common.cancel")}
@@ -92,7 +92,7 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
   ]
 
   return (
-    <Card className="gap-3">
+    <Card className="gap-3 px-5">
       <div className="flex items-center justify-between px-1">
         <h3 className="text-sm font-semibold text-text">{t("suppliers.itemsFor", { name: supplier.name })}</h3>
         <Button size="sm" variant={showForm ? "outline" : "accent"} onClick={() => setShowForm((v) => !v)}>

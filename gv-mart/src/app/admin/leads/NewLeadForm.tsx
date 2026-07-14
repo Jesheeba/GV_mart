@@ -37,7 +37,7 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
   }
 
   return (
-    <Card className="gap-3">
+    <Card className="gap-3 px-5">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-text">{t("leads.new.title")}</h2>
         <Button size="sm" variant="ghost" onClick={onClose}>

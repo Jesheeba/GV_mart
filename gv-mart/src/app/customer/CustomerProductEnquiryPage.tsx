@@ -3,14 +3,17 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { ArrowLeft, CheckCircle2, Loader2, PlayCircle, X } from "lucide-react"
+import { ArrowLeft, Check, CheckCircle2, Loader2, MessageCircleQuestion, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { VideoCard } from "./productEnquiry/VideoCard"
 import { useMyCustomerId, useSubmitEnquiry, useVideoLibrary } from "@/hooks/useCustomerApp"
 import { enquirySchema, type EnquiryInput } from "@/lib/validation/customerApp"
 import type { Enums } from "@/types/database"
+
+const DESCRIPTION_FIELD_ID = "product-enquiry-description"
 
 const TOPICS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
 
@@ -51,6 +54,12 @@ export function CustomerProductEnquiryPage() {
 
   const videosForTopic = (videos ?? []).filter((v) => v.topic === activeTopic)
 
+  function focusDescriptionField() {
+    const field = document.getElementById(DESCRIPTION_FIELD_ID)
+    field?.scrollIntoView({ behavior: "smooth", block: "center" })
+    field?.focus()
+  }
+
   const onSubmit = handleSubmit((values) => {
     if (!orgId) return
     submitEnquiry.mutate({
@@ -74,41 +83,43 @@ export function CustomerProductEnquiryPage() {
       <p className="text-sm text-text-muted">{t("customerApp.productEnquiry.subtitle")}</p>
 
       <div className="flex flex-wrap gap-2">
-        {TOPICS.map((topic) => (
-          <button
-            key={topic}
-            type="button"
-            onClick={() => setActiveTopic(activeTopic === topic ? null : topic)}
-            className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              activeTopic === topic ? "border-accent bg-accent-soft text-accent" : "border-border text-text-muted"
-            }`}
-          >
-            {t(`customerApp.productEnquiry.topics.${topic}`)}
-          </button>
-        ))}
+        {TOPICS.map((topic) => {
+          const active = activeTopic === topic
+          return (
+            <button
+              key={topic}
+              type="button"
+              onClick={() => setActiveTopic(active ? null : topic)}
+              className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                active ? "border-accent bg-accent text-white" : "border-border text-text-muted hover:bg-surface-alt/60"
+              }`}
+            >
+              {active ? <Check className="size-3.5" /> : null}
+              {t(`customerApp.productEnquiry.topics.${topic}`)}
+            </button>
+          )
+        })}
       </div>
 
       {activeTopic ? (
         <Card className="gap-2">
           <h2 className="px-1 text-sm font-semibold text-text">{t(`customerApp.productEnquiry.topics.${activeTopic}`)}</h2>
           {videosForTopic.length === 0 ? (
-            <p className="px-1 text-sm text-text-muted">{t("customerApp.productEnquiry.noContentForTopic")}</p>
+            <div className="flex flex-col items-center gap-2 px-1 py-4 text-center">
+              <span className="flex size-10 items-center justify-center rounded-full bg-surface-alt text-text-muted">
+                <MessageCircleQuestion className="size-5" />
+              </span>
+              <p className="text-sm text-text-muted">{t("customerApp.productEnquiry.noContentForTopic")}</p>
+              <Button type="button" variant="outline" size="sm" onClick={focusDescriptionField}>
+                {t("customerApp.productEnquiry.noContentForTopicCta")}
+              </Button>
+            </div>
           ) : (
-            <ul className="space-y-1.5 px-1">
-              {videosForTopic.map((v) => (
-                <li key={v.id}>
-                  <a
-                    href={v.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 rounded-xl border border-border px-3.5 py-2.5 text-sm text-accent hover:bg-surface-alt/60"
-                  >
-                    <PlayCircle className="size-4 shrink-0" />
-                    <span className="truncate">{v.url}</span>
-                  </a>
-                </li>
+            <div className="grid grid-cols-2 gap-2.5 px-1">
+              {videosForTopic.map((v, i) => (
+                <VideoCard key={v.id} url={v.url} topic={activeTopic} index={i + 1} />
               ))}
-            </ul>
+            </div>
           )}
         </Card>
       ) : null}
@@ -117,8 +128,9 @@ export function CustomerProductEnquiryPage() {
         <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.productEnquiry.requestQuotation")}</h2>
         <form onSubmit={onSubmit} className="space-y-2.5 px-1">
           <div className="space-y-1">
-            <Label>{t("customerApp.productEnquiry.description")}</Label>
+            <Label htmlFor={DESCRIPTION_FIELD_ID}>{t("customerApp.productEnquiry.description")}</Label>
             <textarea
+              id={DESCRIPTION_FIELD_ID}
               rows={3}
               placeholder={t("customerApp.productEnquiry.descriptionPlaceholder")}
               aria-invalid={!!errors.description}

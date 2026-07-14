@@ -26,7 +26,7 @@ export function LeadsKanban({
 
   if (error) {
     return (
-      <Card className="items-center gap-3 py-12 text-center">
+      <Card className="items-center gap-3 py-12 text-center px-5">
         <TriangleAlert className="size-6 text-danger" />
         <p className="text-sm text-text-muted">{error}</p>
         <Button variant="outline" size="sm" onClick={onRetry}>
@@ -50,13 +50,13 @@ export function LeadsKanban({
               {loading ? (
                 Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-subcard" />)
               ) : colRows.length === 0 ? (
-                <Card size="sm" className="items-center py-6 text-center text-xs text-text-muted">
+                <Card size="sm" className="items-center py-6 text-center text-xs text-text-muted px-4">
                   {t("leads.kanban.empty")}
                 </Card>
               ) : (
                 colRows.map((r) => (
                   <button key={r.id} type="button" onClick={() => onCardClick(r)} className="block w-full text-left">
-                    <Card size="sm" className="gap-1.5 hover:border-accent/50">
+                    <Card size="sm" className="gap-1.5 hover:border-accent/50 px-4">
                       <div className="text-sm font-medium text-text">{r.customers?.name ?? r.name}</div>
                       <div className="text-xs text-text-muted">{r.mobile ?? r.customers?.mobile ?? "—"}</div>
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-text-muted">
