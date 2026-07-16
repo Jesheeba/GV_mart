@@ -21,6 +21,8 @@ export type SaleCart = {
   paymentMethod: Enums<"payment_method">
   txnId: string | null
   paymentDescription: string | null
+  /** Referral points to redeem as a flat ₹ discount (settings.referral_point_value per point). create_sale re-validates this against the customer's actual ledger balance server-side — never trust this number, it's only ever a UX convenience here. */
+  redeemPoints: number
 }
 
 export type SaleResult = {
@@ -30,6 +32,8 @@ export type SaleResult = {
   warranty_ids: string[]
   ticket_ids: string[]
   approval_id: string | null
+  redeemed_points: number
+  redeemed_amount: number
 }
 
 export async function createSale(
@@ -58,9 +62,20 @@ export async function createSale(
       payment_description: cart.paymentDescription,
     },
     p_quotation_id: quotationId ?? null,
+    p_redeem_points: cart.redeemPoints ?? 0,
   })
   if (error) throw error
   return data as SaleResult
+}
+
+// ── Referral wallet (admin/sales-side balance check ahead of redemption) ──
+// RLS: referral_points_select_staff permits any org staff to read the full
+// ledger directly, same table the customer app reads its own rows from
+// (services/customerApp.ts's listMyReferralPoints) — no RPC needed.
+export async function getCustomerReferralBalance(customerId: string): Promise<number> {
+  const { data, error } = await supabase.from("referral_points").select("points").eq("customer_id", customerId)
+  if (error) throw error
+  return (data ?? []).reduce((sum, r) => sum + r.points, 0)
 }
 
 export type InvoiceListItem = InvoiceRow & {

@@ -10,7 +10,17 @@ export function useCreateSale() {
       qc.invalidateQueries({ queryKey: ["invoices"] })
       qc.invalidateQueries({ queryKey: ["inventory", "list"] })
       qc.invalidateQueries({ queryKey: ["quotations"] })
+      qc.invalidateQueries({ queryKey: ["customers", "referralBalance"] })
     },
+  })
+}
+
+/** Customer's current spendable referral point balance (sum of the referral_points ledger). Used by NewSalePage to show/cap redemption — the authoritative check is still server-side inside create_sale. */
+export function useCustomerReferralBalance(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "referralBalance", customerId],
+    queryFn: () => sales.getCustomerReferralBalance(customerId!),
+    enabled: !!customerId,
   })
 }
 

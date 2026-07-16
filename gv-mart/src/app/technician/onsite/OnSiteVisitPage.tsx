@@ -133,6 +133,10 @@ export function OnSiteVisitPage() {
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
   const [step, setStep] = useState(0)
+  // Only ever grows — tracks the furthest step reached so navigating back
+  // (which decreases `step`) doesn't make already-completed steps lose their
+  // checkmark in the Stepper below. See Stepper's `maxCompletedIndex` doc.
+  const [maxStepReached, setMaxStepReached] = useState(0)
   const [invoiceQueued, setInvoiceQueued] = useState(false)
   const [showEnquiry, setShowEnquiry] = useState(false)
   const [enquiryName, setEnquiryName] = useState("")
@@ -216,7 +220,11 @@ export function OnSiteVisitPage() {
       if (d.paymentMethod) setPaymentMethod(d.paymentMethod)
       if (d.txnId) setTxnId(d.txnId)
       if (d.paymentDescription) setPaymentDescription(d.paymentDescription)
-      if (d.step != null) setStep(d.step)
+      if (d.step != null) {
+        const restoredStep = d.step
+        setStep(restoredStep)
+        setMaxStepReached((m) => Math.max(m, restoredStep))
+      }
       if (d.invoiceQueued != null) setInvoiceQueued(d.invoiceQueued)
       if (d.showEnquiry != null) setShowEnquiry(d.showEnquiry)
       if (d.enquiryName) setEnquiryName(d.enquiryName)
@@ -293,6 +301,7 @@ export function OnSiteVisitPage() {
     setTxnId("")
     setPaymentDescription("")
     setStep(0)
+    setMaxStepReached(0)
     setInvoiceQueued(false)
     setShowEnquiry(false)
     setEnquiryName("")
@@ -520,7 +529,7 @@ export function OnSiteVisitPage() {
       ) : null}
 
       <Card>
-        <Stepper steps={steps} currentIndex={step} />
+        <Stepper steps={steps} currentIndex={step} maxCompletedIndex={maxStepReached} />
       </Card>
 
       {currentKey === "sop" ? (
@@ -771,7 +780,15 @@ export function OnSiteVisitPage() {
           {step === 0 ? t("common.cancel") : t("common.back")}
         </Button>
         {currentKey !== "payment" ? (
-          <Button type="button" disabled={!canAdvanceFrom(currentKey)} onClick={() => setStep(step + 1)}>
+          <Button
+            type="button"
+            disabled={!canAdvanceFrom(currentKey)}
+            onClick={() => {
+              const next = step + 1
+              setStep(next)
+              setMaxStepReached((m) => Math.max(m, next))
+            }}
+          >
             {t("technician.onsite.next")}
           </Button>
         ) : null}

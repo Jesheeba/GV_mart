@@ -1,19 +1,22 @@
 import { useEffect } from "react"
-import { Outlet } from "react-router-dom"
+import { Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Home, MapPin, CalendarCheck, History, User } from "lucide-react"
+import { Bell, Home, MapPin, CalendarCheck, History, User } from "lucide-react"
 import { BottomTabBar, type BottomTab } from "@/components/shared/BottomTabBar"
 import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { UserMenu } from "@/components/shared/UserMenu"
 import { useProfile } from "@/hooks/useProfile"
 import { useLiveLocationStream, useMyTechnician } from "@/hooks/useTechnician"
+import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SyncStatusChip } from "./components/SyncStatusChip"
 import { startSyncEngine, stopSyncEngine } from "@/lib/offline/sync"
 
 export function TechnicianShell() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { data: profile, isLoading, isError, refetch } = useProfile()
+  const { data: unreadCount } = useUnreadNotificationCount(profile?.org_id, profile?.id, profile?.role)
 
   // Starts the offline outbox flush loop once for the whole technician app
   // (DoD: "Full job lifecycle works offline and syncs") — idempotent, safe
@@ -54,6 +57,19 @@ export function TechnicianShell() {
         </div>
         <div className="flex items-center gap-2">
           <SyncStatusChip />
+          <button
+            type="button"
+            aria-label={t("shell.notifications")}
+            onClick={() => navigate("/technician/notifications")}
+            className="relative flex size-9 items-center justify-center rounded-full bg-surface text-text-muted hover:bg-surface-alt hover:text-text"
+          >
+            <Bell className="size-4" />
+            {unreadCount ? (
+              <span className="absolute right-1 top-1 flex size-4 min-w-4 items-center justify-center rounded-full bg-danger px-0.5 text-[9px] font-bold leading-none text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            ) : null}
+          </button>
           <LanguageToggle />
           <UserMenu fullName={profile.full_name} role={profile.role} />
         </div>

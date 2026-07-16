@@ -13,6 +13,7 @@ import type { Enums } from "@/types/database"
 
 const SOURCES = ["field", "customer_app", "whatsapp", "walk_in", "referral", "other"] as const
 const ENQUIRY_TYPES = ["online", "price", "quality", "customization", "water_premium", "budget"] as const
+const KINDS = ["service", "spare", "product", "amc"] as const
 
 export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { t } = useTranslation()
@@ -22,7 +23,7 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
   const form = useForm<LeadInput>({
     resolver: zodResolver(leadSchema),
     mode: "onChange",
-    defaultValues: { name: "", mobile: "", source: "other", enquiryType: "" },
+    defaultValues: { name: "", mobile: "", source: "other", enquiryType: "", kind: "" },
   })
 
   async function onSubmit(values: LeadInput) {
@@ -32,6 +33,7 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       mobile: values.mobile || null,
       source: values.source,
       enquiry_type: (values.enquiryType || null) as Enums<"enquiry_type"> | null,
+      kind: (values.kind || null) as Enums<"lead_kind"> | null,
     })
     onCreated()
   }
@@ -71,6 +73,17 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             {ENQUIRY_TYPES.map((e) => (
               <option key={e} value={e}>
                 {t(`leads.enquiryType.${e}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>{t("leads.new.kind")}</Label>
+          <select {...form.register("kind")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+            <option value="">{t("service.filters.all")}</option>
+            {KINDS.map((k) => (
+              <option key={k} value={k}>
+                {t(`leads.kind.${k}`)}
               </option>
             ))}
           </select>

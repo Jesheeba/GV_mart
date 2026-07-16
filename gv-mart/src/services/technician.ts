@@ -93,8 +93,15 @@ export type MarkAttendanceInput = {
   meeting: boolean
 }
 
-/** Queues attendance through the offline outbox — never calls Supabase directly (DoD: "everything must queue"). */
-export async function queueMarkAttendance(input: MarkAttendanceInput) {
+/**
+ * Queues attendance through the offline outbox — never calls Supabase directly
+ * (DoD: "everything must queue"). Returns the merged row so callers can push
+ * it straight into the query cache: the outbox only flushes to Supabase on
+ * its ~20s interval, so a network refetch triggered right after this resolves
+ * would still read the old, not-yet-synced server row and appear to silently
+ * discard the tap.
+ */
+export async function queueMarkAttendance(input: MarkAttendanceInput): Promise<AttendanceRow> {
   const row = {
     org_id: input.orgId,
     technician_id: input.technicianId,
@@ -108,18 +115,33 @@ export async function queueMarkAttendance(input: MarkAttendanceInput) {
     meeting: input.meeting,
   }
   const cacheId = `${input.technicianId}:${input.date}`
-  await db.attendanceCache.put({ id: cacheId, technicianId: input.technicianId, date: input.date, data: row, updatedAt: Date.now() })
+  const existing = await db.attendanceCache.get(cacheId)
+  const merged = { ...(existing?.data as AttendanceRow | undefined), ...row } as AttendanceRow
+  await db.attendanceCache.put({ id: cacheId, technicianId: input.technicianId, date: input.date, data: merged, updatedAt: Date.now() })
   await enqueue("attendance.mark", row)
+  return merged
 }
 
-/** v2.2 §6.5 "30 min lunch allowed, red over 45" — start/end are queued patches on today's attendance row. */
-export async function queueLunchToggle(technicianId: string, date: string, patch: { lunch_start: string } | { lunch_end: string }) {
+/**
+ * v2.2 §6.5 "30 min lunch allowed, red over 45" — start/end are queued patches
+ * on today's attendance row. Returns the merged row for the same reason as
+ * queueMarkAttendance above (avoids the invalidate-then-refetch race with the
+ * offline outbox's delayed sync).
+ */
+export async function queueLunchToggle(
+  technicianId: string,
+  date: string,
+  patch: { lunch_start: string } | { lunch_end: string }
+): Promise<AttendanceRow | null> {
   const cacheId = `${technicianId}:${date}`
   const cached = await db.attendanceCache.get(cacheId)
+  let merged: AttendanceRow | null = null
   if (cached) {
-    await db.attendanceCache.put({ ...cached, data: { ...(cached.data as AttendanceRow), ...patch }, updatedAt: Date.now() })
+    merged = { ...(cached.data as AttendanceRow), ...patch }
+    await db.attendanceCache.put({ ...cached, data: merged, updatedAt: Date.now() })
   }
   await enqueue("attendance.lunch", { technicianId, date, patch })
+  return merged
 }
 
 // ── TECH-02 Spare receipt ────────────────────────────────────────────────

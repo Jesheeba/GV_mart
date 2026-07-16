@@ -168,7 +168,7 @@ export function CustomerHomePage() {
         <h1 className="text-xl font-bold text-text">{t("dashboard.welcomeBack", { name: profile.full_name.split(" ")[0] })}</h1>
         <button
           type="button"
-          onClick={() => navigate("/customer/bookings")}
+          onClick={() => navigate("/customer/notifications")}
           className="flex size-9 items-center justify-center rounded-full bg-surface-alt text-text-muted hover:text-text"
           title={t("shell.notifications")}
         >

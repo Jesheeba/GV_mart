@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Bell, Search } from "lucide-react"
 import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -5,9 +6,75 @@ import { cn } from "@/lib/utils"
 import { ADMIN_NAV } from "./nav"
 import { useProfile } from "@/hooks/useProfile"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
+import { useCustomerAutocomplete } from "@/hooks/useCustomers"
+import { useTicketSearch } from "@/hooks/useService"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { UserMenu } from "@/components/shared/UserMenu"
+
+// Header search bar (ADM shell) — scoped to exactly what's fast + useful to
+// jump to from anywhere: a customer by name/mobile (reusing the same
+// autocompleteCustomers query the New Sale / New Complaint / Quotation
+// customer pickers already use) or a service ticket by complaint text or its
+// short #id prefix (see service.ts#searchTicketsQuick). Deliberately not
+// wired up to invoices — no quick invoice search exists anywhere else in the
+// app to reuse, and inventing one is out of scope for wiring up this input.
+type GlobalSearchResult =
+  | { kind: "customer"; id: string; name: string; mobile: string }
+  | { kind: "ticket"; id: string; complaint: string | null; customerName: string | null }
+
+function AdminGlobalSearch({ orgId }: { orgId: string }) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const [term, setTerm] = useState("")
+  const debouncedTerm = useDebouncedValue(term, 300)
+  const customerResults = useCustomerAutocomplete(orgId, debouncedTerm)
+  const ticketResults = useTicketSearch(orgId, debouncedTerm)
+
+  const suggestions: GlobalSearchResult[] = [
+    ...(customerResults.data ?? []).map((c) => ({ kind: "customer" as const, id: c.id, name: c.name, mobile: c.mobile })),
+    ...(ticketResults.data ?? []).map((tk) => ({
+      kind: "ticket" as const,
+      id: tk.id,
+      complaint: tk.name_of_complaint,
+      customerName: tk.customers?.name ?? null,
+    })),
+  ]
+
+  return (
+    <Autocomplete
+      id="admin-global-search"
+      value={term}
+      onChange={setTerm}
+      suggestions={suggestions}
+      loading={term.trim() !== debouncedTerm.trim() || customerResults.isFetching || ticketResults.isFetching}
+      icon={<Search className="size-4" />}
+      placeholder={t("shell.searchPlaceholder")}
+      emptyMessage={t("shell.searchEmpty")}
+      getKey={(r) => `${r.kind}:${r.id}`}
+      getLabel={(r) =>
+        r.kind === "customer" ? (
+          <span>
+            <span className="font-medium">{r.name}</span> <span className="text-text-muted">{r.mobile}</span>
+          </span>
+        ) : (
+          <span>
+            <span className="font-medium">#{r.id.slice(0, 8)}</span>{" "}
+            <span className="text-text-muted">{r.complaint ?? r.customerName ?? ""}</span>
+          </span>
+        )
+      }
+      onSelect={(r) => {
+        setTerm("")
+        navigate(r.kind === "customer" ? `/admin/customers/${r.id}` : `/admin/service/${r.id}`)
+      }}
+      className="relative flex-1 max-w-md"
+      inputClassName="h-10 w-full rounded-full border border-border bg-surface pl-10 pr-4 text-sm text-text outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20"
+    />
+  )
+}
 
 export function AdminShell() {
   const { t } = useTranslation()
@@ -57,14 +124,7 @@ export function AdminShell() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center gap-3 px-6 py-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-            <input
-              type="search"
-              placeholder={t("shell.searchPlaceholder")}
-              className="h-10 w-full rounded-full border border-border bg-surface pl-10 pr-4 text-sm text-text outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20"
-            />
-          </div>
+          <AdminGlobalSearch orgId={profile.org_id} />
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"

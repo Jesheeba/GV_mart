@@ -61,6 +61,10 @@ export function NewComplaintPage() {
   const orgId = profile?.org_id
 
   const [step, setStep] = useState(0)
+  // Only ever grows — tracks the furthest step reached so navigating back
+  // (which decreases `step`) doesn't make already-completed steps lose their
+  // checkmark in the Stepper below. See Stepper's `maxCompletedIndex` doc.
+  const [maxStepReached, setMaxStepReached] = useState(0)
 
   // Step 1: customer
   const [customerSearch, setCustomerSearch] = useState("")
@@ -92,6 +96,7 @@ export function NewComplaintPage() {
       setCustomerLabel(`${prefilledCustomer.data.name} · ${prefilledCustomer.data.mobile}`)
       setEquipmentMode("owned")
       setStep(1)
+      setMaxStepReached((m) => Math.max(m, 1))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefilledCustomer.data])
@@ -162,7 +167,10 @@ export function NewComplaintPage() {
   useEffect(() => {
     if (appliedDraftRef.current || !restoredDraft) return
     appliedDraftRef.current = true
-    if (restoredDraft.step != null) setStep(restoredDraft.step)
+    if (restoredDraft.step != null) {
+      setStep(restoredDraft.step)
+      setMaxStepReached((m) => Math.max(m, restoredDraft.step))
+    }
     if (restoredDraft.customerId) setCustomerId(restoredDraft.customerId)
     if (restoredDraft.customerLabel) setCustomerLabel(restoredDraft.customerLabel)
     if (restoredDraft.customerSearch) setCustomerSearch(restoredDraft.customerSearch)
@@ -180,6 +188,7 @@ export function NewComplaintPage() {
   function discardComplaintDraft() {
     discardDraft()
     setStep(0)
+    setMaxStepReached(0)
     setCustomerId("")
     setCustomerLabel("")
     setCustomerSearch("")
@@ -212,7 +221,9 @@ export function NewComplaintPage() {
       const valid = await detailsForm.trigger(["priority"])
       if (!valid) return
     }
-    setStep((s) => Math.min(s + 1, steps.length - 1))
+    const next = Math.min(step + 1, steps.length - 1)
+    setStep(next)
+    setMaxStepReached((m) => Math.max(m, next))
   }
 
   async function handleSubmit() {
@@ -266,7 +277,7 @@ export function NewComplaintPage() {
       ) : null}
 
       <Card className="px-5">
-        <Stepper steps={steps} currentIndex={step} onStepClick={setStep} />
+        <Stepper steps={steps} currentIndex={step} maxCompletedIndex={maxStepReached} onStepClick={setStep} />
       </Card>
 
       {step === 0 ? (

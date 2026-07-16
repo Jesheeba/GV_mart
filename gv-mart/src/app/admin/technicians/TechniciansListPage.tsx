@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { Inbox, Loader2, MapPin, Plus, Star, TriangleAlert, UserPlus } from "lucide-react"
+import { CalendarCheck2, Inbox, Loader2, MapPin, PackageOpen, Plus, Star, TriangleAlert, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -95,6 +95,22 @@ export function TechniciansListPage() {
           >
             <MapPin className="size-4" />
             {t("technicians.list.viewMap")}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/admin/technicians/attendance")}
+            className="flex items-center gap-2 rounded-full border border-[#DAD5CC] bg-surface px-4 py-2.5 text-sm font-bold text-text"
+          >
+            <CalendarCheck2 className="size-4" />
+            {t("technicians.list.viewAttendance")}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/admin/technicians/spares")}
+            className="flex items-center gap-2 rounded-full border border-[#DAD5CC] bg-surface px-4 py-2.5 text-sm font-bold text-text"
+          >
+            <PackageOpen className="size-4" />
+            {t("technicians.list.viewSpares")}
           </button>
           <Button onClick={() => setShowAddPanel((v) => !v)}>
             <Plus className="size-3.5" />

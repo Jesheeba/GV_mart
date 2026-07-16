@@ -122,6 +122,10 @@ export function CustomerFormPage() {
 
   const existing = useCustomer(mode === "edit" ? id : undefined)
   const [step, setStep] = useState(0)
+  // Only ever grows — tracks the furthest step reached so navigating back
+  // (which decreases `step`) doesn't make already-completed steps lose their
+  // checkmark in the Stepper below. See Stepper's `maxCompletedIndex` doc.
+  const [maxStepReached, setMaxStepReached] = useState(0)
 
   const peopleForm = useForm<PeopleStepInput>({
     resolver: zodResolver(peopleStepSchema),
@@ -240,6 +244,7 @@ export function CustomerFormPage() {
       if (!valid) return
     }
     setStep(1)
+    setMaxStepReached((m) => Math.max(m, 1))
   }
 
   async function handleSaveAndFinish() {
@@ -295,7 +300,7 @@ export function CustomerFormPage() {
       </h1>
 
       <Card className="px-5">
-        <Stepper steps={steps} currentIndex={step} />
+        <Stepper steps={steps} currentIndex={step} maxCompletedIndex={maxStepReached} />
       </Card>
 
       {step === 0 ? (

@@ -13,7 +13,7 @@ import { DraftBanner } from "@/components/shared/DraftBanner"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useSettings, giftsHooks, brandsHooks, modelsHooks, productsHooks, sparesHooks } from "@/hooks/useMasters"
-import { useCreateSale } from "@/hooks/useSales"
+import { useCreateSale, useCustomerReferralBalance } from "@/hooks/useSales"
 import { useQuotation } from "@/hooks/useQuotations"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
 import { discountNeedsApproval, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
@@ -41,6 +41,7 @@ type NewSaleDraftData = {
   paymentMethod: Enums<"payment_method">
   txnId: string
   paymentDescription: string
+  redeemPointsInput: string
 }
 
 /**
@@ -61,6 +62,10 @@ export function NewSalePage() {
   const orgId = profile?.org_id
 
   const [step, setStep] = useState(0)
+  // Only ever grows — tracks the furthest step reached so navigating back
+  // (which decreases `step`) doesn't make already-completed steps lose their
+  // checkmark in the Stepper below. See Stepper's `maxCompletedIndex` doc.
+  const [maxStepReached, setMaxStepReached] = useState(0)
   const [customerId, setCustomerId] = useState<string | null>(null)
   const [customerLabel, setCustomerLabel] = useState("")
   const [customerSearch, setCustomerSearch] = useState("")
@@ -74,10 +79,24 @@ export function NewSalePage() {
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [redeemPointsInput, setRedeemPointsInput] = useState("0")
 
   const { data: settings } = useSettings(orgId)
   const { data: gifts } = giftsHooks.useList(orgId)
+  const { data: referralBalance } = useCustomerReferralBalance(customerId ?? undefined)
   const createSale = useCreateSale()
+
+  // Referral point redemption (v2.2 §6.8): points are worth an admin-set ₹
+  // amount (settings.referral_point_value). The raw input can exceed the
+  // balance while typing — redeemPoints (what's actually sent to
+  // create_sale) is always clamped to the customer's current balance; the
+  // server re-derives and re-validates that same balance independently, so
+  // this clamp is a UX nicety, not the real guard.
+  const referralPointValue = settings ? Number(settings.referral_point_value) : 50
+  const referralBalanceNum = referralBalance ?? 0
+  const redeemPointsRaw = Math.max(0, Math.floor(Number(redeemPointsInput) || 0))
+  const redeemPoints = Math.min(redeemPointsRaw, referralBalanceNum)
+  const redeemAmount = redeemPoints * referralPointValue
 
   // Convert-a-quotation: prefill the cart once from the quotation's items,
   // and preselect its customer — the sale itself is still built through the
@@ -150,13 +169,17 @@ export function NewSalePage() {
     paymentMethod,
     txnId,
     paymentDescription,
+    redeemPointsInput,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
   useEffect(() => {
     if (appliedDraftRef.current || !restoredDraft) return
     appliedDraftRef.current = true
-    if (restoredDraft.step != null) setStep(restoredDraft.step)
+    if (restoredDraft.step != null) {
+      setStep(restoredDraft.step)
+      setMaxStepReached((m) => Math.max(m, restoredDraft.step))
+    }
     if (restoredDraft.customerId) setCustomerId(restoredDraft.customerId)
     if (restoredDraft.customerLabel) setCustomerLabel(restoredDraft.customerLabel)
     if (restoredDraft.customerSearch) setCustomerSearch(restoredDraft.customerSearch)
@@ -166,6 +189,7 @@ export function NewSalePage() {
     if (restoredDraft.paymentMethod) setPaymentMethod(restoredDraft.paymentMethod)
     if (restoredDraft.txnId) setTxnId(restoredDraft.txnId)
     if (restoredDraft.paymentDescription) setPaymentDescription(restoredDraft.paymentDescription)
+    if (restoredDraft.redeemPointsInput != null) setRedeemPointsInput(restoredDraft.redeemPointsInput)
   }, [restoredDraft])
 
   const techMax = settings ? Number(settings.discount_tech_max) : 5
@@ -191,6 +215,7 @@ export function NewSalePage() {
     }
     setPaymentError(null)
     setStep(5)
+    setMaxStepReached((m) => Math.max(m, 5))
   }
 
   async function handleGenerate() {
@@ -213,6 +238,7 @@ export function NewSalePage() {
         paymentMethod,
         txnId: paymentMethod === "transfer" ? txnId : null,
         paymentDescription: paymentMethod === "transfer" ? paymentDescription : null,
+        redeemPoints,
       },
       quotationId,
     })
@@ -239,6 +265,7 @@ export function NewSalePage() {
           onConfirmDiscard={() => {
             discardDraft()
             setStep(0)
+            setMaxStepReached(0)
             setCustomerId(null)
             setCustomerLabel("")
             setCustomerSearch("")
@@ -248,11 +275,12 @@ export function NewSalePage() {
             setPaymentMethod("cash")
             setTxnId("")
             setPaymentDescription("")
+            setRedeemPointsInput("0")
           }}
         />
       ) : null}
       <Card className="px-5">
-        <Stepper steps={steps} currentIndex={step} />
+        <Stepper steps={steps} currentIndex={step} maxCompletedIndex={maxStepReached} />
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
@@ -314,6 +342,29 @@ export function NewSalePage() {
                 <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{t("sales.discount.blockedMessage", { max: adminMax })}</p>
               ) : discountNeedsApproval(discountPercent, techMax, adminMax) ? (
                 <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{t("sales.discount.needsApprovalMessage")}</p>
+              ) : null}
+
+              {referralBalanceNum > 0 ? (
+                <div className="space-y-1.5 border-t border-border pt-3">
+                  <Label htmlFor="redeemPoints">{t("sales.redeem.label")}</Label>
+                  <p className="text-xs text-text-muted">{t("sales.redeem.balance", { count: referralBalanceNum })}</p>
+                  <Input
+                    id="redeemPoints"
+                    type="number"
+                    min={0}
+                    max={referralBalanceNum}
+                    step="1"
+                    value={redeemPointsInput}
+                    onChange={(e) => setRedeemPointsInput(e.target.value)}
+                    className="w-32"
+                  />
+                  <p className="text-xs text-text-muted">{t("sales.redeem.hint", { value: formatCurrency(referralPointValue) })}</p>
+                  {redeemPointsRaw > referralBalanceNum ? (
+                    <p className="text-xs text-danger">{t("sales.redeem.exceedsBalance")}</p>
+                  ) : redeemPoints > 0 ? (
+                    <p className="text-xs text-success">{t("sales.redeem.discountPreview", { amount: formatCurrency(redeemAmount) })}</p>
+                  ) : null}
+                </div>
               ) : null}
             </Card>
           ) : null}
@@ -386,6 +437,9 @@ export function NewSalePage() {
               <p className="text-sm text-text">{t("sales.review.discount", { percent: discountPercent })}</p>
               <p className="text-sm text-text">{t("sales.review.payment", { method: t(`sales.payment.${paymentMethod}`) })}</p>
               {selectedGift ? <p className="text-sm text-success">{t("sales.summary.giftApplied", { gift: selectedGift.name })}</p> : null}
+              {redeemPoints > 0 ? (
+                <p className="text-sm text-success">{t("sales.review.redeemPoints", { points: redeemPoints, amount: formatCurrency(redeemAmount) })}</p>
+              ) : null}
               {createSale.isError ? (
                 <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createSale.error as Error).message}</p>
               ) : null}
@@ -393,7 +447,7 @@ export function NewSalePage() {
           ) : null}
         </div>
 
-        <SaleSummaryPanel orgId={orgId} cart={cart} discountPercent={discountPercent} giftName={selectedGift?.name} />
+        <SaleSummaryPanel orgId={orgId} cart={cart} discountPercent={discountPercent} giftName={selectedGift?.name} redeemAmount={redeemAmount} />
       </div>
 
       <div className="flex justify-between">
@@ -401,7 +455,15 @@ export function NewSalePage() {
           {step === 0 ? t("common.cancel") : t("sales.newSale.back")}
         </Button>
         {step < 4 ? (
-          <Button type="button" disabled={!canAdvanceFrom(step)} onClick={() => setStep(step + 1)}>
+          <Button
+            type="button"
+            disabled={!canAdvanceFrom(step)}
+            onClick={() => {
+              const next = step + 1
+              setStep(next)
+              setMaxStepReached((m) => Math.max(m, next))
+            }}
+          >
             {t("sales.newSale.next")}
           </Button>
         ) : step === 4 ? (

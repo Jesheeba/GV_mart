@@ -88,6 +88,10 @@ export function CustomerBookingDetailPage() {
             ) : null}
           </div>
         </Card>
+      ) : appt && ticket.status !== "completed" && ticket.status !== "cancelled" ? (
+        <Card className="gap-2">
+          <StatusDot tone="warning" label={t("customerApp.bookingDetail.awaitingAssignment")} />
+        </Card>
       ) : null}
 
       {isTrackable && technician ? (

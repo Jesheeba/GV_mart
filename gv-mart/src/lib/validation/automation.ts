@@ -9,6 +9,7 @@ export const leadSchema = z.object({
     message: "leads.errors.sourceRequired",
   }),
   enquiryType: z.enum(["online", "price", "quality", "customization", "water_premium", "budget"]).optional().or(z.literal("")),
+  kind: z.enum(["service", "spare", "product", "amc"]).optional().or(z.literal("")),
 })
 export type LeadInput = z.infer<typeof leadSchema>
 

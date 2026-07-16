@@ -14,14 +14,16 @@ export type LeadListItem = LeadRow & {
 export type LeadFilters = {
   source?: Enums<"lead_source">
   enquiryType?: Enums<"enquiry_type">
+  kind?: Enums<"lead_kind">
 }
 
 /**
- * `enquiryType` filters on the real `leads.enquiry_type` column — despite
- * the name, this is a Product-Enquiry topic tag (online/price/quality/
- * customization/water_premium/budget), not a "Service/Spare/Product/AMC"
- * category (no such column exists — see ADM-22 notes). `source` is the
- * real, useful discriminator for "which channel did this come from."
+ * `enquiryType` filters on `leads.enquiry_type` — a Product-Enquiry topic
+ * tag (online/price/quality/customization/water_premium/budget). `kind`
+ * filters on `leads.kind` — the broad Service/Spare/Product/AMC category
+ * (added by the lead-pipeline-completeness migration; nullable, since older
+ * or ambiguous leads may not cleanly map to one). `source` is the channel
+ * discriminator ("which channel did this come from").
  */
 export async function listLeads(orgId: string, filters: LeadFilters = {}): Promise<LeadListItem[]> {
   let query = supabase
@@ -31,12 +33,20 @@ export async function listLeads(orgId: string, filters: LeadFilters = {}): Promi
     .order("created_at", { ascending: false })
   if (filters.source) query = query.eq("source", filters.source)
   if (filters.enquiryType) query = query.eq("enquiry_type", filters.enquiryType)
+  if (filters.kind) query = query.eq("kind", filters.kind)
   const { data, error } = await query
   if (error) throw error
   return (data ?? []) as unknown as LeadListItem[]
 }
 
-export async function createLead(row: { org_id: string; name: string; mobile: string | null; source: Enums<"lead_source">; enquiry_type: Enums<"enquiry_type"> | null }) {
+export async function createLead(row: {
+  org_id: string
+  name: string
+  mobile: string | null
+  source: Enums<"lead_source">
+  enquiry_type: Enums<"enquiry_type"> | null
+  kind?: Enums<"lead_kind"> | null
+}) {
   const { data, error } = await supabase.from("leads").insert(row).select().single()
   if (error) throw error
   return data

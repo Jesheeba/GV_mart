@@ -9,11 +9,14 @@ export function SaleSummaryPanel({
   cart,
   discountPercent,
   giftName,
+  redeemAmount,
 }: {
   orgId: string
   cart: SaleCartState
   discountPercent: number
   giftName?: string | null
+  /** ₹ value of the referral points about to be redeemed (points * referral_point_value), for a live preview only — create_sale applies this against one designated invoice server-side, so this floor-at-zero preview can undercount by a rounding cent or two, never overcount. */
+  redeemAmount?: number
 }) {
   const { t } = useTranslation()
   const { data: settings } = useSettings(orgId)
@@ -23,6 +26,8 @@ export function SaleSummaryPanel({
   const productBill = productSubtotal(cart) > 0 ? billBreakdown(productSubtotal(cart), discountPercent, gstRate) : null
   const amcBill = amcSubtotal(cart) > 0 ? billBreakdown(amcSubtotal(cart), discountPercent, gstRate) : null
   const grandTotal = (spareBill?.total ?? 0) + (productBill?.total ?? 0) + (amcBill?.total ?? 0)
+  const redeemDiscount = Math.min(redeemAmount ?? 0, grandTotal)
+  const payable = Math.max(0, grandTotal - redeemDiscount)
 
   const bills = [
     { key: "product", label: t("sales.summary.productBill"), bill: productBill },
@@ -68,6 +73,18 @@ export function SaleSummaryPanel({
           ) : null}
           {bills.length > 1 ? <p className="px-1 text-xs text-info">{t("sales.summary.twoBillNotice")}</p> : null}
           {giftName ? <p className="px-1 text-xs text-success">{t("sales.summary.giftApplied", { gift: giftName })}</p> : null}
+          {redeemDiscount > 0 ? (
+            <>
+              <div className="flex justify-between px-1 text-sm text-success">
+                <span>{t("sales.summary.redeemDiscount")}</span>
+                <span>−{formatCurrency(redeemDiscount)}</span>
+              </div>
+              <div className="flex justify-between px-1 text-sm font-bold text-text">
+                <span>{t("sales.summary.payable")}</span>
+                <span>{formatCurrency(payable)}</span>
+              </div>
+            </>
+          ) : null}
         </>
       )}
     </Card>

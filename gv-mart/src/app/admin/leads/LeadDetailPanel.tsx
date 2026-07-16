@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, Search, X } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { FileText, Loader2, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -18,6 +19,7 @@ const ACTIVITY_TYPES = ["call", "note", "whatsapp", "meeting"] as const
 export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose: () => void }) {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const navigate = useNavigate()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
@@ -47,6 +49,25 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
           <X className="size-4" />
         </Button>
       </div>
+
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() =>
+          navigate("/admin/quotations/new", {
+            state: {
+              leadId: lead.id,
+              customerId: lead.customer_id,
+              name: lead.customers?.name ?? lead.name,
+              mobile: lead.mobile ?? lead.customers?.mobile ?? null,
+              status: lead.status,
+            },
+          })
+        }
+      >
+        <FileText className="size-3.5" />
+        {t("quotations.form.create")}
+      </Button>
 
       <div className="flex flex-wrap gap-1.5">
         {STATUSES.map((s) => (

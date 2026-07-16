@@ -61,15 +61,17 @@ export type QuotationCartItem = { itemType: Enums<"item_type">; itemId: string; 
 
 export async function createQuotation(
   orgId: string,
-  customerId: string,
+  customerId: string | null,
   validUntil: string | null,
-  items: QuotationCartItem[]
+  items: QuotationCartItem[],
+  leadId: string | null = null
 ): Promise<string> {
   const { data, error } = await supabase.rpc("create_quotation", {
     p_org_id: orgId,
     p_customer_id: customerId,
     p_valid_until: validUntil,
     p_items: items.map((i) => ({ item_type: i.itemType, item_id: i.itemId, qty: i.qty })),
+    p_lead_id: leadId,
   })
   if (error) throw error
   return data as string

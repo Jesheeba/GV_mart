@@ -69,11 +69,17 @@ export function useTodayAttendance(technicianId: string | undefined) {
   })
 }
 
+// onSuccess writes the mutation's own result straight into the query cache
+// instead of invalidating (which would refetch over the network). The
+// offline outbox only syncs to Supabase on its ~20s interval, so an
+// immediate refetch would win the race and read back the stale pre-tap
+// server row, making the tap appear not to register (see queueMarkAttendance
+// doc comment in services/technician.ts).
 export function useMarkAttendance() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: tech.MarkAttendanceInput) => tech.queueMarkAttendance(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["attendance", "today"] }),
+    onSuccess: (row, variables) => qc.setQueryData(["attendance", "today", variables.technicianId, variables.date], row),
   })
 }
 
@@ -82,7 +88,9 @@ export function useLunchToggle() {
   return useMutation({
     mutationFn: ({ technicianId, date, patch }: { technicianId: string; date: string; patch: { lunch_start: string } | { lunch_end: string } }) =>
       tech.queueLunchToggle(technicianId, date, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["attendance", "today"] }),
+    onSuccess: (row, variables) => {
+      if (row) qc.setQueryData(["attendance", "today", variables.technicianId, variables.date], row)
+    },
   })
 }
 

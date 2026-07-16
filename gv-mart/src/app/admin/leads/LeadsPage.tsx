@@ -13,6 +13,7 @@ import type { Enums } from "@/types/database"
 
 const SOURCE_OPTIONS: Enums<"lead_source">[] = ["field", "customer_app", "whatsapp", "walk_in", "referral", "other"]
 const TOPIC_OPTIONS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
+const KIND_OPTIONS: Enums<"lead_kind">[] = ["service", "spare", "product", "amc"]
 
 export function LeadsPage() {
   const { t } = useTranslation()
@@ -21,7 +22,8 @@ export function LeadsPage() {
 
   const [source, setSource] = useState<Enums<"lead_source"> | "">("")
   const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
-  const leads = useLeads(orgId, { source: source || undefined, enquiryType: enquiryType || undefined })
+  const [kind, setKind] = useState<Enums<"lead_kind"> | "">("")
+  const leads = useLeads(orgId, { source: source || undefined, enquiryType: enquiryType || undefined, kind: kind || undefined })
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState<LeadListItem | null>(null)
 
@@ -88,12 +90,25 @@ export function LeadsPage() {
             </option>
           ))}
         </select>
-        {source || enquiryType ? (
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as Enums<"lead_kind"> | "")}
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+        >
+          <option value="">{t("leads.filters.allKinds")}</option>
+          {KIND_OPTIONS.map((k) => (
+            <option key={k} value={k}>
+              {t(`leads.kind.${k}`)}
+            </option>
+          ))}
+        </select>
+        {source || enquiryType || kind ? (
           <button
             type="button"
             onClick={() => {
               setSource("")
               setEnquiryType("")
+              setKind("")
             }}
             className="text-xs font-semibold text-text-muted hover:text-text"
           >

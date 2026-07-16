@@ -80,6 +80,7 @@
   },
   "shell": {
     "searchPlaceholder": "Search customers, tickets, invoices…",
+    "searchEmpty": "No matches found",
     "notifications": "Notifications",
     "signOut": "Sign out",
     "comingSoonTitle": "{{module}} is coming soon",
@@ -613,6 +614,13 @@
       "blockedMessage": "This discount exceeds the admin limit of {{max}}%. Lower it to continue.",
       "needsApprovalMessage": "This discount will be flagged for manager approval."
     },
+    "redeem": {
+      "label": "Redeem referral points",
+      "balance": "Customer's referral balance: {{count}} points",
+      "hint": "1 point = {{value}} — on top of any percent discount above, capped at the customer's balance.",
+      "discountPreview": "Referral discount: {{amount}}",
+      "exceedsBalance": "Cannot redeem more points than the customer's balance — it will be capped automatically."
+    },
     "gift": {
       "title": "Gift",
       "none": "No gift",
@@ -631,7 +639,8 @@
       "title": "Review",
       "customer": "Customer: {{customer}}",
       "discount": "Discount: {{percent}}%",
-      "payment": "Payment: {{method}}"
+      "payment": "Payment: {{method}}",
+      "redeemPoints": "Referral points redeemed: {{points}} ({{amount}})"
     },
     "errors": {
       "txnIdRequired": "Enter the transaction ID for a bank transfer",
@@ -649,7 +658,9 @@
       "total": "Total",
       "grandTotal": "Grand total",
       "twoBillNotice": "Products and spares are billed separately (two invoices).",
-      "giftApplied": "Gift: {{gift}}"
+      "giftApplied": "Gift: {{gift}}",
+      "redeemDiscount": "Referral points redeemed",
+      "payable": "Amount payable"
     },
     "list": {
       "title": "Sales & Invoices",
@@ -767,7 +778,8 @@
       "title": "New Quotation",
       "validUntil": "Valid until",
       "itemsTitle": "Items",
-      "create": "Create Quotation"
+      "create": "Create Quotation",
+      "leadNoCustomerHint": "This lead isn't linked to a customer record yet — search for a match above, or continue without one to save the quotation against the lead only."
     },
     "empty": {
       "title": "No quotations yet",
@@ -1144,6 +1156,7 @@
       "scheduledFor": "Scheduled for {{date}}",
       "technician": "Technician",
       "assignedTechnician": "Assigned technician",
+      "awaitingAssignment": "Finding a technician for you",
       "liveTracking": "Live tracking",
       "serviceImages": "Service photos",
       "before": "Before",
@@ -1648,6 +1661,7 @@
     "filters": {
       "allSources": "All sources",
       "allTopics": "All topics",
+      "allKinds": "All kinds",
       "clear": "Clear filters"
     },
     "new": {
@@ -1655,7 +1669,8 @@
       "name": "Name",
       "mobile": "Mobile",
       "source": "Source",
-      "enquiryType": "Enquiry type"
+      "enquiryType": "Enquiry type",
+      "kind": "Kind"
     },
     "kpi": {
       "total": "Total leads",
@@ -1688,6 +1703,12 @@
       "water_premium": "Water premium",
       "budget": "Budget"
     },
+    "kind": {
+      "service": "Service",
+      "spare": "Spare",
+      "product": "Product",
+      "amc": "AMC"
+    },
     "activityType": {
       "call": "Call",
       "note": "Note",
@@ -1695,7 +1716,10 @@
       "meeting": "Meeting",
       "status_change": "Status change",
       "product_enquiry": "Product enquiry",
-      "spare_enquiry": "Spare enquiry"
+      "spare_enquiry": "Spare enquiry",
+      "service_enquiry": "Service enquiry",
+      "whatsapp_enquiry": "WhatsApp enquiry",
+      "quotation_created": "Quotation created"
     },
     "detail": {
       "selectHint": "Select a lead to view activity and update status.",
@@ -1806,6 +1830,8 @@
       "subtitle": "Field technicians, duty status and today's performance",
       "stats": "{{total}} total · {{onDuty}} on duty · {{jobs}} jobs today",
       "viewMap": "Live Tracking",
+      "viewAttendance": "Attendance",
+      "viewSpares": "Spare Handover",
       "kpiOnDuty": "On Duty Now",
       "kpiJobsToday": "Jobs Today",
       "kpiRevenueToday": "Revenue Today",
@@ -2136,7 +2162,10 @@
       "type": "Type"
     },
     "types": {
-      "confirmation_call_stub": "Confirmation call"
+      "confirmation_call_stub": "Confirmation call",
+      "sla_breach": "SLA breach",
+      "low_stock": "Low stock",
+      "handover_pending": "Handover pending"
     }
   },
   "approvals": {

@@ -328,3 +328,70 @@ export async function listAppointments(orgId: string, fromDate: string, toDate: 
   if (error) throw error
   return (data ?? []) as unknown as AppointmentListItem[]
 }
+
+// ── Quick ticket search (AdminShell header search bar) ───────────────────
+export type TicketSearchResult = {
+  id: string
+  name_of_complaint: string | null
+  status: TicketStatus
+  customers: { name: string } | null
+}
+
+const TICKET_SEARCH_SELECT = "id, name_of_complaint, status, customers(name)"
+
+/**
+ * A short, capped result set for the header search dropdown — matches the
+ * complaint text (server-side ilike) plus, everywhere else in the admin app
+ * a ticket is shown as `#{id.slice(0, 8)}` (see TicketsListPage/TicketDetailPage),
+ * so someone typing that short id prefix should find it too. PostgREST can't
+ * ilike a uuid column directly, so the id-prefix match is done client-side
+ * over a recent, org-scoped, capped batch — same "fetch capped + filter
+ * client-side for a predicate PostgREST can't express" pattern listTickets
+ * already uses above for technician/area/date filters.
+ */
+export async function searchTicketsQuick(orgId: string, term: string): Promise<TicketSearchResult[]> {
+  const q = term.trim().replace(/[%,]/g, "")
+  if (!q) return []
+  const LIMIT = 6
+
+  const { data: byComplaint, error: complaintError } = await supabase
+    .from("service_tickets")
+    .select(TICKET_SEARCH_SELECT)
+    .eq("org_id", orgId)
+    .ilike("name_of_complaint", `%${q}%`)
+    .order("created_at", { ascending: false })
+    .limit(LIMIT)
+  if (complaintError) throw complaintError
+  const rows = (byComplaint ?? []) as unknown as TicketSearchResult[]
+
+  if (rows.length < LIMIT && /^[0-9a-f-]+$/i.test(q)) {
+    const { data: recent, error: recentError } = await supabase
+      .from("service_tickets")
+      .select(TICKET_SEARCH_SELECT)
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(200)
+    if (recentError) throw recentError
+    const lowerQ = q.toLowerCase()
+    for (const row of (recent ?? []) as unknown as TicketSearchResult[]) {
+      if (rows.length >= LIMIT) break
+      if (row.id.toLowerCase().startsWith(lowerQ) && !rows.some((r) => r.id === row.id)) rows.push(row)
+    }
+  }
+
+  return rows.slice(0, LIMIT)
+}
+
+// ── Operational alerts (SLA breach / low stock / stuck spare handovers) ──
+// Thin RPC wrapper mirroring src/services/amc.ts#refreshAmcStatuses — no
+// pg_cron in this environment, so `refresh_operational_alerts` is a
+// "compute on page load" scan called once per org from the dashboard
+// (see useRefreshOperationalAlerts in useService.ts / DashboardPage.tsx).
+// `refresh_operational_alerts` (migration 20260715300000) post-dates
+// src/types/database.ts's last regen, so its name isn't in the RPC literal
+// union — same minimally-scoped `as never` cast on just the method argument
+// used by src/services/techniciansAdmin.ts's `rpc()` helper for the same reason.
+export async function refreshOperationalAlerts(orgId: string) {
+  const { error } = await supabase.rpc("refresh_operational_alerts" as never, { p_org_id: orgId } as never)
+  if (error) throw error
+}

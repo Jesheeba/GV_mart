@@ -48,6 +48,10 @@ export function BookServicePage() {
   const { data: settings } = useCustomerAppSettings(orgId)
 
   const [step, setStep] = useState(0)
+  // Only ever grows — tracks the furthest step reached so navigating back
+  // (which decreases `step`) doesn't make already-completed steps lose their
+  // checkmark in the Stepper above. See Stepper's `maxCompletedIndex` doc.
+  const [maxStepReached, setMaxStepReached] = useState(0)
   const [productId, setProductId] = useState<string>("")
   const [productUnknown, setProductUnknown] = useState(false)
   const [productView, setProductView] = useState<ProductView>("owned")
@@ -78,7 +82,10 @@ export function BookServicePage() {
   useEffect(() => {
     if (appliedDraftRef.current || !restoredDraft) return
     appliedDraftRef.current = true
-    if (restoredDraft.step != null) setStep(restoredDraft.step)
+    if (restoredDraft.step != null) {
+      setStep(restoredDraft.step)
+      setMaxStepReached((m) => Math.max(m, restoredDraft.step))
+    }
     if (restoredDraft.productId) setProductId(restoredDraft.productId)
     if (restoredDraft.productUnknown) setProductUnknown(restoredDraft.productUnknown)
     if (restoredDraft.nameOfComplaint) setNameOfComplaint(restoredDraft.nameOfComplaint)
@@ -111,6 +118,7 @@ export function BookServicePage() {
   function discardBookingDraft() {
     discardDraft()
     setStep(0)
+    setMaxStepReached(0)
     setProductId("")
     setProductUnknown(false)
     setNameOfComplaint("")
@@ -172,7 +180,9 @@ export function BookServicePage() {
     false
 
   function goNext() {
-    setStep((s) => Math.min(s + 1, steps.length - 1))
+    const next = Math.min(step + 1, steps.length - 1)
+    setStep(next)
+    setMaxStepReached((m) => Math.max(m, next))
   }
 
   async function handleSubmit() {
@@ -211,7 +221,7 @@ export function BookServicePage() {
       />
 
       <Card>
-        <Stepper steps={steps} currentIndex={step} onStepClick={setStep} />
+        <Stepper steps={steps} currentIndex={step} maxCompletedIndex={maxStepReached} onStepClick={setStep} />
       </Card>
 
       {step === 0 ? (

@@ -20,8 +20,13 @@ export function useQuotation(orgId: string | undefined, id: string | undefined) 
 export function useCreateQuotation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: { orgId: string; customerId: string; validUntil: string | null; items: quotations.QuotationCartItem[] }) =>
-      quotations.createQuotation(input.orgId, input.customerId, input.validUntil, input.items),
+    mutationFn: (input: {
+      orgId: string
+      customerId: string | null
+      leadId?: string | null
+      validUntil: string | null
+      items: quotations.QuotationCartItem[]
+    }) => quotations.createQuotation(input.orgId, input.customerId, input.validUntil, input.items, input.leadId ?? null),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quotations"] }),
   })
 }

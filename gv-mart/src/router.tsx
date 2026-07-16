@@ -77,6 +77,7 @@ const HistoryPage = lazyPage(() => import("@/app/technician/HistoryPage"), "Hist
 const HistoryDetailPage = lazyPage(() => import("@/app/technician/HistoryDetailPage"), "HistoryDetailPage")
 const TechnicianProfilePage = lazyPage(() => import("@/app/technician/ProfilePage"), "ProfilePage")
 const DaySheetPage = lazyPage(() => import("@/app/technician/DaySheetPage"), "DaySheetPage")
+const TechnicianNotificationsPage = lazyPage(() => import("@/app/technician/NotificationsPage"), "NotificationsPage")
 
 // --- Customer ---
 const CustomerShell = lazyPage(() => import("@/app/customer/CustomerShell"), "CustomerShell")
@@ -89,6 +90,7 @@ const CustomerAmcPage = lazyPage(() => import("@/app/customer/CustomerAmcPage"),
 const CustomerProductEnquiryPage = lazyPage(() => import("@/app/customer/CustomerProductEnquiryPage"), "CustomerProductEnquiryPage")
 const CustomerSpareEnquiryPage = lazyPage(() => import("@/app/customer/CustomerSpareEnquiryPage"), "CustomerSpareEnquiryPage")
 const BookServicePage = lazyPage(() => import("@/app/customer/service/BookServicePage"), "BookServicePage")
+const CustomerNotificationsPage = lazyPage(() => import("@/app/customer/NotificationsPage"), "NotificationsPage")
 
 const SALES_ROLES = ["master", "sales_admin"] as const
 const OPS_ROLES = ["master", "operation_admin"] as const
@@ -227,6 +229,7 @@ export const router = createBrowserRouter([
               { path: "jobs/:ticketId", element: <JobDetailPage /> },
               { path: "jobs/:ticketId/rating", element: <RatingPage /> },
               { path: "day-sheet", element: <DaySheetPage /> },
+              { path: "notifications", element: <TechnicianNotificationsPage /> },
             ],
           },
           // Full-screen on-site stepper — deliberately outside TechnicianShell
@@ -269,6 +272,7 @@ export const router = createBrowserRouter([
               { path: "book-service", element: <BookServicePage /> },
               { path: "product-enquiry", element: <CustomerProductEnquiryPage /> },
               { path: "spare-enquiry", element: <CustomerSpareEnquiryPage /> },
+              { path: "notifications", element: <CustomerNotificationsPage /> },
             ],
           },
         ],

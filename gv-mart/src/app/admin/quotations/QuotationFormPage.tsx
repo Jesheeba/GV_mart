@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { Loader2, Plus, Search, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -10,6 +10,7 @@ import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
+import { useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { useCreateQuotation } from "@/hooks/useQuotations"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -19,15 +20,33 @@ const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.
 
 type QuoteLine = { itemType: Enums<"item_type">; itemId: string; name: string; price: number; qty: number }
 
+// Set by LeadDetailPanel's "Create Quotation" quick action (navigate(...,
+// { state }) — see house style in HistoryPage.tsx/OnSiteVisitPage.tsx).
+// `customerId` is only present when the lead is already linked to a
+// customer record; leads created from just a name/mobile have it null.
+type QuotationNavState = {
+  leadId?: string
+  customerId?: string | null
+  name?: string | null
+  mobile?: string | null
+  status?: Enums<"lead_status">
+}
+
 export function QuotationFormPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const location = useLocation()
+  const navState = (location.state as QuotationNavState | null) ?? null
+  const leadId = navState?.leadId ?? null
+
   const { data: profile, isLoading: profileLoading } = useProfile()
   const orgId = profile?.org_id
 
-  const [customerId, setCustomerId] = useState<string | null>(null)
-  const [customerLabel, setCustomerLabel] = useState("")
-  const [customerSearch, setCustomerSearch] = useState("")
+  const [customerId, setCustomerId] = useState<string | null>(navState?.customerId ?? null)
+  const [customerLabel, setCustomerLabel] = useState(
+    navState?.customerId ? [navState.name, navState.mobile].filter(Boolean).join(" — ") : ""
+  )
+  const [customerSearch, setCustomerSearch] = useState(!navState?.customerId ? (navState?.name ?? navState?.mobile ?? "") : "")
   const customerResults = useCustomerAutocomplete(orgId, customerSearch)
 
   const [validUntil, setValidUntil] = useState("")
@@ -40,6 +59,8 @@ export function QuotationFormPage() {
   const [qty, setQty] = useState("1")
 
   const createQuotation = useCreateQuotation()
+  const logLeadActivity = useLogLeadActivity()
+  const updateLeadStatus = useUpdateLeadStatus()
 
   const total = useMemo(() => lines.reduce((sum, l) => sum + l.price * l.qty, 0), [lines])
 
@@ -62,13 +83,26 @@ export function QuotationFormPage() {
   }
 
   async function handleSubmit() {
-    if (!orgId || !customerId || lines.length === 0) return
+    if (!orgId || (!customerId && !leadId) || lines.length === 0) return
     const id = await createQuotation.mutateAsync({
       orgId,
       customerId,
+      leadId,
       validUntil: validUntil || null,
       items: lines.map((l) => ({ itemType: l.itemType, itemId: l.itemId, qty: l.qty })),
     })
+    if (leadId) {
+      // Best-effort: the quotation is already created at this point, so a
+      // failure logging/advancing the lead shouldn't block navigation.
+      try {
+        await logLeadActivity.mutateAsync({ leadId, type: "quotation_created", note: null })
+        if (navState?.status === "new" || navState?.status === "contacted") {
+          await updateLeadStatus.mutateAsync({ leadId, status: "quoted" })
+        }
+      } catch {
+        // ignore — quotation creation itself already succeeded
+      }
+    }
     navigate(`/admin/quotations/${id}`)
   }
 
@@ -103,6 +137,7 @@ export function QuotationFormPage() {
             setCustomerLabel(`${c.name} — ${c.mobile}`)
           }}
         />
+        {leadId && !customerId ? <p className="px-1 text-xs text-text-muted">{t("quotations.form.leadNoCustomerHint")}</p> : null}
         <div className="space-y-1.5">
           <Label htmlFor="validUntil">{t("quotations.form.validUntil")}</Label>
           <Input id="validUntil" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className="w-48" />
@@ -175,7 +210,7 @@ export function QuotationFormPage() {
         <Button type="button" variant="outline" onClick={() => navigate(-1)}>
           {t("common.cancel")}
         </Button>
-        <Button type="button" disabled={!customerId || lines.length === 0 || createQuotation.isPending} onClick={handleSubmit}>
+        <Button type="button" disabled={(!customerId && !leadId) || lines.length === 0 || createQuotation.isPending} onClick={handleSubmit}>
           {createQuotation.isPending ? <Loader2 className="size-4 animate-spin" /> : t("quotations.form.create")}
         </Button>
       </div>

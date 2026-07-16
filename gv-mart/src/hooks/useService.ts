@@ -10,6 +10,16 @@ export function useTicketsList(orgId: string | undefined, filters: TicketFilters
   })
 }
 
+/** Header search dropdown's ticket half — see service.ts#searchTicketsQuick. */
+export function useTicketSearch(orgId: string | undefined, term: string) {
+  return useQuery({
+    queryKey: ["service_tickets", "quickSearch", orgId, term],
+    queryFn: () => service.searchTicketsQuick(orgId!, term),
+    enabled: !!orgId && term.trim().length > 0,
+    staleTime: 10_000,
+  })
+}
+
 export function useTicket(id: string | undefined) {
   return useQuery({
     queryKey: ["service_tickets", "detail", id],
@@ -146,5 +156,15 @@ export function useSlaSettings(orgId: string | undefined) {
     queryFn: () => service.getSlaSettings(orgId!),
     enabled: !!orgId,
     staleTime: 60_000,
+  })
+}
+
+/** Runs the SLA-breach / stuck-handover scan (see refresh_operational_alerts SQL), same
+ *  "mutate once per org on page load" shape as useAmc.ts#useRefreshAmcStatuses. */
+export function useRefreshOperationalAlerts(orgId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => service.refreshOperationalAlerts(orgId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   })
 }

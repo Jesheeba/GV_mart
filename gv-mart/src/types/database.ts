@@ -2190,6 +2190,7 @@ export type Database = {
           mobile: string | null
           source: Database["public"]["Enums"]["lead_source"]
           enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
+          kind: Database["public"]["Enums"]["lead_kind"] | null
           status: Database["public"]["Enums"]["lead_status"]
           owner_id: string | null
           score: number | null
@@ -2204,6 +2205,7 @@ export type Database = {
           mobile?: string | null
           source?: Database["public"]["Enums"]["lead_source"]
           enquiry_type?: Database["public"]["Enums"]["enquiry_type"] | null
+          kind?: Database["public"]["Enums"]["lead_kind"] | null
           status?: Database["public"]["Enums"]["lead_status"]
           owner_id?: string | null
           score?: number | null
@@ -2218,6 +2220,7 @@ export type Database = {
           mobile?: string | null
           source?: Database["public"]["Enums"]["lead_source"]
           enquiry_type?: Database["public"]["Enums"]["enquiry_type"] | null
+          kind?: Database["public"]["Enums"]["lead_kind"] | null
           status?: Database["public"]["Enums"]["lead_status"]
           owner_id?: string | null
           score?: number | null
@@ -3122,15 +3125,17 @@ export type Database = {
           p_customer_id: string
           p_cart: Json
           p_quotation_id?: string | null
+          p_redeem_points?: number | null
         }
         Returns: Json
       }
       create_quotation: {
         Args: {
           p_org_id: string
-          p_customer_id: string
+          p_customer_id: string | null
           p_valid_until: string | null
           p_items: Json
+          p_lead_id?: string | null
         }
         Returns: string
       }
@@ -3370,6 +3375,7 @@ export type Database = {
       enquiry_type: "online" | "price" | "quality" | "customization" | "water_premium" | "budget"
       lead_status: "new" | "contacted" | "quoted" | "won" | "lost"
       lead_source: "field" | "customer_app" | "whatsapp" | "walk_in" | "referral" | "other"
+      lead_kind: "service" | "spare" | "product" | "amc"
       automation_action: "send_video" | "quotation" | "link"
       incentive_type: "service_income" | "sales_income" | "review"
       reward_category: "attendance" | "highest_review" | "highest_revenue"
