@@ -166,7 +166,7 @@ begin
         insert into public.appointments (org_id, ticket_id, mode, scheduled_at, status)
         values (v_contract.org_id, v_ticket_id, 'datetime', v_visit_date::timestamptz + time '09:00', 'scheduled');
 
-        perform public._auto_assign_ticket_internal(v_ticket_id, v_contract.org_id);
+        perform public._auto_assign_ticket_internal(v_ticket_id, v_contract.org_id, p_skip_rating_logic => true);
 
         v_visits_inserted := v_visits_inserted + 1;
       end if;
