@@ -12,6 +12,7 @@ import { Stepper } from "@/components/shared/Stepper"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { useToast } from "@/components/ui/toast-context"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import {
   addressStepSchema,
@@ -23,6 +24,7 @@ import {
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
+import { getPrimaryAddressId, setAddressZone } from "@/services/customers"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
@@ -114,6 +116,7 @@ function MemberFieldRow({
 
 export function CustomerFormPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const { id } = useParams<{ id?: string }>()
   const mode: "create" | "edit" = id ? "edit" : "create"
@@ -147,6 +150,7 @@ export function CustomerFormPage() {
       landmark: "",
       district: "",
       state: "",
+      zone: "",
       addressType: "residential",
       ownership: "own",
       lat: undefined,
@@ -214,6 +218,7 @@ export function CustomerFormPage() {
           landmark: primary.landmark ?? "",
           district: primary.district ?? "",
           state: primary.state ?? "",
+          zone: primary.zone ?? "",
           addressType: primary.address_type,
           ownership: primary.ownership,
           lat: primary.lat ?? undefined,
@@ -278,6 +283,19 @@ export function CustomerFormPage() {
           lng: addressValues.lng,
         },
       })
+      // create_customer_with_details (RPC) doesn't accept a zone — set it as
+      // a small direct follow-up write on the primary address it just created.
+      // The customer itself is already created at this point, so a failure
+      // here shouldn't block navigation — just warn so it can be re-entered
+      // via edit.
+      if (addressValues.zone?.trim()) {
+        try {
+          const primaryAddressId = await getPrimaryAddressId(newId)
+          await setAddressZone(primaryAddressId, addressValues.zone.trim())
+        } catch {
+          toast.error(t("common.actionFailed"))
+        }
+      }
       navigate(`/admin/customers/${newId}`)
       return
     }
@@ -409,6 +427,10 @@ export function CustomerFormPage() {
             <div className="space-y-1.5">
               <Label htmlFor="state">{t("customers.form.state")}</Label>
               <Input id="state" {...addressForm.register("state")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="zone">{t("customers.form.zone")}</Label>
+              <Input id="zone" {...addressForm.register("zone")} />
             </div>
           </div>
 

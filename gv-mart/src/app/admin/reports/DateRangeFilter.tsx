@@ -1,9 +1,13 @@
 import { useTranslation } from "react-i18next"
 import { Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { DateRange } from "@/services/reports"
+import { dateRangePresets, dateRangeForPreset, type DateRange } from "@/services/reports"
 
-/** Shared date-range + CSV export bar reused by every Reports tab. */
+/** Shared date-range + presets + CSV export bar reused by every Reports tab.
+ * F2: quick-select presets (this month / previous month / this year /
+ * all-time) sit alongside the existing manual from/to pickers — picking one
+ * just computes a range and feeds it through the same onChange the date
+ * inputs already use, so callers need no changes. */
 export function DateRangeFilter({
   range,
   onChange,
@@ -38,6 +42,18 @@ export function DateRangeFilter({
             onChange={(e) => onChange({ ...range, to: e.target.value })}
             className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+          {dateRangePresets.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => onChange(dateRangeForPreset(preset))}
+              className="rounded-full border border-border bg-surface-alt px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-border/50 hover:text-text"
+            >
+              {t(`reports.filters.presets.${preset}`)}
+            </button>
+          ))}
         </div>
       </div>
       {onExport ? (

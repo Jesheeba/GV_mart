@@ -47,7 +47,13 @@ export type TicketListItem = ServiceTicketRow & {
     mode: AppointmentMode
     status: AppointmentStatus
     technician_id: string | null
+    available_from: string | null
+    available_to: string | null
+    is_narrow_window: boolean
+    next_day_priority: boolean
+    rescheduled_from_date: string | null
     technicians: { id: string; profiles: { full_name: string } | null } | null
+    appointment_unavailable_windows: { id: string; start_time: string; end_time: string }[]
   }[]
 }
 
@@ -68,7 +74,12 @@ const TICKET_SELECT = `
   brands(name),
   models(name),
   addresses(area),
-  appointments(id, scheduled_at, mode, status, technician_id, technicians(id, profiles(full_name)))
+  appointments(
+    id, scheduled_at, mode, status, technician_id, available_from, available_to,
+    is_narrow_window, next_day_priority, rescheduled_from_date,
+    technicians(id, profiles(full_name)),
+    appointment_unavailable_windows(id, start_time, end_time)
+  )
 `
 
 export async function listTickets(orgId: string, filters: TicketFiltersInput): Promise<TicketListItem[]> {
@@ -168,6 +179,22 @@ export type CreateComplaintInput = {
   appointmentMode: AppointmentMode | null
   scheduledAt: string | null
   autoAssign: boolean
+  // Customer availability time window (Phase 1.5 of the technician
+  // assignment rework) — only meaningful when appointmentMode is
+  // 'datetime'; null/undefined otherwise. `p_available_from`/`p_available_to`
+  // post-date the last database.ts regen (see create_complaint_ticket's new
+  // trailing params in 20260721091000_appointment_availability_window.sql),
+  // so they're intentionally typed here rather than sourced from the
+  // generated RPC Args type.
+  availableFrom?: string | null
+  availableTo?: string | null
+  // B1 (Build Order Step 4): windows the admin marked as the customer NOT
+  // being available on the chosen date. Undefined/null = legacy caller
+  // (falls back to availableFrom/availableTo as-is); an array (possibly
+  // empty) engages the date-only + unavailable-windows computation,
+  // including B2's narrow-window guard and B3's next-day-priority bump.
+  // See 20260723101000_step4_booking_rpcs.sql.
+  unavailableWindows?: { start: string; end: string }[] | null
 }
 
 export async function createComplaintTicket(input: CreateComplaintInput) {
@@ -185,9 +212,22 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     p_appointment_mode: input.appointmentMode,
     p_scheduled_at: input.scheduledAt,
     p_auto_assign: input.autoAssign,
+    p_available_from: input.availableFrom ?? null,
+    p_available_to: input.availableTo ?? null,
+    p_unavailable_windows: input.unavailableWindows ?? null,
   })
   if (error) throw error
-  return data as { ticket_id: string; appointment_id: string | null; detected_type: unknown; assign_result: unknown }
+  return data as {
+    ticket_id: string
+    appointment_id: string | null
+    detected_type: unknown
+    assign_result: unknown
+    scheduled_at: string | null
+    available_from: string | null
+    available_to: string | null
+    is_narrow_window: boolean | null
+    next_day_priority: boolean | null
+  }
 }
 
 export async function autoAssignTicket(ticketId: string) {
@@ -394,4 +434,104 @@ export async function searchTicketsQuick(orgId: string, term: string): Promise<T
 export async function refreshOperationalAlerts(orgId: string) {
   const { error } = await supabase.rpc("refresh_operational_alerts" as never, { p_org_id: orgId } as never)
   if (error) throw error
+}
+
+// ── Evidence Dashboard (Bug 7 / UI Suggestion 4) ──────────────────────────
+// Admin-facing, per-ticket oversight/compliance view of everything captured
+// during a ticket's service visit(s): before/after photos, technician +
+// customer signatures, the RO checklist (only present for RO products), the
+// spares consumed, a time-windowed GPS trail, the technician's attendance
+// selfie for that visit's day, and the ticket's linked invoice. Deliberately
+// a *separate* query from getTicket above (not merged into TICKET_SELECT) so
+// TicketDetailPage's fast 3-card view keeps rendering immediately from
+// useTicket while this heavier, multi-round-trip fetch loads independently
+// in its own "Evidence" card — see useTicketEvidence in useService.ts.
+//
+// `technician_locations` has no ticket/visit foreign key — it's a
+// continuous always-on trail (migration 20260701090800_technician_ops.sql)
+// — so a per-visit slice is derived by time-windowing on that visit's
+// technician_id between timer_start and timer_end (or now(), if the visit
+// is still in progress). `attendance` is likewise scoped by technician_id +
+// date, matched against the visit's day (timer_start's date, falling back
+// to created_at for a visit whose timer hasn't started yet).
+export type TicketEvidenceLocationPoint = Pick<Tables<"technician_locations">, "id" | "lat" | "lng" | "recorded_at">
+
+export type TicketEvidenceVisit = Tables<"service_visits"> & {
+  technicians: { id: string; profiles: { full_name: string } | null } | null
+  ro_checklists: Tables<"ro_checklists"> | null
+  service_spares_used: (Tables<"service_spares_used"> & { spares: { name: string; sku: string | null } | null })[]
+  locations: TicketEvidenceLocationPoint[]
+  attendance_selfie_url: string | null
+}
+
+export type TicketEvidenceInvoice = Tables<"invoices"> & { invoice_items: Tables<"invoice_items">[] }
+
+export type TicketEvidence = {
+  visits: TicketEvidenceVisit[]
+  invoice: TicketEvidenceInvoice | null
+}
+
+export async function getTicketEvidence(ticketId: string): Promise<TicketEvidence> {
+  const [ticketRes, visitsRes] = await Promise.all([
+    supabase.from("service_tickets").select("invoice_id").eq("id", ticketId).single(),
+    supabase
+      .from("service_visits")
+      .select("*, technicians(id, profiles(full_name)), ro_checklists(*), service_spares_used(*, spares(name, sku))")
+      .eq("ticket_id", ticketId)
+      .order("created_at", { ascending: false }),
+  ])
+  if (ticketRes.error) throw ticketRes.error
+  if (visitsRes.error) throw visitsRes.error
+
+  type VisitJoinRow = Tables<"service_visits"> & {
+    technicians: { id: string; profiles: { full_name: string } | null } | null
+    ro_checklists: Tables<"ro_checklists"> | null
+    service_spares_used: (Tables<"service_spares_used"> & { spares: { name: string; sku: string | null } | null })[]
+  }
+  const visitRows = (visitsRes.data ?? []) as unknown as VisitJoinRow[]
+
+  const visits: TicketEvidenceVisit[] = await Promise.all(
+    visitRows.map(async (v) => {
+      const windowStart = v.timer_start ?? v.created_at
+      const windowEnd = v.timer_end ?? new Date().toISOString()
+      const attendanceDate = windowStart.slice(0, 10)
+
+      const [locationsRes, attendanceRes] = await Promise.all([
+        supabase
+          .from("technician_locations")
+          .select("id, lat, lng, recorded_at")
+          .eq("technician_id", v.technician_id)
+          .gte("recorded_at", windowStart)
+          .lte("recorded_at", windowEnd)
+          .order("recorded_at", { ascending: true }),
+        supabase
+          .from("attendance")
+          .select("selfie_url")
+          .eq("technician_id", v.technician_id)
+          .eq("date", attendanceDate)
+          .maybeSingle(),
+      ])
+      if (locationsRes.error) throw locationsRes.error
+      if (attendanceRes.error) throw attendanceRes.error
+
+      return {
+        ...v,
+        locations: locationsRes.data ?? [],
+        attendance_selfie_url: attendanceRes.data?.selfie_url ?? null,
+      }
+    })
+  )
+
+  let invoice: TicketEvidenceInvoice | null = null
+  if (ticketRes.data?.invoice_id) {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("*, invoice_items(*)")
+      .eq("id", ticketRes.data.invoice_id)
+      .single()
+    if (error) throw error
+    invoice = data as unknown as TicketEvidenceInvoice
+  }
+
+  return { visits, invoice }
 }

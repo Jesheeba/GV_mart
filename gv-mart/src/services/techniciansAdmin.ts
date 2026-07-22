@@ -16,7 +16,10 @@ import type { Tables, TablesInsert } from "@/types/database"
 // same way, so those few calls go through a minimally-scoped `as never`
 // cast on just the method argument, not on the whole client.
 export type TechnicianRow = Tables<"technicians"> & { zone: string | null; is_active: boolean }
-export type AttendanceRow = Tables<"attendance">
+// Requirement 2/11 — `check_out_at` (migration 20260716120000_attendance_checkout.sql)
+// post-dates the last database.ts regen too; widened locally the same way
+// as TechnicianRow above rather than editing that shared file.
+export type AttendanceRow = Tables<"attendance"> & { check_out_at: string | null }
 export type TechnicianLocationRow = Tables<"technician_locations">
 export type SpareHandoverRow = Tables<"spare_handovers">
 export type SpareHandoverItemRow = Tables<"spare_handover_items">
@@ -101,7 +104,7 @@ export async function listTechnicians(orgId: string): Promise<TechnicianListItem
 
 export async function updateTechnician(
   id: string,
-  patch: { zone?: string | null; skills?: string[]; is_active?: boolean; is_on_duty?: boolean }
+  patch: { zone?: string | null; skills?: string[]; is_active?: boolean; is_on_duty?: boolean; daily_capacity_minutes?: number }
 ) {
   const { data, error } = await supabase
     .from("technicians")
@@ -205,7 +208,59 @@ export async function getTechnicianAttendanceHistory(technicianId: string, limit
     .order("date", { ascending: false })
     .limit(limit)
   if (error) throw error
-  return data ?? []
+  // Requirement 7 — same check_out_at widening as the AttendanceRow type
+  // above; `select("*")` already returns the real column at runtime once the
+  // migration lands, the generated type just doesn't know about it yet.
+  return (data ?? []) as unknown as AttendanceRow[]
+}
+
+/** Calendar view (TechnicianDetailPage's Attendance tab) — one month's rows
+ * at a time, keyed by `date` on the client. `date` is a plain `date` column
+ * (no timezone), so plain "YYYY-MM-DD" string bounds are exact — no Date
+ * math/timezone drift risk, matching the range-query convention already
+ * used in reports.ts (`.gte("date", ...).lte("date", ...)`). */
+export async function getTechnicianAttendanceForMonth(technicianId: string, year: number, month: number): Promise<AttendanceRow[]> {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const from = `${year}-${pad(month + 1)}-01`
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const to = `${year}-${pad(month + 1)}-${pad(lastDay)}`
+
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("technician_id", technicianId)
+    .gte("date", from)
+    .lte("date", to)
+  if (error) throw error
+  return (data ?? []) as unknown as AttendanceRow[]
+}
+
+/** One calendar day's job/rating detail (clicking a day in the Attendance
+ * calendar) — service_visits has no plain `date` column, only `created_at`
+ * (timestamptz), so the range is a local-midnight-to-local-midnight bound on
+ * that column, same shape as the dayStart/dayEnd range queries already used
+ * in technician.ts. A visit's rating is 1:1 (ratings.visit_id unique). */
+export type TechnicianVisitForDate = {
+  id: string
+  timer_start: string | null
+  timer_end: string | null
+  service_tickets: { name_of_complaint: string | null; type: string } | null
+  ratings: { stars: number; review: string | null } | null
+}
+
+export async function getTechnicianVisitsForDate(technicianId: string, dateStr: string): Promise<TechnicianVisitForDate[]> {
+  const dayStart = new Date(`${dateStr}T00:00:00`)
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`)
+
+  const { data, error } = await supabase
+    .from("service_visits")
+    .select("id, timer_start, timer_end, service_tickets(name_of_complaint, type), ratings(stars, review)")
+    .eq("technician_id", technicianId)
+    .gte("created_at", dayStart.toISOString())
+    .lte("created_at", dayEnd.toISOString())
+    .order("created_at", { ascending: true })
+  if (error) throw error
+  return (data ?? []) as unknown as TechnicianVisitForDate[]
 }
 
 export type TechnicianRewardItem = Tables<"rewards">
@@ -219,6 +274,52 @@ export async function listTechnicianRewards(technicianId: string, limit = 20): P
     .limit(limit)
   if (error) throw error
   return data ?? []
+}
+
+// ── Requirement 2/11: History tab enrichment (duration + rating) ──────────
+// TechnicianDetailPage's History tab previously reused service.ts's
+// listTickets (customer/complaint/product/date/type/priority/status only,
+// no duration or rating). This is a separate, technician-scoped query here
+// rather than extending listTickets/TicketListItem directly — service.ts
+// isn't owned by this pass (see file header), and the extra
+// service_visits/ratings embed is only needed on this one admin screen.
+// `appointments!inner(technician_id)` mirrors listTickets' client-side "any
+// of its appointments belongs to this technician" filter, pushed into the
+// query instead of applied after the fetch.
+export type TechnicianHistoryTicket = Tables<"service_tickets"> & {
+  customers: { name: string; mobile: string } | null
+  products: { name: string } | null
+  service_visits: { timer_start: string | null; timer_end: string | null; ratings: { stars: number } | null }[]
+}
+
+export async function getTechnicianTicketHistory(technicianId: string): Promise<TechnicianHistoryTicket[]> {
+  const { data, error } = await supabase
+    .from("service_tickets")
+    .select(
+      "*, customers(name, mobile), products(name), appointments!inner(technician_id), service_visits(timer_start, timer_end, ratings(stars))"
+    )
+    .eq("appointments.technician_id", technicianId)
+    .order("created_at", { ascending: false })
+    .limit(200)
+  if (error) throw error
+  return (data ?? []) as unknown as TechnicianHistoryTicket[]
+}
+
+/**
+ * Picks the visit to summarize on a History row when a ticket has more than
+ * one service_visits row (revisits) — the most recently *completed* one
+ * (both timer_start and timer_end set), falling back to the latest visit of
+ * any kind so a job that's currently in progress doesn't just show nothing.
+ * Rows whose picked visit isn't actually completed render no duration/rating
+ * at all (see HistoryTab in TechnicianDetailPage.tsx) — this only decides
+ * *which* visit to look at, not whether to display it.
+ */
+export function pickHistoryVisit(
+  visits: { timer_start: string | null; timer_end: string | null; ratings: { stars: number } | null }[]
+) {
+  const completed = visits.filter((v) => v.timer_start && v.timer_end)
+  if (completed.length > 0) return completed[completed.length - 1]
+  return visits[visits.length - 1] ?? null
 }
 
 // ── ADM-15: Live tracking (map) ───────────────────────────────────────────
@@ -384,3 +485,49 @@ export async function adminSignSpareHandover(handoverId: string, adminSignUrl: s
 }
 
 export type SpareHandoverItemInsert = TablesInsert<"spare_handover_items">
+
+// ── Phase 1 assignment-engine data: technician_availability ───────────────
+// Turns on real per-technician working/leave + shift data for the
+// assignment engine (see GV_Mart_Technician_Assignment_Logic_Change.md
+// Phase 1) — no assignment-logic behavior change in this pass, this just
+// makes the rows editable from TechnicianDetailPage's Availability tab.
+
+export type TechnicianAvailabilityRow = Tables<"technician_availability">
+
+/** "Upcoming" = today onward, local calendar date (the column is a plain
+ * `date`, no timezone) — same local-date-string convention already used by
+ * TechnicianDetailPage's Attendance tab (`todayStr` there). */
+export async function listTechnicianAvailability(technicianId: string): Promise<TechnicianAvailabilityRow[]> {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+
+  const { data, error } = await supabase
+    .from("technician_availability")
+    .select("*")
+    .eq("technician_id", technicianId)
+    .gte("date", todayStr)
+    .order("date", { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+/** technician_availability has a unique(technician_id, date) constraint —
+ * upsert on that pair so re-submitting the same date edits it in place
+ * instead of erroring. */
+export async function upsertTechnicianAvailability(
+  input: TablesInsert<"technician_availability">
+): Promise<TechnicianAvailabilityRow> {
+  const { data, error } = await supabase
+    .from("technician_availability")
+    .upsert(input, { onConflict: "technician_id,date" })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteTechnicianAvailability(id: string): Promise<void> {
+  const { error } = await supabase.from("technician_availability").delete().eq("id", id)
+  if (error) throw error
+}

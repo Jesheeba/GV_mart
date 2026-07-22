@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2 } from "lucide-react"
+import { Loader2, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,10 +8,12 @@ import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
-import { useCreateBillEntry, usePurchaseBills, usePurchaseOrders } from "@/hooks/useAutomation"
+import { useCreateBillEntry, useLastBillEntry, usePurchaseBills, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
 import type { PoItemInput } from "@/lib/validation/automation"
+import { expenseCategories } from "@/lib/validation/reports"
 import type { PurchaseBillRow } from "@/services/automation"
+import type { Enums } from "@/types/database"
 
 export function BillEntryTab() {
   const { t } = useTranslation()
@@ -22,12 +24,38 @@ export function BillEntryTab() {
   const { data: suppliers } = useSuppliersList(orgId)
   const { data: pos } = usePurchaseOrders(orgId)
   const createBill = useCreateBillEntry()
+  const lastBill = useLastBillEntry(orgId)
 
   const [supplierId, setSupplierId] = useState("")
   const [poId, setPoId] = useState("")
   const [items, setItems] = useState<PoItemInput[]>([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
   const [gst, setGst] = useState("0")
   const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10))
+  // Build Order Step 1.3: was hardcoded to 'purchase' server-side regardless
+  // of what was actually bought — defaults to 'purchase' (the common case
+  // for a supplier bill) but staff can now pick any real category so the
+  // P&L breakdown reflects it, same enum/i18n as the manual Log Expense panel.
+  const [category, setCategory] = useState<Enums<"expense_category">>("purchase")
+  const [isPrefilled, setIsPrefilled] = useState(false)
+
+  // Prefill once, from the org's last bill, the first time this form is
+  // opened — not after every submit (a submit already clears the form back
+  // to blank below, since a bill was just filed).
+  const appliedPrefillRef = useRef(false)
+  useEffect(() => {
+    if (appliedPrefillRef.current || !lastBill.data) return
+    appliedPrefillRef.current = true
+    setSupplierId(lastBill.data.supplierId)
+    if (lastBill.data.items.length > 0) setItems(lastBill.data.items)
+    setIsPrefilled(true)
+  }, [lastBill.data])
+
+  function clearPrefill() {
+    setSupplierId("")
+    setPoId("")
+    setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    setIsPrefilled(false)
+  }
 
   async function submit() {
     await createBill.mutateAsync({
@@ -38,11 +66,14 @@ export function BillEntryTab() {
       gst: Number(gst) || 0,
       billDate,
       billImageUrl: null,
+      category,
     })
     setSupplierId("")
     setPoId("")
     setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
     setGst("0")
+    setCategory("purchase")
+    setIsPrefilled(false)
   }
 
   const columns: DataTableColumn<PurchaseBillRow & { suppliers: { name: string } | null }>[] = [
@@ -56,6 +87,17 @@ export function BillEntryTab() {
     <div className="space-y-4">
       <Card className="gap-3 px-5">
         <h2 className="text-sm font-semibold text-text">{t("purchase.bill.title")}</h2>
+
+        {isPrefilled ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-primary/10 px-3.5 py-2.5 text-sm text-text">
+            <span>{t("purchase.bill.prefillNotice")}</span>
+            <Button size="sm" variant="ghost" onClick={clearPrefill}>
+              <RotateCcw className="size-3.5" />
+              {t("purchase.bill.clearPrefill")}
+            </Button>
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label>{t("purchase.po.supplier")}</Label>
@@ -87,9 +129,25 @@ export function BillEntryTab() {
 
         <PoItemRows orgId={orgId} items={items} onChange={setItems} />
 
-        <div className="w-40 space-y-1.5">
-          <Label>{t("purchase.bill.gst")}</Label>
-          <Input type="number" min={0} step="0.01" value={gst} onChange={(e) => setGst(e.target.value)} />
+        <div className="flex flex-wrap gap-3">
+          <div className="w-40 space-y-1.5">
+            <Label>{t("purchase.bill.gst")}</Label>
+            <Input type="number" min={0} step="0.01" value={gst} onChange={(e) => setGst(e.target.value)} />
+          </div>
+          <div className="w-48 space-y-1.5">
+            <Label>{t("reports.pnl.category")}</Label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as Enums<"expense_category">)}
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            >
+              {expenseCategories.map((c) => (
+                <option key={c} value={c}>
+                  {t(`reports.pnl.expenseCategory.${c}`)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {createBill.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createBill.error as Error).message}</p> : null}

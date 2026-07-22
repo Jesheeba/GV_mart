@@ -80,6 +80,15 @@ async function runJob(job: OutboxJob): Promise<void> {
       if (error) throw error
       return
     }
+    case "attendance.checkout": {
+      const { error } = await supabase
+        .from("attendance")
+        .update({ check_out_at: p.checkOutAt } as unknown as TablesUpdate<"attendance">)
+        .eq("technician_id", p.technicianId as string)
+        .eq("date", p.date as string)
+      if (error) throw error
+      return
+    }
     case "spare_handover.confirm": {
       const { error } = await supabase.rpc("confirm_spare_handover", {
         p_handover_id: p.handoverId as string,

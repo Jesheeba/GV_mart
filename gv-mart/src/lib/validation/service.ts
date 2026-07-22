@@ -24,11 +24,27 @@ export const complaintDetailsStepSchema = z.object({
 })
 export type ComplaintDetailsStepInput = z.infer<typeof complaintDetailsStepSchema>
 
+// B1 (Build Order Step 4): a single window the customer/admin marked as NOT
+// available, "HH:MM" strings from native time inputs.
+export const unavailableWindowSchema = z
+  .object({
+    start: z.string().min(1, "service.newComplaint.availableWindowInvalid"),
+    end: z.string().min(1, "service.newComplaint.availableWindowInvalid"),
+  })
+  .refine((v) => v.start < v.end, { message: "service.newComplaint.availableWindowInvalid", path: ["end"] })
+export type UnavailableWindowInput = z.infer<typeof unavailableWindowSchema>
+
 export const complaintAppointmentStepSchema = z
   .object({
     mode: z.enum(["always", "datetime"], { message: "service.errors.modeRequired" }),
+    // Holds a DATE ("YYYY-MM-DD") when mode is 'datetime' — B1 replaces
+    // exact-time picking with date-only + unavailable-windows below.
     scheduledAt: z.string().optional().or(z.literal("")),
     autoAssign: z.boolean(),
+    // "any" = full working-hours window (B1's "Any time"); "custom" = the
+    // windows below are the customer's marked NOT-available times.
+    windowMode: z.enum(["any", "custom"]),
+    unavailableWindows: z.array(unavailableWindowSchema),
   })
   .refine((v) => v.mode === "always" || !!v.scheduledAt, {
     message: "service.errors.scheduledAtRequired",

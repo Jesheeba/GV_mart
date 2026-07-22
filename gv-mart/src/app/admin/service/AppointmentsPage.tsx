@@ -38,7 +38,12 @@ export function AppointmentsPage() {
   const unassigned = useMemo(() => (appointments ?? []).filter((a) => !a.technician_id && a.status === "scheduled"), [appointments])
 
   function byTechnician(techId: string) {
-    return (appointments ?? []).filter((a) => a.technician_id === techId)
+    // B3: a booking bumped here because its requested date was full is
+    // first-priority for this (its new) date — surfaced by sorting it to
+    // the front of the technician's card list, not just a badge.
+    return (appointments ?? [])
+      .filter((a) => a.technician_id === techId)
+      .sort((a, b) => Number(b.next_day_priority) - Number(a.next_day_priority))
   }
 
   function handleDrop(techId: string) {
@@ -150,7 +155,14 @@ export function AppointmentsPage() {
                           onClick={() => setSelected(a)}
                           className="w-48 cursor-grab rounded-lg border border-border bg-surface-alt p-2 text-xs active:cursor-grabbing"
                         >
-                          <div className="font-medium text-text">{a.service_tickets?.customers?.name ?? "—"}</div>
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="font-medium text-text">{a.service_tickets?.customers?.name ?? "—"}</div>
+                            {a.next_day_priority ? (
+                              <span className="shrink-0 rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning" title={t("service.detail.nextDayPriorityBadge")}>
+                                {t("service.appointments.nextDayPriorityShort")}
+                              </span>
+                            ) : null}
+                          </div>
                           <div className="truncate text-text-muted">{a.service_tickets?.name_of_complaint}</div>
                           <div className="mt-1 flex items-center gap-1">
                             {a.service_tickets?.type ? <TicketTypeBadge type={a.service_tickets.type} /> : null}

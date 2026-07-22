@@ -1,0 +1,67 @@
+import { useTranslation } from "react-i18next"
+import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
+import { complaintTypesHooks } from "@/hooks/useMasters"
+import type { ComplaintTypeRow } from "@/services/masters"
+import { useProfile } from "@/hooks/useProfile"
+
+const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
+
+/**
+ * Meeting spec E1: complaint-name master, tagged to a product category,
+ * feeding the filtered auto-suggest on the customer booking and admin
+ * new-complaint screens. Previously declined, now authorized (Build Order
+ * STEP 6.4).
+ */
+export function ComplaintTypesTab() {
+  const { t } = useTranslation()
+  const { data: profile } = useProfile()
+  const orgId = profile?.org_id
+
+  const { data: rows, isLoading, isError, refetch } = complaintTypesHooks.useList(orgId)
+  const createMut = complaintTypesHooks.useCreate()
+  const updateMut = complaintTypesHooks.useUpdate()
+  const deleteMut = complaintTypesHooks.useDelete()
+
+  const fields: CrudFieldDef[] = [
+    {
+      key: "product_category",
+      label: t("masters.complaintTypes.category"),
+      type: "select",
+      options: CATEGORIES.map((c) => ({ value: c, label: t(`masters.categories.${c}`) })),
+    },
+    { key: "label", label: t("masters.complaintTypes.label"), type: "text", placeholder: t("masters.complaintTypes.labelPlaceholder") },
+  ]
+
+  return (
+    <EntityCrudTable<ComplaintTypeRow>
+      fields={fields}
+      rows={rows ?? []}
+      getId={(r) => r.id}
+      loading={isLoading}
+      error={isError ? t("masters.loadFailed") : null}
+      onRetry={() => refetch()}
+      isMutating={createMut.isPending || updateMut.isPending}
+      addLabel={t("masters.complaintTypes.add")}
+      emptyMessage={t("masters.complaintTypes.empty")}
+      toFormValues={(r) => ({ product_category: r.product_category, label: r.label })}
+      columns={[
+        { key: "category", header: t("masters.complaintTypes.category"), render: (r) => t(`masters.categories.${r.product_category}`) },
+        { key: "label", header: t("masters.complaintTypes.label"), render: (r) => <span className="font-medium text-text">{r.label}</span> },
+      ]}
+      onCreate={(v) =>
+        createMut.mutateAsync({
+          org_id: orgId!,
+          product_category: v.product_category as ComplaintTypeRow["product_category"],
+          label: v.label,
+        })
+      }
+      onUpdate={(id, v) =>
+        updateMut.mutateAsync({
+          id,
+          patch: { product_category: v.product_category as ComplaintTypeRow["product_category"], label: v.label },
+        })
+      }
+      onDelete={(id) => deleteMut.mutateAsync(id)}
+    />
+  )
+}

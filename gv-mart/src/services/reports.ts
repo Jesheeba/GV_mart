@@ -17,13 +17,37 @@ export function defaultDateRange(days = 30): DateRange {
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }
 }
 
+// ── F2 quick-select date presets ─────────────────────────────────────────
+export const dateRangePresets = ["thisMonth", "previousMonth", "thisYear", "allTime"] as const
+export type DateRangePreset = (typeof dateRangePresets)[number]
+
+/** Meeting spec F2 — "month / previous month / this year / all-time" presets
+ * next to the existing manual from/to pickers. Same yyyy-mm-dd local-date
+ * string shape as defaultDateRange() (what the <input type="date"> and
+ * rangeToTimestamps() both expect). "All-time" has no real epoch to anchor
+ * to, so it just uses a date well before this app could have any data. */
+export function dateRangeForPreset(preset: DateRangePreset): DateRange {
+  const now = new Date()
+  const toStr = (d: Date) => d.toISOString().slice(0, 10)
+  if (preset === "thisMonth") {
+    return { from: toStr(new Date(now.getFullYear(), now.getMonth(), 1)), to: toStr(now) }
+  }
+  if (preset === "previousMonth") {
+    return { from: toStr(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: toStr(new Date(now.getFullYear(), now.getMonth(), 0)) }
+  }
+  if (preset === "thisYear") {
+    return { from: toStr(new Date(now.getFullYear(), 0, 1)), to: toStr(now) }
+  }
+  return { from: "2000-01-01", to: toStr(now) }
+}
+
 // ── ADM-27 Sales & Service report ───────────────────────────────────────
 // "No. of sales calls" reads the real `call_logs` table (added in
 // 20260702170500_lunch_and_calls.sql, populated by every tap-to-call in the
 // technician app — v2.2 §6.5 "calls are tracked and recorded").
 export type SalesServiceReport = {
   salesCallsCount: number
-  invoiceTypeRatio: { type: Enums<"invoice_type">; count: number; total: number }[]
+  invoiceTypeRatio: { type: Enums<"invoice_type">; count: number; total: number; percent: number }[]
   technicianServiceCounts: { technicianId: string; technicianName: string; count: number; revenue: number }[]
   avgValuePerServiceCall: number
   totalRevenue: number
@@ -66,7 +90,15 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
     existing.total += inv.total ?? 0
     ratioMap.set(inv.type, existing)
   }
-  const invoiceTypeRatio = [...ratioMap.entries()].map(([type, v]) => ({ type, ...v }))
+  // "Shown as ratios" gap fix — this used to return only raw counts/totals
+  // despite the field being named *Ratio; add the actual percentage share of
+  // invoice count each type represents, so the UI can show real ratios.
+  const invoiceCountTotal = invoices.length
+  const invoiceTypeRatio = [...ratioMap.entries()].map(([type, v]) => ({
+    type,
+    ...v,
+    percent: invoiceCountTotal > 0 ? Math.round((v.count / invoiceCountTotal) * 100) : 0,
+  }))
 
   type VisitRow = { id: string; technician_id: string; service_charge: number | null; technicians: { id: string; profiles: { full_name: string } | null } | null }
   const visits = (visitsRes.data ?? []) as unknown as VisitRow[]
@@ -169,12 +201,28 @@ export type PerformanceRow = {
   avgRating: number | null
   reviewCount: number
   conversionPercent: number | null
+  /** Average `timer_end - timer_start` (minutes) across this tech's visits in
+   *  range that have both timestamps set. Null if none qualify. */
+  avgCompletionMinutes: number | null
+  /** jobsDone ÷ total on-duty hours in range (sum of each attendance day's
+   *  `check_out_at - check_in_at`, days missing either timestamp skipped).
+   *  Null if there's no on-duty time to divide by. */
+  productivityJobsPerHour: number | null
+}
+
+// Same `end - start` → minutes diff used ad hoc by TicketDetailPage's
+// `minutesBetween` and HistoryDetailPage's duration computation — duplicated
+// here per this codebase's convention of not centralizing this small
+// date-math helper into a shared util.
+function minutesBetween(start: string | null, end: string | null) {
+  if (!start || !end) return null
+  return Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000)
 }
 
 export async function getPerformanceReport(orgId: string, range: DateRange): Promise<PerformanceRow[]> {
   const { fromIso, toIso } = rangeToTimestamps(range)
 
-  const [visitsRes, ticketsRes, ratingsRes, leadsRes] = await Promise.all([
+  const [visitsRes, ticketsRes, ratingsRes, leadsRes, attendanceRes] = await Promise.all([
     supabase
       .from("service_visits")
       .select("id, technician_id, service_charge, timer_start, timer_end, needs_revisit, technicians(id, profiles(full_name))")
@@ -199,11 +247,21 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
       .eq("org_id", orgId)
       .gte("created_at", fromIso)
       .lte("created_at", toIso),
+    // Productivity denominator (on-duty hours) — `check_out_at` is a new
+    // column landing on `attendance` alongside the check-out flow; queried
+    // directly like other recently-added columns elsewhere in this codebase.
+    supabase
+      .from("attendance")
+      .select("technician_id, date, check_in_at, check_out_at")
+      .eq("org_id", orgId)
+      .gte("date", range.from)
+      .lte("date", range.to),
   ])
   if (visitsRes.error) throw visitsRes.error
   if (ticketsRes.error) throw ticketsRes.error
   if (ratingsRes.error) throw ratingsRes.error
   if (leadsRes.error) throw leadsRes.error
+  if (attendanceRes.error) throw attendanceRes.error
 
   type VisitRow = {
     id: string
@@ -229,6 +287,8 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
       avgRating: null,
       reviewCount: 0,
       conversionPercent: null,
+      avgCompletionMinutes: null,
+      productivityJobsPerHour: null,
     }
     row.jobsDone += 1
     row.revenue += v.service_charge ?? 0
@@ -299,8 +359,44 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
         avgRating: null,
         reviewCount: 0,
         conversionPercent: a.total ? Math.round((a.won / a.total) * 1000) / 10 : null,
+        avgCompletionMinutes: null,
+        productivityJobsPerHour: null,
       })
     }
+  }
+
+  // Avg completion time — mean of per-visit `timer_end - timer_start` minutes
+  // among this tech's visits in range that have both timestamps set.
+  const completionAgg = new Map<string, { sum: number; count: number }>()
+  for (const v of visits) {
+    const minutes = minutesBetween(v.timer_start, v.timer_end)
+    if (minutes == null) continue
+    const a = completionAgg.get(v.technician_id) ?? { sum: 0, count: 0 }
+    a.sum += minutes
+    a.count += 1
+    completionAgg.set(v.technician_id, a)
+  }
+  for (const [techId, a] of completionAgg) {
+    const row = byTech.get(techId)
+    if (row) row.avgCompletionMinutes = a.count ? Math.round(a.sum / a.count) : null
+  }
+
+  // Productivity — jobsDone ÷ total on-duty hours in range. On-duty hours are
+  // summed per attendance day where both check_in_at and check_out_at are
+  // present; a day missing either (not checked out yet, or a historical row
+  // predating the check-out flow) contributes nothing rather than NaN.
+  type AttendanceRow = { technician_id: string; date: string; check_in_at: string | null; check_out_at: string | null }
+  const attendance = (attendanceRes.data ?? []) as unknown as AttendanceRow[]
+  const dutyHours = new Map<string, number>()
+  for (const a of attendance) {
+    if (!a.check_in_at || !a.check_out_at) continue
+    const hours = (new Date(a.check_out_at).getTime() - new Date(a.check_in_at).getTime()) / 3_600_000
+    if (!Number.isFinite(hours) || hours <= 0) continue
+    dutyHours.set(a.technician_id, (dutyHours.get(a.technician_id) ?? 0) + hours)
+  }
+  for (const [techId, hours] of dutyHours) {
+    const row = byTech.get(techId)
+    if (row) row.productivityJobsPerHour = hours > 0 ? Math.round((row.jobsDone / hours) * 100) / 100 : null
   }
 
   void ticketsRes // ticket-level 24h-resolution KPI surfaced via getOpsResolutionKpi below
@@ -426,6 +522,35 @@ export async function getFeedbackReport(orgId: string, range: DateRange): Promis
   })
 
   return { starsDistribution, averageRating, trend, lowRatingEntries }
+}
+
+// ── Log Expense (ADM-28 gap fix) ─────────────────────────────────────────
+// The only pre-existing write path into `expenses` was create_bill_entry(),
+// which always hardcodes category='purchase' (20260702170400_bill_entry_fix
+// .sql). This is the missing UI/service entry point for the other 5
+// categories. RLS (expenses_write_ops, 20260701091300_rls.sql) already lets
+// ops staff (master/operation_admin) insert — no schema or policy change
+// needed. `expenses` has no free-text note/description column (only
+// id/org_id/category/amount/ref_id/date/created_at/updated_at — see
+// 20260701091000_hr_finance.sql), so this input intentionally has no note
+// field; ref_id is left unset (nullable, used elsewhere to link an expense
+// back to its originating record, e.g. a purchase bill — there's nothing to
+// link a manually-logged expense to).
+export type CreateExpenseInput = {
+  orgId: string
+  category: Enums<"expense_category">
+  amount: number
+  date: string
+}
+
+export async function createExpense(input: CreateExpenseInput) {
+  const { data, error } = await supabase
+    .from("expenses")
+    .insert({ org_id: input.orgId, category: input.category, amount: input.amount, date: input.date })
+    .select()
+    .single()
+  if (error) throw error
+  return data
 }
 
 // ── CSV export (no xlsx/exceljs dependency exists in package.json — plain

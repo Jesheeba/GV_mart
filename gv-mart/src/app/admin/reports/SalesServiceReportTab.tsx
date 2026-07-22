@@ -73,7 +73,10 @@ export function SalesServiceReportTab() {
           {(data?.invoiceTypeRatio ?? []).map((r) => (
             <div key={r.type} className="rounded-xl border border-border bg-surface p-4">
               <p className="text-xs font-medium text-text-muted">{t(`reports.invoiceType.${r.type}`)}</p>
-              <p className="mt-1 text-2xl font-bold text-text">{r.count}</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <p className="text-2xl font-bold text-text">{r.count}</p>
+                <p className="text-sm font-semibold text-accent">{r.percent}%</p>
+              </div>
               <p className="text-xs text-text-muted">{formatCurrency(r.total)}</p>
             </div>
           ))}

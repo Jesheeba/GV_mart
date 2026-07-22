@@ -208,6 +208,18 @@ export function useBookServiceTicket() {
   })
 }
 
+// B4 (Build Order Step 4): the customer's own standing exemption windows —
+// shown as red, pre-populated "already blocked" entries in the booking
+// wizard so they don't have to re-mark a school-run/medical window that's
+// already on file (admin manages the actual list, see useCustomers.ts).
+export function useMyExemptionWindows(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "exemptionWindows", customerId],
+    queryFn: () => api.listMyExemptionWindows(customerId!),
+    enabled: !!customerId,
+  })
+}
+
 // ── Bookings / History (CUST-07) ──────────────────────────────────────────
 
 export function useMyTickets(customerId: string | undefined) {

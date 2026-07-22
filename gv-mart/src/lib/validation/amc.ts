@@ -17,5 +17,14 @@ export const sellAmcSchema = z.object({
   productId: z.string().uuid("amc.errors.roProductRequired"),
   planId: z.string().uuid("amc.errors.planRequired"),
   startDate: z.string().min(1, "amc.errors.startDateRequired"),
+  // Fix 1: "choose how many years, price computes" — defaults to the
+  // selected plan's own `years` (see SellAmcPanel), but is now genuinely
+  // changeable, reusing the same positive-integer rule as amcPlanSchema.years.
+  years: z.coerce.number().int().positive("amc.errors.yearsPositive"),
 })
-export type SellAmcInput = z.infer<typeof sellAmcSchema>
+// zod v4 input/output split (z.coerce.number()'s input is `unknown`, output
+// is `number`) — same two-type pattern as lib/validation/settings.ts's
+// SettingsFormInput/SettingsOutput, needed here for the first time now that
+// this schema has a coerced field.
+export type SellAmcFormInput = z.input<typeof sellAmcSchema>
+export type SellAmcInput = z.output<typeof sellAmcSchema>

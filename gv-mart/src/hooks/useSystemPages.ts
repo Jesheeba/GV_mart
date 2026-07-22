@@ -75,6 +75,18 @@ export function useDecideApproval() {
   })
 }
 
+/** Build Order C2: approving a `type = 'po'` approval — releases the linked draft PO, not just a status flip. */
+export function useApprovePurchaseOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (approvalId: string) => sys.approvePurchaseOrder(approvalId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["approvals"] })
+      qc.invalidateQueries({ queryKey: ["purchaseOrders"] })
+    },
+  })
+}
+
 // ── Complaints & Escalations ──────────────────────────────────────────────
 export function useOverdueSlaTickets(orgId: string | undefined) {
   return useQuery({

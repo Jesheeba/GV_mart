@@ -8,7 +8,7 @@ export type AmcStatus = Enums<"amc_status">
 export type AmcContractListItem = AmcContractRow & {
   customers: { name: string; mobile: string } | null
   products: { name: string } | null
-  amc_plans: { name: string; years: number; price: number } | null
+  amc_plans: { name: string; years: number; price: number; price_per_year: number | null } | null
 }
 
 export type WarrantyListItem = WarrantyRow & {
@@ -19,7 +19,7 @@ export type WarrantyListItem = WarrantyRow & {
 export async function listAmcContracts(orgId: string): Promise<AmcContractListItem[]> {
   const { data, error } = await supabase
     .from("amc_contracts")
-    .select("*, customers(name, mobile), products(name), amc_plans(name, years, price)")
+    .select("*, customers(name, mobile), products(name), amc_plans(name, years, price, price_per_year)")
     .eq("org_id", orgId)
     .order("expiry_date")
   if (error) throw error
@@ -47,6 +47,10 @@ export type SellAmcInput = {
   productId: string
   planId: string
   startDate: string
+  /** Fix 1: choose a duration other than the plan's own default `years`.
+   * Optional — sell_amc_plan falls back to the plan's own years when
+   * omitted, for backward compatibility. */
+  years?: number
 }
 
 export async function sellAmcPlan(input: SellAmcInput) {
@@ -56,6 +60,7 @@ export async function sellAmcPlan(input: SellAmcInput) {
     p_product_id: input.productId,
     p_plan_id: input.planId,
     p_start_date: input.startDate,
+    p_years: input.years ?? null,
   })
   if (error) throw error
   return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }
@@ -66,7 +71,7 @@ export type AmcContractDetail = AmcContractListItem
 export async function getAmcContract(id: string): Promise<AmcContractDetail> {
   const { data, error } = await supabase
     .from("amc_contracts")
-    .select("*, customers(name, mobile), products(name), amc_plans(name, years, price)")
+    .select("*, customers(name, mobile), products(name), amc_plans(name, years, price, price_per_year)")
     .eq("id", id)
     .single()
   if (error) throw error

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { Loader2, Search, ShieldCheck, TriangleAlert } from "lucide-react"
+import { useFieldArray, useForm } from "react-hook-form"
+import { AlertTriangle, Info, Loader2, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,14 +12,15 @@ import { Stepper } from "@/components/shared/Stepper"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { DraftBanner } from "@/components/shared/DraftBanner"
 import { useProfile } from "@/hooks/useProfile"
-import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
-import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
+import { useCustomer, useCustomerAutocomplete, useCustomerExemptionWindows } from "@/hooks/useCustomers"
+import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
 import {
   useCreateComplaintTicket,
   useCustomerAddresses,
   useDetectTicketType,
   useOwnedEquipment,
+  useSlaSettings,
 } from "@/hooks/useService"
 import {
   complaintAppointmentStepSchema,
@@ -27,7 +28,12 @@ import {
   type ComplaintAppointmentStepInput,
   type ComplaintDetailsStepInput,
 } from "@/lib/validation/service"
+import { isBookableDate, isNarrowWindow, largestFreeWindow, type TimeWindow } from "@/lib/booking-window"
 import { TicketTypeBadge } from "./TicketBadges"
+
+function todayInput() {
+  return new Date().toISOString().slice(0, 10)
+}
 
 const PRIORITIES = ["very_urgent", "urgent", "normal"] as const
 const DRAFT_KEY = "gv_mart_draft:admin_new_complaint"
@@ -125,6 +131,8 @@ export function NewComplaintPage() {
   const resolvedProduct = (owned.data ?? []).find((o) => o.productId === resolvedProductId)
   const resolvedBrandId = equipmentMode === "owned" ? (resolvedProduct?.brandId ?? "") : newBrandId
   const resolvedModelId = equipmentMode === "owned" ? (resolvedProduct?.modelId ?? "") : newModelId
+  // category comes from the products master (owned-equipment rows don't carry it).
+  const resolvedProductCategory = (products ?? []).find((p) => p.id === resolvedProductId)?.category
 
   // Step 3: complaint details
   const detailsForm = useForm<ComplaintDetailsStepInput>({
@@ -133,6 +141,19 @@ export function NewComplaintPage() {
     defaultValues: { nameOfComplaint: "", natureOfComplaint: "", priority: "normal" },
   })
 
+  // Meeting spec E1: complaint-name master, filtered auto-suggest by the
+  // resolved product's category. No product resolved -> no filter -> empty
+  // suggestion list, field stays plain free text.
+  const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
+  const nameOfComplaintValue = detailsForm.watch("nameOfComplaint")
+  const filteredComplaintTypes = useMemo(() => {
+    if (!resolvedProductCategory) return []
+    const term = (nameOfComplaintValue ?? "").trim().toLowerCase()
+    return (complaintTypes ?? []).filter(
+      (ct) => ct.product_category === resolvedProductCategory && (!term || ct.label.toLowerCase().includes(term))
+    )
+  }, [complaintTypes, resolvedProductCategory, nameOfComplaintValue])
+
   // Step 4: type auto-detect
   const detected = useDetectTicketType(orgId, customerId, resolvedProductId || null)
 
@@ -140,8 +161,16 @@ export function NewComplaintPage() {
   const appointmentForm = useForm<ComplaintAppointmentStepInput>({
     resolver: zodResolver(complaintAppointmentStepSchema),
     mode: "onChange",
-    defaultValues: { mode: "always", scheduledAt: "", autoAssign: true },
+    defaultValues: { mode: "always", scheduledAt: "", autoAssign: true, windowMode: "any", unavailableWindows: [] },
   })
+  const unavailableWindowsField = useFieldArray({ control: appointmentForm.control, name: "unavailableWindows" })
+  const [newWinStart, setNewWinStart] = useState("")
+  const [newWinEnd, setNewWinEnd] = useState("")
+
+  // B4: the customer's own standing exemption windows — shown red so the
+  // admin can see why a slot is off-limits without re-deriving it.
+  const { data: exemptionWindows } = useCustomerExemptionWindows(customerId || undefined)
+  const { data: slaSettings } = useSlaSettings(orgId)
 
   const createTicket = useCreateComplaintTicket()
 
@@ -199,7 +228,7 @@ export function NewComplaintPage() {
     setNewModelId("")
     setNewProductId("")
     detailsForm.reset({ nameOfComplaint: "", natureOfComplaint: "", priority: "normal" })
-    appointmentForm.reset({ mode: "always", scheduledAt: "", autoAssign: true })
+    appointmentForm.reset({ mode: "always", scheduledAt: "", autoAssign: true, windowMode: "any", unavailableWindows: [] })
   }
 
   const steps = [
@@ -244,8 +273,12 @@ export function NewComplaintPage() {
       priority: details.priority,
       channel: "call",
       appointmentMode: appt.mode,
-      scheduledAt: appt.mode === "datetime" && appt.scheduledAt ? new Date(appt.scheduledAt).toISOString() : null,
+      scheduledAt: appt.mode === "datetime" && appt.scheduledAt ? new Date(`${appt.scheduledAt}T00:00:00`).toISOString() : null,
       autoAssign: appt.autoAssign,
+      availableFrom: null,
+      availableTo: null,
+      // B1: raw marks only — exemption windows are folded in server-side.
+      unavailableWindows: appt.mode === "datetime" ? (appt.windowMode === "any" ? [] : appt.unavailableWindows) : null,
     })
     clearDraft()
     navigate(`/admin/service/${result.ticket_id}`)
@@ -433,11 +466,16 @@ export function NewComplaintPage() {
         <Card className="gap-3 px-5">
           <div className="space-y-1.5">
             <Label htmlFor="nameOfComplaint">{t("service.newComplaint.nameOfComplaint")}</Label>
-            <Input
+            <Autocomplete
               id="nameOfComplaint"
+              value={nameOfComplaintValue ?? ""}
+              onChange={(v) => detailsForm.setValue("nameOfComplaint", v, { shouldValidate: true })}
+              suggestions={filteredComplaintTypes}
               placeholder={t("service.newComplaint.nameOfComplaintPlaceholder")}
-              aria-invalid={!!detailsForm.formState.errors.nameOfComplaint}
-              {...detailsForm.register("nameOfComplaint")}
+              emptyMessage={t("common.noData")}
+              getKey={(ct) => ct.id}
+              getLabel={(ct) => ct.label}
+              onSelect={(ct) => detailsForm.setValue("nameOfComplaint", ct.label, { shouldValidate: true })}
             />
             {detailsForm.formState.errors.nameOfComplaint ? (
               <p className="text-xs text-danger">{t(detailsForm.formState.errors.nameOfComplaint.message!)}</p>
@@ -535,19 +573,134 @@ export function NewComplaintPage() {
             ))}
           </div>
           {appointmentForm.watch("mode") === "datetime" ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="scheduledAt">{t("service.newComplaint.scheduledAt")}</Label>
-              <Input
-                id="scheduledAt"
-                type="datetime-local"
-                aria-invalid={!!appointmentForm.formState.errors.scheduledAt}
-                {...appointmentForm.register("scheduledAt")}
-              />
-              <p className="text-xs text-text-muted">{t("service.newComplaint.workHoursHint")}</p>
-              {appointmentForm.formState.errors.scheduledAt ? (
-                <p className="text-xs text-danger">{t(appointmentForm.formState.errors.scheduledAt.message!)}</p>
-              ) : null}
-            </div>
+            (() => {
+              const workStart = (slaSettings?.work_start ?? "09:00").slice(0, 5)
+              const workEnd = (slaSettings?.work_end ?? "19:30").slice(0, 5)
+              const narrowThreshold = slaSettings?.narrow_window_threshold_minutes ?? 90
+              const estimatedMinutes = slaSettings?.default_duration_paid_minutes ?? 45
+              const windowMode = appointmentForm.watch("windowMode")
+              const unavailableWindows = appointmentForm.watch("unavailableWindows") ?? []
+              const exemptionBlocks: TimeWindow[] = (exemptionWindows ?? []).map((w) => ({ start: w.start_time.slice(0, 5), end: w.end_time.slice(0, 5) }))
+              const blockedForPreview = windowMode === "any" ? exemptionBlocks : [...unavailableWindows, ...exemptionBlocks]
+              const freeWindow = largestFreeWindow(workStart, workEnd, blockedForPreview)
+              const narrow = isNarrowWindow(freeWindow, narrowThreshold)
+              const bookableToday = isBookableDate(freeWindow, narrowThreshold, estimatedMinutes)
+              const pickedDate = appointmentForm.watch("scheduledAt")
+
+              return (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="scheduledAt">{t("service.newComplaint.scheduledAt")}</Label>
+                    <Input
+                      id="scheduledAt"
+                      type="date"
+                      min={todayInput()}
+                      aria-invalid={!!appointmentForm.formState.errors.scheduledAt}
+                      {...appointmentForm.register("scheduledAt")}
+                    />
+                    <p className="text-xs text-text-muted">{t("service.newComplaint.workHoursHint")}</p>
+                    {appointmentForm.formState.errors.scheduledAt ? (
+                      <p className="text-xs text-danger">{t(appointmentForm.formState.errors.scheduledAt.message!)}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+                    {(["any", "custom"] as const).map((wm) => (
+                      <button
+                        key={wm}
+                        type="button"
+                        onClick={() => appointmentForm.setValue("windowMode", wm, { shouldValidate: true })}
+                        className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                          windowMode === wm ? "bg-ink text-white" : "text-text-muted"
+                        }`}
+                      >
+                        {t(`customerApp.bookService.windowMode.${wm}`)}
+                      </button>
+                    ))}
+                  </div>
+
+                  {windowMode === "any" ? (
+                    <div className="flex items-start gap-2 rounded-xl border border-accent/30 bg-accent-soft px-3.5 py-2.5 text-xs text-text">
+                      <Info className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                      <span>{t("customerApp.bookService.anyTimeInfo", { start: workStart, end: workEnd })}</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {exemptionBlocks.length > 0 ? (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-text-muted">{t("customerApp.bookService.exemptionWindowsLabel")}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(exemptionWindows ?? []).map((w) => (
+                              <span key={w.id} className="rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+                                {w.label} · {w.start_time.slice(0, 5)}–{w.end_time.slice(0, 5)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-text-muted">{t("customerApp.bookService.unavailableWindowsLabel")}</p>
+                        {unavailableWindowsField.fields.length === 0 ? (
+                          <p className="text-xs text-text-muted">{t("customerApp.bookService.noUnavailableWindows")}</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {unavailableWindowsField.fields.map((f, i) => (
+                              <span key={f.id} className="flex items-center gap-1 rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+                                {f.start}–{f.end}
+                                <button type="button" onClick={() => unavailableWindowsField.remove(i)} aria-label={t("common.remove")}>
+                                  <X className="size-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1 space-y-1.5">
+                          <Label htmlFor="newWinStart">{t("service.newComplaint.availableFrom")}</Label>
+                          <Input id="newWinStart" type="time" value={newWinStart} onChange={(e) => setNewWinStart(e.target.value)} />
+                        </div>
+                        <div className="flex-1 space-y-1.5">
+                          <Label htmlFor="newWinEnd">{t("service.newComplaint.availableTo")}</Label>
+                          <Input id="newWinEnd" type="time" value={newWinEnd} onChange={(e) => setNewWinEnd(e.target.value)} />
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          disabled={!newWinStart || !newWinEnd || newWinStart >= newWinEnd}
+                          onClick={() => {
+                            unavailableWindowsField.append({ start: newWinStart, end: newWinEnd })
+                            setNewWinStart("")
+                            setNewWinEnd("")
+                          }}
+                        >
+                          <Plus className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {pickedDate ? (
+                    freeWindow.availableFrom ? (
+                      <div className={`rounded-xl px-3.5 py-2.5 text-xs ${narrow ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
+                        {narrow
+                          ? t("customerApp.bookService.narrowWindowWarning", { start: freeWindow.availableFrom, end: freeWindow.availableTo })
+                          : t("customerApp.bookService.availableWindowPreview", { start: freeWindow.availableFrom, end: freeWindow.availableTo })}
+                        {!bookableToday ? <span className="mt-1 block">{t("customerApp.bookService.mayMoveNextDay")}</span> : null}
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2 rounded-xl bg-danger/10 px-3.5 py-2.5 text-xs text-danger">
+                        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                        <span>{t("customerApp.bookService.fullyBlockedWarning")}</span>
+                      </div>
+                    )
+                  ) : null}
+                </div>
+              )
+            })()
           ) : null}
           <label className="flex items-center gap-2 text-sm text-text">
             <input type="checkbox" {...appointmentForm.register("autoAssign")} className="size-4 rounded border-border" />

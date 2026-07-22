@@ -51,12 +51,23 @@ export function useMyNotificationsFeed(orgId: string | undefined, userId: string
   })
 }
 
-export function useLogConfirmationCall() {
+export function useUpcomingAppointmentsForConfirmation(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["appointments", "confirmationCall", "upcoming", orgId],
+    queryFn: () => workspace.listUpcomingAppointmentsForConfirmation(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useMarkAppointmentConfirmed() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ orgId, userId, ticketLabel }: { orgId: string; userId: string; ticketLabel: string }) =>
-      workspace.logConfirmationCallAction(orgId, userId, ticketLabel),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+    mutationFn: ({ orgId, userId, appointmentId, ticketLabel }: { orgId: string; userId: string; appointmentId: string; ticketLabel: string }) =>
+      workspace.markAppointmentConfirmationCalled(orgId, userId, appointmentId, ticketLabel),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["appointments", "confirmationCall"] })
+      qc.invalidateQueries({ queryKey: ["notifications"] })
+    },
   })
 }
 

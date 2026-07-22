@@ -12,7 +12,13 @@ import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useRoProducts, useSellAmcPlan } from "@/hooks/useAmc"
 import { amcPlansHooks } from "@/hooks/useMasters"
-import { sellAmcSchema, type SellAmcInput } from "@/lib/validation/amc"
+import { sellAmcSchema, type SellAmcFormInput, type SellAmcInput } from "@/lib/validation/amc"
+import { formatCurrency } from "@/lib/sale-calc"
+// Fix 1: price_per_year (falling back to price/years for any plan created
+// before that column existed) drives the live total below — shared with
+// CustomerAmcPage/AmcWarrantyListPage so every screen agrees (see the
+// single-source-of-truth note on this function's real definition).
+import { pricePerYearOf } from "@/lib/amc-window"
 
 /** Inline "Sell AMC" panel (ADM-12) — no modal primitive in this codebase
  * yet, so this follows the same inline-expand pattern EntityCrudTable uses
@@ -29,14 +35,25 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   const { data: plans } = amcPlansHooks.useList(orgId)
   const sellAmc = useSellAmcPlan()
 
-  const form = useForm<SellAmcInput>({
+  const form = useForm<SellAmcFormInput, unknown, SellAmcInput>({
     resolver: zodResolver(sellAmcSchema),
     mode: "onChange",
-    defaultValues: { customerId: "", productId: "", planId: "", startDate: new Date().toISOString().slice(0, 10) },
+    defaultValues: { customerId: "", productId: "", planId: "", startDate: new Date().toISOString().slice(0, 10), years: 1 },
   })
 
+  const selectedPlan = (plans ?? []).find((p) => p.id === form.watch("planId"))
+  const selectedYears = Number(form.watch("years")) || 0
+  const computedTotal = selectedPlan ? pricePerYearOf(selectedPlan) * selectedYears : 0
+
   async function onSubmit(values: SellAmcInput) {
-    await sellAmc.mutateAsync({ orgId: orgId!, customerId: values.customerId, productId: values.productId, planId: values.planId, startDate: values.startDate })
+    await sellAmc.mutateAsync({
+      orgId: orgId!,
+      customerId: values.customerId,
+      productId: values.productId,
+      planId: values.planId,
+      startDate: values.startDate,
+      years: values.years,
+    })
     onSold()
   }
 
@@ -75,7 +92,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
         {form.formState.errors.customerId ? <p className="text-xs text-danger">{t(form.formState.errors.customerId.message!)}</p> : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="space-y-1.5">
           <Label>{t("amc.sellAmc.roProduct")}</Label>
           <select
@@ -94,7 +111,15 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
         </div>
         <div className="space-y-1.5">
           <Label>{t("amc.sellAmc.plan")}</Label>
-          <select {...form.register("planId")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <select
+            {...form.register("planId", {
+              onChange: (e) => {
+                const plan = (plans ?? []).find((p) => p.id === e.target.value)
+                if (plan) form.setValue("years", plan.years, { shouldValidate: true })
+              },
+            })}
+            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          >
             <option value="">{t("service.filters.all")}</option>
             {(plans ?? []).map((p) => (
               <option key={p.id} value={p.id}>
@@ -105,10 +130,19 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
           {form.formState.errors.planId ? <p className="text-xs text-danger">{t(form.formState.errors.planId.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
+          <Label>{t("amc.sellAmc.years")}</Label>
+          <Input type="number" min={1} step="1" {...form.register("years")} />
+          {form.formState.errors.years ? <p className="text-xs text-danger">{t(form.formState.errors.years.message!)}</p> : null}
+        </div>
+        <div className="space-y-1.5">
           <Label>{t("amc.sellAmc.startDate")}</Label>
           <Input type="date" {...form.register("startDate")} />
         </div>
       </div>
+
+      {selectedPlan ? (
+        <p className="px-1 text-sm font-medium text-text">{t("amc.sellAmc.totalPrice", { amount: formatCurrency(computedTotal) })}</p>
+      ) : null}
 
       {sellAmc.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(sellAmc.error as Error).message}</p> : null}
 

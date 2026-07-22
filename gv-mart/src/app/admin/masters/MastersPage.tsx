@@ -1,12 +1,13 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Gift, Layers, Package, ShieldCheck, SlidersHorizontal, Tag, TrendingUp, Wrench } from "lucide-react"
+import { ClipboardList, Gift, Layers, Package, ShieldCheck, SlidersHorizontal, Tag, TrendingUp, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
 import {
   amcPlansHooks,
   brandsHooks,
+  complaintTypesHooks,
   giftsHooks,
   incentiveRulesHooks,
   modelsHooks,
@@ -21,9 +22,10 @@ import { SparesTab } from "./SparesTab"
 import { GiftsTab } from "./GiftsTab"
 import { AmcPlansTab } from "./AmcPlansTab"
 import { IncentiveRulesTab } from "./IncentiveRulesTab"
+import { ComplaintTypesTab } from "./ComplaintTypesTab"
 import { SettingsTab } from "./SettingsTab"
 
-type ModuleId = "brands" | "models" | "products" | "spares" | "gifts" | "amcPlans" | "incentives" | "settings"
+type ModuleId = "brands" | "models" | "products" | "spares" | "gifts" | "amcPlans" | "incentives" | "complaintTypes" | "settings"
 
 // Icon-swatch colors cycle through the design's palette (design-template-decoded.html
 // line 1273-1278: orange / blue / green / amber / ink) — a presentational rotation,
@@ -49,6 +51,7 @@ export function MastersPage() {
   const { data: gifts } = giftsHooks.useList(orgId)
   const { data: amcPlans } = amcPlansHooks.useList(orgId)
   const { data: incentiveRules } = incentiveRulesHooks.useList(orgId)
+  const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
 
   const modules: { id: ModuleId; icon: typeof Tag; swatch: keyof typeof SWATCH; title: string; desc: string }[] = [
     { id: "brands", icon: Tag, swatch: "ink", title: t("masters.tabs.brands"), desc: t("masters.overview.brandsDesc", { count: brands?.length ?? 0 }) },
@@ -58,6 +61,7 @@ export function MastersPage() {
     { id: "gifts", icon: Gift, swatch: "green", title: t("masters.tabs.gifts"), desc: t("masters.overview.giftsDesc", { count: gifts?.length ?? 0 }) },
     { id: "amcPlans", icon: ShieldCheck, swatch: "info", title: t("masters.tabs.amcPlans"), desc: t("masters.overview.amcPlansDesc", { count: amcPlans?.length ?? 0 }) },
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
+    { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypes?.length ?? 0 }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
   ]
 
@@ -111,6 +115,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="incentives">
             <IncentiveRulesTab />
+          </TabsContent>
+          <TabsContent value="complaintTypes">
+            <ComplaintTypesTab />
           </TabsContent>
           <TabsContent value="settings">
             <SettingsTab />

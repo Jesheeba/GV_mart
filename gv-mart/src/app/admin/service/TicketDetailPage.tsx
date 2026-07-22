@@ -1,17 +1,19 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { Loader2, Pencil, UserCog } from "lucide-react"
+import { CalendarClock, Loader2, Pencil, ShieldOff, TriangleAlert, UserCog } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
+import { useCustomerExemptionWindows } from "@/hooks/useCustomers"
 import {
   useAssignTicketTechnician,
   useAutoAssignTicket,
   useCustomerAddresses,
   useTechnicians,
   useTicket,
+  useTicketEvidence,
   useUpdateTicketAddress,
 } from "@/hooks/useService"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
@@ -28,7 +30,11 @@ export function TicketDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { data: ticket, isLoading, isError, refetch } = useTicket(id)
+  const { data: evidence, isLoading: evidenceLoading, isError: evidenceError, refetch: refetchEvidence } = useTicketEvidence(id)
   const { data: technicians } = useTechnicians(ticket?.org_id)
+  // B4: shown red here as the "technician/scheduling view" the spec calls
+  // out — no assignment should happen inside these windows.
+  const exemptionWindows = useCustomerExemptionWindows(ticket?.customer_id)
   const autoAssign = useAutoAssignTicket()
   const assign = useAssignTicketTechnician()
   const [pickerTechId, setPickerTechId] = useState("")
@@ -75,6 +81,18 @@ export function TicketDetailPage() {
           <TicketTypeBadge type={ticket.type} />
           <PriorityBadge priority={ticket.priority} />
           <SlaCountdown slaDueAt={ticket.sla_due_at} status={ticket.status} />
+          {appointment?.is_narrow_window ? (
+            <span className="flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
+              <CalendarClock className="size-3" />
+              {t("service.detail.narrowWindowBadge")}
+            </span>
+          ) : null}
+          {appointment?.next_day_priority ? (
+            <span className="flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
+              {t("service.detail.nextDayPriorityBadge")}
+              {appointment.rescheduled_from_date ? ` (${t("service.detail.rescheduledFrom", { date: new Date(appointment.rescheduled_from_date).toLocaleDateString() })})` : ""}
+            </span>
+          ) : null}
           {ticket.invoice_id ? (
             <span className="text-xs text-text-muted">{t("service.detail.createdFromInvoice", { id: ticket.invoice_id.slice(0, 8) })}</span>
           ) : null}
@@ -122,6 +140,22 @@ export function TicketDetailPage() {
             </div>
           )}
         </div>
+
+        {(appointment?.appointment_unavailable_windows?.length ?? 0) > 0 || (exemptionWindows.data?.length ?? 0) > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
+            <ShieldOff className="size-3.5 text-danger" />
+            {(appointment?.appointment_unavailable_windows ?? []).map((w) => (
+              <span key={w.id} className="rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+                {w.start_time.slice(0, 5)}–{w.end_time.slice(0, 5)}
+              </span>
+            ))}
+            {(exemptionWindows.data ?? []).filter((w) => w.is_active).map((w) => (
+              <span key={w.id} className="rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+                {w.label} · {w.start_time.slice(0, 5)}–{w.end_time.slice(0, 5)}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </Card>
 
       <Card className="gap-3 px-5">
@@ -187,6 +221,208 @@ export function TicketDetailPage() {
           </div>
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noVisitYet")}</p>
+        )}
+      </Card>
+
+      <Card className="gap-3 px-5">
+        <h2 className="text-sm font-semibold text-text">{t("service.detail.evidence.title")}</h2>
+        {evidenceLoading ? (
+          <div className="flex items-center gap-2 py-3 text-sm text-text-muted">
+            <Loader2 className="size-4 animate-spin text-accent" />
+            {t("service.detail.evidence.loading")}
+          </div>
+        ) : evidenceError || !evidence ? (
+          <div className="flex flex-col items-center gap-2 py-3 text-center">
+            <TriangleAlert className="size-5 text-danger" />
+            <p className="text-sm text-text-muted">{t("service.detail.evidence.loadFailed")}</p>
+            <Button variant="outline" size="xs" onClick={() => refetchEvidence()}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : evidence.visits.length === 0 ? (
+          <p className="text-sm text-text-muted">{t("service.detail.evidence.noVisits")}</p>
+        ) : (
+          <div className="space-y-5">
+            {evidence.visits.map((v, idx) => (
+              <div key={v.id} className={idx > 0 ? "space-y-3 border-t border-border pt-4" : "space-y-3"}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-medium text-text">
+                    {t("service.detail.evidence.visitLabel", { n: evidence.visits.length - idx })}
+                    {" · "}
+                    {v.technicians?.profiles?.full_name ?? "—"}
+                  </h3>
+                  <span className="text-xs text-text-muted">{v.timer_start ? new Date(v.timer_start).toLocaleString() : "—"}</span>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.photos")}</div>
+                  {v.before_image_url || v.after_image_url ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="mb-1 text-[11px] text-text-muted">{t("service.detail.beforeImage")}</div>
+                        {v.before_image_url ? (
+                          <img
+                            src={v.before_image_url}
+                            alt={t("service.detail.beforeImage")}
+                            className="h-32 w-full rounded-lg border border-border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border text-xs text-text-muted">—</div>
+                        )}
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[11px] text-text-muted">{t("service.detail.afterImage")}</div>
+                        {v.after_image_url ? (
+                          <img
+                            src={v.after_image_url}
+                            alt={t("service.detail.afterImage")}
+                            className="h-32 w-full rounded-lg border border-border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border text-xs text-text-muted">—</div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-muted">{t("service.detail.evidence.noPhotos")}</p>
+                  )}
+                </div>
+
+                {v.tech_sign_url || v.customer_sign_url ? (
+                  <div>
+                    <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.signatures")}</div>
+                    <div className="grid grid-cols-2 gap-2 sm:w-64">
+                      <div>
+                        <div className="mb-1 text-[11px] text-text-muted">{t("service.detail.evidence.techSignature")}</div>
+                        {v.tech_sign_url ? (
+                          <img
+                            src={v.tech_sign_url}
+                            alt={t("service.detail.evidence.techSignature")}
+                            className="h-16 w-full rounded-lg border border-border bg-white object-contain"
+                          />
+                        ) : (
+                          <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-border text-xs text-text-muted">—</div>
+                        )}
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[11px] text-text-muted">{t("service.detail.evidence.customerSignature")}</div>
+                        {v.customer_sign_url ? (
+                          <img
+                            src={v.customer_sign_url}
+                            alt={t("service.detail.evidence.customerSignature")}
+                            className="h-16 w-full rounded-lg border border-border bg-white object-contain"
+                          />
+                        ) : (
+                          <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-border text-xs text-text-muted">—</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {v.ro_checklists ? (
+                  <div>
+                    <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.roChecklist")}</div>
+                    <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                      <Field label={t("service.detail.evidence.tdsBefore")} value={v.ro_checklists.tds_before != null ? String(v.ro_checklists.tds_before) : "—"} />
+                      <Field label={t("service.detail.evidence.tdsAfter")} value={v.ro_checklists.tds_after != null ? String(v.ro_checklists.tds_after) : "—"} />
+                      <Field
+                        label={t("service.detail.evidence.tankCleaned")}
+                        value={v.ro_checklists.tank_cleaned == null ? "—" : v.ro_checklists.tank_cleaned ? t("common.yes") : t("common.no")}
+                      />
+                      <Field
+                        label={t("service.detail.evidence.productExplained")}
+                        value={v.ro_checklists.product_explained == null ? "—" : v.ro_checklists.product_explained ? t("common.yes") : t("common.no")}
+                      />
+                      <Field label={t("service.detail.evidence.clientName")} value={v.ro_checklists.client_name || "—"} />
+                    </div>
+                  </div>
+                ) : null}
+
+                {v.notes ? (
+                  <div>
+                    <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.visitNotes")}</div>
+                    <p className="whitespace-pre-wrap rounded-lg border border-border bg-surface-alt p-2.5 text-sm text-text">{v.notes}</p>
+                  </div>
+                ) : null}
+
+                <div>
+                  <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.sparesUsed")}</div>
+                  {v.service_spares_used.length > 0 ? (
+                    <div className="overflow-hidden rounded-lg border border-border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-surface-alt text-xs text-text-muted">
+                          <tr>
+                            <th className="px-2 py-1 text-left font-medium">{t("service.detail.evidence.spareName")}</th>
+                            <th className="px-2 py-1 text-left font-medium">{t("service.detail.evidence.spareSku")}</th>
+                            <th className="px-2 py-1 text-right font-medium">{t("service.detail.evidence.spareQty")}</th>
+                            <th className="px-2 py-1 text-right font-medium">{t("service.detail.evidence.spareCost")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {v.service_spares_used.map((s) => (
+                            <tr key={s.id} className="border-t border-border">
+                              <td className="px-2 py-1 text-text">{s.spares?.name ?? "—"}</td>
+                              <td className="px-2 py-1 text-text">{s.spares?.sku ?? "—"}</td>
+                              <td className="px-2 py-1 text-right text-text">{s.qty}</td>
+                              <td className="px-2 py-1 text-right text-text">₹{s.cost.toLocaleString("en-IN")}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-muted">{t("service.detail.evidence.noSpares")}</p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.gpsTrail")}</div>
+                  {v.locations.length > 0 ? (
+                    <ul className="max-h-32 space-y-0.5 overflow-y-auto rounded-lg border border-border p-2 text-xs text-text-muted">
+                      {v.locations.map((loc) => (
+                        <li key={loc.id}>
+                          {loc.lat}, {loc.lng} @ {new Date(loc.recorded_at).toLocaleTimeString()}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-text-muted">{t("service.detail.evidence.noGps")}</p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.attendanceSelfie")}</div>
+                  {v.attendance_selfie_url ? (
+                    <img
+                      src={v.attendance_selfie_url}
+                      alt={t("service.detail.evidence.attendanceSelfie")}
+                      className="h-20 w-20 rounded-lg border border-border object-cover"
+                    />
+                  ) : (
+                    <p className="text-xs text-text-muted">{t("service.detail.evidence.noSelfie")}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <div className="border-t border-border pt-4">
+              <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.invoice")}</div>
+              {evidence.invoice ? (
+                <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <Field label={t("service.detail.evidence.invoiceAmount")} value={`₹${evidence.invoice.total.toLocaleString("en-IN")}`} />
+                  <Field label={t("service.detail.evidence.invoiceDate")} value={new Date(evidence.invoice.created_at).toLocaleDateString()} />
+                  <Field
+                    label={t("sales.invoice.paymentMethod")}
+                    value={evidence.invoice.payment_method ? t(`sales.payment.${evidence.invoice.payment_method}`) : "—"}
+                  />
+                  <Field label={t("service.detail.evidence.invoicePaymentStatus")} value={t(`sales.invoice.paymentStatus.${evidence.invoice.payment_status}`)} />
+                </div>
+              ) : (
+                <p className="text-xs text-text-muted">{t("service.detail.evidence.noInvoice")}</p>
+              )}
+            </div>
+          </div>
         )}
       </Card>
     </div>

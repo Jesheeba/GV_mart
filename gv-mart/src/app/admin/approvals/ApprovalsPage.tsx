@@ -4,7 +4,8 @@ import { CheckSquare } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
-import { useApprovals, useDecideApproval } from "@/hooks/useSystemPages"
+import { useApprovals, useApprovePurchaseOrder, useDecideApproval } from "@/hooks/useSystemPages"
+import type { ApprovalListItem } from "@/services/systemPages"
 import { ApprovalRow } from "./ApprovalRow"
 
 const TYPE_OPTIONS = ["discount", "po", "price_override", "leave"] as const
@@ -20,10 +21,18 @@ export function ApprovalsPage() {
   const filters = useMemo(() => ({ type: type || undefined, status: status || undefined }), [type, status])
   const { data, isLoading, isError, refetch } = useApprovals(profile?.org_id, filters)
   const decide = useDecideApproval()
+  const approvePo = useApprovePurchaseOrder()
 
-  function handleDecide(id: string, next: "approved" | "rejected") {
+  function handleDecide(approval: ApprovalListItem, next: "approved" | "rejected") {
     if (!profile) return
-    decide.mutate({ id, approverId: profile.id, status: next }, { onError: () => toast.error(t("common.actionFailed")) })
+    // C2: approving a PO must actually release the draft purchase order —
+    // the generic decideApproval is only a status flip with no side effects.
+    // Rejecting a PO stays on the generic path: the PO simply stays 'draft'.
+    if (approval.type === "po" && next === "approved") {
+      approvePo.mutate(approval.id, { onError: () => toast.error(t("common.actionFailed")) })
+      return
+    }
+    decide.mutate({ id: approval.id, approverId: profile.id, status: next }, { onError: () => toast.error(t("common.actionFailed")) })
   }
 
   return (
@@ -77,7 +86,13 @@ export function ApprovalsPage() {
       ) : (
         <div className="space-y-2">
           {data!.map((a) => (
-            <ApprovalRow key={a.id} approval={a} onApprove={() => handleDecide(a.id, "approved")} onReject={() => handleDecide(a.id, "rejected")} isMutating={decide.isPending} />
+            <ApprovalRow
+              key={a.id}
+              approval={a}
+              onApprove={() => handleDecide(a, "approved")}
+              onReject={() => handleDecide(a, "rejected")}
+              isMutating={decide.isPending || approvePo.isPending}
+            />
           ))}
         </div>
       )}

@@ -18,6 +18,7 @@ import Dexie, { type EntityTable } from "dexie"
 export type OutboxKind =
   | "attendance.mark"
   | "attendance.lunch"
+  | "attendance.checkout"
   | "spare_handover.confirm"
   | "service_visit.start"
   | "service_visit.image"

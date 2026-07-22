@@ -29,6 +29,13 @@ export const settingsSchema = z
     sla_hours_very_urgent: z.coerce.number().positive("settings.errors.positive"),
     sla_hours_urgent: z.coerce.number().positive("settings.errors.positive"),
     sla_hours_normal: z.coerce.number().positive("settings.errors.positive"),
+    default_duration_paid_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    default_duration_warranty_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    default_duration_amc_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    default_duration_installation_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    narrow_window_threshold_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    po_approval_threshold: z.coerce.number().min(0, "settings.errors.nonNegative"),
+    po_requires_approval: z.boolean(),
   })
   .refine((v) => v.lunch_minutes_red_threshold > v.lunch_minutes_allowed, {
     message: "settings.errors.lunchRedAfterAllowed",
