@@ -905,6 +905,137 @@ export type Database = {
           },
         ]
       }
+      purchase_quote_requests: {
+        Row: {
+          id: string
+          org_id: string
+          inventory_id: string | null
+          item_type: Database["public"]["Enums"]["item_type"]
+          item_id: string
+          order_qty: number
+          status: string
+          requested_at: string
+          timeout_at: string
+          resolved_at: string | null
+          resolved_po_id: string | null
+          resolution: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          inventory_id?: string | null
+          item_type: Database["public"]["Enums"]["item_type"]
+          item_id: string
+          order_qty: number
+          status?: string
+          requested_at?: string
+          timeout_at: string
+          resolved_at?: string | null
+          resolved_po_id?: string | null
+          resolution?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          inventory_id?: string | null
+          item_type?: Database["public"]["Enums"]["item_type"]
+          item_id?: string
+          order_qty?: number
+          status?: string
+          requested_at?: string
+          timeout_at?: string
+          resolved_at?: string | null
+          resolved_po_id?: string | null
+          resolution?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_quote_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_quote_requests_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_quote_requests_resolved_po_id_fkey"
+            columns: ["resolved_po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_quote_replies: {
+        Row: {
+          id: string
+          org_id: string
+          request_id: string
+          supplier_id: string
+          price: number
+          note: string | null
+          logged_by: string | null
+          logged_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          request_id: string
+          supplier_id: string
+          price: number
+          note?: string | null
+          logged_by?: string | null
+          logged_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          request_id?: string
+          supplier_id?: string
+          price?: number
+          note?: string | null
+          logged_by?: string | null
+          logged_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_quote_replies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_quote_replies_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_quote_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_quote_replies_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_bills: {
         Row: {
           id: string
@@ -3008,6 +3139,7 @@ export type Database = {
           sla_hours_normal: number
           po_approval_threshold: number
           po_requires_approval: boolean
+          po_quote_timeout_hours: number
           default_duration_paid_minutes: number
           default_duration_warranty_minutes: number
           default_duration_amc_minutes: number
@@ -3042,6 +3174,7 @@ export type Database = {
           sla_hours_normal?: number
           po_approval_threshold?: number
           po_requires_approval?: boolean
+          po_quote_timeout_hours?: number
           default_duration_paid_minutes?: number
           default_duration_warranty_minutes?: number
           default_duration_amc_minutes?: number
@@ -3076,6 +3209,7 @@ export type Database = {
           sla_hours_normal?: number
           po_approval_threshold?: number
           po_requires_approval?: boolean
+          po_quote_timeout_hours?: number
           default_duration_paid_minutes?: number
           default_duration_warranty_minutes?: number
           default_duration_amc_minutes?: number
@@ -3691,6 +3825,14 @@ export type Database = {
       approve_purchase_order: {
         Args: { p_approval_id: string }
         Returns: undefined
+      }
+      resolve_purchase_quote_requests: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
+      log_purchase_quote_reply: {
+        Args: { p_request_id: string; p_supplier_id: string; p_price: number; p_note?: string | null }
+        Returns: string
       }
       log_lead_activity: {
         Args: { p_lead_id: string; p_type: string; p_note: string | null }

@@ -38,6 +38,17 @@ export function useSupplierProducts(orgId: string | undefined, supplierId: strin
     enabled: !!orgId && !!supplierId,
   })
 }
+/** Every supplier linked to one item, cheapest first — used by the PO
+ *  quote-first flow (PurchaseQuotesTab) to populate "which supplier is this
+ *  reply for" without re-deriving it from purchase_quote_requests, and by
+ *  the "cheapest supplier" marker elsewhere. */
+export function useSuppliersForItem(orgId: string | undefined, itemType: "product" | "spare" | undefined, itemId: string | undefined) {
+  return useQuery({
+    queryKey: ["suppliers", "forItem", orgId, itemType, itemId],
+    queryFn: () => suppliers.listSuppliersForItem(orgId!, itemType!, itemId!),
+    enabled: !!orgId && !!itemType && !!itemId,
+  })
+}
 export function useCatalogForLinking(orgId: string | undefined) {
   return useQuery({
     queryKey: ["suppliers", "catalog", orgId],

@@ -70,6 +70,7 @@ export function SettingsTab() {
         narrow_window_threshold_minutes: settings.narrow_window_threshold_minutes,
         po_approval_threshold: Number(settings.po_approval_threshold),
         po_requires_approval: settings.po_requires_approval,
+        po_quote_timeout_hours: Number(settings.po_quote_timeout_hours),
       })
     }
   }, [settings, reset])
@@ -187,7 +188,9 @@ export function SettingsTab() {
           {field("default_min_stock", t("settings.defaultMinStock"), "number", "1")}
           {field("default_reorder_qty", t("settings.defaultReorderQty"), "number", "1")}
           {field("po_approval_threshold", t("settings.poApprovalThreshold"), "number", "100")}
+          {field("po_quote_timeout_hours", t("settings.poQuoteTimeoutHours"), "number", "1")}
         </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.poQuoteTimeoutHoursHint")}</p>
         <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
           <input type="checkbox" className="size-4 accent-accent" {...register("po_requires_approval")} />
           <span>
