@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import { useNavigate } from "react-router-dom"
@@ -7,14 +8,28 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { JobTypeBadge, OverdueBadge, PriorityBadge } from "./components/JobBadges"
+import { JobTypeBadge, OverdueBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
 import { useMyTechnician, useTodaysJobCounts, useTodaysJobs } from "@/hooks/useTechnician"
-import { isOverdueJob, type JobCard } from "@/services/technician"
+import { computeJobOverrun } from "@/lib/job-overrun"
+import { findOpenVisit, isOverdueJob, type JobCard } from "@/services/technician"
 import { cn } from "@/lib/utils"
 
 function formatTime(iso: string | null) {
   if (!iso) return null
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+}
+
+/** Build Order A4: ticks every 30s so an overrunning job's red styling appears
+ *  on the home list without a manual refresh, mirroring JobDetailPage's own tick.
+ *  Also drives the SLA-overdue duration display below, which previously only
+ *  computed `now` once per render. */
+function useNowTick(intervalMs = 30_000) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+  return now
 }
 
 function formatOverdueDuration(slaDueAt: string, now: number, t: TFunction) {
@@ -87,11 +102,16 @@ function JobListItem({ job, now, onOpen }: { job: JobCard; now: number; onOpen: 
   const address = ticket.addresses
   const addressLine = [address?.door_no, address?.area].filter(Boolean).join(", ")
   const time = formatTime(job.scheduled_at)
+  const openVisit = findOpenVisit(ticket.service_visits ?? [])
+  const overrun = computeJobOverrun(
+    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: ticket.estimated_duration_minutes },
+    now
+  )
   const overdue = isOverdueJob(ticket, now)
 
   return (
     <button type="button" onClick={onOpen} className="block w-full text-left">
-      <Card className={cn("gap-2.5 transition-colors hover:bg-surface-alt", overdue ? "border-danger/40 bg-danger/5" : "")}>
+      <Card className={cn("gap-2.5 transition-colors hover:bg-surface-alt", (overdue || overrun.isOverrun) && "border-danger/40 bg-danger/5")}>
         <div className="flex items-start justify-between gap-2 px-1">
           <div className="min-w-0">
             <p className="flex items-center gap-1 truncate text-sm font-semibold text-text">
@@ -109,6 +129,7 @@ function JobListItem({ job, now, onOpen }: { job: JobCard; now: number; onOpen: 
           {job.status === "in_progress" ? (
             <span className="rounded-full bg-info/10 px-2.5 py-0.5 text-xs font-medium text-info">{t("technician.home.inProgress")}</span>
           ) : null}
+          {overrun.isOverrun ? <OverrunBadge overrunByMinutes={overrun.overrunByMinutes!} /> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3 px-1 text-xs text-text-muted">
           {time ? <span>{time}</span> : <span>{t("service.appointment.always")}</span>}
@@ -132,6 +153,7 @@ export function TechnicianHomePage() {
   const { data: profile, isLoading, isError, refetch } = useProfile()
   const technician = useMyTechnician()
   const jobs = useTodaysJobs(technician.data?.id)
+  const now = useNowTick()
   const counts = useTodaysJobCounts(profile?.org_id, technician.data?.id)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
@@ -139,7 +161,6 @@ export function TechnicianHomePage() {
     return <FullPageError message={t("auth.profileLoadError")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
   }
 
-  const now = Date.now()
   const sortedJobs = jobs.data ? sortJobsByPriority(jobs.data, now) : []
 
   return (

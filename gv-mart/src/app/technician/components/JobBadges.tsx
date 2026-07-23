@@ -47,3 +47,15 @@ export function OverdueBadge() {
     </span>
   )
 }
+
+/** Build Order A4: a visit still open past its ticket's estimated_duration_minutes.
+ *  Same danger-token language as PRIORITY_CLASS.very_urgent above, so "this job
+ *  needs attention" reads consistently across badges rather than inventing a new color. */
+export function OverrunBadge({ overrunByMinutes }: { overrunByMinutes: number }) {
+  const { t } = useTranslation()
+  return (
+    <span className="inline-flex items-center rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-medium text-danger">
+      {t("technician.jobDetail.overrunBadge", { count: Math.round(overrunByMinutes) })}
+    </span>
+  )
+}

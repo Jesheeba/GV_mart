@@ -198,6 +198,10 @@ export type JobCard = AppointmentRow & {
     customers: { id: string; name: string; mobile: string } | null
     addresses: { area: string | null; door_no: string | null; lat: number | null; lng: number | null } | null
     products: { name: string } | null
+    // Added for Build Order A4 (job-overrun red styling on the home list) —
+    // the open visit's timer, alongside estimated_duration_minutes which
+    // already rides in on `service_tickets`' own `*` below.
+    service_visits: { id: string; timer_start: string | null; timer_end: string | null }[]
   }
 }
 
@@ -206,7 +210,7 @@ export async function listTodaysJobs(technicianId: string): Promise<JobCard[]> {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,lat,lng), products(name))"
+        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,lat,lng), products(name), service_visits(id,timer_start,timer_end))"
       )
       .eq("technician_id", technicianId)
       .in("status", ["scheduled", "in_progress"])

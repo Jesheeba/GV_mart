@@ -481,6 +481,119 @@ export async function listTechniciansActiveJobs(orgId: string): Promise<Map<stri
   return byTech
 }
 
+// ── Build Order A4: job-overrun detection (elapsed vs estimate) ───────────
+// `service_tickets.estimated_duration_minutes` was added directly to
+// database.ts alongside migration 20260724120000_job_overrun_estimate.sql.
+// The join shape below still needs the same manual `as unknown as {...}[]`
+// cast listTechniciansActiveJobs above uses — supabase-js can't infer nested
+// relationship selects from the generated types either way.
+
+export type TechnicianOpenVisit = {
+  visitId: string
+  ticketId: string
+  timerStart: string | null
+  timerEnd: string | null
+  estimatedDurationMinutes: number | null
+  customerName: string | null
+  addressLabel: string | null
+}
+
+/** Each technician's currently-open visit (timer started, not yet ended) with its
+ *  ticket's admin-set estimate — the input src/lib/job-overrun.ts#computeJobOverrun
+ *  needs. Distinct from listTechniciansActiveJobs above: that one tracks travel
+ *  toward the *next* destination (v2.2 §6.6 idle/off-route); this tracks time
+ *  spent *inside* a job already started. */
+export async function listTechniciansOpenVisits(orgId: string): Promise<Map<string, TechnicianOpenVisit>> {
+  const { data, error } = await supabase
+    .from("service_visits")
+    .select("id, technician_id, ticket_id, timer_start, timer_end, service_tickets(estimated_duration_minutes, customers(name), addresses(door_no, area))")
+    .eq("org_id", orgId)
+    .not("timer_start", "is", null)
+    .is("timer_end", null)
+  if (error) throw error
+  const rows = (data ?? []) as unknown as {
+    id: string
+    technician_id: string
+    ticket_id: string
+    timer_start: string | null
+    timer_end: string | null
+    service_tickets: {
+      estimated_duration_minutes: number | null
+      customers: { name: string } | null
+      addresses: { door_no: string | null; area: string | null } | null
+    } | null
+  }[]
+  const byTech = new Map<string, TechnicianOpenVisit>()
+  for (const r of rows) {
+    const addr = r.service_tickets?.addresses
+    byTech.set(r.technician_id, {
+      visitId: r.id,
+      ticketId: r.ticket_id,
+      timerStart: r.timer_start,
+      timerEnd: r.timer_end,
+      estimatedDurationMinutes: r.service_tickets?.estimated_duration_minutes ?? null,
+      customerName: r.service_tickets?.customers?.name ?? null,
+      addressLabel: [addr?.door_no, addr?.area].filter(Boolean).join(", ") || null,
+    })
+  }
+  return byTech
+}
+
+/**
+ * Admin-side alert for an overrunning job (Build Order A4 "admin popup").
+ * Chosen mechanism: a `notifications` row, same "reuse the existing polling
+ * system" pattern as the header bell (useUnreadNotificationCount, 30s poll)
+ * and refresh_operational_alerts' sla_breach/low_stock/handover_pending rows
+ * (20260715300000_operational_alerts.sql) — not a new push mechanism. Unlike
+ * that migration's scan-on-dashboard-load functions, detection here runs
+ * entirely client-side on TechniciansMapPage (see that page's `now` tick),
+ * which is already the same live-tracking screen `technician_locations`
+ * belongs to — no DB trigger needed per the task's own "prefer client-side
+ * unless there's a concrete reason" guidance.
+ *
+ * `notifications_insert_ops` (20260701091300_rls.sql) lets any ops-staff
+ * client insert directly — no SECURITY DEFINER RPC required. Dedup mirrors
+ * every other notification writer in this codebase: skip if a row for
+ * (org_id, type, ref_id) already exists, regardless of read status, so
+ * re-visiting the map page doesn't spam a fresh notification for a job
+ * that's still overrunning from an earlier visit.
+ */
+export async function notifyJobOverrunAlert(
+  orgId: string,
+  visit: TechnicianOpenVisit,
+  overrunByMinutes: number,
+  location: { lat: number; lng: number; recordedAt: string } | null
+): Promise<void> {
+  const { data: existing, error: checkError } = await supabase
+    .from("notifications")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("type", "job_overrun")
+    .eq("ref_id", visit.visitId)
+    .limit(1)
+  if (checkError) {
+    console.error("Failed to check for an existing job_overrun notification:", checkError)
+    return
+  }
+  if (existing && existing.length > 0) return
+
+  const locationText = location
+    ? ` Last known location: ${location.lat.toFixed(5)}, ${location.lng.toFixed(5)} (as of ${new Date(location.recordedAt).toLocaleTimeString()}).`
+    : " No recent location ping for this technician yet."
+  const { error } = await supabase.from("notifications").insert({
+    org_id: orgId,
+    role: "operation_admin",
+    type: "job_overrun",
+    title: "Job running over its estimated time",
+    body:
+      `${visit.customerName ?? "Customer"}${visit.addressLabel ? ` (${visit.addressLabel})` : ""} — ` +
+      `running ${Math.round(overrunByMinutes)} min over the ${visit.estimatedDurationMinutes ?? "—"} min estimate.` +
+      locationText,
+    ref_id: visit.visitId,
+  })
+  if (error) console.error("Failed to create job_overrun notification:", error)
+}
+
 // ── ADM-16: Attendance ─────────────────────────────────────────────────────
 
 export type AttendanceListItem = AttendanceRow & {

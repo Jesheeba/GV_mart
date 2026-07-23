@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { CalendarClock, Loader2, Pencil, ShieldOff, Trash2, TriangleAlert, UserCog, XCircle } from "lucide-react"
@@ -18,7 +18,10 @@ import {
   useTicket,
   useTicketEvidence,
   useUpdateTicketAddress,
+  useUpdateTicketEstimatedDuration,
 } from "@/hooks/useService"
+import { computeJobOverrun } from "@/lib/job-overrun"
+import { cn } from "@/lib/utils"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
 
@@ -56,6 +59,20 @@ export function TicketDetailPage() {
   const cancelTicket = useCancelServiceTicket()
   const deleteTicket = useDeleteServiceTicket()
 
+  // Build Order A4: admin-set estimate override the overrun check compares
+  // elapsed visit time against (see src/lib/job-overrun.ts). The Phase 1
+  // trigger (_service_tickets_derive_skill_and_duration) already
+  // auto-populates this by ticket type for most tickets — this field is a
+  // per-ticket override, not the primary source.
+  const [editingEstimate, setEditingEstimate] = useState(false)
+  const [estimateDraft, setEstimateDraft] = useState("")
+  const updateEstimate = useUpdateTicketEstimatedDuration()
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const tickId = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(tickId)
+  }, [])
+
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !ticket) {
     return <FullPageError message={t("service.error.loadFailed")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
@@ -63,9 +80,31 @@ export function TicketDetailPage() {
 
   const appointment = ticket.appointments[0]
   const visit = ticket.service_visits?.[0]
+  const openVisit = ticket.service_visits?.find((v) => v.timer_start && !v.timer_end) ?? null
   const totalMinutes = visit ? minutesBetween(visit.timer_start, visit.timer_end) : null
   const canManage = profile?.role === "master" || profile?.role === "operation_admin"
   const canCancelOrDelete = canManage && ticket.status !== "completed" && ticket.status !== "cancelled"
+  const overrun = computeJobOverrun(
+    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: ticket.estimated_duration_minutes },
+    now
+  )
+
+  function startEditingEstimate() {
+    setEstimateDraft(ticket!.estimated_duration_minutes != null ? String(ticket!.estimated_duration_minutes) : "")
+    setEditingEstimate(true)
+  }
+  function saveEstimate() {
+    const trimmed = estimateDraft.trim()
+    const minutes = trimmed === "" ? null : Number(trimmed)
+    if (minutes != null && (!Number.isFinite(minutes) || minutes <= 0)) {
+      toast.error(t("service.detail.estimateInvalid"))
+      return
+    }
+    updateEstimate.mutate(
+      { ticketId: ticket!.id, minutes },
+      { onSuccess: () => setEditingEstimate(false), onError: () => toast.error(t("common.actionFailed")) }
+    )
+  }
 
   function startEditingAddress() {
     setAddressPickerId(ticket!.address_id ?? "")
@@ -313,8 +352,15 @@ export function TicketDetailPage() {
         {assign.data && !assign.data.assigned ? <p className="text-xs text-warning">{t(assign.data.reason_key ?? "service.assign.technicianBusy")}</p> : null}
       </Card>
 
-      <Card className="gap-3 px-5">
-        <h2 className="text-sm font-semibold text-text">{t("service.detail.jobReport")}</h2>
+      <Card className={cn("gap-3 px-5", overrun.isOverrun && "border-danger/40 bg-danger/5")}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-text">{t("service.detail.jobReport")}</h2>
+          {overrun.isOverrun ? (
+            <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-medium text-danger">
+              {t("service.detail.overrunBy", { count: Math.round(overrun.overrunByMinutes!) })}
+            </span>
+          ) : null}
+        </div>
         {visit ? (
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <Field label={t("service.detail.startTime")} value={visit.timer_start ? new Date(visit.timer_start).toLocaleString() : "—"} />
@@ -325,6 +371,38 @@ export function TicketDetailPage() {
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noVisitYet")}</p>
         )}
+        <div>
+          <div className="flex items-center gap-1.5 text-xs text-text-muted">
+            {t("service.detail.estimatedDuration")}
+            {!editingEstimate ? (
+              <button type="button" onClick={startEditingEstimate} className="text-accent" title={t("service.detail.estimatedDuration")}>
+                <Pencil className="size-3" />
+              </button>
+            ) : null}
+          </div>
+          {!editingEstimate ? (
+            <div className="text-text">
+              {ticket.estimated_duration_minutes != null ? t("service.detail.minutes", { count: ticket.estimated_duration_minutes }) : t("service.detail.estimateNotSet")}
+            </div>
+          ) : (
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                value={estimateDraft}
+                onChange={(e) => setEstimateDraft(e.target.value)}
+                placeholder={t("service.detail.estimateNotSet")}
+                className="h-8 w-28 rounded-xl border border-border bg-surface px-2.5 text-sm text-text outline-none"
+              />
+              <Button size="xs" disabled={updateEstimate.isPending} onClick={saveEstimate}>
+                {updateEstimate.isPending ? <Loader2 className="size-3 animate-spin" /> : t("common.save")}
+              </Button>
+              <Button size="xs" variant="ghost" onClick={() => setEditingEstimate(false)}>
+                {t("common.cancel")}
+              </Button>
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card className="gap-3 px-5">

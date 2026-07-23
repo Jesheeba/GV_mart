@@ -1040,6 +1040,10 @@
       "deleteConfirm": "Permanently delete this ticket? This cannot be undone.",
       "deleteSuccess": "Ticket deleted.",
       "deleteBlocked": "This ticket has an invoice or a charged visit attached and cannot be deleted — cancel it instead.",
+      "estimatedDuration": "Estimated duration",
+      "estimateNotSet": "Not set",
+      "estimateInvalid": "Enter a whole number of minutes greater than 0, or leave it blank.",
+      "overrunBy": "Overrun by {{count}} min",
       "beforeImage": "Before photo",
       "afterImage": "After photo",
       "evidence": {
@@ -1668,7 +1672,9 @@
       "historyVoiceNoteLabel": "Previous voice note",
       "navigate": "Navigate",
       "startVisit": "Start visit",
-      "closedTitle": "This job is already closed"
+      "closedTitle": "This job is already closed",
+      "overrunBadge": "{{count}} min over estimate",
+      "overrunNote": "This job is taking longer than its estimated time. The office has been notified."
     },
     "route": {
       "title": "Journey",
@@ -2144,6 +2150,7 @@
       "noActiveJob": "No active job",
       "idleForMinutes": "Idle for {{count}} min",
       "offRoute": "Taking a longer route than expected",
+      "jobOverrunBy": "Job overrunning by {{count}} min",
       "updatedMinutesAgo": "Updated {{count}}m ago",
       "noLocationYet": "No location yet",
       "noPinsTitle": "No live locations",
@@ -2432,7 +2439,8 @@
       "confirmation_call_stub": "Confirmation call",
       "sla_breach": "SLA breach",
       "low_stock": "Low stock",
-      "handover_pending": "Handover pending"
+      "handover_pending": "Handover pending",
+      "job_overrun": "Job overrun"
     }
   },
   "approvals": {
