@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { CheckCircle2, Loader2, Plus, Save, Trash2 } from "lucide-react"
+import { CheckCircle2, Loader2, Plus, Save, Trash2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 import { Stepper } from "@/components/shared/Stepper"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
@@ -37,6 +38,9 @@ import type { Enums } from "@/types/database"
 const STEP_KEYS = ["sop", "spares", "charges", "ro", "afterphoto", "invoice", "signatures", "payment"] as const
 type SopStep = { id: string; name: string; expectedMinutes: number; doneAt: string | null }
 
+const textareaClass =
+  "w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+
 /**
  * Everything in the stepper that has no server representation until its own
  * section's explicit save button is tapped — SOP items not yet marked done,
@@ -50,6 +54,7 @@ type SopStep = { id: string; name: string; expectedMinutes: number; doneAt: stri
 type VisitDraftData = {
   beforeImage: string | null
   afterImage: string | null
+  visitNotes: string
   sopSteps: SopStep[]
   newStepName: string
   newStepMinutes: string
@@ -110,6 +115,7 @@ export function OnSiteVisitPage() {
 
   const [beforeImage, setBeforeImage] = useState<string | null>(null)
   const [afterImage, setAfterImage] = useState<string | null>(null)
+  const [visitNotes, setVisitNotes] = useState("")
   const [sopSteps, setSopSteps] = useState<SopStep[]>([])
   const [newStepName, setNewStepName] = useState("")
   const [newStepMinutes, setNewStepMinutes] = useState("10")
@@ -204,6 +210,7 @@ export function OnSiteVisitPage() {
       const d = draft.data as Partial<VisitDraftData>
       if (d.beforeImage) setBeforeImage(d.beforeImage)
       if (d.afterImage) setAfterImage(d.afterImage)
+      if (d.visitNotes) setVisitNotes(d.visitNotes)
       if (d.sopSteps?.length) setSopSteps(d.sopSteps)
       if (d.newStepName) setNewStepName(d.newStepName)
       if (d.newStepMinutes) setNewStepMinutes(d.newStepMinutes)
@@ -244,6 +251,7 @@ export function OnSiteVisitPage() {
   const draftSnapshot: VisitDraftData = {
     beforeImage,
     afterImage,
+    visitNotes,
     sopSteps,
     newStepName,
     newStepMinutes,
@@ -284,6 +292,7 @@ export function OnSiteVisitPage() {
     suppressNextAutosaveRef.current = true
     setBeforeImage(null)
     setAfterImage(null)
+    setVisitNotes("")
     setSopSteps([])
     setNewStepName("")
     setNewStepMinutes("10")
@@ -373,6 +382,24 @@ export function OnSiteVisitPage() {
     clientName: roClientName,
   }).success
 
+  // Purely visual "over expected time" flag — no admin master, no new data
+  // source. Compares live elapsed time against the technician's own
+  // per-step `expectedMinutes` (typed in when they added the step, see
+  // addSopStep below). The "current" step is the first one not yet marked
+  // done; its start is either the previous step's doneAt timestamp or, for
+  // the first step, the visit's own timer_start — both already-recorded
+  // technician data, nothing new is captured for this. `nowMs` derives from
+  // the already-ticking `elapsedSec` (useVisitTimer) rather than a fresh
+  // Date.now()/interval, so this recomputes on the same per-second tick the
+  // header timer already uses.
+  const currentSopStepIndex = sopSteps.findIndex((s) => !s.doneAt)
+  const currentSopStep = currentSopStepIndex >= 0 ? sopSteps[currentSopStepIndex] : null
+  const currentSopStepStartMs =
+    currentSopStepIndex > 0 ? new Date(sopSteps[currentSopStepIndex - 1].doneAt!).getTime() : startedAt
+  const nowMs = startedAt != null ? startedAt + elapsedSec * 1000 : Date.now()
+  const currentSopStepElapsedMin = currentSopStepStartMs != null ? (nowMs - currentSopStepStartMs) / 60_000 : 0
+  const isCurrentSopStepOverdue = !!currentSopStep && currentSopStepElapsedMin > currentSopStep.expectedMinutes
+
   function canAdvanceFrom(key: (typeof STEP_KEYS)[number]) {
     if (key === "sop") return !!beforeImage && sopAllDone
     if (key === "spares") return true
@@ -449,7 +476,7 @@ export function OnSiteVisitPage() {
     }
     setPaymentError(null)
     try {
-      if (visitId) await endVisit.mutateAsync({ visitId, timerEnd: new Date().toISOString() })
+      if (visitId) await endVisit.mutateAsync({ visitId, timerEnd: new Date().toISOString(), notes: visitNotes })
       // The visit is done — its local draft has served its purpose and would
       // otherwise sit around as stale dead data (or, worse, confusingly
       // "resume" into a job this ticket can no longer be re-entered for).
@@ -497,7 +524,12 @@ export function OnSiteVisitPage() {
     <div className="space-y-4 pt-2 pb-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-text">{t("technician.onsite.title")}</h1>
-        <span className="rounded-full bg-ink px-3 py-1 font-mono text-sm font-semibold text-white">
+        <span
+          className={cn(
+            "rounded-full px-3 py-1 font-mono text-sm font-semibold text-white",
+            isCurrentSopStepOverdue ? "bg-danger" : "bg-ink"
+          )}
+        >
           {minutes}:{seconds}
         </span>
       </div>
@@ -543,27 +575,43 @@ export function OnSiteVisitPage() {
               <p className="px-1 text-sm text-text-muted">{t("technician.onsite.sopEmpty")}</p>
             ) : (
               <div className="space-y-2">
-                {sopSteps.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleSopStep(s)}
-                      disabled={!!s.doneAt}
-                      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-alt text-text-muted disabled:opacity-100"
+                {sopSteps.map((s, idx) => {
+                  const isOverdue = idx === currentSopStepIndex && isCurrentSopStepOverdue
+                  return (
+                    <div
+                      key={s.id}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5",
+                        isOverdue ? "border-danger bg-danger/5" : "border-border"
+                      )}
                     >
-                      {s.doneAt ? <CheckCircle2 className="size-5 text-success" /> : null}
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-text">{s.name}</p>
-                      <p className="text-xs text-text-muted">{t("technician.onsite.sopExpected", { minutes: s.expectedMinutes })}</p>
+                      <button
+                        type="button"
+                        onClick={() => toggleSopStep(s)}
+                        disabled={!!s.doneAt}
+                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-alt text-text-muted disabled:opacity-100"
+                      >
+                        {s.doneAt ? <CheckCircle2 className="size-5 text-success" /> : null}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-text">{s.name}</p>
+                        <p className={cn("text-xs", isOverdue ? "font-medium text-danger" : "text-text-muted")}>
+                          {t("technician.onsite.sopExpected", { minutes: s.expectedMinutes })}
+                        </p>
+                        {isOverdue ? (
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-danger">
+                            <TriangleAlert className="size-3" /> {t("technician.onsite.sopOverdue")}
+                          </p>
+                        ) : null}
+                      </div>
+                      {!s.doneAt ? (
+                        <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeSopStep(s.id)}>
+                          <Trash2 className="size-3.5 text-danger" />
+                        </Button>
+                      ) : null}
                     </div>
-                    {!s.doneAt ? (
-                      <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeSopStep(s.id)}>
-                        <Trash2 className="size-3.5 text-danger" />
-                      </Button>
-                    ) : null}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
             <div className="flex items-end gap-2 px-1">
@@ -661,6 +709,21 @@ export function OnSiteVisitPage() {
         <div className="space-y-4">
           <p className="px-1 text-sm text-text-muted">{t("technician.onsite.afterImageHint")}</p>
           <PhotoCapture label={t("technician.onsite.afterImage")} dataUrl={afterImage} onCaptured={handleAfterImage} />
+
+          <Card className="gap-2">
+            <div className="space-y-1 px-1">
+              <Label htmlFor="visitNotes">{t("technician.onsite.visitNotes.label")}</Label>
+              <p className="text-xs text-text-muted">{t("technician.onsite.visitNotes.hint")}</p>
+            </div>
+            <textarea
+              id="visitNotes"
+              value={visitNotes}
+              onChange={(e) => setVisitNotes(e.target.value)}
+              placeholder={t("technician.onsite.visitNotes.placeholder")}
+              rows={4}
+              className={textareaClass}
+            />
+          </Card>
         </div>
       ) : null}
 

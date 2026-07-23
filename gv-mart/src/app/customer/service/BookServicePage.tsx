@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, CheckCircle2, ChevronRight, Loader2 } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, Info, Loader2, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Stepper } from "@/components/shared/Stepper"
+import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { DraftBanner } from "@/components/shared/DraftBanner"
 import {
@@ -15,14 +16,21 @@ import {
   useCustomerAppSettings,
   useMyAddresses,
   useMyCustomerId,
+  useMyExemptionWindows,
   useMyOwnedProducts,
   useOwnedProducts,
 } from "@/hooks/useCustomerApp"
+import { complaintTypesHooks } from "@/hooks/useMasters"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
+import { isBookableDate, isNarrowWindow, largestFreeWindow, type TimeWindow } from "@/lib/booking-window"
 
 const DRAFT_KEY = "gv_mart_draft:customer_book_service"
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
 type ProductView = "owned" | "categories" | "category"
+
+function todayInput() {
+  return new Date().toISOString().slice(0, 10)
+}
 
 /** Restorable subset of the wizard's state — see useLocalDraft. */
 type BookServiceDraftData = {
@@ -33,7 +41,11 @@ type BookServiceDraftData = {
   natureOfComplaint: string
   addressId: string
   appointmentMode: "always" | "datetime"
-  scheduledAt: string
+  // B1 (Build Order Step 4): date-only + unavailable-windows booking model —
+  // replaces the old exact-time `scheduledAt` + single availableFrom/To pair.
+  pickedDate: string
+  windowMode: "any" | "custom"
+  unavailableWindows: TimeWindow[]
 }
 
 export function BookServicePage() {
@@ -46,6 +58,9 @@ export function BookServicePage() {
   // The customer's actually-owned products (warranty/AMC on file) — the default, primary picker path.
   const { data: myProducts, isLoading: loadingMyProducts } = useMyOwnedProducts(customerId)
   const { data: settings } = useCustomerAppSettings(orgId)
+  // B4: the customer's own standing exemption windows — shown red and
+  // pre-excluded from the derived available window without re-marking them.
+  const { data: exemptionWindows } = useMyExemptionWindows(customerId)
 
   const [step, setStep] = useState(0)
   // Only ever grows — tracks the furthest step reached so navigating back
@@ -60,11 +75,30 @@ export function BookServicePage() {
   const [natureOfComplaint, setNatureOfComplaint] = useState("")
   const [addressId, setAddressId] = useState("")
   const [appointmentMode, setAppointmentMode] = useState<"always" | "datetime">("always")
-  const [scheduledAt, setScheduledAt] = useState("")
+  const [pickedDate, setPickedDate] = useState("")
+  const [windowMode, setWindowMode] = useState<"any" | "custom">("any")
+  const [unavailableWindows, setUnavailableWindows] = useState<TimeWindow[]>([])
+  const [newWinStart, setNewWinStart] = useState("")
+  const [newWinEnd, setNewWinEnd] = useState("")
+  const [windowError, setWindowError] = useState("")
 
   const bookTicket = useBookServiceTicket()
 
   const selectedProduct = useMemo(() => (products ?? []).find((p) => p.id === productId), [products, productId])
+
+  // Meeting spec E1: complaint-name master, filtered auto-suggest by the
+  // selected product's category (AC -> Not Cooling, Sound Problem…; RO ->
+  // No Water, No Taste… — different lists). No product selected yet (or
+  // "not sure / not listed") -> no category to filter by, so the field
+  // falls back to plain free text (suggestions list is just empty).
+  const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
+  const filteredComplaintTypes = useMemo(() => {
+    if (!selectedProduct) return []
+    const term = nameOfComplaint.trim().toLowerCase()
+    return (complaintTypes ?? []).filter(
+      (ct) => ct.product_category === selectedProduct.category && (!term || ct.label.toLowerCase().includes(term))
+    )
+  }, [complaintTypes, selectedProduct, nameOfComplaint])
 
   // Local draft persistence — see useLocalDraft's doc comment.
   const draftSnapshot: BookServiceDraftData = {
@@ -75,7 +109,9 @@ export function BookServicePage() {
     natureOfComplaint,
     addressId,
     appointmentMode,
-    scheduledAt,
+    pickedDate,
+    windowMode,
+    unavailableWindows,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<BookServiceDraftData>(DRAFT_KEY, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -92,7 +128,9 @@ export function BookServicePage() {
     if (restoredDraft.natureOfComplaint) setNatureOfComplaint(restoredDraft.natureOfComplaint)
     if (restoredDraft.addressId) setAddressId(restoredDraft.addressId)
     if (restoredDraft.appointmentMode) setAppointmentMode(restoredDraft.appointmentMode)
-    if (restoredDraft.scheduledAt) setScheduledAt(restoredDraft.scheduledAt)
+    if (restoredDraft.pickedDate) setPickedDate(restoredDraft.pickedDate)
+    if (restoredDraft.windowMode) setWindowMode(restoredDraft.windowMode)
+    if (restoredDraft.unavailableWindows) setUnavailableWindows(restoredDraft.unavailableWindows)
   }, [restoredDraft])
 
   // The booking is done — the local draft has served its purpose and would
@@ -125,7 +163,9 @@ export function BookServicePage() {
     setNatureOfComplaint("")
     setAddressId("")
     setAppointmentMode("always")
-    setScheduledAt("")
+    setPickedDate("")
+    setWindowMode("any")
+    setUnavailableWindows([])
   }
 
   const steps = [
@@ -142,6 +182,7 @@ export function BookServicePage() {
   }
 
   if (bookTicket.isSuccess) {
+    const result = bookTicket.data
     return (
       <div className="flex min-h-[70vh] items-center justify-center pt-2">
         <Card className="max-w-md items-center gap-3 py-8 text-center">
@@ -150,6 +191,15 @@ export function BookServicePage() {
           </span>
           <h1 className="px-1 text-lg font-bold text-text">{t("customerApp.bookService.bookedTitle")}</h1>
           <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.bookedBody")}</p>
+          {result?.scheduled_at ? (
+            <p className="px-1 text-sm font-medium text-text">
+              {new Date(result.scheduled_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
+              {result.available_from && result.available_to ? ` · ${result.available_from.slice(0, 5)}–${result.available_to.slice(0, 5)}` : ""}
+            </p>
+          ) : null}
+          {result?.next_day_priority ? (
+            <p className="mx-1 rounded-xl bg-warning/10 px-3.5 py-2.5 text-xs text-warning">{t("customerApp.bookService.nextDayPriorityNote")}</p>
+          ) : null}
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate("/customer")}>
               {t("customerApp.bookService.backHome")}
@@ -166,12 +216,21 @@ export function BookServicePage() {
   // the brief window before settings has loaded.
   const workStart = (settings?.work_start ?? "09:00").slice(0, 5)
   const workEnd = (settings?.work_end ?? "19:30").slice(0, 5)
-  const scheduledTime = scheduledAt.slice(11, 16)
-  const scheduledAtWithinHours = !!scheduledAt && scheduledTime >= workStart && scheduledTime <= workEnd
-  // "Anytime" needs nothing further; "datetime" mode isn't valid until a
-  // time is actually picked and it falls within working hours — previously
-  // this wasn't checked at all, letting an empty/out-of-hours pick through.
-  const appointmentValid = appointmentMode === "always" || scheduledAtWithinHours
+  const narrowThreshold = settings?.narrow_window_threshold_minutes ?? 90
+  // No detected ticket type yet at booking time (that's server-side, on
+  // submit) — the paid-service default is a reasonable stand-in for the
+  // client-only "will this likely fit today" preview; the server always
+  // recomputes with the ticket's real type once it exists.
+  const estimatedMinutes = settings?.default_duration_paid_minutes ?? 45
+
+  const exemptionBlocks: TimeWindow[] = (exemptionWindows ?? []).map((w) => ({ start: w.start_time.slice(0, 5), end: w.end_time.slice(0, 5) }))
+  const blockedForPreview = windowMode === "any" ? exemptionBlocks : [...unavailableWindows, ...exemptionBlocks]
+  const freeWindow = largestFreeWindow(workStart, workEnd, blockedForPreview)
+  const narrow = isNarrowWindow(freeWindow, narrowThreshold)
+  const bookableToday = isBookableDate(freeWindow, narrowThreshold, estimatedMinutes)
+
+  // B1: only a DATE is required now — "Anytime" needs nothing further.
+  const appointmentValid = appointmentMode === "always" || !!pickedDate
 
   const canGoNext =
     (step === 0 && (productUnknown || !!productId)) ||
@@ -183,6 +242,22 @@ export function BookServicePage() {
     const next = Math.min(step + 1, steps.length - 1)
     setStep(next)
     setMaxStepReached((m) => Math.max(m, next))
+  }
+
+  function addUnavailableWindow() {
+    setWindowError("")
+    if (!newWinStart || !newWinEnd) return
+    if (newWinStart >= newWinEnd) {
+      setWindowError(t("customerApp.bookService.availableWindowInvalid"))
+      return
+    }
+    setUnavailableWindows((prev) => [...prev, { start: newWinStart, end: newWinEnd }].sort((a, b) => a.start.localeCompare(b.start)))
+    setNewWinStart("")
+    setNewWinEnd("")
+  }
+
+  function removeUnavailableWindow(index: number) {
+    setUnavailableWindows((prev) => prev.filter((_, i) => i !== index))
   }
 
   async function handleSubmit() {
@@ -197,7 +272,12 @@ export function BookServicePage() {
       natureOfComplaint,
       priority: "normal",
       appointmentMode,
-      scheduledAt: appointmentMode === "datetime" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      scheduledAt: appointmentMode === "datetime" && pickedDate ? new Date(`${pickedDate}T00:00:00`).toISOString() : null,
+      availableFrom: null,
+      availableTo: null,
+      // B1: the raw marks only — exemption windows are folded in server-side
+      // from customer_exemption_windows, not resubmitted as one-off marks.
+      unavailableWindows: appointmentMode === "datetime" ? (windowMode === "any" ? [] : unavailableWindows) : null,
     })
   }
 
@@ -346,11 +426,16 @@ export function BookServicePage() {
         <Card className="gap-3">
           <div className="space-y-1.5 px-1">
             <Label htmlFor="nameOfComplaint">{t("customerApp.bookService.nameOfComplaint")}</Label>
-            <Input
+            <Autocomplete
               id="nameOfComplaint"
               value={nameOfComplaint}
-              onChange={(e) => setNameOfComplaint(e.target.value)}
+              onChange={setNameOfComplaint}
+              suggestions={filteredComplaintTypes}
               placeholder={t("customerApp.bookService.nameOfComplaintPlaceholder")}
+              emptyMessage={t("common.noData")}
+              getKey={(ct) => ct.id}
+              getLabel={(ct) => ct.label}
+              onSelect={(ct) => setNameOfComplaint(ct.label)}
             />
           </div>
           <div className="space-y-1.5 px-1">
@@ -410,14 +495,99 @@ export function BookServicePage() {
                 </button>
               ))}
             </div>
+
             {appointmentMode === "datetime" ? (
-              <div className="space-y-1.5">
-                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} aria-invalid={!appointmentValid} />
-                <p className="text-xs text-text-muted">{t("customerApp.bookService.workHoursHint")}</p>
-                {!scheduledAt ? (
-                  <p className="text-xs text-warning">{t("customerApp.bookService.timeRequired")}</p>
-                ) : !scheduledAtWithinHours ? (
-                  <p className="text-xs text-danger">{t("customerApp.bookService.timeOutsideWorkHours", { start: workStart, end: workEnd })}</p>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pickedDate">{t("customerApp.bookService.pickDate")}</Label>
+                  <Input id="pickedDate" type="date" min={todayInput()} value={pickedDate} onChange={(e) => setPickedDate(e.target.value)} aria-invalid={!pickedDate} />
+                  {!pickedDate ? <p className="text-xs text-warning">{t("customerApp.bookService.dateRequired")}</p> : null}
+                </div>
+
+                <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+                  {(["any", "custom"] as const).map((wm) => (
+                    <button
+                      key={wm}
+                      type="button"
+                      onClick={() => setWindowMode(wm)}
+                      className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        windowMode === wm ? "bg-ink text-white" : "text-text-muted"
+                      }`}
+                    >
+                      {t(`customerApp.bookService.windowMode.${wm}`)}
+                    </button>
+                  ))}
+                </div>
+
+                {windowMode === "any" ? (
+                  <div className="flex items-start gap-2 rounded-xl border border-accent/30 bg-accent-soft px-3.5 py-2.5 text-xs text-text">
+                    <Info className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                    <span>{t("customerApp.bookService.anyTimeInfo", { start: workStart, end: workEnd })}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {exemptionBlocks.length > 0 ? (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-text-muted">{t("customerApp.bookService.exemptionWindowsLabel")}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(exemptionWindows ?? []).map((w) => (
+                            <span key={w.id} className="rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+                              {w.label} · {w.start_time.slice(0, 5)}–{w.end_time.slice(0, 5)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-text-muted">{t("customerApp.bookService.unavailableWindowsLabel")}</p>
+                      {unavailableWindows.length === 0 ? (
+                        <p className="text-xs text-text-muted">{t("customerApp.bookService.noUnavailableWindows")}</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {unavailableWindows.map((w, i) => (
+                            <span key={`${w.start}-${w.end}-${i}`} className="flex items-center gap-1 rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+                              {w.start}–{w.end}
+                              <button type="button" onClick={() => removeUnavailableWindow(i)} aria-label={t("common.remove")}>
+                                <X className="size-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1 space-y-1.5">
+                        <Label htmlFor="newWinStart">{t("customerApp.bookService.availableFrom")}</Label>
+                        <Input id="newWinStart" type="time" value={newWinStart} onChange={(e) => setNewWinStart(e.target.value)} />
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <Label htmlFor="newWinEnd">{t("customerApp.bookService.availableTo")}</Label>
+                        <Input id="newWinEnd" type="time" value={newWinEnd} onChange={(e) => setNewWinEnd(e.target.value)} />
+                      </div>
+                      <Button type="button" size="icon" variant="outline" onClick={addUnavailableWindow} disabled={!newWinStart || !newWinEnd}>
+                        <Plus className="size-4" />
+                      </Button>
+                    </div>
+                    {windowError ? <p className="text-xs text-danger">{windowError}</p> : null}
+                  </div>
+                )}
+
+                {pickedDate ? (
+                  freeWindow.availableFrom ? (
+                    <div className={`rounded-xl px-3.5 py-2.5 text-xs ${narrow ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
+                      {narrow
+                        ? t("customerApp.bookService.narrowWindowWarning", { start: freeWindow.availableFrom, end: freeWindow.availableTo })
+                        : t("customerApp.bookService.availableWindowPreview", { start: freeWindow.availableFrom, end: freeWindow.availableTo })}
+                      {!bookableToday ? <span className="mt-1 block">{t("customerApp.bookService.mayMoveNextDay")}</span> : null}
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2 rounded-xl bg-danger/10 px-3.5 py-2.5 text-xs text-danger">
+                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                      <span>{t("customerApp.bookService.fullyBlockedWarning")}</span>
+                    </div>
+                  )
                 ) : null}
               </div>
             ) : null}
@@ -455,8 +625,10 @@ export function BookServicePage() {
               <span className="text-text">
                 {appointmentMode === "always"
                   ? t("customerApp.bookService.mode.always")
-                  : scheduledAt
-                    ? new Date(scheduledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                  : pickedDate
+                    ? `${new Date(`${pickedDate}T00:00:00`).toLocaleDateString(undefined, { dateStyle: "medium" })}${
+                        windowMode === "any" ? ` · ${t("customerApp.bookService.windowMode.any")}` : freeWindow.availableFrom ? ` · ${freeWindow.availableFrom}–${freeWindow.availableTo}` : ""
+                      }`
                     : "—"}
               </span>
             </p>

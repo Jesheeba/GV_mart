@@ -177,3 +177,14 @@ export function useRefreshOperationalAlerts(orgId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   })
 }
+
+/** Admin "Evidence" card on TicketDetailPage (Bug 7 / UI Suggestion 4) — a
+ *  separate, independently-loading query from useTicket so the page's fast
+ *  3-card view isn't blocked on this heavier per-visit fetch. */
+export function useTicketEvidence(ticketId: string | undefined) {
+  return useQuery({
+    queryKey: ["service_tickets", "evidence", ticketId],
+    queryFn: () => service.getTicketEvidence(ticketId!),
+    enabled: !!ticketId,
+  })
+}

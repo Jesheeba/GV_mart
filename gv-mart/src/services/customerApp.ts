@@ -14,7 +14,9 @@ export type ServiceTicketRow = Tables<"service_tickets">
 export type AppointmentRow = Tables<"appointments">
 export type AmcContractRow = Tables<"amc_contracts">
 export type WarrantyRow = Tables<"warranties">
-export type AmcPlanRow = Tables<"amc_plans">
+// price_per_year post-dates the last database.ts regen — see the AMC
+// section below for why this is widened locally instead of editing that file.
+export type AmcPlanRow = Tables<"amc_plans"> & { price_per_year: number | null }
 export type ProductRow = Tables<"products">
 export type LeadRow = Tables<"leads">
 export type VideoLibraryRow = Tables<"video_library">
@@ -175,6 +177,8 @@ export async function registerProductViaQr(orgId: string, productId: string, ser
 
 // ── Service Booking (CUST-02) ─────────────────────────────────────────────
 
+export type UnavailableWindowInput = { start: string; end: string }
+
 export type ServiceBookingRpcInput = {
   orgId: string
   addressId: string
@@ -186,6 +190,22 @@ export type ServiceBookingRpcInput = {
   priority: Enums<"priority_level">
   appointmentMode: Enums<"appointment_mode">
   scheduledAt: string | null
+  // Customer availability time window (Phase 1.5 of the technician
+  // assignment rework) — only meaningful when appointmentMode is
+  // 'datetime'; null/undefined otherwise. `p_available_from`/`p_available_to`
+  // post-date the last database.ts regen (see book_service_ticket's new
+  // trailing params in 20260721091000_appointment_availability_window.sql),
+  // so they're intentionally typed here rather than sourced from the
+  // generated RPC Args type.
+  availableFrom?: string | null
+  availableTo?: string | null
+  // B1 (Build Order Step 4): the windows the customer marked as NOT
+  // available on their chosen date. Undefined/null = legacy caller (server
+  // falls back to availableFrom/availableTo as-is); an array (possibly
+  // empty — "Any time") engages the server's date-only + unavailable-
+  // windows computation, including the B2 narrow-window guard and B3
+  // next-day-priority bump. See 20260723101000_step4_booking_rpcs.sql.
+  unavailableWindows?: UnavailableWindowInput[] | null
 }
 
 export async function bookServiceTicket(input: ServiceBookingRpcInput) {
@@ -200,9 +220,43 @@ export async function bookServiceTicket(input: ServiceBookingRpcInput) {
     p_priority: input.priority,
     p_appointment_mode: input.appointmentMode,
     p_scheduled_at: input.scheduledAt,
+    p_available_from: input.availableFrom ?? null,
+    p_available_to: input.availableTo ?? null,
+    p_unavailable_windows: input.unavailableWindows ?? null,
   })
   if (error) throw error
-  return data as { ticket_id: string; appointment_id: string | null; detected_type: { type: string; reason_key: string }; lead_id: string | null }
+  return data as {
+    ticket_id: string
+    appointment_id: string | null
+    detected_type: { type: string; reason_key: string }
+    lead_id: string | null
+    assign_result: { assigned: boolean; reason_key?: string } | null
+    // B3 feedback (Build Order Step 4) — only meaningful when the booking
+    // went through the new date+unavailable-windows path (appointment_id
+    // not null and mode was 'datetime' with p_unavailable_windows sent).
+    scheduled_at: string | null
+    available_from: string | null
+    available_to: string | null
+    is_narrow_window: boolean | null
+    next_day_priority: boolean | null
+  }
+}
+
+// ── Exemption windows (B4, Build Order Step 4) — read-only here; admin CRUD
+// lives in services/customers.ts. Used to render the customer's own standing
+// exemption windows as red, pre-populated "already blocked" entries in the
+// booking wizard's unavailable-windows picker. ───────────────────────────
+export type CustomerExemptionWindowRow = Tables<"customer_exemption_windows">
+
+export async function listMyExemptionWindows(customerId: string): Promise<CustomerExemptionWindowRow[]> {
+  const { data, error } = await supabase
+    .from("customer_exemption_windows")
+    .select("*")
+    .eq("customer_id", customerId)
+    .eq("is_active", true)
+    .order("start_time")
+  if (error) throw error
+  return data ?? []
 }
 
 // ── Bookings / History (CUST-07) ──────────────────────────────────────────
@@ -232,14 +286,27 @@ export async function getTicketDetail(ticketId: string) {
 }
 
 // ── AMC (CUST-03) ─────────────────────────────────────────────────────────
+// `price_per_year` (migration 20260716130000_amc_price_per_year_and_covered_
+// spares.sql) post-dates the last database.ts regen — widened locally the
+// same way as `AmcPlanRow` in services/masters.ts rather than editing that
+// shared generated file.
 
-export async function listAmcPlans(orgId: string) {
+export async function listAmcPlans(orgId: string): Promise<AmcPlanRow[]> {
   const { data, error } = await supabase.from("amc_plans").select("*").eq("org_id", orgId).order("years")
   if (error) throw error
-  return data
+  return (data ?? []) as unknown as AmcPlanRow[]
 }
 
-export type RenewAmcInput = { orgId: string; productId: string; planId: string; paymentReference: string }
+export type RenewAmcInput = {
+  orgId: string
+  productId: string
+  planId: string
+  paymentReference: string
+  /** Fix 1: choose a duration other than the plan's own default `years`.
+   * Optional — renew_amc_plan falls back to the plan's own years when
+   * omitted, for backward compatibility. */
+  years?: number
+}
 
 export async function renewAmcPlan(input: RenewAmcInput) {
   const { data, error } = await supabase.rpc("renew_amc_plan", {
@@ -247,6 +314,7 @@ export async function renewAmcPlan(input: RenewAmcInput) {
     p_product_id: input.productId,
     p_plan_id: input.planId,
     p_payment_reference: input.paymentReference,
+    p_years: input.years ?? null,
   })
   if (error) throw error
   return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }

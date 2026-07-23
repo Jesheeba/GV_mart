@@ -4,17 +4,55 @@ import type { Enums, Tables } from "@/types/database"
 export type TaskRow = Tables<"tasks">
 export type NotificationRow = Tables<"notifications">
 
+export type TaskRowWithRollover = TaskRow
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
 // ── ADM-31 Workspace: to-do checklist over `tasks` ───────────────────────
-// "Today's list" = due_date <= today AND status != 'done'. Anything with
-// due_date < today AND status still 'open' is shown with a "rolled over"
-// visual treatment client-side — there is no midnight cron flipping
-// status to 'rolled' (BuildSpec explicitly says this isn't required yet;
-// the enum value is a hook for a future scheduled job).
-export async function listMyWorkspaceTasks(orgId: string, assigneeId: string): Promise<TaskRow[]> {
+// Genuine lazy rollover: there is no cron/scheduled-job infrastructure in
+// this project, so "carrying a task forward" happens the first time an
+// overdue-but-not-done task is actually fetched. For every row still
+// matching due_date < today, this stamps original_due_date (the first-ever
+// due date, preserved via coalesce so repeated rolls don't lose it),
+// bumps due_date to today, and increments rolled_count — a real state
+// mutation, not just a display filter. Because due_date becomes today as
+// part of the roll, the very next fetch that same day no longer matches
+// `due_date < today`, so a task is never re-rolled twice in one day without
+// needing any extra "already rolled today" bookkeeping column.
+async function rollOverOverdueTasks(rows: TaskRowWithRollover[]): Promise<TaskRowWithRollover[]> {
+  const today = todayIso()
+  const overdue = rows.filter((r) => r.status !== "done" && !!r.due_date && r.due_date < today)
+  if (overdue.length === 0) return rows
+
+  const rolled = await Promise.all(
+    overdue.map(async (task) => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .update({
+          original_due_date: task.original_due_date ?? task.due_date,
+          due_date: today,
+          rolled_count: (task.rolled_count ?? 0) + 1,
+        })
+        .eq("id", task.id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    })
+  )
+
+  const rolledById = new Map(rolled.map((r) => [r.id, r]))
+  return rows.map((r) => rolledById.get(r.id) ?? r)
+}
+
+// "Today's list" = due_date <= today AND status != 'done'. Any row that's
+// still overdue (due_date < today) is rolled forward via
+// rollOverOverdueTasks before the list is returned, so the UI always shows
+// a task's *current* due_date (today, once rolled) plus rolled_count/
+// original_due_date for the "rolled over Nx" treatment.
+export async function listMyWorkspaceTasks(orgId: string, assigneeId: string): Promise<TaskRowWithRollover[]> {
   const { data, error } = await supabase
     .from("tasks")
     .select("*")
@@ -24,7 +62,7 @@ export async function listMyWorkspaceTasks(orgId: string, assigneeId: string): P
     .neq("status", "done")
     .order("due_date", { ascending: true })
   if (error) throw error
-  return data ?? []
+  return rollOverOverdueTasks(data ?? [])
 }
 
 export async function listUpcomingWorkspaceTasks(orgId: string, assigneeId: string): Promise<TaskRow[]> {
@@ -85,13 +123,60 @@ export async function listMyNotificationsFeed(orgId: string, userId: string, rol
   return merged.slice(0, limit)
 }
 
-// ── "AI confirmation-call" card stub (ADM-31) ─────────────────────────────
-// No real telephony/AI exists in this app (BuildSpec: build as a manual
-// card with a "Mark confirmed" button that just logs the action). Logged as
-// a lead_activities-style note is not always applicable (not every
-// dispatch has a lead), so this logs a notifications row instead — visible
-// in both the Workspace feed and the Notifications Center.
-export async function logConfirmationCallAction(orgId: string, userId: string, ticketLabel: string): Promise<void> {
+// ── "AI confirmation-call" list, per-appointment (ADM-31) ─────────────────
+// No real telephony/AI exists in this app — this is still a manual "Mark
+// confirmed" action that just logs it (BuildSpec), the only change is that
+// it's now tied to a specific appointment instead of one generic button.
+export type AppointmentRow = Tables<"appointments">
+export type UpcomingAppointmentForConfirmation = AppointmentRow & {
+  service_tickets: {
+    id: string
+    name_of_complaint: string | null
+    customers: { name: string } | null
+  } | null
+}
+
+// "Upcoming" here mirrors the today/tomorrow window a confirmation call is
+// actually useful for (call the customer shortly before the technician is
+// dispatched, not days in advance). Uses the same
+// `new Date(\`${date}T00:00:00\`).toISOString()` day-boundary convention
+// getDaySheetSummary below already relies on. confirmation_called_at isn't
+// filterable server-side without widening the query builder's column-name
+// generic (it's constrained to keyof Row for .is/.gte/.lte), so — same as
+// getSlaSettings's locally-widened-row approach — the "not yet called" cut
+// is applied client-side after casting the response.
+export async function listUpcomingAppointmentsForConfirmation(orgId: string): Promise<UpcomingAppointmentForConfirmation[]> {
+  const today = todayIso()
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const fromIso = new Date(`${today}T00:00:00`).toISOString()
+  const toIso = new Date(`${tomorrow}T23:59:59.999`).toISOString()
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("*, service_tickets(id, name_of_complaint, customers(name))")
+    .eq("org_id", orgId)
+    .eq("status", "scheduled")
+    .gte("scheduled_at", fromIso)
+    .lte("scheduled_at", toIso)
+    .order("scheduled_at", { ascending: true })
+  if (error) throw error
+  const rows = data ?? []
+  return rows.filter((a) => !a.confirmation_called_at)
+}
+
+export async function markAppointmentConfirmationCalled(
+  orgId: string,
+  userId: string,
+  appointmentId: string,
+  ticketLabel: string
+): Promise<void> {
+  const { error: apptError } = await supabase
+    .from("appointments")
+    .update({ confirmation_called_at: new Date().toISOString() })
+    .eq("id", appointmentId)
+    .eq("org_id", orgId)
+  if (apptError) throw apptError
+
   const { error } = await supabase.from("notifications").insert({
     org_id: orgId,
     user_id: userId,

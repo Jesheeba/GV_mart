@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { Enums } from "@/types/database"
 
@@ -26,6 +27,23 @@ export function PriorityBadge({ priority }: { priority: Enums<"priority_level"> 
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PRIORITY_CLASS[priority]}`}>
       {t(`technician.priority.${priority}`)}
+    </span>
+  )
+}
+
+/**
+ * Bug 2/3 + UI Suggestion 1/2 — flags a job whose SLA deadline has passed
+ * (see `isOverdueJob` in services/technician.ts, ported from the admin
+ * side's isOverdueRow). Styled like PriorityBadge's very_urgent tone
+ * (bg-danger/10 / text-danger) plus a warning-triangle glyph so it reads
+ * distinctly from the priority pill it sits next to.
+ */
+export function OverdueBadge() {
+  const { t } = useTranslation()
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-medium text-danger">
+      <TriangleAlert className="size-3" />
+      {t("technician.home.counts.overdue")}
     </span>
   )
 }

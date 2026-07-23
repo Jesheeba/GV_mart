@@ -8,8 +8,8 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useProfile } from "@/hooks/useProfile"
 import { useDirectionsDistance } from "@/hooks/useMaps"
 import { useJobDetail, useMyTechnician, useStartVisit, useTechnicianSettings, useTodaysJobs } from "@/hooks/useTechnician"
-import { classifyGeoError, distanceKm, expectedMinutes, watchPosition, type GeoPoint } from "@/lib/offline/geo"
-import { findOpenVisit, isTicketClosed, OFFICE_LOCATION } from "@/services/technician"
+import { classifyGeoError, distanceKm, expectedMinutes, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
+import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, selectNextJob } from "@/services/technician"
 import { cn } from "@/lib/utils"
 
 function googleMapsUrl(dest: GeoPoint) {
@@ -22,7 +22,14 @@ function googleMapsUrl(dest: GeoPoint) {
 // genuinely still far off, or flicker in/out right at the boundary — so
 // arrival requires *sustained* proximity from a fix accurate enough to
 // trust, not one lucky sample.
-const ARRIVAL_THRESHOLD_M = 100
+//
+// This same radius also gates the manual "I've Arrived" button (see
+// `insideArrivalGeofence` below) — tapping it must not start the
+// productivity timer from across town. 250m is the midpoint of tech.md's
+// 200-300m guidance, reconciled here into one shared constant used by both
+// the auto-detect effect and the manual button instead of two diverging
+// thresholds.
+const ARRIVAL_GEOFENCE_RADIUS_M = 250
 const ARRIVAL_CONFIRM_MS = 15_000
 const MAX_USABLE_ACCURACY_M = 75
 
@@ -63,8 +70,26 @@ export function MapPage() {
   // "not arrived". Only an actual destination change re-derives it.
   const arrivalInitForTicketRef = useRef<string | null>(null)
 
+  // Hoisted above fallbackJob below (rather than left inline near their other
+  // use further down) because selectNextJob needs both to pick a
+  // destination: the technician's current position (falling back to the
+  // office when GPS hasn't returned a fix yet, same as the live distance/ETA
+  // card) and the admin-set travel-time rate for projecting arrival times
+  // against each remaining job's availability window.
+  const origin = position ?? OFFICE_LOCATION
+  const perKmMinutes = settings.data?.per_km_minutes ?? 5
+
   const ticket = jobDetail.data
-  const fallbackJob = !ticketId ? todaysJobs.data?.[0] : undefined
+  // Build Order STEP 5 / Assignment spec Phase 4 — when no specific ticket
+  // was chosen (arrived here via the Map tab, not a job's "Navigate"
+  // button), the destination is the nearest remaining job whose
+  // availability window is open at the projected arrival, skipping a closer
+  // job that isn't available yet in favour of a farther one that is (see
+  // computeRouteOrder's doc comment in services/technician.ts). Recomputed
+  // every render from the live position/clock, so once the technician
+  // finishes the job this picked and moves on, the skipped job is
+  // reconsidered fresh from the new position.
+  const fallbackJob = !ticketId ? selectNextJob(todaysJobs.data ?? [], origin, new Date(), perKmMinutes) : undefined
   const destAddress = ticket?.addresses ?? fallbackJob?.service_tickets.addresses ?? null
   const destCustomerName = ticket?.customers?.name ?? fallbackJob?.service_tickets.customers?.name ?? null
   const destTicketId = ticketId ?? fallbackJob?.ticket_id ?? null
@@ -76,8 +101,13 @@ export function MapPage() {
   // unmemoized object would re-run that effect on every render even when
   // the destination hasn't actually changed.
   const dest = useMemo<GeoPoint | null>(() => (destLat != null && destLng != null ? { lat: destLat, lng: destLng } : null), [destLat, destLng])
+  // Gates the manual "I've Arrived" button (Bug 5/6, Logic 5): without this,
+  // tapping it starts the visit/productivity timer regardless of actual GPS
+  // distance to the customer. Same radius and helper as the auto-detect
+  // effect below, just evaluated on every render for the button's
+  // disabled/guard checks rather than the sustained-proximity state machine.
+  const insideArrivalGeofence = position != null && dest != null && isInsideGeofence(position, dest, ARRIVAL_GEOFENCE_RADIUS_M)
 
-  const origin = position ?? OFFICE_LOCATION
   const directions = useDirectionsDistance(dest ? origin : null, dest)
 
   // The confirm-window interval below is set up once and never re-runs (see
@@ -88,7 +118,10 @@ export function MapPage() {
   const handleArrivedRef = useRef<() => void>(() => {})
 
   async function handleArrived() {
-    if (arrivedRef.current || !destTicketId || !profile || !technician.data || destClosed) return
+    // Defense in depth beyond the button's `disabled` guard below — an
+    // in-flight tap racing a fresh out-of-range position update (or a
+    // programmatic call via handleArrivedRef) must not slip through.
+    if (arrivedRef.current || !destTicketId || !profile || !technician.data || destClosed || !insideArrivalGeofence) return
     arrivedRef.current = true
     setArrived(true)
     setArrivedAt(Date.now())
@@ -159,7 +192,7 @@ export function MapPage() {
     if (position.accuracy != null && position.accuracy > MAX_USABLE_ACCURACY_M) {
       return
     }
-    const withinRange = distanceKm(position, dest) * 1000 <= ARRIVAL_THRESHOLD_M
+    const withinRange = isInsideGeofence(position, dest, ARRIVAL_GEOFENCE_RADIUS_M)
     if (!withinRange) {
       withinSinceRef.current = null
       setConfirming(false)
@@ -206,7 +239,6 @@ export function MapPage() {
     return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobDetail.refetch()} retryLabel={t("common.retry")} />
   }
 
-  const perKmMinutes = settings.data?.per_km_minutes ?? 5
   const routeKm = dest ? (directions.data ?? (position ? distanceKm(origin, dest) : null)) : null
   const km = routeKm
   const etaMinutes = km != null ? Math.round(expectedMinutes(km, perKmMinutes)) : null
@@ -301,9 +333,14 @@ export function MapPage() {
             ) : (
               <>
                 {confirming ? <p className="text-center text-xs text-warning">{t("technician.map.confirmingArrivalNote")}</p> : null}
-                <Button type="button" disabled={startVisit.isPending} onClick={() => void handleArrived()}>
+                <Button type="button" disabled={startVisit.isPending || !insideArrivalGeofence} onClick={() => void handleArrived()}>
                   {startVisit.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.map.arrivedButton")}
                 </Button>
+                {!insideArrivalGeofence ? (
+                  <p className="text-center text-xs text-text-muted">
+                    {position ? t("technician.map.arrivedOutsideGeofence", { radius: ARRIVAL_GEOFENCE_RADIUS_M }) : t("technician.map.arrivedNoLocation")}
+                  </p>
+                ) : null}
               </>
             )}
           </Card>

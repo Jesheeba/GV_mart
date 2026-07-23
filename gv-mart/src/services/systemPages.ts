@@ -123,6 +123,18 @@ export async function decideApproval(id: string, approverId: string, status: "ap
   if (error) throw error
 }
 
+/**
+ * Build Order C2: approving a `type = 'po'` approval must actually release
+ * the linked draft purchase order (transition to `sent` + dispatch), which
+ * `decideApproval` above does not do — it only flips the approvals row.
+ * Rejecting a PO approval still goes through `decideApproval`: the PO simply
+ * stays `draft` forever, already the correct terminal state.
+ */
+export async function approvePurchaseOrder(approvalId: string): Promise<void> {
+  const { error } = await supabase.rpc("approve_purchase_order", { p_approval_id: approvalId })
+  if (error) throw error
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // ADM-34 Complaints & Escalations (read-only view over service_tickets)
 // ══════════════════════════════════════════════════════════════════════

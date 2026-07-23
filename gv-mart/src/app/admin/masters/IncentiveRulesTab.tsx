@@ -4,7 +4,7 @@ import { incentiveRulesHooks } from "@/hooks/useMasters"
 import type { IncentiveRuleRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
 
-const TYPES = ["service_income", "sales_income", "review"] as const
+const TYPES = ["service_income", "sales_income", "review", "finder_credit"] as const
 
 /**
  * v2.2 (Design Deltas #42): incentive rates are entirely admin-set here —

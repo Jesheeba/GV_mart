@@ -192,6 +192,7 @@ export async function createBillEntry(input: {
   gst: number
   billDate: string
   billImageUrl: string | null
+  category: Enums<"expense_category">
 }) {
   const { data, error } = await supabase.rpc("create_bill_entry", {
     p_org_id: input.orgId,
@@ -201,6 +202,7 @@ export async function createBillEntry(input: {
     p_gst: input.gst,
     p_bill_date: input.billDate,
     p_bill_image_url: input.billImageUrl,
+    p_category: input.category,
   })
   if (error) throw error
   return data
@@ -214,4 +216,47 @@ export async function listPurchaseBills(orgId: string): Promise<(PurchaseBillRow
     .order("created_at", { ascending: false })
   if (error) throw error
   return (data ?? []) as unknown as (PurchaseBillRow & { suppliers: { name: string } | null })[]
+}
+
+// ── Bill Entry prefill (reuse last bill's supplier/items) ───────────────
+export type LastBillEntry = {
+  supplierId: string
+  items: PoItemInput[]
+}
+
+/**
+ * Most recently filed bill for the org, so Bill Entry can default to
+ * "repeat the last bill" instead of always starting blank.
+ *
+ * `purchase_bills` has no line-item table of its own — `create_bill_entry`
+ * (20260702170400_bill_entry_fix.sql) applies each item's qty/price
+ * straight to `inventory` + `inventory_movements` and never persists a
+ * per-bill item breakdown. The only durable record of what a bill actually
+ * contained is `po_items` on the bill's linked `po_id`. So items can only
+ * be prefilled when the last bill was linked to a PO; a PO-less last bill
+ * still prefills the supplier but returns an empty item list (caller falls
+ * back to a blank row, same as the no-history case).
+ */
+export async function getLastBillEntry(orgId: string): Promise<LastBillEntry | null> {
+  const { data: bill, error } = await supabase
+    .from("purchase_bills")
+    .select("supplier_id, po_id")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (!bill) return null
+
+  let items: PoItemInput[] = []
+  if (bill.po_id) {
+    const { data: poItems, error: poItemsError } = await supabase
+      .from("po_items")
+      .select("item_type, item_id, qty, price")
+      .eq("po_id", bill.po_id)
+    if (poItemsError) throw poItemsError
+    items = (poItems ?? []).map((i) => ({ itemType: i.item_type, itemId: i.item_id, qty: i.qty, price: i.price }))
+  }
+
+  return { supplierId: bill.supplier_id, items }
 }

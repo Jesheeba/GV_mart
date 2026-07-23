@@ -73,6 +73,20 @@ export function useCustomerServiceHistory(orgId: string | undefined, customerId:
   })
 }
 
+/**
+ * Merged chronological timeline (service tickets + AMC contract events +
+ * standalone invoices) for the customer detail page's Service History tab.
+ * Kept alongside useCustomerServiceHistory (ticket-only) rather than
+ * replacing it — see getCustomerTimeline's doc comment in services/customers.ts.
+ */
+export function useCustomerTimeline(orgId: string | undefined, customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "timeline", customerId],
+    queryFn: () => customers.getCustomerTimeline(orgId!, customerId!),
+    enabled: !!orgId && !!customerId,
+  })
+}
+
 export function useCustomerInvoices(orgId: string | undefined, customerId: string | undefined) {
   return useQuery({
     queryKey: ["customers", "invoices", customerId],
@@ -167,6 +181,40 @@ export function useMoveMemberOut(orgId: string | undefined, customerId: string) 
       queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
       queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
     },
+  })
+}
+
+// ── Exemption windows (B4, Build Order Step 4) ────────────────────────────
+
+export function useCustomerExemptionWindows(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "exemptionWindows", customerId],
+    queryFn: () => customers.listExemptionWindows(customerId!),
+    enabled: !!customerId,
+  })
+}
+
+export function useAddExemptionWindow(orgId: string | undefined, customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Parameters<typeof customers.addExemptionWindow>[2]) => customers.addExemptionWindow(orgId!, customerId, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers", "exemptionWindows", customerId] }),
+  })
+}
+
+export function useSetExemptionWindowActive(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => customers.updateExemptionWindowActive(id, isActive),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers", "exemptionWindows", customerId] }),
+  })
+}
+
+export function useRemoveExemptionWindow(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => customers.removeExemptionWindow(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers", "exemptionWindows", customerId] }),
   })
 }
 
