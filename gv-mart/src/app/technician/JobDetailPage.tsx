@@ -112,6 +112,23 @@ export function JobDetailPage() {
                 <p className="text-xs text-text-muted">
                   {new Date(h.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · {t(`service.type.${h.type ?? "paid"}`)} · {t(`service.status.${h.status}`)}
                 </p>
+                {/* D6: past notes + parts changed, not just the date — one block per visit (usually one). */}
+                {h.service_visits.map((v) => (
+                  <div key={v.id} className="mt-1.5 space-y-1">
+                    {v.notes ? (
+                      <p className="rounded-lg bg-surface-alt px-2.5 py-1.5 text-xs text-text">
+                        <span className="font-medium text-text-muted">{t("technician.jobDetail.historyNotesLabel")}: </span>
+                        {v.notes}
+                      </p>
+                    ) : null}
+                    {v.service_spares_used.length > 0 ? (
+                      <p className="text-xs text-text-muted">
+                        <span className="font-medium">{t("technician.jobDetail.historySparesLabel")}: </span>
+                        {v.service_spares_used.map((s) => `${s.spares?.name ?? "—"} × ${s.qty}`).join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
               </li>
             ))}
           </ol>

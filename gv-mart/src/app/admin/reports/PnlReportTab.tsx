@@ -1,11 +1,20 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { Loader2, Plus } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
-import { usePnlReport } from "@/hooks/useReports"
+import { usePnlReport, useCreateExpense } from "@/hooks/useReports"
 import { defaultDateRange, downloadCsv, toCsv, type DateRange } from "@/services/reports"
+import { createExpenseSchema, expenseCategories, type CreateExpenseFormInput, type CreateExpenseOutput } from "@/lib/validation/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
+import type { Enums } from "@/types/database"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { DateRangeFilter } from "./DateRangeFilter"
 
 // Expense bar color rank: biggest category = ink, smallest = the muted
@@ -23,6 +32,13 @@ export function PnlReportTab() {
   const { data: profile } = useProfile()
   const [range, setRange] = useState<DateRange>(() => defaultDateRange())
   const [withGst, setWithGst] = useState(true)
+  const [showLogExpense, setShowLogExpense] = useState(false)
+  // F2 category filter — scopes the Expense Breakdown panel below to one
+  // expense_category (reusing the same expenseCategories/expenseCategory.*
+  // i18n pattern LogExpensePanel already uses). Revenue/COGS/OpEx/Net Profit
+  // above stay whole-business figures regardless of this filter — slicing
+  // "Net Profit" down to a single expense category wouldn't mean anything.
+  const [category, setCategory] = useState<Enums<"expense_category"> | "all">("all")
 
   const { data, isLoading, isError, refetch } = usePnlReport(profile?.org_id, range)
   const isMaster = profile?.role === "master"
@@ -39,7 +55,8 @@ export function PnlReportTab() {
   const costOfGoods = data?.expensesByCategory.find((e) => e.category === "purchase")?.amount ?? 0
   const operatingExpenses = (data?.totalExpenses ?? 0) - costOfGoods
 
-  const sortedExpenses = [...(data?.expensesByCategory ?? [])].sort((a, b) => b.amount - a.amount)
+  const categoryFilteredExpenses = category === "all" ? (data?.expensesByCategory ?? []) : (data?.expensesByCategory ?? []).filter((e) => e.category === category)
+  const sortedExpenses = [...categoryFilteredExpenses].sort((a, b) => b.amount - a.amount)
   const maxExpense = Math.max(1, ...sortedExpenses.map((e) => e.amount))
 
   function handleExport() {
@@ -50,7 +67,7 @@ export function PnlReportTab() {
         [t("reports.pnl.revenue"), revenue ?? 0],
         [t("reports.pnl.totalExpenses"), data.totalExpenses],
         [t("reports.pnl.netProfit"), netProfit ?? 0],
-        ...data.expensesByCategory.map((e) => [t(`reports.pnl.expenseCategory.${e.category}`), e.amount]),
+        ...categoryFilteredExpenses.map((e) => [t(`reports.pnl.expenseCategory.${e.category}`), e.amount]),
       ]
     )
     downloadCsv(`pnl-report_${range.from}_${range.to}.csv`, csv)
@@ -135,7 +152,37 @@ export function PnlReportTab() {
           </div>
 
           <div className="rounded-card border border-border bg-surface p-6 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
-            <h3 className="mb-[18px] text-[17px] font-bold tracking-tight text-text">{t("reports.pnl.expenseBreakdown")}</h3>
+            <div className="mb-[18px] flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-[17px] font-bold tracking-tight text-text">{t("reports.pnl.expenseBreakdown")}</h3>
+              <div className="flex items-center gap-2">
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as Enums<"expense_category"> | "all")}
+                  aria-label={t("reports.filters.category")}
+                  className="h-9 rounded-xl border border-border bg-surface px-3 text-xs text-text outline-none"
+                >
+                  <option value="all">{t("reports.filters.allCategories")}</option>
+                  {expenseCategories.map((c) => (
+                    <option key={c} value={c}>
+                      {t(`reports.pnl.expenseCategory.${c}`)}
+                    </option>
+                  ))}
+                </select>
+                <Button size="sm" variant="outline" onClick={() => setShowLogExpense((v) => !v)}>
+                  <Plus className="size-4" />
+                  {t("reports.pnl.logExpense")}
+                </Button>
+              </div>
+            </div>
+
+            {showLogExpense ? (
+              <LogExpensePanel
+                orgId={profile?.org_id}
+                onClose={() => setShowLogExpense(false)}
+                onLogged={() => setShowLogExpense(false)}
+              />
+            ) : null}
+
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
@@ -177,5 +224,74 @@ function PnlRow({ label, value, tone }: { label: string; value: string; tone?: "
       <span className="text-[13px] font-medium text-text-muted">{label}</span>
       <span className={cn("text-[15px] font-bold tabular-nums", tone === "danger" ? "text-danger" : "text-text")}>{value}</span>
     </div>
+  )
+}
+
+/** Inline "Log Expense" panel (ADM-28 gap fix) — mirrors the inline-expand
+ * form convention established by SellAmcPanel.tsx (amc module): a button
+ * toggles this panel open, react-hook-form + zodResolver validates, and a
+ * successful submit calls back up to collapse the panel. Kept local to this
+ * file rather than split out, since this is the only place `expenses` is
+ * written to from the UI. */
+function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefined; onClose: () => void; onLogged: () => void }) {
+  const { t } = useTranslation()
+  const createExpense = useCreateExpense()
+
+  const form = useForm<CreateExpenseFormInput, unknown, CreateExpenseOutput>({
+    resolver: zodResolver(createExpenseSchema),
+    mode: "onChange",
+    defaultValues: { category: "marketing", amount: 0, date: new Date().toISOString().slice(0, 10) },
+  })
+
+  async function onSubmit(values: CreateExpenseOutput) {
+    if (!orgId) return
+    await createExpense.mutateAsync({ orgId, category: values.category, amount: values.amount, date: values.date })
+    onLogged()
+  }
+
+  return (
+    <Card className="mb-4 gap-3 px-5">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-text">{t("reports.pnl.logExpense")}</h4>
+        <Button size="sm" variant="ghost" onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label>{t("reports.pnl.category")}</Label>
+          <select
+            {...form.register("category")}
+            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          >
+            {expenseCategories.map((c) => (
+              <option key={c} value={c}>
+                {t(`reports.pnl.expenseCategory.${c}`)}
+              </option>
+            ))}
+          </select>
+          {form.formState.errors.category ? <p className="text-xs text-danger">{t(form.formState.errors.category.message!)}</p> : null}
+        </div>
+        <div className="space-y-1.5">
+          <Label>{t("reports.pnl.amount")}</Label>
+          <Input type="number" min={0} step="0.01" {...form.register("amount")} />
+          {form.formState.errors.amount ? <p className="text-xs text-danger">{t(form.formState.errors.amount.message!)}</p> : null}
+        </div>
+        <div className="space-y-1.5">
+          <Label>{t("reports.pnl.date")}</Label>
+          <Input type="date" {...form.register("date")} />
+          {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
+        </div>
+      </div>
+
+      {createExpense.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createExpense.error as Error).message}</p> : null}
+
+      <div className="flex justify-end">
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={createExpense.isPending || !orgId}>
+          {createExpense.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
+        </Button>
+      </div>
+    </Card>
   )
 }

@@ -35,7 +35,7 @@ export async function listInventory(orgId: string, itemType: ItemType): Promise<
   })
 }
 
-export async function updateThresholds(id: string, patch: { min_stock: number; reorder_qty: number }) {
+export async function updateThresholds(id: string, patch: { min_stock: number; max_stock: number | null; reorder_qty: number }) {
   const { data, error } = await supabase.from("inventory").update(patch).eq("id", id).select().single()
   if (error) throw error
   return data

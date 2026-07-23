@@ -38,6 +38,7 @@ export const addressStepSchema = z.object({
   landmark: z.string().trim().optional().or(z.literal("")),
   district: z.string().trim().optional().or(z.literal("")),
   state: z.string().trim().optional().or(z.literal("")),
+  zone: z.string().trim().optional().or(z.literal("")),
   addressType: z.enum(["residential", "commercial"]),
   ownership: z.enum(["own", "rental"]),
   lat: z.number().min(-90).max(90).optional(),

@@ -19,3 +19,14 @@ export function isAmcRenewalOpen(
   const daysUntil = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
   return { withinWindow: daysUntil <= windowDays, daysUntil }
 }
+
+/**
+ * `amc_plans.price` is a flat total for the plan's own `years` duration, not
+ * a per-year rate — `price_per_year` (backfilled as `price / years` for any
+ * plan created before that column existed) is the real per-year figure.
+ * Single source of truth so every screen that shows or sums a "per year"
+ * AMC amount agrees with each other — see Build Order Step 1.1/1.2.
+ */
+export function pricePerYearOf(plan: { price: number; years: number; price_per_year?: number | null }): number {
+  return plan.price_per_year ?? Math.round((plan.price / Math.max(plan.years, 1)) * 100) / 100
+}

@@ -31,6 +31,19 @@ export const customerMemberSchema = z.object({
 export type CustomerMemberInput = z.infer<typeof customerMemberSchema>
 
 // ── CUST-02 Service Booking stepper ───────────────────────────────────────
+// B1 (Build Order Step 4): a single window the customer marked as NOT
+// available, "HH:MM" strings from native time inputs. Mirrors
+// lib/validation/service.ts's unavailableWindowSchema (the admin-side
+// equivalent) — kept as a separate declaration rather than a shared import
+// since the two validation files are intentionally independent per-surface
+// (see this file's header).
+const unavailableWindowSchema = z
+  .object({
+    start: z.string().min(1, "customerApp.bookService.availableWindowInvalid"),
+    end: z.string().min(1, "customerApp.bookService.availableWindowInvalid"),
+  })
+  .refine((v) => v.start < v.end, { message: "customerApp.bookService.availableWindowInvalid", path: ["end"] })
+
 export const serviceBookingSchema = z
   .object({
     addressId: z.string().uuid("customerApp.errors.addressRequired"),
@@ -42,9 +55,15 @@ export const serviceBookingSchema = z
     photoUrl: z.string().trim().optional().or(z.literal("")),
     priority: z.enum(["very_urgent", "urgent", "normal"]),
     appointmentMode: z.enum(["always", "datetime"]),
+    // Holds a DATE ("YYYY-MM-DD") when appointmentMode is 'datetime' — B1
+    // replaces exact-time picking with date-only + unavailable-windows.
     scheduledAt: z.string().optional().or(z.literal("")),
+    // "any" = full working-hours window (B1's "Any time"); "custom" = the
+    // windows below are the customer's marked NOT-available times.
+    windowMode: z.enum(["any", "custom"]),
+    unavailableWindows: z.array(unavailableWindowSchema),
   })
-  // v2.2 §6.4: "datetime" mode must have an actual time picked — mirrors
+  // v2.2 §6.4: "datetime" mode must have an actual date picked — mirrors
   // service.ts's complaintAppointmentStepSchema (the admin-side equivalent).
   .refine((v) => v.appointmentMode === "always" || !!v.scheduledAt, {
     message: "customerApp.errors.scheduledAtRequired",

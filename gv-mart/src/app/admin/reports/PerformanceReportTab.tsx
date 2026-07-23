@@ -15,7 +15,24 @@ import { DateRangeFilter } from "./DateRangeFilter"
 // 1242: "0.5fr 1.6fr 1fr 1fr 1fr 1fr 0.9fr") — fractional tracks a <table>
 // can't express, same rationale AmcWarrantyListPage.tsx uses for its
 // bespoke CSS-grid rows instead of the shared <table>-based DataTable.
-const SCOREBOARD_GRID = "grid-cols-[0.5fr_1.6fr_1fr_1fr_1fr_1fr_0.9fr]"
+// Extended from 7 to 9 tracks for Requirement 8's avg-completion-time and
+// productivity columns, inserted between "1st-fix" and "Reviews".
+const SCOREBOARD_GRID = "grid-cols-[0.5fr_1.6fr_1fr_1fr_1fr_1fr_1fr_1fr_0.9fr]"
+
+// "Xh Ym" once we cross an hour, plain minutes below that — kept simple per
+// spec, no need for day-level rollover on a single service visit's duration.
+function formatCompletionMinutes(minutes: number | null) {
+  if (minutes == null) return "—"
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`
+}
+
+function formatProductivity(jobsPerHour: number | null) {
+  if (jobsPerHour == null) return "—"
+  return `${jobsPerHour.toFixed(1)} jobs/hr`
+}
 
 // Avatar swatch cycles through real design tokens only (ink/accent/info/
 // success) — purely presentational, keyed to row order, not identity.
@@ -55,11 +72,22 @@ export function PerformanceReportTab() {
         t("reports.performance.person"),
         t("reports.performance.jobsDone"),
         t("reports.performance.onTimePercent"),
+        t("reports.performance.avgCompletionTime"),
         t("reports.performance.revenue"),
         t("reports.performance.avgRating"),
+        t("reports.performance.productivity"),
         t("reports.performance.conversion"),
       ],
-      data.map((r) => [r.name, r.jobsDone, r.onTimePercent, r.revenue, r.avgRating, r.conversionPercent])
+      data.map((r) => [
+        r.name,
+        r.jobsDone,
+        r.onTimePercent,
+        r.avgCompletionMinutes,
+        r.revenue,
+        r.avgRating,
+        r.productivityJobsPerHour,
+        r.conversionPercent,
+      ])
     )
     downloadCsv(`performance-report_${range.from}_${range.to}.csv`, csv)
   }
@@ -100,6 +128,8 @@ export function PerformanceReportTab() {
               <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.jobsShort")}</span>
               <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.avgPerCall")}</span>
               <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.firstFix")}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.avgCompletionTime")}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.productivity")}</span>
               <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.reviewsShort")}</span>
               <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.conversion")}</span>
             </div>
@@ -107,7 +137,7 @@ export function PerformanceReportTab() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className={cn("grid items-center border-t border-[#F1EDE6] px-3.5 py-3", SCOREBOARD_GRID)}>
-                  {Array.from({ length: 7 }).map((_, j) => (
+                  {Array.from({ length: 9 }).map((_, j) => (
                     <Skeleton key={j} className="h-4 w-3/4 max-w-24" />
                   ))}
                 </div>
@@ -142,6 +172,8 @@ export function PerformanceReportTab() {
                     <span className={cn("text-xs font-semibold tabular-nums", firstFixTone(r.onTimePercent))}>
                       {r.onTimePercent != null ? `${r.onTimePercent}%` : "—"}
                     </span>
+                    <span className="text-xs font-semibold tabular-nums text-text">{formatCompletionMinutes(r.avgCompletionMinutes)}</span>
+                    <span className="text-xs font-semibold tabular-nums text-text">{formatProductivity(r.productivityJobsPerHour)}</span>
                     <span className="text-xs font-semibold tabular-nums text-text">
                       {r.reviewCount}
                       {r.avgRating != null ? <span className="ml-1 font-medium text-text-muted">({r.avgRating}★)</span> : null}

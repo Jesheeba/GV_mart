@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isAmcRenewalOpen } from "./amc-window"
+import { isAmcRenewalOpen, pricePerYearOf } from "./amc-window"
 
 const NOW = new Date("2026-07-10T00:00:00.000Z")
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -46,5 +46,31 @@ describe("isAmcRenewalOpen", () => {
     // ...but past a 29-day window.
     const withinTwentyNine = isAmcRenewalOpen(daysFromNow(29.5), 29, NOW)
     expect(withinTwentyNine.withinWindow).toBe(false)
+  })
+})
+
+describe("pricePerYearOf", () => {
+  it("uses price_per_year directly when the column is populated", () => {
+    // Build Order Step 1.1: a 3-year plan whose flat total is 9000 but whose
+    // real per-year rate (e.g. a discounted multi-year bundle) is 2800/yr —
+    // must NOT fall back to price/years (which would wrongly give 3000).
+    expect(pricePerYearOf({ price: 9000, years: 3, price_per_year: 2800 })).toBe(2800)
+  })
+
+  it("falls back to price/years, rounded to paise, for legacy plans with no price_per_year", () => {
+    expect(pricePerYearOf({ price: 9000, years: 3, price_per_year: null })).toBe(3000)
+    expect(pricePerYearOf({ price: 9000, years: 3 })).toBe(3000)
+    // 1000/3 = 333.333... -> rounds to 2 decimal places, not truncated/floored.
+    expect(pricePerYearOf({ price: 1000, years: 3, price_per_year: undefined })).toBe(333.33)
+  })
+
+  it("treats price_per_year = 0 as a real (free) rate, not a missing value", () => {
+    // Nullish coalescing, not `||` — a genuinely free promo year must not
+    // silently fall back to the flat-total/years approximation.
+    expect(pricePerYearOf({ price: 0, years: 1, price_per_year: 0 })).toBe(0)
+  })
+
+  it("never divides by zero for a malformed years value", () => {
+    expect(pricePerYearOf({ price: 5000, years: 0, price_per_year: null })).toBe(5000)
   })
 })

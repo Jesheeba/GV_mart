@@ -8,6 +8,7 @@ import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { useAmcContracts, useRefreshAmcStatuses, useWarranties } from "@/hooks/useAmc"
 import { amcPlansHooks, useSettings } from "@/hooks/useMasters"
+import { pricePerYearOf } from "@/lib/amc-window"
 import { cn } from "@/lib/utils"
 import { SellAmcPanel } from "./SellAmcPanel"
 import type { AmcContractListItem, WarrantyListItem } from "@/services/amc"
@@ -24,9 +25,10 @@ const TIER_COLORS = ["#8A8A82", "#F5612C", "#1A1A1A"]
 // Matches the design's AMC table grid (design-template-decoded.html line 1098):
 // Customer / Product / Tier / Expiry / Next svc / Status.
 const AMC_GRID = "grid-cols-[1.3fr_1.5fr_0.8fr_0.9fr_0.9fr_1fr]"
-// Warranty has no plan-tier or next-service concept (WarrantyListItem has no
-// such fields) — adapted to Customer / Product / Serial no / Expiry / Status.
-const WARRANTY_GRID = "grid-cols-[1.3fr_1.5fr_1fr_0.9fr_1fr]"
+// Warranties now get proactive quarterly scheduled visits too (next_service_date
+// on warranties), so the table mirrors the AMC grid's Next svc column —
+// Customer / Product / Serial no / Expiry / Next svc / Status.
+const WARRANTY_GRID = "grid-cols-[1.2fr_1.4fr_0.9fr_0.85fr_0.85fr_0.9fr]"
 
 function fmt(date: string | null) {
   return date ? new Date(date).toLocaleDateString("en-IN") : "—"
@@ -118,7 +120,7 @@ export function AmcWarrantyListPage() {
   const activeContractsCount = useMemo(() => (contracts.data ?? []).filter((c) => c.status === "active").length, [contracts.data])
   const dueSoonContracts = useMemo(() => (contracts.data ?? []).filter((c) => c.status === "due_soon"), [contracts.data])
   const renewalAtRisk = useMemo(
-    () => dueSoonContracts.reduce((sum, c) => sum + (c.amc_plans?.price ?? 0), 0),
+    () => dueSoonContracts.reduce((sum, c) => sum + (c.amc_plans ? pricePerYearOf(c.amc_plans) : 0), 0),
     [dueSoonContracts]
   )
 
@@ -289,7 +291,7 @@ function PlanTierCard({
         </div>
         <div className="relative">
           <div className="text-[26px] font-extrabold tracking-tight">
-            ₹{plan.price.toLocaleString("en-IN")}
+            ₹{pricePerYearOf(plan).toLocaleString("en-IN")}
             <span className="text-[13px] font-semibold text-white/85">{t("amc.plans.perYear")}</span>
           </div>
           <div className="mt-1 text-xs font-semibold text-white/90">{activeLabel}</div>
@@ -311,7 +313,7 @@ function PlanTierCard({
         </div>
         <div className="relative">
           <div className="text-[26px] font-extrabold tracking-tight">
-            ₹{plan.price.toLocaleString("en-IN")}
+            ₹{pricePerYearOf(plan).toLocaleString("en-IN")}
             <span className="text-[13px] font-semibold text-white/75">{t("amc.plans.perYear")}</span>
           </div>
           <div className="mt-1 text-xs font-semibold text-white/85">{activeLabel}</div>
@@ -331,7 +333,7 @@ function PlanTierCard({
       </div>
       <div>
         <div className="text-[26px] font-extrabold tracking-tight text-text">
-          ₹{plan.price.toLocaleString("en-IN")}
+          ₹{pricePerYearOf(plan).toLocaleString("en-IN")}
           <span className="text-[13px] font-semibold text-text-muted">{t("amc.plans.perYear")}</span>
         </div>
         <div className="mt-1 text-xs font-semibold text-text-muted">{activeLabel}</div>
@@ -442,7 +444,14 @@ function WarrantyTable({
   onRetry: () => void
 }) {
   const { t } = useTranslation()
-  const headers = [t("amc.list.customer"), t("amc.list.product"), t("amc.list.serialNo"), t("amc.list.expiry"), t("amc.list.status")]
+  const headers = [
+    t("amc.list.customer"),
+    t("amc.list.product"),
+    t("amc.list.serialNo"),
+    t("amc.list.expiry"),
+    t("amc.list.nextSvc"),
+    t("amc.list.status"),
+  ]
 
   return (
     <div>
@@ -485,6 +494,7 @@ function WarrantyTable({
             <span className="text-[13px] font-medium text-[#3A3A36]">{w.products?.name ?? "—"}</span>
             <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{w.serial_no ?? "—"}</span>
             <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{fmt(w.expiry_date)}</span>
+            <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{fmt(w.next_service_date)}</span>
             <StatusDot tone={WARRANTY_STATUS_TONE[w.computedStatus] ?? "neutral"} label={t(`amc.status.${w.computedStatus}`)} />
           </div>
         ))

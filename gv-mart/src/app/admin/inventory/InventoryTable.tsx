@@ -43,7 +43,10 @@ function stockStatus(row: InventoryListItem): StatusKey {
  * of being invented.
  */
 function stockLevelPct(row: InventoryListItem): number {
-  const target = row.min_stock + row.reorder_qty
+  // Build Order C1: max_stock (once set) is the real replenishment ceiling —
+  // the same figure the reorder formula now targets — falling back to the
+  // old min+reorder approximation for any row without one set yet.
+  const target = row.max_stock ?? row.min_stock + row.reorder_qty
   if (target <= 0) return row.stock_qty > 0 ? 100 : 0
   return Math.max(0, Math.min(100, Math.round((row.stock_qty / target) * 100)))
 }
@@ -59,6 +62,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [minStock, setMinStock] = useState("")
+  const [maxStock, setMaxStock] = useState("")
   const [reorderQty, setReorderQty] = useState("")
   const [adjustingId, setAdjustingId] = useState<string | null>(null)
   const [adjustDelta, setAdjustDelta] = useState("")
@@ -74,11 +78,22 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
   function startEdit(row: InventoryListItem) {
     setEditingId(row.id)
     setMinStock(String(row.min_stock))
+    setMaxStock(row.max_stock != null ? String(row.max_stock) : "")
     setReorderQty(String(row.reorder_qty))
   }
   function saveEdit(id: string) {
     updateThresholds.mutate(
-      { id, patch: { min_stock: Number(minStock) || 0, reorder_qty: Number(reorderQty) || 0 } },
+      {
+        id,
+        patch: {
+          min_stock: Number(minStock) || 0,
+          // Build Order C1: reorder qty = max_stock − current stock, so an
+          // explicit max is what actually drives ordering now — blank clears
+          // it back to the min_stock+reorder_qty fallback the trigger uses.
+          max_stock: maxStock.trim() === "" ? null : Number(maxStock) || 0,
+          reorder_qty: Number(reorderQty) || 0,
+        },
+      },
       { onSuccess: () => setEditingId(null) }
     )
   }
@@ -179,6 +194,8 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                 <div className="col-span-2 flex items-center gap-1 pr-4">
                   <Input className="h-7 w-11 px-1 text-xs" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} title={t("inventory.min")} />
                   <span className="text-xs text-text-muted">/</span>
+                  <Input className="h-7 w-11 px-1 text-xs" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} title={t("inventory.max")} placeholder={t("inventory.max")} />
+                  <span className="text-xs text-text-muted">/</span>
                   <Input className="h-7 w-11 px-1 text-xs" type="number" value={reorderQty} onChange={(e) => setReorderQty(e.target.value)} title={t("inventory.thresholds")} />
                   <Button size="icon-xs" variant="ghost" onClick={() => saveEdit(r.id)} disabled={updateThresholds.isPending}>
                     {updateThresholds.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5 text-success" />}
@@ -190,7 +207,10 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
               ) : (
                 <>
                   <div className="flex items-center gap-1">
-                    <span className="text-[13px] font-medium tabular-nums text-text-muted">{r.min_stock}</span>
+                    <span className="text-[13px] font-medium tabular-nums text-text-muted">
+                      {r.min_stock}
+                      {r.max_stock != null ? <span className="text-text-muted/60">/{r.max_stock}</span> : null}
+                    </span>
                     <Button size="icon-xs" variant="ghost" title={t("inventory.thresholds")} onClick={() => startEdit(r)}>
                       <Pencil className="size-3" />
                     </Button>

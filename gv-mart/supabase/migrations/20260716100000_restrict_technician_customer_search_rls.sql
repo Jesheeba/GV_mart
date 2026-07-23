@@ -1,0 +1,24 @@
+-- tech.md Bug 4 / Logic 4: technician customer search must not be org-wide.
+--
+-- 20260704130000_technician_customer_search_rls.sql granted technicians
+-- read access to EVERY customer/address in the org
+-- (org_id = current_org_id() and current_role() = 'technician'), with no
+-- ticket/appointment scoping at all. That policy was added deliberately at
+-- the time for TECH-05's org-wide address search, but it is a privacy/data
+-- exposure bug: a technician can read any customer's name/phone/address in
+-- the org, not just customers they are assigned to or have previously
+-- serviced.
+--
+-- The narrower, correct grants from 20260704120000_technician_customer_address_rls.sql
+-- (customers_select_own_technician / addresses_select_own_technician) already
+-- scope visibility to customers/addresses tied to a service_tickets row that
+-- has an appointments row with appointments.technician_id =
+-- current_technician_id() — this is not status-filtered, so it already
+-- covers both current/assigned and past/previously-serviced appointments.
+-- That is sufficient for "assigned + previously-serviced" access and is kept
+-- as-is.
+--
+-- Drop only the broad, unscoped search policies; do not replace them with a
+-- new policy.
+drop policy if exists customers_select_technician_search on customers;
+drop policy if exists addresses_select_technician_search on addresses;

@@ -111,10 +111,10 @@ export async function deleteGift(id: string) {
 }
 
 // ── AMC plans ────────────────────────────────────────────────────────────
-export async function listAmcPlans(orgId: string) {
+export async function listAmcPlans(orgId: string): Promise<AmcPlanRow[]> {
   const { data, error } = await supabase.from("amc_plans").select("*").eq("org_id", orgId).order("years")
   if (error) throw error
-  return data
+  return data ?? []
 }
 export async function createAmcPlan(row: TablesInsert<"amc_plans">) {
   const { data, error } = await supabase.from("amc_plans").insert(row).select().single()
@@ -129,6 +129,27 @@ export async function updateAmcPlan(id: string, patch: TablesUpdate<"amc_plans">
 export async function deleteAmcPlan(id: string) {
   const { error } = await supabase.from("amc_plans").delete().eq("id", id)
   if (error) throw error
+}
+
+// ── AMC plan covered spares (Fix 2: hard-gate uncovered spares on AMC
+// visits) ───────────────────────────────────────────────────────────────
+function fromCoveredSpares() {
+  return supabase.from("amc_plan_covered_spares")
+}
+
+export async function listAmcPlanCoveredSpareIds(planId: string): Promise<string[]> {
+  const { data, error } = await fromCoveredSpares().select("spare_id").eq("plan_id", planId)
+  if (error) throw error
+  return (data ?? []).map((r) => r.spare_id)
+}
+
+export async function setAmcPlanCoveredSpares(planId: string, spareIds: string[]) {
+  const { error: delErr } = await fromCoveredSpares().delete().eq("plan_id", planId)
+  if (delErr) throw delErr
+  if (spareIds.length === 0) return
+  const rows = spareIds.map((spare_id) => ({ plan_id: planId, spare_id }))
+  const { error: insErr } = await fromCoveredSpares().insert(rows)
+  if (insErr) throw insErr
 }
 
 // ── Incentive rules ──────────────────────────────────────────────────────
@@ -153,6 +174,29 @@ export async function deleteIncentiveRule(id: string) {
   if (error) throw error
 }
 
+// ── Complaint types (Meeting spec E1) ───────────────────────────────────
+// Product-category-tagged, admin-editable — feeds the filtered auto-suggest
+// on the customer booking screen and the admin new-complaint screen.
+export async function listComplaintTypes(orgId: string) {
+  const { data, error } = await supabase.from("complaint_types").select("*").eq("org_id", orgId).order("label")
+  if (error) throw error
+  return data
+}
+export async function createComplaintType(row: TablesInsert<"complaint_types">) {
+  const { data, error } = await supabase.from("complaint_types").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateComplaintType(id: string, patch: TablesUpdate<"complaint_types">) {
+  const { data, error } = await supabase.from("complaint_types").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteComplaintType(id: string) {
+  const { error } = await supabase.from("complaint_types").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── Settings (one row per org) ───────────────────────────────────────────
 export async function getSettings(orgId: string) {
   const { data, error } = await supabase.from("settings").select("*").eq("org_id", orgId).maybeSingle()
@@ -172,4 +216,5 @@ export type SpareRow = Tables<"spares">
 export type GiftRow = Tables<"gifts">
 export type AmcPlanRow = Tables<"amc_plans">
 export type IncentiveRuleRow = Tables<"incentive_rules">
+export type ComplaintTypeRow = Tables<"complaint_types">
 export type SettingsRow = Tables<"settings">

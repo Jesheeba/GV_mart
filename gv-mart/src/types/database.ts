@@ -96,6 +96,7 @@ export type Database = {
           is_on_duty: boolean
           zone: string | null
           is_active: boolean
+          daily_capacity_minutes: number
           created_at: string
           updated_at: string
         }
@@ -107,6 +108,7 @@ export type Database = {
           is_on_duty?: boolean
           zone?: string | null
           is_active?: boolean
+          daily_capacity_minutes?: number
           created_at?: string
           updated_at?: string
         }
@@ -118,6 +120,7 @@ export type Database = {
           is_on_duty?: boolean
           zone?: string | null
           is_active?: boolean
+          daily_capacity_minutes?: number
           created_at?: string
           updated_at?: string
         }
@@ -134,6 +137,57 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      technician_availability: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          date: string
+          status: string
+          shift_start: string | null
+          shift_end: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          date: string
+          status: string
+          shift_start?: string | null
+          shift_end?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          date?: string
+          status?: string
+          shift_start?: string | null
+          shift_end?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technician_availability_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technician_availability_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
             referencedColumns: ["id"]
           },
         ]
@@ -243,6 +297,60 @@ export type Database = {
           },
         ]
       }
+      customer_exemption_windows: {
+        Row: {
+          id: string
+          org_id: string
+          customer_id: string
+          label: string
+          day_of_week: number | null
+          start_time: string
+          end_time: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          customer_id: string
+          label: string
+          day_of_week?: number | null
+          start_time: string
+          end_time: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          customer_id?: string
+          label?: string
+          day_of_week?: number | null
+          start_time?: string
+          end_time?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_exemption_windows_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_exemption_windows_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       addresses: {
         Row: {
           id: string
@@ -261,6 +369,7 @@ export type Database = {
           address_type: Database["public"]["Enums"]["address_type"]
           ownership: Database["public"]["Enums"]["ownership_type"]
           is_primary: boolean
+          zone: string | null
           created_at: string
           updated_at: string
         }
@@ -281,6 +390,7 @@ export type Database = {
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
+          zone?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -301,6 +411,7 @@ export type Database = {
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
+          zone?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -514,6 +625,7 @@ export type Database = {
           item_id: string
           stock_qty: number
           min_stock: number
+          max_stock: number | null
           reorder_qty: number
           location: Database["public"]["Enums"]["location_type"]
           created_at: string
@@ -526,6 +638,7 @@ export type Database = {
           item_id: string
           stock_qty?: number
           min_stock?: number
+          max_stock?: number | null
           reorder_qty?: number
           location?: Database["public"]["Enums"]["location_type"]
           created_at?: string
@@ -538,6 +651,7 @@ export type Database = {
           item_id?: string
           stock_qty?: number
           min_stock?: number
+          max_stock?: number | null
           reorder_qty?: number
           location?: Database["public"]["Enums"]["location_type"]
           created_at?: string
@@ -1074,6 +1188,7 @@ export type Database = {
           payment_description: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           gift_id: string | null
+          sold_by: string | null
           created_at: string
           updated_at: string
         }
@@ -1091,6 +1206,7 @@ export type Database = {
           payment_description?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           gift_id?: string | null
+          sold_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1108,6 +1224,7 @@ export type Database = {
           payment_description?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           gift_id?: string | null
+          sold_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1131,6 +1248,13 @@ export type Database = {
             columns: ["gift_id"]
             isOneToOne: false
             referencedRelation: "gifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_sold_by_fkey"
+            columns: ["sold_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1254,10 +1378,15 @@ export type Database = {
           status: Database["public"]["Enums"]["ticket_status"]
           channel: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at: string | null
+          assigned_at: string | null
           invoice_id: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
           cancelled_by: string | null
+          contract_id: string | null
+          required_skill: string | null
+          estimated_duration_minutes: number | null
+          lead_id: string | null
           created_at: string
           updated_at: string
         }
@@ -1276,10 +1405,15 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"]
           channel?: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at?: string | null
+          assigned_at?: string | null
           invoice_id?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          contract_id?: string | null
+          required_skill?: string | null
+          estimated_duration_minutes?: number | null
+          lead_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1298,10 +1432,15 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"]
           channel?: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at?: string | null
+          assigned_at?: string | null
           invoice_id?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          contract_id?: string | null
+          required_skill?: string | null
+          estimated_duration_minutes?: number | null
+          lead_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1362,6 +1501,20 @@ export type Database = {
             referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "service_tickets_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "amc_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_tickets_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
         ]
       }
       appointments: {
@@ -1373,6 +1526,12 @@ export type Database = {
           scheduled_at: string | null
           mode: Database["public"]["Enums"]["appointment_mode"]
           status: Database["public"]["Enums"]["appointment_status"]
+          confirmation_called_at: string | null
+          available_from: string | null
+          available_to: string | null
+          is_narrow_window: boolean
+          next_day_priority: boolean
+          rescheduled_from_date: string | null
           created_at: string
           updated_at: string
         }
@@ -1384,6 +1543,12 @@ export type Database = {
           scheduled_at?: string | null
           mode?: Database["public"]["Enums"]["appointment_mode"]
           status?: Database["public"]["Enums"]["appointment_status"]
+          confirmation_called_at?: string | null
+          available_from?: string | null
+          available_to?: string | null
+          is_narrow_window?: boolean
+          next_day_priority?: boolean
+          rescheduled_from_date?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1395,6 +1560,12 @@ export type Database = {
           scheduled_at?: string | null
           mode?: Database["public"]["Enums"]["appointment_mode"]
           status?: Database["public"]["Enums"]["appointment_status"]
+          confirmation_called_at?: string | null
+          available_from?: string | null
+          available_to?: string | null
+          is_narrow_window?: boolean
+          next_day_priority?: boolean
+          rescheduled_from_date?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1418,6 +1589,48 @@ export type Database = {
             columns: ["technician_id"]
             isOneToOne: false
             referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_unavailable_windows: {
+        Row: {
+          id: string
+          org_id: string
+          appointment_id: string
+          start_time: string
+          end_time: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          appointment_id: string
+          start_time: string
+          end_time: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          appointment_id?: string
+          start_time?: string
+          end_time?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_unavailable_windows_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_unavailable_windows_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
             referencedColumns: ["id"]
           },
         ]
@@ -1716,6 +1929,7 @@ export type Database = {
           name: string
           years: number
           price: number
+          price_per_year: number | null
           inclusions: Json
           gift_id: string | null
           visits_per_year: number
@@ -1728,6 +1942,7 @@ export type Database = {
           name: string
           years: number
           price: number
+          price_per_year?: number | null
           inclusions?: Json
           gift_id?: string | null
           visits_per_year?: number
@@ -1740,6 +1955,7 @@ export type Database = {
           name?: string
           years?: number
           price?: number
+          price_per_year?: number | null
           inclusions?: Json
           gift_id?: string | null
           visits_per_year?: number
@@ -1759,6 +1975,41 @@ export type Database = {
             columns: ["gift_id"]
             isOneToOne: false
             referencedRelation: "gifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaint_types: {
+        Row: {
+          id: string
+          org_id: string
+          product_category: Database["public"]["Enums"]["brand_category"]
+          label: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_category: Database["public"]["Enums"]["brand_category"]
+          label: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_category?: Database["public"]["Enums"]["brand_category"]
+          label?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_types_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1844,6 +2095,36 @@ export type Database = {
           },
         ]
       }
+      amc_plan_covered_spares: {
+        Row: {
+          plan_id: string
+          spare_id: string
+        }
+        Insert: {
+          plan_id: string
+          spare_id: string
+        }
+        Update: {
+          plan_id?: string
+          spare_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amc_plan_covered_spares_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "amc_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "amc_plan_covered_spares_spare_id_fkey"
+            columns: ["spare_id"]
+            isOneToOne: false
+            referencedRelation: "spares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warranties: {
         Row: {
           id: string
@@ -1853,6 +2134,7 @@ export type Database = {
           serial_no: string | null
           start_date: string
           expiry_date: string
+          next_service_date: string | null
           invoice_id: string | null
           created_at: string
           updated_at: string
@@ -1865,6 +2147,7 @@ export type Database = {
           serial_no?: string | null
           start_date: string
           expiry_date: string
+          next_service_date?: string | null
           invoice_id?: string | null
           created_at?: string
           updated_at?: string
@@ -1877,6 +2160,7 @@ export type Database = {
           serial_no?: string | null
           start_date?: string
           expiry_date?: string
+          next_service_date?: string | null
           invoice_id?: string | null
           created_at?: string
           updated_at?: string
@@ -1927,6 +2211,7 @@ export type Database = {
           selfie_url: string | null
           lunch_start: string | null
           lunch_end: string | null
+          check_out_at: string | null
           created_at: string
           updated_at: string
         }
@@ -1944,6 +2229,7 @@ export type Database = {
           selfie_url?: string | null
           lunch_start?: string | null
           lunch_end?: string | null
+          check_out_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1961,6 +2247,7 @@ export type Database = {
           selfie_url?: string | null
           lunch_start?: string | null
           lunch_end?: string | null
+          check_out_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2717,6 +3004,12 @@ export type Database = {
           sla_hours_urgent: number
           sla_hours_normal: number
           po_approval_threshold: number
+          po_requires_approval: boolean
+          default_duration_paid_minutes: number
+          default_duration_warranty_minutes: number
+          default_duration_amc_minutes: number
+          default_duration_installation_minutes: number
+          narrow_window_threshold_minutes: number
           created_at: string
           updated_at: string
         }
@@ -2745,6 +3038,12 @@ export type Database = {
           sla_hours_urgent?: number
           sla_hours_normal?: number
           po_approval_threshold?: number
+          po_requires_approval?: boolean
+          default_duration_paid_minutes?: number
+          default_duration_warranty_minutes?: number
+          default_duration_amc_minutes?: number
+          default_duration_installation_minutes?: number
+          narrow_window_threshold_minutes?: number
           created_at?: string
           updated_at?: string
         }
@@ -2773,6 +3072,12 @@ export type Database = {
           sla_hours_urgent?: number
           sla_hours_normal?: number
           po_approval_threshold?: number
+          po_requires_approval?: boolean
+          default_duration_paid_minutes?: number
+          default_duration_warranty_minutes?: number
+          default_duration_amc_minutes?: number
+          default_duration_installation_minutes?: number
+          narrow_window_threshold_minutes?: number
           created_at?: string
           updated_at?: string
         }
@@ -2962,6 +3267,8 @@ export type Database = {
           assignee_id: string | null
           title: string
           due_date: string | null
+          original_due_date: string | null
+          rolled_count: number
           status: Database["public"]["Enums"]["task_status"]
           source: string | null
           created_at: string
@@ -2973,6 +3280,8 @@ export type Database = {
           assignee_id?: string | null
           title: string
           due_date?: string | null
+          original_due_date?: string | null
+          rolled_count?: number
           status?: Database["public"]["Enums"]["task_status"]
           source?: string | null
           created_at?: string
@@ -2984,6 +3293,8 @@ export type Database = {
           assignee_id?: string | null
           title?: string
           due_date?: string | null
+          original_due_date?: string | null
+          rolled_count?: number
           status?: Database["public"]["Enums"]["task_status"]
           source?: string | null
           created_at?: string
@@ -3206,6 +3517,12 @@ export type Database = {
           p_appointment_mode: Database["public"]["Enums"]["appointment_mode"] | null
           p_scheduled_at: string | null
           p_auto_assign: boolean
+          p_available_from?: string | null
+          p_available_to?: string | null
+          // B1: jsonb array of {"start":"HH:MM","end":"HH:MM"} — see
+          // 20260723101000_step4_booking_rpcs.sql. Null = legacy caller,
+          // falls back to p_available_from/p_available_to as-is.
+          p_unavailable_windows?: Json | null
         }
         Returns: Json
       }
@@ -3230,7 +3547,14 @@ export type Database = {
         Returns: undefined
       }
       sell_amc_plan: {
-        Args: { p_org_id: string; p_customer_id: string; p_product_id: string; p_plan_id: string; p_start_date?: string }
+        Args: {
+          p_org_id: string
+          p_customer_id: string
+          p_product_id: string
+          p_plan_id: string
+          p_start_date?: string
+          p_years?: number | null
+        }
         Returns: Json
       }
       refresh_amc_statuses: {
@@ -3282,6 +3606,12 @@ export type Database = {
           p_priority: Database["public"]["Enums"]["priority_level"]
           p_appointment_mode: Database["public"]["Enums"]["appointment_mode"] | null
           p_scheduled_at: string | null
+          p_available_from?: string | null
+          p_available_to?: string | null
+          // B1: jsonb array of {"start":"HH:MM","end":"HH:MM"} — see
+          // 20260723101000_step4_booking_rpcs.sql. Null = legacy caller,
+          // falls back to p_available_from/p_available_to as-is.
+          p_unavailable_windows?: Json | null
         }
         Returns: Json
       }
@@ -3296,7 +3626,13 @@ export type Database = {
         Returns: string
       }
       renew_amc_plan: {
-        Args: { p_org_id: string; p_product_id: string; p_plan_id: string; p_payment_reference: string }
+        Args: {
+          p_org_id: string
+          p_product_id: string
+          p_plan_id: string
+          p_payment_reference: string
+          p_years?: number | null
+        }
         Returns: Json
       }
       register_product_via_qr: {
@@ -3329,8 +3665,13 @@ export type Database = {
           p_gst: number | null
           p_bill_date: string | null
           p_bill_image_url: string | null
+          p_category?: Database["public"]["Enums"]["expense_category"]
         }
         Returns: string
+      }
+      approve_purchase_order: {
+        Args: { p_approval_id: string }
+        Returns: undefined
       }
       log_lead_activity: {
         Args: { p_lead_id: string; p_type: string; p_note: string | null }
@@ -3361,6 +3702,10 @@ export type Database = {
         Returns: number
       }
       technician_late_hours: {
+        Args: { p_org_id: string; p_technician_id: string; p_period: string }
+        Returns: number
+      }
+      technician_finder_conversions: {
         Args: { p_org_id: string; p_technician_id: string; p_period: string }
         Returns: number
       }
@@ -3401,7 +3746,7 @@ export type Database = {
       lead_source: "field" | "customer_app" | "whatsapp" | "walk_in" | "referral" | "other"
       lead_kind: "service" | "spare" | "product" | "amc"
       automation_action: "send_video" | "quotation" | "link"
-      incentive_type: "service_income" | "sales_income" | "review"
+      incentive_type: "service_income" | "sales_income" | "review" | "finder_credit"
       reward_category: "attendance" | "highest_review" | "highest_revenue"
       expense_category: "marketing" | "stationery" | "salary" | "petrol" | "purchase" | "other"
       approval_type: "discount" | "po" | "price_override" | "leave"

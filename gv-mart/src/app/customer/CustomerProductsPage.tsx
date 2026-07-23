@@ -152,12 +152,15 @@ export function CustomerProductsPage() {
                 </div>
 
                 {warranty ? (
-                  <div className="flex items-center justify-between rounded-xl border border-border px-3.5 py-2 text-xs">
-                    <StatusDot
-                      tone={warranty.expiry_date >= today ? "info" : "neutral"}
-                      label={warranty.expiry_date >= today ? t("customerApp.products.warrantyActive") : t("customerApp.products.warrantyExpired")}
-                    />
-                    <span className="text-text-muted">{t("customerApp.products.expiresOn", { date: warranty.expiry_date })}</span>
+                  <div className="space-y-1.5 rounded-xl border border-border px-3.5 py-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <StatusDot
+                        tone={warranty.expiry_date >= today ? "info" : "neutral"}
+                        label={warranty.expiry_date >= today ? t("customerApp.products.warrantyActive") : t("customerApp.products.warrantyExpired")}
+                      />
+                      <span className="text-text-muted">{t("customerApp.products.expiresOn", { date: warranty.expiry_date })}</span>
+                    </div>
+                    <p className="text-text-muted">{t("customerApp.products.purchasedOn", { date: warranty.start_date })}</p>
                   </div>
                 ) : null}
 

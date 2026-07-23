@@ -7,12 +7,20 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { useCustomer, useCustomerInvoices, useCustomerLifetimeSummary, useCustomerProducts, useCustomerServiceHistory } from "@/hooks/useCustomers"
+import {
+  useCustomer,
+  useCustomerExemptionWindows,
+  useCustomerInvoices,
+  useCustomerLifetimeSummary,
+  useCustomerProducts,
+  useCustomerTimeline,
+} from "@/hooks/useCustomers"
 import { useProfile } from "@/hooks/useProfile"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
+import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 
 const AMC_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
@@ -82,9 +90,10 @@ export function CustomerDetailPage() {
   const { data: customer, isLoading, isError, refetch } = useCustomer(id)
 
   const products = useCustomerProducts(orgId, customer?.id)
-  const serviceHistory = useCustomerServiceHistory(orgId, customer?.id)
+  const timeline = useCustomerTimeline(orgId, customer?.id)
   const invoices = useCustomerInvoices(orgId, customer?.id)
   const lifetime = useCustomerLifetimeSummary(orgId, customer?.id)
+  const exemptionWindows = useCustomerExemptionWindows(customer?.id)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !customer) {
@@ -153,28 +162,52 @@ export function CustomerDetailPage() {
     return (
       <div className="rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
         <h3 className="mb-4.5 text-base font-bold tracking-tight text-text">{t("customers.detail.serviceHistoryTitle")}</h3>
-        {serviceHistory.isLoading ? (
+        {timeline.isLoading ? (
           <Skeleton className="h-24 w-full" />
-        ) : (serviceHistory.data ?? []).length === 0 ? (
+        ) : (timeline.data ?? []).length === 0 ? (
           <EmptyTab icon={Wrench} label={t("customers.detail.emptyTabs.service")} />
         ) : (
           <div className="flex flex-col">
-            {(serviceHistory.data ?? []).map((visit, i, arr) => (
-              <div key={visit.ticketId} className="flex gap-3.25">
-                <div className="flex flex-col items-center">
-                  <span className={cn("size-2.75 shrink-0 rounded-full", visit.status === "completed" ? "border-2.5 border-success/20 bg-success" : "bg-[#C9C4BA]")} />
-                  {i < arr.length - 1 ? <span className="w-0.5 flex-1 bg-border" /> : null}
-                </div>
-                <div className={cn("min-w-0", i < arr.length - 1 && "pb-4.5")}>
-                  <div className="text-sm font-semibold text-text">{visit.title}</div>
-                  <div className="text-[11px] font-medium text-text-muted">
-                    {[visit.technicianName, fmtDate(visit.date), visit.type ? t(`service.type.${visit.type}`) : t(`service.status.${visit.status}`), formatCurrency(visit.amount)]
-                      .filter(Boolean)
-                      .join(" · ")}
+            {(timeline.data ?? []).map((entry, i, arr) => {
+              // Dot is "lit" (success) for a completed ticket, an active AMC
+              // contract, or any invoice (invoices are always a completed event).
+              const dotOn = entry.kind === "ticket" ? entry.status === "completed" : entry.kind === "amc" ? entry.status === "active" : true
+              let title: string
+              let metaParts: (string | null | false)[]
+              if (entry.kind === "ticket") {
+                title = entry.title
+                metaParts = [
+                  entry.technicianName,
+                  fmtDate(entry.date),
+                  entry.ticketType ? t(`service.type.${entry.ticketType}`) : t(`service.status.${entry.status}`),
+                  formatCurrency(entry.amount),
+                ]
+              } else if (entry.kind === "amc") {
+                title = t(entry.isRenewal ? "customers.detail.timeline.amcRenewed" : "customers.detail.timeline.amcSold", {
+                  defaultValue: entry.isRenewal ? "AMC renewed — {{plan}}" : "AMC sold — {{plan}}",
+                  plan: entry.planName,
+                })
+                metaParts = [entry.productName, fmtDate(entry.date), t(`amc.status.${entry.status}`), formatCurrency(entry.amount)]
+              } else {
+                title = t("customers.detail.timeline.invoiceTitle", {
+                  defaultValue: "{{type}} invoice",
+                  type: t(`invoiceType.${entry.invoiceType}`),
+                })
+                metaParts = [entry.itemsLabel, fmtDate(entry.date), formatCurrency(entry.amount)]
+              }
+              return (
+                <div key={`${entry.kind}-${entry.id}`} className="flex gap-3.25">
+                  <div className="flex flex-col items-center">
+                    <span className={cn("size-2.75 shrink-0 rounded-full", dotOn ? "border-2.5 border-success/20 bg-success" : "bg-[#C9C4BA]")} />
+                    {i < arr.length - 1 ? <span className="w-0.5 flex-1 bg-border" /> : null}
+                  </div>
+                  <div className={cn("min-w-0", i < arr.length - 1 && "pb-4.5")}>
+                    <div className="text-sm font-semibold text-text">{title}</div>
+                    <div className="text-[11px] font-medium text-text-muted">{metaParts.filter(Boolean).join(" · ")}</div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -288,6 +321,9 @@ export function CustomerDetailPage() {
           <TabsTrigger value="family">
             {t("customers.detail.tabs.family")} ({customer.customer_members.length})
           </TabsTrigger>
+          <TabsTrigger value="exemptions">
+            {t("customers.detail.tabs.exemptions")} ({(exemptionWindows.data ?? []).length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="mt-3.5">
@@ -327,6 +363,16 @@ export function CustomerDetailPage() {
         <TabsContent value="family" className="mt-3.5">
           <Card size="default">
             <FamilyMembersPanel orgId={orgId} customerId={customer.id} members={customer.customer_members} />
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="exemptions" className="mt-3.5">
+          <Card size="default">
+            {exemptionWindows.isLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : (
+              <ExemptionWindowsPanel orgId={orgId} customerId={customer.id} windows={exemptionWindows.data ?? []} />
+            )}
           </Card>
         </TabsContent>
       </Tabs>

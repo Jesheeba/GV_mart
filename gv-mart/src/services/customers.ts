@@ -431,6 +431,7 @@ export async function upsertPrimaryAddress(
     landmark?: string
     district?: string
     state?: string
+    zone?: string
     addressType: Enums<"address_type">
     ownership: Enums<"ownership_type">
     lat?: number
@@ -446,6 +447,7 @@ export async function upsertPrimaryAddress(
     landmark: patch.landmark || null,
     district: patch.district || null,
     state: patch.state || null,
+    zone: patch.zone || null,
     address_type: patch.addressType,
     ownership: patch.ownership,
     lat: patch.lat ?? null,
@@ -463,6 +465,24 @@ export async function upsertPrimaryAddress(
     .single()
   if (error) throw error
   return data
+}
+
+/**
+ * The create-customer RPC (create_customer_with_details) doesn't accept a
+ * zone yet (out of scope to touch here — see Phase 1 of the technician
+ * assignment logic change doc), so the zone tag on a brand-new customer's
+ * primary address is set as a small direct follow-up write instead, once the
+ * RPC has returned the new address's id via getPrimaryAddressId below.
+ */
+export async function getPrimaryAddressId(customerId: string) {
+  const { data, error } = await supabase.from("addresses").select("id").eq("customer_id", customerId).eq("is_primary", true).single()
+  if (error) throw error
+  return data.id
+}
+
+export async function setAddressZone(addressId: string, zone: string | null) {
+  const { error } = await supabase.from("addresses").update({ zone }).eq("id", addressId)
+  if (error) throw error
 }
 
 // ── Customer detail page: Products / Service history / Invoices / lifetime ──
@@ -587,6 +607,178 @@ export async function getCustomerServiceHistory(orgId: string, customerId: strin
   })
 }
 
+// ── Customer detail page: merged chronological timeline (Req 1/9/10) ──
+
+/**
+ * A single point on the customer's merged timeline. Each variant carries
+ * only the fields that source actually has — the component branches on
+ * `kind` to render a one-line summary + detail line, same visual pattern
+ * as the old ticket-only list.
+ */
+export type CustomerTimelineEntry =
+  | {
+      kind: "ticket"
+      id: string
+      date: string
+      title: string
+      status: Enums<"ticket_status">
+      ticketType: Enums<"ticket_type"> | null
+      technicianName: string | null
+      amount: number
+    }
+  | {
+      kind: "amc"
+      id: string
+      date: string
+      status: Enums<"amc_status">
+      /** True when this is a later amc_contracts row for a product the
+       * customer already had covered (a renewal creates a new row rather
+       * than updating the old one — see 20260715220000_legacy_amc_visit_backfill.sql). */
+      isRenewal: boolean
+      productName: string
+      planName: string
+      amount: number
+    }
+  | {
+      kind: "invoice"
+      id: string
+      date: string
+      invoiceType: Enums<"invoice_type">
+      itemsLabel: string
+      amount: number
+    }
+
+/**
+ * Genuinely interleaves three real sources by date, instead of the
+ * ticket-only feed getCustomerServiceHistory returns:
+ *   1. Service tickets (same proxy-date rule as before: completed tickets
+ *      use updated_at, everything else uses created_at).
+ *   2. AMC contract events — every amc_contracts row is its own event
+ *      (sign-up or renewal; renewals get their own row, see comment above).
+ *   3. Standalone invoices — invoices not already linked via a ticket's or
+ *      an AMC contract's own invoice_id, so a plain product/spare sale with
+ *      no service call still shows up, without double-counting invoices
+ *      that are already represented by their ticket/AMC entry.
+ * Each source is capped at `limit` rows before merging, then the merged,
+ * date-sorted result is capped at `limit` again.
+ */
+export async function getCustomerTimeline(orgId: string, customerId: string, limit = 20): Promise<CustomerTimelineEntry[]> {
+  const [ticketsRes, amcRes, invoicesRes] = await Promise.all([
+    supabase
+      .from("service_tickets")
+      .select(
+        "id, name_of_complaint, type, status, created_at, updated_at, invoice_id, appointments(technicians(profiles(full_name))), invoices(total)"
+      )
+      .eq("org_id", orgId)
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("amc_contracts")
+      .select("id, product_id, start_date, status, invoice_id, products(name), amc_plans(name), invoices(total)")
+      .eq("org_id", orgId)
+      .eq("customer_id", customerId)
+      .order("start_date", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("invoices")
+      .select("id, type, total, created_at, invoice_items(item_type, item_id)")
+      .eq("org_id", orgId)
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  ])
+  if (ticketsRes.error) throw ticketsRes.error
+  if (amcRes.error) throw amcRes.error
+  if (invoicesRes.error) throw invoicesRes.error
+
+  type TicketRow = {
+    id: string
+    name_of_complaint: string | null
+    type: Enums<"ticket_type"> | null
+    status: Enums<"ticket_status">
+    created_at: string
+    updated_at: string
+    invoice_id: string | null
+    appointments: { technicians: { profiles: { full_name: string } | null } | null }[]
+    invoices: { total: number } | null
+  }
+  const tickets = (ticketsRes.data ?? []) as unknown as TicketRow[]
+  const ticketEntries: CustomerTimelineEntry[] = tickets.map((r) => {
+    const technicianName = r.appointments.find((a) => a.technicians?.profiles?.full_name)?.technicians?.profiles?.full_name ?? null
+    return {
+      kind: "ticket",
+      id: r.id,
+      title: r.name_of_complaint ?? "—",
+      status: r.status,
+      ticketType: r.type,
+      technicianName,
+      amount: r.invoices?.total ? Number(r.invoices.total) : 0,
+      date: r.status === "completed" ? r.updated_at : r.created_at,
+    }
+  })
+
+  type AmcRow = {
+    id: string
+    product_id: string
+    start_date: string
+    status: Enums<"amc_status">
+    invoice_id: string | null
+    products: { name: string } | null
+    amc_plans: { name: string } | null
+    invoices: { total: number } | null
+  }
+  const amcContracts = (amcRes.data ?? []) as unknown as AmcRow[]
+  // Walk oldest-first to flag each product's first contract as a sign-up and
+  // every later one as a renewal, independent of the descending fetch order above.
+  const chronological = [...amcContracts].sort((a, b) => (a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : 0))
+  const isRenewalById = new Map<string, boolean>()
+  const seenProducts = new Set<string>()
+  for (const r of chronological) {
+    isRenewalById.set(r.id, seenProducts.has(r.product_id))
+    seenProducts.add(r.product_id)
+  }
+  const amcEntries: CustomerTimelineEntry[] = amcContracts.map((r) => ({
+    kind: "amc",
+    id: r.id,
+    date: r.start_date,
+    status: r.status,
+    isRenewal: isRenewalById.get(r.id) ?? false,
+    productName: r.products?.name ?? "—",
+    planName: r.amc_plans?.name ?? "—",
+    amount: r.invoices?.total ? Number(r.invoices.total) : 0,
+  }))
+
+  type InvoiceRow = {
+    id: string
+    type: Enums<"invoice_type">
+    total: number
+    created_at: string
+    invoice_items: { item_type: Enums<"item_type">; item_id: string }[]
+  }
+  const allInvoices = (invoicesRes.data ?? []) as unknown as InvoiceRow[]
+  const ticketInvoiceIds = new Set(tickets.map((t) => t.invoice_id).filter((id): id is string => !!id))
+  const amcInvoiceIds = new Set(amcContracts.map((a) => a.invoice_id).filter((id): id is string => !!id))
+  const standaloneInvoices = allInvoices.filter((inv) => !ticketInvoiceIds.has(inv.id) && !amcInvoiceIds.has(inv.id))
+
+  const names = await itemNameLookup(
+    orgId,
+    standaloneInvoices.flatMap((r) => r.invoice_items)
+  )
+  const invoiceEntries: CustomerTimelineEntry[] = standaloneInvoices.map((r) => ({
+    kind: "invoice",
+    id: r.id,
+    date: r.created_at,
+    invoiceType: r.type,
+    itemsLabel: r.invoice_items.map((i) => names.get(i.item_id) ?? "—").join(" + ") || "—",
+    amount: Number(r.total),
+  }))
+
+  return [...ticketEntries, ...amcEntries, ...invoiceEntries]
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+    .slice(0, limit)
+}
+
 export type CustomerInvoiceRow = {
   id: string
   itemsLabel: string
@@ -658,4 +850,56 @@ export async function getCustomerLifetimeSummary(orgId: string, customerId: stri
     : null
 
   return { total, invoiceCount: invoices.length, nextAmcAction }
+}
+
+// ── Exemption windows (B4, Build Order Step 4 / Meeting spec Section B4) ──
+// Per-customer short recurring "never assign a technician here" windows
+// (school run, medical) — admin-managed here; read-only mirrors exist for
+// the customer's own booking wizard (services/customerApp.ts) and are
+// consulted server-side by book_service_ticket/create_complaint_ticket/
+// assign_ticket_technician (20260723100000/101000/102000 migrations).
+export type ExemptionWindowRow = Tables<"customer_exemption_windows">
+
+export async function listExemptionWindows(customerId: string): Promise<ExemptionWindowRow[]> {
+  const { data, error } = await supabase
+    .from("customer_exemption_windows")
+    .select("*")
+    .eq("customer_id", customerId)
+    .order("start_time")
+  if (error) throw error
+  return data ?? []
+}
+
+export type ExemptionWindowInput = {
+  label: string
+  dayOfWeek: number | null
+  startTime: string
+  endTime: string
+}
+
+export async function addExemptionWindow(orgId: string, customerId: string, input: ExemptionWindowInput) {
+  const { data, error } = await supabase
+    .from("customer_exemption_windows")
+    .insert({
+      org_id: orgId,
+      customer_id: customerId,
+      label: input.label,
+      day_of_week: input.dayOfWeek,
+      start_time: input.startTime,
+      end_time: input.endTime,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateExemptionWindowActive(id: string, isActive: boolean) {
+  const { error } = await supabase.from("customer_exemption_windows").update({ is_active: isActive }).eq("id", id)
+  if (error) throw error
+}
+
+export async function removeExemptionWindow(id: string) {
+  const { error } = await supabase.from("customer_exemption_windows").delete().eq("id", id)
+  if (error) throw error
 }

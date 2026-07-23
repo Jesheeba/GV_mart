@@ -124,3 +124,14 @@ export function useCreateBillEntry() {
     },
   })
 }
+/** Deliberately its own query key (not nested under "purchaseBills") so
+ * `useCreateBillEntry`'s invalidation doesn't refetch it — Bill Entry only
+ * needs this once, to prefill the form on first open; the form itself
+ * resets to blank after a successful submit rather than re-prefilling. */
+export function useLastBillEntry(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["lastBillEntry", orgId],
+    queryFn: () => automation.getLastBillEntry(orgId!),
+    enabled: !!orgId,
+  })
+}

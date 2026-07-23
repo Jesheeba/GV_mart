@@ -86,11 +86,36 @@ export const amcPlansHooks = entityHooks("amc_plans", {
   remove: masters.deleteAmcPlan,
 })
 
+// ── AMC plan covered spares (Fix 2) — not a flat CRUD list so it doesn't
+// fit entityHooks' shape; one query per plan + a "replace the whole set"
+// mutation, mirroring the amc_plans query key so both invalidate cleanly. ──
+export function useAmcPlanCoveredSpares(planId: string | null) {
+  return useQuery({
+    queryKey: ["amc_plan_covered_spares", planId],
+    queryFn: () => masters.listAmcPlanCoveredSpareIds(planId!),
+    enabled: !!planId,
+  })
+}
+export function useSetAmcPlanCoveredSpares() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ planId, spareIds }: { planId: string; spareIds: string[] }) => masters.setAmcPlanCoveredSpares(planId, spareIds),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ["amc_plan_covered_spares", vars.planId] }),
+  })
+}
+
 export const incentiveRulesHooks = entityHooks("incentive_rules", {
   list: masters.listIncentiveRules,
   create: masters.createIncentiveRule,
   update: masters.updateIncentiveRule,
   remove: masters.deleteIncentiveRule,
+})
+
+export const complaintTypesHooks = entityHooks("complaint_types", {
+  list: masters.listComplaintTypes,
+  create: masters.createComplaintType,
+  update: masters.updateComplaintType,
+  remove: masters.deleteComplaintType,
 })
 
 export function useSettings(orgId: string | undefined) {

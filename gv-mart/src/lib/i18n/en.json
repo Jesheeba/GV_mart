@@ -254,11 +254,41 @@
       "moveOut": "Move out to new customer",
       "confirm": "Confirm",
       "serviceHistoryTitle": "Service history",
+      "timeline": {
+        "amcSold": "AMC sold — {{plan}}",
+        "amcRenewed": "AMC renewed — {{plan}}",
+        "invoiceTitle": "{{type}} invoice"
+      },
       "tabs": {
         "products": "Products",
         "service": "Service History",
         "invoices": "Invoices",
-        "family": "Family"
+        "family": "Family",
+        "exemptions": "Exemptions"
+      },
+      "exemptionsPanel": {
+        "title": "Exemption windows ({{count}})",
+        "hint": "Short recurring windows (school run, medical) when no technician may be assigned to this customer, even if one is free.",
+        "add": "Add exemption window",
+        "empty": "No exemption windows yet.",
+        "label": "Label",
+        "labelPlaceholder": "e.g. School run, Medical",
+        "dayOfWeek": "Day",
+        "everyDay": "Every day",
+        "days": {
+          "0": "Sunday",
+          "1": "Monday",
+          "2": "Tuesday",
+          "3": "Wednesday",
+          "4": "Thursday",
+          "5": "Friday",
+          "6": "Saturday"
+        },
+        "startTime": "Start time",
+        "endTime": "End time",
+        "invalidRange": "End time must be after start time.",
+        "activate": "Activate",
+        "deactivate": "Deactivate"
       },
       "emptyTabs": {
         "products": "No products yet — appears once a sale is made.",
@@ -314,6 +344,7 @@
       "landmark": "Landmark",
       "district": "District",
       "state": "State",
+      "zone": "Zone",
       "addressType": "Address type",
       "ownership": "Ownership",
       "residential": "Residential",
@@ -362,6 +393,7 @@
       "giftsDesc": "{{count}} gift tiers",
       "amcPlansDesc": "{{count}} AMC plans",
       "incentivesDesc": "{{count}} incentive rules",
+      "complaintTypesDesc": "{{count}} complaint types",
       "settingsDesc": "Discount, travel, hours & SLA"
     },
     "tabs": {
@@ -372,6 +404,7 @@
       "gifts": "Gifts",
       "amcPlans": "AMC Plans",
       "incentives": "Incentives",
+      "complaintTypes": "Complaint Types",
       "settings": "Settings"
     },
     "categories": {
@@ -432,19 +465,36 @@
       "inclusions": "Inclusions",
       "inclusionsPlaceholder": "Comma-separated, e.g. Filter change, Sanitization",
       "add": "Add plan",
-      "empty": "No AMC plans yet — add your first one."
+      "empty": "No AMC plans yet — add your first one.",
+      "pricePerYear": "Price per year",
+      "coveredSpares": "Covered spares",
+      "manageCoveredSpares": "Manage covered spares",
+      "coveredSparesTitle": "Covered spares",
+      "coveredSparesHint": "Spares on this list are free during an AMC visit. Anything else bills at the normal price.",
+      "searchSpares": "Search spares",
+      "noSpares": "No spares found",
+      "coveredSparesCount_one": "{{count}} spare covered",
+      "coveredSparesCount_other": "{{count}} spares covered"
     },
     "incentives": {
       "type": "Type",
       "types": {
         "service_income": "Extra service income",
         "sales_income": "Sales income",
-        "review": "Google review"
+        "review": "Google review",
+        "finder_credit": "Finder credit (enquiry conversions)"
       },
       "threshold": "Threshold",
       "amount": "Amount",
       "add": "Add rule",
       "empty": "No incentive rules yet — set your first one."
+    },
+    "complaintTypes": {
+      "category": "Product category",
+      "label": "Complaint type",
+      "labelPlaceholder": "e.g. Not Cooling, No Water",
+      "add": "Add complaint type",
+      "empty": "No complaint types yet — add your first one."
     }
   },
   "settings": {
@@ -454,7 +504,9 @@
       "discounts": "GST / Tax",
       "amcReferral": "AMC & Referral",
       "inventory": "Inventory Defaults",
-      "sla": "Service SLA (hours by priority)"
+      "sla": "Service SLA (hours by priority)",
+      "jobDuration": "Default Job Duration (minutes by ticket type)",
+      "booking": "Booking Model"
     },
     "discountGift": {
       "title": "Discount & Gift Limits",
@@ -492,9 +544,18 @@
     "googleReviewUrlHint": "Shown to the customer as a \"Leave a Google review\" button once they rate at or above the threshold above. Leave blank to keep the button disabled.",
     "defaultMinStock": "Default minimum stock",
     "defaultReorderQty": "Default reorder quantity",
+    "poApprovalThreshold": "PO amount that flags for review (₹)",
+    "poRequiresApproval": "Require approval before sending auto-drafted POs",
+    "poRequiresApprovalHint": "Off: purchase orders send automatically when stock hits the minimum. On: every auto-drafted PO waits as a draft until an owner approves it.",
     "slaVeryUrgent": "Very urgent (hours)",
     "slaUrgent": "Urgent (hours)",
     "slaNormal": "Normal (hours)",
+    "durationPaid": "Paid job (minutes)",
+    "durationWarranty": "Warranty job (minutes)",
+    "durationAmc": "AMC job (minutes)",
+    "durationInstallation": "Installation job (minutes)",
+    "narrowWindowThreshold": "Narrow-window threshold (minutes)",
+    "narrowWindowThresholdHint": "If a customer's unavailable-window marks leave only this many minutes (or less) free in the day, it's treated as a specific-time booking instead of a flexible day booking.",
     "saved": "Settings saved.",
     "errors": {
       "required": "This field is required",
@@ -524,8 +585,9 @@
     "brand": "Brand",
     "stock": "Stock",
     "min": "Min",
+    "max": "Max",
     "level": "Level",
-    "thresholds": "Min / Reorder",
+    "thresholds": "Min / Max / Reorder",
     "adjustStock": "Adjust stock",
     "status": {
       "label": "Status",
@@ -912,6 +974,10 @@
       "appointmentMode": "Appointment mode",
       "scheduledAt": "Scheduled date & time",
       "workHoursHint": "Appointments are scheduled during working hours.",
+      "availableFrom": "Available from (optional)",
+      "availableTo": "Available to (optional)",
+      "availableWindowHint": "Narrow the window if the customer is only free at certain times.",
+      "availableWindowInvalid": "\"Available to\" must be later than \"Available from\".",
       "autoAssign": "Auto-assign to available technician",
       "create": "Create complaint",
       "typeNotSelectable": "Type is auto-detected and non-selectable.",
@@ -924,7 +990,8 @@
         "discard": "Discard draft",
         "discardWarning": "This clears everything you've entered on this device for this complaint (customer, equipment, details, appointment). Nothing already saved to the server is affected.",
         "confirmDiscard": "Yes, discard"
-      }
+      },
+      "equipmentNoneHint": "No equipment on file for this customer yet — you can still continue without selecting one."
     },
     "appointments": {
       "title": "Appointments",
@@ -939,7 +1006,8 @@
       "noUnassigned": "All jobs assigned for today.",
       "selected": "Selected",
       "viewTicket": "View ticket",
-      "forceReassign": "Force reassign"
+      "forceReassign": "Force reassign",
+      "nextDayPriorityShort": "Next-day priority"
     },
     "detail": {
       "createdFromInvoice": "Created from invoice #{{id}}",
@@ -952,6 +1020,9 @@
       "offDuty": "Off duty",
       "assignManually": "Assign manually",
       "noAppointment": "No appointment yet.",
+      "narrowWindowBadge": "Narrow window",
+      "nextDayPriorityBadge": "Next-day priority",
+      "rescheduledFrom": "moved from {{date}}",
       "jobReport": "Job report",
       "startTime": "Start time",
       "closeTime": "Close time",
@@ -968,14 +1039,51 @@
       "cancellationReason": "Cancellation reason",
       "deleteConfirm": "Permanently delete this ticket? This cannot be undone.",
       "deleteSuccess": "Ticket deleted.",
-      "deleteBlocked": "This ticket has an invoice or a charged visit attached and cannot be deleted — cancel it instead."
+      "deleteBlocked": "This ticket has an invoice or a charged visit attached and cannot be deleted — cancel it instead.",
+      "beforeImage": "Before photo",
+      "afterImage": "After photo",
+      "evidence": {
+        "title": "Evidence",
+        "loading": "Loading evidence…",
+        "loadFailed": "Couldn't load evidence. Try again.",
+        "noVisits": "No visits yet — evidence will appear once a technician starts a visit.",
+        "visitLabel": "Visit {{n}}",
+        "photos": "Photos",
+        "noPhotos": "No photos yet.",
+        "signatures": "Signatures",
+        "techSignature": "Technician signature",
+        "customerSignature": "Customer signature",
+        "roChecklist": "RO checklist",
+        "tdsBefore": "TDS before",
+        "tdsAfter": "TDS after",
+        "tankCleaned": "Tank cleaned",
+        "productExplained": "Product explained",
+        "clientName": "Client name",
+        "sparesUsed": "Spares used",
+        "noSpares": "No spares used.",
+        "spareName": "Name",
+        "spareSku": "SKU",
+        "spareQty": "Qty",
+        "spareCost": "Cost",
+        "gpsTrail": "GPS trail",
+        "noGps": "No location data for this visit.",
+        "attendanceSelfie": "Attendance selfie",
+        "noSelfie": "No attendance selfie for this day.",
+        "invoice": "Linked invoice",
+        "noInvoice": "No invoice linked yet.",
+        "invoiceAmount": "Amount",
+        "invoiceDate": "Date",
+        "invoicePaymentStatus": "Payment status",
+        "visitNotes": "Visit notes"
+      }
     },
     "error": {
       "loadFailed": "Couldn't load ticket. Check your connection and try again."
     },
     "assign": {
       "noneAvailable": "No technicians available for auto-assign.",
-      "technicianBusy": "Technician is busy at scheduled time."
+      "technicianBusy": "Technician is busy at scheduled time.",
+      "exemptionWindowConflict": "This customer has an exemption window covering this time — no technician can be assigned then."
     }
   },
   "amc": {
@@ -1025,7 +1133,9 @@
       "roOnlyHint": "AMC is available for RO products only.",
       "plan": "Plan",
       "startDate": "Start date",
-      "submit": "Sell plan"
+      "submit": "Sell plan",
+      "years": "Years",
+      "totalPrice": "Total: {{amount}}"
     },
     "errors": {
       "customerRequired": "Customer is required",
@@ -1139,7 +1249,8 @@
       "warrantyExpired": "Warranty expired",
       "expiresOn": "Expires on {{date}}",
       "nextServiceOn": "Next service on {{date}}",
-      "bookService": "Book service"
+      "bookService": "Book service",
+      "purchasedOn": "Purchased on {{date}}"
     },
     "bookings": {
       "title": "Bookings",
@@ -1211,7 +1322,11 @@
         "active": "Active",
         "due_soon": "Due soon",
         "expired": "Expired"
-      }
+      },
+      "years": "Years",
+      "totalPrice": "Total: {{amount}}",
+      "startedOn": "Started on {{date}}",
+      "perYear": "/yr"
     },
     "productEnquiry": {
       "title": "Product Enquiry",
@@ -1286,11 +1401,30 @@
       "appointmentMode": "When would you like the visit?",
       "mode": {
         "always": "Anytime",
-        "datetime": "Pick a date & time"
+        "datetime": "Pick a date"
       },
       "workHoursHint": "Please pick a time within our working hours — we'll confirm your slot.",
+      "availableFrom": "Available from (optional)",
+      "availableTo": "Available to (optional)",
+      "availableWindowHint": "Let us know if you're only free during certain hours.",
+      "availableWindowInvalid": "\"Available to\" must be later than \"Available from\".",
       "timeRequired": "Please pick a date and time.",
       "timeOutsideWorkHours": "Please pick a time between {{start}} and {{end}}.",
+      "pickDate": "Choose a date",
+      "dateRequired": "Please choose a date.",
+      "windowMode": {
+        "any": "Any time",
+        "custom": "I'm not available at certain times"
+      },
+      "anyTimeInfo": "Our technicians work {{start}}–{{end}}. Your technician will arrive within this window.",
+      "exemptionWindowsLabel": "Always blocked for you",
+      "unavailableWindowsLabel": "Times you're not available",
+      "noUnavailableWindows": "No windows marked yet — add one below.",
+      "availableWindowPreview": "We'll aim to visit between {{start}} and {{end}}.",
+      "narrowWindowWarning": "That only leaves a narrow window ({{start}}–{{end}}). We'll treat this as a specific-time booking.",
+      "mayMoveNextDay": "If this date is fully booked, we'll automatically move your visit to the next day as first priority.",
+      "fullyBlockedWarning": "You've blocked out the entire working day. We'll automatically move your visit to the next day as first priority.",
+      "nextDayPriorityNote": "Your requested date was fully booked, so we've moved your visit to the next available day as top priority.",
       "confirmTitle": "Review your booking",
       "next": "Next",
       "confirmBooking": "Confirm booking",
@@ -1344,6 +1478,12 @@
         "durationLabel": "{{minutes}} min lunch",
         "allowedHint": "{{allowed}} min allowed, red after {{red}} min",
         "overLimit": "Over the allowed lunch time"
+      },
+      "checkout": {
+        "title": "Check Out",
+        "button": "Check Out",
+        "checkedOutAt": "Checked out at {{time}}",
+        "workedHours": "Worked: {{duration}}"
       }
     },
     "photo": {
@@ -1446,7 +1586,15 @@
       "jobCount_one": "{{count}} job",
       "jobCount_other": "{{count}} jobs",
       "noJobsTitle": "No jobs today",
-      "noJobsBody": "Your schedule is clear — check back later or pull to refresh."
+      "noJobsBody": "Your schedule is clear — check back later or pull to refresh.",
+      "counts": {
+        "total": "Today's Jobs",
+        "pending": "Pending",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "overdue": "Overdue"
+      },
+      "overdueBy": "Overdue by {{hours}}h {{minutes}}m"
     },
     "map": {
       "title": "Map",
@@ -1472,7 +1620,9 @@
       "confirmingArrivalNote": "You're near the customer's location — confirming arrival…",
       "productivityTimerNote": "Your productivity timer started automatically on arrival.",
       "continueToService": "Continue to service",
-      "arrivedButton": "I've arrived"
+      "arrivedButton": "I've arrived",
+      "arrivedOutsideGeofence": "Move within {{radius}} m of the customer to mark arrival.",
+      "arrivedNoLocation": "Waiting for your location — arrival can't be confirmed yet."
     },
     "search": {
       "title": "Customer Search",
@@ -1497,6 +1647,8 @@
       "costingRuleFree": "Warranty/AMC — cost is ₹0, but quantity used is still recorded.",
       "historyTitle": "Previous service history",
       "noHistory": "No previous service history for this customer.",
+      "historyNotesLabel": "Previous notes",
+      "historySparesLabel": "Parts changed",
       "navigate": "Navigate",
       "startVisit": "Start visit",
       "closedTitle": "This job is already closed"
@@ -1595,7 +1747,13 @@
           "water_premium": "Water Premium",
           "budget": "Budget"
         }
-      }
+      },
+      "visitNotes": {
+        "label": "Visit notes",
+        "hint": "Optional — anything worth remembering about this visit.",
+        "placeholder": "e.g. Customer requested next visit in the morning"
+      },
+      "sopOverdue": "Over expected time"
     },
     "rating": {
       "noVisitTitle": "No visit found",
@@ -1824,7 +1982,9 @@
       "date": "Bill date",
       "amount": "Amount",
       "gst": "GST",
-      "empty": "No bills recorded yet."
+      "empty": "No bills recorded yet.",
+      "prefillNotice": "Prefilled from the last bill entered for this supplier.",
+      "clearPrefill": "Clear"
     },
     "items": {
       "selectItem": "Select…",
@@ -1859,6 +2019,7 @@
       "active": "Active",
       "editTitle": "Edit Technician",
       "skills": "Skills",
+      "dailyCapacity": "Daily Capacity (minutes)",
       "skillOptions": {
         "ro": "RO",
         "ac": "AC",
@@ -1892,7 +2053,8 @@
         "current": "Current Job",
         "history": "History",
         "attendance": "Attendance",
-        "rewards": "Rewards"
+        "rewards": "Rewards",
+        "availability": "Availability"
       },
       "noCurrentJob": "No active job right now.",
       "noHistory": "No jobs assigned yet.",
@@ -1903,6 +2065,33 @@
       "jobStatus": {
         "scheduled": "Scheduled",
         "in_progress": "In progress"
+      },
+      "history": {
+        "notRated": "Not rated"
+      },
+      "attendance": {
+        "checkedInAt": "In: {{time}}",
+        "checkedOutAt": "Out: {{time}}",
+        "workedHours": "Worked: {{duration}}",
+        "prevMonth": "Previous month",
+        "nextMonth": "Next month",
+        "today": "Today",
+        "timeLogTitle": "Time Log",
+        "ratingsTitle": "Ratings",
+        "noVisitsThisDay": "No visits completed on this day."
+      },
+      "availability": {
+        "addTitle": "Add availability",
+        "date": "Date",
+        "status": "Status",
+        "shiftStart": "Shift Start",
+        "shiftEnd": "Shift End",
+        "statusOptions": {
+          "working": "Working",
+          "leave": "Leave"
+        },
+        "empty": "No availability recorded yet.",
+        "loadFailed": "Failed to load availability."
       }
     },
     "map": {
@@ -2054,7 +2243,15 @@
     "filters": {
       "from": "From",
       "to": "To",
-      "exportCsv": "Export CSV"
+      "exportCsv": "Export CSV",
+      "presets": {
+        "thisMonth": "This month",
+        "previousMonth": "Previous month",
+        "thisYear": "This year",
+        "allTime": "All time"
+      },
+      "category": "Category",
+      "allCategories": "All categories"
     },
     "invoiceType": {
       "product": "Product",
@@ -2096,7 +2293,9 @@
         "purchase": "Purchase",
         "other": "Other"
       },
-      "gstToggle": "View"
+      "gstToggle": "View",
+      "logExpense": "Log Expense",
+      "date": "Date"
     },
     "performance": {
       "scoreboardTitle": "Performance Scoreboard",
@@ -2107,6 +2306,8 @@
       "jobsShort": "Jobs",
       "avgPerCall": "Avg/call",
       "onTimePercent": "On-time %",
+      "avgCompletionTime": "Avg Completion Time",
+      "productivity": "Productivity",
       "firstFix": "1st-fix",
       "revenue": "Revenue",
       "avgRating": "Avg Rating",
@@ -2131,6 +2332,11 @@
       "reason": "Reason",
       "noReason": "No reason captured",
       "noLowRatings": "No low ratings in this range — great work."
+    },
+    "errors": {
+      "expenseCategoryRequired": "Category is required",
+      "expenseAmountPositive": "Amount must be greater than 0",
+      "expenseDateRequired": "Date is required"
     }
   },
   "workspace": {
@@ -2151,10 +2357,16 @@
       "markConfirmed": "Mark Confirmed",
       "confirmedLabel": "Confirmed",
       "genericLabel": "Pending confirmation",
-      "stubNote": "This app has no live telephony/AI integration — confirming here just logs the action."
+      "stubNote": "This app has no live telephony/AI integration — confirming here just logs the action.",
+      "none": "No confirmation calls due today or tomorrow.",
+      "unknownCustomer": "Unknown customer"
     },
     "markDone": "Mark done",
-    "markOpen": "Mark open"
+    "markOpen": "Mark open",
+    "rolledOverCount_one": "Rolled over {{count}} day",
+    "rolledOverCount_other": "Rolled over {{count}} days",
+    "daysOverdue_one": "{{count}} day overdue",
+    "daysOverdue_other": "{{count}} days overdue"
   },
   "notifications": {
     "subtitle": "Everything sent to you or your role.",

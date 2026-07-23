@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { db } from "@/lib/offline/db"
 import { enqueue } from "@/lib/offline/outbox"
+import { distanceKm, expectedMinutes, type GeoPoint } from "@/lib/offline/geo"
 import type { Enums, Tables } from "@/types/database"
 
 export type AttendanceRow = Tables<"attendance">
@@ -144,6 +145,34 @@ export async function queueLunchToggle(
   return merged
 }
 
+/**
+ * Requirement 7 — real Attendance check-out (a genuine `check_out_at`
+ * timestamp, not a derived/estimated one). `check_out_at` doesn't exist on
+ * the generated `AttendanceRow` type yet (`src/types/database.ts` is
+ * integrator-owned / regenerated centrally — see services/service.ts's
+ * `SettingsWithSla` for the established precedent of locally widening a
+ * stale generated row type instead of editing that file directly); the
+ * migration adding the column already exists
+ * (20260716120000_attendance_checkout.sql). Same queued-patch pattern as
+ * queueLunchToggle above and for the identical reason: an immediate refetch
+ * right after this resolves would otherwise race the offline outbox's ~20s
+ * sync and read back the stale, not-yet-checked-out server row.
+ */
+export type AttendanceRowWithCheckOut = AttendanceRow & { check_out_at: string | null }
+
+export async function queueCheckOut(technicianId: string, date: string): Promise<AttendanceRowWithCheckOut | null> {
+  const checkOutAt = new Date().toISOString()
+  const cacheId = `${technicianId}:${date}`
+  const cached = await db.attendanceCache.get(cacheId)
+  let merged: AttendanceRowWithCheckOut | null = null
+  if (cached) {
+    merged = { ...(cached.data as AttendanceRow), check_out_at: checkOutAt }
+    await db.attendanceCache.put({ ...cached, data: merged, updatedAt: Date.now() })
+  }
+  await enqueue("attendance.checkout", { technicianId, date, checkOutAt })
+  return merged
+}
+
 // ── TECH-02 Spare receipt ────────────────────────────────────────────────
 
 export async function getTodayHandover(technicianId: string, date: string) {
@@ -189,6 +218,76 @@ export async function listTodaysJobs(technicianId: string): Promise<JobCard[]> {
   }
   const cached = await db.jobsCache.toArray()
   return cached.map((c) => c.data as JobCard)
+}
+
+/**
+ * Bug 2/3 (technician home overdue highlighting) — ported verbatim from the
+ * admin side's isOverdueRow (src/app/admin/service/TicketsListPage.tsx):
+ * overdue means the ticket has an SLA deadline that has already passed and
+ * the ticket hasn't reached a terminal status. Takes the loosest shape that
+ * satisfies both call sites (a live JobCard's service_tickets join and the
+ * ticket fields it embeds) so it doesn't force a wider import just for typing.
+ */
+export function isOverdueJob(ticket: { sla_due_at: string | null; status: Enums<"ticket_status"> }, now: number): boolean {
+  return !!ticket.sla_due_at && ticket.status !== "completed" && ticket.status !== "cancelled" && new Date(ticket.sla_due_at).getTime() <= now
+}
+
+export type TodaysJobCounts = {
+  total: number
+  pending: number
+  completed: number
+  cancelled: number
+  overdue: number
+}
+
+/**
+ * Requirement 6 — Today's Jobs / Pending / Completed / Cancelled / Overdue
+ * counts row on TechnicianHomePage. `listTodaysJobs` only ever returns
+ * appointments still in status scheduled/in_progress (no date filter — "all
+ * currently open jobs" for this technician), so total/pending/overdue are
+ * derived from that same result: pending = every open job (scheduled or
+ * in_progress both count as "not yet completed today"), overdue = the subset
+ * whose ticket already breached SLA. completed/cancelled appointments don't
+ * appear in that query at all once they leave scheduled/in_progress, so they
+ * need their own date-windowed queries — same `count: "exact", head: true` +
+ * a today [00:00, 23:59:59.999] window pattern getDaySheetSummary uses in
+ * services/workspace.ts, using `updated_at` as the completion/cancellation
+ * timestamp proxy (appointments has no dedicated "closed_at" column).
+ */
+export async function getTodaysJobCounts(orgId: string, technicianId: string): Promise<TodaysJobCounts> {
+  const date = new Date().toISOString().slice(0, 10)
+  const dayStartIso = new Date(`${date}T00:00:00`).toISOString()
+  const dayEndIso = new Date(`${date}T23:59:59.999`).toISOString()
+  const now = Date.now()
+
+  const [openJobs, completedRes, cancelledRes] = await Promise.all([
+    listTodaysJobs(technicianId),
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .eq("technician_id", technicianId)
+      .eq("status", "completed")
+      .gte("updated_at", dayStartIso)
+      .lte("updated_at", dayEndIso),
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .eq("technician_id", technicianId)
+      .eq("status", "cancelled")
+      .gte("updated_at", dayStartIso)
+      .lte("updated_at", dayEndIso),
+  ])
+  if (completedRes.error) throw completedRes.error
+  if (cancelledRes.error) throw cancelledRes.error
+
+  const pending = openJobs.length
+  const overdue = openJobs.filter((job) => job.service_tickets && isOverdueJob(job.service_tickets, now)).length
+  const completed = completedRes.count ?? 0
+  const cancelled = cancelledRes.count ?? 0
+
+  return { total: pending + completed + cancelled, pending, completed, cancelled, overdue }
 }
 
 // ── TECH-06 Job detail / history ─────────────────────────────────────────
@@ -237,18 +336,36 @@ export type CustomerHistoryEntry = {
   type: Enums<"ticket_type"> | null
   status: Enums<"ticket_status">
   created_at: string
-  service_visits: { timer_start: string | null; timer_end: string | null; service_charge: number }[]
+  service_visits: {
+    id: string
+    timer_start: string | null
+    timer_end: string | null
+    service_charge: number
+    // Meeting spec D6: the previous technician's on-site notes — already
+    // captured on every visit (see VisitDraftData.visitNotes -> endVisit),
+    // just never selected/shown here before.
+    notes: string | null
+    service_spares_used: { id: string; qty: number; spares: { name: string } | null }[]
+  }[]
 }
 
-/** Previous service history for a customer (TECH-06 "previous history timeline"), most recent first. */
+/**
+ * Previous service history for a customer (TECH-06 "previous history timeline"), most recent first.
+ * Meeting spec D6: owner wants at least the last 2 services shown, with parts changed and the
+ * previous technician's notes — not just dates — so a technician opening a job sees the full
+ * picture, including visits a *different* technician handled (see the
+ * `service_tickets_select_customer_history_technician` RLS policy this depends on).
+ */
 export async function getCustomerHistory(customerId: string, excludeTicketId?: string): Promise<CustomerHistoryEntry[]> {
   const { data, error } = await supabase
     .from("service_tickets")
-    .select("id, name_of_complaint, nature_of_complaint, type, status, created_at, service_visits(timer_start, timer_end, service_charge)")
+    .select(
+      "id, name_of_complaint, nature_of_complaint, type, status, created_at, service_visits(id, timer_start, timer_end, service_charge, notes, service_spares_used(id, qty, spares(name)))"
+    )
     .eq("customer_id", customerId)
     .neq("id", excludeTicketId ?? "")
     .order("created_at", { ascending: false })
-    .limit(10)
+    .limit(2)
   if (error) throw error
   return (data ?? []) as unknown as CustomerHistoryEntry[]
 }
@@ -283,6 +400,118 @@ export async function pingLiveLocation(orgId: string, technicianId: string, lat:
   // RLS/network failure is diagnosable instead of just silently never
   // appearing on the admin map with no trace of why.
   if (error) console.error("Failed to send live location ping:", error)
+}
+
+// ── Build Order STEP 5 / Assignment spec Phase 4 — route ordering ────────
+
+/**
+ * Loosest shape computeRouteOrder/selectNextJob actually need — same
+ * "don't force a wider import just for typing" reasoning as isOverdueJob
+ * above. Both are generic over `T extends RoutableJob`, so a real caller
+ * passing JobCard[] gets JobCard[]/JobCard back, not this narrowed type.
+ */
+export type RoutableJob = {
+  available_from: string | null
+  available_to: string | null
+  service_tickets: {
+    estimated_duration_minutes: number | null
+    addresses: { lat: number | null; lng: number | null } | null
+  }
+}
+
+/**
+ * `available_from`/`available_to` on `appointments` are plain nullable
+ * `time` columns (only meaningful when `mode = 'datetime'`; `mode =
+ * 'always'` keeps both null — see
+ * 20260721091000_appointment_availability_window.sql). Permissive-when-
+ * unknown: NULL on EITHER bound reads as "no constraint / always open", not
+ * a half-open window — same precedent as the zone/skill/capacity hard
+ * filters documented in
+ * 20260721100000_technician_assignment_phase2_hard_filter.sql's header
+ * comment. `atMinutes` is minutes-since-midnight of the projected arrival.
+ */
+function isWindowOpenAt(job: RoutableJob, atMinutes: number): boolean {
+  if (job.available_from == null || job.available_to == null) return true
+  const from = timeStringToMinutes(job.available_from)
+  const to = timeStringToMinutes(job.available_to)
+  if (from == null || to == null) return true
+  return atMinutes >= from && atMinutes <= to
+}
+
+function timeStringToMinutes(value: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(value)
+  if (!m) return null
+  return Number(m[1]) * 60 + Number(m[2])
+}
+
+/**
+ * Build Order STEP 5 / Assignment spec Phase 4 (verification gate 4) —
+ * orders a technician's remaining jobs into a route starting from their
+ * current position: nearest-first by straight-line distance (the same
+ * Haversine metric MapPage already shows on its live distance/ETA card — no
+ * need for a second distance model just to pick an order), but a job whose
+ * customer-availability window isn't open yet at the projected arrival is
+ * skipped for the next-closest job whose window IS open, and reconsidered
+ * again from the next stop onward — producing an A -> C -> back-to-B route
+ * instead of a strict nearest-only greedy order.
+ *
+ * Each step advances the simulated clock by travel time plus
+ * `estimated_duration_minutes` (0 when null — same legacy-null-contributes-0
+ * convention the Phase 2 capacity filter uses) before evaluating the next
+ * stop, so a deferred job's projected arrival accounts for time actually
+ * spent at the stops visited ahead of it, not just travel time from "now" —
+ * the spec's own stated reason Phase 4 needs Phase 1.3's duration data.
+ * Jobs missing geocoded coordinates can't have a distance computed; they
+ * sort last but stay eligible (never silently dropped from the route). If
+ * NO remaining job's window is open yet (e.g. only one job left and it isn't
+ * due for hours), falls back to nearest overall rather than stalling the
+ * route with nothing selected — the window is a preference for ordering,
+ * not a hard eligibility gate (unlike zone/skill/capacity at assignment
+ * time).
+ *
+ * Deliberately myopic/recomputed rather than a persisted plan: callers
+ * (MapPage) re-run this from the technician's live GPS position and the
+ * current clock on every render, so "return to B once C is done" falls out
+ * naturally from the technician's actual movement instead of a stale
+ * upfront route.
+ */
+export function computeRouteOrder<T extends RoutableJob>(jobs: T[], startPosition: GeoPoint, startTime: Date, perKmMinutes: number): T[] {
+  const remaining = jobs.slice()
+  const ordered: T[] = []
+  let position = startPosition
+  let clockMinutes = startTime.getHours() * 60 + startTime.getMinutes()
+
+  while (remaining.length > 0) {
+    const candidates = remaining.map((job, index) => {
+      const addr = job.service_tickets.addresses
+      const dest = addr?.lat != null && addr?.lng != null ? { lat: addr.lat, lng: addr.lng } : null
+      const km = dest ? distanceKm(position, dest) : null
+      const arrivalMinutes = clockMinutes + (km != null ? expectedMinutes(km, perKmMinutes) : 0)
+      return { index, job, km, dest, arrivalMinutes }
+    })
+
+    // Nearest first; jobs without resolvable coordinates sort last but stay eligible.
+    candidates.sort((a, b) => {
+      if (a.km == null && b.km == null) return 0
+      if (a.km == null) return 1
+      if (b.km == null) return -1
+      return a.km - b.km
+    })
+
+    const pick = candidates.find((c) => isWindowOpenAt(c.job, c.arrivalMinutes)) ?? candidates[0]
+
+    ordered.push(pick.job)
+    remaining.splice(pick.index, 1)
+    if (pick.dest) position = pick.dest
+    clockMinutes = pick.arrivalMinutes + (pick.job.service_tickets.estimated_duration_minutes ?? 0)
+  }
+
+  return ordered
+}
+
+/** The route's first stop — what MapPage sends the technician to when no specific job is chosen. */
+export function selectNextJob<T extends RoutableJob>(jobs: T[], position: GeoPoint, now: Date, perKmMinutes: number): T | null {
+  return computeRouteOrder(jobs, position, now, perKmMinutes)[0] ?? null
 }
 
 // ── TECH-05 Customer search & call ────────────────────────────────────────
@@ -367,9 +596,17 @@ export async function queueVisitImage(visitId: string, kind: "before" | "after",
   await enqueue("service_visit.image", { visitId, column: kind === "before" ? "before_image_url" : "after_image_url", url })
 }
 
-/** Closes the productivity timer (timer_end) once payment is complete — the outbox kind + sync.ts handler already existed but nothing queued it yet. */
-export async function queueEndVisit(visitId: string, timerEnd: string) {
-  await enqueue("service_visit.arrive", { visitId, patch: { timer_end: timerEnd } })
+/**
+ * Closes the productivity timer (timer_end) once payment is complete — the outbox kind + sync.ts handler already existed but nothing queued it yet.
+ * Optionally carries the technician's own free-text on-site findings (`service_visits.notes`, an existing but previously-unused column) in the same
+ * patch — sync.ts's `service_visit.arrive` handler already applies whatever fields are present in `patch` generically, so no new job kind or sync.ts
+ * change is needed to land this.
+ */
+export async function queueEndVisit(visitId: string, timerEnd: string, notes?: string) {
+  const patch: { timer_end: string; notes?: string } = { timer_end: timerEnd }
+  const trimmedNotes = notes?.trim()
+  if (trimmedNotes) patch.notes = trimmedNotes
+  await enqueue("service_visit.arrive", { visitId, patch })
 }
 
 /**

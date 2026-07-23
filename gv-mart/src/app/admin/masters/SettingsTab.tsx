@@ -63,6 +63,13 @@ export function SettingsTab() {
         sla_hours_very_urgent: Number(settings.sla_hours_very_urgent),
         sla_hours_urgent: Number(settings.sla_hours_urgent),
         sla_hours_normal: Number(settings.sla_hours_normal),
+        default_duration_paid_minutes: settings.default_duration_paid_minutes,
+        default_duration_warranty_minutes: settings.default_duration_warranty_minutes,
+        default_duration_amc_minutes: settings.default_duration_amc_minutes,
+        default_duration_installation_minutes: settings.default_duration_installation_minutes,
+        narrow_window_threshold_minutes: settings.narrow_window_threshold_minutes,
+        po_approval_threshold: Number(settings.po_approval_threshold),
+        po_requires_approval: settings.po_requires_approval,
       })
     }
   }, [settings, reset])
@@ -144,6 +151,24 @@ export function SettingsTab() {
       </Card>
 
       <Card className="gap-4">
+        <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.jobDuration")}</h3>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("default_duration_paid_minutes", t("settings.durationPaid"), "number", "1")}
+          {field("default_duration_warranty_minutes", t("settings.durationWarranty"), "number", "1")}
+          {field("default_duration_amc_minutes", t("settings.durationAmc"), "number", "1")}
+          {field("default_duration_installation_minutes", t("settings.durationInstallation"), "number", "1")}
+        </div>
+      </Card>
+
+      <Card className="gap-4">
+        <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.booking")}</h3>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("narrow_window_threshold_minutes", t("settings.narrowWindowThreshold"), "number", "1")}
+        </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.narrowWindowThresholdHint")}</p>
+      </Card>
+
+      <Card className="gap-4">
         <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.amcReferral")}</h3>
         <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
           {field("amc_book_window_days", t("settings.amcBookWindow"), "number", "1")}
@@ -161,7 +186,15 @@ export function SettingsTab() {
         <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
           {field("default_min_stock", t("settings.defaultMinStock"), "number", "1")}
           {field("default_reorder_qty", t("settings.defaultReorderQty"), "number", "1")}
+          {field("po_approval_threshold", t("settings.poApprovalThreshold"), "number", "100")}
         </div>
+        <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
+          <input type="checkbox" className="size-4 accent-accent" {...register("po_requires_approval")} />
+          <span>
+            <span className="block font-medium">{t("settings.poRequiresApproval")}</span>
+            <span className="block text-xs text-text-muted">{t("settings.poRequiresApprovalHint")}</span>
+          </span>
+        </label>
       </Card>
 
       {updateMut.isError ? (

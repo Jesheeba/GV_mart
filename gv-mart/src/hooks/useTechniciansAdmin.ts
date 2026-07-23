@@ -53,10 +53,37 @@ export function useTechnicianAttendanceHistory(technicianId: string | undefined)
   })
 }
 
+export function useTechnicianAttendanceForMonth(technicianId: string | undefined, year: number, month: number) {
+  return useQuery({
+    queryKey: ["attendance", "byMonth", technicianId, year, month],
+    queryFn: () => techniciansAdmin.getTechnicianAttendanceForMonth(technicianId!, year, month),
+    enabled: !!technicianId,
+  })
+}
+
+/** Only fires once a calendar day is actually clicked (`dateStr` set) —
+ * there's no reason to fetch every visible day's visits/ratings up front. */
+export function useTechnicianVisitsForDate(technicianId: string | undefined, dateStr: string | null) {
+  return useQuery({
+    queryKey: ["attendance", "visitsForDate", technicianId, dateStr],
+    queryFn: () => techniciansAdmin.getTechnicianVisitsForDate(technicianId!, dateStr!),
+    enabled: !!technicianId && !!dateStr,
+  })
+}
+
 export function useTechnicianRewards(technicianId: string | undefined) {
   return useQuery({
     queryKey: ["rewards", "byTechnician", technicianId],
     queryFn: () => techniciansAdmin.listTechnicianRewards(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
+/** Requirement 2/11 — History tab's per-job duration + rating enrichment (see getTechnicianTicketHistory doc comment). */
+export function useTechnicianTicketHistory(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicians", "ticketHistory", technicianId],
+    queryFn: () => techniciansAdmin.getTechnicianTicketHistory(technicianId!),
     enabled: !!technicianId,
   })
 }
@@ -118,5 +145,36 @@ export function useAdminSignSpareHandover() {
     mutationFn: ({ handoverId, adminSignUrl }: { handoverId: string; adminSignUrl: string }) =>
       techniciansAdmin.adminSignSpareHandover(handoverId, adminSignUrl),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["spare_handovers"] }),
+  })
+}
+
+// ── Phase 1 assignment-engine data: technician_availability ───────────────
+
+export function useTechnicianAvailability(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technician-availability", technicianId],
+    queryFn: () => techniciansAdmin.listTechnicianAvailability(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
+export function useUpsertTechnicianAvailability() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Parameters<typeof techniciansAdmin.upsertTechnicianAvailability>[0]) =>
+      techniciansAdmin.upsertTechnicianAvailability(input),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["technician-availability", variables.technician_id] })
+    },
+  })
+}
+
+export function useDeleteTechnicianAvailability() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }: { id: string; technicianId: string }) => techniciansAdmin.deleteTechnicianAvailability(id),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["technician-availability", variables.technicianId] })
+    },
   })
 }

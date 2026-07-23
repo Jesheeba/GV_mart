@@ -1,16 +1,26 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { CheckCircle2, Coffee, Lock, MapPin, Loader2, TriangleAlert } from "lucide-react"
+import { CheckCircle2, Coffee, Lock, LogOut, MapPin, Loader2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { PhotoCapture } from "./components/PhotoCapture"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
-import { useLunchToggle, useMarkAttendance, useMyTechnician, useTechnicianSettings, useTodayAttendance } from "@/hooks/useTechnician"
+import { useCheckOut, useLunchToggle, useMarkAttendance, useMyTechnician, useTechnicianSettings, useTodayAttendance } from "@/hooks/useTechnician"
+import type { AttendanceRowWithCheckOut } from "@/services/technician"
 import { classifyGeoError, getCurrentPosition, isInsideGeofence, type GeoPoint } from "@/lib/offline/geo"
 import { attendanceSchema } from "@/lib/validation/technician"
 import { cn } from "@/lib/utils"
+
+/** Requirement 7 — local formatter for the Check Out card's "worked hours" readout (e.g. "7h 32m"); not a shared util per the scope note, this is the only place that needs it. */
+function formatWorkedDuration(startIso: string, endIso: string): string {
+  const ms = Math.max(0, new Date(endIso).getTime() - new Date(startIso).getTime())
+  const totalMinutes = Math.round(ms / 60_000)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
 
 type Tick = "affirmation" | "pledge" | "meeting"
 const TICK_ORDER: Tick[] = ["affirmation", "pledge", "meeting"]
@@ -33,6 +43,7 @@ export function AttendancePage() {
   const attendance = useTodayAttendance(technician.data?.id)
   const markAttendance = useMarkAttendance()
   const lunchToggle = useLunchToggle()
+  const checkOut = useCheckOut()
 
   const [position, setPosition] = useState<GeoPoint | null>(null)
   const [geoError, setGeoError] = useState<string | null>(null)
@@ -138,6 +149,15 @@ export function AttendancePage() {
     lunchToggle.mutate({ technicianId: technician.data.id, date: attendance.data.date, patch: { lunch_end: new Date().toISOString() } })
   }
 
+  // Requirement 7 — `check_out_at` isn't on the generated AttendanceRow type
+  // yet; see queueCheckOut's doc comment in services/technician.ts for why
+  // this cast is safe (the migration adding the column already exists).
+  const checkOutAt = attendance.data ? (attendance.data as AttendanceRowWithCheckOut).check_out_at : null
+  function handleCheckOut() {
+    if (!technician.data || !attendance.data) return
+    checkOut.mutate({ technicianId: technician.data.id, date: attendance.data.date })
+  }
+
   function handleTick(tick: Tick) {
     if (locked) return
     const idx = TICK_ORDER.indexOf(tick)
@@ -204,6 +224,31 @@ export function AttendancePage() {
                 <Button type="button" disabled={lunchToggle.isPending} onClick={handleEndLunch}>
                   {lunchToggle.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.attendance.lunch.end")}
                 </Button>
+              ) : null}
+            </>
+          )}
+        </Card>
+      ) : null}
+
+      {alreadyMarked ? (
+        <Card className="gap-2.5">
+          <div className="flex items-center gap-2 px-1">
+            <LogOut className="size-4 text-text-muted" />
+            <p className="text-sm font-semibold text-text">{t("technician.attendance.checkout.title")}</p>
+          </div>
+          {!checkOutAt ? (
+            <Button type="button" variant="outline" disabled={checkOut.isPending} onClick={handleCheckOut}>
+              {checkOut.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.attendance.checkout.button")}
+            </Button>
+          ) : (
+            <>
+              <p className="px-1 text-sm font-medium text-text">
+                {t("technician.attendance.checkout.checkedOutAt", { time: new Date(checkOutAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) })}
+              </p>
+              {attendance.data?.check_in_at ? (
+                <p className="px-1 text-xs text-text-muted">
+                  {t("technician.attendance.checkout.workedHours", { duration: formatWorkedDuration(attendance.data.check_in_at, checkOutAt) })}
+                </p>
               ) : null}
             </>
           )}

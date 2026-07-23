@@ -6,6 +6,7 @@ export const technicianEditSchema = z.object({
   zone: z.string().trim().max(100).optional().or(z.literal("")),
   skills: z.array(z.string()).default([]),
   is_active: z.boolean(),
+  daily_capacity_minutes: z.number().int().positive(),
 })
 export type TechnicianEditInput = z.infer<typeof technicianEditSchema>
 

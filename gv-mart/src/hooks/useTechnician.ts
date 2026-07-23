@@ -98,6 +98,17 @@ export function useLogCall() {
   return useMutation({ mutationFn: tech.logCall })
 }
 
+/** Requirement 7 — mirrors useLunchToggle exactly, same setQueryData-not-invalidate reasoning (see its doc comment above / useMarkAttendance's). */
+export function useCheckOut() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ technicianId, date }: { technicianId: string; date: string }) => tech.queueCheckOut(technicianId, date),
+    onSuccess: (row, variables) => {
+      if (row) qc.setQueryData(["attendance", "today", variables.technicianId, variables.date], row)
+    },
+  })
+}
+
 // ── TECH-02 Spare receipt ────────────────────────────────────────────────
 
 export function useTodayHandover(technicianId: string | undefined) {
@@ -125,6 +136,16 @@ export function useTodaysJobs(technicianId: string | undefined) {
     queryKey: ["jobs", "today", technicianId],
     queryFn: () => tech.listTodaysJobs(technicianId!),
     enabled: !!technicianId,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Requirement 6 — counts row (Today's Jobs/Pending/Completed/Cancelled/Overdue) on TechnicianHomePage. */
+export function useTodaysJobCounts(orgId: string | undefined, technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["jobs", "todayCounts", orgId, technicianId],
+    queryFn: () => tech.getTodaysJobCounts(orgId!, technicianId!),
+    enabled: !!orgId && !!technicianId,
     refetchInterval: 60_000,
   })
 }
@@ -238,10 +259,10 @@ export function useQueueVisitImage() {
   })
 }
 
-/** Closes the visit's productivity timer once payment completes (TECH-07 step 10 -> TECH-08 handoff). */
+/** Closes the visit's productivity timer once payment completes (TECH-07 step 10 -> TECH-08 handoff). Optionally carries the technician's own visit notes through to `service_visits.notes` in the same patch. */
 export function useEndVisit() {
   return useMutation({
-    mutationFn: ({ visitId, timerEnd }: { visitId: string; timerEnd: string }) => tech.queueEndVisit(visitId, timerEnd),
+    mutationFn: ({ visitId, timerEnd, notes }: { visitId: string; timerEnd: string; notes?: string }) => tech.queueEndVisit(visitId, timerEnd, notes),
   })
 }
 
