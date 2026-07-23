@@ -523,6 +523,7 @@ export type Database = {
           price: number
           hsn_code: string | null
           warranty_months: number
+          standard_time_minutes: number | null
           created_at: string
           updated_at: string
         }
@@ -536,6 +537,7 @@ export type Database = {
           price: number
           hsn_code?: string | null
           warranty_months?: number
+          standard_time_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -549,6 +551,7 @@ export type Database = {
           price?: number
           hsn_code?: string | null
           warranty_months?: number
+          standard_time_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -584,6 +587,7 @@ export type Database = {
           sku: string | null
           price: number
           hsn_code: string | null
+          standard_time_minutes: number | null
           created_at: string
           updated_at: string
         }
@@ -594,6 +598,7 @@ export type Database = {
           sku?: string | null
           price: number
           hsn_code?: string | null
+          standard_time_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -604,6 +609,7 @@ export type Database = {
           sku?: string | null
           price?: number
           hsn_code?: string | null
+          standard_time_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -2707,6 +2713,7 @@ export type Database = {
           status: Database["public"]["Enums"]["lead_status"]
           owner_id: string | null
           score: number | null
+          visit_id: string | null
           created_at: string
           updated_at: string
         }
@@ -2722,6 +2729,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["lead_status"]
           owner_id?: string | null
           score?: number | null
+          visit_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2737,6 +2745,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["lead_status"]
           owner_id?: string | null
           score?: number | null
+          visit_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2760,6 +2769,13 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "service_visits"
             referencedColumns: ["id"]
           },
         ]
@@ -3221,6 +3237,8 @@ export type Database = {
           default_duration_amc_minutes: number
           default_duration_installation_minutes: number
           narrow_window_threshold_minutes: number
+          review_time_allowance_minutes: number
+          enquiry_time_allowance_minutes: number
           created_at: string
           updated_at: string
         }
@@ -3256,6 +3274,8 @@ export type Database = {
           default_duration_amc_minutes?: number
           default_duration_installation_minutes?: number
           narrow_window_threshold_minutes?: number
+          review_time_allowance_minutes?: number
+          enquiry_time_allowance_minutes?: number
           created_at?: string
           updated_at?: string
         }
@@ -3291,6 +3311,8 @@ export type Database = {
           default_duration_amc_minutes?: number
           default_duration_installation_minutes?: number
           narrow_window_threshold_minutes?: number
+          review_time_allowance_minutes?: number
+          enquiry_time_allowance_minutes?: number
           created_at?: string
           updated_at?: string
         }
@@ -3808,12 +3830,26 @@ export type Database = {
           p_mobile: string | null
           p_enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
           p_note: string | null
+          p_visit_id?: string | null
         }
         Returns: string
       }
       submit_rating: {
         Args: { p_org_id: string; p_visit_id: string; p_stars: number; p_review: string | null; p_low_rating_reason: string | null }
         Returns: string
+      }
+      mark_google_review_clicked: {
+        Args: { p_org_id: string; p_visit_id: string }
+        Returns: undefined
+      }
+      set_item_standard_time: {
+        Args: {
+          p_org_id: string
+          p_item_type: Database["public"]["Enums"]["item_type"]
+          p_item_id: string
+          p_minutes: number | null
+        }
+        Returns: undefined
       }
       confirm_spare_handover: {
         Args: { p_handover_id: string; p_tech_sign_url: string; p_admin_sign_url: string }

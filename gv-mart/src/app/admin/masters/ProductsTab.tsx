@@ -17,6 +17,8 @@ type ProductWithRefs = {
   price: number
   hsn_code: string | null
   warranty_months: number
+  // GV.md 1.1 — same admin-set standard time as spares (SparesTab.tsx).
+  standard_time_minutes: number | null
   created_at: string
   updated_at: string
   brands: { name: string } | null
@@ -58,6 +60,7 @@ export function ProductsTab() {
     { key: "price", label: t("masters.products.price"), type: "number", step: "0.01" },
     { key: "hsn_code", label: t("masters.products.hsn"), type: "text" },
     { key: "warranty_months", label: t("masters.products.warrantyMonths"), type: "number", step: "1" },
+    { key: "standard_time_minutes", label: t("masters.products.standardTime"), type: "number", step: "1" },
   ]
 
   if (!brands?.length || !models?.length) {
@@ -83,6 +86,7 @@ export function ProductsTab() {
         price: String(r.price),
         hsn_code: r.hsn_code ?? "",
         warranty_months: String(r.warranty_months),
+        standard_time_minutes: r.standard_time_minutes != null ? String(r.standard_time_minutes) : "",
       })}
       columns={[
         { key: "name", header: t("masters.products.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
@@ -90,6 +94,11 @@ export function ProductsTab() {
         { key: "model", header: t("masters.products.model"), render: (r) => r.models?.name ?? "—" },
         { key: "price", header: t("masters.products.price"), render: (r) => `₹${r.price}` },
         { key: "warranty", header: t("masters.products.warrantyMonths"), render: (r) => r.warranty_months },
+        {
+          key: "standard_time_minutes",
+          header: t("masters.products.standardTime"),
+          render: (r) => (r.standard_time_minutes != null ? t("masters.spares.standardTimeValue", { minutes: r.standard_time_minutes }) : "—"),
+        },
       ]}
       onCreate={(v) =>
         createMut.mutateAsync({
@@ -101,6 +110,7 @@ export function ProductsTab() {
           price: Number(v.price) || 0,
           hsn_code: v.hsn_code || null,
           warranty_months: Number(v.warranty_months) || 12,
+          standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
         })
       }
       onUpdate={(id, v) =>
@@ -114,6 +124,7 @@ export function ProductsTab() {
             price: Number(v.price) || 0,
             hsn_code: v.hsn_code || null,
             warranty_months: Number(v.warranty_months) || 12,
+            standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
           },
         })
       }

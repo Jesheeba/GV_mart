@@ -71,6 +71,8 @@ export function SettingsTab() {
         po_approval_threshold: Number(settings.po_approval_threshold),
         po_requires_approval: settings.po_requires_approval,
         po_quote_timeout_hours: Number(settings.po_quote_timeout_hours),
+        review_time_allowance_minutes: settings.review_time_allowance_minutes,
+        enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
       })
     }
   }, [settings, reset])
@@ -159,6 +161,16 @@ export function SettingsTab() {
           {field("default_duration_amc_minutes", t("settings.durationAmc"), "number", "1")}
           {field("default_duration_installation_minutes", t("settings.durationInstallation"), "number", "1")}
         </div>
+        {/* GV.md 1.2: "if review time = 5 min, then estimated time + 5 min is
+            shown as the technician's total allowed time (same logic for the
+            enquiry allowance)." These stack on top of the type defaults
+            above (or the job's actual item-time sum, once known — see
+            src/lib/job-allowance.ts) rather than replacing them. */}
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("review_time_allowance_minutes", t("settings.reviewTimeAllowance"), "number", "1")}
+          {field("enquiry_time_allowance_minutes", t("settings.enquiryTimeAllowance"), "number", "1")}
+        </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.allowanceHint")}</p>
       </Card>
 
       <Card className="gap-4">

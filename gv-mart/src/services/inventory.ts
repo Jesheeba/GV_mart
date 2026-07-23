@@ -7,20 +7,25 @@ export type ItemType = Enums<"item_type">
 export type InventoryListItem = InventoryRow & {
   itemName: string
   itemBrand: string | null
+  // GV.md 1.1: admin-set standard service time for this item, surfaced here
+  // so operation_admin (who has no direct write access to products/spares —
+  // see set_item_standard_time's migration comment) can view/edit it from
+  // the one screen that role already reaches.
+  standardTimeMinutes: number | null
 }
 
 async function nameLookup(orgId: string, itemType: ItemType) {
   if (itemType === "product") {
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,brands(name)")
+      .select("id,name,brands(name),standard_time_minutes")
       .eq("org_id", orgId)
     if (error) throw error
-    return new Map((data ?? []).map((p) => [p.id, { name: p.name, brand: p.brands?.name ?? null }]))
+    return new Map((data ?? []).map((p) => [p.id, { name: p.name, brand: p.brands?.name ?? null, standardTimeMinutes: p.standard_time_minutes }]))
   }
-  const { data, error } = await supabase.from("spares").select("id,name").eq("org_id", orgId)
+  const { data, error } = await supabase.from("spares").select("id,name,standard_time_minutes").eq("org_id", orgId)
   if (error) throw error
-  return new Map((data ?? []).map((s) => [s.id, { name: s.name, brand: null }]))
+  return new Map((data ?? []).map((s) => [s.id, { name: s.name, brand: null, standardTimeMinutes: s.standard_time_minutes }]))
 }
 
 export async function listInventory(orgId: string, itemType: ItemType): Promise<InventoryListItem[]> {
@@ -31,8 +36,19 @@ export async function listInventory(orgId: string, itemType: ItemType): Promise<
   if (error) throw error
   return (data ?? []).map((row) => {
     const info = names.get(row.item_id)
-    return { ...row, itemName: info?.name ?? "—", itemBrand: info?.brand ?? null }
+    return { ...row, itemName: info?.name ?? "—", itemBrand: info?.brand ?? null, standardTimeMinutes: info?.standardTimeMinutes ?? null }
   })
+}
+
+/** GV.md 1.1: admin AND operation_admin can set/edit this — see set_item_standard_time RPC (20260725100000_sop_item_times_and_allowances.sql) for why this is a narrow RPC rather than a direct products/spares table write. */
+export async function setItemStandardTime(input: { orgId: string; itemType: ItemType; itemId: string; minutes: number | null }) {
+  const { error } = await supabase.rpc("set_item_standard_time", {
+    p_org_id: input.orgId,
+    p_item_type: input.itemType,
+    p_item_id: input.itemId,
+    p_minutes: input.minutes,
+  })
+  if (error) throw error
 }
 
 export async function updateThresholds(id: string, patch: { min_stock: number; max_stock: number | null; reorder_qty: number }) {

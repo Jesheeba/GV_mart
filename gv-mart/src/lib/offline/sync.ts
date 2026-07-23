@@ -161,6 +161,15 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_mobile: (p.mobile as string) ?? null,
         p_enquiry_type: p.enquiryType as "online" | "price" | "quality" | "customization" | "water_premium" | "budget",
         p_note: (p.note as string) ?? null,
+        p_visit_id: (p.visitId as string) ?? null,
+      })
+      if (error) throw error
+      return
+    }
+    case "rating.mark_review_clicked": {
+      const { error } = await supabase.rpc("mark_google_review_clicked", {
+        p_org_id: p.orgId as string,
+        p_visit_id: p.visitId as string,
       })
       if (error) throw error
       return

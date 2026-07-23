@@ -26,3 +26,12 @@ export function useAdjustStock() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory", "list"] }),
   })
 }
+
+/** GV.md 1.1 — see inventory.setItemStandardTime doc. */
+export function useSetItemStandardTime() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Parameters<typeof inventory.setItemStandardTime>[0]) => inventory.setItemStandardTime(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory", "list"] }),
+  })
+}

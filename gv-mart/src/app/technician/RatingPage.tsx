@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
-import { useSubmitRating, useTechnicianSettings } from "@/hooks/useTechnician"
+import { useMarkGoogleReviewClicked, useSubmitRating, useTechnicianSettings } from "@/hooks/useTechnician"
 import { ratingSchema, showsGoogleReviewLink } from "@/lib/validation/technician"
 
 const textareaClass =
@@ -23,6 +23,7 @@ export function RatingPage() {
   const { data: profile } = useProfile()
   const settings = useTechnicianSettings(profile?.org_id)
   const submitRating = useSubmitRating()
+  const markReviewClicked = useMarkGoogleReviewClicked()
 
   const [stars, setStars] = useState(0)
   const [review, setReview] = useState("")
@@ -79,7 +80,20 @@ export function RatingPage() {
           <p className="text-base font-semibold text-text">{t("technician.rating.thankYouTitle")}</p>
           {showReviewLink ? (
             reviewUrl ? (
-              <a href={reviewUrl} target="_blank" rel="noreferrer" className="w-full">
+              // GV.md 1.2: this click is the live signal that gates the
+              // review-time allowance (ratings.google_review_clicked) — see
+              // mark_google_review_clicked. Fire-and-forget/best-effort: a
+              // logging failure must never block the technician from
+              // actually opening the review link.
+              <a
+                href={reviewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full"
+                onClick={() => {
+                  if (profile) void markReviewClicked.mutateAsync({ orgId: profile.org_id, visitId: visitId! }).catch(() => {})
+                }}
+              >
                 <Button type="button" className="w-full">{t("technician.rating.googleReviewButton")}</Button>
               </a>
             ) : (

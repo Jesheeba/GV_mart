@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import type { DayJobInput, DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Tables, TablesInsert } from "@/types/database"
 
@@ -494,6 +495,15 @@ export type TechnicianOpenVisit = {
   timerStart: string | null
   timerEnd: string | null
   estimatedDurationMinutes: number | null
+  // GV.md 1.2: the same admin-set-item-times + conditional-allowances figure
+  // job-allowance.ts computes elsewhere — precomputed here (rather than in
+  // TechniciansMapPage) so both its call sites (the live badge and the
+  // admin-popup notify effect) agree. Note the review allowance can never
+  // actually apply to a row from this query specifically — every row here
+  // is, by definition, still OPEN (timer_end is null), and a rating can only
+  // exist once RatingPage runs after the visit closes — see job-allowance.ts's
+  // `reviewCollected` doc for why that's the literal, intended reading.
+  allowedDurationMinutes: number | null
   customerName: string | null
   addressLabel: string | null
 }
@@ -504,12 +514,17 @@ export type TechnicianOpenVisit = {
  *  toward the *next* destination (v2.2 §6.6 idle/off-route); this tracks time
  *  spent *inside* a job already started. */
 export async function listTechniciansOpenVisits(orgId: string): Promise<Map<string, TechnicianOpenVisit>> {
-  const { data, error } = await supabase
-    .from("service_visits")
-    .select("id, technician_id, ticket_id, timer_start, timer_end, service_tickets(estimated_duration_minutes, customers(name), addresses(door_no, area))")
-    .eq("org_id", orgId)
-    .not("timer_start", "is", null)
-    .is("timer_end", null)
+  const [{ data, error }, settingsRes] = await Promise.all([
+    supabase
+      .from("service_visits")
+      .select(
+        "id, technician_id, ticket_id, timer_start, timer_end, service_tickets(estimated_duration_minutes, customers(name), addresses(door_no, area)), service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)"
+      )
+      .eq("org_id", orgId)
+      .not("timer_start", "is", null)
+      .is("timer_end", null),
+    supabase.from("settings").select("review_time_allowance_minutes, enquiry_time_allowance_minutes").eq("org_id", orgId).maybeSingle(),
+  ])
   if (error) throw error
   const rows = (data ?? []) as unknown as {
     id: string
@@ -522,16 +537,31 @@ export async function listTechniciansOpenVisits(orgId: string): Promise<Map<stri
       customers: { name: string } | null
       addresses: { door_no: string | null; area: string | null } | null
     } | null
+    service_spares_used: { qty: number; spares: { standard_time_minutes: number | null } | null }[]
+    ratings: { google_review_clicked: boolean } | null
+    leads: { id: string }[]
   }[]
+  const settings = settingsRes.data
   const byTech = new Map<string, TechnicianOpenVisit>()
   for (const r of rows) {
     const addr = r.service_tickets?.addresses
+    const allowedDurationMinutes = computeAllowedDurationMinutes({
+      itemsStandardMinutesSum: sumItemStandardMinutes(
+        (r.service_spares_used ?? []).map((s) => ({ qty: s.qty, standardTimeMinutes: s.spares?.standard_time_minutes }))
+      ),
+      ticketEstimatedDurationMinutes: r.service_tickets?.estimated_duration_minutes ?? null,
+      reviewAllowanceMinutes: settings?.review_time_allowance_minutes ?? 0,
+      enquiryAllowanceMinutes: settings?.enquiry_time_allowance_minutes ?? 0,
+      reviewCollected: r.ratings?.google_review_clicked ?? false,
+      enquiryLoggedThisVisit: (r.leads?.length ?? 0) > 0,
+    })
     byTech.set(r.technician_id, {
       visitId: r.id,
       ticketId: r.ticket_id,
       timerStart: r.timer_start,
       timerEnd: r.timer_end,
       estimatedDurationMinutes: r.service_tickets?.estimated_duration_minutes ?? null,
+      allowedDurationMinutes,
       customerName: r.service_tickets?.customers?.name ?? null,
       addressLabel: [addr?.door_no, addr?.area].filter(Boolean).join(", ") || null,
     })

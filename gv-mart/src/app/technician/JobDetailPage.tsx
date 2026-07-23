@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
-import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician } from "@/hooks/useTechnician"
+import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
+import { useProfile } from "@/hooks/useProfile"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { cn } from "@/lib/utils"
-import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
+import { computeTicketAllowedDuration, findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 
 function formatDateTime(iso: string | null) {
   if (!iso) return null
@@ -34,7 +35,9 @@ export function JobDetailPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { ticketId } = useParams<{ ticketId: string }>()
+  const { data: profile } = useProfile()
   const jobDetail = useJobDetail(ticketId)
+  const settings = useTechnicianSettings(profile?.org_id)
   // Build Order A3: scoped to the current ticket's product too — see getCustomerHistory doc.
   const history = useCustomerHistory(jobDetail.data?.customer_id, jobDetail.data?.product_id, ticketId)
   const technician = useMyTechnician()
@@ -51,10 +54,22 @@ export function JobDetailPage() {
   const ticket = jobDetail.data
   const appointment = ticket.appointments?.[0]
   const chargeable = isChargeableTicketType(ticket.type)
+  // GV.md 1.2: "the technician sees the estimated time for that service...
+  // estimated time + review/enquiry allowance is shown as the total allowed
+  // time." allowedDuration replaces the ticket's raw estimated_duration_minutes
+  // as computeJobOverrun's input — see src/lib/job-allowance.ts.
+  const allowedDuration = openVisit ? computeTicketAllowedDuration(ticket, openVisit, settings.data) : null
   const overrun = computeJobOverrun(
-    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: ticket.estimated_duration_minutes },
+    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
     now
   )
+  // Display-only version of the same figure, shown even before a visit
+  // starts (GV.md 1.2: "on each job, the technician sees the estimated
+  // time for that service") — falls back to the ticket's most recent visit
+  // if none is currently open, so a job the technician hasn't started yet
+  // still shows a number derived from the type default.
+  const displayVisit = openVisit ?? ticket.service_visits[ticket.service_visits.length - 1] ?? null
+  const displayAllowedDuration = computeTicketAllowedDuration(ticket, displayVisit, settings.data)
   // Meeting spec D5's "additional contact" is a second number to try, so a
   // member whose number just duplicates the already-shown primary contact
   // doesn't count — prefer the flagged primary member, falling back to the
@@ -75,6 +90,12 @@ export function JobDetailPage() {
           <PriorityBadge priority={ticket.priority} />
         </div>
       </div>
+
+      {displayAllowedDuration != null ? (
+        <p className="px-1 text-xs text-text-muted">
+          {t("technician.jobDetail.allowedTime", { minutes: displayAllowedDuration })}
+        </p>
+      ) : null}
 
       {overrun.isOverrun ? (
         <Card className="flex-row items-center gap-2 border-danger/40 bg-danger/5 px-4">

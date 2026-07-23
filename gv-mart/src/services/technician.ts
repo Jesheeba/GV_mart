@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase"
 import { db } from "@/lib/offline/db"
 import { enqueue } from "@/lib/offline/outbox"
 import { distanceKm, expectedMinutes, type GeoPoint } from "@/lib/offline/geo"
+import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import type { DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Enums, Tables } from "@/types/database"
 
@@ -200,8 +201,17 @@ export type JobCard = AppointmentRow & {
     products: { name: string } | null
     // Added for Build Order A4 (job-overrun red styling on the home list) —
     // the open visit's timer, alongside estimated_duration_minutes which
-    // already rides in on `service_tickets`' own `*` below.
-    service_visits: { id: string; timer_start: string | null; timer_end: string | null }[]
+    // already rides in on `service_tickets`' own `*` below. GV.md 1.2 extends
+    // this with the same allowed-time inputs getJobDetail uses, so the home
+    // list's red state agrees with the job-detail page's.
+    service_visits: {
+      id: string
+      timer_start: string | null
+      timer_end: string | null
+      service_spares_used: { qty: number; spares: { standard_time_minutes: number | null } | null }[]
+      ratings: { google_review_clicked: boolean } | null
+      leads: { id: string }[]
+    }[]
   }
 }
 
@@ -210,7 +220,7 @@ export async function listTodaysJobs(technicianId: string): Promise<JobCard[]> {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,lat,lng), products(name), service_visits(id,timer_start,timer_end))"
+        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,lat,lng), products(name), service_visits(id,timer_start,timer_end, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)))"
       )
       .eq("technician_id", technicianId)
       .in("status", ["scheduled", "in_progress"])
@@ -311,6 +321,15 @@ export type JobDetail = ServiceTicketRow & {
     service_charge: number
     before_image_url: string | null
     after_image_url: string | null
+    // GV.md 1.2: the allowed-time calculation's inputs — the job's actual
+    // items (base estimate, see src/lib/job-allowance.ts), whether this
+    // visit's rating collected a Google review click, and whether an
+    // enquiry was logged during this visit. `ratings` is 1:1 (ratings.
+    // visit_id is unique — see techniciansAdmin.ts's identical comment), so
+    // a single nested object/null, not an array.
+    service_spares_used: { qty: number; spares: { standard_time_minutes: number | null } | null }[]
+    ratings: { google_review_clicked: boolean } | null
+    leads: { id: string }[]
   }[]
 }
 
@@ -319,7 +338,7 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
     const { data, error } = await supabase
       .from("service_tickets")
       .select(
-        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url)"
+        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
       )
       .eq("id", ticketId)
       .single()
@@ -606,8 +625,39 @@ export async function searchAddressesForTechnician(orgId: string, term: string) 
  * second, orphaned service_visits row with none of the on-site work attached
  * to it.
  */
-export function findOpenVisit(visits: { id: string; timer_start: string | null; timer_end: string | null }[]) {
+export function findOpenVisit<T extends { timer_start: string | null; timer_end: string | null }>(visits: T[]): T | null {
   return visits.find((v) => v.timer_start && !v.timer_end) ?? null
+}
+
+/**
+ * GV.md 1.2: the "allowed time" shown to the technician / compared against
+ * for the overrun red state — see src/lib/job-allowance.ts for the formula
+ * and the design notes on why review/enquiry are conditional. Shared here so
+ * JobDetailPage and TechnicianHomePage (the two technician-side call sites)
+ * compute it identically from the same JobDetail/JobCard visit shape instead
+ * of re-deriving it per screen.
+ */
+export function computeTicketAllowedDuration(
+  ticket: { estimated_duration_minutes: number | null },
+  visit: {
+    service_spares_used: { qty: number; spares: { standard_time_minutes: number | null } | null }[]
+    // 1:1 (ratings.visit_id unique) — a single nested object/null, not an array.
+    ratings: { google_review_clicked: boolean } | null
+    leads: { id: string }[]
+  } | null | undefined,
+  settings: { review_time_allowance_minutes: number; enquiry_time_allowance_minutes: number } | null | undefined
+): number | null {
+  const itemsStandardMinutesSum = sumItemStandardMinutes(
+    (visit?.service_spares_used ?? []).map((s) => ({ qty: s.qty, standardTimeMinutes: s.spares?.standard_time_minutes }))
+  )
+  return computeAllowedDurationMinutes({
+    itemsStandardMinutesSum,
+    ticketEstimatedDurationMinutes: ticket.estimated_duration_minutes,
+    reviewAllowanceMinutes: settings?.review_time_allowance_minutes ?? 0,
+    enquiryAllowanceMinutes: settings?.enquiry_time_allowance_minutes ?? 0,
+    reviewCollected: visit?.ratings?.google_review_clicked ?? false,
+    enquiryLoggedThisVisit: (visit?.leads?.length ?? 0) > 0,
+  })
 }
 
 /**
@@ -777,7 +827,9 @@ export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput
 
 export async function searchSpares(orgId: string, term: string) {
   const q = term.trim().replace(/[%,]/g, "")
-  let query = supabase.from("spares").select("id, name, sku, price").eq("org_id", orgId).limit(15)
+  // GV.md 1.1/D4: standard_time_minutes rides along so SpareSelectStep can
+  // seed the SOP checklist with each selected item's admin-set time.
+  let query = supabase.from("spares").select("id, name, sku, price, standard_time_minutes").eq("org_id", orgId).limit(15)
   if (q) query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
   const { data, error } = await query
   if (error) throw error
@@ -791,6 +843,10 @@ export async function queueGenerateEnquiry(input: {
   mobile?: string
   enquiryType: Enums<"enquiry_type">
   note?: string
+  // GV.md 1.2: threaded through so generate_enquiry_lead can stamp
+  // leads.visit_id — the real "was this logged on THIS visit" link the
+  // enquiry-time allowance condition checks.
+  visitId?: string
 }) {
   await enqueue("lead.generate", {
     orgId: input.orgId,
@@ -799,7 +855,13 @@ export async function queueGenerateEnquiry(input: {
     mobile: input.mobile,
     enquiryType: input.enquiryType,
     note: input.note,
+    visitId: input.visitId,
   })
+}
+
+/** GV.md 1.2: records that the technician's on-screen "leave a Google review" link was actually tapped this visit — the live gate for the review-time allowance (ratings.google_review_clicked). See mark_google_review_clicked RPC. */
+export async function queueMarkGoogleReviewClicked(input: { orgId: string; visitId: string }) {
+  await enqueue("rating.mark_review_clicked", { orgId: input.orgId, visitId: input.visitId })
 }
 
 // ── Build Order A2 — on-site AMC sell ───────────────────────────────────────
