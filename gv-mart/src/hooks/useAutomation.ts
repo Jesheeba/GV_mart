@@ -135,3 +135,50 @@ export function useLastBillEntry(orgId: string | undefined) {
     enabled: !!orgId,
   })
 }
+
+// ── Purchase Order quote-first flow (GV.md 3.1/3.2) ──────────────────────
+export function useOpenPurchaseQuoteRequests(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["purchaseQuoteRequests", "open", orgId],
+    queryFn: () => automation.listOpenPurchaseQuoteRequests(orgId!),
+    enabled: !!orgId,
+  })
+}
+export function useResolvedPurchaseQuoteRequests(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["purchaseQuoteRequests", "resolved", orgId],
+    queryFn: () => automation.listResolvedPurchaseQuoteRequests(orgId!),
+    enabled: !!orgId,
+  })
+}
+export function usePurchaseQuoteReplies(requestId: string | undefined) {
+  return useQuery({
+    queryKey: ["purchaseQuoteReplies", requestId],
+    queryFn: () => automation.listPurchaseQuoteReplies(requestId!),
+    enabled: !!requestId,
+  })
+}
+/** "Resolve-on-view" — see the migration header comment for why this has to be
+ *  called from the client instead of a timer: no pg_cron in this stack. Same
+ *  "mutate once per org on page load" shape as useRefreshOperationalAlerts. */
+export function useResolvePurchaseQuoteRequests(orgId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => automation.resolvePurchaseQuoteRequests(orgId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchaseQuoteRequests"] })
+      qc.invalidateQueries({ queryKey: ["purchaseOrders"] })
+      qc.invalidateQueries({ queryKey: ["notifications"] })
+    },
+  })
+}
+export function useLogPurchaseQuoteReply() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: automation.logPurchaseQuoteReply,
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["purchaseQuoteReplies", vars.requestId] })
+      qc.invalidateQueries({ queryKey: ["purchaseQuoteRequests"] })
+    },
+  })
+}

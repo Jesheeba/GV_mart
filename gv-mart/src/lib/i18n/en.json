@@ -547,6 +547,8 @@
     "poApprovalThreshold": "PO amount that flags for review (₹)",
     "poRequiresApproval": "Require approval before sending auto-drafted POs",
     "poRequiresApprovalHint": "Off: purchase orders send automatically when stock hits the minimum. On: every auto-drafted PO waits as a draft until an owner approves it.",
+    "poQuoteTimeoutHours": "Supplier quote timeout (hours)",
+    "poQuoteTimeoutHoursHint": "On low stock, a quote request goes to every known supplier first. If a reply is logged before this many hours pass, the lowest reply wins; if nobody replies in time, it falls back to the last-known-cheapest supplier automatically so stock is never stranded.",
     "slaVeryUrgent": "Very urgent (hours)",
     "slaUrgent": "Urgent (hours)",
     "slaNormal": "Normal (hours)",
@@ -2003,7 +2005,29 @@
     "loadFailed": "Could not load purchase data.",
     "tabs": {
       "orders": "Purchase Orders",
+      "quotes": "Quotes",
       "bills": "Bill Entry"
+    },
+    "quotes": {
+      "subtitle": "On low stock, a quote request goes to every known supplier first. Log a supplier's reply below when they call or WhatsApp their price back — the lowest reply wins once the quote timeout passes, or it falls back to the last-known-cheapest supplier if nobody replies.",
+      "openTitle": "Open quote requests",
+      "openHint": "Log a supplier's quoted price as they reply. This resolves automatically once the timeout passes.",
+      "openEmpty": "No open quote requests.",
+      "resolvedTitle": "Recently resolved",
+      "resolvedEmpty": "Nothing resolved yet.",
+      "units": "units",
+      "noRepliesYet": "No replies logged yet.",
+      "selectSupplier": "Select supplier…",
+      "alreadyLogged": "already logged",
+      "logReply": "Log reply",
+      "timeoutAt": "Resolves automatically at {{time}}",
+      "timedOutWaitingResolve": "Timeout passed — resolving…",
+      "resolutions": {
+        "reply": "Lowest supplier reply",
+        "fallback": "Fell back to last-known-cheapest",
+        "no_supplier": "No supplier available",
+        "unknown": "—"
+      }
     },
     "po": {
       "supplier": "Supplier",

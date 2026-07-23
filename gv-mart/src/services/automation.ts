@@ -260,3 +260,79 @@ export async function getLastBillEntry(orgId: string): Promise<LastBillEntry | n
 
   return { supplierId: bill.supplier_id, items }
 }
+
+// ── Purchase Order quote-first flow (GV.md 3.1/3.2) ──────────────────────
+// See supabase/migrations/20260725120000_po_quotation_first_with_timeout_
+// safeguard.sql for the full behavior this UI drives: on a reorder crossing,
+// a quote request goes to every known supplier of the item instead of an
+// immediate PO; an admin logs supplier replies by hand (suppliers aren't app
+// users); resolve_purchase_quote_requests (called on this page's mount, no
+// pg_cron in this stack) closes out any request whose timeout has passed —
+// lowest logged reply wins, or last-known-cheapest if nobody replied.
+export type PurchaseQuoteRequestRow = Tables<"purchase_quote_requests">
+export type PurchaseQuoteReplyRow = Tables<"purchase_quote_replies">
+export type PurchaseQuoteRequestListItem = PurchaseQuoteRequestRow & { itemName: string }
+
+async function attachQuoteRequestItemNames(rows: PurchaseQuoteRequestRow[]): Promise<PurchaseQuoteRequestListItem[]> {
+  const productIds = rows.filter((r) => r.item_type === "product").map((r) => r.item_id)
+  const spareIds = rows.filter((r) => r.item_type === "spare").map((r) => r.item_id)
+  const [{ data: products }, { data: spares }] = await Promise.all([
+    productIds.length ? supabase.from("products").select("id,name").in("id", productIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    spareIds.length ? supabase.from("spares").select("id,name").in("id", spareIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ])
+  const nameMap = new Map([...(products ?? []), ...(spares ?? [])].map((r) => [r.id, r.name]))
+  return rows.map((r) => ({ ...r, itemName: nameMap.get(r.item_id) ?? "—" }))
+}
+
+/** Still-open requests (timeout not yet resolved) — what the admin can log replies against right now. */
+export async function listOpenPurchaseQuoteRequests(orgId: string): Promise<PurchaseQuoteRequestListItem[]> {
+  const { data, error } = await supabase
+    .from("purchase_quote_requests")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("status", "open")
+    .order("requested_at", { ascending: true })
+  if (error) throw error
+  return attachQuoteRequestItemNames(data ?? [])
+}
+
+/** Most recently resolved requests, so the admin can see the outcome (reply/fallback/no_supplier) of anything that just timed out. */
+export async function listResolvedPurchaseQuoteRequests(orgId: string, limit = 20): Promise<PurchaseQuoteRequestListItem[]> {
+  const { data, error } = await supabase
+    .from("purchase_quote_requests")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("status", "resolved")
+    .order("resolved_at", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return attachQuoteRequestItemNames(data ?? [])
+}
+
+export async function listPurchaseQuoteReplies(requestId: string): Promise<(PurchaseQuoteReplyRow & { suppliers: { name: string } | null })[]> {
+  const { data, error } = await supabase
+    .from("purchase_quote_replies")
+    .select("*, suppliers(name)")
+    .eq("request_id", requestId)
+    .order("price", { ascending: true })
+  if (error) throw error
+  return (data ?? []) as unknown as (PurchaseQuoteReplyRow & { suppliers: { name: string } | null })[]
+}
+
+/** Resolve-on-view: closes out any request whose timeout has passed. Safe to call on every page load — a no-op when nothing has timed out. */
+export async function resolvePurchaseQuoteRequests(orgId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("resolve_purchase_quote_requests", { p_org_id: orgId })
+  if (error) throw error
+  return data ?? 0
+}
+
+export async function logPurchaseQuoteReply(input: { requestId: string; supplierId: string; price: number; note?: string | null }) {
+  const { data, error } = await supabase.rpc("log_purchase_quote_reply", {
+    p_request_id: input.requestId,
+    p_supplier_id: input.supplierId,
+    p_price: input.price,
+    p_note: input.note ?? null,
+  })
+  if (error) throw error
+  return data
+}
