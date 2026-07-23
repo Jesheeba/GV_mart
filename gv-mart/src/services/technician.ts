@@ -298,7 +298,7 @@ export async function getTodaysJobCounts(orgId: string, technicianId: string): P
 // ── TECH-06 Job detail / history ─────────────────────────────────────────
 
 export type JobDetail = ServiceTicketRow & {
-  customers: { id: string; name: string; mobile: string } | null
+  customers: { id: string; name: string; mobile: string; customer_members: { id: string; name: string; mobile: string; is_primary: boolean }[] } | null
   addresses: Tables<"addresses"> | null
   products: { name: string; warranty_months: number; category: Enums<"brand_category"> } | null
   brands: { name: string } | null
@@ -319,7 +319,7 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
     const { data, error } = await supabase
       .from("service_tickets")
       .select(
-        "*, customers(id,name,mobile), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url)"
+        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url)"
       )
       .eq("id", ticketId)
       .single()

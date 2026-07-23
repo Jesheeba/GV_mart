@@ -55,6 +55,16 @@ export function JobDetailPage() {
     { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: ticket.estimated_duration_minutes },
     now
   )
+  // Meeting spec D5's "additional contact" is a second number to try, so a
+  // member whose number just duplicates the already-shown primary contact
+  // doesn't count — prefer the flagged primary member, falling back to the
+  // first member, but skip either if it's the same number already on screen.
+  const members = ticket.customers?.customer_members ?? []
+  const preferredMember = members.find((m) => m.is_primary) ?? members[0]
+  const additionalContact =
+    preferredMember && preferredMember.mobile !== ticket.customers?.mobile
+      ? preferredMember
+      : members.find((m) => m.mobile !== ticket.customers?.mobile)
 
   return (
     <div className="space-y-4 pt-2">
@@ -98,6 +108,22 @@ export function JobDetailPage() {
             </a>
           ) : null}
         </div>
+        {additionalContact ? (
+          // Meeting spec D5: "contact + additional contact" — a second
+          // household member to try if the primary customer doesn't pick up.
+          // Sourced from customer_members (up to 5 per customer, one flagged
+          // primary) rather than a new job-specific field — that table
+          // already models exactly this, it just wasn't surfaced here yet.
+          <p className="flex items-center justify-between gap-2 px-1 text-sm text-text-muted">
+            <span className="truncate">{t("technician.jobDetail.additionalContact", { name: additionalContact.name })}</span>
+            <a href={`tel:${additionalContact.mobile}`} className="shrink-0">
+              <Button type="button" variant="ghost" size="xs">
+                <Phone className="size-3.5" />
+                {additionalContact.mobile}
+              </Button>
+            </a>
+          </p>
+        ) : null}
         <p className="flex items-start gap-1.5 px-1 text-sm text-text-muted">
           <MapPin className="mt-0.5 size-3.5 shrink-0" />
           <span>{[ticket.addresses?.door_no, ticket.addresses?.flat_no, ticket.addresses?.street_cross, ticket.addresses?.area, ticket.addresses?.pincode].filter(Boolean).join(", ") || "—"}</span>
