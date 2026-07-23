@@ -278,10 +278,18 @@ export function useQueueVisitImage() {
   })
 }
 
-/** Closes the visit's productivity timer once payment completes (TECH-07 step 10 -> TECH-08 handoff). Optionally carries the technician's own visit notes through to `service_visits.notes` in the same patch. */
-export function useEndVisit() {
+/** Mints/reuses the customer-facing completion code for a visit — see services/technician.ts#generateVisitOtp. Not queued offline; requires a live connection. */
+export function useGenerateVisitOtp() {
   return useMutation({
-    mutationFn: ({ visitId, timerEnd, notes }: { visitId: string; timerEnd: string; notes?: string }) => tech.queueEndVisit(visitId, timerEnd, notes),
+    mutationFn: ({ orgId, visitId, force }: { orgId: string; visitId: string; force?: boolean }) => tech.generateVisitOtp(orgId, visitId, force),
+  })
+}
+
+/** Checks the OTP server-side and, only if correct, closes the visit's productivity timer (TECH-07 step 10 -> TECH-08 handoff) — see services/technician.ts#verifyVisitOtp. Not queued offline; requires a live connection. */
+export function useVerifyVisitOtp() {
+  return useMutation({
+    mutationFn: ({ orgId, visitId, code, notes }: { orgId: string; visitId: string; code: string; notes?: string }) =>
+      tech.verifyVisitOtp(orgId, visitId, code, notes),
   })
 }
 

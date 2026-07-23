@@ -277,7 +277,12 @@ export async function getTicketDetail(ticketId: string) {
   const { data, error } = await supabase
     .from("service_tickets")
     .select(
-      "*, products(name), brands(name), models(name), addresses(*), invoices(*), appointments(*, technicians(id, profile_id, profiles(full_name, phone))), service_visits(*, ratings(*), ro_checklists(*))"
+      // GV.md §2 OTP completion confirmation — service_visit_otps carries
+      // the customer-facing code (RLS: a customer may only read the row for
+      // their own ticket's visit, see 20260725110000_otp_completion_
+      // confirmation.sql). Explicit column list on purpose, excluding the
+      // audit-only bypass columns the customer screen has no use for.
+      "*, products(name), brands(name), models(name), addresses(*), invoices(*), appointments(*, technicians(id, profile_id, profiles(full_name, phone))), service_visits(*, ratings(*), ro_checklists(*), service_visit_otps(code, generated_at, expires_at, verified_at))"
     )
     .eq("id", ticketId)
     .single()

@@ -283,6 +283,20 @@ export async function deleteServiceTicket(ticketId: string) {
   if (error) throw error
 }
 
+/**
+ * GV.md §2 — the one sanctioned OTP escape hatch (master/operation_admin
+ * only, reason always required and logged). Closes an open visit's
+ * productivity timer WITHOUT a correct OTP — see
+ * 20260725110000_otp_completion_confirmation.sql's design decision #5 for
+ * why this exists and why it deliberately never sets
+ * service_visits.otp_verified.
+ */
+export async function adminOverrideVisitCompletion(orgId: string, visitId: string, reason: string) {
+  const { data, error } = await supabase.rpc("admin_override_visit_completion", { p_org_id: orgId, p_visit_id: visitId, p_reason: reason })
+  if (error) throw error
+  return data as { ok: true; visit_id: string; timer_end: string; bypassed: true }
+}
+
 export async function updateAppointmentSchedule(id: string, patch: { scheduled_at?: string | null; mode?: AppointmentMode }) {
   const { data, error } = await supabase.from("appointments").update(patch).eq("id", id).select().single()
   if (error) throw error

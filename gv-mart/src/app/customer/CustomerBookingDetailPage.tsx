@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { LiveTracking } from "@/app/customer/components/LiveTracking"
+import { CompletionOtpCard } from "@/app/customer/components/CompletionOtpCard"
 import { useTicketDetail } from "@/hooks/useCustomerApp"
 
 const STATUS_TONE: Record<string, StatusTone> = {
@@ -100,6 +101,8 @@ export function CustomerBookingDetailPage() {
           <LiveTracking technicianId={technician.id} technicianName={technician.profiles?.full_name} />
         </div>
       ) : null}
+
+      {visit && !visit.timer_end ? <CompletionOtpCard visitId={visit.id} initialOtp={visit.service_visit_otps ?? null} /> : null}
 
       {visit && (visit.before_image_url || visit.after_image_url) ? (
         <Card className="gap-2">
