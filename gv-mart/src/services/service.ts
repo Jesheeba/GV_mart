@@ -121,6 +121,20 @@ export async function updateTicketAddress(ticketId: string, addressId: string | 
   return data
 }
 
+/**
+ * Build Order A4: admin-set expected visit duration (minutes), compared
+ * against service_visits.timer_start elapsed time for the overrun red
+ * styling/alert (see src/lib/job-overrun.ts). Manual for now — no
+ * product/ticket-type-driven auto-population formula exists in this schema
+ * yet (see migration 20260724120000_job_overrun_estimate.sql header for why
+ * that wasn't invented here).
+ */
+export async function updateTicketEstimatedDuration(ticketId: string, minutes: number | null) {
+  const { data, error } = await supabase.from("service_tickets").update({ estimated_duration_minutes: minutes }).eq("id", ticketId).select().single()
+  if (error) throw error
+  return data
+}
+
 /** Repeat-complaint flag (ADM-09): >1 ticket for the same customer within the lookback window. */
 export async function customersWithRepeatComplaints(orgId: string, lookbackDays = 90): Promise<Set<string>> {
   const since = new Date(Date.now() - lookbackDays * 86_400_000).toISOString()

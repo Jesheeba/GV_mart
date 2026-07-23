@@ -1254,6 +1254,7 @@ export type Database = {
           status: Database["public"]["Enums"]["ticket_status"]
           channel: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at: string | null
+          estimated_duration_minutes: number | null
           invoice_id: string | null
           created_at: string
           updated_at: string
@@ -1273,6 +1274,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"]
           channel?: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at?: string | null
+          estimated_duration_minutes?: number | null
           invoice_id?: string | null
           created_at?: string
           updated_at?: string
@@ -1292,6 +1294,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"]
           channel?: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at?: string | null
+          estimated_duration_minutes?: number | null
           invoice_id?: string | null
           created_at?: string
           updated_at?: string

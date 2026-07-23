@@ -80,6 +80,19 @@ export function useTechniciansActiveJobs(orgId: string | undefined) {
   })
 }
 
+/** Build Order A4: each technician's currently-open visit + its ticket's estimated
+ *  duration, for the job-overrun alert on TechniciansMapPage. Same 30s cadence as
+ *  the "now" tick that page already runs for idle/off-route, since an overrun
+ *  reads late but is otherwise low-urgency. */
+export function useTechniciansOpenVisits(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicians", "openVisits", orgId],
+    queryFn: () => techniciansAdmin.listTechniciansOpenVisits(orgId!),
+    enabled: !!orgId,
+    refetchInterval: 30_000,
+  })
+}
+
 export function useAttendanceForDate(orgId: string | undefined, date: string) {
   return useQuery({
     queryKey: ["attendance", "byDate", orgId, date],

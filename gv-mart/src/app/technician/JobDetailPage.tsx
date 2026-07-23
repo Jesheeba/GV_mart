@@ -1,16 +1,33 @@
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigation, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { JobTypeBadge, PriorityBadge } from "./components/JobBadges"
+import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
 import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician } from "@/hooks/useTechnician"
-import { isChargeableTicketType, isTicketClosed } from "@/services/technician"
+import { computeJobOverrun } from "@/lib/job-overrun"
+import { cn } from "@/lib/utils"
+import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 
 function formatDateTime(iso: string | null) {
   if (!iso) return null
   return new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+}
+
+/** Re-renders every 30s so an in-progress visit's overrun state (Build Order A4)
+ *  flips to red without the technician needing to leave and reopen the page —
+ *  same "poll a tick, no websocket needed" shape as OnSiteVisitPage's own
+ *  1s elapsed-time interval, just coarser since a badge doesn't need second precision. */
+function useNowTick(enabled: boolean, intervalMs = 30_000) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!enabled) return
+    const id = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(id)
+  }, [enabled, intervalMs])
+  return now
 }
 
 export function JobDetailPage() {
@@ -22,6 +39,9 @@ export function JobDetailPage() {
   const technician = useMyTechnician()
   const logCall = useLogCall()
 
+  const openVisit = jobDetail.data ? findOpenVisit(jobDetail.data.service_visits) : null
+  const now = useNowTick(!!openVisit)
+
   if (jobDetail.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (jobDetail.isError || !jobDetail.data) {
     return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobDetail.refetch()} retryLabel={t("common.retry")} />
@@ -30,6 +50,10 @@ export function JobDetailPage() {
   const ticket = jobDetail.data
   const appointment = ticket.appointments?.[0]
   const chargeable = isChargeableTicketType(ticket.type)
+  const overrun = computeJobOverrun(
+    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: ticket.estimated_duration_minutes },
+    now
+  )
 
   return (
     <div className="space-y-4 pt-2">
@@ -41,7 +65,14 @@ export function JobDetailPage() {
         </div>
       </div>
 
-      <Card className="gap-3">
+      {overrun.isOverrun ? (
+        <Card className="flex-row items-center gap-2 border-danger/40 bg-danger/5 px-4">
+          <OverrunBadge overrunByMinutes={overrun.overrunByMinutes!} />
+          <p className="text-xs text-danger">{t("technician.jobDetail.overrunNote")}</p>
+        </Card>
+      ) : null}
+
+      <Card className={cn("gap-3", overrun.isOverrun && "border-danger/40 bg-danger/5")}>
         <div className="flex items-center justify-between px-1">
           <p className="text-base font-semibold text-text">{ticket.customers?.name ?? t("technician.home.unknownCustomer")}</p>
           {ticket.customers?.mobile ? (

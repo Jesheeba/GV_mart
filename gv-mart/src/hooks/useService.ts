@@ -36,6 +36,15 @@ export function useUpdateTicketAddress() {
   })
 }
 
+/** Build Order A4 — see service.ts#updateTicketEstimatedDuration. */
+export function useUpdateTicketEstimatedDuration() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, minutes }: { ticketId: string; minutes: number | null }) => service.updateTicketEstimatedDuration(ticketId, minutes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service_tickets"] }),
+  })
+}
+
 export function useRepeatComplaintCustomers(orgId: string | undefined) {
   return useQuery({
     queryKey: ["service_tickets", "repeatComplaints", orgId],

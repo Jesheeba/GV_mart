@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { MapPin } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -6,11 +6,12 @@ import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { Map, MapControls, MapMarker, MapMarkerLabel, type MapViewport } from "@/components/ui/map"
 import { useProfile } from "@/hooks/useProfile"
 import { useDirectionsDistance, useMapApiKey } from "@/hooks/useMaps"
-import { useTechniciansActiveJobs, useTechniciansWithLocation } from "@/hooks/useTechniciansAdmin"
-import { listRecentTechnicianLocations } from "@/services/techniciansAdmin"
+import { useTechniciansActiveJobs, useTechniciansOpenVisits, useTechniciansWithLocation } from "@/hooks/useTechniciansAdmin"
+import { listRecentTechnicianLocations, notifyJobOverrunAlert } from "@/services/techniciansAdmin"
 import { supabase } from "@/lib/supabase"
 import { distanceKm } from "@/lib/offline/geo"
-import type { TechnicianActiveJob, TechnicianLocationRow, TechnicianWithLatestLocation } from "@/services/techniciansAdmin"
+import { computeJobOverrun } from "@/lib/job-overrun"
+import type { TechnicianActiveJob, TechnicianLocationRow, TechnicianOpenVisit, TechnicianWithLatestLocation } from "@/services/techniciansAdmin"
 import { cn } from "@/lib/utils"
 
 // v2.2 §6.6: "A per kilometre travel time is set by you... If the technician
@@ -97,6 +98,21 @@ function statusTone(status: TrackingStatus): StatusTone {
 }
 
 /**
+ * Build Order A4: independent of TrackingStatus above (that's about travel
+ * toward the *next* destination; this is about time spent *inside* the job
+ * already started) so it's computed separately and layered on top rather
+ * than folded into the same union — a technician can be mid-visit (no
+ * meaningful "destination" to compare position against) while still
+ * overrunning.
+ */
+function useJobOverrunAlert(openVisit: TechnicianOpenVisit | undefined, nowMs: number) {
+  return computeJobOverrun(
+    { timerStart: openVisit?.timerStart, timerEnd: openVisit?.timerEnd, estimatedDurationMinutes: openVisit?.estimatedDurationMinutes },
+    nowMs
+  )
+}
+
+/**
  * ADM-15 / v2.2 §6.6. A real Google Map replaces the earlier coordinate
  * "pin board" placeholder now that GOOGLE_MAPS_API_KEY is configured
  * (see src/components/ui/map.tsx). Green = on time toward the technician's
@@ -110,6 +126,7 @@ export function TechniciansMapPage() {
 
   const { data: technicians, isLoading, isError, refetch } = useTechniciansWithLocation(orgId)
   const { data: activeJobs } = useTechniciansActiveJobs(orgId)
+  const { data: openVisits } = useTechniciansOpenVisits(orgId)
   const { data: apiKey, isError: apiKeyError } = useMapApiKey()
 
   const [liveLocations, setLiveLocations] = useState<Record<string, TechnicianLocationRow>>({})
@@ -123,6 +140,31 @@ export function TechniciansMapPage() {
     const interval = setInterval(() => setNow(Date.now()), 15_000)
     return () => clearInterval(interval)
   }, [])
+
+  // Build Order A4 admin popup: fires a `notifications` row the moment a
+  // technician's open visit crosses its ticket's estimated_duration_minutes.
+  // notifiedVisitIdsRef is a same-session guard against re-firing every 15s
+  // tick; notifyJobOverrunAlert itself re-checks the DB before inserting, so
+  // reopening this page later still won't duplicate an alert already raised.
+  const notifiedVisitIdsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!orgId || !openVisits) return
+    for (const [techId, visit] of openVisits) {
+      const overrun = computeJobOverrun(
+        { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.estimatedDurationMinutes },
+        now
+      )
+      if (!overrun.isOverrun || notifiedVisitIdsRef.current.has(visit.visitId)) continue
+      notifiedVisitIdsRef.current.add(visit.visitId)
+      const loc = liveLocations[techId]
+      void notifyJobOverrunAlert(
+        orgId,
+        visit,
+        overrun.overrunByMinutes!,
+        loc ? { lat: loc.lat, lng: loc.lng, recordedAt: loc.recorded_at } : null
+      )
+    }
+  }, [orgId, openVisits, now, liveLocations])
 
   // Seeds the idle-detection buffer with recent history so idle/off-route
   // status is available immediately on load, not only after ~5 minutes of
@@ -220,6 +262,7 @@ export function TechniciansMapPage() {
                   key={row.id}
                   row={row}
                   activeJob={activeJobs?.get(row.id)}
+                  openVisit={openVisits?.get(row.id)}
                   history={history[row.id] ?? []}
                   now={now}
                   selected={selectedId === row.id}
@@ -256,7 +299,14 @@ export function TechniciansMapPage() {
                 <Map apiKey={apiKey} viewport={viewport} onViewportChange={setViewport} onLoadError={() => setMapLoadFailed(true)}>
                   <MapControls position="bottom-right" showZoom />
                   {tracked.map((row) => (
-                    <TechnicianMarker key={row.id} row={row} activeJob={activeJobs?.get(row.id)} history={history[row.id] ?? []} now={now} />
+                    <TechnicianMarker
+                      key={row.id}
+                      row={row}
+                      activeJob={activeJobs?.get(row.id)}
+                      openVisit={openVisits?.get(row.id)}
+                      history={history[row.id] ?? []}
+                      now={now}
+                    />
                   ))}
                   {tracked
                     .filter((row) => activeJobs?.get(row.id))
@@ -292,20 +342,23 @@ export function TechniciansMapPage() {
 function TechnicianMarker({
   row,
   activeJob,
+  openVisit,
   history,
   now,
 }: {
   row: TechnicianWithLatestLocation
   activeJob: TechnicianActiveJob | undefined
+  openVisit: TechnicianOpenVisit | undefined
   history: TechnicianLocationRow[]
   now: number
 }) {
   const { status } = useTechnicianTrackingStatus(row.latestLocation, activeJob, history, now)
+  const overrun = useJobOverrunAlert(openVisit, now)
   if (!row.latestLocation) return null
   const name = row.profiles?.full_name ?? undefined
   return (
     <>
-      <MapMarker longitude={row.latestLocation.lng} latitude={row.latestLocation.lat} color={statusColor(status)} title={name} />
+      <MapMarker longitude={row.latestLocation.lng} latitude={row.latestLocation.lat} color={overrun.isOverrun ? COLOR_ALERT : statusColor(status)} title={name} />
       {name ? (
         <MapMarkerLabel longitude={row.latestLocation.lng} latitude={row.latestLocation.lat} className={LABEL_CLASS}>
           {name}
@@ -318,6 +371,7 @@ function TechnicianMarker({
 function TechnicianRow({
   row,
   activeJob,
+  openVisit,
   history,
   now,
   selected,
@@ -325,6 +379,7 @@ function TechnicianRow({
 }: {
   row: TechnicianWithLatestLocation
   activeJob: TechnicianActiveJob | undefined
+  openVisit: TechnicianOpenVisit | undefined
   history: TechnicianLocationRow[]
   now: number
   selected: boolean
@@ -332,6 +387,7 @@ function TechnicianRow({
 }) {
   const { t } = useTranslation()
   const { status, idleMinutes } = useTechnicianTrackingStatus(row.latestLocation, activeJob, history, now)
+  const overrun = useJobOverrunAlert(openVisit, now)
   const minutesAgo = row.latestLocation ? Math.round((now - new Date(row.latestLocation.recorded_at).getTime()) / 60_000) : null
 
   const label =
@@ -370,6 +426,13 @@ function TechnicianRow({
       ) : status === "off-route" ? (
         <p className="rounded-md border border-danger/30 bg-danger/10 px-2 py-1 text-xs font-medium text-danger">
           {t("technicians.map.offRoute")}
+        </p>
+      ) : null}
+      {overrun.isOverrun ? (
+        <p className="rounded-md border border-danger/30 bg-danger/10 px-2 py-1 text-xs font-medium text-danger">
+          {t("technicians.map.jobOverrunBy", { count: Math.round(overrun.overrunByMinutes!) })}
+          {openVisit?.customerName ? ` — ${openVisit.customerName}` : ""}
+          {row.latestLocation ? ` (${row.latestLocation.lat.toFixed(5)}, ${row.latestLocation.lng.toFixed(5)})` : ""}
         </p>
       ) : null}
     </button>
