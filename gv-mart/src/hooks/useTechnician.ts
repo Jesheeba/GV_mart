@@ -213,6 +213,24 @@ export function useLiveLocationStream(orgId: string | undefined, technicianId: s
   }, [orgId, technicianId])
 }
 
+// ── A5: route trail colour classification (own journey view) ─────────────
+
+export function useTodaysTechnicianTrail(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicianTrail", "today", technicianId],
+    queryFn: () => tech.getTodaysTechnicianTrail(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
+export function useTodaysVisitTimings(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["visitTimings", "today", technicianId],
+    queryFn: () => tech.listTodaysVisitTimings(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
 // ── TECH-07 On-site stepper ───────────────────────────────────────────────
 
 /**

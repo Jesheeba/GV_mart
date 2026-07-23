@@ -1661,6 +1661,19 @@
       "startVisit": "Start visit",
       "closedTitle": "This job is already closed"
     },
+    "route": {
+      "title": "Journey",
+      "mapTitle": "Route today",
+      "legendGreen": "On time",
+      "legendYellow": "Slow / late",
+      "legendRed": "Idle",
+      "idleForMinutes": "Idle for {{count}} min",
+      "toLabel": "Traveling to {{name}}",
+      "fromLabel": "Departing toward {{name}}",
+      "nextStopUnknown": "next stop",
+      "noDataTitle": "No journey data yet",
+      "noDataBody": "Location tracking hasn't recorded any movement for this job yet."
+    },
     "onsite": {
       "title": "On-Site Service",
       "jobClosedTitle": "This job is already completed",
@@ -2128,7 +2141,14 @@
       "noPinsBody": "Technicians will appear here once they start sharing location",
       "mapLoadFailed": "Couldn't load the map right now.",
       "empty": "No technicians found",
-      "loadFailed": "Failed to load technicians"
+      "loadFailed": "Failed to load technicians",
+      "trackMovement": "Track today's movement",
+      "stopTracking": "Stop tracking",
+      "trackingLabel": "Today's route — {{name}}",
+      "legendGreen": "On time",
+      "legendYellow": "Slow / late",
+      "legendRed": "Idle",
+      "trackingEmpty": "No movement recorded for this technician yet today."
     },
     "attendance": {
       "title": "Attendance",
