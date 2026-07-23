@@ -22,6 +22,12 @@ dist-ssr
 supabase/.temp
 supabase/.branches
 
+# graphify knowledge-graph cache/hooks — machine-local tool config and a
+# large regenerable index, not source (accidentally committed once via a
+# broad `git add -A` during a merge; excluded going forward).
+.claude/settings.json
+graphify-out/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
