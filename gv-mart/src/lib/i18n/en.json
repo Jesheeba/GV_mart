@@ -1491,6 +1491,17 @@
       "captured": "Signature captured",
       "clear": "Clear"
     },
+    "voiceNote": {
+      "label": "Voice note",
+      "hint": "Optional — record or upload a short voice note about this visit.",
+      "record": "Record",
+      "rerecord": "Re-record",
+      "stop": "Stop",
+      "upload": "Upload audio",
+      "clear": "Clear",
+      "unsupported": "Voice recording isn't supported on this device/browser. Use Upload audio instead.",
+      "permissionDenied": "Microphone access denied. Enable microphone permission for this site in your browser settings, or use Upload audio instead."
+    },
     "sync": {
       "offline": "Offline",
       "syncing": "Syncing…",
@@ -1645,6 +1656,7 @@
       "noHistory": "No previous service history for this customer.",
       "historyNotesLabel": "Previous notes",
       "historySparesLabel": "Parts changed",
+      "historyVoiceNoteLabel": "Previous voice note",
       "navigate": "Navigate",
       "startVisit": "Start visit",
       "closedTitle": "This job is already closed"

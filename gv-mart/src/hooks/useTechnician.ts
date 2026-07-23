@@ -160,10 +160,11 @@ export function useJobDetail(ticketId: string | undefined) {
   })
 }
 
-export function useCustomerHistory(customerId: string | undefined, excludeTicketId?: string) {
+/** Build Order A3: `productId` narrows history to the current ticket's product (see getCustomerHistory doc). */
+export function useCustomerHistory(customerId: string | undefined, productId?: string | null, excludeTicketId?: string) {
   return useQuery({
-    queryKey: ["customerHistory", customerId, excludeTicketId],
-    queryFn: () => tech.getCustomerHistory(customerId!, excludeTicketId),
+    queryKey: ["customerHistory", customerId, productId, excludeTicketId],
+    queryFn: () => tech.getCustomerHistory(customerId!, productId, excludeTicketId),
     enabled: !!customerId,
   })
 }
@@ -271,6 +272,13 @@ export function useCacheVisitSignature() {
   return useMutation({
     mutationFn: ({ visitId, kind, dataUrl }: { visitId: string; kind: "signature_tech" | "signature_customer"; dataUrl: string }) =>
       tech.cacheVisitSignature(visitId, kind, dataUrl),
+  })
+}
+
+/** Build Order A3: captures/clears the optional on-site voice note (see cacheVisitVoiceNote doc). */
+export function useCacheVisitVoiceNote() {
+  return useMutation({
+    mutationFn: ({ visitId, dataUrl }: { visitId: string; dataUrl: string | null }) => tech.cacheVisitVoiceNote(visitId, dataUrl),
   })
 }
 

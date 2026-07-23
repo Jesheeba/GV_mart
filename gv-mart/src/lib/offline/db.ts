@@ -91,7 +91,7 @@ export interface DraftVisit {
 /** Captured photo/signature blobs, referenced by clientId from DraftVisit/outbox payloads until synced. */
 export interface CachedMedia {
   id: string // uuid
-  kind: "before" | "after" | "selfie" | "signature_tech" | "signature_admin" | "signature_customer"
+  kind: "before" | "after" | "selfie" | "signature_tech" | "signature_admin" | "signature_customer" | "voice_note"
   dataUrl: string
   meta?: { lat?: number; lng?: number; capturedAt: string }
   createdAt: number

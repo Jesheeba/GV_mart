@@ -18,7 +18,8 @@ export function JobDetailPage() {
   const navigate = useNavigate()
   const { ticketId } = useParams<{ ticketId: string }>()
   const jobDetail = useJobDetail(ticketId)
-  const history = useCustomerHistory(jobDetail.data?.customer_id, ticketId)
+  // Build Order A3: scoped to the current ticket's product too — see getCustomerHistory doc.
+  const history = useCustomerHistory(jobDetail.data?.customer_id, jobDetail.data?.product_id, ticketId)
   const technician = useMyTechnician()
   const logCall = useLogCall()
 
@@ -126,6 +127,13 @@ export function JobDetailPage() {
                         <span className="font-medium">{t("technician.jobDetail.historySparesLabel")}: </span>
                         {v.service_spares_used.map((s) => `${s.spares?.name ?? "—"} × ${s.qty}`).join(", ")}
                       </p>
+                    ) : null}
+                    {/* Build Order A3: previous technician's voice note, if any, alongside the text note above. */}
+                    {v.voice_note_url ? (
+                      <div className="rounded-lg bg-surface-alt px-2.5 py-1.5">
+                        <p className="mb-1 text-xs font-medium text-text-muted">{t("technician.jobDetail.historyVoiceNoteLabel")}</p>
+                        <audio controls src={v.voice_note_url} className="w-full" />
+                      </div>
                     ) : null}
                   </div>
                 ))}
