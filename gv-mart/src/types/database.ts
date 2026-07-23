@@ -1255,6 +1255,9 @@ export type Database = {
           channel: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at: string | null
           invoice_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           created_at: string
           updated_at: string
         }
@@ -1274,6 +1277,9 @@ export type Database = {
           channel?: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at?: string | null
           invoice_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1293,10 +1299,20 @@ export type Database = {
           channel?: Database["public"]["Enums"]["ticket_channel"]
           sla_due_at?: string | null
           invoice_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "service_tickets_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "service_tickets_org_id_fkey"
             columns: ["org_id"]
@@ -3203,6 +3219,14 @@ export type Database = {
       }
       complete_appointment: {
         Args: { p_appointment_id: string }
+        Returns: undefined
+      }
+      cancel_service_ticket: {
+        Args: { p_ticket_id: string; p_reason: string }
+        Returns: Json
+      }
+      delete_service_ticket: {
+        Args: { p_ticket_id: string }
         Returns: undefined
       }
       sell_amc_plan: {

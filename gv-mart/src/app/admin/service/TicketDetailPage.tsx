@@ -1,21 +1,27 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { Loader2, Pencil, UserCog } from "lucide-react"
+import { Loader2, Pencil, Trash2, UserCog, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
+import { useProfile } from "@/hooks/useProfile"
 import {
   useAssignTicketTechnician,
   useAutoAssignTicket,
+  useCancelServiceTicket,
   useCustomerAddresses,
+  useDeleteServiceTicket,
   useTechnicians,
   useTicket,
   useUpdateTicketAddress,
 } from "@/hooks/useService"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
+
+const textareaClass =
+  "w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
 
 function minutesBetween(start: string | null, end: string | null) {
   if (!start || !end) return null
@@ -27,6 +33,7 @@ export function TicketDetailPage() {
   const { toast } = useToast()
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const { data: profile } = useProfile()
   const { data: ticket, isLoading, isError, refetch } = useTicket(id)
   const { data: technicians } = useTechnicians(ticket?.org_id)
   const autoAssign = useAutoAssignTicket()
@@ -38,6 +45,11 @@ export function TicketDetailPage() {
   const addresses = useCustomerAddresses(editingAddress ? ticket?.customer_id : undefined)
   const updateAddress = useUpdateTicketAddress()
 
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const cancelTicket = useCancelServiceTicket()
+  const deleteTicket = useDeleteServiceTicket()
+
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !ticket) {
     return <FullPageError message={t("service.error.loadFailed")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
@@ -46,6 +58,8 @@ export function TicketDetailPage() {
   const appointment = ticket.appointments[0]
   const visit = ticket.service_visits?.[0]
   const totalMinutes = visit ? minutesBetween(visit.timer_start, visit.timer_end) : null
+  const canManage = profile?.role === "master" || profile?.role === "operation_admin"
+  const canCancelOrDelete = canManage && ticket.status !== "completed" && ticket.status !== "cancelled"
 
   function startEditingAddress() {
     setAddressPickerId(ticket!.address_id ?? "")
@@ -58,6 +72,36 @@ export function TicketDetailPage() {
     )
   }
 
+  function confirmCancel() {
+    if (!ticket || !cancelReason.trim()) return
+    cancelTicket.mutate(
+      { ticketId: ticket.id, reason: cancelReason.trim() },
+      {
+        onSuccess: () => {
+          setCancelling(false)
+          setCancelReason("")
+          toast.success(t("service.detail.cancelSuccess"))
+        },
+        onError: () => toast.error(t("common.actionFailed")),
+      }
+    )
+  }
+
+  function handleDelete() {
+    if (!ticket) return
+    if (!window.confirm(t("service.detail.deleteConfirm"))) return
+    deleteTicket.mutate(ticket.id, {
+      onSuccess: () => {
+        toast.success(t("service.detail.deleteSuccess"))
+        navigate("/admin/service")
+      },
+      onError: (err) => {
+        const message = typeof err === "object" && err && "message" in err ? String((err as { message: unknown }).message) : ""
+        toast.error(message.includes("cannot be hard-deleted") ? t("service.detail.deleteBlocked") : t("common.actionFailed"))
+      },
+    })
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-4 pt-2">
       <div className="flex items-center justify-between">
@@ -65,10 +109,69 @@ export function TicketDetailPage() {
           <h1 className="text-2xl font-bold text-text">#{ticket.id.slice(0, 8)}</h1>
           <p className="text-sm text-text-muted">{ticket.customers?.name} · {ticket.customers?.mobile}</p>
         </div>
-        <Button variant="outline" onClick={() => navigate("/admin/service")}>
-          {t("customers.form.back")}
-        </Button>
+        <div className="flex items-center gap-2">
+          {canCancelOrDelete ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCancelling((v) => !v)}
+                disabled={cancelTicket.isPending}
+              >
+                <XCircle className="size-3.5" />
+                {t("service.detail.cancelTicket")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleteTicket.isPending}
+                title={ticket.invoice_id ? t("service.detail.deleteBlocked") : undefined}
+              >
+                {deleteTicket.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                {t("common.delete")}
+              </Button>
+            </>
+          ) : null}
+          <Button variant="outline" onClick={() => navigate("/admin/service")}>
+            {t("customers.form.back")}
+          </Button>
+        </div>
       </div>
+
+      {cancelling ? (
+        <Card className="gap-3 px-5">
+          <h2 className="text-sm font-semibold text-text">{t("service.detail.cancelTicket")}</h2>
+          <div className="space-y-1.5">
+            <label htmlFor="cancel-reason" className="block text-xs font-medium text-text-muted">
+              {t("service.detail.cancelReasonLabel")}
+            </label>
+            <textarea
+              id="cancel-reason"
+              rows={3}
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder={t("service.detail.cancelReasonPlaceholder")}
+              className={textareaClass}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" disabled={!cancelReason.trim() || cancelTicket.isPending} onClick={confirmCancel}>
+              {cancelTicket.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("service.detail.confirmCancel")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setCancelling(false); setCancelReason("") }}>
+              {t("common.cancel")}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      {ticket.status === "cancelled" && ticket.cancellation_reason ? (
+        <Card className="gap-1.5 px-5">
+          <h2 className="text-sm font-semibold text-text">{t("service.detail.cancellationReason")}</h2>
+          <p className="text-sm text-text-muted">{ticket.cancellation_reason}</p>
+        </Card>
+      ) : null}
 
       <Card className="gap-3 px-5">
         <div className="flex flex-wrap items-center gap-2">

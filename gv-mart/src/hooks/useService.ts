@@ -109,6 +109,28 @@ export function useCompleteAppointment() {
   })
 }
 
+export function useCancelServiceTicket() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, reason }: { ticketId: string; reason: string }) => service.cancelServiceTicket(ticketId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["service_tickets"] })
+      qc.invalidateQueries({ queryKey: ["appointments"] })
+    },
+  })
+}
+
+export function useDeleteServiceTicket() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ticketId: string) => service.deleteServiceTicket(ticketId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["service_tickets"] })
+      qc.invalidateQueries({ queryKey: ["appointments"] })
+    },
+  })
+}
+
 export function useUpdateAppointmentSchedule() {
   const qc = useQueryClient()
   return useMutation({

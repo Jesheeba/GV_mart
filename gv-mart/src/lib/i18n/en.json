@@ -959,7 +959,16 @@
       "minutes_one": "{{count}} minute",
       "minutes_other": "{{count}} minutes",
       "charge": "Service charge",
-      "noVisitYet": "No visit yet."
+      "noVisitYet": "No visit yet.",
+      "cancelTicket": "Cancel ticket",
+      "cancelReasonLabel": "Reason for cancellation",
+      "cancelReasonPlaceholder": "Why is this ticket being cancelled?",
+      "confirmCancel": "Confirm cancellation",
+      "cancelSuccess": "Ticket cancelled.",
+      "cancellationReason": "Cancellation reason",
+      "deleteConfirm": "Permanently delete this ticket? This cannot be undone.",
+      "deleteSuccess": "Ticket deleted.",
+      "deleteBlocked": "This ticket has an invoice or a charged visit attached and cannot be deleted — cancel it instead."
     },
     "error": {
       "loadFailed": "Couldn't load ticket. Check your connection and try again."
