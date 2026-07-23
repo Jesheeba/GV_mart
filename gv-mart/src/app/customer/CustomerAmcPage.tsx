@@ -35,6 +35,9 @@ export function CustomerAmcPage() {
   const [selectedPlanId, setSelectedPlanId] = useState("")
   const [selectedYears, setSelectedYears] = useState(1)
   const [confirming, setConfirming] = useState(false)
+  // Build Order A2 — optional technician-name referral, resolved server-side
+  // to leads.owner_id by renew_amc_plan (see services/customerApp.ts).
+  const [referredByTechnicianName, setReferredByTechnicianName] = useState("")
 
   const renewAmc = useRenewAmcPlan(customerId)
 
@@ -210,6 +213,23 @@ export function CustomerAmcPage() {
             ) : null}
 
             {selectedPlan && withinWindow ? (
+              <div className="space-y-1.5 px-1">
+                <label htmlFor="referredByTechnicianName" className="text-xs font-medium text-text-muted">
+                  {t("customerApp.amc.referredBy.label")}
+                </label>
+                <input
+                  id="referredByTechnicianName"
+                  type="text"
+                  value={referredByTechnicianName}
+                  onChange={(e) => setReferredByTechnicianName(e.target.value)}
+                  placeholder={t("customerApp.amc.referredBy.placeholder")}
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                />
+                <p className="text-xs text-text-muted">{t("customerApp.amc.referredBy.hint")}</p>
+              </div>
+            ) : null}
+
+            {selectedPlan && withinWindow ? (
               confirming ? (
                 <div className="space-y-2 border-t border-border px-1 pt-3">
                   <p className="text-sm text-text-muted">
@@ -238,6 +258,7 @@ export function CustomerAmcPage() {
                           planId: selectedPlanId,
                           paymentReference: simulatedPaymentReference,
                           years: selectedYears,
+                          referredByTechnicianName: referredByTechnicianName.trim() || undefined,
                         })
                       }}
                     >

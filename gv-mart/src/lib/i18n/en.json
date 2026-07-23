@@ -1317,7 +1317,12 @@
       "years": "Years",
       "totalPrice": "Total: {{amount}}",
       "startedOn": "Started on {{date}}",
-      "perYear": "/yr"
+      "perYear": "/yr",
+      "referredBy": {
+        "label": "Referred by a technician? (optional)",
+        "placeholder": "Technician's name",
+        "hint": "If a technician told you about this plan, enter their name and they'll get credit for it."
+      }
     },
     "productEnquiry": {
       "title": "Product Enquiry",
@@ -1721,6 +1726,15 @@
         "description": "Description",
         "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually.",
         "complete": "Complete visit"
+      },
+      "sellAmc": {
+        "toggle": "Sell AMC (optional)",
+        "hint": "Sell an AMC plan for {{product}} — this counts towards your finder-credit incentive.",
+        "plan": "Choose a plan",
+        "planDetail": "{{years}} year(s), {{visits}} visit(s)/year",
+        "noPlans": "No AMC plans configured yet.",
+        "sell": "Sell for {{amount}}",
+        "queued": "AMC sale queued — it will sync automatically."
       },
       "enquiry": {
         "toggle": "Generate Enquiry (optional)",

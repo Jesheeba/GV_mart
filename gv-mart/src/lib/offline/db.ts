@@ -29,6 +29,7 @@ export type OutboxKind =
   | "rating.submit"
   | "lead.generate"
   | "location.ping"
+  | "amc.sell_onsite"
 
 /**
  * "stuck" = failed `MAX_ATTEMPTS_BEFORE_STUCK` times (see sync.ts) and no

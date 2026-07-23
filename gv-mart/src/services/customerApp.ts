@@ -306,6 +306,16 @@ export type RenewAmcInput = {
    * Optional — renew_amc_plan falls back to the plan's own years when
    * omitted, for backward compatibility. */
   years?: number
+  /**
+   * Build Order A2 — "a new AMC signup can enter the selling technician's
+   * name as a referral". Free text on purpose (the customer only knows the
+   * technician's name, not their id) — renew_amc_plan resolves it
+   * server-side to a real technicians.id -> leads.owner_id so it feeds the
+   * existing finder-credit incentive plumbing, never stored as a raw column
+   * nothing reads. Silently ignored (no attribution, sale still succeeds)
+   * if the name doesn't match exactly one active technician in the org.
+   */
+  referredByTechnicianName?: string
 }
 
 export async function renewAmcPlan(input: RenewAmcInput) {
@@ -315,6 +325,7 @@ export async function renewAmcPlan(input: RenewAmcInput) {
     p_plan_id: input.planId,
     p_payment_reference: input.paymentReference,
     p_years: input.years ?? null,
+    p_referred_by_technician_name: input.referredByTechnicianName?.trim() || null,
   })
   if (error) throw error
   return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }

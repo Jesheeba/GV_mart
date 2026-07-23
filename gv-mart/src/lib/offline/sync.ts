@@ -170,6 +170,19 @@ async function runJob(job: OutboxJob): Promise<void> {
       if (error) throw error
       return
     }
+    case "amc.sell_onsite": {
+      const { error } = await supabase.rpc("sell_amc_plan_onsite", {
+        p_org_id: p.orgId as string,
+        p_customer_id: p.customerId as string,
+        p_product_id: p.productId as string,
+        p_plan_id: p.planId as string,
+        p_payment_method: p.paymentMethod as "cash" | "transfer",
+        p_txn_id: (p.txnId as string) ?? null,
+        p_payment_description: (p.paymentDescription as string) ?? null,
+      })
+      if (error) throw error
+      return
+    }
     default: {
       const exhaustive: never = job.kind as never
       throw new Error(`Unknown outbox job kind: ${String(exhaustive)}`)
