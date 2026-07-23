@@ -21,8 +21,8 @@ import {
   useCacheVisitSignature,
   useCacheVisitVoiceNote,
   useCreateServiceInvoice,
-  useEndVisit,
   useGenerateEnquiry,
+  useGenerateVisitOtp,
   useJobDetail,
   useMyTechnician,
   useQueueRoChecklist,
@@ -30,6 +30,7 @@ import {
   useQueueVisitImage,
   useStartVisit,
   useTechnicianSettings,
+  useVerifyVisitOtp,
 } from "@/hooks/useTechnician"
 import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema } from "@/lib/validation/technician"
@@ -110,7 +111,8 @@ export function OnSiteVisitPage() {
   const queueRoChecklist = useQueueRoChecklist()
   const createInvoice = useCreateServiceInvoice()
   const generateEnquiry = useGenerateEnquiry()
-  const endVisit = useEndVisit()
+  const generateOtp = useGenerateVisitOtp()
+  const verifyOtp = useVerifyVisitOtp()
   const cacheSignature = useCacheVisitSignature()
   const cacheVoiceNote = useCacheVisitVoiceNote()
 
@@ -143,6 +145,18 @@ export function OnSiteVisitPage() {
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
+
+  // GV.md §2 — OTP completion confirmation. Deliberately NOT part of
+  // VisitDraftData/local autosave: the code the technician types is
+  // ephemeral input, never the source of truth (that lives server-side —
+  // see the migration's design decisions), and otpGenerated tracks
+  // "already requested a code for this visit" purely for this mounted
+  // session so revisiting the Payment step doesn't spam generate_visit_otp.
+  const [otpCode, setOtpCode] = useState("")
+  const [otpErrorKey, setOtpErrorKey] = useState<string | null>(null)
+  const [otpRemaining, setOtpRemaining] = useState<number | null>(null)
+  const [otpGenerating, setOtpGenerating] = useState(false)
+  const otpRequestedForVisitRef = useRef<string | null>(null)
 
   const [step, setStep] = useState(0)
   // Only ever grows — tracks the furthest step reached so navigating back
@@ -318,6 +332,9 @@ export function OnSiteVisitPage() {
     setPaymentMethod("cash")
     setTxnId("")
     setPaymentDescription("")
+    setOtpCode("")
+    setOtpErrorKey(null)
+    setOtpRemaining(null)
     setStep(0)
     setMaxStepReached(0)
     setInvoiceQueued(false)
@@ -338,6 +355,35 @@ export function OnSiteVisitPage() {
   useEffect(() => {
     if (!chargeable) setServiceChargeInput("0")
   }, [chargeable])
+
+  // GV.md §2 — request the completion code the moment the technician
+  // reaches the Payment step (the last one), so the customer has the most
+  // possible lead time before it's actually needed. Kept above the early
+  // returns below, alongside every other hook in this component (rules of
+  // hooks — this must run unconditionally every render). Computed here
+  // rather than reusing the `currentKey` derived further down, since that
+  // derivation happens after the loading/error guards and this effect must
+  // not. Guarded by a ref (not state) keyed on visitId so revisiting this
+  // step doesn't re-request a code the customer may already be reading out.
+  const activeStepKeysForOtp = STEP_KEYS.filter((k) => k !== "ro" || isRo)
+  const isOnPaymentStepForOtp = activeStepKeysForOtp[step] === "payment"
+  useEffect(() => {
+    if (!isOnPaymentStepForOtp || !visitId || !profile) return
+    if (otpRequestedForVisitRef.current === visitId) return
+    otpRequestedForVisitRef.current = visitId
+    setOtpGenerating(true)
+    generateOtp.mutate(
+      { orgId: profile.org_id, visitId },
+      {
+        onSettled: () => setOtpGenerating(false),
+        onError: () => {
+          otpRequestedForVisitRef.current = null
+          toast.error(t("technician.onsite.otp.errors.generateFailed"))
+        },
+      }
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnPaymentStepForOtp, visitId, profile])
 
   if (technician.isLoading || settings.isLoading || jobDetail.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (technician.isError || !technician.data) {
@@ -483,6 +529,12 @@ export function OnSiteVisitPage() {
     })
   }
 
+  /**
+   * GV.md §2 — the OTP entered here is verified server-side (verify_visit_otp)
+   * in the SAME call that closes the visit (timer_end); there is no separate
+   * "complete" step client-side any more, on purpose (see the migration's
+   * design decision #2 — never trust a client-supplied code).
+   */
   async function handlePaymentSubmit() {
     const result = servicePaymentSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription })
     if (!result.success) {
@@ -490,16 +542,57 @@ export function OnSiteVisitPage() {
       return
     }
     setPaymentError(null)
+
+    const trimmedCode = otpCode.trim()
+    if (!trimmedCode) {
+      setOtpErrorKey("technician.onsite.otp.errors.required")
+      return
+    }
+    if (!navigator.onLine) {
+      setOtpErrorKey("technician.onsite.otp.errors.offline")
+      return
+    }
+    if (!visitId || !profile) return
+
+    setOtpErrorKey(null)
+    setOtpRemaining(null)
     try {
-      if (visitId) await endVisit.mutateAsync({ visitId, timerEnd: new Date().toISOString(), notes: visitNotes })
+      const outcome = await verifyOtp.mutateAsync({ orgId: profile.org_id, visitId, code: trimmedCode, notes: visitNotes })
+      if (!outcome.ok) {
+        setOtpRemaining(outcome.remaining_attempts)
+        setOtpErrorKey("technician.onsite.otp.errors.incorrect")
+        setOtpCode("")
+        return
+      }
       // The visit is done — its local draft has served its purpose and would
       // otherwise sit around as stale dead data (or, worse, confusingly
       // "resume" into a job this ticket can no longer be re-entered for).
       if (ticketId) await db.visitFormDrafts.delete(ticketId)
       navigate(`/technician/jobs/${ticketId}/rating`, { state: { visitId } })
-    } catch {
-      toast.error(t("common.actionFailed"))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (message.includes("otp_expired")) setOtpErrorKey("technician.onsite.otp.errors.expired")
+      else if (message.includes("otp_locked")) setOtpErrorKey("technician.onsite.otp.errors.locked")
+      else if (message.includes("otp_missing")) setOtpErrorKey("technician.onsite.otp.errors.missing")
+      else toast.error(t("common.actionFailed"))
     }
+  }
+
+  /** Mints a brand-new code (resets expiry + attempts) — see generate_visit_otp's `p_force`. Used when the current code expired, locked out, or the customer never received it. */
+  function handleResendOtp() {
+    if (!visitId || !profile) return
+    setOtpErrorKey(null)
+    setOtpRemaining(null)
+    setOtpCode("")
+    setOtpGenerating(true)
+    generateOtp.mutate(
+      { orgId: profile.org_id, visitId, force: true },
+      {
+        onSuccess: () => toast.success(t("technician.onsite.otp.resent")),
+        onSettled: () => setOtpGenerating(false),
+        onError: () => toast.error(t("technician.onsite.otp.errors.generateFailed")),
+      }
+    )
   }
 
   function handleTechSign(dataUrl: string | null) {
@@ -824,8 +917,35 @@ export function OnSiteVisitPage() {
           <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p>
           {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
 
-          <Button type="button" onClick={handlePaymentSubmit}>
-            {t("technician.onsite.payment.complete")}
+          <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
+            <p className="text-sm font-semibold text-text">{t("technician.onsite.otp.title")}</p>
+            <p className="text-xs text-text-muted">{t("technician.onsite.otp.hint")}</p>
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="otpCode">{t("technician.onsite.otp.codeLabel")}</Label>
+                <Input
+                  id="otpCode"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="••••"
+                  className="text-center text-lg tracking-[0.5em]"
+                />
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={handleResendOtp} disabled={otpGenerating || !visitId}>
+                {otpGenerating ? <Loader2 className="size-3.5 animate-spin" /> : t("technician.onsite.otp.resendButton")}
+              </Button>
+            </div>
+            {otpErrorKey ? (
+              <p className="text-xs text-danger">
+                {t(otpErrorKey, { remaining: otpRemaining ?? 0 })}
+              </p>
+            ) : null}
+          </div>
+
+          <Button type="button" onClick={handlePaymentSubmit} disabled={verifyOtp.isPending}>
+            {verifyOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.payment.complete")}
           </Button>
         </Card>
       ) : null}

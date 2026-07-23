@@ -1720,6 +1720,82 @@ export type Database = {
           },
         ]
       }
+      service_visit_otps: {
+        Row: {
+          id: string
+          org_id: string
+          visit_id: string
+          code: string | null
+          generated_at: string
+          expires_at: string
+          verified_at: string | null
+          attempts: number
+          max_attempts: number
+          last_attempt_at: string | null
+          bypassed_by: string | null
+          bypassed_reason: string | null
+          bypassed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          visit_id: string
+          code?: string | null
+          generated_at?: string
+          expires_at?: string
+          verified_at?: string | null
+          attempts?: number
+          max_attempts?: number
+          last_attempt_at?: string | null
+          bypassed_by?: string | null
+          bypassed_reason?: string | null
+          bypassed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          visit_id?: string
+          code?: string | null
+          generated_at?: string
+          expires_at?: string
+          verified_at?: string | null
+          attempts?: number
+          max_attempts?: number
+          last_attempt_at?: string | null
+          bypassed_by?: string | null
+          bypassed_reason?: string | null
+          bypassed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_visit_otps_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_visit_otps_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: true
+            referencedRelation: "service_visits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_visit_otps_bypassed_by_fkey"
+            columns: ["bypassed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_sop_steps: {
         Row: {
           id: string
@@ -3543,6 +3619,18 @@ export type Database = {
       }
       cancel_service_ticket: {
         Args: { p_ticket_id: string; p_reason: string }
+        Returns: Json
+      }
+      generate_visit_otp: {
+        Args: { p_org_id: string; p_visit_id: string; p_force?: boolean }
+        Returns: Json
+      }
+      verify_visit_otp: {
+        Args: { p_org_id: string; p_visit_id: string; p_code: string; p_notes?: string | null }
+        Returns: Json
+      }
+      admin_override_visit_completion: {
+        Args: { p_org_id: string; p_visit_id: string; p_reason: string }
         Returns: Json
       }
       delete_service_ticket: {

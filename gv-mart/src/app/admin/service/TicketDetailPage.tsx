@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { CalendarClock, Loader2, Pencil, ShieldOff, Trash2, TriangleAlert, UserCog, XCircle } from "lucide-react"
+import { CalendarClock, KeyRound, Loader2, Pencil, ShieldOff, Trash2, TriangleAlert, UserCog, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { useCustomerExemptionWindows } from "@/hooks/useCustomers"
 import { useProfile } from "@/hooks/useProfile"
 import {
+  useAdminOverrideVisitCompletion,
   useAssignTicketTechnician,
   useAutoAssignTicket,
   useCancelServiceTicket,
@@ -58,6 +59,13 @@ export function TicketDetailPage() {
   const [cancelReason, setCancelReason] = useState("")
   const cancelTicket = useCancelServiceTicket()
   const deleteTicket = useDeleteServiceTicket()
+
+  // GV.md §2 — the one sanctioned OTP escape hatch. See design decision #5
+  // in 20260725110000_otp_completion_confirmation.sql for why this exists
+  // and stays deliberately minimal (no signature/photo fallback tiers).
+  const [overridingOtp, setOverridingOtp] = useState(false)
+  const [otpOverrideReason, setOtpOverrideReason] = useState("")
+  const overrideVisitCompletion = useAdminOverrideVisitCompletion()
 
   // Build Order A4: admin-set estimate override the overrun check compares
   // elapsed visit time against (see src/lib/job-overrun.ts). The Phase 1
@@ -126,6 +134,22 @@ export function TicketDetailPage() {
           setCancelling(false)
           setCancelReason("")
           toast.success(t("service.detail.cancelSuccess"))
+        },
+        onError: () => toast.error(t("common.actionFailed")),
+      }
+    )
+  }
+
+  function confirmOverrideOtp() {
+    if (!openVisit || !ticket || !otpOverrideReason.trim()) return
+    overrideVisitCompletion.mutate(
+      { orgId: ticket.org_id, visitId: openVisit.id, reason: otpOverrideReason.trim() },
+      {
+        onSuccess: () => {
+          setOverridingOtp(false)
+          setOtpOverrideReason("")
+          toast.success(t("service.detail.overrideSuccess"))
+          refetch()
         },
         onError: () => toast.error(t("common.actionFailed")),
       }
@@ -371,6 +395,42 @@ export function TicketDetailPage() {
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noVisitYet")}</p>
         )}
+
+        {canManage && openVisit ? (
+          <div className="border-t border-border pt-3">
+            {!overridingOtp ? (
+              <Button variant="outline" size="sm" onClick={() => setOverridingOtp(true)}>
+                <KeyRound className="size-3.5" />
+                {t("service.detail.overrideOtp")}
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-text-muted">{t("service.detail.overrideOtpHint")}</p>
+                <textarea
+                  rows={2}
+                  value={otpOverrideReason}
+                  onChange={(e) => setOtpOverrideReason(e.target.value)}
+                  placeholder={t("service.detail.overrideOtpReasonPlaceholder")}
+                  className={textareaClass}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={!otpOverrideReason.trim() || overrideVisitCompletion.isPending}
+                    onClick={confirmOverrideOtp}
+                  >
+                    {overrideVisitCompletion.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("service.detail.overrideOtpConfirm")}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setOverridingOtp(false); setOtpOverrideReason("") }}>
+                    {t("common.cancel")}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+
         <div>
           <div className="flex items-center gap-1.5 text-xs text-text-muted">
             {t("service.detail.estimatedDuration")}

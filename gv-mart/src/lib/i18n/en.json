@@ -1037,6 +1037,11 @@
       "confirmCancel": "Confirm cancellation",
       "cancelSuccess": "Ticket cancelled.",
       "cancellationReason": "Cancellation reason",
+      "overrideOtp": "Override & complete (skip OTP)",
+      "overrideOtpHint": "Use only if the customer genuinely can't provide the completion code (phone unreachable, no app, etc.). This bypass is logged and never counts as a customer-confirmed completion.",
+      "overrideOtpReasonPlaceholder": "e.g. Customer's phone was unreachable, service confirmed verbally on-site",
+      "overrideOtpConfirm": "Confirm override",
+      "overrideSuccess": "Visit marked complete — OTP bypassed and logged.",
       "deleteConfirm": "Permanently delete this ticket? This cannot be undone.",
       "deleteSuccess": "Ticket deleted.",
       "deleteBlocked": "This ticket has an invoice or a charged visit attached and cannot be deleted — cancel it instead.",
@@ -1286,6 +1291,11 @@
       "before": "Before",
       "after": "After",
       "yourRating": "Your rating",
+      "otpTitle": "Job completion code",
+      "otpHint": "Give this code to your technician once the work is done, to confirm the job is complete.",
+      "otpExpiresAt": "Valid until {{time}}",
+      "otpExpired": "This code expired — ask your technician to send you a new one.",
+      "otpVerified": "Completion confirmed with this code.",
       "invoice": "Invoice",
       "invoiceSubtotal": "Subtotal",
       "invoiceDiscount": "Discount",
@@ -1766,7 +1776,23 @@
         "txnId": "Transaction ID",
         "description": "Description",
         "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually.",
-        "complete": "Complete visit"
+        "complete": "Verify & complete visit"
+      },
+      "otp": {
+        "title": "Customer confirmation code",
+        "hint": "Ask the customer for the 4-digit code shown in their app, then enter it here to finish the job.",
+        "codeLabel": "Enter code",
+        "resendButton": "Resend code",
+        "resent": "New code sent to the customer.",
+        "errors": {
+          "required": "Enter the code the customer gives you before completing.",
+          "incorrect": "Incorrect code — {{remaining}} attempt(s) left.",
+          "expired": "This code has expired. Tap Resend to get a new one.",
+          "locked": "Too many incorrect attempts. Tap Resend to get a new one.",
+          "missing": "No code has been generated yet. Tap Resend.",
+          "offline": "You're offline — connect to the internet to verify and complete this job.",
+          "generateFailed": "Couldn't send the code. Check your connection and tap Resend."
+        }
       },
       "sellAmc": {
         "toggle": "Sell AMC (optional)",

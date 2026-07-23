@@ -140,6 +140,16 @@ export function useDeleteServiceTicket() {
   })
 }
 
+/** GV.md §2 admin override — see service.ts#adminOverrideVisitCompletion. */
+export function useAdminOverrideVisitCompletion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, visitId, reason }: { orgId: string; visitId: string; reason: string }) =>
+      service.adminOverrideVisitCompletion(orgId, visitId, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service_tickets"] }),
+  })
+}
+
 export function useUpdateAppointmentSchedule() {
   const qc = useQueryClient()
   return useMutation({

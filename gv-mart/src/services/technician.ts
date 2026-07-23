@@ -657,17 +657,35 @@ export async function queueVisitImage(visitId: string, kind: "before" | "after",
   await enqueue("service_visit.image", { visitId, column: kind === "before" ? "before_image_url" : "after_image_url", url })
 }
 
-/**
- * Closes the productivity timer (timer_end) once payment is complete — the outbox kind + sync.ts handler already existed but nothing queued it yet.
- * Optionally carries the technician's own free-text on-site findings (`service_visits.notes`, an existing but previously-unused column) in the same
- * patch — sync.ts's `service_visit.arrive` handler already applies whatever fields are present in `patch` generically, so no new job kind or sync.ts
- * change is needed to land this.
- */
-export async function queueEndVisit(visitId: string, timerEnd: string, notes?: string) {
-  const patch: { timer_end: string; notes?: string } = { timer_end: timerEnd }
-  const trimmedNotes = notes?.trim()
-  if (trimmedNotes) patch.notes = trimmedNotes
-  await enqueue("service_visit.arrive", { visitId, patch })
+// ── OTP completion confirmation (GV.md §2) ──────────────────────────────
+// Unlike every other on-site write, these two are NOT queued through the
+// offline outbox (see 20260725110000_otp_completion_confirmation.sql's
+// design decision #6): "never trust a client-supplied code" means the
+// right/wrong answer must come from a live round-trip, not a fire-and-
+// forget queued write that resolves minutes later with no way to tell the
+// technician "wrong code, try again" in the moment. Same "not queued
+// offline" precedent as logCall() above. verifyVisitOtp is what actually
+// closes the visit (timer_end) now — this replaces the old queueEndVisit()
+// that used to fire from OnSiteVisitPage's Payment step.
+
+export type GenerateVisitOtpResult = { generated_at: string; expires_at: string; reused: boolean }
+
+/** Mints (or, unless `force`, reuses the still-valid) code for a visit — see the migration's design decision #4 for the reuse/expiry/attempts policy. */
+export async function generateVisitOtp(orgId: string, visitId: string, force = false): Promise<GenerateVisitOtpResult> {
+  const { data, error } = await supabase.rpc("generate_visit_otp", { p_org_id: orgId, p_visit_id: visitId, p_force: force })
+  if (error) throw error
+  return data as unknown as GenerateVisitOtpResult
+}
+
+export type VerifyVisitOtpResult =
+  | { ok: true; visit_id: string; timer_end: string }
+  | { ok: false; reason: "incorrect"; remaining_attempts: number }
+
+/** Checks the code server-side and, only if correct, closes the visit (timer_end) in the same call — see the migration's design decision #2. `notes` carries the technician's free-text on-site findings, same as the old queueEndVisit did. */
+export async function verifyVisitOtp(orgId: string, visitId: string, code: string, notes?: string): Promise<VerifyVisitOtpResult> {
+  const { data, error } = await supabase.rpc("verify_visit_otp", { p_org_id: orgId, p_visit_id: visitId, p_code: code, p_notes: notes?.trim() || null })
+  if (error) throw error
+  return data as unknown as VerifyVisitOtpResult
 }
 
 /**
