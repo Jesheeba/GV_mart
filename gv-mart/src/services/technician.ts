@@ -708,6 +708,44 @@ export async function queueGenerateEnquiry(input: {
   })
 }
 
+// ── Build Order A2 — on-site AMC sell ───────────────────────────────────────
+// Deliberately separate from services/amc.ts's admin-scoped sellAmcPlan (same
+// "kept apart from the staff-facing version even though several queries
+// touch the same tables" convention as services/customerApp.ts) — this goes
+// through the outbox like every other technician write (queueCreateServiceInvoice
+// above), not a direct RPC call, and hits the technician-only
+// sell_amc_plan_onsite RPC (20260724100000_technician_onsite_amc_sale.sql),
+// not the sales-staff-gated sell_amc_plan/create_sale.
+
+export type AmcPlanForTechnician = Tables<"amc_plans">
+
+/** amc_plans is readable by any org member under RLS (amc_plans_select_org) — no RPC needed. */
+export async function listAmcPlansForTechnician(orgId: string): Promise<AmcPlanForTechnician[]> {
+  const { data, error } = await supabase.from("amc_plans").select("*").eq("org_id", orgId).order("years")
+  if (error) throw error
+  return data ?? []
+}
+
+export async function queueSellAmcOnsite(input: {
+  orgId: string
+  customerId: string
+  productId: string
+  planId: string
+  paymentMethod: Enums<"payment_method">
+  txnId?: string
+  paymentDescription?: string
+}) {
+  await enqueue("amc.sell_onsite", {
+    orgId: input.orgId,
+    customerId: input.customerId,
+    productId: input.productId,
+    planId: input.planId,
+    paymentMethod: input.paymentMethod,
+    txnId: input.txnId,
+    paymentDescription: input.paymentDescription,
+  })
+}
+
 // ── TECH-08 Rating ─────────────────────────────────────────────────────────
 
 export async function queueSubmitRating(input: { orgId: string; visitId: string; stars: number; review?: string; lowRatingReason?: string }) {

@@ -306,6 +306,28 @@ export function useGenerateEnquiry() {
   return useMutation({ mutationFn: tech.queueGenerateEnquiry })
 }
 
+// ── Build Order A2 — on-site AMC sell ───────────────────────────────────────
+
+export function useAmcPlansForTechnician(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["amcPlans", "technician", orgId],
+    queryFn: () => tech.listAmcPlansForTechnician(orgId!),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
+export function useSellAmcOnsite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: tech.queueSellAmcOnsite,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["jobs", "today"] })
+      qc.invalidateQueries({ queryKey: ["history"] })
+    },
+  })
+}
+
 // ── TECH-08 Rating ─────────────────────────────────────────────────────────
 
 export function useSubmitRating() {

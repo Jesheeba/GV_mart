@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { PhotoCapture } from "../components/PhotoCapture"
 import { SignaturePad } from "../components/SignaturePad"
 import { SpareSelectStep, type SelectedSpare } from "./SpareSelectStep"
+import { SellAmcSection } from "./SellAmcSection"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import {
@@ -806,6 +807,10 @@ export function OnSiteVisitPage() {
             {t("technician.onsite.payment.complete")}
           </Button>
         </Card>
+      ) : null}
+
+      {isRo ? (
+        <SellAmcSection orgId={profile?.org_id} customerId={ticket.customer_id} productId={ticket.product_id!} productName={ticket.products?.name ?? ""} />
       ) : null}
 
       <Card className="gap-2.5">

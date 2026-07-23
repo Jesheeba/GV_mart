@@ -3608,6 +3608,22 @@ export type Database = {
           p_plan_id: string
           p_payment_reference: string
           p_years?: number | null
+          // A2: optional customer-entered technician name, resolved
+          // server-side to leads.owner_id — see
+          // 20260724100000_technician_onsite_amc_sale.sql.
+          p_referred_by_technician_name?: string | null
+        }
+        Returns: Json
+      }
+      sell_amc_plan_onsite: {
+        Args: {
+          p_org_id: string
+          p_customer_id: string
+          p_product_id: string
+          p_plan_id: string
+          p_payment_method: Database["public"]["Enums"]["payment_method"]
+          p_txn_id?: string | null
+          p_payment_description?: string | null
         }
         Returns: Json
       }
