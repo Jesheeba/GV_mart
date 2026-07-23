@@ -345,6 +345,10 @@ export type CustomerHistoryEntry = {
     // captured on every visit (see VisitDraftData.visitNotes -> endVisit),
     // just never selected/shown here before.
     notes: string | null
+    // Build Order A3: optional voice note recorded on-site, alongside the
+    // text note — same data-URL convention as before/after images and
+    // signatures (see 20260724110000_service_visit_voice_notes.sql).
+    voice_note_url: string | null
     service_spares_used: { id: string; qty: number; spares: { name: string } | null }[]
   }[]
 }
@@ -355,17 +359,31 @@ export type CustomerHistoryEntry = {
  * previous technician's notes — not just dates — so a technician opening a job sees the full
  * picture, including visits a *different* technician handled (see the
  * `service_tickets_select_customer_history_technician` RLS policy this depends on).
+ *
+ * Build Order A3 fix: this was scoped to `customer_id` only, so a customer with more than one
+ * product serviced would have every product's notes/parts interleaved regardless of which
+ * product the *current* job is for — noisy, and actively misleading (a note about a different
+ * appliance surfacing on this one). `productId` (the current ticket's `product_id`) narrows the
+ * read to that same product's history when known; tickets with no product_id keep the previous
+ * customer-wide behavior since there's nothing to scope to. No RLS change needed — see
+ * 20260724110000_service_visit_voice_notes.sql's header for why: the existing
+ * `is_technician_customer` policies already gate access at the customer level, and this filters
+ * narrower within that same already-permitted row set.
  */
-export async function getCustomerHistory(customerId: string, excludeTicketId?: string): Promise<CustomerHistoryEntry[]> {
-  const { data, error } = await supabase
+export async function getCustomerHistory(
+  customerId: string,
+  productId?: string | null,
+  excludeTicketId?: string
+): Promise<CustomerHistoryEntry[]> {
+  let query = supabase
     .from("service_tickets")
     .select(
-      "id, name_of_complaint, nature_of_complaint, type, status, created_at, service_visits(id, timer_start, timer_end, service_charge, notes, service_spares_used(id, qty, spares(name)))"
+      "id, name_of_complaint, nature_of_complaint, type, status, created_at, service_visits(id, timer_start, timer_end, service_charge, notes, voice_note_url, service_spares_used(id, qty, spares(name)))"
     )
     .eq("customer_id", customerId)
     .neq("id", excludeTicketId ?? "")
-    .order("created_at", { ascending: false })
-    .limit(2)
+  if (productId) query = query.eq("product_id", productId)
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(2)
   if (error) throw error
   return (data ?? []) as unknown as CustomerHistoryEntry[]
 }
@@ -622,6 +640,21 @@ export async function cacheVisitSignature(visitId: string, kind: "signature_tech
   await db.media.put({ id: `${visitId}:${kind}`, kind, dataUrl, meta: { capturedAt: new Date().toISOString() }, createdAt: Date.now() })
   const column = kind === "signature_tech" ? "tech_sign_url" : "customer_sign_url"
   await enqueue("service_visit.arrive", { visitId, patch: { [column]: dataUrl } })
+}
+
+/**
+ * Build Order A3 — optional on-site voice note, captured/cleared immediately
+ * (not batched into the end-of-visit patch like the text `notes` field) so
+ * it survives the app being closed mid-visit, same as the signatures above.
+ * `dataUrl: null` clears an already-recorded note (re-record/remove).
+ */
+export async function cacheVisitVoiceNote(visitId: string, dataUrl: string | null) {
+  if (dataUrl) {
+    await db.media.put({ id: `${visitId}:voice_note`, kind: "voice_note", dataUrl, meta: { capturedAt: new Date().toISOString() }, createdAt: Date.now() })
+  } else {
+    await db.media.delete(`${visitId}:voice_note`)
+  }
+  await enqueue("service_visit.arrive", { visitId, patch: { voice_note_url: dataUrl } })
 }
 
 export async function queueSopStepComplete(step: { id: string; orgId: string; visitId: string; stepName: string; expectedMinutes: number; doneAt: string }) {

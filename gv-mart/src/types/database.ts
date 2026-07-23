@@ -1636,6 +1636,7 @@ export type Database = {
           otp_verified: boolean
           needs_revisit: boolean
           notes: string | null
+          voice_note_url: string | null
           created_at: string
           updated_at: string
         }
@@ -1655,6 +1656,7 @@ export type Database = {
           otp_verified?: boolean
           needs_revisit?: boolean
           notes?: string | null
+          voice_note_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1674,6 +1676,7 @@ export type Database = {
           otp_verified?: boolean
           needs_revisit?: boolean
           notes?: string | null
+          voice_note_url?: string | null
           created_at?: string
           updated_at?: string
         }

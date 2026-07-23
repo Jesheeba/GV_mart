@@ -12,11 +12,13 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useToast } from "@/components/ui/toast-context"
 import { PhotoCapture } from "../components/PhotoCapture"
 import { SignaturePad } from "../components/SignaturePad"
+import { VoiceNoteRecorder } from "../components/VoiceNoteRecorder"
 import { SpareSelectStep, type SelectedSpare } from "./SpareSelectStep"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import {
   useCacheVisitSignature,
+  useCacheVisitVoiceNote,
   useCreateServiceInvoice,
   useEndVisit,
   useGenerateEnquiry,
@@ -55,6 +57,7 @@ type VisitDraftData = {
   beforeImage: string | null
   afterImage: string | null
   visitNotes: string
+  voiceNoteUrl: string | null
   sopSteps: SopStep[]
   newStepName: string
   newStepMinutes: string
@@ -108,6 +111,7 @@ export function OnSiteVisitPage() {
   const generateEnquiry = useGenerateEnquiry()
   const endVisit = useEndVisit()
   const cacheSignature = useCacheVisitSignature()
+  const cacheVoiceNote = useCacheVisitVoiceNote()
 
   const [visitId, setVisitId] = useState<string | null>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
@@ -116,6 +120,7 @@ export function OnSiteVisitPage() {
   const [beforeImage, setBeforeImage] = useState<string | null>(null)
   const [afterImage, setAfterImage] = useState<string | null>(null)
   const [visitNotes, setVisitNotes] = useState("")
+  const [voiceNoteUrl, setVoiceNoteUrl] = useState<string | null>(null)
   const [sopSteps, setSopSteps] = useState<SopStep[]>([])
   const [newStepName, setNewStepName] = useState("")
   const [newStepMinutes, setNewStepMinutes] = useState("10")
@@ -211,6 +216,7 @@ export function OnSiteVisitPage() {
       if (d.beforeImage) setBeforeImage(d.beforeImage)
       if (d.afterImage) setAfterImage(d.afterImage)
       if (d.visitNotes) setVisitNotes(d.visitNotes)
+      if (d.voiceNoteUrl) setVoiceNoteUrl(d.voiceNoteUrl)
       if (d.sopSteps?.length) setSopSteps(d.sopSteps)
       if (d.newStepName) setNewStepName(d.newStepName)
       if (d.newStepMinutes) setNewStepMinutes(d.newStepMinutes)
@@ -252,6 +258,7 @@ export function OnSiteVisitPage() {
     beforeImage,
     afterImage,
     visitNotes,
+    voiceNoteUrl,
     sopSteps,
     newStepName,
     newStepMinutes,
@@ -293,6 +300,7 @@ export function OnSiteVisitPage() {
     setBeforeImage(null)
     setAfterImage(null)
     setVisitNotes("")
+    setVoiceNoteUrl(null)
     setSopSteps([])
     setNewStepName("")
     setNewStepMinutes("10")
@@ -437,6 +445,12 @@ export function OnSiteVisitPage() {
   async function handleAfterImage(dataUrl: string) {
     setAfterImage(dataUrl)
     if (visitId) await queueVisitImage.mutateAsync({ visitId, kind: "after", url: dataUrl })
+  }
+
+  /** Build Order A3 — cached/queued immediately (like signatures), not batched into handlePaymentSubmit's end-of-visit patch, so it survives the app closing mid-visit. `null` clears an already-recorded note. */
+  async function handleVoiceNote(dataUrl: string | null) {
+    setVoiceNoteUrl(dataUrl)
+    if (visitId) await cacheVoiceNote.mutateAsync({ visitId, dataUrl })
   }
 
   async function handleCreateInvoice() {
@@ -723,6 +737,13 @@ export function OnSiteVisitPage() {
               rows={4}
               className={textareaClass}
             />
+          </Card>
+
+          <Card className="gap-2">
+            <div className="space-y-1 px-1">
+              <p className="text-xs text-text-muted">{t("technician.voiceNote.hint")}</p>
+            </div>
+            <VoiceNoteRecorder label={t("technician.voiceNote.label")} dataUrl={voiceNoteUrl} onChange={handleVoiceNote} />
           </Card>
         </div>
       ) : null}
