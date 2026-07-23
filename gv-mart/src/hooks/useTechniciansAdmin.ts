@@ -107,6 +107,35 @@ export function useTechniciansActiveJobs(orgId: string | undefined) {
   })
 }
 
+// ── A5: "Track today's movement" — full-day route trail ──────────────────
+
+export function useTechnicianTrailForDate(technicianId: string | undefined, dateStr: string) {
+  return useQuery({
+    queryKey: ["technicians", "trailForDate", technicianId, dateStr],
+    queryFn: () => techniciansAdmin.getTechnicianTrailForDate(technicianId!, dateStr),
+    enabled: !!technicianId,
+  })
+}
+
+export function useTechnicianActiveAppointments(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicians", "activeAppointments", technicianId],
+    queryFn: () => techniciansAdmin.listTechnicianActiveAppointments(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
+/** Distinct from useTechnicianVisitsForDate above (that one's the Attendance
+ * calendar's per-day job/rating detail) — this is just the raw
+ * timer_start/timer_end timing routeColor.ts's mergeDayLegs needs. */
+export function useTechnicianVisitTimingsForDate(technicianId: string | undefined, dateStr: string) {
+  return useQuery({
+    queryKey: ["technicians", "visitTimingsForDate", technicianId, dateStr],
+    queryFn: () => techniciansAdmin.listTechnicianVisitsForDate(technicianId!, dateStr),
+    enabled: !!technicianId,
+  })
+}
+
 export function useAttendanceForDate(orgId: string | undefined, date: string) {
   return useQuery({
     queryKey: ["attendance", "byDate", orgId, date],

@@ -71,6 +71,7 @@ const MapPage = lazyPage(() => import("@/app/technician/MapPage"), "MapPage")
 const SearchPage = lazyPage(() => import("@/app/technician/SearchPage"), "SearchPage")
 const SpareHandoverPage = lazyPage(() => import("@/app/technician/SpareHandoverPage"), "SpareHandoverPage")
 const JobDetailPage = lazyPage(() => import("@/app/technician/JobDetailPage"), "JobDetailPage")
+const JobRoutePage = lazyPage(() => import("@/app/technician/JobRoutePage"), "JobRoutePage")
 const OnSiteVisitPage = lazyPage(() => import("@/app/technician/onsite/OnSiteVisitPage"), "OnSiteVisitPage")
 const RatingPage = lazyPage(() => import("@/app/technician/RatingPage"), "RatingPage")
 const HistoryPage = lazyPage(() => import("@/app/technician/HistoryPage"), "HistoryPage")
@@ -227,6 +228,7 @@ export const router = createBrowserRouter([
               { path: "spares", element: <SpareHandoverPage /> },
               { path: "search", element: <SearchPage /> },
               { path: "jobs/:ticketId", element: <JobDetailPage /> },
+              { path: "jobs/:ticketId/route", element: <JobRoutePage /> },
               { path: "jobs/:ticketId/rating", element: <RatingPage /> },
               { path: "day-sheet", element: <DaySheetPage /> },
               { path: "notifications", element: <TechnicianNotificationsPage /> },

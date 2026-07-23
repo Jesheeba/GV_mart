@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigation, Phone } from "lucide-react"
+import { CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigation, Phone, Route } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -43,7 +43,17 @@ export function JobDetailPage() {
 
       <Card className="gap-3">
         <div className="flex items-center justify-between px-1">
-          <p className="text-base font-semibold text-text">{ticket.customers?.name ?? t("technician.home.unknownCustomer")}</p>
+          {/* A5(a): the customer's name opens this specific journey's
+              colour-coded route (green=on time, yellow=slow/late, red=idle)
+              instead of just displaying plain text. */}
+          <button
+            type="button"
+            onClick={() => navigate(`/technician/jobs/${ticketId}/route`)}
+            className="flex items-center gap-1 text-left text-base font-semibold text-text underline decoration-dotted underline-offset-4"
+          >
+            {ticket.customers?.name ?? t("technician.home.unknownCustomer")}
+            <Route className="size-3.5 text-text-muted" />
+          </button>
           {ticket.customers?.mobile ? (
             <a
               href={`tel:${ticket.customers.mobile}`}

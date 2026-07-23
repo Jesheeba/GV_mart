@@ -223,6 +223,22 @@ function dotIconUrl(color: string) {
   )
 }
 
+/** A5 — technician route trail: a larger ring-styled marker for an idle
+ * spot, deliberately distinct from the small filled dot used for a live
+ * technician position (dotIconUrl above) so an idle spot reads as its own
+ * pin rather than just another point on the coloured polyline. */
+function ringIconUrl(color: string) {
+  return (
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">` +
+        `<circle cx="15" cy="15" r="12" fill="${color}" fill-opacity="0.25" stroke="${color}" stroke-width="2.5"/>` +
+        `<circle cx="15" cy="15" r="5" fill="${color}" stroke="#ffffff" stroke-width="2"/>` +
+        `</svg>`
+    )
+  )
+}
+
 type MapMarkerProps = {
   longitude: number
   latitude: number
@@ -231,6 +247,10 @@ type MapMarkerProps = {
   /** Renders a colored dot instead of the default pin glyph (e.g. live
    * technician status) — omit for the default orange location pin. */
   color?: string
+  /** "ring" renders a larger ring-styled marker (see ringIconUrl) instead of
+   * the small filled dot — used to mark a route trail's idle spot distinctly
+   * from ordinary points/the moving-route polyline. Requires `color`. */
+  variant?: "dot" | "ring"
   /** Native browser tooltip on hover (e.g. technician name). */
   title?: string
   /** Kept for call-site compatibility — a legacy google.maps.Marker can't host
@@ -239,13 +259,16 @@ type MapMarkerProps = {
   children?: ReactNode
 }
 
-function markerIcon(color: string | undefined) {
+function markerIcon(color: string | undefined, variant: "dot" | "ring" = "dot") {
+  if (color && variant === "ring") {
+    return { url: ringIconUrl(color), scaledSize: new google.maps.Size(30, 30), anchor: new google.maps.Point(15, 15) }
+  }
   return color
     ? { url: dotIconUrl(color), scaledSize: new google.maps.Size(22, 22), anchor: new google.maps.Point(11, 11) }
     : { url: PIN_ICON_URL, scaledSize: new google.maps.Size(28, 28), anchor: new google.maps.Point(14, 24) }
 }
 
-function MapMarker({ longitude, latitude, draggable = false, onDragEnd, color, title }: MapMarkerProps) {
+function MapMarker({ longitude, latitude, draggable = false, onDragEnd, color, variant = "dot", title }: MapMarkerProps) {
   const { map } = useMap()
   const [marker, setMarker] = useState<google.maps.Marker | null>(null)
   const onDragEndRef = useRef(onDragEnd)
@@ -258,7 +281,7 @@ function MapMarker({ longitude, latitude, draggable = false, onDragEnd, color, t
       position: { lat: latitude, lng: longitude },
       draggable,
       title,
-      icon: markerIcon(color),
+      icon: markerIcon(color, variant),
     })
     m.addListener("dragend", () => {
       const pos = m.getPosition()
@@ -285,9 +308,56 @@ function MapMarker({ longitude, latitude, draggable = false, onDragEnd, color, t
   // rather than tearing down and recreating the google.maps.Marker.
   useEffect(() => {
     if (!marker) return
-    marker.setIcon(markerIcon(color))
+    marker.setIcon(markerIcon(color, variant))
     marker.setTitle(title ?? null)
-  }, [marker, color, title])
+  }, [marker, color, variant, title])
+
+  return null
+}
+
+type MapPolylineProps = {
+  path: { lat: number; lng: number }[]
+  color: string
+  weight?: number
+  opacity?: number
+  zIndex?: number
+}
+
+/**
+ * A5 — one coloured leg of a technician's route trail. Rendered as one
+ * `<MapPolyline>` per classified segment (rather than one long multi-colour
+ * polyline) so each segment can carry its own green/yellow/red styling —
+ * trail lengths here (a day's worth of ~20s-interval pings) are small enough
+ * that per-segment Polyline objects are cheap.
+ */
+function MapPolyline({ path, color, weight = 4, opacity = 0.9, zIndex }: MapPolylineProps) {
+  const { map } = useMap()
+  const polylineRef = useRef<google.maps.Polyline | null>(null)
+  const pathKey = path.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join("|")
+
+  useEffect(() => {
+    if (!map) return
+    const poly = new google.maps.Polyline({
+      map,
+      path,
+      strokeColor: color,
+      strokeOpacity: opacity,
+      strokeWeight: weight,
+      zIndex,
+    })
+    polylineRef.current = poly
+    return () => {
+      poly.setMap(null)
+    }
+    // Recreated whenever the path's actual coordinates change (pathKey), not
+    // on every render — color/weight/opacity/zIndex-only changes are handled
+    // by the update effect below instead of tearing the polyline down.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, pathKey])
+
+  useEffect(() => {
+    polylineRef.current?.setOptions({ strokeColor: color, strokeOpacity: opacity, strokeWeight: weight, zIndex })
+  }, [color, opacity, weight, zIndex])
 
   return null
 }
@@ -478,5 +548,5 @@ function MapControls({ position = "bottom-right", showZoom = true, showLocate = 
   )
 }
 
-export { Map, useMap, MapMarker, MarkerContent, MapMarkerLabel, MapControls }
+export { Map, useMap, MapMarker, MarkerContent, MapMarkerLabel, MapControls, MapPolyline }
 export type { MapViewport }

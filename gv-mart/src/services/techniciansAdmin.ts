@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import type { DayJobInput, DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Tables, TablesInsert } from "@/types/database"
 
 // New file — the admin-side counterpart to src/services/technician.ts
@@ -366,6 +367,71 @@ export async function listRecentTechnicianLocations(orgId: string, sinceIso: str
     .limit(2000)
   if (error) throw error
   return data ?? []
+}
+
+// ── A5: "Track today's movement" — full-day route trail ──────────────────
+// Feeds src/lib/routeColor.ts's mergeDayLegs/buildDayLegs/classifyRouteTrail
+// for the admin map's per-technician full-day coloured route. Mirrors
+// services/technician.ts's own getTodaysTechnicianTrail/
+// listTodaysVisitTimings (the technician-side "customer journey" view) —
+// same two-source shape (a technician_locations trail + job/visit timing),
+// just admin-scoped (any technician in the org, not just "me") and
+// date-parameterized rather than hardcoded to "today".
+
+/** A technician's full-day location trail, ordered ascending. */
+export async function getTechnicianTrailForDate(technicianId: string, dateStr: string): Promise<RouteTrailPoint[]> {
+  const dayStart = new Date(`${dateStr}T00:00:00`)
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`)
+  const { data, error } = await supabase
+    .from("technician_locations")
+    .select("lat, lng, recorded_at")
+    .eq("technician_id", technicianId)
+    .gte("recorded_at", dayStart.toISOString())
+    .lte("recorded_at", dayEnd.toISOString())
+    .order("recorded_at", { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => ({ lat: r.lat, lng: r.lng, recordedAt: r.recorded_at }))
+}
+
+/** This technician's currently-active/upcoming jobs (no date filter — same
+ * status-only scope listTodaysJobs uses in technician.ts, since a completed
+ * job's appointment status has already flipped away from
+ * scheduled/in_progress and won't show up here; that half of the picture
+ * comes from listTechnicianVisitsForDate below instead). */
+export async function listTechnicianActiveAppointments(technicianId: string): Promise<DayJobInput[]> {
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("ticket_id, scheduled_at, service_tickets(addresses(lat,lng), customers(name))")
+    .eq("technician_id", technicianId)
+    .in("status", ["scheduled", "in_progress"])
+  if (error) throw error
+  const rows = (data ?? []) as unknown as {
+    ticket_id: string
+    scheduled_at: string | null
+    service_tickets: { addresses: { lat: number | null; lng: number | null } | null; customers: { name: string } | null } | null
+  }[]
+  return rows.map((r) => ({
+    ticketId: r.ticket_id,
+    scheduledAt: r.scheduled_at,
+    lat: r.service_tickets?.addresses?.lat ?? null,
+    lng: r.service_tickets?.addresses?.lng ?? null,
+    customerName: r.service_tickets?.customers?.name ?? null,
+  }))
+}
+
+/** This technician's actual visit timing (timer_start/timer_end) for one
+ * calendar date — the completed/in-progress half of the day's legs. */
+export async function listTechnicianVisitsForDate(technicianId: string, dateStr: string): Promise<DayVisitInput[]> {
+  const dayStart = new Date(`${dateStr}T00:00:00`)
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`)
+  const { data, error } = await supabase
+    .from("service_visits")
+    .select("ticket_id, timer_start, timer_end")
+    .eq("technician_id", technicianId)
+    .gte("created_at", dayStart.toISOString())
+    .lte("created_at", dayEnd.toISOString())
+  if (error) throw error
+  return (data ?? []).map((v) => ({ ticketId: v.ticket_id, timerStart: v.timer_start, timerEnd: v.timer_end }))
 }
 
 // ── ETA / off-route (v2.2 §6.6) ───────────────────────────────────────────

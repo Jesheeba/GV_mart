@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase"
 import { db } from "@/lib/offline/db"
 import { enqueue } from "@/lib/offline/outbox"
 import { distanceKm, expectedMinutes, type GeoPoint } from "@/lib/offline/geo"
+import type { DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Enums, Tables } from "@/types/database"
 
 export type AttendanceRow = Tables<"attendance">
@@ -400,6 +401,44 @@ export async function pingLiveLocation(orgId: string, technicianId: string, lat:
   // RLS/network failure is diagnosable instead of just silently never
   // appearing on the admin map with no trace of why.
   if (error) console.error("Failed to send live location ping:", error)
+}
+
+// ── A5: route trail colour classification (own journey view) ─────────────
+// Feeds src/lib/routeColor.ts's classifyRouteTrail/buildDayLegs, reused
+// as-is by both this technician-side "customer journey" view and the admin
+// "Track today's movement" map (techniciansAdmin.ts's mirror of these two
+// queries) — see routeColor.ts's file header.
+
+/** Today's technician_locations trail, ordered ascending — the raw input to
+ * classifyRouteTrail. Local-midnight-to-now bound, matching the date-range
+ * convention already used elsewhere in this file (getTodaysJobCounts). */
+export async function getTodaysTechnicianTrail(technicianId: string): Promise<RouteTrailPoint[]> {
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  const { data, error } = await supabase
+    .from("technician_locations")
+    .select("lat, lng, recorded_at")
+    .eq("technician_id", technicianId)
+    .gte("recorded_at", dayStart.toISOString())
+    .order("recorded_at", { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => ({ lat: r.lat, lng: r.lng, recordedAt: r.recorded_at }))
+}
+
+/** Today's service_visits timing (timer_start/timer_end) for this
+ * technician — the DayVisitInput half of routeColor.ts's mergeDayLegs; the
+ * DayJobInput half comes straight from useTodaysJobs (JobCard[]), already
+ * fetched by every screen that needs it. */
+export async function listTodaysVisitTimings(technicianId: string): Promise<DayVisitInput[]> {
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  const { data, error } = await supabase
+    .from("service_visits")
+    .select("ticket_id, timer_start, timer_end")
+    .eq("technician_id", technicianId)
+    .gte("created_at", dayStart.toISOString())
+  if (error) throw error
+  return (data ?? []).map((v) => ({ ticketId: v.ticket_id, timerStart: v.timer_start, timerEnd: v.timer_end }))
 }
 
 // ── Build Order STEP 5 / Assignment spec Phase 4 — route ordering ────────
