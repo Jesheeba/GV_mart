@@ -251,6 +251,24 @@ export async function completeAppointment(appointmentId: string) {
   if (error) throw error
 }
 
+/** Soft-cancel (master/operation_admin only) — reason is required server-side too. */
+export async function cancelServiceTicket(ticketId: string, reason: string) {
+  const { data, error } = await supabase.rpc("cancel_service_ticket", { p_ticket_id: ticketId, p_reason: reason })
+  if (error) throw error
+  return data as { ticket_id: string; status: TicketStatus }
+}
+
+/**
+ * Hard delete (master/operation_admin only) — the RPC itself refuses when
+ * the ticket has an invoice or a charged visit attached (see migration
+ * 20260724090000_ticket_cancel_delete.sql), so a financial record can never
+ * be silently destroyed this way.
+ */
+export async function deleteServiceTicket(ticketId: string) {
+  const { error } = await supabase.rpc("delete_service_ticket", { p_ticket_id: ticketId })
+  if (error) throw error
+}
+
 export async function updateAppointmentSchedule(id: string, patch: { scheduled_at?: string | null; mode?: AppointmentMode }) {
   const { data, error } = await supabase.from("appointments").update(patch).eq("id", id).select().single()
   if (error) throw error
