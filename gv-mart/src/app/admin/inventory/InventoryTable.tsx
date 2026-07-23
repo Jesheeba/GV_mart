@@ -4,7 +4,7 @@ import { Check, Inbox, Loader2, Minus, Pencil, Plus, TriangleAlert, X } from "lu
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useAdjustStock, useInventoryList, useUpdateThresholds } from "@/hooks/useInventory"
+import { useAdjustStock, useInventoryList, useSetItemStandardTime, useUpdateThresholds } from "@/hooks/useInventory"
 import { useProfile } from "@/hooks/useProfile"
 import { cn } from "@/lib/utils"
 import type { InventoryListItem, ItemType } from "@/services/inventory"
@@ -59,6 +59,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
   const { data: rows, isLoading, isError, refetch } = useInventoryList(orgId, itemType)
   const updateThresholds = useUpdateThresholds()
   const adjustStock = useAdjustStock()
+  const setStandardTime = useSetItemStandardTime()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [minStock, setMinStock] = useState("")
@@ -66,6 +67,12 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
   const [reorderQty, setReorderQty] = useState("")
   const [adjustingId, setAdjustingId] = useState<string | null>(null)
   const [adjustDelta, setAdjustDelta] = useState("")
+  // GV.md 1.1: standard time is edited separately from the min/max/reorder
+  // thresholds above — different underlying table (products/spares, via the
+  // set_item_standard_time RPC) and the only edit path open to
+  // operation_admin (ProductsTab/SparesTab under Masters are master-only).
+  const [editingTimeId, setEditingTimeId] = useState<string | null>(null)
+  const [stdTimeInput, setStdTimeInput] = useState("")
 
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -104,6 +111,20 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
     adjustStock.mutate(
       { orgId: orgId!, inventoryId: row.id, itemType: row.item_type, itemId: row.item_id, delta, reason: "manual_adjustment" },
       { onSuccess: () => { setAdjustingId(null); setAdjustDelta("") } }
+    )
+  }
+
+  function startEditTime(row: InventoryListItem) {
+    setEditingTimeId(row.id)
+    setStdTimeInput(row.standardTimeMinutes != null ? String(row.standardTimeMinutes) : "")
+  }
+  function saveStandardTime(row: InventoryListItem) {
+    const trimmed = stdTimeInput.trim()
+    const minutes = trimmed === "" ? null : Number(trimmed)
+    if (minutes != null && (!Number.isFinite(minutes) || minutes <= 0)) return
+    setStandardTime.mutate(
+      { orgId: orgId!, itemType: row.item_type, itemId: row.item_id, minutes },
+      { onSuccess: () => setEditingTimeId(null) }
     )
   }
 
@@ -157,7 +178,34 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
               key={r.id}
               className={cn("grid items-center border-b border-[#F1EDE6] px-5.5 py-3.5 last:border-b-0 hover:bg-[#FAF8F4]", TABLE_GRID_COLS)}
             >
-              <span className="truncate pr-2 text-[13px] font-semibold text-text">{r.itemName}</span>
+              <div className="min-w-0 pr-2">
+                <span className="block truncate text-[13px] font-semibold text-text">{r.itemName}</span>
+                {/* GV.md 1.1: standard service time, editable here by master AND operation_admin (unlike Masters > Products/Spares, which is master-only) — see set_item_standard_time RPC. */}
+                {editingTimeId === r.id ? (
+                  <div className="mt-0.5 flex items-center gap-1">
+                    <Input
+                      className="h-6 w-14 px-1.5 text-[11px]"
+                      type="number"
+                      min={1}
+                      placeholder={t("inventory.standardTimePlaceholder")}
+                      value={stdTimeInput}
+                      onChange={(e) => setStdTimeInput(e.target.value)}
+                    />
+                    <span className="text-[10px] text-text-muted">{t("inventory.min")}</span>
+                    <Button size="icon-xs" variant="ghost" onClick={() => saveStandardTime(r)} disabled={setStandardTime.isPending}>
+                      {setStandardTime.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3 text-success" />}
+                    </Button>
+                    <Button size="icon-xs" variant="ghost" onClick={() => setEditingTimeId(null)}>
+                      <X className="size-3 text-text-muted" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => startEditTime(r)} className="mt-0.5 flex items-center gap-1 text-[11px] text-text-muted hover:text-accent">
+                    {r.standardTimeMinutes != null ? t("inventory.standardTimeValue", { minutes: r.standardTimeMinutes }) : t("inventory.standardTimeNotSet")}
+                    <Pencil className="size-2.5" />
+                  </button>
+                )}
+              </div>
               <span className="truncate pr-2 text-[13px] font-medium text-[#3A3A36]">{r.itemBrand ?? "—"}</span>
 
               {adjustingId === r.id ? (

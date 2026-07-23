@@ -8,6 +8,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useToast } from "@/components/ui/toast-context"
 import { useCustomerExemptionWindows } from "@/hooks/useCustomers"
 import { useProfile } from "@/hooks/useProfile"
+import { useSettings } from "@/hooks/useMasters"
 import {
   useAssignTicketTechnician,
   useAutoAssignTicket,
@@ -21,6 +22,7 @@ import {
   useUpdateTicketEstimatedDuration,
 } from "@/hooks/useService"
 import { computeJobOverrun } from "@/lib/job-overrun"
+import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { cn } from "@/lib/utils"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
@@ -42,6 +44,8 @@ export function TicketDetailPage() {
   const { data: ticket, isLoading, isError, refetch } = useTicket(id)
   const { data: evidence, isLoading: evidenceLoading, isError: evidenceError, refetch: refetchEvidence } = useTicketEvidence(id)
   const { data: technicians } = useTechnicians(ticket?.org_id)
+  // GV.md 1.2 — allowed-time inputs (review/enquiry allowance minutes).
+  const { data: settings } = useSettings(ticket?.org_id)
   // B4: shown red here as the "technician/scheduling view" the spec calls
   // out — no assignment should happen inside these windows.
   const exemptionWindows = useCustomerExemptionWindows(ticket?.customer_id)
@@ -84,8 +88,25 @@ export function TicketDetailPage() {
   const totalMinutes = visit ? minutesBetween(visit.timer_start, visit.timer_end) : null
   const canManage = profile?.role === "master" || profile?.role === "operation_admin"
   const canCancelOrDelete = canManage && ticket.status !== "completed" && ticket.status !== "cancelled"
+  // GV.md 1.2: same allowed-time formula as the technician screens (see
+  // src/lib/job-allowance.ts) — base estimate from the open visit's actual
+  // items' standard times (falling back to the ticket's type default),
+  // plus the review/enquiry allowances when this visit actually earned them.
+  const openVisitFull = ticket.service_visits?.find((v: { timer_start: string | null; timer_end: string | null }) => v.timer_start && !v.timer_end) as
+    | { service_spares_used?: { qty: number; spares: { standard_time_minutes: number | null } | null }[]; ratings?: { google_review_clicked: boolean } | null; leads?: { id: string }[] }
+    | undefined
+  const allowedDuration = computeAllowedDurationMinutes({
+    itemsStandardMinutesSum: sumItemStandardMinutes(
+      (openVisitFull?.service_spares_used ?? []).map((s) => ({ qty: s.qty, standardTimeMinutes: s.spares?.standard_time_minutes }))
+    ),
+    ticketEstimatedDurationMinutes: ticket.estimated_duration_minutes,
+    reviewAllowanceMinutes: settings?.review_time_allowance_minutes ?? 0,
+    enquiryAllowanceMinutes: settings?.enquiry_time_allowance_minutes ?? 0,
+    reviewCollected: openVisitFull?.ratings?.google_review_clicked ?? false,
+    enquiryLoggedThisVisit: (openVisitFull?.leads?.length ?? 0) > 0,
+  })
   const overrun = computeJobOverrun(
-    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: ticket.estimated_duration_minutes },
+    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
     now
   )
 
@@ -383,6 +404,9 @@ export function TicketDetailPage() {
           {!editingEstimate ? (
             <div className="text-text">
               {ticket.estimated_duration_minutes != null ? t("service.detail.minutes", { count: ticket.estimated_duration_minutes }) : t("service.detail.estimateNotSet")}
+              {allowedDuration != null && allowedDuration !== ticket.estimated_duration_minutes ? (
+                <span className="ml-1.5 text-xs text-text-muted">{t("service.detail.allowedDuration", { count: allowedDuration })}</span>
+              ) : null}
             </div>
           ) : (
             <div className="mt-1 flex items-center gap-2">

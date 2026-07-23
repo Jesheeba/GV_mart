@@ -9,9 +9,10 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { JobTypeBadge, OverdueBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
-import { useMyTechnician, useTodaysJobCounts, useTodaysJobs } from "@/hooks/useTechnician"
+import { useMyTechnician, useTechnicianSettings, useTodaysJobCounts, useTodaysJobs } from "@/hooks/useTechnician"
 import { computeJobOverrun } from "@/lib/job-overrun"
-import { findOpenVisit, isOverdueJob, type JobCard } from "@/services/technician"
+import { computeTicketAllowedDuration, findOpenVisit, isOverdueJob, type JobCard } from "@/services/technician"
+import type { Tables } from "@/types/database"
 import { cn } from "@/lib/utils"
 
 function formatTime(iso: string | null) {
@@ -92,7 +93,17 @@ function CountCell({ label, value, loading, danger, className }: { label: string
   )
 }
 
-function JobListItem({ job, now, onOpen }: { job: JobCard; now: number; onOpen: () => void }) {
+function JobListItem({
+  job,
+  now,
+  settings,
+  onOpen,
+}: {
+  job: JobCard
+  now: number
+  settings: Tables<"settings"> | undefined
+  onOpen: () => void
+}) {
   const { t } = useTranslation()
   const ticket = job.service_tickets
   // Defensive: an appointment whose ticket join comes back empty (RLS edge
@@ -103,8 +114,11 @@ function JobListItem({ job, now, onOpen }: { job: JobCard; now: number; onOpen: 
   const addressLine = [address?.door_no, address?.area].filter(Boolean).join(", ")
   const time = formatTime(job.scheduled_at)
   const openVisit = findOpenVisit(ticket.service_visits ?? [])
+  // GV.md 1.2 — see JobDetailPage's identical comment; keeps the home list's
+  // red state in agreement with the job-detail page's.
+  const allowedDuration = openVisit ? computeTicketAllowedDuration(ticket, openVisit, settings) : null
   const overrun = computeJobOverrun(
-    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: ticket.estimated_duration_minutes },
+    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
     now
   )
   const overdue = isOverdueJob(ticket, now)
@@ -155,6 +169,7 @@ export function TechnicianHomePage() {
   const jobs = useTodaysJobs(technician.data?.id)
   const now = useNowTick()
   const counts = useTodaysJobCounts(profile?.org_id, technician.data?.id)
+  const settings = useTechnicianSettings(profile?.org_id)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
@@ -215,7 +230,7 @@ export function TechnicianHomePage() {
         ) : (
           <div className="space-y-2.5">
             {sortedJobs.map((job) => (
-              <JobListItem key={job.id} job={job} now={now} onOpen={() => navigate(`/technician/jobs/${job.ticket_id}`)} />
+              <JobListItem key={job.id} job={job} now={now} settings={settings.data} onOpen={() => navigate(`/technician/jobs/${job.ticket_id}`)} />
             ))}
           </div>
         )}

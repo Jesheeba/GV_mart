@@ -27,6 +27,7 @@ export type OutboxKind =
   | "ro_checklist.save"
   | "service_invoice.create"
   | "rating.submit"
+  | "rating.mark_review_clicked"
   | "lead.generate"
   | "location.ping"
   | "amc.sell_onsite"

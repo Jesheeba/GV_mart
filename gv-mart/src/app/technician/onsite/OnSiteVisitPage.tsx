@@ -38,8 +38,23 @@ import { db } from "@/lib/offline/db"
 import { startSyncEngine } from "@/lib/offline/sync"
 import type { Enums } from "@/types/database"
 
-const STEP_KEYS = ["sop", "spares", "charges", "ro", "afterphoto", "invoice", "signatures", "payment"] as const
-type SopStep = { id: string; name: string; expectedMinutes: number; doneAt: string | null }
+// GV.md 1.1/D4: the SOP checklist is now populated from the job's actual
+// inventory items (each carrying its admin-set standard time), not free
+// text — which means item selection has to happen BEFORE the checklist can
+// be built from it. "spares" moved ahead of "sop" for exactly that reason
+// (previously sop→spares); the before-photo capture that used to open the
+// flow now happens one step later, bundled into the "sop" screen as before —
+// see the sync effect below for how sopSteps gets seeded from selectedSpares.
+const STEP_KEYS = ["spares", "sop", "charges", "ro", "afterphoto", "invoice", "signatures", "payment"] as const
+// `spareId` is set only for a step auto-derived from a selected spare (GV.md
+// 1.1/D4) — undefined means a technician-added free-text step (still
+// supported: a "SOP master" screen covering every possible task, e.g. a
+// diagnostic step with no matching spare, is explicitly out of v2.2 scope —
+// see the existing sopAllDone comment below). Purely a local reconciliation
+// key; service_sop_steps has no spare_id column, so it never gets queued.
+type SopStep = { id: string; name: string; expectedMinutes: number; doneAt: string | null; spareId?: string }
+/** Fallback expected-minutes for a spare with no standard_time_minutes set yet (GV.md 1.1: null = "not yet timed" by admin). */
+const DEFAULT_SOP_STEP_MINUTES = 10
 
 const textareaClass =
   "w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
@@ -339,6 +354,41 @@ export function OnSiteVisitPage() {
     if (!chargeable) setServiceChargeInput("0")
   }, [chargeable])
 
+  // GV.md 1.1/D4: reconciles the SOP checklist against the technician's
+  // current spare selection — adds a checklist step (name + admin-set
+  // standard time) for every selected spare that doesn't have one yet, and
+  // drops a spare-derived step whose spare was deselected again (unless
+  // it's already marked done — a completed step is never silently removed).
+  // Technician-added free-text steps (spareId undefined) are left alone.
+  // Runs on every selectedSpares change, not gated to the "spares"/"sop"
+  // step, so the checklist is already correct by the time the technician
+  // reaches it (including after a draft restore).
+  useEffect(() => {
+    setSopSteps((prev) => {
+      const selectedIds = new Set(selectedSpares.map((sp) => sp.spareId))
+      const existingBySpare = new Map(prev.filter((s) => s.spareId).map((s) => [s.spareId!, s]))
+      // One step per currently-selected spare — reuses the existing step
+      // (keeps its id/doneAt) when the technician already has one.
+      const forSelected: SopStep[] = selectedSpares.map(
+        (sp) =>
+          existingBySpare.get(sp.spareId) ?? {
+            id: crypto.randomUUID(),
+            name: sp.name,
+            expectedMinutes: sp.standardTimeMinutes ?? DEFAULT_SOP_STEP_MINUTES,
+            doneAt: null,
+            spareId: sp.spareId,
+          }
+      )
+      // A spare-derived step whose spare was deselected again is dropped —
+      // unless it's already marked done, in which case completed work is
+      // never silently erased from the checklist.
+      const doneButDeselected = prev.filter((s) => s.spareId && !selectedIds.has(s.spareId) && s.doneAt)
+      const manual = prev.filter((s) => !s.spareId)
+      return [...forSelected, ...doneButDeselected, ...manual]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSpares])
+
   if (technician.isLoading || settings.isLoading || jobDetail.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (technician.isError || !technician.data) {
     return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => technician.refetch()} retryLabel={t("common.retry")} />
@@ -525,6 +575,9 @@ export function OnSiteVisitPage() {
         mobile: parsed.data.mobile || undefined,
         enquiryType: parsed.data.enquiryType,
         note: parsed.data.note || undefined,
+        // GV.md 1.2: stamps leads.visit_id so this visit's enquiry-time
+        // allowance condition is a real join, not a guess.
+        visitId: visitId ?? undefined,
       })
       setEnquirySent(true)
     } catch {

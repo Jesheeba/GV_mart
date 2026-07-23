@@ -36,6 +36,9 @@ export const settingsSchema = z
     narrow_window_threshold_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     po_approval_threshold: z.coerce.number().min(0, "settings.errors.nonNegative"),
     po_requires_approval: z.boolean(),
+    // GV.md 1.2: "admin also sets a review time and a new-enquiry time allowance."
+    review_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    enquiry_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
   })
   .refine((v) => v.lunch_minutes_red_threshold > v.lunch_minutes_allowed, {
     message: "settings.errors.lunchRedAfterAllowed",

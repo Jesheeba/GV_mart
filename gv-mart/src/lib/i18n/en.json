@@ -436,6 +436,7 @@
       "price": "Price",
       "hsn": "HSN code",
       "warrantyMonths": "Warranty (months)",
+      "standardTime": "Standard time (min)",
       "add": "Add product",
       "empty": "No products yet — add your first one.",
       "needsBrandModelFirst": "Add a brand and model first — products need both."
@@ -445,6 +446,8 @@
       "sku": "SKU",
       "price": "Price",
       "hsn": "HSN code",
+      "standardTime": "Standard time (min)",
+      "standardTimeValue": "{{minutes}} min",
       "add": "Add spare",
       "empty": "No spares yet — add your first one."
     },
@@ -554,6 +557,9 @@
     "durationWarranty": "Warranty job (minutes)",
     "durationAmc": "AMC job (minutes)",
     "durationInstallation": "Installation job (minutes)",
+    "reviewTimeAllowance": "Review time allowance (minutes)",
+    "enquiryTimeAllowance": "Enquiry time allowance (minutes)",
+    "allowanceHint": "Added to a job's allowed time only when this visit actually collected a Google review click or logged a new enquiry.",
     "narrowWindowThreshold": "Narrow-window threshold (minutes)",
     "narrowWindowThresholdHint": "If a customer's unavailable-window marks leave only this many minutes (or less) free in the day, it's treated as a specific-time booking instead of a flexible day booking.",
     "saved": "Settings saved.",
@@ -589,6 +595,9 @@
     "level": "Level",
     "thresholds": "Min / Max / Reorder",
     "adjustStock": "Adjust stock",
+    "standardTimePlaceholder": "min",
+    "standardTimeValue": "{{minutes}} min standard time",
+    "standardTimeNotSet": "Set standard time",
     "status": {
       "label": "Status",
       "in": "In stock",
@@ -1044,6 +1053,7 @@
       "estimateNotSet": "Not set",
       "estimateInvalid": "Enter a whole number of minutes greater than 0, or leave it blank.",
       "overrunBy": "Overrun by {{count}} min",
+      "allowedDuration": "(allowed: {{count}} min)",
       "beforeImage": "Before photo",
       "afterImage": "After photo",
       "evidence": {
@@ -1675,6 +1685,7 @@
       "closedTitle": "This job is already closed",
       "overrunBadge": "{{count}} min over estimate",
       "overrunNote": "This job is taking longer than its estimated time. The office has been notified.",
+      "allowedTime": "Allowed time: {{minutes}} min",
       "additionalContact": "Also try: {{name}}"
     },
     "route": {
@@ -1715,8 +1726,8 @@
       "afterImage": "After photo",
       "afterImageHint": "Take this once the repair, spares, and RO checklist (if applicable) are done — it should show the completed work.",
       "sopTitle": "SOP Checklist",
-      "sopHint": "Add each step you complete, with its expected time.",
-      "sopEmpty": "No steps added yet.",
+      "sopHint": "Built from the spares you selected, each with its admin-set standard time. Add an extra step below for anything not covered by a spare.",
+      "sopEmpty": "Select spares in the previous step to build this checklist, or add a step manually below.",
       "sopExpected": "Expected {{minutes}} min",
       "sopStepName": "Step name",
       "sopStepNamePlaceholder": "e.g. Filter replacement",
@@ -1726,7 +1737,8 @@
         "title": "Spares Used",
         "searchPlaceholder": "Search spares…",
         "empty": "No spares found.",
-        "noneSelected": "No spares selected."
+        "noneSelected": "No spares selected.",
+        "standardTime": "{{minutes}} min standard time"
       },
       "charges": {
         "serviceCharge": "Service charge",

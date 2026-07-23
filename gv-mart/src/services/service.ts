@@ -117,7 +117,11 @@ export async function getTicket(id: string) {
   const { data, error } = await supabase
     .from("service_tickets")
     .select(
-      `${TICKET_SELECT}, service_visits(*, service_spares_used(*, spares(name)), ro_checklists(*), ratings(*))`
+      // GV.md 1.2: standard_time_minutes (base estimate) and leads(id)
+      // (enquiry-logged-this-visit) ride along with the fields A4 already
+      // selected here (service_spares_used, ratings) — see
+      // src/lib/job-allowance.ts for how they combine into the allowed time.
+      `${TICKET_SELECT}, service_visits(*, service_spares_used(*, spares(name, standard_time_minutes)), ro_checklists(*), ratings(*), leads(id))`
     )
     .eq("id", id)
     .single()

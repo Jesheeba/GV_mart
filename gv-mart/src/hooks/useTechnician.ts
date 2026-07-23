@@ -263,7 +263,17 @@ export function useStartVisit() {
     onMutate: (visit) => {
       qc.setQueryData<tech.JobDetail>(["jobDetail", visit.ticketId], (prev) =>
         prev && !prev.service_visits.some((v) => v.id === visit.id)
-          ? { ...prev, service_visits: [...prev.service_visits, { id: visit.id, timer_start: visit.timerStart, timer_end: null, service_charge: 0, before_image_url: null, after_image_url: null }] }
+          ? {
+              ...prev,
+              service_visits: [
+                ...prev.service_visits,
+                // GV.md 1.2: a freshly-started visit has no items/rating/leads
+                // yet — empty defaults so computeTicketAllowedDuration falls
+                // back to the ticket's type-based estimate, same as before
+                // this field existed.
+                { id: visit.id, timer_start: visit.timerStart, timer_end: null, service_charge: 0, before_image_url: null, after_image_url: null, service_spares_used: [], ratings: null, leads: [] },
+              ],
+            }
           : prev
       )
     },
@@ -358,6 +368,11 @@ export function useSellAmcOnsite() {
 
 export function useSubmitRating() {
   return useMutation({ mutationFn: tech.queueSubmitRating })
+}
+
+/** GV.md 1.2 — see tech.queueMarkGoogleReviewClicked doc. */
+export function useMarkGoogleReviewClicked() {
+  return useMutation({ mutationFn: tech.queueMarkGoogleReviewClicked })
 }
 
 // ── TECH-09 History ────────────────────────────────────────────────────────

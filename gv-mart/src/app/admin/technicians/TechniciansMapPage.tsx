@@ -123,8 +123,11 @@ function statusTone(status: TrackingStatus): StatusTone {
  * overrunning.
  */
 function useJobOverrunAlert(openVisit: TechnicianOpenVisit | undefined, nowMs: number) {
+  // GV.md 1.2: allowedDurationMinutes (estimate + earned allowances — see
+  // src/lib/job-allowance.ts, precomputed in listTechniciansOpenVisits)
+  // replaces the raw estimatedDurationMinutes as the overrun comparison.
   return computeJobOverrun(
-    { timerStart: openVisit?.timerStart, timerEnd: openVisit?.timerEnd, estimatedDurationMinutes: openVisit?.estimatedDurationMinutes },
+    { timerStart: openVisit?.timerStart, timerEnd: openVisit?.timerEnd, estimatedDurationMinutes: openVisit?.allowedDurationMinutes },
     nowMs
   )
 }
@@ -201,7 +204,7 @@ export function TechniciansMapPage() {
     if (!orgId || !openVisits) return
     for (const [techId, visit] of openVisits) {
       const overrun = computeJobOverrun(
-        { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.estimatedDurationMinutes },
+        { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.allowedDurationMinutes },
         now
       )
       if (!overrun.isOverrun || notifiedVisitIdsRef.current.has(visit.visitId)) continue
