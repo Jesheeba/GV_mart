@@ -74,7 +74,12 @@ export function BookServicePage() {
   const [nameOfComplaint, setNameOfComplaint] = useState("")
   const [natureOfComplaint, setNatureOfComplaint] = useState("")
   const [addressId, setAddressId] = useState("")
-  const [appointmentMode, setAppointmentMode] = useState<"always" | "datetime">("always")
+  // "Anytime" (no-date-required) booking was removed from this flow — every
+  // customer booking now requires picking a date. "always" mode still exists
+  // as a valid appointment_mode elsewhere (e.g. product installations), so
+  // the type/backend payload shape is untouched; this screen just never
+  // offers it as a choice anymore.
+  const [appointmentMode, setAppointmentMode] = useState<"always" | "datetime">("datetime")
   const [pickedDate, setPickedDate] = useState("")
   const [windowMode, setWindowMode] = useState<"any" | "custom">("any")
   const [unavailableWindows, setUnavailableWindows] = useState<TimeWindow[]>([])
@@ -127,7 +132,11 @@ export function BookServicePage() {
     if (restoredDraft.nameOfComplaint) setNameOfComplaint(restoredDraft.nameOfComplaint)
     if (restoredDraft.natureOfComplaint) setNatureOfComplaint(restoredDraft.natureOfComplaint)
     if (restoredDraft.addressId) setAddressId(restoredDraft.addressId)
-    if (restoredDraft.appointmentMode) setAppointmentMode(restoredDraft.appointmentMode)
+    // A draft saved before "Anytime" was removed from this flow could still
+    // have appointmentMode: "always" sitting in localStorage — coerce it so
+    // a restored draft never lands in a mode this screen no longer offers a
+    // way to pick or change.
+    if (restoredDraft.appointmentMode) setAppointmentMode(restoredDraft.appointmentMode === "always" ? "datetime" : restoredDraft.appointmentMode)
     if (restoredDraft.pickedDate) setPickedDate(restoredDraft.pickedDate)
     if (restoredDraft.windowMode) setWindowMode(restoredDraft.windowMode)
     if (restoredDraft.unavailableWindows) setUnavailableWindows(restoredDraft.unavailableWindows)
@@ -162,7 +171,7 @@ export function BookServicePage() {
     setNameOfComplaint("")
     setNatureOfComplaint("")
     setAddressId("")
-    setAppointmentMode("always")
+    setAppointmentMode("datetime")
     setPickedDate("")
     setWindowMode("any")
     setUnavailableWindows([])
@@ -481,20 +490,6 @@ export function BookServicePage() {
 
           <div className="space-y-2 border-t border-border px-1 pt-3">
             <Label>{t("customerApp.bookService.appointmentMode")}</Label>
-            <div className="flex gap-1 rounded-full bg-surface-alt p-1">
-              {(["always", "datetime"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setAppointmentMode(m)}
-                  className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                    appointmentMode === m ? "bg-ink text-white" : "text-text-muted"
-                  }`}
-                >
-                  {t(`customerApp.bookService.mode.${m}`)}
-                </button>
-              ))}
-            </div>
 
             {appointmentMode === "datetime" ? (
               <div className="space-y-3">
