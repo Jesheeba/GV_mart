@@ -108,3 +108,62 @@ export function isBookableDate(result: FreeWindowResult, thresholdMinutes: numbe
   if (result.availableFrom === null) return false
   return !isNarrowWindow(result, thresholdMinutes) || fitsJob(result, estimatedMinutes)
 }
+
+export type TimeSlot = TimeWindow & {
+  /** Already unavailable regardless of what the customer picks (e.g. a
+   *  standing exemption window) — shown disabled, not offered as a toggle
+   *  target, since marking it "unavailable" again would be redundant. */
+  blocked: boolean
+}
+
+/**
+ * Slices [workStart, workEnd] into fixed-size slots for a tap-to-mark-
+ * unavailable picker, replacing free-text "available from/to" time entry.
+ * 60 minutes is the default granularity — coarse enough that a working day
+ * is a manageable ~10 taps on a phone screen, fine enough to still express
+ * "I'm out for lunch 1-2pm" precisely. Tunable via `slotMinutes` if that
+ * default ever needs revisiting; not settings-driven since there's no spec
+ * asking for admin control over it.
+ *
+ * The final slot of the day is clipped short rather than dropped or
+ * overhanging past workEnd when (workEnd - workStart) isn't an exact
+ * multiple of slotMinutes (e.g. a 09:15-19:30 day isn't a whole number of
+ * 60-minute slots).
+ */
+export function generateTimeSlots(workStart: string, workEnd: string, blocked: TimeWindow[], slotMinutes = 60): TimeSlot[] {
+  const wStart = toMinutes(workStart)
+  const wEnd = toMinutes(workEnd)
+  const blockedRanges = mergedBlocks(workStart, workEnd, blocked).map((w) => ({ s: toMinutes(w.start), e: toMinutes(w.end) }))
+
+  const slots: TimeSlot[] = []
+  for (let cursor = wStart; cursor < wEnd; cursor += slotMinutes) {
+    const slotEnd = Math.min(cursor + slotMinutes, wEnd)
+    const blockedSlot = blockedRanges.some((b) => b.s < slotEnd && b.e > cursor)
+    slots.push({ start: toHHMM(cursor), end: toHHMM(slotEnd), blocked: blockedSlot })
+  }
+  return slots
+}
+
+/**
+ * Collapses the slots whose start time is in `markedStarts` into merged
+ * contiguous TimeWindow ranges — e.g. marking three back-to-back 1-hour
+ * slots unavailable becomes one 3-hour window, not three separate ones,
+ * before being handed to largestFreeWindow / submitted to the booking RPC.
+ */
+export function slotsToWindows(slots: TimeSlot[], markedStarts: ReadonlySet<string>): TimeWindow[] {
+  const windows: TimeWindow[] = []
+  let open: TimeWindow | null = null
+  for (const slot of slots) {
+    if (markedStarts.has(slot.start)) {
+      if (open && open.end === slot.start) {
+        open.end = slot.end
+      } else {
+        open = { start: slot.start, end: slot.end }
+        windows.push(open)
+      }
+    } else {
+      open = null
+    }
+  }
+  return windows
+}

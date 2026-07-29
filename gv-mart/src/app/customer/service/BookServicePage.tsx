@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, Info, Loader2, Plus, X } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,7 +22,7 @@ import {
 } from "@/hooks/useCustomerApp"
 import { complaintTypesHooks } from "@/hooks/useMasters"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { isBookableDate, isNarrowWindow, largestFreeWindow, type TimeWindow } from "@/lib/booking-window"
+import { generateTimeSlots, isBookableDate, isNarrowWindow, largestFreeWindow, slotsToWindows, type TimeWindow } from "@/lib/booking-window"
 
 const DRAFT_KEY = "gv_mart_draft:customer_book_service"
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
@@ -44,8 +44,11 @@ type BookServiceDraftData = {
   // B1 (Build Order Step 4): date-only + unavailable-windows booking model —
   // replaces the old exact-time `scheduledAt` + single availableFrom/To pair.
   pickedDate: string
-  windowMode: "any" | "custom"
-  unavailableWindows: TimeWindow[]
+  // Raw per-slot picks from the tap-to-mark grid (not the merged TimeWindow[]
+  // form) — restoring straight into per-slot state avoids needing `slots`
+  // (which depends on settings/exemption data) available at draft-restore
+  // time, which runs before this component's data-loading guards resolve.
+  unavailableSlotStarts: string[]
 }
 
 export function BookServicePage() {
@@ -81,11 +84,11 @@ export function BookServicePage() {
   // offers it as a choice anymore.
   const [appointmentMode, setAppointmentMode] = useState<"always" | "datetime">("datetime")
   const [pickedDate, setPickedDate] = useState("")
-  const [windowMode, setWindowMode] = useState<"any" | "custom">("any")
-  const [unavailableWindows, setUnavailableWindows] = useState<TimeWindow[]>([])
-  const [newWinStart, setNewWinStart] = useState("")
-  const [newWinEnd, setNewWinEnd] = useState("")
-  const [windowError, setWindowError] = useState("")
+  // Tap-to-mark-unavailable slot picker (replaces free-text "available
+  // from/to" time entry) — the set of slot START times the customer marked
+  // unavailable. Merged into TimeWindow ranges via slotsToWindows below,
+  // only where that's actually needed (preview + submit).
+  const [unavailableSlotStarts, setUnavailableSlotStarts] = useState<Set<string>>(new Set())
 
   const bookTicket = useBookServiceTicket()
 
@@ -115,8 +118,7 @@ export function BookServicePage() {
     addressId,
     appointmentMode,
     pickedDate,
-    windowMode,
-    unavailableWindows,
+    unavailableSlotStarts: [...unavailableSlotStarts],
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<BookServiceDraftData>(DRAFT_KEY, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -138,8 +140,7 @@ export function BookServicePage() {
     // way to pick or change.
     if (restoredDraft.appointmentMode) setAppointmentMode(restoredDraft.appointmentMode === "always" ? "datetime" : restoredDraft.appointmentMode)
     if (restoredDraft.pickedDate) setPickedDate(restoredDraft.pickedDate)
-    if (restoredDraft.windowMode) setWindowMode(restoredDraft.windowMode)
-    if (restoredDraft.unavailableWindows) setUnavailableWindows(restoredDraft.unavailableWindows)
+    if (restoredDraft.unavailableSlotStarts) setUnavailableSlotStarts(new Set(restoredDraft.unavailableSlotStarts))
   }, [restoredDraft])
 
   // The booking is done — the local draft has served its purpose and would
@@ -173,8 +174,7 @@ export function BookServicePage() {
     setAddressId("")
     setAppointmentMode("datetime")
     setPickedDate("")
-    setWindowMode("any")
-    setUnavailableWindows([])
+    setUnavailableSlotStarts(new Set())
   }
 
   const steps = [
@@ -233,7 +233,11 @@ export function BookServicePage() {
   const estimatedMinutes = settings?.default_duration_paid_minutes ?? 45
 
   const exemptionBlocks: TimeWindow[] = (exemptionWindows ?? []).map((w) => ({ start: w.start_time.slice(0, 5), end: w.end_time.slice(0, 5) }))
-  const blockedForPreview = windowMode === "any" ? exemptionBlocks : [...unavailableWindows, ...exemptionBlocks]
+  // Tap-to-mark slot grid — exemption-blocked slots are pre-marked/disabled
+  // (see generateTimeSlots), so they don't need re-marking here on top.
+  const slots = generateTimeSlots(workStart, workEnd, exemptionBlocks)
+  const unavailableWindows = slotsToWindows(slots, unavailableSlotStarts)
+  const blockedForPreview = [...unavailableWindows, ...exemptionBlocks]
   const freeWindow = largestFreeWindow(workStart, workEnd, blockedForPreview)
   const narrow = isNarrowWindow(freeWindow, narrowThreshold)
   const bookableToday = isBookableDate(freeWindow, narrowThreshold, estimatedMinutes)
@@ -253,20 +257,14 @@ export function BookServicePage() {
     setMaxStepReached((m) => Math.max(m, next))
   }
 
-  function addUnavailableWindow() {
-    setWindowError("")
-    if (!newWinStart || !newWinEnd) return
-    if (newWinStart >= newWinEnd) {
-      setWindowError(t("customerApp.bookService.availableWindowInvalid"))
-      return
-    }
-    setUnavailableWindows((prev) => [...prev, { start: newWinStart, end: newWinEnd }].sort((a, b) => a.start.localeCompare(b.start)))
-    setNewWinStart("")
-    setNewWinEnd("")
-  }
-
-  function removeUnavailableWindow(index: number) {
-    setUnavailableWindows((prev) => prev.filter((_, i) => i !== index))
+  function toggleSlot(slotStart: string, blocked: boolean) {
+    if (blocked) return
+    setUnavailableSlotStarts((prev) => {
+      const next = new Set(prev)
+      if (next.has(slotStart)) next.delete(slotStart)
+      else next.add(slotStart)
+      return next
+    })
   }
 
   async function handleSubmit() {
@@ -286,7 +284,8 @@ export function BookServicePage() {
       availableTo: null,
       // B1: the raw marks only — exemption windows are folded in server-side
       // from customer_exemption_windows, not resubmitted as one-off marks.
-      unavailableWindows: appointmentMode === "datetime" ? (windowMode === "any" ? [] : unavailableWindows) : null,
+      // Empty array (nothing marked) is exactly "available all day."
+      unavailableWindows: appointmentMode === "datetime" ? unavailableWindows : null,
     })
   }
 
@@ -499,75 +498,53 @@ export function BookServicePage() {
                   {!pickedDate ? <p className="text-xs text-warning">{t("customerApp.bookService.dateRequired")}</p> : null}
                 </div>
 
-                <div className="flex gap-1 rounded-full bg-surface-alt p-1">
-                  {(["any", "custom"] as const).map((wm) => (
-                    <button
-                      key={wm}
-                      type="button"
-                      onClick={() => setWindowMode(wm)}
-                      className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                        windowMode === wm ? "bg-ink text-white" : "text-text-muted"
-                      }`}
-                    >
-                      {t(`customerApp.bookService.windowMode.${wm}`)}
-                    </button>
-                  ))}
-                </div>
-
-                {windowMode === "any" ? (
-                  <div className="flex items-start gap-2 rounded-xl border border-accent/30 bg-accent-soft px-3.5 py-2.5 text-xs text-text">
-                    <Info className="mt-0.5 size-3.5 shrink-0 text-accent" />
-                    <span>{t("customerApp.bookService.anyTimeInfo", { start: workStart, end: workEnd })}</span>
+                {exemptionBlocks.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-text-muted">{t("customerApp.bookService.exemptionWindowsLabel")}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(exemptionWindows ?? []).map((w) => (
+                        <span key={w.id} className="rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+                          {w.label} · {w.start_time.slice(0, 5)}–{w.end_time.slice(0, 5)}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    {exemptionBlocks.length > 0 ? (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-text-muted">{t("customerApp.bookService.exemptionWindowsLabel")}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(exemptionWindows ?? []).map((w) => (
-                            <span key={w.id} className="rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
-                              {w.label} · {w.start_time.slice(0, 5)}–{w.end_time.slice(0, 5)}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                ) : null}
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label>{t("customerApp.bookService.slotsLabel")}</Label>
+                    {unavailableSlotStarts.size > 0 ? (
+                      <button type="button" onClick={() => setUnavailableSlotStarts(new Set())} className="text-xs font-medium text-accent">
+                        {t("customerApp.bookService.slotsClearAll")}
+                      </button>
                     ) : null}
-
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-medium text-text-muted">{t("customerApp.bookService.unavailableWindowsLabel")}</p>
-                      {unavailableWindows.length === 0 ? (
-                        <p className="text-xs text-text-muted">{t("customerApp.bookService.noUnavailableWindows")}</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {unavailableWindows.map((w, i) => (
-                            <span key={`${w.start}-${w.end}-${i}`} className="flex items-center gap-1 rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
-                              {w.start}–{w.end}
-                              <button type="button" onClick={() => removeUnavailableWindow(i)} aria-label={t("common.remove")}>
-                                <X className="size-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-end gap-2">
-                      <div className="flex-1 space-y-1.5">
-                        <Label htmlFor="newWinStart">{t("customerApp.bookService.availableFrom")}</Label>
-                        <Input id="newWinStart" type="time" value={newWinStart} onChange={(e) => setNewWinStart(e.target.value)} />
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <Label htmlFor="newWinEnd">{t("customerApp.bookService.availableTo")}</Label>
-                        <Input id="newWinEnd" type="time" value={newWinEnd} onChange={(e) => setNewWinEnd(e.target.value)} />
-                      </div>
-                      <Button type="button" size="icon" variant="outline" onClick={addUnavailableWindow} disabled={!newWinStart || !newWinEnd}>
-                        <Plus className="size-4" />
-                      </Button>
-                    </div>
-                    {windowError ? <p className="text-xs text-danger">{windowError}</p> : null}
                   </div>
-                )}
+                  <p className="text-xs text-text-muted">{t("customerApp.bookService.slotsHint")}</p>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                    {slots.map((slot) => {
+                      const marked = unavailableSlotStarts.has(slot.start)
+                      return (
+                        <button
+                          key={slot.start}
+                          type="button"
+                          disabled={slot.blocked}
+                          onClick={() => toggleSlot(slot.start, slot.blocked)}
+                          aria-pressed={marked}
+                          className={`rounded-xl border px-2.5 py-2 text-xs font-medium transition-colors ${
+                            slot.blocked
+                              ? "cursor-not-allowed border-border bg-surface-alt text-text-muted/50 line-through"
+                              : marked
+                                ? "border-danger/40 bg-danger/10 text-danger"
+                                : "border-success/30 bg-success/10 text-success"
+                          }`}
+                        >
+                          {slot.start}–{slot.end}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
 
                 {pickedDate ? (
                   freeWindow.availableFrom ? (
@@ -622,7 +599,7 @@ export function BookServicePage() {
                   ? t("customerApp.bookService.mode.always")
                   : pickedDate
                     ? `${new Date(`${pickedDate}T00:00:00`).toLocaleDateString(undefined, { dateStyle: "medium" })}${
-                        windowMode === "any" ? ` · ${t("customerApp.bookService.windowMode.any")}` : freeWindow.availableFrom ? ` · ${freeWindow.availableFrom}–${freeWindow.availableTo}` : ""
+                        freeWindow.availableFrom ? ` · ${freeWindow.availableFrom}–${freeWindow.availableTo}` : ""
                       }`
                     : "—"}
               </span>

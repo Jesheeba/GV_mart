@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fitsJob, isBookableDate, isNarrowWindow, largestFreeWindow } from "./booking-window"
+import { fitsJob, generateTimeSlots, isBookableDate, isNarrowWindow, largestFreeWindow, slotsToWindows } from "./booking-window"
 
 const WORK_START = "09:00"
 const WORK_END = "19:00"
@@ -77,5 +77,59 @@ describe("fitsJob / isBookableDate", () => {
 
   it("a fully blocked day is never bookable", () => {
     expect(isBookableDate({ availableFrom: null, availableTo: null, minutes: 0 }, 90, 10)).toBe(false)
+  })
+})
+
+describe("generateTimeSlots", () => {
+  it("slices the working day into 60-minute slots by default", () => {
+    const slots = generateTimeSlots("09:00", "13:00", [])
+    expect(slots).toEqual([
+      { start: "09:00", end: "10:00", blocked: false },
+      { start: "10:00", end: "11:00", blocked: false },
+      { start: "11:00", end: "12:00", blocked: false },
+      { start: "12:00", end: "13:00", blocked: false },
+    ])
+  })
+
+  it("clips a trailing partial slot instead of dropping or overhanging it", () => {
+    const slots = generateTimeSlots("09:15", "11:00", [])
+    expect(slots).toEqual([
+      { start: "09:15", end: "10:15", blocked: false },
+      { start: "10:15", end: "11:00", blocked: false }, // 45m, clipped short
+    ])
+  })
+
+  it("marks a slot blocked when it overlaps a pre-existing blocked window (e.g. an exemption)", () => {
+    const slots = generateTimeSlots("09:00", "12:00", [{ start: "10:30", end: "11:15" }])
+    expect(slots.map((s) => s.blocked)).toEqual([false, true, true])
+  })
+
+  it("respects a custom slot size", () => {
+    const slots = generateTimeSlots("09:00", "10:00", [], 30)
+    expect(slots).toEqual([
+      { start: "09:00", end: "09:30", blocked: false },
+      { start: "09:30", end: "10:00", blocked: false },
+    ])
+  })
+})
+
+describe("slotsToWindows / windowsToMarkedStarts", () => {
+  const slots = generateTimeSlots("09:00", "13:00", [])
+
+  it("merges consecutive marked slots into one window", () => {
+    const windows = slotsToWindows(slots, new Set(["10:00", "11:00"]))
+    expect(windows).toEqual([{ start: "10:00", end: "12:00" }])
+  })
+
+  it("keeps non-adjacent marks as separate windows", () => {
+    const windows = slotsToWindows(slots, new Set(["09:00", "12:00"]))
+    expect(windows).toEqual([
+      { start: "09:00", end: "10:00" },
+      { start: "12:00", end: "13:00" },
+    ])
+  })
+
+  it("returns nothing when no slots are marked", () => {
+    expect(slotsToWindows(slots, new Set())).toEqual([])
   })
 })
