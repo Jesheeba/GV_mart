@@ -1,17 +1,25 @@
 import { supabase } from "@/lib/supabase"
 import type { Enums, Tables } from "@/types/database"
+import type { DateRange } from "./reports"
 
 export type QuotationRow = Tables<"quotations">
 export type QuotationItemRow = Tables<"quotation_items">
 
 export type QuotationListItem = QuotationRow & { customers: { name: string; mobile: string } | null }
 
-export async function listQuotations(orgId: string): Promise<QuotationListItem[]> {
-  const { data, error } = await supabase
+/** `dateRange` is optional and additive (Owner request 2026-07-29, Sales
+ *  Dashboard's period-filtered quotation stats) — every existing caller
+ *  (QuotationsListPage, SalesListPage) keeps getting all-time quotations. */
+export async function listQuotations(orgId: string, dateRange?: DateRange): Promise<QuotationListItem[]> {
+  let query = supabase
     .from("quotations")
     .select("*, customers(name,mobile)")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
+  if (dateRange) {
+    query = query.gte("created_at", `${dateRange.from}T00:00:00`).lte("created_at", `${dateRange.to}T23:59:59.999`)
+  }
+  const { data, error } = await query
   if (error) throw error
   return (data ?? []) as QuotationListItem[]
 }

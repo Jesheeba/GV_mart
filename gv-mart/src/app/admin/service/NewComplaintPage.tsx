@@ -142,17 +142,29 @@ export function NewComplaintPage() {
   })
 
   // Meeting spec E1: complaint-name master, filtered auto-suggest by the
-  // resolved product's category. No product resolved -> no filter -> empty
-  // suggestion list, field stays plain free text.
+  // resolved product's category, merged with any complaints scoped to this
+  // specific product (product_id set). No product resolved -> no filter ->
+  // empty suggestion list, field stays plain free text.
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
   const nameOfComplaintValue = detailsForm.watch("nameOfComplaint")
   const filteredComplaintTypes = useMemo(() => {
-    if (!resolvedProductCategory) return []
+    if (!resolvedProductId && !resolvedProductCategory) return []
     const term = (nameOfComplaintValue ?? "").trim().toLowerCase()
-    return (complaintTypes ?? []).filter(
-      (ct) => ct.product_category === resolvedProductCategory && (!term || ct.label.toLowerCase().includes(term))
+    const matches = (complaintTypes ?? []).filter(
+      (ct) =>
+        ((ct.product_id === null && ct.product_category === resolvedProductCategory) || ct.product_id === resolvedProductId) &&
+        (!term || ct.label.toLowerCase().includes(term))
     )
-  }, [complaintTypes, resolvedProductCategory, nameOfComplaintValue])
+    // Dedupe case-insensitive/trimmed label: a product-specific row copied
+    // verbatim from its category default would otherwise show twice.
+    const seenLabels = new Set<string>()
+    return matches.filter((ct) => {
+      const key = ct.label.trim().toLowerCase()
+      if (seenLabels.has(key)) return false
+      seenLabels.add(key)
+      return true
+    })
+  }, [complaintTypes, resolvedProductId, resolvedProductCategory, nameOfComplaintValue])
 
   // Step 4: type auto-detect
   const detected = useDetectTicketType(orgId, customerId, resolvedProductId || null)

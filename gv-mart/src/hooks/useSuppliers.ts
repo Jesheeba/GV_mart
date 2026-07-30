@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as suppliers from "@/services/suppliers"
 import type { TablesInsert, TablesUpdate } from "@/types/database"
+import type { ItemType } from "@/services/suppliers"
 
 export function useSuppliersList(orgId: string | undefined) {
   return useQuery({
@@ -42,11 +43,18 @@ export function useSupplierProducts(orgId: string | undefined, supplierId: strin
  *  quote-first flow (PurchaseQuotesTab) to populate "which supplier is this
  *  reply for" without re-deriving it from purchase_quote_requests, and by
  *  the "cheapest supplier" marker elsewhere. */
-export function useSuppliersForItem(orgId: string | undefined, itemType: "product" | "spare" | undefined, itemId: string | undefined) {
+export function useSuppliersForItem(orgId: string | undefined, itemType: ItemType | undefined, itemId: string | undefined) {
   return useQuery({
     queryKey: ["suppliers", "forItem", orgId, itemType, itemId],
     queryFn: () => suppliers.listSuppliersForItem(orgId!, itemType!, itemId!),
     enabled: !!orgId && !!itemType && !!itemId,
+  })
+}
+export function useLinkedItemKeys(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["suppliers", "linkedItemKeys", orgId],
+    queryFn: () => suppliers.listLinkedItemKeys(orgId!),
+    enabled: !!orgId,
   })
 }
 export function useCatalogForLinking(orgId: string | undefined) {

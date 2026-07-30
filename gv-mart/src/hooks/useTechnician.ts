@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as tech from "@/services/technician"
+import type { DateRange } from "@/services/reports"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { subscribeSyncState } from "@/lib/offline/sync"
@@ -395,10 +396,10 @@ export function useMyHistory(technicianId: string | undefined, filters: { from?:
 
 // ── TECH-10 Profile / stats ────────────────────────────────────────────────
 
-export function useTechnicianStats(technicianId: string | undefined, orgId: string | undefined) {
+export function useTechnicianStats(technicianId: string | undefined, orgId: string | undefined, range: DateRange) {
   return useQuery({
-    queryKey: ["technicianStats", technicianId],
-    queryFn: () => tech.getTechnicianStats(technicianId!, orgId!),
+    queryKey: ["technicianStats", technicianId, range],
+    queryFn: () => tech.getTechnicianStats(technicianId!, orgId!, range),
     enabled: !!technicianId && !!orgId,
   })
 }

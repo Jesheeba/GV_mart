@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import type { DayJobInput, DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Tables, TablesInsert } from "@/types/database"
+import type { DateRange } from "./reports"
 
 // New file — the admin-side counterpart to src/services/technician.ts
 // (owned by the mobile technician app, not touched here). Phase 10 scope:
@@ -35,8 +36,12 @@ function rpc(name: string, args: Record<string, unknown>) {
 
 export type TechnicianListItem = TechnicianRow & {
   profiles: { full_name: string; phone: string | null; photo_url: string | null } | null
-  todaysJobCount: number
-  todaysRevenue: number
+  /** Job count / revenue within `range` (see listTechnicians below) —
+   *  defaults to "today" when no range is passed, preserving the original
+   *  "today's" meaning for callers that don't opt into period filtering
+   *  (TechnicianDetailPage.tsx's fixed "Today" KPI badges). */
+  periodJobCount: number
+  periodRevenue: number
   avgRating: number | null
 }
 
@@ -47,8 +52,13 @@ export type TechnicianListItem = TechnicianRow & {
  * "Add Technician" cannot create brand-new auth users here — this list (and
  * updateTechnician below) only ever operate on existing seeded
  * technician/profile rows.
+ *
+ * Owner request 2026-07-29: `range` is optional and additive — omitting it
+ * reproduces exactly the original "today only" behavior (TechnicianDetailPage
+ * and TechniciansSpareHandoverPage don't pass one); TechniciansListPage.tsx's
+ * KPI row passes the dashboard-style PeriodFilter's selected range instead.
  */
-export async function listTechnicians(orgId: string): Promise<TechnicianListItem[]> {
+export async function listTechnicians(orgId: string, range?: DateRange): Promise<TechnicianListItem[]> {
   const { data: technicians, error } = await supabase
     .from("technicians")
     .select("*, profiles(full_name, phone, photo_url)")
@@ -60,16 +70,25 @@ export async function listTechnicians(orgId: string): Promise<TechnicianListItem
   })[]
   if (rows.length === 0) return []
 
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  const todayStartIso = todayStart.toISOString()
+  let rangeStartIso: string
+  let rangeEndIso: string
+  if (range) {
+    rangeStartIso = `${range.from}T00:00:00`
+    rangeEndIso = `${range.to}T23:59:59.999`
+  } else {
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    rangeStartIso = todayStart.toISOString()
+    rangeEndIso = new Date().toISOString()
+  }
 
   const [visitsRes, ratingsRes] = await Promise.all([
     supabase
       .from("service_visits")
       .select("technician_id, service_charge, timer_end")
       .eq("org_id", orgId)
-      .gte("timer_end", todayStartIso),
+      .gte("timer_end", rangeStartIso)
+      .lte("timer_end", rangeEndIso),
     supabase
       .from("ratings")
       .select("stars, service_visits!inner(technician_id, org_id)")
@@ -97,8 +116,8 @@ export async function listTechnicians(orgId: string): Promise<TechnicianListItem
     const count = ratingCountByTech.get(t.id) ?? 0
     return {
       ...t,
-      todaysJobCount: jobCountByTech.get(t.id) ?? 0,
-      todaysRevenue: revenueByTech.get(t.id) ?? 0,
+      periodJobCount: jobCountByTech.get(t.id) ?? 0,
+      periodRevenue: revenueByTech.get(t.id) ?? 0,
       avgRating: count > 0 ? Math.round(((ratingSumByTech.get(t.id) ?? 0) / count) * 10) / 10 : null,
     }
   })

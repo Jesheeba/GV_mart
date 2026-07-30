@@ -1,12 +1,14 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Plus } from "lucide-react"
 import { useSalesServiceReport } from "@/hooks/useReports"
 import { useLeads } from "@/hooks/useAutomation"
 import { useQuotationsList } from "@/hooks/useQuotations"
+import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
-import { thisMonthRange } from "./dashboardMath"
+import { PeriodFilter } from "../reports/PeriodFilter"
 
 const LEAD_STAGE_TONE: Record<string, string> = {
   new: "#C9C4BA",
@@ -25,11 +27,12 @@ function leadName(l: { customers: { name: string } | null; name: string }) {
 export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const range = thisMonthRange()
+  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
+  const range = periodToRange(period)
 
   const { data: salesService, isLoading: ssLoading } = useSalesServiceReport(orgId, range)
-  const { data: leads, isLoading: leadsLoading } = useLeads(orgId)
-  const { data: quotations } = useQuotationsList(orgId)
+  const { data: leads, isLoading: leadsLoading } = useLeads(orgId, { dateRange: range })
+  const { data: quotations } = useQuotationsList(orgId, range)
 
   const openLeads = leads?.filter((l) => l.status !== "won" && l.status !== "lost") ?? []
   const wonLeads = leads?.filter((l) => l.status === "won").length ?? 0
@@ -54,6 +57,13 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
     .slice(0, 4)
 
   const recentLeads = [...(leads ?? [])].slice(0, 4)
+
+  const periodLabel =
+    period.mode === "year"
+      ? String(period.year)
+      : period.mode === "month"
+        ? new Date(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)) - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+        : `${new Date(range.from).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} – ${new Date(range.to).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
 
   return (
     <div>
@@ -81,12 +91,16 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
         </div>
       </div>
 
+      <div className="mb-4.5 rounded-card border border-border bg-surface p-4 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+        <PeriodFilter value={period} onChange={setPeriod} />
+      </div>
+
       <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-3">
         <div className="relative flex flex-col gap-4 overflow-hidden rounded-card bg-gradient-to-br from-accent to-[#FF7E47] p-5.5 text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,0.65)]">
           <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
           <span className="relative text-[13px] font-semibold text-white/90">{t("dashboard.salesThisMonth")}</span>
           <div className="relative text-[31px] font-extrabold leading-none tracking-tight tabular-nums">{ssLoading ? "—" : formatCurrency(salesService?.totalRevenue ?? 0)}</div>
-          <span className="relative w-fit rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">{t("common.thisMonth")}</span>
+          <span className="relative w-fit rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">{periodLabel}</span>
         </div>
         <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
           <span className="text-[13px] font-semibold text-text-muted">{t("dashboard.openLeads")}</span>

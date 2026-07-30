@@ -13,7 +13,7 @@ export function useInventoryList(orgId: string | undefined, itemType: ItemType) 
 export function useUpdateThresholds() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: { min_stock: number; max_stock: number | null; reorder_qty: number } }) =>
+    mutationFn: ({ id, patch }: { id: string; patch: { min_stock: number; max_stock: number } }) =>
       inventory.updateThresholds(id, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory", "list"] }),
   })

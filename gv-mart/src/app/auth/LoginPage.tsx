@@ -11,10 +11,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
+import { GoogleLinkAccountCard } from "@/app/auth/GoogleLinkAccountCard"
 import { useAuth } from "@/hooks/useAuth"
 import { useProfile } from "@/hooks/useProfile"
 import { roleHomePath } from "@/lib/roles"
-import { signInWithPassword } from "@/services/auth"
+import { signInWithGoogle, signInWithPassword } from "@/services/auth"
 import { supabase } from "@/lib/supabase"
 
 const loginSchema = z.object({
@@ -22,6 +23,33 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 type LoginFormValues = z.infer<typeof loginSchema>
+
+/** PostgREST's ".single() found 0 rows" code — the signal that this auth user (e.g. a first-time Google sign-in) has no `profiles` row yet. */
+const NO_PROFILE_ROW_CODE = "PGRST116"
+
+/** Google's official multi-color "G" mark — lucide-react deliberately excludes brand logos. */
+function GoogleLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.47a5.54 5.54 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.82Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.26v3.09A12 12 0 0 0 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.28A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.28V6.63H1.26A12 12 0 0 0 0 12c0 1.94.46 3.77 1.26 5.37l4.01-3.09Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.77c1.76 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.26 6.63l4.01 3.09C6.22 6.88 8.87 4.77 12 4.77Z"
+      />
+    </svg>
+  )
+}
 
 const DEMO_LOGINS = [
   { role: "master", email: "master@gvmart.test" },
@@ -34,7 +62,7 @@ const DEMO_LOGINS = [
 export function LoginPage() {
   const { t } = useTranslation()
   const { session, loading: sessionLoading } = useAuth()
-  const { data: profile, isLoading: profileLoading } = useProfile()
+  const { data: profile, isLoading: profileLoading, error: profileError } = useProfile()
   const [showPassword, setShowPassword] = useState(false)
   const [showDemoCreds, setShowDemoCreds] = useState(false)
   const [resetNotice, setResetNotice] = useState<string | null>(null)
@@ -50,6 +78,10 @@ export function LoginPage() {
     mutationFn: (values: LoginFormValues) => signInWithPassword(values.email, values.password),
   })
 
+  const googleSignInMutation = useMutation({
+    mutationFn: signInWithGoogle,
+  })
+
   const resetMutation = useMutation({
     mutationFn: async (email: string) => {
       const { error } = await supabase.auth.resetPasswordForEmail(email)
@@ -63,6 +95,11 @@ export function LoginPage() {
   if (session) {
     if (profileLoading) return <FullPageLoader label={t("common.loading")} />
     if (profile) return <Navigate to={roleHomePath(profile.role)} replace />
+    // First-time Google sign-in: an auth user exists but no profiles row —
+    // admin-created customers never get one until linked by mobile number.
+    if ((profileError as { code?: string } | null)?.code === NO_PROFILE_ROW_CODE) {
+      return <GoogleLinkAccountCard userId={session.user.id} />
+    }
   }
 
   const onSubmit = handleSubmit((values) => signInMutation.mutate(values))
@@ -186,6 +223,29 @@ export function LoginPage() {
               {signInMutation.isPending ? t("auth.signingIn") : t("auth.signInButton")}
             </Button>
           </form>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs font-medium uppercase text-text-muted">{t("auth.orDivider")}</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full gap-2.5"
+            disabled={googleSignInMutation.isPending}
+            onClick={() => googleSignInMutation.mutate()}
+          >
+            <GoogleLogo className="size-4.5 shrink-0" />
+            {googleSignInMutation.isPending ? t("auth.signingIn") : t("auth.signInWithGoogle")}
+          </Button>
+          {googleSignInMutation.isError ? (
+            <p role="alert" className="mt-2 rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">
+              {t("auth.genericSignInError")}
+            </p>
+          ) : null}
 
           {import.meta.env.DEV ? (
             <div className="mt-4">

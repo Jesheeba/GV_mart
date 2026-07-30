@@ -631,8 +631,7 @@ export type Database = {
           item_id: string
           stock_qty: number
           min_stock: number
-          max_stock: number | null
-          reorder_qty: number
+          max_stock: number
           location: Database["public"]["Enums"]["location_type"]
           created_at: string
           updated_at: string
@@ -644,8 +643,7 @@ export type Database = {
           item_id: string
           stock_qty?: number
           min_stock?: number
-          max_stock?: number | null
-          reorder_qty?: number
+          max_stock?: number
           location?: Database["public"]["Enums"]["location_type"]
           created_at?: string
           updated_at?: string
@@ -657,8 +655,7 @@ export type Database = {
           item_id?: string
           stock_qty?: number
           min_stock?: number
-          max_stock?: number | null
-          reorder_qty?: number
+          max_stock?: number
           location?: Database["public"]["Enums"]["location_type"]
           created_at?: string
           updated_at?: string
@@ -2200,6 +2197,7 @@ export type Database = {
           id: string
           org_id: string
           product_category: Database["public"]["Enums"]["brand_category"]
+          product_id: string | null
           label: string
           created_at: string
           updated_at: string
@@ -2208,6 +2206,7 @@ export type Database = {
           id?: string
           org_id: string
           product_category: Database["public"]["Enums"]["brand_category"]
+          product_id?: string | null
           label: string
           created_at?: string
           updated_at?: string
@@ -2216,6 +2215,7 @@ export type Database = {
           id?: string
           org_id?: string
           product_category?: Database["public"]["Enums"]["brand_category"]
+          product_id?: string | null
           label?: string
           created_at?: string
           updated_at?: string
@@ -2226,6 +2226,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "complaint_types_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -3224,7 +3231,6 @@ export type Database = {
           review_link_min_stars: number
           google_review_url: string | null
           default_min_stock: number
-          default_reorder_qty: number
           gst_rate: number
           sla_hours_very_urgent: number
           sla_hours_urgent: number
@@ -3261,7 +3267,6 @@ export type Database = {
           review_link_min_stars?: number
           google_review_url?: string | null
           default_min_stock?: number
-          default_reorder_qty?: number
           gst_rate?: number
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
@@ -3298,7 +3303,6 @@ export type Database = {
           review_link_min_stars?: number
           google_review_url?: string | null
           default_min_stock?: number
-          default_reorder_qty?: number
           gst_rate?: number
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
@@ -3664,6 +3668,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      link_customer_google_account: {
+        Args: {
+          p_mobile: string
+        }
+        Returns: string
+      }
       create_customer_with_details: {
         Args: {
           p_org_id: string
@@ -4010,7 +4020,7 @@ export type Database = {
     Enums: {
       user_role: "master" | "operation_admin" | "sales_admin" | "technician" | "customer"
       brand_category: "ro" | "ac" | "inverter" | "battery"
-      item_type: "product" | "spare"
+      item_type: "product" | "spare" | "gift"
       location_type: "warehouse" | "van"
       address_type: "residential" | "commercial"
       ownership_type: "own" | "rental"

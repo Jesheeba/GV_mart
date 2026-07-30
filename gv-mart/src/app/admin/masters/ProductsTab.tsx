@@ -1,9 +1,12 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { ClipboardList } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
 import { useProfile } from "@/hooks/useProfile"
 import type { Enums } from "@/types/database"
+import { ProductComplaintsPanel } from "./ProductComplaintsPanel"
 
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const satisfies readonly Enums<"brand_category">[]
 
@@ -37,6 +40,11 @@ export function ProductsTab() {
   const updateMut = productsHooks.useUpdate()
   const deleteMut = productsHooks.useDelete()
 
+  // Admin-side product↔complaints connector (see ProductComplaintsPanel.tsx)
+  // — opened per-row via the ClipboardList action column below.
+  const [complaintsProductId, setComplaintsProductId] = useState<string | null>(null)
+  const complaintsProduct = (rows ?? []).find((r) => r.id === complaintsProductId) as ProductWithRefs | undefined
+
   const brandOptions = useMemo(() => (brands ?? []).map((b) => ({ value: b.id, label: b.name })), [brands])
   const modelOptions = useMemo(
     () =>
@@ -68,55 +76,57 @@ export function ProductsTab() {
   }
 
   return (
-    <EntityCrudTable<ProductWithRefs>
-      fields={fields}
-      rows={(rows ?? []) as ProductWithRefs[]}
-      getId={(r) => r.id}
-      loading={isLoading}
-      error={isError ? t("masters.loadFailed") : null}
-      onRetry={() => refetch()}
-      isMutating={createMut.isPending || updateMut.isPending}
-      addLabel={t("masters.products.add")}
-      emptyMessage={t("masters.products.empty")}
-      toFormValues={(r) => ({
-        name: r.name,
-        brand_id: r.brand_id,
-        model_id: r.model_id,
-        category: r.category,
-        price: String(r.price),
-        hsn_code: r.hsn_code ?? "",
-        warranty_months: String(r.warranty_months),
-        standard_time_minutes: r.standard_time_minutes != null ? String(r.standard_time_minutes) : "",
-      })}
-      columns={[
-        { key: "name", header: t("masters.products.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
-        { key: "brand", header: t("masters.products.brand"), render: (r) => r.brands?.name ?? "—" },
-        { key: "model", header: t("masters.products.model"), render: (r) => r.models?.name ?? "—" },
-        { key: "price", header: t("masters.products.price"), render: (r) => `₹${r.price}` },
-        { key: "warranty", header: t("masters.products.warrantyMonths"), render: (r) => r.warranty_months },
-        {
-          key: "standard_time_minutes",
-          header: t("masters.products.standardTime"),
-          render: (r) => (r.standard_time_minutes != null ? t("masters.spares.standardTimeValue", { minutes: r.standard_time_minutes }) : "—"),
-        },
-      ]}
-      onCreate={(v) =>
-        createMut.mutateAsync({
-          org_id: orgId!,
-          name: v.name,
-          brand_id: v.brand_id,
-          model_id: v.model_id,
-          category: v.category as Enums<"brand_category">,
-          price: Number(v.price) || 0,
-          hsn_code: v.hsn_code || null,
-          warranty_months: Number(v.warranty_months) || 12,
-          standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
-        })
-      }
-      onUpdate={(id, v) =>
-        updateMut.mutateAsync({
-          id,
-          patch: {
+    <>
+      <EntityCrudTable<ProductWithRefs>
+        fields={fields}
+        rows={(rows ?? []) as ProductWithRefs[]}
+        getId={(r) => r.id}
+        loading={isLoading}
+        error={isError ? t("masters.loadFailed") : null}
+        onRetry={() => refetch()}
+        isMutating={createMut.isPending || updateMut.isPending}
+        addLabel={t("masters.products.add")}
+        emptyMessage={t("masters.products.empty")}
+        toFormValues={(r) => ({
+          name: r.name,
+          brand_id: r.brand_id,
+          model_id: r.model_id,
+          category: r.category,
+          price: String(r.price),
+          hsn_code: r.hsn_code ?? "",
+          warranty_months: String(r.warranty_months),
+          standard_time_minutes: r.standard_time_minutes != null ? String(r.standard_time_minutes) : "",
+        })}
+        columns={[
+          { key: "name", header: t("masters.products.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
+          { key: "brand", header: t("masters.products.brand"), render: (r) => r.brands?.name ?? "—" },
+          { key: "model", header: t("masters.products.model"), render: (r) => r.models?.name ?? "—" },
+          { key: "price", header: t("masters.products.price"), render: (r) => `₹${r.price}` },
+          { key: "warranty", header: t("masters.products.warrantyMonths"), render: (r) => r.warranty_months },
+          {
+            key: "standard_time_minutes",
+            header: t("masters.products.standardTime"),
+            render: (r) => (r.standard_time_minutes != null ? t("masters.spares.standardTimeValue", { minutes: r.standard_time_minutes }) : "—"),
+          },
+          {
+            key: "complaints",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                title={t("masters.productComplaints.manage")}
+                onClick={() => setComplaintsProductId(r.id)}
+              >
+                <ClipboardList className="size-3.5" />
+              </Button>
+            ),
+          },
+        ]}
+        onCreate={(v) =>
+          createMut.mutateAsync({
+            org_id: orgId!,
             name: v.name,
             brand_id: v.brand_id,
             model_id: v.model_id,
@@ -125,10 +135,36 @@ export function ProductsTab() {
             hsn_code: v.hsn_code || null,
             warranty_months: Number(v.warranty_months) || 12,
             standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
-          },
-        })
-      }
-      onDelete={(id) => deleteMut.mutateAsync(id)}
-    />
+          })
+        }
+        onUpdate={(id, v) =>
+          updateMut.mutateAsync({
+            id,
+            patch: {
+              name: v.name,
+              brand_id: v.brand_id,
+              model_id: v.model_id,
+              category: v.category as Enums<"brand_category">,
+              price: Number(v.price) || 0,
+              hsn_code: v.hsn_code || null,
+              warranty_months: Number(v.warranty_months) || 12,
+              standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
+            },
+          })
+        }
+        onDelete={(id) => deleteMut.mutateAsync(id)}
+      />
+
+      {complaintsProduct ? (
+        <ProductComplaintsPanel
+          key={complaintsProduct.id}
+          orgId={orgId}
+          productId={complaintsProduct.id}
+          productCategory={complaintsProduct.category}
+          productName={complaintsProduct.name}
+          onClose={() => setComplaintsProductId(null)}
+        />
+      ) : null}
+    </>
   )
 }

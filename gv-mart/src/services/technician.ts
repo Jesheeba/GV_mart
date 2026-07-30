@@ -5,6 +5,7 @@ import { distanceKm, expectedMinutes, type GeoPoint } from "@/lib/offline/geo"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import type { DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Enums, Tables } from "@/types/database"
+import type { DateRange } from "./reports"
 
 export type AttendanceRow = Tables<"attendance">
 export type SpareHandoverRow = Tables<"spare_handovers">
@@ -947,17 +948,25 @@ export async function listMyHistory(technicianId: string, filters: { from?: stri
 
 // ── TECH-10 Profile / stats ────────────────────────────────────────────────
 
-export async function getTechnicianStats(technicianId: string, orgId: string) {
-  const since = new Date()
-  since.setDate(since.getDate() - 30)
-  const sinceIso = since.toISOString()
+/** Owner request 2026-07-29: `range` used to be hardcoded to a trailing
+ *  30-day window baked into this function; ProfilePage.tsx now offers a
+ *  preset picker (Last 30 days / This month / This year) and passes the
+ *  result straight through — `defaultDateRange(30)` reproduces the exact
+ *  original window as the picker's own default. */
+export async function getTechnicianStats(technicianId: string, orgId: string, range: DateRange) {
+  // Same yyyy-mm-dd → inclusive-ISO-timestamp conversion as reports.ts's
+  // (unexported) rangeToTimestamps — duplicated per this codebase's
+  // convention of not centralizing small date-math helpers into a shared util.
+  const fromIso = new Date(`${range.from}T00:00:00`).toISOString()
+  const toIso = new Date(`${range.to}T23:59:59.999`).toISOString()
 
   const [visitsRes, ratingsRes] = await Promise.all([
     supabase
       .from("service_visits")
       .select("service_charge, timer_start")
       .eq("technician_id", technicianId)
-      .gte("timer_start", sinceIso),
+      .gte("timer_start", fromIso)
+      .lte("timer_start", toIso),
     supabase
       .from("ratings")
       .select("stars, service_visits!inner(technician_id)")
@@ -966,11 +975,11 @@ export async function getTechnicianStats(technicianId: string, orgId: string) {
   if (visitsRes.error) throw visitsRes.error
   if (ratingsRes.error) throw ratingsRes.error
 
-  const revenue30d = (visitsRes.data ?? []).reduce((sum, v) => sum + (v.service_charge ?? 0), 0)
-  const jobs30d = (visitsRes.data ?? []).length
+  const periodRevenue = (visitsRes.data ?? []).reduce((sum, v) => sum + (v.service_charge ?? 0), 0)
+  const periodJobs = (visitsRes.data ?? []).length
   const ratings = (ratingsRes.data ?? []) as unknown as { stars: number }[]
   const avgRating = ratings.length ? ratings.reduce((s, r) => s + r.stars, 0) / ratings.length : null
 
   void orgId
-  return { revenue30d, jobs30d, avgRating, ratingCount: ratings.length }
+  return { periodRevenue, periodJobs, avgRating, ratingCount: ratings.length }
 }

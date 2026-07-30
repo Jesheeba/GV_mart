@@ -96,16 +96,28 @@ export function BookServicePage() {
 
   // Meeting spec E1: complaint-name master, filtered auto-suggest by the
   // selected product's category (AC -> Not Cooling, Sound Problem…; RO ->
-  // No Water, No Taste… — different lists). No product selected yet (or
-  // "not sure / not listed") -> no category to filter by, so the field
-  // falls back to plain free text (suggestions list is just empty).
+  // No Water, No Taste… — different lists), merged with any complaints
+  // scoped to this specific product (product_id set). No product selected
+  // yet (or "not sure / not listed") -> no category to filter by, so the
+  // field falls back to plain free text (suggestions list is just empty).
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
   const filteredComplaintTypes = useMemo(() => {
     if (!selectedProduct) return []
     const term = nameOfComplaint.trim().toLowerCase()
-    return (complaintTypes ?? []).filter(
-      (ct) => ct.product_category === selectedProduct.category && (!term || ct.label.toLowerCase().includes(term))
+    const matches = (complaintTypes ?? []).filter(
+      (ct) =>
+        ((ct.product_id === null && ct.product_category === selectedProduct.category) || ct.product_id === selectedProduct.id) &&
+        (!term || ct.label.toLowerCase().includes(term))
     )
+    // Dedupe case-insensitive/trimmed label: a product-specific row copied
+    // verbatim from its category default would otherwise show twice.
+    const seenLabels = new Set<string>()
+    return matches.filter((ct) => {
+      const key = ct.label.trim().toLowerCase()
+      if (seenLabels.has(key)) return false
+      seenLabels.add(key)
+      return true
+    })
   }, [complaintTypes, selectedProduct, nameOfComplaint])
 
   // Local draft persistence — see useLocalDraft's doc comment.

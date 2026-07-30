@@ -1,0 +1,12 @@
+-- Owner request 2026-07-29: track gifts (water bottle, jute bag, etc — the
+-- items given free above a gift's threshold_amount, see `gifts` table) in
+-- the same generic inventory system products/spares already use, instead of
+-- them having no stock tracking at all today.
+--
+-- 'gift' becomes a first-class item_type so inventory/inventory_movements/
+-- po_items/supplier_products/purchase_quote_requests (all keyed on this
+-- enum) can carry gift rows without any schema changes to those tables.
+-- Must be its own migration file: Postgres forbids using a newly added enum
+-- value in the same transaction that added it, and this project's migration
+-- runner commits one file at a time.
+alter type item_type add value if not exists 'gift';

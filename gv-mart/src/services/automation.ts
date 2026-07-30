@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import type { Enums, Tables } from "@/types/database"
+import type { DateRange } from "./reports"
 
 // ── Leads (ADM-22) ────────────────────────────────────────────────────────
 export type LeadRow = Tables<"leads">
@@ -15,6 +16,10 @@ export type LeadFilters = {
   source?: Enums<"lead_source">
   enquiryType?: Enums<"enquiry_type">
   kind?: Enums<"lead_kind">
+  /** Owner request 2026-07-29: scopes to leads created within this range,
+   *  for the dashboard's period-filtered Lead→Sale Conversion tile. Optional
+   *  and additive — every existing caller keeps returning all-time leads. */
+  dateRange?: DateRange
 }
 
 /**
@@ -34,6 +39,9 @@ export async function listLeads(orgId: string, filters: LeadFilters = {}): Promi
   if (filters.source) query = query.eq("source", filters.source)
   if (filters.enquiryType) query = query.eq("enquiry_type", filters.enquiryType)
   if (filters.kind) query = query.eq("kind", filters.kind)
+  if (filters.dateRange) {
+    query = query.gte("created_at", `${filters.dateRange.from}T00:00:00`).lte("created_at", `${filters.dateRange.to}T23:59:59.999`)
+  }
   const { data, error } = await query
   if (error) throw error
   return (data ?? []) as unknown as LeadListItem[]
@@ -255,7 +263,15 @@ export async function getLastBillEntry(orgId: string): Promise<LastBillEntry | n
       .select("item_type, item_id, qty, price")
       .eq("po_id", bill.po_id)
     if (poItemsError) throw poItemsError
-    items = (poItems ?? []).map((i) => ({ itemType: i.item_type, itemId: i.item_id, qty: i.qty, price: i.price }))
+    // Bill Entry's manual form only represents product/spare lines (see
+    // lib/validation/automation.ts's poItemSchema) — a gift line on the last
+    // bill (reachable now that gifts reorder through this same quote-
+    // request-to-PO path) is simply left out of the prefill rather than
+    // breaking the type it's assigned to; the admin can't add a gift line
+    // by hand here anyway, so there's nothing useful to prefill it into.
+    items = (poItems ?? [])
+      .filter((i): i is typeof i & { item_type: "product" | "spare" } => i.item_type === "product" || i.item_type === "spare")
+      .map((i) => ({ itemType: i.item_type, itemId: i.item_id, qty: i.qty, price: i.price }))
   }
 
   return { supplierId: bill.supplier_id, items }
@@ -276,11 +292,13 @@ export type PurchaseQuoteRequestListItem = PurchaseQuoteRequestRow & { itemName:
 async function attachQuoteRequestItemNames(rows: PurchaseQuoteRequestRow[]): Promise<PurchaseQuoteRequestListItem[]> {
   const productIds = rows.filter((r) => r.item_type === "product").map((r) => r.item_id)
   const spareIds = rows.filter((r) => r.item_type === "spare").map((r) => r.item_id)
-  const [{ data: products }, { data: spares }] = await Promise.all([
+  const giftIds = rows.filter((r) => r.item_type === "gift").map((r) => r.item_id)
+  const [{ data: products }, { data: spares }, { data: gifts }] = await Promise.all([
     productIds.length ? supabase.from("products").select("id,name").in("id", productIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     spareIds.length ? supabase.from("spares").select("id,name").in("id", spareIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    giftIds.length ? supabase.from("gifts").select("id,name").in("id", giftIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
   ])
-  const nameMap = new Map([...(products ?? []), ...(spares ?? [])].map((r) => [r.id, r.name]))
+  const nameMap = new Map([...(products ?? []), ...(spares ?? []), ...(gifts ?? [])].map((r) => [r.id, r.name]))
   return rows.map((r) => ({ ...r, itemName: nameMap.get(r.item_id) ?? "—" }))
 }
 

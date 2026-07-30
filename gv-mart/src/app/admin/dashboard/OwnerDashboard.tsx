@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useQueries } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -8,9 +9,11 @@ import { useLeads } from "@/hooks/useAutomation"
 import { useInventoryList } from "@/hooks/useInventory"
 import { useAmcContracts } from "@/hooks/useAmc"
 import * as reports from "@/services/reports"
+import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
-import { lastNMonths, thisMonthRange, todayRange, barHeights } from "./dashboardMath"
+import { lastNMonthsEnding, monthsOfYear, todayRange, barHeights } from "./dashboardMath"
+import { PeriodFilter } from "../reports/PeriodFilter"
 
 const TICKET_STATUS_TONE: Record<string, string> = {
   open: "#E8932B",
@@ -24,14 +27,38 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  const range = thisMonthRange()
-  const months = lastNMonths(7)
+  // Owner request 2026-07-29: this screen used to be permanently pinned to
+  // "this month" with no way to look at a past month or year. `period` now
+  // drives everything that's genuinely period-shaped (revenue, sales mix,
+  // top technicians, lead conversion, the P&L trend). Today's Sales and Open
+  // Tickets deliberately stay outside `period` — see their own comments below.
+  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
+  const range = periodToRange(period)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const periodIncludesToday = todayStr >= range.from && todayStr <= range.to
+
+  // P&L trend chart granularity changes meaning by mode (owner-confirmed):
+  // Month mode keeps the original "7 trailing months" shape, just anchored to
+  // whichever month is selected instead of always "now" — picking the
+  // current month reproduces exactly today's output. Year mode shows all 12
+  // months of that year, since a 7-month trailing window would silently
+  // bleed into the previous year and misrepresent "year-wise". Custom range
+  // falls back to 7 trailing months ending at the range's own end month.
+  const months =
+    period.mode === "year"
+      ? monthsOfYear(period.year)
+      : period.mode === "month"
+        ? lastNMonthsEnding(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)), 7)
+        : lastNMonthsEnding(Number(range.to.slice(0, 4)), Number(range.to.slice(5, 7)), 7)
 
   const { data: pnl, isLoading: pnlLoading } = usePnlReport(orgId, range)
   const { data: salesService, isLoading: ssLoading } = useSalesServiceReport(orgId, range)
   const { data: todaySales } = useSalesServiceReport(orgId, todayRange())
   const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, {})
-  const { data: leads } = useLeads(orgId)
+  // Lead→Sale Conversion is genuinely period-shaped (a cohort's conversion
+  // rate, not a live count) — scoped to `range` via the new optional
+  // LeadFilters.dateRange, unlike Open Tickets below.
+  const { data: leads } = useLeads(orgId, { dateRange: range })
   const { data: spares } = useInventoryList(orgId, "spare")
   const { data: amcContracts } = useAmcContracts(orgId)
 
@@ -42,6 +69,10 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
     })),
   })
 
+  // Open Tickets is a live queue-depth signal ("what's on my plate right
+  // now"), not a historical metric — filtering it to "opened during period"
+  // would silently change its meaning, so it stays unfiltered regardless of
+  // `period` (matches OpsDashboard's equivalent tile).
   const openTickets = tickets?.filter((tk) => tk.status !== "completed" && tk.status !== "cancelled") ?? []
   const wonLeads = leads?.filter((l) => l.status === "won").length ?? 0
   const conversionPct = leads?.length ? Math.round((wonLeads / leads.length) * 100) : 0
@@ -66,6 +97,15 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
 
   const topTechs = [...(salesService?.technicianServiceCounts ?? [])].sort((a, b) => b.revenue - a.revenue).slice(0, 3)
   const recentTickets = [...(tickets ?? [])].slice(0, 5)
+
+  // Human label for the currently-selected period — used wherever a badge
+  // used to hardcode "This Month" (Total Revenue tile, Top Technicians).
+  const periodLabel =
+    period.mode === "year"
+      ? String(period.year)
+      : period.mode === "month"
+        ? new Date(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)) - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+        : `${new Date(range.from).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} – ${new Date(range.to).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
 
   return (
     <div>
@@ -93,6 +133,10 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
         </div>
       </div>
 
+      <div className="mb-4.5 rounded-card border border-border bg-surface p-4 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+        <PeriodFilter value={period} onChange={setPeriod} />
+      </div>
+
       <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-4">
         <div className="relative flex flex-col gap-4.5 overflow-hidden rounded-card bg-gradient-to-br from-accent to-[#FF7E47] p-5.5 text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,0.65)]">
           <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
@@ -106,7 +150,7 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
             {pnlLoading ? "—" : formatCurrency(pnl?.revenueWithGst ?? 0)}
           </div>
           <div className="relative flex items-center gap-2 text-xs">
-            <span className="rounded-full bg-white/25 px-2.5 py-1 font-bold">{t("common.thisMonth")}</span>
+            <span className="rounded-full bg-white/25 px-2.5 py-1 font-bold">{periodLabel}</span>
           </div>
         </div>
 
@@ -116,11 +160,22 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
           icon={<TriangleAlert className="size-4.5" />}
           note={<span className="rounded-full bg-[#FCF1DF] px-2.5 py-1 text-xs font-bold text-[#E8932B]">{openTickets.length} {t("dashboard.open")}</span>}
         />
+        {/* Always the literal calendar-day "today" — never scoped to `period` (a
+            past month/year has no meaningful "today's sales"). Dimmed with an
+            explanatory note when the selected period doesn't include today, so
+            it reads as an intentional live-metric exception rather than a bug. */}
         <DashCard
           label={t("dashboard.todaysSales")}
           value={formatCurrency(todaySales?.totalRevenue ?? 0)}
           icon={<ReceiptText className="size-4.5" />}
-          note={<span className="rounded-full bg-[#E7F6ED] px-2.5 py-1 text-xs font-bold text-success">{t("common.today")}</span>}
+          dimmed={!periodIncludesToday}
+          note={
+            periodIncludesToday ? (
+              <span className="rounded-full bg-[#E7F6ED] px-2.5 py-1 text-xs font-bold text-success">{t("common.today")}</span>
+            ) : (
+              <span className="text-xs font-medium text-text-muted">{t("dashboard.todaysSalesOutOfPeriod")}</span>
+            )
+          }
         />
         <DashCard
           label={t("dashboard.leadConversion")}
@@ -135,7 +190,9 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
           <div className="mb-5 flex items-start justify-between">
             <div>
               <h3 className="mb-1 text-[17px] font-bold tracking-tight text-text">{t("dashboard.profitLoss")}</h3>
-              <p className="text-xs font-medium text-text-muted">{t("dashboard.last7Months")}</p>
+              <p className="text-xs font-medium text-text-muted">
+                {period.mode === "year" ? t("dashboard.monthsOfYear", { year: period.year }) : t("dashboard.last7Months")}
+              </p>
             </div>
             <div className="flex items-center gap-4 text-xs font-semibold text-text">
               <span className="flex items-center gap-1.5"><span className="size-2.25 rounded-[3px] bg-accent" />{t("dashboard.profit")}</span>
@@ -232,7 +289,7 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
           <div className="rounded-card border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-bold tracking-tight text-text">{t("dashboard.topTechnicians")}</h3>
-              <span className="text-[11px] font-semibold text-text-muted">{t("common.thisMonth")}</span>
+              <span className="text-[11px] font-semibold text-text-muted">{periodLabel}</span>
             </div>
             {ssLoading ? (
               <p className="text-sm text-text-muted">{t("common.loading")}</p>
@@ -281,9 +338,29 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
   )
 }
 
-function DashCard({ label, value, icon, note }: { label: string; value: string; icon: React.ReactNode; note: React.ReactNode }) {
+function DashCard({
+  label,
+  value,
+  icon,
+  note,
+  dimmed,
+}: {
+  label: string
+  value: string
+  icon: React.ReactNode
+  note: React.ReactNode
+  /** Owner request 2026-07-29: visually signals a live "right now" metric is
+   *  intentionally unaffected by the dashboard's period filter, rather than
+   *  looking stale/broken when the selected period isn't the current one. */
+  dimmed?: boolean
+}) {
   return (
-    <div className="flex flex-col gap-4.5 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+    <div
+      className={cn(
+        "flex flex-col gap-4.5 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)] transition-opacity",
+        dimmed && "opacity-60"
+      )}
+    >
       <div className="flex items-center justify-between">
         <span className="text-[13px] font-semibold text-text-muted">{label}</span>
         <span className="flex size-8.5 items-center justify-center rounded-[11px] bg-surface-alt text-text">{icon}</span>

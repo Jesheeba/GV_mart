@@ -154,6 +154,12 @@ export async function listMyAmcContracts(customerId: string) {
   return data
 }
 
+// Row shapes for the two queries above, used by useOwnedProductsWithStatus
+// (useCustomerApp.ts) — the shared "one card per owned product" source for
+// both CustomerProductsPage and CustomerAmcPage.
+export type MyWarrantyRow = Awaited<ReturnType<typeof listMyWarranties>>[number]
+export type MyAmcContractRow = Awaited<ReturnType<typeof listMyAmcContracts>>[number]
+
 export async function listOwnedProducts(orgId: string) {
   const { data, error } = await supabase
     .from("products")
@@ -334,6 +340,50 @@ export async function renewAmcPlan(input: RenewAmcInput) {
   })
   if (error) throw error
   return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }
+}
+
+export type AmcHistoryVisit = {
+  id: string
+  timer_start: string | null
+  timer_end: string | null
+  notes: string | null
+  service_spares_used: { id: string; qty: number; spares: { name: string } | null }[]
+}
+
+export type AmcHistoryTicket = {
+  id: string
+  name_of_complaint: string | null
+  type: Enums<"ticket_type">
+  status: Enums<"ticket_status">
+  created_at: string
+  service_visits: AmcHistoryVisit[]
+}
+
+/**
+ * Per-product AMC + warranty service history for the customer-app AMC detail
+ * page (CustomerAmcProductDetailPage) — completed services only, with parts
+ * used per visit. Same join shape as the technician-facing
+ * services/technician.ts:getCustomerHistory, but that function is
+ * technician-scoped (RLS relies on is_technician_customer, and it isn't
+ * product/type-filtered the same way) so this is a separate customer-scoped
+ * query rather than a shared one. Reads service_spares_used, which only
+ * became visible to the customer role via
+ * 20260729093000_amc_history_customer_rls.sql — see that migration's header
+ * for the RLS recursion check.
+ */
+export async function listMyAmcContractHistory(customerId: string, productId: string): Promise<AmcHistoryTicket[]> {
+  const { data, error } = await supabase
+    .from("service_tickets")
+    .select(
+      "id, name_of_complaint, type, status, created_at, service_visits(id, timer_start, timer_end, notes, service_spares_used(id, qty, spares(name)))"
+    )
+    .eq("customer_id", customerId)
+    .eq("product_id", productId)
+    .in("type", ["amc", "warranty"])
+    .eq("status", "completed")
+    .order("created_at", { ascending: false })
+  if (error) throw error
+  return (data ?? []) as unknown as AmcHistoryTicket[]
 }
 
 // ── Product / Spare Enquiry (CUST-04 / CUST-05) ───────────────────────────

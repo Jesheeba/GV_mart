@@ -36,10 +36,11 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
   const [leadTime, setLeadTime] = useState("")
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
-  const catalogOptions = useMemo(
-    () => (itemType === "product" ? catalog?.products ?? [] : catalog?.spares ?? []),
-    [catalog, itemType]
-  )
+  const catalogOptions = useMemo(() => {
+    if (itemType === "product") return catalog?.products ?? []
+    if (itemType === "gift") return catalog?.gifts ?? []
+    return catalog?.spares ?? []
+  }, [catalog, itemType])
 
   function submitLink() {
     if (!itemId || !price) return
@@ -106,14 +107,14 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
           <div className="space-y-1">
             <Label>{t("suppliers.itemType")}</Label>
             <div className="flex gap-1 rounded-full bg-surface-alt p-1">
-              {(["product", "spare"] as const).map((v) => (
+              {(["product", "spare", "gift"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
                   onClick={() => { setItemType(v); setItemId("") }}
                   className={`flex-1 rounded-full px-2 py-1.5 text-xs font-medium ${itemType === v ? "bg-ink text-white" : "text-text-muted"}`}
                 >
-                  {t(`masters.tabs.${v}s`)}
+                  {t(`masters.tabs.${v === "gift" ? "gifts" : v + "s"}`)}
                 </button>
               ))}
             </div>

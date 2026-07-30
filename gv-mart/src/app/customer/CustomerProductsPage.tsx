@@ -3,14 +3,14 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Loader2, Package, QrCode, ShieldCheck, Wrench } from "lucide-react"
+import { Loader2, Package, QrCode, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
-import { StatusDot } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { useMyAmcContracts, useMyCustomerId, useMyWarranties, useOwnedProducts, useRegisterProductViaQr } from "@/hooks/useCustomerApp"
+import { OwnedProductStatusCard } from "@/app/customer/components/OwnedProductStatusCard"
+import { useMyCustomerId, useOwnedProducts, useOwnedProductsWithStatus, useRegisterProductViaQr } from "@/hooks/useCustomerApp"
 import { registerProductSchema, type RegisterProductInput } from "@/lib/validation/customerApp"
 
 function RegisterProductForm({ orgId, customerId, onDone }: { orgId: string | undefined; customerId: string | undefined; onDone: () => void }) {
@@ -82,33 +82,14 @@ export function CustomerProductsPage() {
   const navigate = useNavigate()
   const [showRegister, setShowRegister] = useState(false)
   const { customerId, orgId, isLoading: loadingId } = useMyCustomerId()
-  const { data: warranties, isLoading: loadingW, isError: errorW, refetch: refetchW } = useMyWarranties(customerId)
-  const { data: amcContracts, isLoading: loadingA, isError: errorA, refetch: refetchA } = useMyAmcContracts(customerId)
+  const { data: rows, isLoading: loadingRows, isError, refetch } = useOwnedProductsWithStatus(customerId)
 
-  const isLoading = loadingId || loadingW || loadingA
-  const isError = errorW || errorA
+  const isLoading = loadingId || loadingRows
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError) {
-    return (
-      <FullPageError
-        message={t("customerApp.products.loadError")}
-        onRetry={() => {
-          refetchW()
-          refetchA()
-        }}
-        retryLabel={t("common.retry")}
-      />
-    )
+    return <FullPageError message={t("customerApp.products.loadError")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
   }
-
-  const today = new Date().toISOString().slice(0, 10)
-  // AMC contracts and warranties can both reference the same product — key
-  // cards by product_id so each owned product shows one card with whichever
-  // coverage type it has (a product doesn't usually have both).
-  const amcByProduct = new Map((amcContracts ?? []).map((c) => [c.product_id, c]))
-  const warrantyByProduct = new Map((warranties ?? []).map((w) => [w.product_id, w]))
-  const productIds = Array.from(new Set([...amcByProduct.keys(), ...warrantyByProduct.keys()]))
 
   return (
     <div className="space-y-4 pb-4 pt-2">
@@ -122,7 +103,7 @@ export function CustomerProductsPage() {
 
       {showRegister ? <RegisterProductForm orgId={orgId} customerId={customerId} onDone={() => setShowRegister(false)} /> : null}
 
-      {productIds.length === 0 ? (
+      {(rows ?? []).length === 0 ? (
         <Card className="items-center gap-1.5 py-8 text-center">
           <Package className="size-6 text-text-muted" />
           <p className="text-sm text-text-muted">{t("customerApp.products.empty")}</p>
@@ -132,64 +113,21 @@ export function CustomerProductsPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {productIds.map((productId) => {
-            const amc = amcByProduct.get(productId)
-            const warranty = warrantyByProduct.get(productId)
-            const p = (amc ?? warranty)?.products
-            const name = p?.name ?? t("customerApp.products.unknownProduct")
-            const brandModel = [p?.brands?.name, p?.models?.name].filter(Boolean).join(" · ")
-
-            return (
-              <Card key={productId} className="gap-2.5">
-                <div className="flex items-start justify-between px-1">
-                  <div>
-                    <p className="text-sm font-semibold text-text">{name}</p>
-                    {brandModel ? <p className="text-xs text-text-muted">{brandModel}</p> : null}
-                  </div>
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
-                    <Package className="size-4" />
-                  </span>
-                </div>
-
-                {warranty ? (
-                  <div className="space-y-1.5 rounded-xl border border-border px-3.5 py-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <StatusDot
-                        tone={warranty.expiry_date >= today ? "info" : "neutral"}
-                        label={warranty.expiry_date >= today ? t("customerApp.products.warrantyActive") : t("customerApp.products.warrantyExpired")}
-                      />
-                      <span className="text-text-muted">{t("customerApp.products.expiresOn", { date: warranty.expiry_date })}</span>
-                    </div>
-                    <p className="text-text-muted">{t("customerApp.products.purchasedOn", { date: warranty.start_date })}</p>
-                  </div>
-                ) : null}
-
-                {amc ? (
-                  <div className="space-y-1.5 rounded-xl border border-border px-3.5 py-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <StatusDot
-                        tone={amc.status === "active" ? "success" : amc.status === "due_soon" ? "warning" : "danger"}
-                        label={t(`customerApp.amc.status.${amc.status}`)}
-                      />
-                      <span className="flex items-center gap-1 text-text-muted">
-                        <ShieldCheck className="size-3 shrink-0" />
-                        {amc.amc_plans?.name}
-                      </span>
-                    </div>
-                    <p className="text-text-muted">{t("customerApp.products.expiresOn", { date: amc.expiry_date })}</p>
-                    {amc.next_service_date ? (
-                      <p className="text-text-muted">{t("customerApp.products.nextServiceOn", { date: amc.next_service_date })}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-
+          {(rows ?? []).map(({ product, amc, warranty }) => (
+            <OwnedProductStatusCard
+              key={product.id}
+              product={product}
+              amc={amc}
+              warranty={warranty}
+              showAmcSection={product.category === "ro"}
+              actionSlot={
                 <Button size="sm" variant="outline" className="mx-1" onClick={() => navigate("/customer/book-service")}>
                   <Wrench className="size-3.5" />
                   {t("customerApp.products.bookService")}
                 </Button>
-              </Card>
-            )
-          })}
+              }
+            />
+          ))}
         </div>
       )}
     </div>

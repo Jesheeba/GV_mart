@@ -5,13 +5,18 @@ import { HighlightKpiCard } from "@/components/shared/HighlightKpiCard"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useFeedbackReport } from "@/hooks/useReports"
-import { defaultDateRange, downloadCsv, toCsv, type DateRange, type FeedbackReport } from "@/services/reports"
-import { DateRangeFilter } from "./DateRangeFilter"
+import { defaultDateRange, downloadCsv, periodToRange, toCsv, type FeedbackReport, type PeriodValue } from "@/services/reports"
+import { PeriodFilter } from "./PeriodFilter"
 
 export function FeedbackReportTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
-  const [range, setRange] = useState<DateRange>(() => defaultDateRange(90))
+  // NPS/feedback trend analysis genuinely wants a wider default window than
+  // "this month" (defaultPeriodValue's default) — starts in Custom-range
+  // mode with the original rolling 90-day window; switching to Month/Year
+  // mode still works normally from there.
+  const [period, setPeriod] = useState<PeriodValue>(() => ({ mode: "range", range: defaultDateRange(90) }))
+  const range = periodToRange(period)
 
   const { data, isLoading, isError, refetch } = useFeedbackReport(profile?.org_id, range)
 
@@ -44,7 +49,7 @@ export function FeedbackReportTab() {
 
   return (
     <div className="space-y-4">
-      <DateRangeFilter range={range} onChange={setRange} onExport={handleExport} />
+      <PeriodFilter value={period} onChange={setPeriod} onExport={handleExport} />
 
       {isError ? (
         <p className="text-sm text-danger">

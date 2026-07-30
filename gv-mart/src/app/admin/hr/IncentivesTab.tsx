@@ -48,12 +48,18 @@ export function IncentivesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="incentives-month" className="text-sm">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        {/* Owner request 2026-07-29: cosmetic-only alignment with the
+            Month/Year/Custom PeriodFilter's month-input styling used
+            elsewhere (Dashboard, Reports) — compute_incentives is an
+            exact-period RPC (one calendar month at a time, never a range),
+            so this stays its own <input type="month"> rather than adopting
+            PeriodFilter's mode-switch machinery. */}
+        <div className="space-y-1">
+          <Label htmlFor="incentives-month" className="block text-xs font-medium text-text-muted">
             {t("hr.incentives.month")}
           </Label>
-          <Input id="incentives-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-44" />
+          <Input id="incentives-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 max-w-44 border-border" />
         </div>
         <Button
           variant="accent"

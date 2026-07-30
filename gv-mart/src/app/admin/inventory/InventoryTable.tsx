@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Check, Inbox, Loader2, Minus, Pencil, Plus, TriangleAlert, X } from "lucide-react"
+import { Check, ClipboardList, Inbox, Loader2, Minus, Pencil, Plus, TriangleAlert, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAdjustStock, useInventoryList, useSetItemStandardTime, useUpdateThresholds } from "@/hooks/useInventory"
+import { productsHooks } from "@/hooks/useMasters"
 import { useProfile } from "@/hooks/useProfile"
 import { cn } from "@/lib/utils"
+import { ProductComplaintsPanel } from "@/app/admin/masters/ProductComplaintsPanel"
+import type { Enums } from "@/types/database"
 import type { InventoryListItem, ItemType } from "@/services/inventory"
 
 // Bespoke CSS-grid table (not the shared <DataTable>) — the design's column
@@ -36,17 +39,14 @@ function stockStatus(row: InventoryListItem): StatusKey {
 
 /**
  * Level-bar fill %: real stock_qty measured against this row's own
- * replenishment target (min_stock + reorder_qty — the level a restock is
- * meant to bring it back up to). The design mock used arbitrary per-row
- * numbers for a static screenshot with no real formula behind them; this is
- * a genuine derivation from real fields so the bar means something instead
- * of being invented.
+ * replenishment target (max_stock — the level a restock is meant to bring it
+ * back up to; also exactly what the auto-PO formula orders up to). The
+ * design mock used arbitrary per-row numbers for a static screenshot with no
+ * real formula behind them; this is a genuine derivation from real fields so
+ * the bar means something instead of being invented.
  */
 function stockLevelPct(row: InventoryListItem): number {
-  // Build Order C1: max_stock (once set) is the real replenishment ceiling —
-  // the same figure the reorder formula now targets — falling back to the
-  // old min+reorder approximation for any row without one set yet.
-  const target = row.max_stock ?? row.min_stock + row.reorder_qty
+  const target = row.max_stock
   if (target <= 0) return row.stock_qty > 0 ? 100 : 0
   return Math.max(0, Math.min(100, Math.round((row.stock_qty / target) * 100)))
 }
@@ -61,10 +61,22 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
   const adjustStock = useAdjustStock()
   const setStandardTime = useSetItemStandardTime()
 
+  // Product↔complaints connector (ProductComplaintsPanel.tsx) — only
+  // meaningful for itemType === "product" (spares/gifts have no complaint
+  // list). InventoryListItem doesn't carry category, so it's resolved here
+  // via productsHooks (cheap: same queryKey as ProductsTab.tsx, so it dedupes
+  // against that fetch when both are mounted, and is a small table either
+  // way) — only fetched at all while the Products tab is active.
+  const { data: productsForCategory } = productsHooks.useList(itemType === "product" ? orgId : undefined)
+  const categoryById = useMemo(
+    () => new Map((productsForCategory ?? []).map((p) => [p.id, p.category as Enums<"brand_category">])),
+    [productsForCategory]
+  )
+  const [complaintsItem, setComplaintsItem] = useState<{ productId: string; category: Enums<"brand_category">; name: string } | null>(null)
+
   const [editingId, setEditingId] = useState<string | null>(null)
   const [minStock, setMinStock] = useState("")
   const [maxStock, setMaxStock] = useState("")
-  const [reorderQty, setReorderQty] = useState("")
   const [adjustingId, setAdjustingId] = useState<string | null>(null)
   const [adjustDelta, setAdjustDelta] = useState("")
   // GV.md 1.1: standard time is edited separately from the min/max/reorder
@@ -82,11 +94,18 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
     )
   }, [rows, search])
 
+  // Out-of-stock gifts never block a sale (see gift_logs_decrement_stock
+  // trigger) — this banner is the "flag it to the admin" half of that
+  // decision. Derived live from `rows` (unfiltered by search) every render,
+  // so — unlike a dismissible notification — it keeps showing for as long
+  // as the gift is actually at 0, and clears itself the moment it's
+  // restocked, with no separate "seen/dismissed" state to track.
+  const outOfStockGifts = itemType === "gift" ? (rows ?? []).filter((r) => r.stock_qty <= 0) : []
+
   function startEdit(row: InventoryListItem) {
     setEditingId(row.id)
     setMinStock(String(row.min_stock))
-    setMaxStock(row.max_stock != null ? String(row.max_stock) : "")
-    setReorderQty(String(row.reorder_qty))
+    setMaxStock(String(row.max_stock))
   }
   function saveEdit(id: string) {
     updateThresholds.mutate(
@@ -94,11 +113,9 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
         id,
         patch: {
           min_stock: Number(minStock) || 0,
-          // Build Order C1: reorder qty = max_stock − current stock, so an
-          // explicit max is what actually drives ordering now — blank clears
-          // it back to the min_stock+reorder_qty fallback the trigger uses.
-          max_stock: maxStock.trim() === "" ? null : Number(maxStock) || 0,
-          reorder_qty: Number(reorderQty) || 0,
+          // Order qty = max_stock − current stock — max_stock is now the
+          // sole, required replenishment target (no more reorder_qty fallback).
+          max_stock: Number(maxStock) || 0,
         },
       },
       { onSuccess: () => setEditingId(null) }
@@ -139,6 +156,15 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
 
   return (
     <div>
+      {outOfStockGifts.length > 0 ? (
+        <div className="flex items-center gap-2.5 border-b border-danger/40 bg-danger/5 px-5.5 py-3">
+          <TriangleAlert className="size-4 shrink-0 text-danger" />
+          <p className="text-xs font-medium text-danger">
+            {t("inventory.giftOutOfStockBanner", { names: outOfStockGifts.map((r) => r.itemName).join(", ") })}
+          </p>
+        </div>
+      ) : null}
+
       <div className={cn("grid items-center border-t border-b border-border bg-surface-alt px-5.5 py-2.5", TABLE_GRID_COLS)}>
         {headers.map((h) => (
           <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
@@ -179,9 +205,28 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
               className={cn("grid items-center border-b border-[#F1EDE6] px-5.5 py-3.5 last:border-b-0 hover:bg-[#FAF8F4]", TABLE_GRID_COLS)}
             >
               <div className="min-w-0 pr-2">
-                <span className="block truncate text-[13px] font-semibold text-text">{r.itemName}</span>
-                {/* GV.md 1.1: standard service time, editable here by master AND operation_admin (unlike Masters > Products/Spares, which is master-only) — see set_item_standard_time RPC. */}
-                {editingTimeId === r.id ? (
+                <div className="flex items-center gap-1">
+                  <span className="block truncate text-[13px] font-semibold text-text">{r.itemName}</span>
+                  {/* Product↔complaints connector (ProductComplaintsPanel.tsx) — products only, spares/gifts have no complaint list. */}
+                  {itemType === "product" ? (
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      className="shrink-0"
+                      title={t("masters.productComplaints.manage")}
+                      disabled={!categoryById.has(r.item_id)}
+                      onClick={() => {
+                        const category = categoryById.get(r.item_id)
+                        if (!category) return
+                        setComplaintsItem({ productId: r.item_id, category, name: r.itemName })
+                      }}
+                    >
+                      <ClipboardList className="size-3" />
+                    </Button>
+                  ) : null}
+                </div>
+                {/* GV.md 1.1: standard service time, editable here by master AND operation_admin (unlike Masters > Products/Spares, which is master-only) — see set_item_standard_time RPC. Gifts have no service duration of their own (set_item_standard_time only covers products/spares) so this control is skipped entirely for them. */}
+                {itemType === "gift" ? null : editingTimeId === r.id ? (
                   <div className="mt-0.5 flex items-center gap-1">
                     <Input
                       className="h-6 w-14 px-1.5 text-[11px]"
@@ -239,25 +284,28 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                 // Spans the Min + Level tracks (col 4-5) — the level bar isn't
                 // meaningful mid-edit, so it's suppressed below for this row
                 // to give the two threshold inputs room without wrapping.
-                <div className="col-span-2 flex items-center gap-1 pr-4">
-                  <Input className="h-7 w-11 px-1 text-xs" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} title={t("inventory.min")} />
-                  <span className="text-xs text-text-muted">/</span>
-                  <Input className="h-7 w-11 px-1 text-xs" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} title={t("inventory.max")} placeholder={t("inventory.max")} />
-                  <span className="text-xs text-text-muted">/</span>
-                  <Input className="h-7 w-11 px-1 text-xs" type="number" value={reorderQty} onChange={(e) => setReorderQty(e.target.value)} title={t("inventory.thresholds")} />
-                  <Button size="icon-xs" variant="ghost" onClick={() => saveEdit(r.id)} disabled={updateThresholds.isPending}>
-                    {updateThresholds.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5 text-success" />}
-                  </Button>
-                  <Button size="icon-xs" variant="ghost" onClick={() => setEditingId(null)}>
-                    <X className="size-3.5 text-text-muted" />
-                  </Button>
+                <div className="col-span-2 flex flex-col gap-0.5 pr-4">
+                  <div className="flex items-center gap-1">
+                    <Input className="h-7 w-11 px-1 text-xs" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} title={t("inventory.min")} />
+                    <span className="text-xs text-text-muted">/</span>
+                    <Input className="h-7 w-11 px-1 text-xs" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} title={t("inventory.max")} placeholder={t("inventory.max")} />
+                    <Button size="icon-xs" variant="ghost" onClick={() => saveEdit(r.id)} disabled={updateThresholds.isPending}>
+                      {updateThresholds.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5 text-success" />}
+                    </Button>
+                    <Button size="icon-xs" variant="ghost" onClick={() => setEditingId(null)}>
+                      <X className="size-3.5 text-text-muted" />
+                    </Button>
+                  </div>
+                  {updateThresholds.isError && editingId === r.id ? (
+                    <p className="text-[10px] text-danger">{(updateThresholds.error as Error).message}</p>
+                  ) : null}
                 </div>
               ) : (
                 <>
                   <div className="flex items-center gap-1">
                     <span className="text-[13px] font-medium tabular-nums text-text-muted">
                       {r.min_stock}
-                      {r.max_stock != null ? <span className="text-text-muted/60">/{r.max_stock}</span> : null}
+                      <span className="text-text-muted/60">/{r.max_stock}</span>
                     </span>
                     <Button size="icon-xs" variant="ghost" title={t("inventory.thresholds")} onClick={() => startEdit(r)}>
                       <Pencil className="size-3" />
@@ -281,6 +329,17 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
           )
         })
       )}
+
+      {complaintsItem ? (
+        <ProductComplaintsPanel
+          key={complaintsItem.productId}
+          orgId={orgId}
+          productId={complaintsItem.productId}
+          productCategory={complaintsItem.category}
+          productName={complaintsItem.name}
+          onClose={() => setComplaintsItem(null)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -13,6 +13,7 @@ import { DraftBanner } from "@/components/shared/DraftBanner"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useSettings, giftsHooks, brandsHooks, modelsHooks, productsHooks, sparesHooks } from "@/hooks/useMasters"
+import { useInventoryList } from "@/hooks/useInventory"
 import { useCreateSale, useCustomerReferralBalance } from "@/hooks/useSales"
 import { useQuotation } from "@/hooks/useQuotations"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
@@ -83,6 +84,12 @@ export function NewSalePage() {
 
   const { data: settings } = useSettings(orgId)
   const { data: gifts } = giftsHooks.useList(orgId)
+  // Stock is informational here, not a hard gate — an out-of-stock gift is
+  // still selectable (it just won't physically decrement below 0; see
+  // gift_logs_decrement_stock trigger). A gift is a bonus, never a blocker
+  // to a paying customer, so this only helps the cashier pick an in-stock
+  // gift when more than one qualifies.
+  const { data: giftInventory } = useInventoryList(orgId, "gift")
   const { data: referralBalance } = useCustomerReferralBalance(customerId ?? undefined)
   const createSale = useCreateSale()
 
@@ -197,6 +204,7 @@ export function NewSalePage() {
   const combined = combinedSubtotal(cart)
   const eligibleGifts = (gifts ?? []).filter((g) => combined >= Number(g.threshold_amount))
   const selectedGift = (gifts ?? []).find((g) => g.id === giftId) ?? null
+  const giftStockById = new Map((giftInventory ?? []).map((r) => [r.item_id, r.stock_qty]))
 
   const steps = STEP_KEYS.map((key) => ({ key, label: t(`sales.steps.${key}`) }))
 
@@ -383,16 +391,27 @@ export function NewSalePage() {
                   >
                     {t("sales.gift.none")}
                   </button>
-                  {eligibleGifts.map((g) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => setGiftId(g.id)}
-                      className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm ${giftId === g.id ? "border-accent bg-accent-soft text-accent" : "border-border text-text"}`}
-                    >
-                      {g.name} — {t("sales.gift.thresholdNote", { amount: formatCurrency(Number(g.threshold_amount)) })}
-                    </button>
-                  ))}
+                  {eligibleGifts.map((g) => {
+                    const stock = giftStockById.get(g.id)
+                    const outOfStock = stock !== undefined && stock <= 0
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setGiftId(g.id)}
+                        className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left text-sm ${giftId === g.id ? "border-accent bg-accent-soft text-accent" : "border-border text-text"}`}
+                      >
+                        <span>
+                          {g.name} — {t("sales.gift.thresholdNote", { amount: formatCurrency(Number(g.threshold_amount)) })}
+                        </span>
+                        {outOfStock ? (
+                          <span className="shrink-0 rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-bold text-danger">
+                            {t("inventory.status.out")}
+                          </span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </Card>

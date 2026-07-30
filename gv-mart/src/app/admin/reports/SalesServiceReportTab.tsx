@@ -6,14 +6,15 @@ import { HighlightKpiCard } from "@/components/shared/HighlightKpiCard"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useSalesServiceReport } from "@/hooks/useReports"
-import { defaultDateRange, downloadCsv, toCsv, type DateRange } from "@/services/reports"
+import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
-import { DateRangeFilter } from "./DateRangeFilter"
+import { PeriodFilter } from "./PeriodFilter"
 
 export function SalesServiceReportTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
-  const [range, setRange] = useState<DateRange>(() => defaultDateRange())
+  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
+  const range = periodToRange(period)
 
   const { data, isLoading, isError, refetch } = useSalesServiceReport(profile?.org_id, range)
 
@@ -34,7 +35,7 @@ export function SalesServiceReportTab() {
 
   return (
     <div className="space-y-4">
-      <DateRangeFilter range={range} onChange={setRange} onExport={handleExport} />
+      <PeriodFilter value={period} onChange={setPeriod} onExport={handleExport} />
 
       {isError ? (
         <p className="text-sm text-danger">

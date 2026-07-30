@@ -229,8 +229,8 @@ export function TechnicianDetailPage() {
         ) : null}
 
         <div className="grid grid-cols-2 gap-3 border-t border-border px-1 pt-4 sm:grid-cols-4">
-          <StatCell label={t("technicians.list.kpiJobsToday")} value={technician.todaysJobCount} />
-          <StatCell label={t("technicians.list.kpiRevenueToday")} value={`₹${technician.todaysRevenue.toLocaleString("en-IN")}`} />
+          <StatCell label={t("technicians.list.kpiJobsToday")} value={technician.periodJobCount} />
+          <StatCell label={t("technicians.list.kpiRevenueToday")} value={`₹${technician.periodRevenue.toLocaleString("en-IN")}`} />
           <StatCell label={t("technicians.list.avgRating")} value={technician.avgRating != null ? `${technician.avgRating} ★` : "—"} />
           <StatCell label={t("technicians.detail.totalJobs")} value={history.data?.length ?? "—"} />
         </div>

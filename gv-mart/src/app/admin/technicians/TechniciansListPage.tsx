@@ -8,7 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
 import { useCreateTechnician, useEligibleTechnicianProfiles, useTechniciansList } from "@/hooks/useTechniciansAdmin"
 import type { TechnicianListItem } from "@/services/techniciansAdmin"
+import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
 import { cn } from "@/lib/utils"
+import { PeriodFilter } from "@/app/admin/reports/PeriodFilter"
 
 // Matches the design's 6-column table grid (design-template-decoded.html
 // line 1139): Technician / Phone / Status / Jobs / Revenue / Rating. The
@@ -38,7 +40,13 @@ export function TechniciansListPage() {
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
-  const { data: technicians, isLoading, isError, refetch } = useTechniciansList(orgId)
+  // Owner request 2026-07-29: the KPI row (jobs/revenue) used to always mean
+  // "today" with no way to look at a past month/year — now driven by the
+  // same PeriodFilter every dashboard/report uses. Defaults to the current
+  // month, whose bounds include today, so first-load output is unchanged.
+  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
+  const range = periodToRange(period)
+  const { data: technicians, isLoading, isError, refetch } = useTechniciansList(orgId, range)
 
   const [search, setSearch] = useState("")
   const [dutyFilter, setDutyFilter] = useState<"all" | "on" | "off">("all")
@@ -55,8 +63,8 @@ export function TechniciansListPage() {
   // can't be weighted by review volume).
   const kpis = useMemo(() => {
     const onDuty = allRows.filter((r) => r.is_on_duty).length
-    const totalJobs = allRows.reduce((sum, r) => sum + r.todaysJobCount, 0)
-    const totalRevenue = allRows.reduce((sum, r) => sum + r.todaysRevenue, 0)
+    const totalJobs = allRows.reduce((sum, r) => sum + r.periodJobCount, 0)
+    const totalRevenue = allRows.reduce((sum, r) => sum + r.periodRevenue, 0)
     const rated = allRows.filter((r) => r.avgRating != null)
     const avgRating =
       rated.length > 0 ? Math.round((rated.reduce((sum, r) => sum + (r.avgRating ?? 0), 0) / rated.length) * 10) / 10 : null
@@ -119,6 +127,10 @@ export function TechniciansListPage() {
         </div>
       </div>
 
+      <div className="rounded-card border border-border bg-surface p-4 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+        <PeriodFilter value={period} onChange={setPeriod} />
+      </div>
+
       <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-4">
         <TechKpiCard
           label={t("technicians.list.kpiOnDuty")}
@@ -132,9 +144,9 @@ export function TechniciansListPage() {
             )
           }
         />
-        <TechKpiCard label={t("technicians.list.kpiJobsToday")} value={isLoading ? "—" : kpis.totalJobs} />
+        <TechKpiCard label={t("technicians.list.kpiJobsPeriod")} value={isLoading ? "—" : kpis.totalJobs} />
         <TechKpiCard
-          label={t("technicians.list.kpiRevenueToday")}
+          label={t("technicians.list.kpiRevenuePeriod")}
           value={isLoading ? "—" : `₹${kpis.totalRevenue.toLocaleString("en-IN")}`}
         />
         <TechKpiCard
@@ -371,8 +383,8 @@ function TechniciansTable({
                 <span className={cn("size-1.75 shrink-0 rounded-full", STATUS_DOT_CLASS[tone])} />
                 {statusLabel}
               </span>
-              <span className="text-[13px] font-semibold tabular-nums text-text">{r.todaysJobCount}</span>
-              <span className="text-[13px] font-bold tabular-nums text-text">₹{r.todaysRevenue.toLocaleString("en-IN")}</span>
+              <span className="text-[13px] font-semibold tabular-nums text-text">{r.periodJobCount}</span>
+              <span className="text-[13px] font-bold tabular-nums text-text">₹{r.periodRevenue.toLocaleString("en-IN")}</span>
               <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-text">
                 {r.avgRating != null ? (
                   <>

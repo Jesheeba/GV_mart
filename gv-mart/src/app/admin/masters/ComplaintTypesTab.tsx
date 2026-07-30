@@ -11,13 +11,21 @@ const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
  * feeding the filtered auto-suggest on the customer booking and admin
  * new-complaint screens. Previously declined, now authorized (Build Order
  * STEP 6.4).
+ *
+ * Schema now also carries a nullable `product_id` (migration
+ * 20260729140000_complaint_types_per_product.sql): rows with product_id
+ * null are the category-wide defaults this tab manages; product-specific
+ * overrides are managed from Inventory / Masters > Products instead. This
+ * tab filters the shared list down to product_id === null and always
+ * writes null on create so it never creates or edits a product-scoped row.
  */
 export function ComplaintTypesTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
-  const { data: rows, isLoading, isError, refetch } = complaintTypesHooks.useList(orgId)
+  const { data: allRows, isLoading, isError, refetch } = complaintTypesHooks.useList(orgId)
+  const rows = (allRows ?? []).filter((r) => r.product_id === null)
   const createMut = complaintTypesHooks.useCreate()
   const updateMut = complaintTypesHooks.useUpdate()
   const deleteMut = complaintTypesHooks.useDelete()
@@ -33,35 +41,39 @@ export function ComplaintTypesTab() {
   ]
 
   return (
-    <EntityCrudTable<ComplaintTypeRow>
-      fields={fields}
-      rows={rows ?? []}
-      getId={(r) => r.id}
-      loading={isLoading}
-      error={isError ? t("masters.loadFailed") : null}
-      onRetry={() => refetch()}
-      isMutating={createMut.isPending || updateMut.isPending}
-      addLabel={t("masters.complaintTypes.add")}
-      emptyMessage={t("masters.complaintTypes.empty")}
-      toFormValues={(r) => ({ product_category: r.product_category, label: r.label })}
-      columns={[
-        { key: "category", header: t("masters.complaintTypes.category"), render: (r) => t(`masters.categories.${r.product_category}`) },
-        { key: "label", header: t("masters.complaintTypes.label"), render: (r) => <span className="font-medium text-text">{r.label}</span> },
-      ]}
-      onCreate={(v) =>
-        createMut.mutateAsync({
-          org_id: orgId!,
-          product_category: v.product_category as ComplaintTypeRow["product_category"],
-          label: v.label,
-        })
-      }
-      onUpdate={(id, v) =>
-        updateMut.mutateAsync({
-          id,
-          patch: { product_category: v.product_category as ComplaintTypeRow["product_category"], label: v.label },
-        })
-      }
-      onDelete={(id) => deleteMut.mutateAsync(id)}
-    />
+    <div className="space-y-3">
+      <p className="px-1 text-xs text-text-muted">{t("masters.complaintTypes.hint")}</p>
+      <EntityCrudTable<ComplaintTypeRow>
+        fields={fields}
+        rows={rows}
+        getId={(r) => r.id}
+        loading={isLoading}
+        error={isError ? t("masters.loadFailed") : null}
+        onRetry={() => refetch()}
+        isMutating={createMut.isPending || updateMut.isPending}
+        addLabel={t("masters.complaintTypes.add")}
+        emptyMessage={t("masters.complaintTypes.empty")}
+        toFormValues={(r) => ({ product_category: r.product_category, label: r.label })}
+        columns={[
+          { key: "category", header: t("masters.complaintTypes.category"), render: (r) => t(`masters.categories.${r.product_category}`) },
+          { key: "label", header: t("masters.complaintTypes.label"), render: (r) => <span className="font-medium text-text">{r.label}</span> },
+        ]}
+        onCreate={(v) =>
+          createMut.mutateAsync({
+            org_id: orgId!,
+            product_category: v.product_category as ComplaintTypeRow["product_category"],
+            label: v.label,
+            product_id: null,
+          })
+        }
+        onUpdate={(id, v) =>
+          updateMut.mutateAsync({
+            id,
+            patch: { product_category: v.product_category as ComplaintTypeRow["product_category"], label: v.label },
+          })
+        }
+        onDelete={(id) => deleteMut.mutateAsync(id)}
+      />
+    </div>
   )
 }

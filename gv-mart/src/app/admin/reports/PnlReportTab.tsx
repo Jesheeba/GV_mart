@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { Loader2, Plus } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { usePnlReport, useCreateExpense } from "@/hooks/useReports"
-import { defaultDateRange, downloadCsv, toCsv, type DateRange } from "@/services/reports"
+import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue } from "@/services/reports"
 import { createExpenseSchema, expenseCategories, type CreateExpenseFormInput, type CreateExpenseOutput } from "@/lib/validation/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { DateRangeFilter } from "./DateRangeFilter"
+import { PeriodFilter } from "./PeriodFilter"
 
 // Expense bar color rank: biggest category = ink, smallest = the muted
 // tan-grey swatch already established in AmcWarrantyListPage.tsx (tier-0
@@ -30,7 +30,8 @@ function barColor(index: number, count: number) {
 export function PnlReportTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
-  const [range, setRange] = useState<DateRange>(() => defaultDateRange())
+  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
+  const range = periodToRange(period)
   const [withGst, setWithGst] = useState(true)
   const [showLogExpense, setShowLogExpense] = useState(false)
   // F2 category filter — scopes the Expense Breakdown panel below to one
@@ -79,7 +80,7 @@ export function PnlReportTab() {
 
   return (
     <div className="space-y-4">
-      <DateRangeFilter range={range} onChange={setRange} onExport={handleExport} />
+      <PeriodFilter value={period} onChange={setPeriod} onExport={handleExport} />
 
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-text">{t("reports.pnl.gstToggle")}</span>

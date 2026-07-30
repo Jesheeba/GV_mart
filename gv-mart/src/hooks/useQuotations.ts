@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as quotations from "@/services/quotations"
+import type { DateRange } from "@/services/reports"
 
-export function useQuotationsList(orgId: string | undefined) {
+export function useQuotationsList(orgId: string | undefined, dateRange?: DateRange) {
   return useQuery({
-    queryKey: ["quotations", "list", orgId],
-    queryFn: () => quotations.listQuotations(orgId!),
+    queryKey: ["quotations", "list", orgId, dateRange],
+    queryFn: () => quotations.listQuotations(orgId!, dateRange),
     enabled: !!orgId,
   })
 }

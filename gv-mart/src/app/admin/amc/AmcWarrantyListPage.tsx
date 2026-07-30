@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Inbox, Plus, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
+import { SegButton } from "@/components/shared/SegButton"
 import { useProfile } from "@/hooks/useProfile"
 import { useAmcContracts, useRefreshAmcStatuses, useWarranties } from "@/hooks/useAmc"
 import { amcPlansHooks, useSettings } from "@/hooks/useMasters"
@@ -197,22 +198,6 @@ export function AmcWarrantyListPage() {
         )}
       </div>
     </div>
-  )
-}
-
-function SegButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "rounded-full px-4 py-[7px] text-xs font-semibold transition-colors",
-        active ? "bg-ink text-white" : "text-text-muted"
-      )}
-    >
-      {children}
-    </button>
   )
 }
 

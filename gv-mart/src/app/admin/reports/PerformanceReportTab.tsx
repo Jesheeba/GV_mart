@@ -6,10 +6,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard } from "@/components/shared/KpiCard"
 import { useProfile } from "@/hooks/useProfile"
 import { useOpsResolutionKpi, usePerformanceReport } from "@/hooks/useReports"
-import { defaultDateRange, downloadCsv, toCsv, type DateRange } from "@/services/reports"
+import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
-import { DateRangeFilter } from "./DateRangeFilter"
+import { PeriodFilter } from "./PeriodFilter"
 
 // Design's scoreboard grid track widths (design-template-decoded.html line
 // 1242: "0.5fr 1.6fr 1fr 1fr 1fr 1fr 0.9fr") — fractional tracks a <table>
@@ -58,7 +58,8 @@ function firstFixTone(percent: number | null) {
 export function PerformanceReportTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
-  const [range, setRange] = useState<DateRange>(() => defaultDateRange())
+  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
+  const range = periodToRange(period)
 
   const { data, isLoading, isError, refetch } = usePerformanceReport(profile?.org_id, range)
   const opsKpi = useOpsResolutionKpi(profile?.org_id, range)
@@ -94,7 +95,7 @@ export function PerformanceReportTab() {
 
   return (
     <div className="space-y-4">
-      <DateRangeFilter range={range} onChange={setRange} onExport={handleExport} />
+      <PeriodFilter value={period} onChange={setPeriod} onExport={handleExport} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <KpiCard

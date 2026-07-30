@@ -24,7 +24,6 @@ export const settingsSchema = z
     review_link_min_stars: z.coerce.number().min(1).max(5, "settings.errors.starsRange"),
     google_review_url: z.string().trim().url("settings.errors.urlInvalid").optional().or(z.literal("")),
     default_min_stock: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
-    default_reorder_qty: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     gst_rate: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
     sla_hours_very_urgent: z.coerce.number().positive("settings.errors.positive"),
     sla_hours_urgent: z.coerce.number().positive("settings.errors.positive"),

@@ -17,7 +17,7 @@ import {
   PRODUCTS,
   SPARES,
   DEFAULT_MIN_STOCK,
-  DEFAULT_REORDER_QTY,
+  DEFAULT_MAX_STOCK,
   PRODUCT_STOCK,
   SPARE_STOCK,
   SUPPLIERS,
@@ -180,7 +180,7 @@ async function main() {
   }
   console.log(`spares: ${SPARES.length}`)
 
-  // ---- Inventory: v2.2 min_stock=10, reorder_qty=10 for every item ----
+  // ---- Inventory: v2.2 min_stock=10, max_stock=20 for every item ----
   const inventoryRows = [
     ...productIds.map((id, i) => ({
       org_id: org.id,
@@ -188,7 +188,7 @@ async function main() {
       item_id: id,
       stock_qty: PRODUCT_STOCK[i],
       min_stock: DEFAULT_MIN_STOCK,
-      reorder_qty: DEFAULT_REORDER_QTY,
+      max_stock: DEFAULT_MAX_STOCK,
       location: "warehouse" as const,
     })),
     ...spareIds.map((id, i) => ({
@@ -197,13 +197,13 @@ async function main() {
       item_id: id,
       stock_qty: SPARE_STOCK[i],
       min_stock: DEFAULT_MIN_STOCK,
-      reorder_qty: DEFAULT_REORDER_QTY,
+      max_stock: DEFAULT_MAX_STOCK,
       location: "warehouse" as const,
     })),
   ]
   const { error: inventoryError } = await supabase.from("inventory").insert(inventoryRows)
   if (inventoryError) throw new Error(`inventory: ${inventoryError.message}`)
-  console.log(`inventory: ${inventoryRows.length} rows (min/reorder 10/10 everywhere)`)
+  console.log(`inventory: ${inventoryRows.length} rows (min/max 10/20 everywhere)`)
 
   // ---- Suppliers, linked to a spread of spares/products ----
   const supplierIds: string[] = []

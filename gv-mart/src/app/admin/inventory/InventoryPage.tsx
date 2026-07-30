@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { Receipt, Search } from "lucide-react"
+import { Receipt, Search, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useInventoryList } from "@/hooks/useInventory"
+import { useLinkedItemKeys } from "@/hooks/useSuppliers"
 import { useProfile } from "@/hooks/useProfile"
 import { cn } from "@/lib/utils"
 import type { ItemType } from "@/services/inventory"
@@ -24,6 +25,15 @@ export function InventoryPage() {
   // subtitle (line 1166) counts the whole catalog, not just the active tab.
   const { data: products } = useInventoryList(orgId, "product")
   const { data: spares } = useInventoryList(orgId, "spare")
+  const { data: gifts } = useInventoryList(orgId, "gift")
+  // Needed to tell "will actually auto-reorder" apart from "below min but no
+  // supplier linked, so _auto_draft_purchase_order silently no-ops" — see
+  // stats.autoPo/needsSupplier below.
+  const { data: linkedItems } = useLinkedItemKeys(orgId)
+  const linkedKeys = useMemo(
+    () => new Set((linkedItems ?? []).map((l) => `${l.item_type}:${l.item_id}`)),
+    [linkedItems]
+  )
 
   // Real counts derived from stock_qty vs min_stock on the fetched rows.
   // The design's subtitle also shows a "₹8.4L stock value" figure — omitted
@@ -31,15 +41,22 @@ export function InventoryPage() {
   // (types/database.ts), not a per-unit cost, so a ₹ stock-value total would
   // be fabricated rather than real.
   const stats = useMemo(() => {
-    const all = [...(products ?? []), ...(spares ?? [])]
+    const all = [...(products ?? []), ...(spares ?? []), ...(gifts ?? [])]
+    const belowMin = all.filter((r) => r.stock_qty > 0 && r.stock_qty <= r.min_stock)
+    // "low" (the subtitle's plain low-stock count) stays every below-min
+    // item — that's genuinely true regardless of supplier linkage. Only the
+    // Auto-PO badge needs the supplier-link split, since that badge
+    // specifically claims a reorder is in progress.
     return {
       total: all.length,
-      low: all.filter((r) => r.stock_qty > 0 && r.stock_qty <= r.min_stock).length,
+      low: belowMin.length,
       out: all.filter((r) => r.stock_qty <= 0).length,
+      autoPo: belowMin.filter((r) => linkedKeys.has(`${r.item_type}:${r.item_id}`)).length,
+      needsSupplier: belowMin.filter((r) => !linkedKeys.has(`${r.item_type}:${r.item_id}`)).length,
     }
-  }, [products, spares])
+  }, [products, spares, gifts, linkedKeys])
 
-  const statsReady = !!products && !!spares
+  const statsReady = !!products && !!spares && !!gifts
 
   return (
     <div className="space-y-4 pt-2">
@@ -52,6 +69,18 @@ export function InventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
+          {stats.needsSupplier > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 bg-warning/10 text-warning hover:bg-warning/15"
+              onClick={() => navigate("/admin/suppliers")}
+              title={t("inventory.needsSupplierLinkHint")}
+            >
+              <TriangleAlert className="size-3.5" />
+              {t("inventory.needsSupplierLink", { count: stats.needsSupplier })}
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="sm"
@@ -59,7 +88,7 @@ export function InventoryPage() {
             onClick={() => navigate("/admin/purchase")}
           >
             <Receipt className="size-3.5" />
-            {t("inventory.autoPo", { count: stats.low })}
+            {t("inventory.autoPo", { count: stats.autoPo })}
           </Button>
         </div>
       </div>
@@ -89,6 +118,17 @@ export function InventoryPage() {
             >
               {t("masters.tabs.spares")}
             </button>
+            <button
+              type="button"
+              aria-pressed={itemType === "gift"}
+              onClick={() => setItemType("gift")}
+              className={cn(
+                "rounded-full px-4 py-1.75 text-xs font-semibold transition-colors",
+                itemType === "gift" ? "bg-ink text-white" : "text-text-muted"
+              )}
+            >
+              {t("masters.tabs.gifts")}
+            </button>
           </div>
 
           <div className="flex w-70 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
@@ -97,7 +137,13 @@ export function InventoryPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={itemType === "product" ? t("inventory.searchProducts") : t("inventory.searchSpares")}
+              placeholder={
+                itemType === "product"
+                  ? t("inventory.searchProducts")
+                  : itemType === "spare"
+                    ? t("inventory.searchSpares")
+                    : t("inventory.searchGifts")
+              }
               className="w-full bg-transparent text-xs font-medium text-text outline-none placeholder:text-text-muted"
             />
           </div>

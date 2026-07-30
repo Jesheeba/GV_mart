@@ -88,6 +88,10 @@ const CustomerProductsPage = lazyPage(() => import("@/app/customer/CustomerProdu
 const CustomerBookingsPage = lazyPage(() => import("@/app/customer/CustomerBookingsPage"), "CustomerBookingsPage")
 const CustomerBookingDetailPage = lazyPage(() => import("@/app/customer/CustomerBookingDetailPage"), "CustomerBookingDetailPage")
 const CustomerAmcPage = lazyPage(() => import("@/app/customer/CustomerAmcPage"), "CustomerAmcPage")
+const CustomerAmcProductDetailPage = lazyPage(
+  () => import("@/app/customer/CustomerAmcProductDetailPage"),
+  "CustomerAmcProductDetailPage"
+)
 const CustomerProductEnquiryPage = lazyPage(() => import("@/app/customer/CustomerProductEnquiryPage"), "CustomerProductEnquiryPage")
 const CustomerSpareEnquiryPage = lazyPage(() => import("@/app/customer/CustomerSpareEnquiryPage"), "CustomerSpareEnquiryPage")
 const BookServicePage = lazyPage(() => import("@/app/customer/service/BookServicePage"), "BookServicePage")
@@ -270,7 +274,13 @@ export const router = createBrowserRouter([
                 ],
               },
               { path: "profile", element: <CustomerProfilePage /> },
-              { path: "amc", element: <CustomerAmcPage /> },
+              {
+                path: "amc",
+                children: [
+                  { index: true, element: <CustomerAmcPage /> },
+                  { path: ":productId", element: <CustomerAmcProductDetailPage /> },
+                ],
+              },
               { path: "book-service", element: <BookServicePage /> },
               { path: "product-enquiry", element: <CustomerProductEnquiryPage /> },
               { path: "spare-enquiry", element: <CustomerSpareEnquiryPage /> },

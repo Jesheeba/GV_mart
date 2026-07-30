@@ -58,7 +58,6 @@ export function SettingsTab() {
         review_link_min_stars: Number(settings.review_link_min_stars),
         google_review_url: settings.google_review_url ?? "",
         default_min_stock: settings.default_min_stock,
-        default_reorder_qty: settings.default_reorder_qty,
         gst_rate: Number(settings.gst_rate),
         sla_hours_very_urgent: Number(settings.sla_hours_very_urgent),
         sla_hours_urgent: Number(settings.sla_hours_urgent),
@@ -198,7 +197,6 @@ export function SettingsTab() {
         <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.inventory")}</h3>
         <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
           {field("default_min_stock", t("settings.defaultMinStock"), "number", "1")}
-          {field("default_reorder_qty", t("settings.defaultReorderQty"), "number", "1")}
           {field("po_approval_threshold", t("settings.poApprovalThreshold"), "number", "100")}
           {field("po_quote_timeout_hours", t("settings.poQuoteTimeoutHours"), "number", "1")}
         </div>

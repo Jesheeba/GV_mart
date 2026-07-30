@@ -52,6 +52,12 @@ export function MastersPage() {
   const { data: amcPlans } = amcPlansHooks.useList(orgId)
   const { data: incentiveRules } = incentiveRulesHooks.useList(orgId)
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
+  // complaintTypes now also holds product-specific rows (product_id set),
+  // managed from Inventory / Masters > Products, not from this tab. The
+  // overview count should match what ComplaintTypesTab actually lists —
+  // category-wide defaults only (product_id === null) — otherwise this
+  // card's number would silently drift from the table beneath it.
+  const complaintTypeDefaultsCount = (complaintTypes ?? []).filter((c) => c.product_id === null).length
 
   const modules: { id: ModuleId; icon: typeof Tag; swatch: keyof typeof SWATCH; title: string; desc: string }[] = [
     { id: "brands", icon: Tag, swatch: "ink", title: t("masters.tabs.brands"), desc: t("masters.overview.brandsDesc", { count: brands?.length ?? 0 }) },
@@ -61,7 +67,7 @@ export function MastersPage() {
     { id: "gifts", icon: Gift, swatch: "green", title: t("masters.tabs.gifts"), desc: t("masters.overview.giftsDesc", { count: gifts?.length ?? 0 }) },
     { id: "amcPlans", icon: ShieldCheck, swatch: "info", title: t("masters.tabs.amcPlans"), desc: t("masters.overview.amcPlansDesc", { count: amcPlans?.length ?? 0 }) },
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
-    { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypes?.length ?? 0 }) },
+    { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypeDefaultsCount }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
   ]
 

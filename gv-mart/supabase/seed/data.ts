@@ -3,8 +3,10 @@
  * catalog/customer data. Pure data only (no Supabase calls) so it can be
  * imported by both the real seed script and test harnesses.
  *
- * v2.2 compliance: every product/spare gets min_stock=10, reorder_qty=10
- * (Design Deltas §A.1). No incentive/salary rates are seeded — those stay
+ * v2.2 compliance: every product/spare gets min_stock=10, max_stock=20
+ * (Design Deltas §A.1's original min/reorder 10/10, carried forward as the
+ * min/max pair now that reorder_qty is gone — see 20260729100000_reorder_
+ * max_stock_only.sql). No incentive/salary rates are seeded — those stay
  * admin-set via the Masters UI (v2.2: "no fixed ₹ figures").
  */
 
@@ -93,9 +95,10 @@ export const SPARES = [
   { name: "Inverter Fuse", sku: "SP-INV-FUS-01", price: 60, hsn_code: "8536" },
 ] as const
 
-// v2.2 Design Deltas §A.1: min stock = 10, reorder qty = 10 for every item.
+// v2.2 Design Deltas §A.1: min stock = 10, max stock = 20 for every item
+// (the auto-PO refill target — order qty = max_stock - stock_qty).
 export const DEFAULT_MIN_STOCK = 10
-export const DEFAULT_REORDER_QTY = 10
+export const DEFAULT_MAX_STOCK = 20
 
 // Deliberately realistic and uneven — a few items sit below min_stock so the
 // Low/Out-of-stock states have real demo data once Inventory (ADM-18) ships.

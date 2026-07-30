@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as techniciansAdmin from "@/services/techniciansAdmin"
 import type { CreateSpareHandoverInput } from "@/services/techniciansAdmin"
+import type { DateRange } from "@/services/reports"
 
-export function useTechniciansList(orgId: string | undefined) {
+export function useTechniciansList(orgId: string | undefined, range?: DateRange) {
   return useQuery({
-    queryKey: ["technicians", "adminList", orgId],
-    queryFn: () => techniciansAdmin.listTechnicians(orgId!),
+    queryKey: ["technicians", "adminList", orgId, range],
+    queryFn: () => techniciansAdmin.listTechnicians(orgId!, range),
     enabled: !!orgId,
   })
 }

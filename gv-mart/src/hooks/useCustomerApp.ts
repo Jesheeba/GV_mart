@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as api from "@/services/customerApp"
-import type { AddressInput, EnquiryRpcInput, RenewAmcInput, ServiceBookingRpcInput } from "@/services/customerApp"
+import type {
+  AddressInput,
+  EnquiryRpcInput,
+  MyAmcContractRow,
+  MyWarrantyRow,
+  RenewAmcInput,
+  ServiceBookingRpcInput,
+} from "@/services/customerApp"
 import { useProfile } from "@/hooks/useProfile"
 import { supabase } from "@/lib/supabase"
 
@@ -186,6 +193,44 @@ export function useMyOwnedProducts(customerId: string | undefined) {
   }
 }
 
+export type OwnedProductWithStatus = {
+  product: MyOwnedProduct
+  amc: MyAmcContractRow | undefined
+  warranty: MyWarrantyRow | undefined
+}
+
+/**
+ * Per-product union of ownership + current coverage status — the shared
+ * source both CustomerProductsPage and CustomerAmcPage render into cards
+ * (AMC page redesign). Built on useMyOwnedProducts, NOT useOwnedProducts
+ * (the full org catalog), so a card can never be shown — and AMC can never
+ * be booked — for a product this customer doesn't actually own.
+ */
+export function useOwnedProductsWithStatus(customerId: string | undefined) {
+  const owned = useMyOwnedProducts(customerId)
+  const amcContracts = useMyAmcContracts(customerId)
+  const warranties = useMyWarranties(customerId)
+
+  const data: OwnedProductWithStatus[] | undefined = owned.data
+    ? owned.data.map((product) => ({
+        product,
+        amc: (amcContracts.data ?? []).find((c) => c.product_id === product.id),
+        warranty: (warranties.data ?? []).find((w) => w.product_id === product.id),
+      }))
+    : undefined
+
+  return {
+    data,
+    isLoading: owned.isLoading || amcContracts.isLoading || warranties.isLoading,
+    isError: owned.isError || amcContracts.isError || warranties.isError,
+    refetch: () => {
+      owned.refetch()
+      amcContracts.refetch()
+      warranties.refetch()
+    },
+  }
+}
+
 export function useRegisterProductViaQr(orgId: string | undefined, customerId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -258,6 +303,14 @@ export function useRenewAmcPlan(customerId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["customerApp", "amcContracts", customerId] })
       queryClient.invalidateQueries({ queryKey: ["customerApp", "tickets", customerId] })
     },
+  })
+}
+
+export function useMyAmcContractHistory(customerId: string | undefined, productId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "amcContractHistory", customerId, productId],
+    queryFn: () => api.listMyAmcContractHistory(customerId!, productId!),
+    enabled: !!customerId && !!productId,
   })
 }
 

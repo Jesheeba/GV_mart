@@ -41,6 +41,40 @@ export function dateRangeForPreset(preset: DateRangePreset): DateRange {
   return { from: "2000-01-01", to: toStr(now) }
 }
 
+// ── Month/Year/Custom period filter ──────────────────────────────────────
+// Owner request 2026-07-29: every dashboard/report screen was hardcoded to
+// "this month"/"today"/"trailing N months" with no way to look at a past
+// month or year. PeriodValue is the single value PeriodFilter.tsx produces
+// and every screen consumes — mode-tagged (not just a resolved DateRange)
+// because some callers (the dashboard's P&L trend chart) need to know
+// *which* month/year was picked, not just its bounds, to decide how many
+// bars to render. periodToRange() is the one place that collapses a
+// PeriodValue down to the plain DateRange every report hook already takes —
+// no query/RPC anywhere needs to change to support this.
+export type PeriodMode = "month" | "year" | "range"
+export type PeriodValue =
+  | { mode: "month"; month: string } // "2026-07" — same shape <input type="month"> already produces (see hr/SalaryTab.tsx)
+  | { mode: "year"; year: number }
+  | { mode: "range"; range: DateRange }
+
+export function periodToRange(value: PeriodValue): DateRange {
+  if (value.mode === "range") return value.range
+  if (value.mode === "year") {
+    return { from: `${value.year}-01-01`, to: `${value.year}-12-31` }
+  }
+  // "month" — last day of the month via day 0 of the next month, same trick dateRangeForPreset uses.
+  const [y, m] = value.month.split("-").map(Number)
+  const from = new Date(y, m - 1, 1)
+  const to = new Date(y, m, 0)
+  const toStr = (d: Date) => d.toISOString().slice(0, 10)
+  return { from: toStr(from), to: toStr(to) }
+}
+
+export function defaultPeriodValue(): PeriodValue {
+  const now = new Date()
+  return { mode: "month", month: now.toISOString().slice(0, 7) }
+}
+
 // ── ADM-27 Sales & Service report ───────────────────────────────────────
 // "No. of sales calls" reads the real `call_logs` table (added in
 // 20260702170500_lunch_and_calls.sql, populated by every tap-to-call in the

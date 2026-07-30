@@ -23,6 +23,14 @@ async function nameLookup(orgId: string, itemType: ItemType) {
     if (error) throw error
     return new Map((data ?? []).map((p) => [p.id, { name: p.name, brand: p.brands?.name ?? null, standardTimeMinutes: p.standard_time_minutes }]))
   }
+  if (itemType === "gift") {
+    // Gifts have no brand or admin-set standard time (set_item_standard_time
+    // only covers products/spares — see its migration comment); both are
+    // simply null here, same as a spare's brand.
+    const { data, error } = await supabase.from("gifts").select("id,name").eq("org_id", orgId)
+    if (error) throw error
+    return new Map((data ?? []).map((g) => [g.id, { name: g.name, brand: null, standardTimeMinutes: null }]))
+  }
   const { data, error } = await supabase.from("spares").select("id,name,standard_time_minutes").eq("org_id", orgId)
   if (error) throw error
   return new Map((data ?? []).map((s) => [s.id, { name: s.name, brand: null, standardTimeMinutes: s.standard_time_minutes }]))
@@ -51,7 +59,7 @@ export async function setItemStandardTime(input: { orgId: string; itemType: Item
   if (error) throw error
 }
 
-export async function updateThresholds(id: string, patch: { min_stock: number; max_stock: number | null; reorder_qty: number }) {
+export async function updateThresholds(id: string, patch: { min_stock: number; max_stock: number }) {
   const { data, error } = await supabase.from("inventory").update(patch).eq("id", id).select().single()
   if (error) throw error
   return data
