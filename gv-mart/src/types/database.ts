@@ -521,6 +521,7 @@ export type Database = {
           name: string
           category: Database["public"]["Enums"]["brand_category"]
           price: number
+          cost_price: number | null
           hsn_code: string | null
           warranty_months: number
           standard_time_minutes: number | null
@@ -535,6 +536,7 @@ export type Database = {
           name: string
           category: Database["public"]["Enums"]["brand_category"]
           price: number
+          cost_price?: number | null
           hsn_code?: string | null
           warranty_months?: number
           standard_time_minutes?: number | null
@@ -549,6 +551,7 @@ export type Database = {
           name?: string
           category?: Database["public"]["Enums"]["brand_category"]
           price?: number
+          cost_price?: number | null
           hsn_code?: string | null
           warranty_months?: number
           standard_time_minutes?: number | null
@@ -586,6 +589,7 @@ export type Database = {
           name: string
           sku: string | null
           price: number
+          cost_price: number | null
           hsn_code: string | null
           standard_time_minutes: number | null
           created_at: string
@@ -597,6 +601,7 @@ export type Database = {
           name: string
           sku?: string | null
           price: number
+          cost_price?: number | null
           hsn_code?: string | null
           standard_time_minutes?: number | null
           created_at?: string
@@ -608,6 +613,7 @@ export type Database = {
           name?: string
           sku?: string | null
           price?: number
+          cost_price?: number | null
           hsn_code?: string | null
           standard_time_minutes?: number | null
           created_at?: string
@@ -1278,6 +1284,7 @@ export type Database = {
           org_id: string
           name: string
           threshold_amount: number
+          cost_price: number | null
           created_at: string
           updated_at: string
         }
@@ -1286,6 +1293,7 @@ export type Database = {
           org_id: string
           name: string
           threshold_amount: number
+          cost_price?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1294,6 +1302,7 @@ export type Database = {
           org_id?: string
           name?: string
           threshold_amount?: number
+          cost_price?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1403,6 +1412,7 @@ export type Database = {
           qty: number
           price: number
           discount: number
+          cost: number | null
           created_at: string
           updated_at: string
         }
@@ -1415,6 +1425,7 @@ export type Database = {
           qty: number
           price: number
           discount?: number
+          cost?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1427,6 +1438,7 @@ export type Database = {
           qty?: number
           price?: number
           discount?: number
+          cost?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1453,6 +1465,7 @@ export type Database = {
           org_id: string
           invoice_id: string | null
           gift_id: string
+          cost: number | null
           created_at: string
           updated_at: string
         }
@@ -1461,6 +1474,7 @@ export type Database = {
           org_id: string
           invoice_id?: string | null
           gift_id: string
+          cost?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1469,6 +1483,7 @@ export type Database = {
           org_id?: string
           invoice_id?: string | null
           gift_id?: string
+          cost?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -2721,6 +2736,9 @@ export type Database = {
           owner_id: string | null
           score: number | null
           visit_id: string | null
+          // Task 3 (2026-07-30): optional address association for
+          // spare/product enquiries — see 20260730110000_address_everywhere.sql.
+          address_id: string | null
           created_at: string
           updated_at: string
         }
@@ -2737,6 +2755,7 @@ export type Database = {
           owner_id?: string | null
           score?: number | null
           visit_id?: string | null
+          address_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2753,6 +2772,7 @@ export type Database = {
           owner_id?: string | null
           score?: number | null
           visit_id?: string | null
+          address_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2783,6 +2803,13 @@ export type Database = {
             columns: ["visit_id"]
             isOneToOne: false
             referencedRelation: "service_visits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_address_id_fkey"
+            columns: ["address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
             referencedColumns: ["id"]
           },
         ]
@@ -3893,6 +3920,9 @@ export type Database = {
           p_enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
           p_description: string | null
           p_photo_url: string | null
+          // Task 3 (2026-07-30): optional selected address — see
+          // 20260730110000_address_everywhere.sql.
+          p_address_id?: string | null
         }
         Returns: string
       }
@@ -3907,8 +3937,37 @@ export type Database = {
           // server-side to leads.owner_id — see
           // 20260724100000_technician_onsite_amc_sale.sql.
           p_referred_by_technician_name?: string | null
+          // Task 3 (2026-07-30): optional selected address, falls back to
+          // primary when omitted — see 20260730110000_address_everywhere.sql.
+          p_address_id?: string | null
         }
         Returns: Json
+      }
+      delete_my_address: {
+        Args: { p_address_id: string }
+        Returns: undefined
+      }
+      // Task 7 (2026-07-30): server-side filtered/paginated bookings list —
+      // see 20260730120000_customer_ticket_filters.sql.
+      list_my_tickets_filtered: {
+        Args: {
+          p_from_date?: string | null
+          p_to_date?: string | null
+          p_product_category?: string | null
+          p_status?: Database["public"]["Enums"]["ticket_status"] | null
+          p_amc_status?: Database["public"]["Enums"]["amc_status"] | null
+          p_service_type?: Database["public"]["Enums"]["ticket_type"] | null
+          p_technician_id?: string | null
+          p_booking_number?: string | null
+          p_search?: string | null
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
+      list_my_ticket_technicians: {
+        Args: Record<PropertyKey, never>
+        Returns: { technician_id: string; full_name: string }[]
       }
       sell_amc_plan_onsite: {
         Args: {
