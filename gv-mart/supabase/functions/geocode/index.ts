@@ -209,10 +209,22 @@ Deno.serve(async (req) => {
         origin: `${body.origin.lat},${body.origin.lng}`,
         destination: `${body.destination.lat},${body.destination.lng}`,
         mode: "driving",
+        // departure_time=now is required for Google to return
+        // duration_in_traffic (live-traffic ETA) instead of just the
+        // historical-average duration.
+        departure_time: "now",
         key: apiKey,
       })
       const distanceMeters = data.routes?.[0]?.legs?.[0]?.distance?.value ?? null
-      return jsonOk({ distanceKm: distanceMeters != null ? distanceMeters / 1000 : null })
+      // duration_in_traffic (live, if the key has it enabled) beats the
+      // plain historical-average duration for a technician's real ETA;
+      // fall back to duration when traffic data isn't returned.
+      const durationSeconds =
+        data.routes?.[0]?.legs?.[0]?.duration_in_traffic?.value ?? data.routes?.[0]?.legs?.[0]?.duration?.value ?? null
+      return jsonOk({
+        distanceKm: distanceMeters != null ? distanceMeters / 1000 : null,
+        durationMinutes: durationSeconds != null ? durationSeconds / 60 : null,
+      })
     }
 
     return jsonError("action must be one of: autocomplete, details, geocode, directions", 400)
