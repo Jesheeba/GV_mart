@@ -29,7 +29,8 @@ export function useGeocodeAddress() {
   })
 }
 
-/** Real driving distance for the admin live-tracking map (v2.2 §6.6). Keyed
+/** Real driving distance + live-traffic travel time, for the admin
+ * live-tracking map (v2.2 §6.6) and the technician's own ETA widget. Keyed
  * on coordinates rounded to ~100m so small GPS jitter reuses the cached
  * result instead of re-calling Directions on every Realtime location tick. */
 export function useDirectionsDistance(
@@ -39,8 +40,8 @@ export function useDirectionsDistance(
   const originKey = origin ? `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}` : null
   const destKey = destination ? `${destination.lat.toFixed(3)},${destination.lng.toFixed(3)}` : null
   return useQuery({
-    queryKey: ["maps", "directionsKm", originKey, destKey],
-    queryFn: () => maps.getDirectionsDistanceKm(origin!, destination!),
+    queryKey: ["maps", "directions", originKey, destKey],
+    queryFn: () => maps.getDirectionsDistance(origin!, destination!),
     enabled: !!origin && !!destination,
     staleTime: 45_000,
     retry: 1,

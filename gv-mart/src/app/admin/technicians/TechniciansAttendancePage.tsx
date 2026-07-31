@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Check, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { StatusDot } from "@/components/shared/StatusDot"
@@ -79,7 +79,7 @@ export function TechniciansAttendancePage() {
           <Label htmlFor="attendance-date" className="text-sm">
             {t("technicians.attendance.date")}
           </Label>
-          <Input id="attendance-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-48" />
+          <DatePicker id="attendance-date" value={date} onChange={setDate} className="max-w-48" />
         </div>
 
         <DataTable

@@ -2,10 +2,11 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { Loader2, Package, QrCode, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -21,6 +22,7 @@ function RegisterProductForm({ orgId, customerId, onDone }: { orgId: string | un
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<RegisterProductInput>({ resolver: zodResolver(registerProductSchema), mode: "onChange" })
 
@@ -61,7 +63,11 @@ function RegisterProductForm({ orgId, customerId, onDone }: { orgId: string | un
         </div>
         <div className="space-y-1">
           <Label>{t("customerApp.products.purchaseDate")}</Label>
-          <Input type="date" {...register("purchaseDate")} />
+          <Controller
+            control={control}
+            name="purchaseDate"
+            render={({ field }) => <DatePicker value={field.value ?? ""} onChange={field.onChange} />}
+          />
         </div>
         {registerProduct.isError ? <p className="text-xs text-danger">{(registerProduct.error as Error).message}</p> : null}
         <div className="flex justify-end gap-2 pt-1">

@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { CalendarClock, KeyRound, Loader2, Pencil, ShieldOff, Trash2, TriangleAlert, UserCog, XCircle } from "lucide-react"
+import { CalendarClock, KeyRound, Loader2, Pencil, PhoneCall, ShieldOff, Trash2, TriangleAlert, UserCog, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { useCustomerExemptionWindows } from "@/hooks/useCustomers"
@@ -16,12 +19,14 @@ import {
   useCancelServiceTicket,
   useCustomerAddresses,
   useDeleteServiceTicket,
+  useLogConfirmedAvailability,
   useTechnicians,
   useTicket,
   useTicketEvidence,
   useUpdateTicketAddress,
   useUpdateTicketEstimatedDuration,
 } from "@/hooks/useService"
+import type { ConfirmedAvailabilityReason } from "@/services/service"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { cn } from "@/lib/utils"
@@ -53,6 +58,17 @@ export function TicketDetailPage() {
   const autoAssign = useAutoAssignTicket()
   const assign = useAssignTicketTechnician()
   const [pickerTechId, setPickerTechId] = useState("")
+
+  // Task 5 (2026-07-30/31) — exception path on top of unchanged
+  // auto-assignment: log a phone-confirmed availability window (customer
+  // follow-up/complaint, or the assigned technician can't make the day).
+  const [loggingAvailability, setLoggingAvailability] = useState(false)
+  const [availReason, setAvailReason] = useState<ConfirmedAvailabilityReason>("customer_followup")
+  const [availDate, setAvailDate] = useState("")
+  const [availFrom, setAvailFrom] = useState("")
+  const [availTo, setAvailTo] = useState("")
+  const [availNote, setAvailNote] = useState("")
+  const logAvailability = useLogConfirmedAvailability()
 
   const [editingAddress, setEditingAddress] = useState(false)
   const [addressPickerId, setAddressPickerId] = useState("")
@@ -397,6 +413,122 @@ export function TicketDetailPage() {
         {assign.data && !assign.data.assigned ? <p className="text-xs text-warning">{t(assign.data.reason_key ?? "service.assign.technicianBusy")}</p> : null}
       </Card>
 
+      {appointment ? (
+        <Card className="gap-3 px-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-text">{t("service.detail.confirmedAvailability.title")}</h2>
+            {!loggingAvailability ? (
+              <Button size="sm" variant="outline" onClick={() => setLoggingAvailability(true)}>
+                <PhoneCall className="size-3.5" />
+                {t("service.detail.confirmedAvailability.logButton")}
+              </Button>
+            ) : null}
+          </div>
+
+          {(appointment.appointment_availability_calls ?? []).length > 0 ? (
+            <ul className="space-y-1.5">
+              {[...(appointment.appointment_availability_calls ?? [])]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .map((c) => (
+                  <li key={c.id} className="rounded-xl border border-border px-3 py-2 text-xs">
+                    <p className="font-medium text-text">
+                      {new Date(c.confirmed_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}{" "}
+                      {c.confirmed_from.slice(0, 5)}–{c.confirmed_to.slice(0, 5)}
+                      <span className="ml-1.5 font-normal text-text-muted">
+                        · {t(`service.detail.confirmedAvailability.reason.${c.reason}`)}
+                      </span>
+                    </p>
+                    <p className="mt-0.5 text-text-muted">
+                      {t("service.detail.confirmedAvailability.loggedBy", {
+                        name: c.profiles?.full_name ?? "—",
+                        date: new Date(c.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+                      })}
+                    </p>
+                    {c.note ? <p className="mt-0.5 text-text">{c.note}</p> : null}
+                  </li>
+                ))}
+            </ul>
+          ) : !loggingAvailability ? (
+            <p className="text-xs text-text-muted">{t("service.detail.confirmedAvailability.empty")}</p>
+          ) : null}
+
+          {loggingAvailability ? (
+            <div className="space-y-2.5 border-t border-border pt-3">
+              <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+                {(["customer_followup", "technician_unavailable"] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setAvailReason(r)}
+                    className={cn(
+                      "flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                      availReason === r ? "bg-ink text-white" : "text-text-muted"
+                    )}
+                  >
+                    {t(`service.detail.confirmedAvailability.reason.${r}`)}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label htmlFor="avail-call-date">{t("service.detail.confirmedAvailability.date")}</Label>
+                  <DatePicker id="avail-call-date" value={availDate} onChange={setAvailDate} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="avail-call-from">{t("service.detail.confirmedAvailability.from")}</Label>
+                  <Input id="avail-call-from" type="time" value={availFrom} onChange={(e) => setAvailFrom(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="avail-call-to">{t("service.detail.confirmedAvailability.to")}</Label>
+                  <Input id="avail-call-to" type="time" value={availTo} onChange={(e) => setAvailTo(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="avail-call-note">{t("service.detail.confirmedAvailability.note")}</Label>
+                <textarea
+                  id="avail-call-note"
+                  rows={2}
+                  value={availNote}
+                  onChange={(e) => setAvailNote(e.target.value)}
+                  placeholder={t("service.detail.confirmedAvailability.notePlaceholder")}
+                  className={textareaClass}
+                />
+              </div>
+              {availFrom && availTo && availFrom >= availTo ? (
+                <p className="text-xs text-danger">{t("service.detail.confirmedAvailability.rangeInvalid")}</p>
+              ) : null}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  disabled={!availDate || !availFrom || !availTo || availFrom >= availTo || logAvailability.isPending}
+                  onClick={() =>
+                    logAvailability.mutate(
+                      { appointmentId: appointment.id, reason: availReason, confirmedDate: availDate, confirmedFrom: availFrom, confirmedTo: availTo, note: availNote },
+                      {
+                        onSuccess: () => {
+                          setLoggingAvailability(false)
+                          setAvailDate("")
+                          setAvailFrom("")
+                          setAvailTo("")
+                          setAvailNote("")
+                          setAvailReason("customer_followup")
+                        },
+                        onError: () => toast.error(t("common.actionFailed")),
+                      }
+                    )
+                  }
+                >
+                  {logAvailability.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setLoggingAvailability(false)}>
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Card className={cn("gap-3 px-5", overrun.isOverrun && "border-danger/40 bg-danger/5")}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-text">{t("service.detail.jobReport")}</h2>
@@ -552,6 +684,28 @@ export function TicketDetailPage() {
                     <p className="text-xs text-text-muted">{t("service.detail.evidence.noPhotos")}</p>
                   )}
                 </div>
+
+                {v.arrival_selfie_url ? (
+                  <div>
+                    <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.arrivalSelfie")}</div>
+                    <img
+                      src={v.arrival_selfie_url}
+                      alt={t("service.detail.evidence.arrivalSelfie")}
+                      className="h-20 w-20 rounded-lg border border-border object-cover"
+                    />
+                  </div>
+                ) : null}
+
+                {v.evidence_photo_urls.length > 0 ? (
+                  <div>
+                    <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.additionalPhotos")}</div>
+                    <div className="grid grid-cols-3 gap-2 sm:w-64">
+                      {v.evidence_photo_urls.map((url, i) => (
+                        <img key={i} src={url} alt="" className="aspect-square w-full rounded-lg border border-border object-cover" />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 {v.tech_sign_url || v.customer_sign_url ? (
                   <div>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as masters from "@/services/masters"
-import type { TablesUpdate } from "@/types/database"
+import type { TablesInsert, TablesUpdate } from "@/types/database"
 
 // All three generics are inferred from the concrete functions passed in
 // `api` (e.g. masters.createBrand) — call sites never specify type args.
@@ -72,11 +72,59 @@ export const sparesHooks = entityHooks("spares", {
   remove: masters.deleteSpare,
 })
 
+// Task 6 (2026-07-30) — bulk import/update don't fit entityHooks' one-row
+// shape, and product<->spare mapping is queried per-product, not as a flat
+// list — both live alongside sparesHooks instead.
+export function useBulkCreateSpares() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (rows: TablesInsert<"spares">[]) => masters.bulkCreateSpares(rows),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["spares", "list"] }),
+  })
+}
+export function useBulkSetSparesActive() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, isActive }: { ids: string[]; isActive: boolean }) => masters.bulkSetSparesActive(ids, isActive),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["spares", "list"] }),
+  })
+}
+
+export function useProductSpares(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["product_spares", "list", productId],
+    queryFn: () => masters.listProductSpares(productId!),
+    enabled: !!productId,
+  })
+}
+export function useAddProductSpare() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, productId, spareId }: { orgId: string; productId: string; spareId: string }) =>
+      masters.addProductSpare(orgId, productId, spareId),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ["product_spares", "list", vars.productId] }),
+  })
+}
+export function useRemoveProductSpare(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => masters.removeProductSpare(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_spares", "list", productId] }),
+  })
+}
+
 export const giftsHooks = entityHooks("gifts", {
   list: masters.listGifts,
   create: masters.createGift,
   update: masters.updateGift,
   remove: masters.deleteGift,
+})
+
+export const sopStepTemplatesHooks = entityHooks("sop_step_templates", {
+  list: masters.listSopStepTemplates,
+  create: masters.createSopStepTemplate,
+  update: masters.updateSopStepTemplate,
+  remove: masters.deleteSopStepTemplate,
 })
 
 export const amcPlansHooks = entityHooks("amc_plans", {

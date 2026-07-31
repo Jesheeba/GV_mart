@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -9,17 +9,38 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { useMyCustomerId, useOwnedProducts, useSubmitEnquiry } from "@/hooks/useCustomerApp"
+import { AddressPickerModal } from "@/components/shared/AddressPickerModal"
+import { useMyAddresses, useMyCustomerId, useOwnedProducts, useSparesForProduct, useSubmitEnquiry } from "@/hooks/useCustomerApp"
 import { enquirySchema, type EnquiryInput } from "@/lib/validation/customerApp"
 
 export function CustomerSpareEnquiryPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { orgId, isLoading: loadingId } = useMyCustomerId()
+  const { customerId, orgId, isLoading: loadingId } = useMyCustomerId()
   const { data: products, isLoading, isError, refetch } = useOwnedProducts(orgId)
+  const { data: addresses, isLoading: loadingAddresses } = useMyAddresses(customerId)
   const [productId, setProductId] = useState("")
   const [customProductName, setCustomProductName] = useState("")
+  const [addressId, setAddressId] = useState("")
+  const [addressPickerOpen, setAddressPickerOpen] = useState(false)
   const submitEnquiry = useSubmitEnquiry()
+
+  // Task 6 (2026-07-30) — every spare mapped to the selected product, so the
+  // customer picks from a real list instead of typing blind. "Can't find
+  // your spare part?" falls back to the existing free-text description
+  // field rather than a redundant second text input.
+  const { data: sparesForProduct } = useSparesForProduct(productId || undefined)
+  const [spareId, setSpareId] = useState("")
+  const [manualSpare, setManualSpare] = useState(false)
+
+  useEffect(() => {
+    setSpareId("")
+    setManualSpare(false)
+  }, [productId])
+
+  useEffect(() => {
+    if (!addressId && addresses && addresses.length > 0) setAddressId(addresses[0].id)
+  }, [addresses, addressId])
 
   const {
     register,
@@ -27,7 +48,7 @@ export function CustomerSpareEnquiryPage() {
     formState: { errors },
   } = useForm<EnquiryInput>({ resolver: zodResolver(enquirySchema), mode: "onChange", defaultValues: { description: "" } })
 
-  if (loadingId || isLoading) return <FullPageLoader label={t("common.loading")} />
+  if (loadingId || isLoading || loadingAddresses) return <FullPageLoader label={t("common.loading")} />
   if (isError) {
     return <FullPageError message={t("customerApp.spareEnquiry.loadError")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
   }
@@ -51,11 +72,15 @@ export function CustomerSpareEnquiryPage() {
   const productLabel = selectedProduct
     ? [selectedProduct.name, selectedProduct.brands?.name, selectedProduct.models?.name].filter(Boolean).join(" · ")
     : customProductName
+  const selectedSpare = (sparesForProduct ?? []).find((s) => s.id === spareId)
+  const spareLabel = selectedSpare ? [selectedSpare.name, selectedSpare.sku].filter(Boolean).join(" · ") : ""
+  const hasMappedSpares = (sparesForProduct ?? []).length > 0
 
   const onSubmit = handleSubmit((values) => {
     if (!orgId) return
-    const description = productLabel ? `[${productLabel}] ${values.description}` : values.description
-    submitEnquiry.mutate({ orgId, kind: "spare", enquiryType: null, description, photoUrl: values.photoUrl })
+    const prefix = [productLabel && `[${productLabel}]`, spareLabel && `[Spare: ${spareLabel}]`].filter(Boolean).join(" ")
+    const description = prefix ? `${prefix} ${values.description}` : values.description
+    submitEnquiry.mutate({ orgId, kind: "spare", enquiryType: null, description, photoUrl: values.photoUrl, addressId: addressId || undefined })
   })
 
   return (
@@ -99,6 +124,52 @@ export function CustomerSpareEnquiryPage() {
             </div>
           ) : null}
 
+          {productId && hasMappedSpares && !manualSpare ? (
+            <div className="space-y-1">
+              <Label>{t("customerApp.spareEnquiry.selectSpare")}</Label>
+              <select
+                value={spareId}
+                onChange={(e) => setSpareId(e.target.value)}
+                className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+              >
+                <option value="">{t("customerApp.spareEnquiry.selectSparePlaceholder")}</option>
+                {(sparesForProduct ?? []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.sku ? ` (${s.sku})` : ""}
+                  </option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setManualSpare(true)} className="text-xs font-medium text-accent">
+                {t("customerApp.spareEnquiry.cantFindSpare")}
+              </button>
+            </div>
+          ) : productId && manualSpare ? (
+            <button type="button" onClick={() => setManualSpare(false)} className="text-xs font-medium text-accent">
+              {t("customerApp.spareEnquiry.backToSpareList")}
+            </button>
+          ) : null}
+
+          <div className="space-y-1">
+            <Label>{t("customerApp.bookService.selectAddress")}</Label>
+            {(() => {
+              const a = (addresses ?? []).find((row) => row.id === addressId)
+              return a ? (
+                <div className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm">
+                  <span className="text-text">{[a.door_no, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}</span>
+                  {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customerApp.profile.primary")}</span> : null}
+                </div>
+              ) : (
+                <p className="rounded-xl border border-dashed border-border px-3.5 py-2.5 text-sm text-warning">
+                  {t("customerApp.bookService.noAddresses")}
+                </p>
+              )
+            })()}
+            <Button type="button" size="sm" variant="outline" onClick={() => setAddressPickerOpen(true)}>
+              {t("customerApp.addressPicker.changeAddress")}
+            </Button>
+          </div>
+
           <div className="space-y-1">
             <Label>{t("customerApp.spareEnquiry.partDescription")}</Label>
             <textarea
@@ -124,6 +195,15 @@ export function CustomerSpareEnquiryPage() {
           </div>
         </form>
       </Card>
+
+      <AddressPickerModal
+        open={addressPickerOpen}
+        onOpenChange={setAddressPickerOpen}
+        orgId={orgId}
+        customerId={customerId}
+        selectedAddressId={addressId}
+        onSelect={(a) => setAddressId(a.id)}
+      />
     </div>
   )
 }

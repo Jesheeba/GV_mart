@@ -17,6 +17,7 @@ import { SpareSelectStep, type SelectedSpare } from "./SpareSelectStep"
 import { SellAmcSection } from "./SellAmcSection"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { sopStepTemplatesHooks } from "@/hooks/useMasters"
 import {
   useCacheVisitSignature,
   useCacheVisitVoiceNote,
@@ -27,8 +28,8 @@ import {
   useMyTechnician,
   useQueueRoChecklist,
   useQueueSopStepComplete,
+  useQueueVisitEvidencePhotos,
   useQueueVisitImage,
-  useStartVisit,
   useTechnicianSettings,
   useVerifyVisitOtp,
 } from "@/hooks/useTechnician"
@@ -76,8 +77,7 @@ type VisitDraftData = {
   visitNotes: string
   voiceNoteUrl: string | null
   sopSteps: SopStep[]
-  newStepName: string
-  newStepMinutes: string
+  evidenceImages: string[]
   selectedSpares: SelectedSpare[]
   discountInput: string
   serviceChargeInput: string
@@ -119,9 +119,10 @@ export function OnSiteVisitPage() {
   const technician = useMyTechnician()
   const settings = useTechnicianSettings(profile?.org_id)
   const jobDetail = useJobDetail(ticketId)
+  const sopStepTemplatesQuery = sopStepTemplatesHooks.useList(profile?.org_id)
 
-  const startVisit = useStartVisit()
   const queueVisitImage = useQueueVisitImage()
+  const queueVisitEvidencePhotos = useQueueVisitEvidencePhotos()
   const queueSopStepComplete = useQueueSopStepComplete()
   const queueRoChecklist = useQueueRoChecklist()
   const createInvoice = useCreateServiceInvoice()
@@ -137,11 +138,19 @@ export function OnSiteVisitPage() {
 
   const [beforeImage, setBeforeImage] = useState<string | null>(null)
   const [afterImage, setAfterImage] = useState<string | null>(null)
+  // Task 6 — extra evidence beyond the single before/after image (damaged/
+  // replaced/installed parts). Same "local state + draft, queued per change"
+  // pattern as beforeImage/afterImage above.
+  const [evidenceImages, setEvidenceImages] = useState<string[]>([])
   const [visitNotes, setVisitNotes] = useState("")
   const [voiceNoteUrl, setVoiceNoteUrl] = useState<string | null>(null)
   const [sopSteps, setSopSteps] = useState<SopStep[]>([])
-  const [newStepName, setNewStepName] = useState("")
-  const [newStepMinutes, setNewStepMinutes] = useState("10")
+  // Task 5 — SOP steps not covered by a spare are picked from an admin-
+  // curated list (sop_step_templates), never free-typed. Transient UI
+  // selection only, not part of VisitDraftData: unlike sopSteps (the actual
+  // added/completed steps), which picker option is currently highlighted has
+  // no meaning to restore across a page reload.
+  const [selectedTemplateId, setSelectedTemplateId] = useState("")
 
   const [selectedSpares, setSelectedSpares] = useState<SelectedSpare[]>([])
   const [discountInput, setDiscountInput] = useState("0")
@@ -206,16 +215,17 @@ export function OnSiteVisitPage() {
   }, [])
 
   // Arrival: MapPage's arrival detection (auto or the "I've arrived"
-  // fallback tap) already starts the real productivity timer, so this page
-  // can be reached with a service_visits row already open for this ticket —
-  // adopt it instead of creating a second, orphaned one. Only when reached
-  // directly from JobDetailPage's "Start visit" (bypassing Map entirely) is
-  // there no existing visit yet, in which case this creates it — unless the
-  // ticket is already completed/cancelled (a stale URL/browser-back into a
-  // finished job), in which case it must NOT spin up a new visit at all;
-  // the render below shows a blocking "already closed" state instead.
+  // fallback tap) is the only place a service_visits row is created, so this
+  // page can be reached with one already open for this ticket — adopt it.
+  // Task 4 — arrival confirmation is mandatory: this page must NEVER create
+  // a visit itself. If none exists yet (e.g. a stale URL, or JobDetailPage's
+  // "Start visit" reached this route before its own guard was added), redirect
+  // back to the arrival-confirmation screen instead of silently starting a
+  // visit with no geofence check. A closed ticket (stale URL/browser-back
+  // into a finished job) also skips this — the render below shows a blocking
+  // "already closed" state instead.
   useEffect(() => {
-    if (!ticketId || !technician.data || !profile || visitId || !jobDetail.data) return
+    if (!ticketId || !jobDetail.data || visitId) return
     const existing = findOpenVisit(jobDetail.data.service_visits)
     if (existing) {
       setVisitId(existing.id)
@@ -223,13 +233,10 @@ export function OnSiteVisitPage() {
       return
     }
     if (isTicketClosed(jobDetail.data.status)) return
-    const id = crypto.randomUUID()
-    const nowIso = new Date().toISOString()
-    setVisitId(id)
-    setStartedAt(Date.now())
-    void startVisit.mutateAsync({ id, orgId: profile.org_id, ticketId, technicianId: technician.data.id, timerStart: nowIso })
+    toast.error(t("technician.onsite.arrivalRequired"))
+    navigate(`/technician/map?ticketId=${ticketId}`, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticketId, technician.data, profile, jobDetail.data])
+  }, [ticketId, jobDetail.data, visitId])
 
   // Restores whatever was locally saved for this ticket before rendering
   // proceeds any further — runs once per ticketId (guarded via the ref, not
@@ -248,8 +255,7 @@ export function OnSiteVisitPage() {
       if (d.visitNotes) setVisitNotes(d.visitNotes)
       if (d.voiceNoteUrl) setVoiceNoteUrl(d.voiceNoteUrl)
       if (d.sopSteps?.length) setSopSteps(d.sopSteps)
-      if (d.newStepName) setNewStepName(d.newStepName)
-      if (d.newStepMinutes) setNewStepMinutes(d.newStepMinutes)
+      if (d.evidenceImages?.length) setEvidenceImages(d.evidenceImages)
       if (d.selectedSpares?.length) setSelectedSpares(d.selectedSpares)
       if (d.discountInput != null) setDiscountInput(d.discountInput)
       if (d.serviceChargeInput != null) setServiceChargeInput(d.serviceChargeInput)
@@ -290,8 +296,7 @@ export function OnSiteVisitPage() {
     visitNotes,
     voiceNoteUrl,
     sopSteps,
-    newStepName,
-    newStepMinutes,
+    evidenceImages,
     selectedSpares,
     discountInput,
     serviceChargeInput,
@@ -332,8 +337,8 @@ export function OnSiteVisitPage() {
     setVisitNotes("")
     setVoiceNoteUrl(null)
     setSopSteps([])
-    setNewStepName("")
-    setNewStepMinutes("10")
+    setSelectedTemplateId("")
+    setEvidenceImages([])
     setSelectedSpares([])
     setDiscountInput("0")
     setServiceChargeInput("0")
@@ -366,6 +371,16 @@ export function OnSiteVisitPage() {
   const ticket = jobDetail.data
   const chargeable = ticket ? isChargeableTicketType(ticket.type) : false
   const isRo = ticket?.products?.category === "ro"
+
+  // Task 5 — SOP steps not covered by a spare are picked from this
+  // admin-curated list instead of free-typed: templates scoped to the
+  // ticket's own product, plus org-wide generic ones (product_id null),
+  // excluding a name already added to this visit's checklist so the picker
+  // doesn't keep offering a step the technician already has.
+  const addedStepNames = new Set(sopSteps.map((s) => s.name))
+  const sopStepTemplates = (sopStepTemplatesQuery.data ?? []).filter(
+    (tpl) => tpl.active && (tpl.product_id === null || tpl.product_id === ticket?.product_id) && !addedStepNames.has(tpl.name)
+  )
 
   useEffect(() => {
     if (!chargeable) setServiceChargeInput("0")
@@ -474,10 +489,9 @@ export function OnSiteVisitPage() {
   const activeStepKeys = STEP_KEYS.filter((k) => k !== "ro" || isRo)
   const currentKey = activeStepKeys[step]
 
-  // Vacuously true when empty — SOP items are free-text/technician-added (no
-  // predefined template; a "SOP master" screen is explicitly out of v2.2
-  // scope), so a job with nothing worth logging must not be stuck forever
-  // waiting for an item that will never be added.
+  // Vacuously true when empty — a job with nothing worth logging (no spares
+  // used, no extra template steps picked) must not be stuck forever waiting
+  // for an item that will never be added.
   const sopAllDone = sopSteps.every((s) => s.doneAt)
   const roValid = !isRo || roChecklistSchema.safeParse({
     tdsBefore: tdsBefore === "" ? undefined : Number(tdsBefore),
@@ -487,10 +501,10 @@ export function OnSiteVisitPage() {
     clientName: roClientName,
   }).success
 
-  // Purely visual "over expected time" flag — no admin master, no new data
-  // source. Compares live elapsed time against the technician's own
-  // per-step `expectedMinutes` (typed in when they added the step, see
-  // addSopStep below). The "current" step is the first one not yet marked
+  // Purely visual "over expected time" flag. Compares live elapsed time
+  // against the step's own `expectedMinutes` (the spare's standard_time or
+  // the picked template's default_expected_minutes — see addSopStep below).
+  // The "current" step is the first one not yet marked
   // done; its start is either the previous step's doneAt timestamp or, for
   // the first step, the visit's own timer_start — both already-recorded
   // technician data, nothing new is captured for this. `nowMs` derives from
@@ -524,11 +538,13 @@ export function OnSiteVisitPage() {
   }
 
   function addSopStep() {
-    const name = newStepName.trim()
-    if (!name) return
-    setSopSteps((prev) => [...prev, { id: crypto.randomUUID(), name, expectedMinutes: Math.max(1, Number(newStepMinutes) || 1), doneAt: null }])
-    setNewStepName("")
-    setNewStepMinutes("10")
+    const template = sopStepTemplates.find((tpl) => tpl.id === selectedTemplateId)
+    if (!template) return
+    setSopSteps((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: template.name, expectedMinutes: template.default_expected_minutes, doneAt: null },
+    ])
+    setSelectedTemplateId("")
   }
 
   function removeSopStep(id: string) {
@@ -542,6 +558,19 @@ export function OnSiteVisitPage() {
   async function handleAfterImage(dataUrl: string) {
     setAfterImage(dataUrl)
     if (visitId) await queueVisitImage.mutateAsync({ visitId, kind: "after", url: dataUrl })
+  }
+  // Task 6 — appends to the evidence array (damaged/replaced/installed
+  // parts), full-array replace on every add/remove (see
+  // queueVisitEvidencePhotos' doc comment in services/technician.ts).
+  async function handleAddEvidencePhoto(dataUrl: string) {
+    const next = [...evidenceImages, dataUrl]
+    setEvidenceImages(next)
+    if (visitId) await queueVisitEvidencePhotos.mutateAsync({ visitId, urls: next })
+  }
+  async function removeEvidencePhoto(index: number) {
+    const next = evidenceImages.filter((_, i) => i !== index)
+    setEvidenceImages(next)
+    if (visitId) await queueVisitEvidencePhotos.mutateAsync({ visitId, urls: next })
   }
 
   /** Build Order A3 — cached/queued immediately (like signatures), not batched into handlePaymentSubmit's end-of-visit patch, so it survives the app closing mid-visit. `null` clears an already-recorded note. */
@@ -775,24 +804,36 @@ export function OnSiteVisitPage() {
                 })}
               </div>
             )}
-            <div className="flex items-end gap-2 px-1">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="stepName">{t("technician.onsite.sopStepName")}</Label>
-                <Input id="stepName" value={newStepName} onChange={(e) => setNewStepName(e.target.value)} placeholder={t("technician.onsite.sopStepNamePlaceholder")} />
+            {sopStepTemplates.length > 0 ? (
+              <div className="flex items-end gap-2 px-1">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="stepTemplate">{t("technician.onsite.sopStepName")}</Label>
+                  <select
+                    id="stepTemplate"
+                    value={selectedTemplateId}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                  >
+                    <option value="">{t("technician.onsite.sopStepPickPlaceholder")}</option>
+                    {sopStepTemplates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name} ({t("technician.onsite.sopExpected", { minutes: tpl.default_expected_minutes })})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button type="button" variant="outline" size="icon" onClick={addSopStep} disabled={!selectedTemplateId}>
+                  <Plus className="size-4" />
+                </Button>
               </div>
-              <div className="w-20 space-y-1">
-                <Label htmlFor="stepMinutes">{t("technician.onsite.sopStepMinutes")}</Label>
-                <Input id="stepMinutes" type="number" min={1} value={newStepMinutes} onChange={(e) => setNewStepMinutes(e.target.value)} />
-              </div>
-              <Button type="button" variant="outline" size="icon" onClick={addSopStep}>
-                <Plus className="size-4" />
-              </Button>
-            </div>
+            ) : null}
           </Card>
         </div>
       ) : null}
 
-      {currentKey === "spares" ? <SpareSelectStep orgId={profile?.org_id} selected={selectedSpares} onChange={setSelectedSpares} /> : null}
+      {currentKey === "spares" ? (
+        <SpareSelectStep orgId={profile?.org_id} productId={ticket.product_id} selected={selectedSpares} onChange={setSelectedSpares} />
+      ) : null}
 
       {currentKey === "charges" ? (
         <Card className="gap-3">
@@ -870,6 +911,30 @@ export function OnSiteVisitPage() {
         <div className="space-y-4">
           <p className="px-1 text-sm text-text-muted">{t("technician.onsite.afterImageHint")}</p>
           <PhotoCapture label={t("technician.onsite.afterImage")} dataUrl={afterImage} onCaptured={handleAfterImage} />
+
+          {/* Task 6 — additional evidence: damaged/replaced/installed parts,
+              beyond the single before/after image. */}
+          <Card className="gap-2">
+            <p className="px-1 text-sm font-medium text-text">{t("technician.onsite.evidence.title")}</p>
+            <p className="px-1 text-xs text-text-muted">{t("technician.onsite.evidence.hint")}</p>
+            {evidenceImages.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2 px-1">
+                {evidenceImages.map((url, idx) => (
+                  <div key={idx} className="relative">
+                    <img src={url} alt="" className="aspect-square w-full rounded-lg border border-border object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => void removeEvidencePhoto(idx)}
+                      className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-danger text-white"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <PhotoCapture label={t("technician.onsite.evidence.addLabel")} dataUrl={null} onCaptured={handleAddEvidencePhoto} />
+          </Card>
 
           <Card className="gap-2">
             <div className="space-y-1 px-1">

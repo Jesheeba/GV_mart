@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom"
 import { CalendarClock, Inbox, LayoutGrid, Plus, Repeat, Table2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
 import { useRepeatComplaintCustomers, useTechnicians, useTicketsList } from "@/hooks/useService"
@@ -181,12 +182,7 @@ export function TicketsListPage() {
         <FilterSelect label={t("service.filters.area")} value={area} onChange={setArea} options={areaOptions.map((a) => ({ value: a, label: a }))} />
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("service.filters.date")}</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          />
+          <DatePicker value={date} onChange={setDate} className="h-9 w-36" />
         </div>
         {hasAdvancedFilters ? (
           <Button

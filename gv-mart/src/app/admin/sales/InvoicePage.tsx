@@ -37,6 +37,16 @@ export function InvoicePage() {
   const withoutGst = invoice.subtotal - invoice.discount
   const paymentTone = PAYMENT_STATUS_TONE[invoice.payment_status] ?? "neutral"
 
+  // Cost/margin tracking (stage 1) — cost is a snapshot taken at sale time
+  // (see _sale_create_line_invoice / create_service_invoice), null when the
+  // item had no cost_price set yet. Profit only sums lines with a known
+  // cost — a missing cost is surfaced as a count, never folded in as 0
+  // (that would silently overstate profit).
+  const itemsMissingCost = invoice.invoice_items.filter((it) => it.cost == null).length
+  const invoiceProfit = invoice.invoice_items
+    .filter((it) => it.cost != null)
+    .reduce((sum, it) => sum + (it.qty * it.price - it.discount - it.qty * (it.cost ?? 0)), 0)
+
   return (
     <div className="mx-auto max-w-3xl space-y-4 pt-2">
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
@@ -97,6 +107,7 @@ export function InvoicePage() {
                   <th className="px-3 py-2 text-right font-medium">{t("sales.invoice.price")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("sales.invoice.lineDiscount")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("sales.invoice.lineTotal")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("sales.invoice.lineProfit")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -107,6 +118,9 @@ export function InvoicePage() {
                     <td className="px-3 py-2 text-right text-text">{formatCurrency(item.price)}</td>
                     <td className="px-3 py-2 text-right text-text-muted">{item.discount > 0 ? `−${formatCurrency(item.discount)}` : "—"}</td>
                     <td className="px-3 py-2 text-right font-medium text-text">{formatCurrency(item.qty * item.price - item.discount)}</td>
+                    <td className="px-3 py-2 text-right text-text-muted">
+                      {item.cost != null ? formatCurrency(item.qty * item.price - item.discount - item.qty * item.cost) : t("sales.invoice.costNotSet")}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -139,7 +153,17 @@ export function InvoicePage() {
             <span>{t("sales.invoice.totalWithGst")}</span>
             <span>{formatCurrency(invoice.total)}</span>
           </div>
+          {invoice.invoice_items.length > 0 ? (
+            <div className="flex justify-between border-t border-border pt-1 text-sm font-semibold text-success">
+              <span>{t("sales.invoice.profit")}</span>
+              <span>{formatCurrency(invoiceProfit)}</span>
+            </div>
+          ) : null}
         </div>
+
+        {itemsMissingCost > 0 ? (
+          <p className="px-1 text-xs text-text-muted">{t("sales.invoice.profitMissingCostNote", { count: itemsMissingCost })}</p>
+        ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-1 pt-3">
           <div className="text-sm text-text">

@@ -272,7 +272,19 @@ export function useStartVisit() {
                 // yet — empty defaults so computeTicketAllowedDuration falls
                 // back to the ticket's type-based estimate, same as before
                 // this field existed.
-                { id: visit.id, timer_start: visit.timerStart, timer_end: null, service_charge: 0, before_image_url: null, after_image_url: null, service_spares_used: [], ratings: null, leads: [] },
+                {
+                  id: visit.id,
+                  timer_start: visit.timerStart,
+                  timer_end: null,
+                  service_charge: 0,
+                  before_image_url: null,
+                  after_image_url: null,
+                  arrival_selfie_url: null,
+                  evidence_photo_urls: null,
+                  service_spares_used: [],
+                  ratings: null,
+                  leads: [],
+                },
               ],
             }
           : prev
@@ -286,6 +298,12 @@ export function useQueueVisitImage() {
   return useMutation({
     mutationFn: ({ visitId, kind, url }: { visitId: string; kind: "before" | "after"; url: string }) =>
       tech.queueVisitImage(visitId, kind, url),
+  })
+}
+
+export function useQueueVisitEvidencePhotos() {
+  return useMutation({
+    mutationFn: ({ visitId, urls }: { visitId: string; urls: string[] }) => tech.queueVisitEvidencePhotos(visitId, urls),
   })
 }
 
@@ -333,6 +351,14 @@ export function useSpareSearch(orgId: string | undefined, term: string) {
     queryKey: ["spares", "techSearch", orgId, debounced],
     queryFn: () => tech.searchSpares(orgId!, debounced),
     enabled: !!orgId,
+  })
+}
+
+export function useSparesForProduct(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["spares", "forProduct", productId],
+    queryFn: () => tech.listSparesForProduct(productId!),
+    enabled: !!productId,
   })
 }
 

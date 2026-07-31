@@ -525,6 +525,8 @@ export type Database = {
           hsn_code: string | null
           warranty_months: number
           standard_time_minutes: number | null
+          // Task 6 (2026-07-30) — see 20260730170000_product_spare_mapping_and_active_flags.sql.
+          is_active: boolean
           created_at: string
           updated_at: string
         }
@@ -540,6 +542,7 @@ export type Database = {
           hsn_code?: string | null
           warranty_months?: number
           standard_time_minutes?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -555,6 +558,7 @@ export type Database = {
           hsn_code?: string | null
           warranty_months?: number
           standard_time_minutes?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -592,6 +596,7 @@ export type Database = {
           cost_price: number | null
           hsn_code: string | null
           standard_time_minutes: number | null
+          is_active: boolean
           created_at: string
           updated_at: string
         }
@@ -604,6 +609,7 @@ export type Database = {
           cost_price?: number | null
           hsn_code?: string | null
           standard_time_minutes?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -616,6 +622,7 @@ export type Database = {
           cost_price?: number | null
           hsn_code?: string | null
           standard_time_minutes?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -625,6 +632,113 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_spares: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string
+          spare_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id: string
+          spare_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string
+          spare_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_spares_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_spares_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_spares_spare_id_fkey"
+            columns: ["spare_id"]
+            isOneToOne: false
+            referencedRelation: "spares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_availability_calls: {
+        Row: {
+          id: string
+          org_id: string
+          appointment_id: string
+          logged_by: string
+          reason: string
+          confirmed_date: string
+          confirmed_from: string
+          confirmed_to: string
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          appointment_id: string
+          logged_by: string
+          reason: string
+          confirmed_date: string
+          confirmed_from: string
+          confirmed_to: string
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          appointment_id?: string
+          logged_by?: string
+          reason?: string
+          confirmed_date?: string
+          confirmed_from?: string
+          confirmed_to?: string
+          note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_availability_calls_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_availability_calls_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_availability_calls_logged_by_fkey"
+            columns: ["logged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1316,6 +1430,54 @@ export type Database = {
           },
         ]
       }
+      sop_step_templates: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string | null
+          name: string
+          default_expected_minutes: number
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id?: string | null
+          name: string
+          default_expected_minutes?: number
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string | null
+          name?: string
+          default_expected_minutes?: number
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sop_step_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sop_step_templates_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           id: string
@@ -1794,6 +1956,8 @@ export type Database = {
           timer_end: string | null
           before_image_url: string | null
           after_image_url: string | null
+          arrival_selfie_url: string | null
+          evidence_photo_urls: string[]
           tech_sign_url: string | null
           customer_sign_url: string | null
           service_charge: number
@@ -1814,6 +1978,8 @@ export type Database = {
           timer_end?: string | null
           before_image_url?: string | null
           after_image_url?: string | null
+          arrival_selfie_url?: string | null
+          evidence_photo_urls?: string[]
           tech_sign_url?: string | null
           customer_sign_url?: string | null
           service_charge?: number
@@ -1834,6 +2000,8 @@ export type Database = {
           timer_end?: string | null
           before_image_url?: string | null
           after_image_url?: string | null
+          arrival_selfie_url?: string | null
+          evidence_photo_urls?: string[]
           tech_sign_url?: string | null
           customer_sign_url?: string | null
           service_charge?: number
@@ -3695,6 +3863,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      log_confirmed_availability: {
+        Args: {
+          p_appointment_id: string
+          p_reason: string
+          p_confirmed_date: string
+          p_confirmed_from: string
+          p_confirmed_to: string
+          p_note?: string | null
+        }
+        Returns: {
+          id: string
+          org_id: string
+          appointment_id: string
+          logged_by: string
+          reason: string
+          confirmed_date: string
+          confirmed_from: string
+          confirmed_to: string
+          note: string | null
+          created_at: string
+        }
+      }
       link_customer_google_account: {
         Args: {
           p_mobile: string

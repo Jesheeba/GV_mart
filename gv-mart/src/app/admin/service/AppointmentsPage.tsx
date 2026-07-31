@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom"
 import { AlertTriangle, ChevronLeft, ChevronRight, Wand2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
 import { useAppointmentsRange, useAssignTicketTechnician, useAutoAssignTicket, useTechnicians, useUnassignAppointment } from "@/hooks/useService"
@@ -80,12 +81,7 @@ export function AppointmentsPage() {
           <Button size="icon-sm" variant="outline" onClick={() => setDay((d) => new Date(d.getTime() - 86_400_000))}>
             <ChevronLeft className="size-4" />
           </Button>
-          <input
-            type="date"
-            value={dayStr}
-            onChange={(e) => setDay(new Date(`${e.target.value}T00:00:00`))}
-            className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          />
+          <DatePicker value={dayStr} onChange={(v) => setDay(new Date(`${v}T00:00:00`))} className="w-40" />
           <Button size="icon-sm" variant="outline" onClick={() => setDay((d) => new Date(d.getTime() + 86_400_000))}>
             <ChevronRight className="size-4" />
           </Button>

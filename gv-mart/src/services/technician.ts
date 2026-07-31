@@ -15,7 +15,13 @@ export type ServiceTicketRow = Tables<"service_tickets">
 export type AppointmentRow = Tables<"appointments">
 export type RatingRow = Tables<"ratings">
 export type SettingsRow = Tables<"settings">
-export type TechnicianRow = Tables<"technicians">
+// `is_active` (migration 20260702200000_technicians_admin_schema.sql)
+// post-dates the last database.ts regen — widened locally the same way
+// techniciansAdmin.ts's TechnicianRow already does (see that file's header
+// for why this project hand-widens instead of editing the generated file).
+// Technician Lifecycle Management Phase 3: TechnicianShell reads this to
+// block a deactivated technician's own dashboard.
+export type TechnicianRow = Tables<"technicians"> & { is_active: boolean }
 
 // v2.2 §6.5 "Touching the number starts the call, and calls are tracked and
 // recorded." A `tel:` link itself can't be observed completing (the OS owns
@@ -314,7 +320,25 @@ export type JobDetail = ServiceTicketRow & {
   products: { name: string; warranty_months: number; category: Enums<"brand_category"> } | null
   brands: { name: string } | null
   models: { name: string } | null
-  appointments: { scheduled_at: string | null; mode: Enums<"appointment_mode">; status: Enums<"appointment_status">; technician_id: string | null }[]
+  appointments: {
+    scheduled_at: string | null
+    mode: Enums<"appointment_mode">
+    status: Enums<"appointment_status">
+    technician_id: string | null
+    // Task 5 (2026-07-30/31) — admin-logged, phone-confirmed availability
+    // (exception path on top of unchanged auto-assignment); most recent
+    // entry is what the technician needs to see. See
+    // 20260731090000_admin_confirmed_availability.sql.
+    appointment_availability_calls: {
+      id: string
+      reason: string
+      confirmed_date: string
+      confirmed_from: string
+      confirmed_to: string
+      note: string | null
+      created_at: string
+    }[]
+  }[]
   service_visits: {
     id: string
     timer_start: string | null
@@ -322,6 +346,13 @@ export type JobDetail = ServiceTicketRow & {
     service_charge: number
     before_image_url: string | null
     after_image_url: string | null
+    // Technician module audit, Phase F (2026-07-31) — arrival_selfie_url
+    // (required before MapPage's "I've Arrived" fires) and
+    // evidence_photo_urls (multi-photo capture on the After Photo step) both
+    // post-date the last database.ts regen, widened locally same as every
+    // other post-regen column in this file.
+    arrival_selfie_url: string | null
+    evidence_photo_urls: string[] | null
     // GV.md 1.2: the allowed-time calculation's inputs — the job's actual
     // items (base estimate, see src/lib/job-allowance.ts), whether this
     // visit's rating collected a Google review click, and whether an
@@ -339,7 +370,7 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
     const { data, error } = await supabase
       .from("service_tickets")
       .select(
-        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
+        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
       )
       .eq("id", ticketId)
       .single()
@@ -679,6 +710,10 @@ export async function queueStartVisit(visit: {
   ticketId: string
   technicianId: string
   timerStart: string
+  // Task 6 — captured on MapPage right before arrival is confirmed, so it
+  // rides along in the same insert as everything else this row is created
+  // with, rather than a second queued patch job.
+  arrivalSelfieUrl?: string
 }) {
   const row = {
     id: visit.id,
@@ -686,6 +721,7 @@ export async function queueStartVisit(visit: {
     ticket_id: visit.ticketId,
     technician_id: visit.technicianId,
     timer_start: visit.timerStart,
+    ...(visit.arrivalSelfieUrl ? { arrival_selfie_url: visit.arrivalSelfieUrl } : {}),
   }
   await db.draftVisits.put({ clientId: visit.id, ticketId: visit.ticketId, serverId: visit.id, data: row, updatedAt: Date.now() })
   await enqueue("service_visit.start", row)
@@ -706,6 +742,15 @@ export async function queueStartVisit(visit: {
 
 export async function queueVisitImage(visitId: string, kind: "before" | "after", url: string) {
   await enqueue("service_visit.image", { visitId, column: kind === "before" ? "before_image_url" : "after_image_url", url })
+}
+
+// Task 6 — extra evidence photos (damaged/replaced/installed parts) beyond
+// the single before/after image. Full-array replace on every add/remove
+// through the same generic `service_visit.arrive` patch job cacheVisitSignature
+// already uses — safe because only one technician ever writes to a given
+// visit, so queued patches applying in enqueue order never race each other.
+export async function queueVisitEvidencePhotos(visitId: string, urls: string[]) {
+  await enqueue("service_visit.arrive", { visitId, patch: { evidence_photo_urls: urls } })
 }
 
 // ── OTP completion confirmation (GV.md §2) ──────────────────────────────
@@ -826,11 +871,32 @@ export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput
   })
 }
 
+/**
+ * Task 6 (2026-07-30) — spares mapped to the job's product, surfaced as
+ * quick-add suggestions in SpareSelectStep ahead of free search. Same
+ * query shape as customerApp.ts's listSparesForProduct (product_spares is
+ * readable by every org member per its RLS policy) — duplicated rather
+ * than cross-imported since it's five lines and the two call sites belong
+ * to unrelated domains.
+ */
+export async function listSparesForProduct(productId: string) {
+  const { data, error } = await supabase
+    .from("product_spares")
+    .select("spares!inner(id, name, sku, price, standard_time_minutes, is_active)")
+    .eq("product_id", productId)
+    .eq("spares.is_active", true)
+  if (error) throw error
+  return (data ?? []).map((row) => row.spares).filter((s): s is NonNullable<typeof s> => !!s)
+}
+
 export async function searchSpares(orgId: string, term: string) {
   const q = term.trim().replace(/[%,]/g, "")
   // GV.md 1.1/D4: standard_time_minutes rides along so SpareSelectStep can
   // seed the SOP checklist with each selected item's admin-set time.
-  let query = supabase.from("spares").select("id, name, sku, price, standard_time_minutes").eq("org_id", orgId).limit(15)
+  // Task 6 (2026-07-30): a technician shouldn't be able to log a
+  // discontinued spare against a job — see 20260730170000_product_spare_
+  // mapping_and_active_flags.sql.
+  let query = supabase.from("spares").select("id, name, sku, price, standard_time_minutes").eq("org_id", orgId).eq("is_active", true).limit(15)
   if (q) query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
   const { data, error } = await query
   if (error) throw error

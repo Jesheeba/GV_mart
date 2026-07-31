@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import { dateRangePresets, dateRangeForPreset, type DateRange } from "@/services/reports"
 
 /** Shared date-range + presets + CSV export bar reused by every Reports tab.
@@ -25,23 +26,11 @@ export function DateRangeFilter({
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("reports.filters.from")}</label>
-          <input
-            type="date"
-            value={range.from}
-            max={range.to}
-            onChange={(e) => onChange({ ...range, from: e.target.value })}
-            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          />
+          <DatePicker value={range.from} max={range.to} onChange={(v) => onChange({ ...range, from: v })} className="h-9 w-36" />
         </div>
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("reports.filters.to")}</label>
-          <input
-            type="date"
-            value={range.to}
-            min={range.from}
-            onChange={(e) => onChange({ ...range, to: e.target.value })}
-            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          />
+          <DatePicker value={range.to} min={range.from} onChange={(v) => onChange({ ...range, to: v })} className="h-9 w-36" />
         </div>
         <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
           {dateRangePresets.map((preset) => (

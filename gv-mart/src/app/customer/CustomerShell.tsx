@@ -6,6 +6,7 @@ import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { UserMenu } from "@/components/shared/UserMenu"
 import { useProfile } from "@/hooks/useProfile"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { OtpAlertBanner } from "@/app/customer/components/OtpAlertBanner"
 
 export function CustomerShell() {
   const { t } = useTranslation()
@@ -37,6 +38,7 @@ export function CustomerShell() {
           <UserMenu fullName={profile.full_name} role={profile.role} />
         </div>
       </header>
+      <OtpAlertBanner />
       <main className="px-4">
         <Outlet />
       </main>

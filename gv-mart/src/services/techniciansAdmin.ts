@@ -18,7 +18,21 @@ import type { DateRange } from "./reports"
 // instead). RPC names aren't in a literal union that can be widened the
 // same way, so those few calls go through a minimally-scoped `as never`
 // cast on just the method argument, not on the whole client.
-export type TechnicianRow = Tables<"technicians"> & { zone: string | null; is_active: boolean }
+//
+// Technician Lifecycle Management, Phase 1/2 — address/city/state/pincode
+// (migration 20260730140000_technician_profile_fields.sql) widened the same
+// way, and the new admin-create-technician Edge Function (holds the
+// service_role key server-side — see that function's own file header for
+// why account creation can't happen straight from this browser client)
+// covers create/reset_password/delete.
+export type TechnicianRow = Tables<"technicians"> & {
+  zone: string | null
+  is_active: boolean
+  address: string | null
+  city: string | null
+  state: string | null
+  pincode: string | null
+}
 // Requirement 2/11 — `check_out_at` (migration 20260716120000_attendance_checkout.sql)
 // post-dates the last database.ts regen too; widened locally the same way
 // as TechnicianRow above rather than editing that shared file.
@@ -26,6 +40,12 @@ export type AttendanceRow = Tables<"attendance"> & { check_out_at: string | null
 export type TechnicianLocationRow = Tables<"technician_locations">
 export type SpareHandoverRow = Tables<"spare_handovers">
 export type SpareHandoverItemRow = Tables<"spare_handover_items">
+
+/** Shared with TechnicianDetailPage.tsx's edit panel and TechniciansListPage.tsx's
+ * create form — matches products.category's brand_category enum vocabulary
+ * exactly (the assignment engine's required_skill match, see Phase 1 of
+ * GV_Mart_Technician_Assignment_Logic_Change.md). */
+export const TECHNICIAN_SKILL_OPTIONS = ["ro", "ac", "inverter", "battery"] as const
 
 /** Cast helper for RPC names added after the last `database.ts` regen. */
 function rpc(name: string, args: Record<string, unknown>) {
@@ -125,7 +145,17 @@ export async function listTechnicians(orgId: string, range?: DateRange): Promise
 
 export async function updateTechnician(
   id: string,
-  patch: { zone?: string | null; skills?: string[]; is_active?: boolean; is_on_duty?: boolean; daily_capacity_minutes?: number }
+  patch: {
+    zone?: string | null
+    skills?: string[]
+    is_active?: boolean
+    is_on_duty?: boolean
+    daily_capacity_minutes?: number
+    address?: string | null
+    city?: string | null
+    state?: string | null
+    pincode?: string | null
+  }
 ) {
   const { data, error } = await supabase
     .from("technicians")
@@ -137,10 +167,73 @@ export async function updateTechnician(
   return data
 }
 
+/** Phone/photo live on `profiles`, not `technicians` — a separate update
+ * against the profile row `technicians.profile_id` points at. Full name is
+ * intentionally not editable here (kept immutable post-creation, matching
+ * how no other role's name is editable in this app either). */
+export async function updateTechnicianProfile(profileId: string, patch: { phone?: string | null; photo_url?: string | null }) {
+  const { error } = await supabase.from("profiles").update(patch).eq("id", profileId)
+  if (error) throw error
+}
+
+// ── Create technician (real account, via admin-create-technician Edge Fn) ──
+// The piece the old flow was missing: a brand-new Supabase Auth login needs
+// the service_role key, which this browser app never ships. The Edge
+// Function holds that key server-side instead (see its own file header) —
+// this is a thin invoke wrapper, same shape as maps.ts's geocode calls.
+
+export type CreateTechnicianInput = {
+  fullName: string
+  phone: string
+  email: string
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  pincode?: string | null
+  skills?: string[]
+  zone?: string | null
+  dailyCapacityMinutes?: number
+  photoUrl?: string | null
+}
+export type CreateTechnicianResult = { technicianId: string; profileId: string; password: string }
+
+async function invokeAdminCreateTechnician<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("admin-create-technician", { body })
+  if (error) {
+    // supabase-js buries the Edge Function's own JSON error body in
+    // error.context — surface it if present so the admin sees the real
+    // reason (e.g. "email already registered") instead of a generic
+    // "non-2xx status code" message.
+    const context = (error as { context?: Response }).context
+    if (context) {
+      try {
+        const body = await context.clone().json()
+        if (body?.error) throw new Error(body.error)
+      } catch {
+        // fall through to the generic error below
+      }
+    }
+    throw error
+  }
+  return data as T
+}
+
+export async function createTechnicianAccount(input: CreateTechnicianInput): Promise<CreateTechnicianResult> {
+  return invokeAdminCreateTechnician<CreateTechnicianResult>({ action: "create", ...input })
+}
+
+export async function resetTechnicianPassword(technicianId: string): Promise<{ password: string }> {
+  return invokeAdminCreateTechnician<{ password: string }>({ action: "reset_password", technicianId })
+}
+
+export async function deleteTechnicianAccount(technicianId: string): Promise<void> {
+  await invokeAdminCreateTechnician<{ success: true }>({ action: "delete", technicianId })
+}
+
 // ── Add technician (link an existing login) ───────────────────────────────
-// Real account creation needs the service_role key (see file header) — this
-// links a profile that already has a login (created outside this app, e.g.
-// via the Supabase dashboard) but has no technicians row yet.
+// Kept as a secondary path for the edge case of a login created outside this
+// app (e.g. directly via the Supabase dashboard) that isn't a technician
+// yet — createTechnicianAccount above is the primary flow now.
 
 export type EligibleProfile = { id: string; full_name: string; phone: string | null }
 
@@ -681,7 +774,9 @@ export async function listSpareHandovers(orgId: string): Promise<SpareHandoverLi
 export type SpareOption = { id: string; name: string; sku: string | null; price: number }
 
 export async function listSparesForHandover(orgId: string): Promise<SpareOption[]> {
-  const { data, error } = await supabase.from("spares").select("id, name, sku, price").eq("org_id", orgId).order("name")
+  // Task 6 (2026-07-30): don't hand over a discontinued spare — see
+  // 20260730170000_product_spare_mapping_and_active_flags.sql.
+  const { data, error } = await supabase.from("spares").select("id, name, sku, price").eq("org_id", orgId).eq("is_active", true).order("name")
   if (error) throw error
   return data ?? []
 }

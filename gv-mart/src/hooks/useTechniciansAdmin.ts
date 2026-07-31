@@ -38,6 +38,39 @@ export function useCreateTechnician() {
   })
 }
 
+// ── Technician Lifecycle Management: real account creation/reset/delete ──
+
+export function useCreateTechnicianAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: techniciansAdmin.CreateTechnicianInput) => techniciansAdmin.createTechnicianAccount(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["technicians"] }),
+  })
+}
+
+export function useResetTechnicianPassword() {
+  return useMutation({
+    mutationFn: (technicianId: string) => techniciansAdmin.resetTechnicianPassword(technicianId),
+  })
+}
+
+export function useDeleteTechnicianAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (technicianId: string) => techniciansAdmin.deleteTechnicianAccount(technicianId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["technicians"] }),
+  })
+}
+
+export function useUpdateTechnicianProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ profileId, patch }: { profileId: string; patch: Parameters<typeof techniciansAdmin.updateTechnicianProfile>[1] }) =>
+      techniciansAdmin.updateTechnicianProfile(profileId, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["technicians"] }),
+  })
+}
+
 export function useTechnicianCurrentJob(technicianId: string | undefined) {
   return useQuery({
     queryKey: ["technicians", "currentJob", technicianId],

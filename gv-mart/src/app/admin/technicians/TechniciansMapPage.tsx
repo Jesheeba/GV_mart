@@ -95,7 +95,7 @@ function useTechnicianTrackingStatus(
   if (idleMinutes >= IDLE_TRIGGER_MINUTES) return { status: "idle", idleMinutes }
 
   const straightKm = distanceKm(origin!, destination)
-  const routeKm = directions.data ?? null
+  const routeKm = directions.data?.distanceKm ?? null
   const offRoute = routeKm != null && straightKm > 0.1 && routeKm / straightKm > OFF_ROUTE_RATIO
   if (offRoute) return { status: "off-route", idleMinutes: 0 }
 

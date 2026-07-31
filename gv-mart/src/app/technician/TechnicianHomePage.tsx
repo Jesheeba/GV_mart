@@ -2,14 +2,14 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import { useNavigate } from "react-router-dom"
-import { ChevronRight, ClipboardList, MapPin, TriangleAlert, Wrench } from "lucide-react"
+import { CalendarCheck, ChevronRight, ClipboardList, MapPin, TriangleAlert, Wrench } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { JobTypeBadge, OverdueBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
-import { useMyTechnician, useTechnicianSettings, useTodaysJobCounts, useTodaysJobs } from "@/hooks/useTechnician"
+import { useMyTechnician, useTechnicianSettings, useTodayAttendance, useTodaysJobCounts, useTodaysJobs } from "@/hooks/useTechnician"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeTicketAllowedDuration, findOpenVisit, isOverdueJob, type JobCard } from "@/services/technician"
 import type { Tables } from "@/types/database"
@@ -170,11 +170,18 @@ export function TechnicianHomePage() {
   const now = useNowTick()
   const counts = useTodaysJobCounts(profile?.org_id, technician.data?.id)
   const settings = useTechnicianSettings(profile?.org_id)
+  const attendance = useTodayAttendance(technician.data?.id)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
     return <FullPageError message={t("auth.profileLoadError")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
   }
+
+  // Task 1 — a technician who hasn't checked in today (or has already checked
+  // out) must not see today's assigned jobs. `attendance.isLoading` guards
+  // against a flash of the gate before the first fetch resolves.
+  const checkedInToday = !!attendance.data?.check_in_at && !attendance.data?.check_out_at
+  const showJobsGate = !attendance.isLoading && !checkedInToday
 
   const sortedJobs = jobs.data ? sortJobsByPriority(jobs.data, now) : []
 
@@ -193,48 +200,61 @@ export function TechnicianHomePage() {
         </Button>
       </div>
 
-      {/* Requirement 6 — Today's Jobs / Pending / Completed / Cancelled / Overdue counts row. 2-2-1 wrap: first four cells pair up, Overdue spans the full width as the standout danger-tone cell. */}
-      <div className="grid grid-cols-2 gap-2">
-        <CountCell label={t("technician.home.counts.total")} value={counts.data?.total ?? 0} loading={counts.isLoading} />
-        <CountCell label={t("technician.home.counts.pending")} value={counts.data?.pending ?? 0} loading={counts.isLoading} />
-        <CountCell label={t("technician.home.counts.completed")} value={counts.data?.completed ?? 0} loading={counts.isLoading} />
-        <CountCell label={t("technician.home.counts.cancelled")} value={counts.data?.cancelled ?? 0} loading={counts.isLoading} />
-        <CountCell
-          label={t("technician.home.counts.overdue")}
-          value={counts.data?.overdue ?? 0}
-          loading={counts.isLoading}
-          danger
-          className="col-span-2"
-        />
-      </div>
-
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between px-1">
-          <p className="text-sm font-semibold text-text">{t("technician.home.todaysJobs")}</p>
-          {jobs.data && jobs.data.length > 0 ? (
-            <span className="text-xs text-text-muted">{t("technician.home.jobCount", { count: jobs.data.length })}</span>
-          ) : null}
-        </div>
-
-        {jobs.isLoading ? (
-          <Card className="items-center py-6 text-center">
-            <p className="text-sm text-text-muted">{t("common.loading")}</p>
-          </Card>
-        ) : jobs.isError ? (
-          <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobs.refetch()} retryLabel={t("common.retry")} />
-        ) : !jobs.data || jobs.data.length === 0 ? (
-          <Card className="items-center gap-1 py-6 text-center">
-            <p className="text-sm font-medium text-text">{t("technician.home.noJobsTitle")}</p>
-            <p className="text-xs text-text-muted">{t("technician.home.noJobsBody")}</p>
-          </Card>
-        ) : (
-          <div className="space-y-2.5">
-            {sortedJobs.map((job) => (
-              <JobListItem key={job.id} job={job} now={now} settings={settings.data} onOpen={() => navigate(`/technician/jobs/${job.ticket_id}`)} />
-            ))}
+      {showJobsGate ? (
+        <Card className="items-center gap-2 py-8 text-center">
+          <CalendarCheck className="size-6 text-text-muted" />
+          <p className="text-sm font-medium text-text">{t("technician.home.attendanceRequiredTitle")}</p>
+          <p className="text-xs text-text-muted">{t("technician.home.attendanceRequiredBody")}</p>
+          <Button type="button" className="mt-2" onClick={() => navigate("/technician/attendance")}>
+            {t("technician.home.attendanceRequiredButton")}
+          </Button>
+        </Card>
+      ) : (
+        <>
+          {/* Requirement 6 — Today's Jobs / Pending / Completed / Cancelled / Overdue counts row. 2-2-1 wrap: first four cells pair up, Overdue spans the full width as the standout danger-tone cell. */}
+          <div className="grid grid-cols-2 gap-2">
+            <CountCell label={t("technician.home.counts.total")} value={counts.data?.total ?? 0} loading={counts.isLoading} />
+            <CountCell label={t("technician.home.counts.pending")} value={counts.data?.pending ?? 0} loading={counts.isLoading} />
+            <CountCell label={t("technician.home.counts.completed")} value={counts.data?.completed ?? 0} loading={counts.isLoading} />
+            <CountCell label={t("technician.home.counts.cancelled")} value={counts.data?.cancelled ?? 0} loading={counts.isLoading} />
+            <CountCell
+              label={t("technician.home.counts.overdue")}
+              value={counts.data?.overdue ?? 0}
+              loading={counts.isLoading}
+              danger
+              className="col-span-2"
+            />
           </div>
-        )}
-      </div>
+
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-sm font-semibold text-text">{t("technician.home.todaysJobs")}</p>
+              {jobs.data && jobs.data.length > 0 ? (
+                <span className="text-xs text-text-muted">{t("technician.home.jobCount", { count: jobs.data.length })}</span>
+              ) : null}
+            </div>
+
+            {jobs.isLoading ? (
+              <Card className="items-center py-6 text-center">
+                <p className="text-sm text-text-muted">{t("common.loading")}</p>
+              </Card>
+            ) : jobs.isError ? (
+              <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobs.refetch()} retryLabel={t("common.retry")} />
+            ) : !jobs.data || jobs.data.length === 0 ? (
+              <Card className="items-center gap-1 py-6 text-center">
+                <p className="text-sm font-medium text-text">{t("technician.home.noJobsTitle")}</p>
+                <p className="text-xs text-text-muted">{t("technician.home.noJobsBody")}</p>
+              </Card>
+            ) : (
+              <div className="space-y-2.5">
+                {sortedJobs.map((job) => (
+                  <JobListItem key={job.id} job={job} now={now} settings={settings.data} onOpen={() => navigate(`/technician/jobs/${job.ticket_id}`)} />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

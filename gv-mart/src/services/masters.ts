@@ -89,6 +89,43 @@ export async function deleteSpare(id: string) {
   if (error) throw error
 }
 
+// Task 6 (2026-07-30) — bulk import (paste-in add) and bulk enable/disable,
+// both plain client calls: is_master() write RLS already covers insert and
+// update on spares, same as the single-row create/update above.
+export async function bulkCreateSpares(rows: TablesInsert<"spares">[]) {
+  const { data, error } = await supabase.from("spares").insert(rows).select()
+  if (error) throw error
+  return data
+}
+export async function bulkSetSparesActive(ids: string[], isActive: boolean) {
+  const { error } = await supabase.from("spares").update({ is_active: isActive }).in("id", ids)
+  if (error) throw error
+}
+
+// ── Product <-> Spare mapping (Task 6, "assign multiple spare parts to
+// products") ────────────────────────────────────────────────────────────
+export async function listProductSpares(productId: string) {
+  const { data, error } = await supabase
+    .from("product_spares")
+    .select("*, spares(id, name, sku, is_active)")
+    .eq("product_id", productId)
+  if (error) throw error
+  return data
+}
+export async function addProductSpare(orgId: string, productId: string, spareId: string) {
+  const { data, error } = await supabase
+    .from("product_spares")
+    .insert({ org_id: orgId, product_id: productId, spare_id: spareId })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+export async function removeProductSpare(id: string) {
+  const { error } = await supabase.from("product_spares").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── Gifts ────────────────────────────────────────────────────────────────
 export async function listGifts(orgId: string) {
   const { data, error } = await supabase.from("gifts").select("*").eq("org_id", orgId).order("threshold_amount")
@@ -107,6 +144,33 @@ export async function updateGift(id: string, patch: TablesUpdate<"gifts">) {
 }
 export async function deleteGift(id: string) {
   const { error } = await supabase.from("gifts").delete().eq("id", id)
+  if (error) throw error
+}
+
+// ── SOP step templates (Technician Module Audit, Task 5) ───────────────────
+// Read is org-wide (technicians pick from this list on-site), write is
+// master-only — same shape as gifts/spares/products above.
+export async function listSopStepTemplates(orgId: string) {
+  const { data, error } = await supabase
+    .from("sop_step_templates")
+    .select("*, products(name)")
+    .eq("org_id", orgId)
+    .order("name")
+  if (error) throw error
+  return data
+}
+export async function createSopStepTemplate(row: TablesInsert<"sop_step_templates">) {
+  const { data, error } = await supabase.from("sop_step_templates").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateSopStepTemplate(id: string, patch: TablesUpdate<"sop_step_templates">) {
+  const { data, error } = await supabase.from("sop_step_templates").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteSopStepTemplate(id: string) {
+  const { error } = await supabase.from("sop_step_templates").delete().eq("id", id)
   if (error) throw error
 }
 
@@ -217,4 +281,6 @@ export type GiftRow = Tables<"gifts">
 export type AmcPlanRow = Tables<"amc_plans">
 export type IncentiveRuleRow = Tables<"incentive_rules">
 export type ComplaintTypeRow = Tables<"complaint_types">
+export type ProductSpareRow = Tables<"product_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
 export type SettingsRow = Tables<"settings">
+export type SopStepTemplateRow = Tables<"sop_step_templates"> & { products: Pick<Tables<"products">, "name"> | null }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
@@ -123,7 +124,7 @@ export function BillEntryTab() {
           </div>
           <div className="space-y-1.5">
             <Label>{t("purchase.bill.date")}</Label>
-            <Input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
+            <DatePicker value={billDate} onChange={setBillDate} />
           </div>
         </div>
 

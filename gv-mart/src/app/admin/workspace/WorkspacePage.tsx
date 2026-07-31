@@ -4,6 +4,7 @@ import { Bell, CheckCircle2, Loader2, Plus, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { useProfile } from "@/hooks/useProfile"
 import {
   useCompletedWorkspaceTasks,
@@ -134,12 +135,7 @@ export function WorkspacePage() {
                 onChange={(e) => setNewTitle(e.target.value)}
                 className="flex-1 min-w-[160px]"
               />
-              <input
-                type="date"
-                value={newDueDate}
-                onChange={(e) => setNewDueDate(e.target.value)}
-                className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-              />
+              <DatePicker value={newDueDate} onChange={setNewDueDate} className="w-40" />
               <Button type="button" size="sm" disabled={!parsed.success || createTask.isPending} onClick={handleAddTask}>
                 {createTask.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
                 {t("workspace.addTask")}

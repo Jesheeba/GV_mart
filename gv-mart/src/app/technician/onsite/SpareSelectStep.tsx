@@ -4,7 +4,7 @@ import { Loader2, Plus, Search, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useSpareSearch } from "@/hooks/useTechnician"
+import { useSpareSearch, useSparesForProduct } from "@/hooks/useTechnician"
 import { formatCurrency } from "@/lib/sale-calc"
 
 // GV.md 1.1/D4: standardTimeMinutes (admin-set on the spare master) rides
@@ -15,16 +15,24 @@ export type SelectedSpare = { spareId: string; name: string; sku: string | null;
 
 export function SpareSelectStep({
   orgId,
+  productId,
   selected,
   onChange,
 }: {
   orgId: string | undefined
+  /** Task 6 (2026-07-30) — the job's product, for the "suggested" quick-add
+   * list below. Free search always stays available alongside it: the
+   * product↔spare mapping is admin-curated and may be incomplete, so it
+   * must never be the only way to log a spare. */
+  productId: string | null | undefined
   selected: SelectedSpare[]
   onChange: (next: SelectedSpare[]) => void
 }) {
   const { t } = useTranslation()
   const [term, setTerm] = useState("")
   const results = useSpareSearch(orgId, term)
+  const suggested = useSparesForProduct(productId ?? undefined)
+  const suggestedToShow = (suggested.data ?? []).filter((s) => !selected.some((sel) => sel.spareId === s.id))
 
   function addSpare(spare: { id: string; name: string; sku: string | null; price: number; standard_time_minutes: number | null }) {
     if (selected.some((s) => s.spareId === spare.id)) return
@@ -50,6 +58,26 @@ export function SpareSelectStep({
         <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
         <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder={t("technician.onsite.spares.searchPlaceholder")} className="pl-10" />
       </div>
+      {!term.trim() && suggestedToShow.length > 0 ? (
+        <div className="space-y-1.5">
+          <p className="px-1 text-xs font-medium text-text-muted">{t("technician.onsite.spares.suggestedTitle")}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestedToShow.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => addSpare({ id: s.id, name: s.name, sku: s.sku, price: Number(s.price), standard_time_minutes: s.standard_time_minutes })}
+                className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-3 py-1.5 text-xs font-medium text-text hover:border-accent hover:text-accent"
+              >
+                <Plus className="size-3" />
+                {s.name}
+                {s.sku ? <span className="text-text-muted">({s.sku})</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {term.trim() ? (
         <div className="max-h-48 space-y-1 overflow-auto rounded-xl border border-border">
           {results.isFetching ? (

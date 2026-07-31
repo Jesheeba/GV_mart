@@ -106,6 +106,9 @@ export async function listRoProducts(orgId: string) {
     .select("id, name, brands(name), models(name)")
     .eq("org_id", orgId)
     .eq("category", "ro")
+    // Task 6 (2026-07-30): don't offer an admin-disabled product for a new
+    // AMC sale — see 20260730170000_product_spare_mapping_and_active_flags.sql.
+    .eq("is_active", true)
     .order("name")
   if (error) throw error
   return data ?? []

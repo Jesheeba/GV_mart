@@ -94,6 +94,17 @@ export function HistoryDetailPage() {
         </Card>
       ) : null}
 
+      {visit?.evidence_photo_urls && visit.evidence_photo_urls.length > 0 ? (
+        <Card className="gap-3">
+          <p className="px-1 text-sm font-semibold text-text">{t("technician.onsite.evidence.title")}</p>
+          <div className="grid grid-cols-3 gap-2">
+            {visit.evidence_photo_urls.map((url, i) => (
+              <img key={i} src={url} alt="" className="aspect-square w-full rounded-xl border border-border object-cover" />
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
       <Button type="button" variant="outline" onClick={() => navigate(-1)}>
         {t("common.back")}
       </Button>

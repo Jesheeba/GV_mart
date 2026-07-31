@@ -1,18 +1,21 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { Briefcase, ChevronLeft, ChevronRight, Gift, History, Loader2, Pencil, Phone, Power, Trash2, X } from "lucide-react"
+import { Briefcase, ChevronLeft, ChevronRight, Gift, History, KeyRound, Loader2, Pencil, Phone, Power, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import {
+  useDeleteTechnicianAccount,
   useDeleteTechnicianAvailability,
+  useResetTechnicianPassword,
   useTechnicianAttendanceForMonth,
   useTechnicianAvailability,
   useTechnicianCurrentJob,
@@ -21,14 +24,16 @@ import {
   useTechniciansList,
   useTechnicianVisitsForDate,
   useUpdateTechnician,
+  useUpdateTechnicianProfile,
   useUpsertTechnicianAvailability,
 } from "@/hooks/useTechniciansAdmin"
 import { PriorityBadge, TicketTypeBadge } from "@/app/admin/service/TicketBadges"
-import { pickHistoryVisit } from "@/services/techniciansAdmin"
+import { pickHistoryVisit, TECHNICIAN_SKILL_OPTIONS } from "@/services/techniciansAdmin"
 import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
 import { cn } from "@/lib/utils"
+import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 
-const SKILL_OPTIONS = ["ro", "ac", "inverter", "battery"] as const
+const SKILL_OPTIONS = TECHNICIAN_SKILL_OPTIONS
 
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return "—"
@@ -64,6 +69,9 @@ export function TechnicianDetailPage() {
 
   const { data: technicians, isLoading, isError, refetch } = useTechniciansList(orgId)
   const updateMut = useUpdateTechnician()
+  const updateProfileMut = useUpdateTechnicianProfile()
+  const resetPasswordMut = useResetTechnicianPassword()
+  const deleteMut = useDeleteTechnicianAccount()
   const technician = technicians?.find((tc) => tc.id === id)
 
   const currentJob = useTechnicianCurrentJob(id)
@@ -74,7 +82,14 @@ export function TechnicianDetailPage() {
   const [editZone, setEditZone] = useState("")
   const [editSkills, setEditSkills] = useState<string[]>([])
   const [editCapacity, setEditCapacity] = useState("")
+  const [editPhone, setEditPhone] = useState("")
+  const [editAddress, setEditAddress] = useState("")
+  const [editCity, setEditCity] = useState("")
+  const [editState, setEditState] = useState("")
+  const [editPincode, setEditPincode] = useState("")
   const [confirmingDeactivate, setConfirmingDeactivate] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError) {
@@ -90,24 +105,49 @@ export function TechnicianDetailPage() {
     setEditZone(technician!.zone ?? "")
     setEditSkills(technician!.skills ?? [])
     setEditCapacity(String(technician!.daily_capacity_minutes ?? 480))
+    setEditPhone(technician!.profiles?.phone ?? "")
+    setEditAddress(technician!.address ?? "")
+    setEditCity(technician!.city ?? "")
+    setEditState(technician!.state ?? "")
+    setEditPincode(technician!.pincode ?? "")
     setEditing(true)
   }
   function toggleSkill(skill: string) {
     setEditSkills((prev) => (prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]))
   }
   const capacityValid = /^\d+$/.test(editCapacity.trim()) && Number(editCapacity) > 0
+  /** Two separate tables (technicians + profiles, see updateTechnicianProfile's
+   * doc comment) — fired together, edit panel only closes once both land. */
   function saveEdit() {
     if (!capacityValid) return
     updateMut.mutate(
-      { id: technician!.id, patch: { zone: editZone || null, skills: editSkills, daily_capacity_minutes: Number(editCapacity) } },
+      {
+        id: technician!.id,
+        patch: {
+          zone: editZone || null,
+          skills: editSkills,
+          daily_capacity_minutes: Number(editCapacity),
+          address: editAddress || null,
+          city: editCity || null,
+          state: editState || null,
+          pincode: editPincode || null,
+        },
+      },
       { onSuccess: () => setEditing(false) }
     )
+    updateProfileMut.mutate({ profileId: technician!.profile_id, patch: { phone: editPhone || null } })
   }
   function toggleActive() {
     updateMut.mutate(
       { id: technician!.id, patch: { is_active: !technician!.is_active } },
       { onSuccess: () => setConfirmingDeactivate(false) }
     )
+  }
+  function resetPassword() {
+    resetPasswordMut.mutate(technician!.id, { onSuccess: ({ password }) => setRevealedPassword(password) })
+  }
+  function confirmDelete() {
+    deleteMut.mutate(technician!.id, { onSuccess: () => navigate("/admin/technicians") })
   }
 
   return (
@@ -162,12 +202,31 @@ export function TechnicianDetailPage() {
             <Button
               variant="outline"
               size="icon"
+              title={t("technicians.detail.resetPassword")}
+              disabled={resetPasswordMut.isPending}
+              onClick={resetPassword}
+            >
+              {resetPasswordMut.isPending ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
               title={technician.is_active ? t("technicians.detail.deactivate") : t("technicians.detail.reactivate")}
               className={technician.is_active ? "text-danger" : "text-success"}
               onClick={() => setConfirmingDeactivate(true)}
             >
               <Power className="size-4" />
             </Button>
+            {/* Delete is only offered once history has loaded AND is empty —
+                service_visits.technician_id is ON DELETE RESTRICT, so any
+                technician with real job history can't be hard-deleted (the
+                edge function surfaces that as a clear error either way, this
+                just avoids the dead-end click in the common case). */}
+            {!history.isLoading && (history.data?.length ?? 0) === 0 ? (
+              <Button variant="outline" size="icon" title={t("common.delete")} className="text-danger" onClick={() => setConfirmingDelete(true)}>
+                <Trash2 className="size-4" />
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -185,10 +244,30 @@ export function TechnicianDetailPage() {
           </div>
         ) : null}
 
+        {confirmingDelete ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3">
+            <p className="flex-1 text-sm text-text">{t("technicians.detail.confirmDelete", { name })}</p>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmingDelete(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button size="sm" variant="destructive" disabled={deleteMut.isPending} onClick={confirmDelete}>
+              {deleteMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.delete")}
+            </Button>
+          </div>
+        ) : null}
+        {deleteMut.isError ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(deleteMut.error as Error).message}</p> : null}
+        {resetPasswordMut.isError ? (
+          <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(resetPasswordMut.error as Error).message}</p>
+        ) : null}
+
         {editing ? (
           <div className="rounded-xl border border-border bg-surface-alt p-4">
             <p className="mb-3 text-sm font-semibold text-text">{t("technicians.list.editTitle")}</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label htmlFor="tech-phone">{t("technicians.detail.fields.phone")}</Label>
+                <Input id="tech-phone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+              </div>
               <div className="space-y-1">
                 <Label htmlFor="tech-zone">{t("technicians.list.zone")}</Label>
                 <Input id="tech-zone" value={editZone} onChange={(e) => setEditZone(e.target.value)} />
@@ -206,6 +285,22 @@ export function TechnicianDetailPage() {
                 />
               </div>
               <div className="space-y-1 sm:col-span-3">
+                <Label htmlFor="tech-address">{t("technicians.detail.fields.address")}</Label>
+                <Input id="tech-address" value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tech-city">{t("technicians.detail.fields.city")}</Label>
+                <Input id="tech-city" value={editCity} onChange={(e) => setEditCity(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tech-state">{t("technicians.detail.fields.state")}</Label>
+                <Input id="tech-state" value={editState} onChange={(e) => setEditState(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tech-pincode">{t("technicians.detail.fields.pincode")}</Label>
+                <Input id="tech-pincode" value={editPincode} onChange={(e) => setEditPincode(e.target.value)} />
+              </div>
+              <div className="space-y-1 sm:col-span-3">
                 <Label>{t("technicians.list.skills")}</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {SKILL_OPTIONS.map((skill) => (
@@ -217,6 +312,9 @@ export function TechnicianDetailPage() {
               </div>
             </div>
             {updateMut.isError ? <p className="mt-3 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(updateMut.error as Error).message}</p> : null}
+            {updateProfileMut.isError ? (
+              <p className="mt-3 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(updateProfileMut.error as Error).message}</p>
+            ) : null}
             <div className="mt-3 flex justify-end gap-2">
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
                 {t("common.cancel")}
@@ -271,6 +369,8 @@ export function TechnicianDetailPage() {
           <AvailabilityTab technicianId={id} orgId={orgId} />
         </TabsContent>
       </Tabs>
+
+      <PasswordRevealDialog password={revealedPassword} phone={technician.profiles?.phone} onClose={() => setRevealedPassword(null)} />
     </div>
   )
 }
@@ -699,7 +799,7 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
       <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-5">
         <div className="space-y-1">
           <Label htmlFor="avail-date">{t("technicians.detail.availability.date")}</Label>
-          <Input id="avail-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DatePicker id="avail-date" value={date} onChange={setDate} />
         </div>
         <div className="space-y-1">
           <Label htmlFor="avail-status">{t("technicians.detail.availability.status")}</Label>

@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ClipboardList } from "lucide-react"
+import { ClipboardList, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
 import { useProfile } from "@/hooks/useProfile"
 import type { Enums } from "@/types/database"
 import { ProductComplaintsPanel } from "./ProductComplaintsPanel"
+import { ProductSparesPanel } from "./ProductSparesPanel"
 
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const satisfies readonly Enums<"brand_category">[]
 
@@ -18,10 +19,14 @@ type ProductWithRefs = {
   name: string
   category: Enums<"brand_category">
   price: number
+  cost_price: number | null
   hsn_code: string | null
   warranty_months: number
   // GV.md 1.1 — same admin-set standard time as spares (SparesTab.tsx).
   standard_time_minutes: number | null
+  // Task 6 (2026-07-30) — enable/disable, see
+  // 20260730170000_product_spare_mapping_and_active_flags.sql.
+  is_active: boolean
   created_at: string
   updated_at: string
   brands: { name: string } | null
@@ -45,6 +50,11 @@ export function ProductsTab() {
   const [complaintsProductId, setComplaintsProductId] = useState<string | null>(null)
   const complaintsProduct = (rows ?? []).find((r) => r.id === complaintsProductId) as ProductWithRefs | undefined
 
+  // Task 6 — product↔spares connector (see ProductSparesPanel.tsx), same
+  // per-row-action pattern as complaints above.
+  const [sparesProductId, setSparesProductId] = useState<string | null>(null)
+  const sparesProduct = (rows ?? []).find((r) => r.id === sparesProductId) as ProductWithRefs | undefined
+
   const brandOptions = useMemo(() => (brands ?? []).map((b) => ({ value: b.id, label: b.name })), [brands])
   const modelOptions = useMemo(
     () =>
@@ -66,6 +76,7 @@ export function ProductsTab() {
       options: CATEGORIES.map((c) => ({ value: c, label: t(`masters.categories.${c}`) })),
     },
     { key: "price", label: t("masters.products.price"), type: "number", step: "0.01" },
+    { key: "cost_price", label: t("masters.products.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet") },
     { key: "hsn_code", label: t("masters.products.hsn"), type: "text" },
     { key: "warranty_months", label: t("masters.products.warrantyMonths"), type: "number", step: "1" },
     { key: "standard_time_minutes", label: t("masters.products.standardTime"), type: "number", step: "1" },
@@ -93,6 +104,7 @@ export function ProductsTab() {
           model_id: r.model_id,
           category: r.category,
           price: String(r.price),
+          cost_price: r.cost_price != null ? String(r.cost_price) : "",
           hsn_code: r.hsn_code ?? "",
           warranty_months: String(r.warranty_months),
           standard_time_minutes: r.standard_time_minutes != null ? String(r.standard_time_minutes) : "",
@@ -102,11 +114,38 @@ export function ProductsTab() {
           { key: "brand", header: t("masters.products.brand"), render: (r) => r.brands?.name ?? "—" },
           { key: "model", header: t("masters.products.model"), render: (r) => r.models?.name ?? "—" },
           { key: "price", header: t("masters.products.price"), render: (r) => `₹${r.price}` },
+          { key: "cost_price", header: t("masters.products.costPrice"), render: (r) => (r.cost_price != null ? `₹${r.cost_price}` : t("masters.costPriceNotSet")) },
           { key: "warranty", header: t("masters.products.warrantyMonths"), render: (r) => r.warranty_months },
           {
             key: "standard_time_minutes",
             header: t("masters.products.standardTime"),
             render: (r) => (r.standard_time_minutes != null ? t("masters.spares.standardTimeValue", { minutes: r.standard_time_minutes }) : "—"),
+          },
+          {
+            key: "is_active",
+            header: t("masters.products.status"),
+            render: (r) => (
+              <button
+                type="button"
+                disabled={updateMut.isPending}
+                onClick={() => updateMut.mutate({ id: r.id, patch: { is_active: !r.is_active } })}
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  r.is_active ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
+                }`}
+              >
+                {r.is_active ? t("masters.active") : t("masters.inactive")}
+              </button>
+            ),
+          },
+          {
+            key: "spares",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <Button size="icon-xs" variant="ghost" title={t("masters.productSpares.manage")} onClick={() => setSparesProductId(r.id)}>
+                <Wrench className="size-3.5" />
+              </Button>
+            ),
           },
           {
             key: "complaints",
@@ -132,6 +171,7 @@ export function ProductsTab() {
             model_id: v.model_id,
             category: v.category as Enums<"brand_category">,
             price: Number(v.price) || 0,
+            cost_price: v.cost_price ? Number(v.cost_price) : null,
             hsn_code: v.hsn_code || null,
             warranty_months: Number(v.warranty_months) || 12,
             standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
@@ -146,6 +186,7 @@ export function ProductsTab() {
               model_id: v.model_id,
               category: v.category as Enums<"brand_category">,
               price: Number(v.price) || 0,
+              cost_price: v.cost_price ? Number(v.cost_price) : null,
               hsn_code: v.hsn_code || null,
               warranty_months: Number(v.warranty_months) || 12,
               standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
@@ -163,6 +204,16 @@ export function ProductsTab() {
           productCategory={complaintsProduct.category}
           productName={complaintsProduct.name}
           onClose={() => setComplaintsProductId(null)}
+        />
+      ) : null}
+
+      {sparesProduct ? (
+        <ProductSparesPanel
+          key={sparesProduct.id}
+          orgId={orgId}
+          productId={sparesProduct.id}
+          productName={sparesProduct.name}
+          onClose={() => setSparesProductId(null)}
         />
       ) : null}
     </>

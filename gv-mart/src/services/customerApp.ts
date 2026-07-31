@@ -110,8 +110,12 @@ export async function setMyPrimaryAddress(customerId: string, addressId: string)
   if (error) throw error
 }
 
+// Task 3 (2026-07-30): routed through a guarded RPC (rather than a raw
+// `.delete()`) so the server rejects deleting an address that's linked to
+// an active (not completed/cancelled) booking, not just relying on RLS for
+// ownership. See 20260730110000_address_everywhere.sql.
 export async function deleteMyAddress(addressId: string) {
-  const { error } = await supabase.from("addresses").delete().eq("id", addressId)
+  const { error } = await supabase.rpc("delete_my_address", { p_address_id: addressId })
   if (error) throw error
 }
 
@@ -165,6 +169,11 @@ export async function listOwnedProducts(orgId: string) {
     .from("products")
     .select("id, name, category, brand_id, model_id, price, warranty_months, brands(name), models(name)")
     .eq("org_id", orgId)
+    // Task 6 (2026-07-30): a product an admin disabled shouldn't be pickable
+    // for a NEW booking/enquiry — see 20260730170000_product_spare_mapping_
+    // and_active_flags.sql. Already-owned products stay visible elsewhere
+    // (useMyOwnedProducts, a different query) regardless of this flag.
+    .eq("is_active", true)
     .order("name")
   if (error) throw error
   return data
@@ -265,18 +274,62 @@ export async function listMyExemptionWindows(customerId: string): Promise<Custom
   return data ?? []
 }
 
-// ── Bookings / History (CUST-07) ──────────────────────────────────────────
+// ── Bookings / History (CUST-07, Task 7 2026-07-30 server-side filters) ──
 
-export async function listMyTickets(customerId: string) {
-  const { data, error } = await supabase
-    .from("service_tickets")
-    .select(
-      "*, products(name), brands(name), models(name), appointments(id, technician_id, scheduled_at, mode, status, technicians(id, profile_id, profiles(full_name, phone))), ratings:service_visits(id, ro_checklists(*), ratings(*))"
-    )
-    .eq("customer_id", customerId)
-    .order("created_at", { ascending: false })
+export const TICKET_FILTER_PAGE_SIZE = 10
+
+export type TicketFilters = {
+  fromDate?: string
+  toDate?: string
+  productCategory?: string
+  status?: Enums<"ticket_status">
+  amcStatus?: Enums<"amc_status">
+  serviceType?: Enums<"ticket_type">
+  technicianId?: string
+  bookingNumber?: string
+  search?: string
+}
+
+export type FilteredTicketItem = {
+  id: string
+  status: Enums<"ticket_status">
+  type: Enums<"ticket_type"> | null
+  name_of_complaint: string | null
+  nature_of_complaint: string | null
+  created_at: string
+  product: { id: string; name: string; category: Enums<"brand_category"> } | null
+  appointment: {
+    id: string
+    scheduled_at: string | null
+    mode: Enums<"appointment_mode">
+    status: Enums<"appointment_status">
+    technician: { id: string; full_name: string } | null
+  } | null
+  amc_status: Enums<"amc_status"> | null
+}
+
+export async function listMyTicketsFiltered(filters: TicketFilters, page: number) {
+  const { data, error } = await supabase.rpc("list_my_tickets_filtered", {
+    p_from_date: filters.fromDate || null,
+    p_to_date: filters.toDate || null,
+    p_product_category: filters.productCategory || null,
+    p_status: filters.status || null,
+    p_amc_status: filters.amcStatus || null,
+    p_service_type: filters.serviceType || null,
+    p_technician_id: filters.technicianId || null,
+    p_booking_number: filters.bookingNumber || null,
+    p_search: filters.search || null,
+    p_limit: TICKET_FILTER_PAGE_SIZE,
+    p_offset: page * TICKET_FILTER_PAGE_SIZE,
+  })
   if (error) throw error
-  return data
+  return data as unknown as { items: FilteredTicketItem[]; total_count: number }
+}
+
+export async function listMyTicketTechnicians() {
+  const { data, error } = await supabase.rpc("list_my_ticket_technicians")
+  if (error) throw error
+  return (data ?? []) as { technician_id: string; full_name: string }[]
 }
 
 export async function getTicketDetail(ticketId: string) {
@@ -327,6 +380,9 @@ export type RenewAmcInput = {
    * if the name doesn't match exactly one active technician in the org.
    */
   referredByTechnicianName?: string
+  /** Task 3 (2026-07-30) — customer-picked service address; falls back to
+   * their primary address server-side when omitted. */
+  addressId?: string
 }
 
 export async function renewAmcPlan(input: RenewAmcInput) {
@@ -337,6 +393,7 @@ export async function renewAmcPlan(input: RenewAmcInput) {
     p_payment_reference: input.paymentReference,
     p_years: input.years ?? null,
     p_referred_by_technician_name: input.referredByTechnicianName?.trim() || null,
+    p_address_id: input.addressId ?? null,
   })
   if (error) throw error
   return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }
@@ -394,12 +451,33 @@ export async function listVideoLibrary(orgId: string) {
   return data
 }
 
+/**
+ * Task 6 (2026-07-30) — every spare mapped to the selected product, for the
+ * Spare Enquiry picker. `spares!inner(...)` so the `is_active` filter on the
+ * joined table actually applies (a left join can't be filtered this way in
+ * PostgREST) — an admin-disabled spare drops out of the picker immediately,
+ * no separate configuration needed.
+ */
+export type ProductSpareOption = { id: string; name: string; sku: string | null }
+
+export async function listSparesForProduct(productId: string): Promise<ProductSpareOption[]> {
+  const { data, error } = await supabase
+    .from("product_spares")
+    .select("spares!inner(id, name, sku, is_active)")
+    .eq("product_id", productId)
+    .eq("spares.is_active", true)
+  if (error) throw error
+  return (data ?? []).map((row) => row.spares).filter((s): s is NonNullable<typeof s> => !!s)
+}
+
 export type EnquiryRpcInput = {
   orgId: string
   kind: "product" | "spare"
   enquiryType: Enums<"enquiry_type"> | null
   description: string
   photoUrl?: string
+  /** Task 3 (2026-07-30) — optional selected address for the enquiry. */
+  addressId?: string
 }
 
 export async function submitCustomerEnquiry(input: EnquiryRpcInput) {
@@ -409,6 +487,7 @@ export async function submitCustomerEnquiry(input: EnquiryRpcInput) {
     p_enquiry_type: input.enquiryType,
     p_description: input.description,
     p_photo_url: input.photoUrl ?? "",
+    p_address_id: input.addressId ?? null,
   })
   if (error) throw error
   return data as string

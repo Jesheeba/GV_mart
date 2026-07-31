@@ -1,16 +1,18 @@
 import { useEffect } from "react"
 import { Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Bell, Home, MapPin, CalendarCheck, History, User } from "lucide-react"
+import { Bell, Home, MapPin, CalendarCheck, History, User, UserX } from "lucide-react"
 import { BottomTabBar, type BottomTab } from "@/components/shared/BottomTabBar"
 import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { UserMenu } from "@/components/shared/UserMenu"
+import { Button } from "@/components/ui/button"
 import { useProfile } from "@/hooks/useProfile"
 import { useLiveLocationStream, useMyTechnician } from "@/hooks/useTechnician"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SyncStatusChip } from "./components/SyncStatusChip"
 import { startSyncEngine, stopSyncEngine } from "@/lib/offline/sync"
+import { signOut } from "@/services/auth"
 
 export function TechnicianShell() {
   const { t } = useTranslation()
@@ -29,13 +31,33 @@ export function TechnicianShell() {
   // v2.2 §6.6 live tracking: streams position for as long as the technician
   // is logged into the app, regardless of which screen they're on or
   // whether they currently have an active job (see useLiveLocationStream's
-  // doc comment for why this isn't job-gated).
+  // doc comment for why this isn't job-gated) — EXCEPT once deactivated
+  // (Technician Lifecycle Mgmt Phase 3), passing `undefined` below no-ops it.
   const technician = useMyTechnician()
-  useLiveLocationStream(profile?.org_id, technician.data?.id)
+  const isDeactivated = technician.data != null && technician.data.is_active === false
+  useLiveLocationStream(profile?.org_id, isDeactivated ? undefined : technician.data?.id)
 
-  if (isLoading) return <FullPageLoader label={t("common.loading")} />
+  if (isLoading || technician.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
     return <FullPageError message={t("auth.profileLoadError")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
+  }
+
+  // Deactivated technicians keep a valid Supabase session (login itself
+  // isn't proxied — see 20260730150000_technician_active_write_rls.sql's
+  // file header for why) but get no functional dashboard: no active
+  // bookings, no assignments, no notifications. RLS independently blocks
+  // any new writes even if this check were somehow bypassed.
+  if (isDeactivated) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-bg px-6 text-center">
+        <UserX className="size-10 text-text-muted" />
+        <h1 className="text-lg font-bold text-text">{t("technician.deactivated.title")}</h1>
+        <p className="max-w-xs text-sm text-text-muted">{t("technician.deactivated.body")}</p>
+        <Button variant="outline" onClick={() => void signOut()}>
+          {t("technician.deactivated.signOut")}
+        </Button>
+      </div>
+    )
   }
 
   const tabs: BottomTab[] = [

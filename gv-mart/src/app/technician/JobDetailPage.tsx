@@ -74,6 +74,11 @@ export function JobDetailPage() {
   // member whose number just duplicates the already-shown primary contact
   // doesn't count — prefer the flagged primary member, falling back to the
   // first member, but skip either if it's the same number already on screen.
+  // Task 5 (2026-07-30/31) — most recent admin-logged, phone-confirmed
+  // availability (exception path on top of unchanged auto-assignment).
+  const latestConfirmedCall = [...(appointment?.appointment_availability_calls ?? [])].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )[0]
   const members = ticket.customers?.customer_members ?? []
   const preferredMember = members.find((m) => m.is_primary) ?? members[0]
   const additionalContact =
@@ -157,6 +162,16 @@ export function JobDetailPage() {
               ? t("technician.jobDetail.appointmentAt", { time: formatDateTime(appointment.scheduled_at) })
               : t("technician.jobDetail.noAppointment")}
         </p>
+        {latestConfirmedCall ? (
+          <p className="mx-1 rounded-xl bg-accent-soft px-3 py-2 text-xs text-accent">
+            {t("technician.jobDetail.confirmedAvailability", {
+              date: new Date(latestConfirmedCall.confirmed_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+              from: latestConfirmedCall.confirmed_from.slice(0, 5),
+              to: latestConfirmedCall.confirmed_to.slice(0, 5),
+            })}
+            {latestConfirmedCall.note ? ` — ${latestConfirmedCall.note}` : ""}
+          </p>
+        ) : null}
       </Card>
 
       <Card className="gap-2">
@@ -243,7 +258,15 @@ export function JobDetailPage() {
             <Navigation className="size-4" />
             {t("technician.jobDetail.navigate")}
           </Button>
-          <Button type="button" onClick={() => navigate(`/technician/jobs/${ticketId}/visit`)}>
+          {/* Task 4 — arrival confirmation is mandatory. If no visit has been
+              started yet (openVisit null), a service_visits row can only be
+              created by MapPage's geofence-confirmed arrival flow, so route
+              there instead of straight to the checklist. Once a visit exists
+              (arrival already confirmed), resume it directly as before. */}
+          <Button
+            type="button"
+            onClick={() => navigate(openVisit ? `/technician/jobs/${ticketId}/visit` : `/technician/map?ticketId=${ticketId}`)}
+          >
             {t("technician.jobDetail.startVisit")}
             <ChevronRight className="size-4" />
           </Button>

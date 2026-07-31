@@ -46,19 +46,20 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
   return data?.results ?? []
 }
 
-/** Real driving distance (km) via the Directions API, proxied through the
- * `geocode` Edge Function (v2.2 §6.6 live tracking). Returns null when
- * Google finds no drivable route (ZERO_RESULTS) — callers should fall back
- * to straight-line distance rather than treat that as an error. */
-export async function getDirectionsDistanceKm(
+/** Real driving distance (km) + travel time (minutes, live-traffic when
+ * available) via the Directions API, proxied through the `geocode` Edge
+ * Function (v2.2 §6.6 live tracking). Both fields are null when Google finds
+ * no drivable route (ZERO_RESULTS) — callers should fall back to straight-line
+ * distance / the flat per-km-minutes estimate rather than treat that as an error. */
+export async function getDirectionsDistance(
   origin: { lat: number; lng: number },
   destination: { lat: number; lng: number }
-): Promise<number | null> {
-  const { data, error } = await supabase.functions.invoke<{ distanceKm: number | null }>("geocode", {
+): Promise<{ distanceKm: number | null; durationMinutes: number | null }> {
+  const { data, error } = await supabase.functions.invoke<{ distanceKm: number | null; durationMinutes: number | null }>("geocode", {
     body: { action: "directions", origin, destination },
   })
   if (error) throw error
-  return data?.distanceKm ?? null
+  return { distanceKm: data?.distanceKm ?? null, durationMinutes: data?.durationMinutes ?? null }
 }
 
 /** Proxied through the `map-config` Edge Function — the Google Maps API key is fetched at runtime rather than baked into the client bundle (it still ends up client-visible once the Maps JS script loads; see map-config's comment on why that's unavoidable and how it's mitigated). */

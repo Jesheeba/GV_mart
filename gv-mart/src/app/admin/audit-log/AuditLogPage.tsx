@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, History, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { useProfile } from "@/hooks/useProfile"
 import { useAuditLog, useAuditLogTableNames } from "@/hooks/useSystemPages"
 import type { AuditLogRow } from "@/services/systemPages"
@@ -99,11 +100,11 @@ export function AuditLogPage() {
         </div>
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("auditLog.filters.from")}</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none" />
+          <DatePicker value={from} onChange={setFrom} max={to || undefined} className="h-9" />
         </div>
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("auditLog.filters.to")}</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none" />
+          <DatePicker value={to} onChange={setTo} min={from || undefined} className="h-9" />
         </div>
         {tableName || from || to || searchInput ? (
           <Button

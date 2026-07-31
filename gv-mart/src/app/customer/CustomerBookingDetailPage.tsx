@@ -104,7 +104,7 @@ export function CustomerBookingDetailPage() {
 
       {visit && !visit.timer_end ? <CompletionOtpCard visitId={visit.id} initialOtp={visit.service_visit_otps ?? null} /> : null}
 
-      {visit && (visit.before_image_url || visit.after_image_url) ? (
+      {visit && (visit.before_image_url || visit.after_image_url || visit.evidence_photo_urls.length > 0) ? (
         <Card className="gap-2">
           <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.bookingDetail.serviceImages")}</h2>
           <div className="grid grid-cols-2 gap-2 px-1">
@@ -131,6 +131,15 @@ export function CustomerBookingDetailPage() {
               </div>
             )}
           </div>
+          {visit.evidence_photo_urls.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2 px-1">
+              {visit.evidence_photo_urls.map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noreferrer">
+                  <img src={url} alt="" className="aspect-square w-full rounded-xl object-cover" />
+                </a>
+              ))}
+            </div>
+          ) : null}
         </Card>
       ) : null}
 

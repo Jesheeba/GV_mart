@@ -78,7 +78,8 @@ const TICKET_SELECT = `
     id, scheduled_at, mode, status, technician_id, available_from, available_to,
     is_narrow_window, next_day_priority, rescheduled_from_date,
     technicians(id, profiles(full_name)),
-    appointment_unavailable_windows(id, start_time, end_time)
+    appointment_unavailable_windows(id, start_time, end_time),
+    appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at, profiles(full_name))
   )
 `
 
@@ -262,6 +263,38 @@ export async function assignTicketTechnician(appointmentId: string, technicianId
   })
   if (error) throw error
   return data as { assigned: boolean; reason_key?: string; conflict_appointment_id?: string; technician_id?: string }
+}
+
+export type ConfirmedAvailabilityReason = "customer_followup" | "technician_unavailable"
+
+/**
+ * Task 5 (2026-07-30/31) — the exception path on top of unchanged
+ * auto-assignment: admin calls the customer, logs their exact confirmed
+ * availability. The RPC both writes the audit row (see the appointment's
+ * `appointment_availability_calls` join) and folds the window into the
+ * appointment's own scheduled_at/available_from/available_to, so route
+ * ordering (Phase 4) and the assigned technician's job screen both pick it
+ * up with no separate wiring — see 20260731090000_admin_confirmed_
+ * availability.sql for why this reuses those columns instead of new state.
+ */
+export async function logConfirmedAvailability(input: {
+  appointmentId: string
+  reason: ConfirmedAvailabilityReason
+  confirmedDate: string
+  confirmedFrom: string
+  confirmedTo: string
+  note?: string
+}) {
+  const { data, error } = await supabase.rpc("log_confirmed_availability", {
+    p_appointment_id: input.appointmentId,
+    p_reason: input.reason,
+    p_confirmed_date: input.confirmedDate,
+    p_confirmed_from: input.confirmedFrom,
+    p_confirmed_to: input.confirmedTo,
+    p_note: input.note?.trim() || null,
+  })
+  if (error) throw error
+  return data
 }
 
 export async function completeAppointment(appointmentId: string) {

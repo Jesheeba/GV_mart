@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
@@ -136,11 +137,11 @@ export function CampaignsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="c-start">{t("campaigns.form.startDate")}</Label>
-                <Input id="c-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <DatePicker id="c-start" value={startDate} onChange={setStartDate} max={endDate || undefined} />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="c-end">{t("campaigns.form.endDate")}</Label>
-                <Input id="c-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                <DatePicker id="c-end" value={endDate} onChange={setEndDate} min={startDate || undefined} />
               </div>
             </div>
             <div className="space-y-1 sm:col-span-2">

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { SignaturePad } from "@/app/technician/components/SignaturePad"
@@ -154,7 +155,7 @@ export function TechniciansSpareHandoverPage() {
             </div>
             <div className="space-y-1">
               <Label>{t("technicians.spares.date")}</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <DatePicker value={date} onChange={setDate} />
             </div>
           </div>
 

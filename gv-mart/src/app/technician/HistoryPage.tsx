@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { ChevronRight, History as HistoryIcon } from "lucide-react"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { JobTypeBadge } from "./components/JobBadges"
 import { useMyTechnician, useMyHistory } from "@/hooks/useTechnician"
@@ -40,11 +40,11 @@ export function HistoryPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="px-1 text-xs text-text-muted">{t("technician.history.from")}</label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <DatePicker value={from} onChange={setFrom} />
           </div>
           <div className="space-y-1">
             <label className="px-1 text-xs text-text-muted">{t("technician.history.to")}</label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <DatePicker value={to} onChange={setTo} />
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">

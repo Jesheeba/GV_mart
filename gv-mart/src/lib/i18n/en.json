@@ -17,12 +17,18 @@
     "thisMonth": "this month",
     "language": "Language",
     "delete": "Delete",
+    "copy": "Copy",
+    "copied": "Copied",
+    "done": "Done",
     "today": "today",
     "viewAll": "View all",
     "actionFailed": "Something went wrong. Please try again.",
     "errorBoundaryTitle": "Something went wrong",
     "errorBoundaryBody": "An unexpected error occurred. Reloading the page usually fixes it.",
-    "reload": "Reload"
+    "reload": "Reload",
+    "selectDate": "Select date",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month"
   },
   "roles": {
     "master": "Owner",
@@ -399,6 +405,11 @@
     "edit": "Edit",
     "delete": "Delete",
     "confirmDelete": "Delete?",
+    "costPriceNotSet": "Cost not set",
+    "active": "Active",
+    "inactive": "Inactive",
+    "enable": "Enable",
+    "disable": "Disable",
     "overview": {
       "brandsDesc": "{{count}} brands configured",
       "modelsDesc": "{{count}} models configured",
@@ -408,6 +419,7 @@
       "amcPlansDesc": "{{count}} AMC plans",
       "incentivesDesc": "{{count}} incentive rules",
       "complaintTypesDesc": "{{count}} complaint types",
+      "sopStepsDesc": "{{count}} SOP steps",
       "settingsDesc": "Discount, travel, hours & SLA"
     },
     "tabs": {
@@ -419,6 +431,7 @@
       "amcPlans": "AMC Plans",
       "incentives": "Incentives",
       "complaintTypes": "Complaint Types",
+      "sopSteps": "SOP Steps",
       "settings": "Settings"
     },
     "categories": {
@@ -448,26 +461,53 @@
       "model": "Model",
       "category": "Category",
       "price": "Price",
+      "costPrice": "Cost price",
       "hsn": "HSN code",
       "warrantyMonths": "Warranty (months)",
       "standardTime": "Standard time (min)",
       "add": "Add product",
       "empty": "No products yet — add your first one.",
-      "needsBrandModelFirst": "Add a brand and model first — products need both."
+      "needsBrandModelFirst": "Add a brand and model first — products need both.",
+      "status": "Status"
     },
     "spares": {
       "name": "Spare name",
       "sku": "SKU",
       "price": "Price",
+      "costPrice": "Cost price",
       "hsn": "HSN code",
       "standardTime": "Standard time (min)",
       "standardTimeValue": "{{minutes}} min",
       "add": "Add spare",
-      "empty": "No spares yet — add your first one."
+      "empty": "No spares yet — add your first one.",
+      "status": "Status",
+      "search": "Search",
+      "searchPlaceholder": "Search by name or SKU",
+      "filterStatus": "Status",
+      "filterAll": "All",
+      "filterActive": "Active only",
+      "filterInactive": "Inactive only",
+      "noResults": "No spares match this search/filter.",
+      "selectAll": "Select all",
+      "selectedCount_one": "{{count}} selected",
+      "selectedCount_other": "{{count}} selected",
+      "bulkEnable": "Enable selected",
+      "bulkDisable": "Disable selected",
+      "clearSelection": "Clear selection",
+      "bulkImport": "Bulk import",
+      "bulkImportTitle": "Bulk import spares",
+      "bulkImportHint": "One spare per line: name, SKU, price, HSN code (optional), standard time in minutes (optional). Example: Filter cartridge, FLT-100, 250, 8421, 10",
+      "bulkImportPlaceholder": "Filter cartridge, FLT-100, 250, 8421, 10\nMembrane, MEM-50, 900, 8421, 20",
+      "bulkImportSubmit": "Import",
+      "bulkImportSuccess_one": "{{count}} spare imported.",
+      "bulkImportSuccess_other": "{{count}} spares imported.",
+      "bulkImportRowError": "Line {{line}}: {{error}}",
+      "bulkImportNoRows": "Paste at least one line to import."
     },
     "gifts": {
       "name": "Gift name",
       "threshold": "Threshold amount",
+      "costPrice": "Cost price",
       "add": "Add gift",
       "empty": "No gifts yet — add your first one."
     },
@@ -514,6 +554,15 @@
       "add": "Add complaint type",
       "empty": "No category defaults yet — add your first one."
     },
+    "sopSteps": {
+      "name": "Step name",
+      "product": "Product",
+      "genericProduct": "Any product (generic)",
+      "expectedMinutes": "Expected minutes",
+      "minutesValue": "{{count}} min",
+      "add": "Add SOP step",
+      "empty": "No SOP steps yet — add your first one."
+    },
     "productComplaints": {
       "manage": "Manage complaints",
       "title": "Complaints",
@@ -528,6 +577,15 @@
       "add": "Add",
       "startFromDefaults": "Start from category defaults",
       "startFromDefaultsDone": "All category defaults are already added"
+    },
+    "productSpares": {
+      "manage": "Manage spares",
+      "title": "Spares",
+      "close": "Close",
+      "empty": "No spares mapped to this product yet.",
+      "pickPlaceholder": "Select a spare to add",
+      "noneToAdd": "Every spare is already mapped to this product.",
+      "add": "Add"
     }
   },
   "settings": {
@@ -825,10 +883,15 @@
       "price": "Price",
       "lineDiscount": "Discount",
       "lineTotal": "Total",
+      "lineProfit": "Profit",
+      "costNotSet": "Cost not set",
       "noLineItemsNote": "This is a plan invoice — see the AMC contract below for what was sold.",
       "totalWithoutGst": "Total (excl. GST)",
       "gstAmount": "GST amount",
       "totalWithGst": "Total (incl. GST)",
+      "profit": "Profit",
+      "profitMissingCostNote_one": "{{count}} item has no cost set — profit is undercounted.",
+      "profitMissingCostNote_other": "{{count}} items have no cost set — profit is undercounted.",
       "paymentMethod": "Payment method",
       "generatedTitle": "Generated from this sale",
       "warrantyLine": "Warranty registered, expires {{date}}",
@@ -1063,6 +1126,22 @@
       "editAddress": "Edit address",
       "offDuty": "Off duty",
       "assignManually": "Assign manually",
+      "confirmedAvailability": {
+        "title": "Confirmed availability",
+        "logButton": "Log a call",
+        "empty": "No confirmed-availability calls logged yet.",
+        "reason": {
+          "customer_followup": "Customer follow-up",
+          "technician_unavailable": "Technician unavailable"
+        },
+        "loggedBy": "Logged by {{name}} on {{date}}",
+        "date": "Confirmed date",
+        "from": "From",
+        "to": "To",
+        "note": "Note (optional)",
+        "notePlaceholder": "What did the customer say?",
+        "rangeInvalid": "From must be before To."
+      },
       "noAppointment": "No appointment yet.",
       "narrowWindowBadge": "Narrow window",
       "nextDayPriorityBadge": "Next-day priority",
@@ -1123,6 +1202,8 @@
         "noGps": "No location data for this visit.",
         "attendanceSelfie": "Attendance selfie",
         "noSelfie": "No attendance selfie for this day.",
+        "arrivalSelfie": "Arrival selfie",
+        "additionalPhotos": "Additional evidence",
         "invoice": "Linked invoice",
         "noInvoice": "No invoice linked yet.",
         "invoiceAmount": "Amount",
@@ -1204,7 +1285,7 @@
   },
   "customerApp": {
     "home": {
-      "deliverTo": "Deliver to",
+      "deliverTo": "Your Address",
       "noAddressYet": "No address on file yet",
       "nextServiceDue": "Next service due",
       "nextServiceOverdue": "Service overdue on {{date}}",
@@ -1285,6 +1366,13 @@
       "memberName": "Name",
       "memberMobile": "Mobile number"
     },
+    "addressPicker": {
+      "title": "Select Address",
+      "changeAddress": "Change Address",
+      "addNew": "Add New Address",
+      "noAddressesYet": "No addresses yet.",
+      "linkedToActiveBooking": "This address is linked to an active booking and can't be deleted."
+    },
     "products": {
       "title": "My Products",
       "loadError": "Couldn't load your products. Please retry.",
@@ -1311,6 +1399,7 @@
       "loadError": "Couldn't load your bookings. Please retry.",
       "newBooking": "New booking",
       "empty": "No bookings yet.",
+      "noResults": "No bookings match these filters.",
       "upcoming": "Upcoming",
       "past": "Past",
       "anytime": "Anytime",
@@ -1321,7 +1410,38 @@
         "in_progress": "In progress",
         "completed": "Completed",
         "cancelled": "Cancelled"
+      },
+      "unassigned": "Unassigned",
+      "filters": {
+        "toggle": "Filters",
+        "all": "All",
+        "fromDate": "From date",
+        "toDate": "To date",
+        "productType": "Product type",
+        "bookingStatus": "Booking status",
+        "amcStatus": "AMC status",
+        "serviceType": "Service type",
+        "assignedTechnician": "Assigned technician",
+        "bookingNumber": "Booking number",
+        "bookingNumberPlaceholder": "e.g. 88bfe052",
+        "search": "Search",
+        "searchPlaceholder": "Search by issue description",
+        "clear": "Clear filters",
+        "type": {
+          "paid": "Paid service",
+          "warranty": "Warranty",
+          "amc": "AMC",
+          "installation": "Installation"
+        }
+      },
+      "pagination": {
+        "showing": "{{from}}–{{to}} of {{total}}",
+        "previous": "Previous",
+        "next": "Next"
       }
+    },
+    "otpAlert": {
+      "message": "Your technician needs your confirmation code — tap to view"
     },
     "bookingDetail": {
       "loadError": "Couldn't load this booking. Please retry.",
@@ -1426,6 +1546,10 @@
       "selectProductPlaceholder": "Select an owned product",
       "orTypeProductName": "Or type your product name",
       "productNamePlaceholder": "e.g. GV Aqua Pro RO",
+      "selectSpare": "Select spare part",
+      "selectSparePlaceholder": "Select a spare part",
+      "cantFindSpare": "Can't find your spare part?",
+      "backToSpareList": "Back to spare part list",
       "partDescription": "Which part do you need?",
       "partDescriptionPlaceholder": "e.g. Membrane, pre-filter, pump…",
       "photoHint": "A text description is enough — photo upload is coming soon.",
@@ -1511,6 +1635,11 @@
     }
   },
   "technician": {
+    "deactivated": {
+      "title": "Account deactivated",
+      "body": "Your admin has deactivated your account. You won't see active bookings or receive new assignments. Contact your admin if you think this is a mistake.",
+      "signOut": "Sign out"
+    },
     "attendance": {
       "title": "Mark Attendance",
       "checkingLocation": "Checking location…",
@@ -1667,6 +1796,9 @@
       "jobCount_other": "{{count}} jobs",
       "noJobsTitle": "No jobs today",
       "noJobsBody": "Your schedule is clear — check back later or pull to refresh.",
+      "attendanceRequiredTitle": "Mark attendance to see today's jobs",
+      "attendanceRequiredBody": "Your assigned jobs for today will appear here once you check in.",
+      "attendanceRequiredButton": "Go to Attendance",
       "counts": {
         "total": "Today's Jobs",
         "pending": "Pending",
@@ -1695,8 +1827,12 @@
       "distanceKm": "{{km}} km",
       "eta": "ETA",
       "etaMinutes": "{{minutes}} min",
+      "expectedArrival": "Expected arrival",
+      "scheduledAppointment": "Scheduled appointment",
       "openInMaps": "Open in Maps",
       "arrivedTitle": "You've arrived",
+      "arrivalSelfieLabel": "Arrival selfie",
+      "arrivalSelfieRequired": "Take a selfie to confirm your arrival before continuing.",
       "confirmingArrivalNote": "You're near the customer's location — confirming arrival…",
       "productivityTimerNote": "Your productivity timer started automatically on arrival.",
       "continueToService": "Continue to service",
@@ -1717,6 +1853,7 @@
       "availabilityAlways": "Always available",
       "appointmentAt": "Appointment at {{time}}",
       "noAppointment": "No appointment time set",
+      "confirmedAvailability": "Customer confirmed available {{date}}, {{from}}–{{to}}",
       "productTitle": "Product",
       "product": "Product",
       "brand": "Brand",
@@ -1755,6 +1892,7 @@
       "title": "On-Site Service",
       "jobClosedTitle": "This job is already completed",
       "jobClosedBody": "It's already been finished and rated — no need to start it again. Check History if you want to review it.",
+      "arrivalRequired": "Confirm your arrival at the customer's location before starting the checklist.",
       "draft": {
         "autosaveNote": "Everything you enter here is saved on this device automatically.",
         "restoredNote": "Restored your saved draft for this job.",
@@ -1776,19 +1914,24 @@
       "afterImage": "After photo",
       "afterImageHint": "Take this once the repair, spares, and RO checklist (if applicable) are done — it should show the completed work.",
       "sopTitle": "SOP Checklist",
-      "sopHint": "Built from the spares you selected, each with its admin-set standard time. Add an extra step below for anything not covered by a spare.",
-      "sopEmpty": "Select spares in the previous step to build this checklist, or add a step manually below.",
+      "sopHint": "Built from the spares you selected, each with its admin-set standard time. Pick an extra step below for anything not covered by a spare.",
+      "sopEmpty": "Select spares in the previous step to build this checklist, or pick a step below.",
       "sopExpected": "Expected {{minutes}} min",
-      "sopStepName": "Step name",
-      "sopStepNamePlaceholder": "e.g. Filter replacement",
-      "sopStepMinutes": "Expected minutes",
+      "sopStepName": "Add a step",
+      "sopStepPickPlaceholder": "Choose a step…",
+      "evidence": {
+        "title": "Additional evidence",
+        "hint": "Damaged, replaced, or installed parts — add as many photos as needed.",
+        "addLabel": "Add evidence photo"
+      },
       "next": "Next",
       "spares": {
         "title": "Spares Used",
         "searchPlaceholder": "Search spares…",
         "empty": "No spares found.",
         "noneSelected": "No spares selected.",
-        "standardTime": "{{minutes}} min standard time"
+        "standardTime": "{{minutes}} min standard time",
+        "suggestedTitle": "Suggested for this product"
       },
       "charges": {
         "serviceCharge": "Service charge",
@@ -2183,11 +2326,28 @@
         "rating": "Rating"
       },
       "empty": "No technicians yet",
+      "emptyHint": "Add your first technician to start assigning jobs.",
       "loadFailed": "Failed to load technicians",
       "addTechnician": "Add Technician",
-      "addTechnicianHint": "A brand-new login can't be created from here — pick someone who already has an account (added via Supabase) but isn't a technician yet.",
-      "noEligibleProfiles": "No eligible logins found. Create the person's account first, then they'll appear here.",
-      "pickProfile": "Select a person"
+      "createTechnician": "Create Technician",
+      "createHint": "Creates a real login for them right away — you'll get a one-time password to share.",
+      "zoneInformationalHint": "Optional — for reference only, doesn't limit which jobs they can be assigned",
+      "linkExistingToggle": "Or link an existing login",
+      "linkExistingTitle": "Link an existing login instead",
+      "addTechnicianHint": "For a login already created outside this app (e.g. via the Supabase dashboard) that isn't a technician yet.",
+      "noEligibleProfiles": "No eligible logins found.",
+      "pickProfile": "Select a person",
+      "fields": {
+        "fullName": "Full Name",
+        "email": "Email",
+        "photo": "Profile Photo",
+        "photoUpload": "Upload photo",
+        "photoChange": "Change photo"
+      },
+      "passwordDialogTitle": "Technician login created",
+      "passwordDialogHint": "This password is shown once — copy it or share it now. It won't be shown again (you can always generate a new one from Reset Password).",
+      "shareViaWhatsapp": "Share via WhatsApp",
+      "whatsappShareText": "Your GV Mart technician login password: {{password}}. Please keep it safe."
     },
     "detail": {
       "backToList": "Technicians",
@@ -2195,8 +2355,17 @@
       "edit": "Edit",
       "deactivate": "Deactivate",
       "reactivate": "Reactivate",
+      "resetPassword": "Reset Password",
       "confirmDeactivate": "Deactivate {{name}}? They'll be hidden from active lists and can't be assigned new jobs, but their history stays intact.",
       "confirmReactivate": "Reactivate {{name}}? They'll be assignable again.",
+      "confirmDelete": "Delete {{name}}'s login permanently? This can't be undone. Only allowed because they have no service history yet.",
+      "fields": {
+        "phone": "Phone",
+        "address": "Address",
+        "city": "City",
+        "state": "State",
+        "pincode": "Pincode"
+      },
       "totalJobs": "Total Jobs",
       "tabs": {
         "current": "Current Job",
@@ -2447,6 +2616,14 @@
       "amount": "Amount",
       "dataSafetyNote": "Figures are computed live from invoices and expenses — nothing is cached or estimated.",
       "masterOnlyNote": "Visible to master role only.",
+      "itemProfitTitle": "Profit (cost-matched)",
+      "itemRevenue": "Revenue (items sold)",
+      "itemCost": "Cost of Goods (real)",
+      "giftsCost": "Gifts Given (cost)",
+      "realProfit": "Real Profit",
+      "itemProfitNote": "Matched to what was actually sold or consumed — includes free AMC/warranty spares and gifts as pure cost. Distinct from Cost of Goods above, which is a cash-basis estimate.",
+      "itemProfitMissingCostNote_one": "{{count}} line has no cost set yet — profit is undercounted.",
+      "itemProfitMissingCostNote_other": "{{count}} lines have no cost set yet — profit is undercounted.",
       "expenseCategory": {
         "marketing": "Marketing",
         "stationery": "Stationery",

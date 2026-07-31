@@ -265,14 +265,24 @@ export function useMyExemptionWindows(customerId: string | undefined) {
   })
 }
 
-// ── Bookings / History (CUST-07) ──────────────────────────────────────────
+// ── Bookings / History (CUST-07, Task 7 2026-07-30 server-side filters) ──
 
-export function useMyTickets(customerId: string | undefined) {
+export function useMyTicketsFiltered(customerId: string | undefined, filters: api.TicketFilters, page: number) {
   return useQuery({
-    queryKey: ["customerApp", "tickets", customerId],
-    queryFn: () => api.listMyTickets(customerId!),
+    queryKey: ["customerApp", "tickets", customerId, filters, page],
+    queryFn: () => api.listMyTicketsFiltered(filters, page),
     enabled: !!customerId,
+    placeholderData: (prev) => prev,
     refetchInterval: 30_000,
+  })
+}
+
+export function useMyTicketTechnicians(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "ticketTechnicians", customerId],
+    queryFn: () => api.listMyTicketTechnicians(),
+    enabled: !!customerId,
+    staleTime: 5 * 60_000,
   })
 }
 
@@ -321,6 +331,16 @@ export function useVideoLibrary(orgId: string | undefined) {
     queryKey: ["customerApp", "videoLibrary", orgId],
     queryFn: () => api.listVideoLibrary(orgId!),
     enabled: !!orgId,
+  })
+}
+
+// Task 6 (2026-07-30) — spares mapped to the selected product, for the
+// Spare Enquiry picker.
+export function useSparesForProduct(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "sparesForProduct", productId],
+    queryFn: () => api.listSparesForProduct(productId!),
+    enabled: !!productId,
   })
 }
 

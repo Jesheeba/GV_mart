@@ -96,6 +96,17 @@ export function useAssignTicketTechnician() {
   })
 }
 
+export function useLogConfirmedAvailability() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: service.logConfirmedAvailability,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["service_tickets"] })
+      qc.invalidateQueries({ queryKey: ["appointments"] })
+    },
+  })
+}
+
 export function useUnassignAppointment() {
   const qc = useQueryClient()
   return useMutation({

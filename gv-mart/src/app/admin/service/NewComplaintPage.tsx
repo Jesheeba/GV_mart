@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useFieldArray, useForm } from "react-hook-form"
+import { Controller, useFieldArray, useForm } from "react-hook-form"
 import { AlertTriangle, Info, Loader2, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
@@ -603,12 +604,18 @@ export function NewComplaintPage() {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="scheduledAt">{t("service.newComplaint.scheduledAt")}</Label>
-                    <Input
-                      id="scheduledAt"
-                      type="date"
-                      min={todayInput()}
-                      aria-invalid={!!appointmentForm.formState.errors.scheduledAt}
-                      {...appointmentForm.register("scheduledAt")}
+                    <Controller
+                      control={appointmentForm.control}
+                      name="scheduledAt"
+                      render={({ field }) => (
+                        <DatePicker
+                          id="scheduledAt"
+                          min={todayInput()}
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          aria-invalid={!!appointmentForm.formState.errors.scheduledAt}
+                        />
+                      )}
                     />
                     <p className="text-xs text-text-muted">{t("service.newComplaint.workHoursHint")}</p>
                     {appointmentForm.formState.errors.scheduledAt ? (

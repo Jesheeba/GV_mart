@@ -1,16 +1,25 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarCheck2, Inbox, Loader2, MapPin, PackageOpen, Plus, Star, TriangleAlert, UserPlus } from "lucide-react"
+import { Camera, CalendarCheck2, ChevronDown, Inbox, Loader2, MapPin, PackageOpen, Plus, Star, TriangleAlert, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
-import { useCreateTechnician, useEligibleTechnicianProfiles, useTechniciansList } from "@/hooks/useTechniciansAdmin"
+import {
+  useCreateTechnician,
+  useCreateTechnicianAccount,
+  useEligibleTechnicianProfiles,
+  useTechniciansList,
+} from "@/hooks/useTechniciansAdmin"
+import { TECHNICIAN_SKILL_OPTIONS } from "@/services/techniciansAdmin"
 import type { TechnicianListItem } from "@/services/techniciansAdmin"
 import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
 import { cn } from "@/lib/utils"
+import { fileToDataUrl } from "@/lib/offline/capture"
 import { PeriodFilter } from "@/app/admin/reports/PeriodFilter"
+import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 
 // Matches the design's 6-column table grid (design-template-decoded.html
 // line 1139): Technician / Phone / Status / Jobs / Revenue / Rating. The
@@ -51,6 +60,7 @@ export function TechniciansListPage() {
   const [search, setSearch] = useState("")
   const [dutyFilter, setDutyFilter] = useState<"all" | "on" | "off">("all")
   const [showAddPanel, setShowAddPanel] = useState(false)
+  const [revealed, setRevealed] = useState<{ password: string; phone: string } | null>(null)
 
   const allRows = useMemo(() => technicians ?? [], [technicians])
 
@@ -179,7 +189,9 @@ export function TechniciansListPage() {
         </div>
       </div>
 
-      {showAddPanel ? <AddTechnicianPanel orgId={orgId} onClose={() => setShowAddPanel(false)} /> : null}
+      {showAddPanel ? (
+        <AddTechnicianPanel orgId={orgId} onClose={() => setShowAddPanel(false)} onCreated={(r) => setRevealed(r)} />
+      ) : null}
 
       <TechniciansTable
         rows={filtered}
@@ -187,18 +199,195 @@ export function TechniciansListPage() {
         error={isError ? t("technicians.list.loadFailed") : null}
         onRetry={() => refetch()}
         onRowClick={(row) => navigate(`/admin/technicians/${row.id}`)}
+        onAddClick={() => setShowAddPanel(true)}
       />
+
+      <PasswordRevealDialog password={revealed?.password ?? null} phone={revealed?.phone} onClose={() => setRevealed(null)} />
     </div>
   )
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 /**
- * A brand-new login can't be provisioned from this browser-only app (needs
- * Supabase's service_role key), so "Add Technician" links an existing login
- * — one already created outside this app (e.g. via the Supabase dashboard)
- * with role="technician" but no technicians row yet — instead of creating one.
+ * Primary path: a real, immediately-usable login created server-side by the
+ * admin-create-technician Edge Function (holds the service_role key this
+ * browser app never ships — see that function's file header). Secondary
+ * path, collapsed by default: link a login that already exists outside this
+ * app (e.g. created directly via the Supabase dashboard) but has no
+ * technicians row yet — kept for that edge case rather than removed.
  */
-function AddTechnicianPanel({ orgId, onClose }: { orgId: string | undefined; onClose: () => void }) {
+function AddTechnicianPanel({
+  orgId,
+  onClose,
+  onCreated,
+}: {
+  orgId: string | undefined
+  onClose: () => void
+  onCreated: (result: { password: string; phone: string }) => void
+}) {
+  const { t } = useTranslation()
+  const createAccountMut = useCreateTechnicianAccount()
+  const [showLinkExisting, setShowLinkExisting] = useState(false)
+
+  const [fullName, setFullName] = useState("")
+  const [phone, setPhone] = useState("")
+  const [email, setEmail] = useState("")
+  const [address, setAddress] = useState("")
+  const [city, setCity] = useState("")
+  const [state, setState] = useState("")
+  const [pincode, setPincode] = useState("")
+  const [zone, setZone] = useState("")
+  const [skills, setSkills] = useState<string[]>([])
+  const [dailyCapacity, setDailyCapacity] = useState("480")
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+
+  function toggleSkill(skill: string) {
+    setSkills((prev) => (prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]))
+  }
+
+  async function handlePhotoChange(file: File | undefined) {
+    if (!file) return
+    setPhotoBusy(true)
+    try {
+      setPhotoUrl(await fileToDataUrl(file))
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  const capacityValid = /^\d+$/.test(dailyCapacity.trim()) && Number(dailyCapacity) > 0
+  const formValid = fullName.trim().length > 0 && phone.trim().length > 0 && EMAIL_RE.test(email.trim()) && capacityValid
+
+  function handleCreate() {
+    if (!formValid) return
+    createAccountMut.mutate(
+      {
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        address: address.trim() || null,
+        city: city.trim() || null,
+        state: state.trim() || null,
+        pincode: pincode.trim() || null,
+        skills,
+        zone: zone.trim() || null,
+        dailyCapacityMinutes: Number(dailyCapacity),
+        photoUrl,
+      },
+      {
+        onSuccess: (result) => {
+          onCreated({ password: result.password, phone: phone.trim() })
+          onClose()
+        },
+      }
+    )
+  }
+
+  return (
+    <div className="rounded-subcard border border-border bg-surface p-4">
+      <p className="mb-1 text-sm font-semibold text-text">{t("technicians.list.addTechnician")}</p>
+      <p className="mb-3 text-xs text-text-muted">{t("technicians.list.createHint")}</p>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-name">{t("technicians.list.fields.fullName")}</Label>
+          <Input id="new-tech-name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-phone">{t("technicians.detail.fields.phone")}</Label>
+          <Input id="new-tech-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-email">{t("technicians.list.fields.email")}</Label>
+          <Input id="new-tech-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!email && !EMAIL_RE.test(email)} />
+        </div>
+        <div className="space-y-1 sm:col-span-3">
+          <Label htmlFor="new-tech-address">{t("technicians.detail.fields.address")}</Label>
+          <Input id="new-tech-address" value={address} onChange={(e) => setAddress(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-city">{t("technicians.detail.fields.city")}</Label>
+          <Input id="new-tech-city" value={city} onChange={(e) => setCity(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-state">{t("technicians.detail.fields.state")}</Label>
+          <Input id="new-tech-state" value={state} onChange={(e) => setState(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-pincode">{t("technicians.detail.fields.pincode")}</Label>
+          <Input id="new-tech-pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-zone">{t("technicians.list.zone")}</Label>
+          <Input id="new-tech-zone" value={zone} onChange={(e) => setZone(e.target.value)} placeholder={t("technicians.list.zoneInformationalHint")} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-capacity">{t("technicians.list.dailyCapacity")}</Label>
+          <Input
+            id="new-tech-capacity"
+            type="number"
+            min={1}
+            step={1}
+            value={dailyCapacity}
+            onChange={(e) => setDailyCapacity(e.target.value)}
+            aria-invalid={!capacityValid}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>{t("technicians.list.fields.photo")}</Label>
+          <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-surface-alt text-xs font-semibold text-text-muted hover:bg-surface">
+            {photoBusy ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : photoUrl ? (
+              <img src={photoUrl} alt="" className="size-8 rounded-full object-cover" />
+            ) : (
+              <Camera className="size-3.5" />
+            )}
+            {photoUrl ? t("technicians.list.fields.photoChange") : t("technicians.list.fields.photoUpload")}
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoChange(e.target.files?.[0])} />
+          </label>
+        </div>
+        <div className="space-y-1 sm:col-span-3">
+          <Label>{t("technicians.list.skills")}</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {TECHNICIAN_SKILL_OPTIONS.map((skill) => (
+              <Button key={skill} type="button" size="xs" variant={skills.includes(skill) ? "default" : "outline"} onClick={() => toggleSkill(skill)}>
+                {t(`technicians.list.skillOptions.${skill}`)}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {createAccountMut.isError ? (
+        <p className="mt-3 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createAccountMut.error as Error).message}</p>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={() => setShowLinkExisting((v) => !v)}>
+          <ChevronDown className={cn("size-3.5 transition-transform", showLinkExisting && "rotate-180")} />
+          {t("technicians.list.linkExistingToggle")}
+        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button size="sm" disabled={!formValid || createAccountMut.isPending} onClick={handleCreate}>
+            {createAccountMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UserPlus className="size-3.5" />}
+            {t("technicians.list.createTechnician")}
+          </Button>
+        </div>
+      </div>
+
+      {showLinkExisting ? <LinkExistingProfilePanel orgId={orgId} onClose={onClose} /> : null}
+    </div>
+  )
+}
+
+/** Secondary path — see AddTechnicianPanel's doc comment. */
+function LinkExistingProfilePanel({ orgId, onClose }: { orgId: string | undefined; onClose: () => void }) {
   const { t } = useTranslation()
   const { data: eligible, isLoading } = useEligibleTechnicianProfiles(orgId)
   const createMut = useCreateTechnician()
@@ -210,14 +399,14 @@ function AddTechnicianPanel({ orgId, onClose }: { orgId: string | undefined; onC
   }
 
   return (
-    <div className="rounded-subcard border border-border bg-surface p-4">
-      <p className="mb-1 text-sm font-semibold text-text">{t("technicians.list.addTechnician")}</p>
+    <div className="mt-3 rounded-xl border border-border bg-surface-alt p-3.5">
+      <p className="mb-1 text-xs font-semibold text-text">{t("technicians.list.linkExistingTitle")}</p>
       <p className="mb-3 text-xs text-text-muted">{t("technicians.list.addTechnicianHint")}</p>
 
       {isLoading ? (
         <Skeleton className="h-9 w-full" />
       ) : (eligible ?? []).length === 0 ? (
-        <p className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-xs text-text-muted">
+        <p className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-xs text-text-muted">
           {t("technicians.list.noEligibleProfiles")}
         </p>
       ) : (
@@ -243,11 +432,6 @@ function AddTechnicianPanel({ orgId, onClose }: { orgId: string | undefined; onC
       {createMut.isError ? (
         <p className="mt-3 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createMut.error as Error).message}</p>
       ) : null}
-      <div className="mt-3 flex justify-end">
-        <Button size="sm" variant="ghost" onClick={onClose}>
-          {t("common.cancel")}
-        </Button>
-      </div>
     </div>
   )
 }
@@ -307,12 +491,14 @@ function TechniciansTable({
   error,
   onRetry,
   onRowClick,
+  onAddClick,
 }: {
   rows: TechnicianListItem[]
   loading: boolean
   error: string | null
   onRetry: () => void
   onRowClick: (row: TechnicianListItem) => void
+  onAddClick: () => void
 }) {
   const { t } = useTranslation()
 
@@ -352,9 +538,16 @@ function TechniciansTable({
           </div>
         ))
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-12 text-center">
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
           <Inbox className="size-6 text-text-muted" />
-          <p className="text-sm text-text-muted">{t("technicians.list.empty")}</p>
+          <div>
+            <p className="text-sm font-semibold text-text">{t("technicians.list.empty")}</p>
+            <p className="mt-1 text-xs text-text-muted">{t("technicians.list.emptyHint")}</p>
+          </div>
+          <Button size="sm" onClick={onAddClick}>
+            <Plus className="size-3.5" />
+            {t("technicians.list.addTechnician")}
+          </Button>
         </div>
       ) : (
         rows.map((r) => {

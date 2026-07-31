@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -11,6 +11,7 @@ import { Stepper } from "@/components/shared/Stepper"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { DraftBanner } from "@/components/shared/DraftBanner"
+import { AddressPickerModal } from "@/components/shared/AddressPickerModal"
 import {
   useBookServiceTicket,
   useCustomerAppSettings,
@@ -89,6 +90,7 @@ export function BookServicePage() {
   // unavailable. Merged into TimeWindow ranges via slotsToWindows below,
   // only where that's actually needed (preview + submit).
   const [unavailableSlotStarts, setUnavailableSlotStarts] = useState<Set<string>>(new Set())
+  const [addressPickerOpen, setAddressPickerOpen] = useState(false)
 
   const bookTicket = useBookServiceTicket()
 
@@ -474,30 +476,25 @@ export function BookServicePage() {
 
       {step === 2 ? (
         <Card className="gap-3">
-          {(addresses ?? []).length === 0 ? (
-            <div className="space-y-2 px-1">
-              <p className="text-sm text-warning">{t("customerApp.bookService.noAddresses")}</p>
-              <Button size="sm" variant="outline" onClick={() => navigate("/customer/profile")}>
-                {t("customerApp.bookService.addAddressCta")}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-1.5 px-1">
-              <Label>{t("customerApp.bookService.selectAddress")}</Label>
-              {(() => {
-                const a = (addresses ?? []).find((row) => row.id === addressId) ?? addresses![0]
-                return (
-                  <div className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm">
-                    <span className="text-text">{[a.door_no, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}</span>
-                    {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customerApp.profile.primary")}</span> : null}
-                  </div>
-                )
-              })()}
-              <button type="button" onClick={() => navigate("/customer/profile")} className="text-xs font-medium text-accent">
-                {t("customerApp.bookService.changeAddressInProfile")}
-              </button>
-            </div>
-          )}
+          <div className="space-y-1.5 px-1">
+            <Label>{t("customerApp.bookService.selectAddress")}</Label>
+            {(() => {
+              const a = (addresses ?? []).find((row) => row.id === addressId)
+              return a ? (
+                <div className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm">
+                  <span className="text-text">{[a.door_no, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}</span>
+                  {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customerApp.profile.primary")}</span> : null}
+                </div>
+              ) : (
+                <p className="rounded-xl border border-dashed border-border px-3.5 py-2.5 text-sm text-warning">
+                  {t("customerApp.bookService.noAddresses")}
+                </p>
+              )
+            })()}
+            <Button type="button" size="sm" variant="outline" onClick={() => setAddressPickerOpen(true)}>
+              {t("customerApp.addressPicker.changeAddress")}
+            </Button>
+          </div>
 
           <div className="space-y-2 border-t border-border px-1 pt-3">
             <Label>{t("customerApp.bookService.appointmentMode")}</Label>
@@ -506,7 +503,7 @@ export function BookServicePage() {
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="pickedDate">{t("customerApp.bookService.pickDate")}</Label>
-                  <Input id="pickedDate" type="date" min={todayInput()} value={pickedDate} onChange={(e) => setPickedDate(e.target.value)} aria-invalid={!pickedDate} />
+                  <DatePicker id="pickedDate" min={todayInput()} value={pickedDate} onChange={setPickedDate} aria-invalid={!pickedDate} />
                   {!pickedDate ? <p className="text-xs text-warning">{t("customerApp.bookService.dateRequired")}</p> : null}
                 </div>
 
@@ -632,6 +629,15 @@ export function BookServicePage() {
           </Button>
         )}
       </div>
+
+      <AddressPickerModal
+        open={addressPickerOpen}
+        onOpenChange={setAddressPickerOpen}
+        orgId={orgId}
+        customerId={customerId}
+        selectedAddressId={addressId}
+        onSelect={(a) => setAddressId(a.id)}
+      />
     </div>
   )
 }

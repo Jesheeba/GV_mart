@@ -1,11 +1,12 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { Loader2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { useProfile } from "@/hooks/useProfile"
@@ -136,7 +137,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
         </div>
         <div className="space-y-1.5">
           <Label>{t("amc.sellAmc.startDate")}</Label>
-          <Input type="date" {...form.register("startDate")} />
+          <Controller control={form.control} name="startDate" render={({ field }) => <DatePicker value={field.value ?? ""} onChange={field.onChange} />} />
         </div>
       </div>
 

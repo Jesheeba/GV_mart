@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ClipboardList, Gift, Layers, Package, ShieldCheck, SlidersHorizontal, Tag, TrendingUp, Wrench } from "lucide-react"
+import { CheckSquare, ClipboardList, Gift, Layers, Package, ShieldCheck, SlidersHorizontal, Tag, TrendingUp, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
@@ -12,6 +12,7 @@ import {
   incentiveRulesHooks,
   modelsHooks,
   productsHooks,
+  sopStepTemplatesHooks,
   sparesHooks,
 } from "@/hooks/useMasters"
 import { cn } from "@/lib/utils"
@@ -23,9 +24,10 @@ import { GiftsTab } from "./GiftsTab"
 import { AmcPlansTab } from "./AmcPlansTab"
 import { IncentiveRulesTab } from "./IncentiveRulesTab"
 import { ComplaintTypesTab } from "./ComplaintTypesTab"
+import { SopStepsTab } from "./SopStepsTab"
 import { SettingsTab } from "./SettingsTab"
 
-type ModuleId = "brands" | "models" | "products" | "spares" | "gifts" | "amcPlans" | "incentives" | "complaintTypes" | "settings"
+type ModuleId = "brands" | "models" | "products" | "spares" | "gifts" | "amcPlans" | "incentives" | "complaintTypes" | "sopSteps" | "settings"
 
 // Icon-swatch colors cycle through the design's palette (design-template-decoded.html
 // line 1273-1278: orange / blue / green / amber / ink) — a presentational rotation,
@@ -52,6 +54,7 @@ export function MastersPage() {
   const { data: amcPlans } = amcPlansHooks.useList(orgId)
   const { data: incentiveRules } = incentiveRulesHooks.useList(orgId)
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
+  const { data: sopStepTemplates } = sopStepTemplatesHooks.useList(orgId)
   // complaintTypes now also holds product-specific rows (product_id set),
   // managed from Inventory / Masters > Products, not from this tab. The
   // overview count should match what ComplaintTypesTab actually lists —
@@ -68,6 +71,7 @@ export function MastersPage() {
     { id: "amcPlans", icon: ShieldCheck, swatch: "info", title: t("masters.tabs.amcPlans"), desc: t("masters.overview.amcPlansDesc", { count: amcPlans?.length ?? 0 }) },
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
     { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypeDefaultsCount }) },
+    { id: "sopSteps", icon: CheckSquare, swatch: "info", title: t("masters.tabs.sopSteps"), desc: t("masters.overview.sopStepsDesc", { count: sopStepTemplates?.length ?? 0 }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
   ]
 
@@ -124,6 +128,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="complaintTypes">
             <ComplaintTypesTab />
+          </TabsContent>
+          <TabsContent value="sopSteps">
+            <SopStepsTab />
           </TabsContent>
           <TabsContent value="settings">
             <SettingsTab />

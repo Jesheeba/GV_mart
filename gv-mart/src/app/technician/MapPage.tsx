@@ -11,6 +11,7 @@ import { useJobDetail, useMyTechnician, useStartVisit, useTechnicianSettings, us
 import { classifyGeoError, distanceKm, expectedMinutes, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
 import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, selectNextJob } from "@/services/technician"
 import { cn } from "@/lib/utils"
+import { PhotoCapture } from "./components/PhotoCapture"
 
 function googleMapsUrl(dest: GeoPoint) {
   return `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}`
@@ -60,6 +61,9 @@ export function MapPage() {
   const [arrivedAt, setArrivedAt] = useState<number | null>(null)
   const [elapsedSec, setElapsedSec] = useState(0)
   const [confirming, setConfirming] = useState(false)
+  // Task 6 — arrival location verification: a selfie is required before
+  // arrival (manual tap or the auto-detect timer) is allowed to confirm.
+  const [arrivalSelfie, setArrivalSelfie] = useState<string | null>(null)
 
   const withinSinceRef = useRef<number | null>(null)
   const arrivedRef = useRef(false)
@@ -93,6 +97,7 @@ export function MapPage() {
   const destAddress = ticket?.addresses ?? fallbackJob?.service_tickets.addresses ?? null
   const destCustomerName = ticket?.customers?.name ?? fallbackJob?.service_tickets.customers?.name ?? null
   const destTicketId = ticketId ?? fallbackJob?.ticket_id ?? null
+  const destScheduledAt = ticket?.appointments?.[0]?.scheduled_at ?? fallbackJob?.scheduled_at ?? null
   const destClosed = isTicketClosed(ticket?.status ?? fallbackJob?.service_tickets.status ?? null)
   const destLat = destAddress?.lat ?? null
   const destLng = destAddress?.lng ?? null
@@ -120,8 +125,11 @@ export function MapPage() {
   async function handleArrived() {
     // Defense in depth beyond the button's `disabled` guard below — an
     // in-flight tap racing a fresh out-of-range position update (or a
-    // programmatic call via handleArrivedRef) must not slip through.
-    if (arrivedRef.current || !destTicketId || !profile || !technician.data || destClosed || !insideArrivalGeofence) return
+    // programmatic call via handleArrivedRef, i.e. the auto-detect timer)
+    // must not slip through. Task 6: the selfie requirement is enforced
+    // here too, not just on the manual button, so the auto-detect timer
+    // can't confirm arrival without one either.
+    if (arrivedRef.current || !destTicketId || !profile || !technician.data || destClosed || !insideArrivalGeofence || !arrivalSelfie) return
     arrivedRef.current = true
     setArrived(true)
     setArrivedAt(Date.now())
@@ -136,7 +144,14 @@ export function MapPage() {
     // local draft + outbox write already succeeded by the time this
     // resolves, so a network hiccup on the online-only appointment status
     // flip shouldn't block the "arrived" UI transition.
-    void startVisit.mutateAsync({ id, orgId: profile.org_id, ticketId: destTicketId, technicianId: technician.data.id, timerStart: nowIso })
+    void startVisit.mutateAsync({
+      id,
+      orgId: profile.org_id,
+      ticketId: destTicketId,
+      technicianId: technician.data.id,
+      timerStart: nowIso,
+      arrivalSelfieUrl: arrivalSelfie ?? undefined,
+    })
   }
   handleArrivedRef.current = () => void handleArrived()
 
@@ -166,6 +181,7 @@ export function MapPage() {
     arrivalInitForTicketRef.current = destTicketId
     arrivedRef.current = false
     withinSinceRef.current = null
+    setArrivalSelfie(null)
     const existing = ticket?.service_visits ? findOpenVisit(ticket.service_visits) : null
     if (existing) {
       arrivedRef.current = true
@@ -239,9 +255,14 @@ export function MapPage() {
     return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobDetail.refetch()} retryLabel={t("common.retry")} />
   }
 
-  const routeKm = dest ? (directions.data ?? (position ? distanceKm(origin, dest) : null)) : null
+  const routeKm = dest ? (directions.data?.distanceKm ?? (position ? distanceKm(origin, dest) : null)) : null
   const km = routeKm
-  const etaMinutes = km != null ? Math.round(expectedMinutes(km, perKmMinutes)) : null
+  // Task 2 — prefer the real Directions API travel time (live-traffic aware)
+  // over the flat admin-set per-km-minutes rate; the flat rate only fills in
+  // until Directions resolves (or if it errors/finds no route).
+  const realDurationMinutes = directions.data?.durationMinutes ?? null
+  const etaMinutes = realDurationMinutes != null ? Math.round(realDurationMinutes) : km != null ? Math.round(expectedMinutes(km, perKmMinutes)) : null
+  const expectedArrivalAt = etaMinutes != null ? new Date(Date.now() + etaMinutes * 60_000) : null
 
   const isIdle = !!geoError && !position
   const indicatorState: "on-time" | "confirming" | "tracking" | "idle" =
@@ -302,6 +323,26 @@ export function MapPage() {
               </div>
             </div>
 
+            {/* Task 2 — live expected-arrival time alongside the admin's
+                originally scheduled appointment time, kept as two distinct
+                lines rather than merged into one, per the requirement. */}
+            <div className="grid grid-cols-2 gap-3 px-1">
+              <div>
+                <p className="text-xs text-text-muted">{t("technician.map.expectedArrival")}</p>
+                <p className="text-sm font-medium text-text">
+                  {expectedArrivalAt ? expectedArrivalAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-text-muted">{t("technician.map.scheduledAppointment")}</p>
+                <p className="text-sm font-medium text-text">
+                  {destScheduledAt
+                    ? new Date(destScheduledAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                    : t("service.appointment.always")}
+                </p>
+              </div>
+            </div>
+
             <div className="px-1">
               <p className="text-sm font-medium text-text">{destCustomerName ?? t("technician.home.unknownCustomer")}</p>
               <p className="text-xs text-text-muted">{[destAddress?.door_no, destAddress?.area].filter(Boolean).join(", ") || "—"}</p>
@@ -333,9 +374,15 @@ export function MapPage() {
             ) : (
               <>
                 {confirming ? <p className="text-center text-xs text-warning">{t("technician.map.confirmingArrivalNote")}</p> : null}
-                <Button type="button" disabled={startVisit.isPending || !insideArrivalGeofence} onClick={() => void handleArrived()}>
+                {/* Task 6 — arrival location verification: required before either
+                    the manual button or the auto-detect timer can confirm arrival. */}
+                <PhotoCapture label={t("technician.map.arrivalSelfieLabel")} dataUrl={arrivalSelfie} onCaptured={setArrivalSelfie} />
+                <Button type="button" disabled={startVisit.isPending || !insideArrivalGeofence || !arrivalSelfie} onClick={() => void handleArrived()}>
                   {startVisit.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.map.arrivedButton")}
                 </Button>
+                {insideArrivalGeofence && !arrivalSelfie ? (
+                  <p className="text-center text-xs text-text-muted">{t("technician.map.arrivalSelfieRequired")}</p>
+                ) : null}
                 {!insideArrivalGeofence ? (
                   <p className="text-center text-xs text-text-muted">
                     {position ? t("technician.map.arrivedOutsideGeofence", { radius: ARRIVAL_GEOFENCE_RADIUS_M }) : t("technician.map.arrivedNoLocation")}

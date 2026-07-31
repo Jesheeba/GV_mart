@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Bell, ChevronRight, MapPin, ShieldCheck, Sparkles, Wrench } from "lucide-react"
@@ -14,30 +15,43 @@ function AddressBar() {
   const { customerId } = useMyCustomerId()
   const { data: addresses, isLoading } = useMyAddresses(customerId)
   const primary = addresses?.find((a) => a.is_primary) ?? addresses?.[0]
+  const [expanded, setExpanded] = useState(false)
+
+  const fullAddress = primary
+    ? [primary.door_no, primary.street_cross, primary.area, primary.pincode].filter(Boolean).join(", ")
+    : ""
 
   return (
-    <button
-      type="button"
-      onClick={() => navigate("/customer/profile")}
-      className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-left hover:bg-surface-alt/60"
-    >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
-        <MapPin className="size-4" />
+    <div className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+        <MapPin className="size-3.5" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-text-muted">{t("customerApp.home.deliverTo")}</p>
+        <p className="text-[11px] leading-tight text-text-muted">{t("customerApp.home.deliverTo")}</p>
         {isLoading ? (
-          <p className="text-sm text-text-muted">{t("common.loading")}</p>
+          <p className="text-xs text-text-muted">{t("common.loading")}</p>
         ) : primary ? (
-          <p className="truncate text-sm font-medium text-text">
-            {[primary.door_no, primary.street_cross, primary.area, primary.pincode].filter(Boolean).join(", ")}
-          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className={`text-left text-xs font-medium text-text ${expanded ? "whitespace-normal break-words" : "truncate"}`}
+            aria-expanded={expanded}
+          >
+            {fullAddress}
+          </button>
         ) : (
-          <p className="text-sm font-medium text-warning">{t("customerApp.home.noAddressYet")}</p>
+          <p className="text-xs font-medium text-warning">{t("customerApp.home.noAddressYet")}</p>
         )}
       </div>
-      <ChevronRight className="size-4 shrink-0 text-text-muted" />
-    </button>
+      <button
+        type="button"
+        onClick={() => navigate("/customer/profile")}
+        aria-label={t("customerApp.bookService.changeAddressInProfile")}
+        className="shrink-0 rounded-full p-1 text-text-muted hover:bg-surface-alt/60"
+      >
+        <ChevronRight className="size-4" />
+      </button>
+    </div>
   )
 }
 

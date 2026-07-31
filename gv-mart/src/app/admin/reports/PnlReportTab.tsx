@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { Loader2, Plus } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { usePnlReport, useCreateExpense } from "@/hooks/useReports"
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { PeriodFilter } from "./PeriodFilter"
 
 // Expense bar color rank: biggest category = ink, smallest = the muted
@@ -214,6 +215,46 @@ export function PnlReportTab() {
         </div>
       )}
 
+      {!isError ? (
+        <div className="rounded-card border border-border bg-surface p-6 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+          <h3 className="mb-[18px] text-[17px] font-bold tracking-tight text-text">{t("reports.pnl.itemProfitTitle")}</h3>
+          {isLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-5 w-full" />
+              ))}
+              <Skeleton className="h-14 w-full rounded-[14px]" />
+            </div>
+          ) : data ? (
+            <>
+              <PnlRow label={t("reports.pnl.itemRevenue")} value={formatCurrency(data.itemProfit.revenue)} />
+              <PnlRow label={t("reports.pnl.itemCost")} value={`− ${formatCurrency(data.itemProfit.cost)}`} tone="danger" />
+              <PnlRow label={t("reports.pnl.giftsCost")} value={`− ${formatCurrency(data.itemProfit.giftsCost)}`} tone="danger" />
+
+              <div
+                className={cn(
+                  "mt-3.5 flex items-center justify-between rounded-[14px] px-4 py-3.5",
+                  data.itemProfit.profit < 0 ? "bg-danger/10" : "bg-success/10"
+                )}
+              >
+                <span className={cn("text-sm font-bold", data.itemProfit.profit < 0 ? "text-danger" : "text-success")}>
+                  {t("reports.pnl.realProfit")}
+                </span>
+                <span className={cn("text-[22px] font-extrabold tracking-tight tabular-nums", data.itemProfit.profit < 0 ? "text-danger" : "text-success")}>
+                  {formatCurrency(data.itemProfit.profit)}
+                </span>
+              </div>
+              <p className="mt-2 text-[11px] text-text-muted">{t("reports.pnl.itemProfitNote")}</p>
+              {data.itemProfit.missingCostCount > 0 ? (
+                <p className="mt-1 text-[11px] text-danger">
+                  {t("reports.pnl.itemProfitMissingCostNote", { count: data.itemProfit.missingCostCount })}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
       <p className="text-xs text-text-muted">{t("reports.pnl.dataSafetyNote")}</p>
     </div>
   )
@@ -281,7 +322,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
         </div>
         <div className="space-y-1.5">
           <Label>{t("reports.pnl.date")}</Label>
-          <Input type="date" {...form.register("date")} />
+          <Controller control={form.control} name="date" render={({ field }) => <DatePicker value={field.value ?? ""} onChange={field.onChange} />} />
           {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
         </div>
       </div>

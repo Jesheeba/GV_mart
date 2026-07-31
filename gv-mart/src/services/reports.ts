@@ -167,12 +167,29 @@ export type PnlReport = {
   totalExpenses: number
   netProfitWithGst: number
   netProfitWithoutGst: number
+  /** Cost/margin tracking (stage 1) — real profit matched to what was
+   *  actually sold/consumed, distinct from the cash-basis costOfGoods above
+   *  (which just reads the 'purchase' expense category). Sourced from
+   *  invoice_items.cost (covers product/spare sales AND spares consumed on
+   *  a service visit, chargeable or free — see create_service_invoice) and
+   *  gift_logs.cost (gifts given away: pure cost, no revenue). Both are
+   *  snapshots taken at the moment of sale/consumption/handover, so this
+   *  never drifts when an item's cost_price changes later. Lines with no
+   *  cost_price set yet are excluded from `profit` and counted in
+   *  `missingCostCount` — never treated as zero cost. */
+  itemProfit: {
+    revenue: number
+    cost: number
+    giftsCost: number
+    profit: number
+    missingCostCount: number
+  }
 }
 
 export async function getPnlReport(orgId: string, range: DateRange): Promise<PnlReport> {
   const { fromIso, toIso } = rangeToTimestamps(range)
 
-  const [invoicesRes, expensesRes] = await Promise.all([
+  const [invoicesRes, expensesRes, invoiceItemsRes, giftLogsRes] = await Promise.all([
     supabase
       .from("invoices")
       .select("total, subtotal, discount, gst, created_at")
@@ -185,12 +202,26 @@ export async function getPnlReport(orgId: string, range: DateRange): Promise<Pnl
       .eq("org_id", orgId)
       .gte("date", range.from)
       .lte("date", range.to),
+    supabase
+      .from("invoice_items")
+      .select("qty, price, discount, cost")
+      .eq("org_id", orgId)
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso),
+    supabase
+      .from("gift_logs")
+      .select("cost")
+      .eq("org_id", orgId)
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso),
   ])
   if (invoicesRes.error) throw invoicesRes.error
   // expenses is master-only under RLS (expenses_select_master) — a non-master
   // caller gets an empty result set here, not an error; the P&L tab handles
   // that by showing zeros rather than crashing (RLS denies rows silently).
   if (expensesRes.error) throw expensesRes.error
+  if (invoiceItemsRes.error) throw invoiceItemsRes.error
+  if (giftLogsRes.error) throw giftLogsRes.error
 
   const invoices = invoicesRes.data ?? []
   const revenueWithGst = invoices.reduce((sum, i) => sum + (i.total ?? 0), 0)
@@ -204,6 +235,16 @@ export async function getPnlReport(orgId: string, range: DateRange): Promise<Pnl
   const expensesByCategory = [...expenseMap.entries()].map(([category, amount]) => ({ category, amount }))
   const totalExpenses = expensesByCategory.reduce((sum, e) => sum + e.amount, 0)
 
+  const items = invoiceItemsRes.data ?? []
+  const itemsWithCost = items.filter((i) => i.cost != null)
+  const itemRevenue = itemsWithCost.reduce((sum, i) => sum + (i.qty * i.price - i.discount), 0)
+  const itemCost = itemsWithCost.reduce((sum, i) => sum + i.qty * (i.cost ?? 0), 0)
+
+  const gifts = giftLogsRes.data ?? []
+  const giftsCost = gifts.filter((g) => g.cost != null).reduce((sum, g) => sum + (g.cost ?? 0), 0)
+
+  const missingCostCount = items.length - itemsWithCost.length + gifts.filter((g) => g.cost == null).length
+
   return {
     revenueWithGst,
     revenueWithoutGst,
@@ -212,6 +253,13 @@ export async function getPnlReport(orgId: string, range: DateRange): Promise<Pnl
     totalExpenses,
     netProfitWithGst: revenueWithGst - totalExpenses,
     netProfitWithoutGst: revenueWithoutGst - totalExpenses,
+    itemProfit: {
+      revenue: itemRevenue,
+      cost: itemCost,
+      giftsCost,
+      profit: itemRevenue - itemCost - giftsCost,
+      missingCostCount,
+    },
   }
 }
 

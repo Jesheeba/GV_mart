@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
@@ -140,7 +141,7 @@ export function QuotationFormPage() {
         {leadId && !customerId ? <p className="px-1 text-xs text-text-muted">{t("quotations.form.leadNoCustomerHint")}</p> : null}
         <div className="space-y-1.5">
           <Label htmlFor="validUntil">{t("quotations.form.validUntil")}</Label>
-          <Input id="validUntil" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className="w-48" />
+          <DatePicker id="validUntil" value={validUntil} onChange={setValidUntil} className="w-48" />
         </div>
       </Card>
 

@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { AddressPickerModal } from "@/components/shared/AddressPickerModal"
 import { isAmcRenewalOpen, pricePerYearOf } from "@/lib/amc-window"
-import { useRenewAmcPlan } from "@/hooks/useCustomerApp"
+import { useMyAddresses, useRenewAmcPlan } from "@/hooks/useCustomerApp"
 import type { AmcPlanRow } from "@/services/customerApp"
 
 function formatCurrency(amount: number) {
@@ -41,7 +42,17 @@ export function AmcBookingPanel({
   const [selectedYears, setSelectedYears] = useState(1)
   const [confirming, setConfirming] = useState(false)
   const [referredByTechnicianName, setReferredByTechnicianName] = useState("")
+  const [addressId, setAddressId] = useState("")
+  const [addressPickerOpen, setAddressPickerOpen] = useState(false)
   const renewAmc = useRenewAmcPlan(customerId)
+  const { data: addresses } = useMyAddresses(customerId)
+
+  // Task 3 (2026-07-30): default to the primary address (listMyAddresses
+  // orders it first) but let the customer change it before paying — same
+  // pattern as BookServicePage.
+  useEffect(() => {
+    if (!addressId && addresses && addresses.length > 0) setAddressId(addresses[0].id)
+  }, [addresses, addressId])
 
   const { withinWindow, daysUntil } = isAmcRenewalOpen(dueDateStr, bookWindowDays, new Date())
   const selectedPlan = plans.find((p) => p.id === selectedPlanId)
@@ -133,6 +144,28 @@ export function AmcBookingPanel({
       ) : null}
 
       {selectedPlan && withinWindow ? (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-text-muted">{t("customerApp.bookService.selectAddress")}</label>
+          {(() => {
+            const a = (addresses ?? []).find((row) => row.id === addressId)
+            return a ? (
+              <div className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm">
+                <span className="text-text">{[a.door_no, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}</span>
+                {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customerApp.profile.primary")}</span> : null}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-border px-3.5 py-2.5 text-sm text-warning">
+                {t("customerApp.bookService.noAddresses")}
+              </p>
+            )
+          })()}
+          <Button type="button" size="sm" variant="outline" onClick={() => setAddressPickerOpen(true)}>
+            {t("customerApp.addressPicker.changeAddress")}
+          </Button>
+        </div>
+      ) : null}
+
+      {selectedPlan && withinWindow ? (
         confirming ? (
           <div className="space-y-2 border-t border-border pt-3">
             <p className="text-sm text-text-muted">{t("customerApp.amc.paymentSimulatedNote")}</p>
@@ -143,7 +176,7 @@ export function AmcBookingPanel({
               </Button>
               <Button
                 size="sm"
-                disabled={renewAmc.isPending}
+                disabled={renewAmc.isPending || !addressId}
                 onClick={() => {
                   // SIMULATED payment confirmation — v2.2 flags AMC renewal as the
                   // one payment-gateway touchpoint in this app, but no real merchant
@@ -157,6 +190,7 @@ export function AmcBookingPanel({
                     paymentReference: simulatedPaymentReference,
                     years: selectedYears,
                     referredByTechnicianName: referredByTechnicianName.trim() || undefined,
+                    addressId: addressId || undefined,
                   })
                 }}
               >
@@ -170,6 +204,15 @@ export function AmcBookingPanel({
           </Button>
         )
       ) : null}
+
+      <AddressPickerModal
+        open={addressPickerOpen}
+        onOpenChange={setAddressPickerOpen}
+        orgId={orgId}
+        customerId={customerId}
+        selectedAddressId={addressId}
+        onSelect={(a) => setAddressId(a.id)}
+      />
     </div>
   )
 }

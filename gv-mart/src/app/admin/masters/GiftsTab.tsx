@@ -17,6 +17,7 @@ export function GiftsTab() {
   const fields: CrudFieldDef[] = [
     { key: "name", label: t("masters.gifts.name"), type: "text" },
     { key: "threshold_amount", label: t("masters.gifts.threshold"), type: "number", step: "1" },
+    { key: "cost_price", label: t("masters.gifts.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet") },
   ]
 
   return (
@@ -30,13 +31,34 @@ export function GiftsTab() {
       isMutating={createMut.isPending || updateMut.isPending}
       addLabel={t("masters.gifts.add")}
       emptyMessage={t("masters.gifts.empty")}
-      toFormValues={(r) => ({ name: r.name, threshold_amount: String(r.threshold_amount) })}
+      toFormValues={(r) => ({
+        name: r.name,
+        threshold_amount: String(r.threshold_amount),
+        cost_price: r.cost_price != null ? String(r.cost_price) : "",
+      })}
       columns={[
         { key: "name", header: t("masters.gifts.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
         { key: "threshold", header: t("masters.gifts.threshold"), render: (r) => `₹${r.threshold_amount}+` },
+        { key: "cost_price", header: t("masters.gifts.costPrice"), render: (r) => (r.cost_price != null ? `₹${r.cost_price}` : t("masters.costPriceNotSet")) },
       ]}
-      onCreate={(v) => createMut.mutateAsync({ org_id: orgId!, name: v.name, threshold_amount: Number(v.threshold_amount) || 0 })}
-      onUpdate={(id, v) => updateMut.mutateAsync({ id, patch: { name: v.name, threshold_amount: Number(v.threshold_amount) || 0 } })}
+      onCreate={(v) =>
+        createMut.mutateAsync({
+          org_id: orgId!,
+          name: v.name,
+          threshold_amount: Number(v.threshold_amount) || 0,
+          cost_price: v.cost_price ? Number(v.cost_price) : null,
+        })
+      }
+      onUpdate={(id, v) =>
+        updateMut.mutateAsync({
+          id,
+          patch: {
+            name: v.name,
+            threshold_amount: Number(v.threshold_amount) || 0,
+            cost_price: v.cost_price ? Number(v.cost_price) : null,
+          },
+        })
+      }
       onDelete={(id) => deleteMut.mutateAsync(id)}
     />
   )
