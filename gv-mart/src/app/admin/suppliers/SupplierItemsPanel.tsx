@@ -136,11 +136,11 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
           </div>
           <div className="space-y-1">
             <Label>{t("suppliers.price")}</Label>
-            <Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+            <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label>{t("suppliers.leadTime")}</Label>
-            <Input type="number" step="1" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
+            <Input type="number" min={0} step="1" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
           </div>
           <div className="col-span-full flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>

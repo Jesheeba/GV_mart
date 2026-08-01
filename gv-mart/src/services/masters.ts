@@ -89,6 +89,27 @@ export async function deleteSpare(id: string) {
   if (error) throw error
 }
 
+// ── Appointment slots (Customer Dashboard Booking Audit, Tasks 2/3) ───────
+export async function listAppointmentSlots(orgId: string) {
+  const { data, error } = await supabase.from("appointment_slots").select("*").eq("org_id", orgId).order("sort_order")
+  if (error) throw error
+  return data
+}
+export async function createAppointmentSlot(row: TablesInsert<"appointment_slots">) {
+  const { data, error } = await supabase.from("appointment_slots").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateAppointmentSlot(id: string, patch: TablesUpdate<"appointment_slots">) {
+  const { data, error } = await supabase.from("appointment_slots").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteAppointmentSlot(id: string) {
+  const { error } = await supabase.from("appointment_slots").delete().eq("id", id)
+  if (error) throw error
+}
+
 // Task 6 (2026-07-30) — bulk import (paste-in add) and bulk enable/disable,
 // both plain client calls: is_master() write RLS already covers insert and
 // update on spares, same as the single-row create/update above.
@@ -284,3 +305,4 @@ export type ComplaintTypeRow = Tables<"complaint_types">
 export type ProductSpareRow = Tables<"product_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
 export type SettingsRow = Tables<"settings">
 export type SopStepTemplateRow = Tables<"sop_step_templates"> & { products: Pick<Tables<"products">, "name"> | null }
+export type AppointmentSlotRow = Tables<"appointment_slots">

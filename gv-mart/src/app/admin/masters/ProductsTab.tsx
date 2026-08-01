@@ -66,7 +66,7 @@ export function ProductsTab() {
   )
 
   const fields: CrudFieldDef[] = [
-    { key: "name", label: t("masters.products.name"), type: "text" },
+    { key: "name", label: t("masters.products.name"), type: "text", required: true },
     { key: "brand_id", label: t("masters.products.brand"), type: "select", options: brandOptions },
     { key: "model_id", label: t("masters.products.model"), type: "select", options: modelOptions },
     {
@@ -75,11 +75,11 @@ export function ProductsTab() {
       type: "select",
       options: CATEGORIES.map((c) => ({ value: c, label: t(`masters.categories.${c}`) })),
     },
-    { key: "price", label: t("masters.products.price"), type: "number", step: "0.01" },
-    { key: "cost_price", label: t("masters.products.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet") },
-    { key: "hsn_code", label: t("masters.products.hsn"), type: "text" },
-    { key: "warranty_months", label: t("masters.products.warrantyMonths"), type: "number", step: "1" },
-    { key: "standard_time_minutes", label: t("masters.products.standardTime"), type: "number", step: "1" },
+    { key: "price", label: t("masters.products.price"), type: "number", step: "0.01", required: true, min: 0 },
+    { key: "cost_price", label: t("masters.products.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet"), min: 0 },
+    { key: "hsn_code", label: t("masters.products.hsn"), type: "text", pattern: "\\d{4,8}", patternMessage: t("masters.errors.hsnInvalid") },
+    { key: "warranty_months", label: t("masters.products.warrantyMonths"), type: "number", step: "1", min: 0 },
+    { key: "standard_time_minutes", label: t("masters.products.standardTime"), type: "number", step: "1", min: 0 },
   ]
 
   if (!brands?.length || !models?.length) {

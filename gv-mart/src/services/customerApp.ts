@@ -66,6 +66,10 @@ export type AddressInput = {
   landmark?: string
   district?: string
   state?: string
+  // Root-cause fix (technician map location bug) — see AddressForm.tsx's
+  // map-picker integration and customerAddressSchema's doc comment.
+  lat?: number
+  lng?: number
   addressType: Enums<"address_type">
   ownership: Enums<"ownership_type">
 }
@@ -80,6 +84,15 @@ function addressRow(input: AddressInput) {
     landmark: input.landmark || null,
     district: input.district || null,
     state: input.state || null,
+    // Root-cause fix — previously omitted entirely, so every customer-
+    // self-added address had lat/lng permanently null (see AddressForm.tsx).
+    // Left `undefined` (not `?? null`) when not provided — JSON-serializes
+    // away entirely, so `updateMyAddress` never overwrites an already-good
+    // pin just because a caller edited an unrelated text field without
+    // touching the map; `addMyAddress` correctly gets a null column default
+    // in that same case.
+    lat: input.lat,
+    lng: input.lng,
     address_type: input.addressType,
     ownership: input.ownership,
   }
@@ -191,8 +204,21 @@ export async function registerProductViaQr(orgId: string, productId: string, ser
 }
 
 // ── Service Booking (CUST-02) ─────────────────────────────────────────────
+//
+// Customer Dashboard Booking Audit (2026-07-31) Tasks 2-4: replaced the old
+// appointmentMode/scheduledAt/availableFrom/availableTo/unavailableWindows
+// geometry with a plain date + admin-configured appointment slot. See
+// 20260731170000_appointment_slots_and_stale_booking_followup.sql.
 
-export type UnavailableWindowInput = { start: string; end: string }
+export type AppointmentSlotRow = Tables<"appointment_slots">
+
+export async function listAppointmentSlots(orgId: string, activeOnly = true) {
+  let query = supabase.from("appointment_slots").select("*").eq("org_id", orgId).order("sort_order")
+  if (activeOnly) query = query.eq("is_active", true)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
 
 export type ServiceBookingRpcInput = {
   orgId: string
@@ -203,24 +229,8 @@ export type ServiceBookingRpcInput = {
   nameOfComplaint: string
   natureOfComplaint?: string
   priority: Enums<"priority_level">
-  appointmentMode: Enums<"appointment_mode">
-  scheduledAt: string | null
-  // Customer availability time window (Phase 1.5 of the technician
-  // assignment rework) — only meaningful when appointmentMode is
-  // 'datetime'; null/undefined otherwise. `p_available_from`/`p_available_to`
-  // post-date the last database.ts regen (see book_service_ticket's new
-  // trailing params in 20260721091000_appointment_availability_window.sql),
-  // so they're intentionally typed here rather than sourced from the
-  // generated RPC Args type.
-  availableFrom?: string | null
-  availableTo?: string | null
-  // B1 (Build Order Step 4): the windows the customer marked as NOT
-  // available on their chosen date. Undefined/null = legacy caller (server
-  // falls back to availableFrom/availableTo as-is); an array (possibly
-  // empty — "Any time") engages the server's date-only + unavailable-
-  // windows computation, including the B2 narrow-window guard and B3
-  // next-day-priority bump. See 20260723101000_step4_booking_rpcs.sql.
-  unavailableWindows?: UnavailableWindowInput[] | null
+  scheduledDate: string
+  slotId: string
 }
 
 export async function bookServiceTicket(input: ServiceBookingRpcInput) {
@@ -233,11 +243,8 @@ export async function bookServiceTicket(input: ServiceBookingRpcInput) {
     p_name_of_complaint: input.nameOfComplaint,
     p_nature_of_complaint: input.natureOfComplaint ?? "",
     p_priority: input.priority,
-    p_appointment_mode: input.appointmentMode,
-    p_scheduled_at: input.scheduledAt,
-    p_available_from: input.availableFrom ?? null,
-    p_available_to: input.availableTo ?? null,
-    p_unavailable_windows: input.unavailableWindows ?? null,
+    p_scheduled_date: input.scheduledDate,
+    p_slot_id: input.slotId,
   })
   if (error) throw error
   return data as {
@@ -246,15 +253,21 @@ export async function bookServiceTicket(input: ServiceBookingRpcInput) {
     detected_type: { type: string; reason_key: string }
     lead_id: string | null
     assign_result: { assigned: boolean; reason_key?: string } | null
-    // B3 feedback (Build Order Step 4) — only meaningful when the booking
-    // went through the new date+unavailable-windows path (appointment_id
-    // not null and mode was 'datetime' with p_unavailable_windows sent).
     scheduled_at: string | null
-    available_from: string | null
-    available_to: string | null
-    is_narrow_window: boolean | null
-    next_day_priority: boolean | null
+    slot_id: string
+    slot_name: string
+    slot_start_time: string
+    slot_end_time: string
   }
+}
+
+/** Resolve-on-view (Task 4) — best-effort, fire-and-forget from the
+ * customer dashboard: flags any of the customer's bookings whose day ended
+ * with no technician ever assigned, and notifies admins. Never blocks or
+ * surfaces an error to the UI — a missed sweep just runs again next view. */
+export async function resolveStaleBookings(orgId: string) {
+  const { error } = await supabase.rpc("resolve_stale_bookings", { p_org_id: orgId })
+  if (error) throw error
 }
 
 // ── Exemption windows (B4, Build Order Step 4) — read-only here; admin CRUD
@@ -303,6 +316,13 @@ export type FilteredTicketItem = {
     scheduled_at: string | null
     mode: Enums<"appointment_mode">
     status: Enums<"appointment_status">
+    // Customer Dashboard Booking Audit (2026-07-31) Tasks 3/5 — live slot
+    // link (name/times reflect the CURRENT slot config, not a frozen
+    // snapshot) and the Task 4 stale-booking follow-up flag.
+    follow_up_flagged_at: string | null
+    slot_name: string | null
+    slot_start_time: string | null
+    slot_end_time: string | null
     technician: { id: string; full_name: string } | null
   } | null
   amc_status: Enums<"amc_status"> | null
@@ -341,7 +361,10 @@ export async function getTicketDetail(ticketId: string) {
       // their own ticket's visit, see 20260725110000_otp_completion_
       // confirmation.sql). Explicit column list on purpose, excluding the
       // audit-only bypass columns the customer screen has no use for.
-      "*, products(name), brands(name), models(name), addresses(*), invoices(*), appointments(*, technicians(id, profile_id, profiles(full_name, phone))), service_visits(*, ratings(*), ro_checklists(*), service_visit_otps(code, generated_at, expires_at, verified_at))"
+      // Customer Dashboard Booking Audit (2026-07-31) Task 3/5: the slot
+      // join is live (name/times), not frozen at booking time — an admin
+      // retiming a slot shows up here automatically.
+      "*, products(name), brands(name), models(name), addresses(*), invoices(*), appointments(*, technicians(id, profile_id, profiles(full_name, phone)), appointment_slots(name, start_time, end_time)), service_visits(*, ratings(*), ro_checklists(*), service_visit_otps(code, generated_at, expires_at, verified_at))"
     )
     .eq("id", ticketId)
     .single()

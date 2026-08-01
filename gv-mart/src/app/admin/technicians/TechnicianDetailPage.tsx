@@ -32,8 +32,11 @@ import { pickHistoryVisit, TECHNICIAN_SKILL_OPTIONS } from "@/services/technicia
 import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
 import { cn } from "@/lib/utils"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
+import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
 
 const SKILL_OPTIONS = TECHNICIAN_SKILL_OPTIONS
+// Indian mobile: 10 digits, starts 6-9 — same rule as lib/validation/technician.ts.
+const MOBILE_REGEX = /^[6-9]\d{9}$/
 
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return "—"
@@ -116,10 +119,14 @@ export function TechnicianDetailPage() {
     setEditSkills((prev) => (prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]))
   }
   const capacityValid = /^\d+$/.test(editCapacity.trim()) && Number(editCapacity) > 0
+  // Phone is optional (cleared -> null, see patch below) but if a value is
+  // entered it must be a valid Indian mobile number, same rule as the rest
+  // of the app (lib/validation/technician.ts, lib/validation/customer.ts).
+  const phoneValid = editPhone.trim() === "" || MOBILE_REGEX.test(editPhone.trim())
   /** Two separate tables (technicians + profiles, see updateTechnicianProfile's
    * doc comment) — fired together, edit panel only closes once both land. */
   function saveEdit() {
-    if (!capacityValid) return
+    if (!capacityValid || !phoneValid) return
     updateMut.mutate(
       {
         id: technician!.id,
@@ -266,7 +273,14 @@ export function TechnicianDetailPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <Label htmlFor="tech-phone">{t("technicians.detail.fields.phone")}</Label>
-                <Input id="tech-phone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+                <Input
+                  id="tech-phone"
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  aria-invalid={!phoneValid}
+                />
+                {!phoneValid ? <p className="text-xs text-danger">{t("technician.errors.mobileInvalid")}</p> : null}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="tech-zone">{t("technicians.list.zone")}</Label>
@@ -319,7 +333,7 @@ export function TechnicianDetailPage() {
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button size="sm" onClick={saveEdit} disabled={updateMut.isPending || !capacityValid}>
+              <Button size="sm" onClick={saveEdit} disabled={updateMut.isPending || !capacityValid || !phoneValid}>
                 {updateMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
               </Button>
             </div>
@@ -698,7 +712,7 @@ function DayDetailPanel({
               {!record.inside_geofence ? (
                 <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">{t("technicians.detail.outsideGeofence")}</span>
               ) : null}
-              <StatusDot tone={record.is_late ? "danger" : "success"} label={record.is_late ? t("technician.attendance.lateBadge") : t("technician.attendance.onTimeBadge")} />
+              <StatusDot tone={ATTENDANCE_STATUS_TONE[record.status]} label={t(ATTENDANCE_STATUS_I18N_KEY[record.status])} />
             </div>
           </div>
         ) : (

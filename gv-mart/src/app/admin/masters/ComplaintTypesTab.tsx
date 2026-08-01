@@ -37,7 +37,7 @@ export function ComplaintTypesTab() {
       type: "select",
       options: CATEGORIES.map((c) => ({ value: c, label: t(`masters.categories.${c}`) })),
     },
-    { key: "label", label: t("masters.complaintTypes.label"), type: "text", placeholder: t("masters.complaintTypes.labelPlaceholder") },
+    { key: "label", label: t("masters.complaintTypes.label"), type: "text", placeholder: t("masters.complaintTypes.labelPlaceholder"), required: true },
   ]
 
   return (

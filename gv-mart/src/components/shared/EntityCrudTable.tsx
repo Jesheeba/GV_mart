@@ -22,7 +22,7 @@ export type CrudFieldOption = { value: string; label: string }
 export type CrudFieldDef = {
   key: string
   label: string
-  type: "text" | "number" | "select"
+  type: "text" | "number" | "email" | "tel" | "url" | "select"
   // Either a static list, or derived from the form's current in-progress
   // values — e.g. a Model select filtered down to whichever Brand is
   // currently selected in the same open form. Re-evaluated on every render
@@ -31,11 +31,50 @@ export type CrudFieldDef = {
   options?: CrudFieldOption[] | ((values: Record<string, string>) => CrudFieldOption[])
   step?: string
   placeholder?: string
+  // Client-side type checking, enforced in submit() before onCreate/onUpdate
+  // ever sees the values (this component isn't a real <form>, so a plain
+  // `required` attribute on the <input> would never block the Save button).
+  required?: boolean
+  min?: number
+  max?: number
+  pattern?: string
+  patternMessage?: string
 }
 
 function resolveOptions(field: CrudFieldDef, values: Record<string, string>): CrudFieldOption[] {
   if (!field.options) return []
   return typeof field.options === "function" ? field.options(values) : field.options
+}
+
+function validateFields(fields: CrudFieldDef[], values: Record<string, string>, t: (key: string, opts?: Record<string, unknown>) => string): string | null {
+  for (const f of fields) {
+    const raw = values[f.key] ?? ""
+    const value = raw.trim()
+    if (f.required && value === "") {
+      return t("common.errors.fieldRequired", { field: f.label })
+    }
+    if (value === "") continue
+    if (f.type === "number") {
+      const n = Number(value)
+      if (Number.isNaN(n)) return t("common.errors.fieldMustBeNumber", { field: f.label })
+      if (f.min != null && n < f.min) return t("common.errors.fieldMin", { field: f.label, min: f.min })
+      if (f.max != null && n > f.max) return t("common.errors.fieldMax", { field: f.label, max: f.max })
+    }
+    if (f.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      return t("common.errors.fieldInvalid", { field: f.label })
+    }
+    if (f.type === "url") {
+      try {
+        new URL(value)
+      } catch {
+        return t("common.errors.fieldInvalid", { field: f.label })
+      }
+    }
+    if (f.pattern && !new RegExp(`^(?:${f.pattern})$`).test(value)) {
+      return f.patternMessage ?? t("common.errors.fieldInvalid", { field: f.label })
+    }
+  }
+  return null
 }
 
 /**
@@ -111,6 +150,11 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   }
   async function submit() {
     setFormError(null)
+    const validationError = validateFields(fields, values, t)
+    if (validationError) {
+      setFormError(validationError)
+      return
+    }
     try {
       if (editingId) await onUpdate(editingId, values)
       else await onCreate(values)
@@ -209,6 +253,9 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     id={`f-${f.key}`}
                     type={f.type}
                     step={f.step}
+                    min={f.min}
+                    max={f.max}
+                    pattern={f.pattern}
                     placeholder={f.placeholder}
                     value={values[f.key] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}

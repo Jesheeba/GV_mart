@@ -72,6 +72,16 @@ export const sparesHooks = entityHooks("spares", {
   remove: masters.deleteSpare,
 })
 
+// Customer Dashboard Booking Audit (2026-07-31) Tasks 2/3 — admin-configured
+// appointment slots (Morning/Afternoon/Evening etc.), independent of
+// technician working hours.
+export const appointmentSlotsHooks = entityHooks("appointment_slots", {
+  list: masters.listAppointmentSlots,
+  create: masters.createAppointmentSlot,
+  update: masters.updateAppointmentSlot,
+  remove: masters.deleteAppointmentSlot,
+})
+
 // Task 6 (2026-07-30) — bulk import/update don't fit entityHooks' one-row
 // shape, and product<->spare mapping is queried per-product, not as a flat
 // list — both live alongside sparesHooks instead.

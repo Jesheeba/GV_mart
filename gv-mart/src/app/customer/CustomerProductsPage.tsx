@@ -127,7 +127,12 @@ export function CustomerProductsPage() {
               warranty={warranty}
               showAmcSection={product.category === "ro"}
               actionSlot={
-                <Button size="sm" variant="outline" className="mx-1" onClick={() => navigate("/customer/book-service")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mx-1"
+                  onClick={() => navigate("/customer/book-service", { state: { productId: product.id } })}
+                >
                   <Wrench className="size-3.5" />
                   {t("customerApp.products.bookService")}
                 </Button>

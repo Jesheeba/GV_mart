@@ -15,9 +15,9 @@ export function GiftsTab() {
   const deleteMut = giftsHooks.useDelete()
 
   const fields: CrudFieldDef[] = [
-    { key: "name", label: t("masters.gifts.name"), type: "text" },
-    { key: "threshold_amount", label: t("masters.gifts.threshold"), type: "number", step: "1" },
-    { key: "cost_price", label: t("masters.gifts.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet") },
+    { key: "name", label: t("masters.gifts.name"), type: "text", required: true },
+    { key: "threshold_amount", label: t("masters.gifts.threshold"), type: "number", step: "1", required: true, min: 0 },
+    { key: "cost_price", label: t("masters.gifts.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet"), min: 0 },
   ]
 
   return (

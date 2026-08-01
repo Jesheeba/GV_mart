@@ -15,6 +15,7 @@ export const settingsSchema = z
     work_start: z.string().min(1, "settings.errors.required"),
     work_end: z.string().min(1, "settings.errors.required"),
     late_cutoff: z.string().min(1, "settings.errors.required"),
+    very_late_threshold_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     lunch_minutes_allowed: z.coerce.number().int().positive("settings.errors.positive"),
     lunch_minutes_red_threshold: z.coerce.number().int().positive("settings.errors.positive"),
     discount_tech_max: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
@@ -43,6 +44,10 @@ export const settingsSchema = z
   .refine((v) => v.lunch_minutes_red_threshold > v.lunch_minutes_allowed, {
     message: "settings.errors.lunchRedAfterAllowed",
     path: ["lunch_minutes_red_threshold"],
+  })
+  .refine((v) => v.late_cutoff >= v.work_start, {
+    message: "settings.errors.lateCutoffBeforeWorkStart",
+    path: ["late_cutoff"],
   })
   .refine((v) => v.discount_admin_max >= v.discount_tech_max, {
     message: "settings.errors.adminMaxAboveTech",

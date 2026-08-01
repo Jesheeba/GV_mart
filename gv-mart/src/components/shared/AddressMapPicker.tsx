@@ -24,11 +24,23 @@ function newSessionToken() {
 export function AddressMapPicker({
   lat,
   lng,
+  suggestedLat,
+  suggestedLng,
   onConfirm,
   onAddressSelect,
 }: {
   lat?: number
   lng?: number
+  /**
+   * An auto-geocoded GUESS the caller hasn't confirmed yet (e.g. derived
+   * from typed address fields, not from the user searching/dragging on
+   * this map) — rendered as a draggable amber DRAFT pin requiring explicit
+   * confirmation, same as a "search anyway" ambiguous result. Never
+   * silently promoted to a confirmed `lat`/`lng`-style pin; ignored once a
+   * real confirmed pin exists.
+   */
+  suggestedLat?: number
+  suggestedLng?: number
   /** Fires only when the user explicitly confirms a location (selecting a search result, or confirming a drag adjustment). */
   onConfirm: (coords: Coords) => void
   /** Fires when a search result is picked, before drag adjustment — lets the caller auto-fill area/pincode/district/state. */
@@ -69,6 +81,20 @@ export function AddressMapPicker({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lat, lng])
+
+  // A suggested (unconfirmed) coordinate lands as a DRAFT pin, never a
+  // confirmed one — see the `suggestedLat`/`suggestedLng` doc comment above
+  // for why. Skipped once a real confirmed pin exists, so a caller can't
+  // clobber something the user already confirmed by re-firing its own
+  // geocode effect.
+  useEffect(() => {
+    if (pin) return
+    if (suggestedLat != null && suggestedLng != null) {
+      setDraftPin({ lat: suggestedLat, lng: suggestedLng })
+      setViewport({ center: [suggestedLng, suggestedLat], zoom: PIN_ZOOM })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestedLat, suggestedLng])
 
   // Live-as-you-type suggestions — the whole point of a session token is
   // that every keystroke in one search reuses it, so it's created once above

@@ -9,6 +9,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useMyTechnician } from "@/hooks/useTechnician"
 import { useDaySheetSummary } from "@/hooks/useWorkspace"
 import { formatCurrency } from "@/lib/sale-calc"
+import { ATTENDANCE_STATUS_I18N_KEY } from "@/lib/attendance-status"
 
 export function DaySheetPage() {
   const { t } = useTranslation()
@@ -23,11 +24,7 @@ export function DaySheetPage() {
   }
 
   const attendance = summary.data?.attendance ?? null
-  const attendanceStatusKey = !attendance
-    ? "technician.daySheet.attendance.notMarked"
-    : attendance.is_late
-      ? "technician.daySheet.attendance.late"
-      : "technician.daySheet.attendance.onTime"
+  const attendanceStatusKey = !attendance ? "technician.daySheet.attendance.notMarked" : ATTENDANCE_STATUS_I18N_KEY[attendance.status]
 
   return (
     <div className="space-y-4 pt-2">

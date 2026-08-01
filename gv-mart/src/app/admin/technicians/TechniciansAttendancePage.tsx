@@ -10,6 +10,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useAttendanceForDate } from "@/hooks/useTechniciansAdmin"
 import { useSettings } from "@/hooks/useMasters"
 import type { AttendanceListItem } from "@/services/techniciansAdmin"
+import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -63,7 +64,7 @@ export function TechniciansAttendancePage() {
     {
       key: "late",
       header: t("technicians.attendance.late"),
-      render: (r) => <StatusDot tone={r.is_late ? "danger" : "success"} label={r.is_late ? t("technicians.attendance.lateYes") : t("technicians.attendance.lateNo")} />,
+      render: (r) => (r.check_in_at ? <StatusDot tone={ATTENDANCE_STATUS_TONE[r.status]} label={t(ATTENDANCE_STATUS_I18N_KEY[r.status])} /> : "—"),
     },
   ]
 

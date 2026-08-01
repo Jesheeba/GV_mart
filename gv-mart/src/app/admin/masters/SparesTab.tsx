@@ -64,18 +64,18 @@ export function SparesTab() {
   }
 
   const fields: CrudFieldDef[] = [
-    { key: "name", label: t("masters.spares.name"), type: "text" },
-    { key: "sku", label: t("masters.spares.sku"), type: "text" },
-    { key: "price", label: t("masters.spares.price"), type: "number", step: "0.01" },
-    { key: "cost_price", label: t("masters.spares.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet") },
-    { key: "hsn_code", label: t("masters.spares.hsn"), type: "text" },
+    { key: "name", label: t("masters.spares.name"), type: "text", required: true },
+    { key: "sku", label: t("masters.spares.sku"), type: "text", pattern: "[A-Za-z0-9_-]+", patternMessage: t("masters.errors.skuInvalid") },
+    { key: "price", label: t("masters.spares.price"), type: "number", step: "0.01", required: true, min: 0 },
+    { key: "cost_price", label: t("masters.spares.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet"), min: 0 },
+    { key: "hsn_code", label: t("masters.spares.hsn"), type: "text", pattern: "\\d{4,8}", patternMessage: t("masters.errors.hsnInvalid") },
     // GV.md 1.1: "back wheel 10 min, horn 5 min, tank clean 5 min" — the
     // admin-set standard service time that feeds the SOP checklist (1.1/D4)
     // and the technician's estimated/allowed time (1.2). Blank = not timed
     // yet. operation_admin edits the same column from Inventory (see
     // InventoryTable.tsx) via the narrower set_item_standard_time RPC, since
     // this whole tab is master-only per RLS.
-    { key: "standard_time_minutes", label: t("masters.spares.standardTime"), type: "number", step: "1" },
+    { key: "standard_time_minutes", label: t("masters.spares.standardTime"), type: "number", step: "1", min: 0 },
   ]
 
   return (

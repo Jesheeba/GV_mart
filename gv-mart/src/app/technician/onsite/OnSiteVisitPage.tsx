@@ -194,6 +194,7 @@ export function OnSiteVisitPage() {
   const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type">>("online")
   const [enquiryNote, setEnquiryNote] = useState("")
   const [enquirySent, setEnquirySent] = useState(false)
+  const [enquiryError, setEnquiryError] = useState<string | null>(null)
 
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRestored, setDraftRestored] = useState(false)
@@ -364,6 +365,7 @@ export function OnSiteVisitPage() {
     setEnquiryType("online")
     setEnquiryNote("")
     setEnquirySent(false)
+    setEnquiryError(null)
     setDraftRestored(false)
     setShowDiscardConfirm(false)
   }
@@ -687,7 +689,11 @@ export function OnSiteVisitPage() {
   async function handleSendEnquiry() {
     if (!profile) return
     const parsed = enquiryLeadSchema.safeParse({ name: enquiryName, mobile: enquiryMobile, enquiryType, note: enquiryNote })
-    if (!parsed.success) return
+    if (!parsed.success) {
+      setEnquiryError(parsed.error.issues[0]?.message ?? "common.actionFailed")
+      return
+    }
+    setEnquiryError(null)
     if (!ticket) return
     try {
       await generateEnquiry.mutateAsync({
@@ -1083,7 +1089,12 @@ export function OnSiteVisitPage() {
           ) : (
             <div className="space-y-2.5 px-1">
               <Input value={enquiryName} onChange={(e) => setEnquiryName(e.target.value)} placeholder={t("technician.onsite.enquiry.namePlaceholder")} />
-              <Input value={enquiryMobile} onChange={(e) => setEnquiryMobile(e.target.value)} placeholder={t("technician.onsite.enquiry.mobilePlaceholder")} />
+              <Input
+                type="tel"
+                value={enquiryMobile}
+                onChange={(e) => setEnquiryMobile(e.target.value)}
+                placeholder={t("technician.onsite.enquiry.mobilePlaceholder")}
+              />
               <select
                 value={enquiryType}
                 onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type">)}
@@ -1094,6 +1105,7 @@ export function OnSiteVisitPage() {
                 ))}
               </select>
               <Input value={enquiryNote} onChange={(e) => setEnquiryNote(e.target.value)} placeholder={t("technician.onsite.enquiry.notePlaceholder")} />
+              {enquiryError ? <p className="text-xs text-danger">{t(enquiryError)}</p> : null}
               <Button type="button" variant="outline" onClick={handleSendEnquiry} disabled={generateEnquiry.isPending || !enquiryName.trim()}>
                 {generateEnquiry.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.enquiry.send")}
               </Button>

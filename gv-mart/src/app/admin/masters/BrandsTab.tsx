@@ -17,7 +17,7 @@ export function BrandsTab() {
   const deleteMut = brandsHooks.useDelete()
 
   const fields: CrudFieldDef[] = [
-    { key: "name", label: t("masters.brands.name"), type: "text" },
+    { key: "name", label: t("masters.brands.name"), type: "text", required: true },
     {
       key: "category",
       label: t("masters.brands.category"),

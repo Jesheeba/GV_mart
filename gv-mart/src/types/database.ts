@@ -1843,6 +1843,10 @@ export type Database = {
           is_narrow_window: boolean
           next_day_priority: boolean
           rescheduled_from_date: string | null
+          // Customer Dashboard Booking Audit (2026-07-31) Tasks 2-4 — see
+          // 20260731170000_appointment_slots_and_stale_booking_followup.sql.
+          slot_id: string | null
+          follow_up_flagged_at: string | null
           created_at: string
           updated_at: string
         }
@@ -1860,6 +1864,8 @@ export type Database = {
           is_narrow_window?: boolean
           next_day_priority?: boolean
           rescheduled_from_date?: string | null
+          slot_id?: string | null
+          follow_up_flagged_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1877,6 +1883,8 @@ export type Database = {
           is_narrow_window?: boolean
           next_day_priority?: boolean
           rescheduled_from_date?: string | null
+          slot_id?: string | null
+          follow_up_flagged_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1900,6 +1908,60 @@ export type Database = {
             columns: ["technician_id"]
             isOneToOne: false
             referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "appointment_slots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_slots: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          start_time: string
+          end_time: string
+          is_active: boolean
+          max_bookings_per_slot: number | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          start_time: string
+          end_time: string
+          is_active?: boolean
+          max_bookings_per_slot?: number | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string
+          start_time?: string
+          end_time?: string
+          is_active?: boolean
+          max_bookings_per_slot?: number | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_slots_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2614,6 +2676,7 @@ export type Database = {
           pledge: boolean
           meeting: boolean
           is_late: boolean
+          status: "early" | "on_time" | "late" | "very_late"
           selfie_url: string | null
           lunch_start: string | null
           lunch_end: string | null
@@ -2632,6 +2695,7 @@ export type Database = {
           pledge?: boolean
           meeting?: boolean
           is_late?: boolean
+          status?: "early" | "on_time" | "late" | "very_late"
           selfie_url?: string | null
           lunch_start?: string | null
           lunch_end?: string | null
@@ -2650,6 +2714,7 @@ export type Database = {
           pledge?: boolean
           meeting?: boolean
           is_late?: boolean
+          status?: "early" | "on_time" | "late" | "very_late"
           selfie_url?: string | null
           lunch_start?: string | null
           lunch_end?: string | null
@@ -3417,6 +3482,7 @@ export type Database = {
           work_start: string
           work_end: string
           late_cutoff: string
+          very_late_threshold_minutes: number
           lunch_minutes_allowed: number
           lunch_minutes_red_threshold: number
           discount_tech_max: number
@@ -3453,6 +3519,7 @@ export type Database = {
           work_start?: string
           work_end?: string
           late_cutoff?: string
+          very_late_threshold_minutes?: number
           lunch_minutes_allowed?: number
           lunch_minutes_red_threshold?: number
           discount_tech_max?: number
@@ -3489,6 +3556,7 @@ export type Database = {
           work_start?: string
           work_end?: string
           late_cutoff?: string
+          very_late_threshold_minutes?: number
           lunch_minutes_allowed?: number
           lunch_minutes_red_threshold?: number
           discount_tech_max?: number
@@ -4083,6 +4151,10 @@ export type Database = {
         Returns: undefined
       }
       book_service_ticket: {
+        // Customer Dashboard Booking Audit (2026-07-31) Tasks 2-4 — signature
+        // replaced (was appointment_mode/scheduled_at/available_from/to/
+        // unavailable_windows geometry) with a plain date + admin-configured
+        // slot. See 20260731170000_appointment_slots_and_stale_booking_followup.sql.
         Args: {
           p_org_id: string
           p_address_id: string | null
@@ -4092,16 +4164,14 @@ export type Database = {
           p_name_of_complaint: string
           p_nature_of_complaint: string | null
           p_priority: Database["public"]["Enums"]["priority_level"]
-          p_appointment_mode: Database["public"]["Enums"]["appointment_mode"] | null
-          p_scheduled_at: string | null
-          p_available_from?: string | null
-          p_available_to?: string | null
-          // B1: jsonb array of {"start":"HH:MM","end":"HH:MM"} — see
-          // 20260723101000_step4_booking_rpcs.sql. Null = legacy caller,
-          // falls back to p_available_from/p_available_to as-is.
-          p_unavailable_windows?: Json | null
+          p_scheduled_date: string
+          p_slot_id: string
         }
         Returns: Json
+      }
+      resolve_stale_bookings: {
+        Args: { p_org_id: string }
+        Returns: number
       }
       submit_customer_enquiry: {
         Args: {

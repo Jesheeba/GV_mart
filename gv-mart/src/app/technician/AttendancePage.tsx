@@ -11,6 +11,8 @@ import { useCheckOut, useLunchToggle, useMarkAttendance, useMyTechnician, useTec
 import type { AttendanceRowWithCheckOut } from "@/services/technician"
 import { classifyGeoError, getCurrentPosition, isInsideGeofence, type GeoPoint } from "@/lib/offline/geo"
 import { attendanceSchema } from "@/lib/validation/technician"
+import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
+import { StatusDot } from "@/components/shared/StatusDot"
 import { cn } from "@/lib/utils"
 
 /** Requirement 7 — local formatter for the Check Out card's "worked hours" readout (e.g. "7h 32m"); not a shared util per the scope note, this is the only place that needs it. */
@@ -191,11 +193,7 @@ export function AttendancePage() {
           <p className="text-xs text-text-muted">
             {t("technician.attendance.markedAt", { time: new Date(attendance.data!.check_in_at ?? "").toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) })}
           </p>
-          {attendance.data!.is_late ? (
-            <span className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">{t("technician.attendance.lateBadge")}</span>
-          ) : (
-            <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">{t("technician.attendance.onTimeBadge")}</span>
-          )}
+          <StatusDot tone={ATTENDANCE_STATUS_TONE[attendance.data!.status]} label={t(ATTENDANCE_STATUS_I18N_KEY[attendance.data!.status])} />
         </Card>
       ) : null}
 

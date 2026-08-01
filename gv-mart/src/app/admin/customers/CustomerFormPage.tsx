@@ -157,6 +157,8 @@ export function CustomerFormPage() {
       lng: undefined,
     },
   })
+  const doorNo = addressForm.watch("doorNo")
+  const flatNo = addressForm.watch("flatNo")
   const area = addressForm.watch("area")
   const pincode = addressForm.watch("pincode")
   const streetCross = addressForm.watch("streetCross")
@@ -177,15 +179,30 @@ export function CustomerFormPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pincodeLookup.data])
 
-  // Auto-places the map pin from the address fields already typed above
-  // (v2.2 feedback: typing the same address twice — once here, once again
-  // into the map's own search box — was redundant and error-prone), once
-  // there's enough to geocode meaningfully. Fires only while no pin exists
-  // yet: once set, by this or by the technician's own search/drag, later
+  // Auto-places a SUGGESTED map pin from the address fields already typed
+  // above (v2.2 feedback: typing the same address twice — once here, once
+  // again into the map's own search box — was redundant and error-prone),
+  // once there's enough to geocode meaningfully. Fires only while no pin
+  // exists yet: once set, by this or by staff's own search/drag, later
   // edits to these fields must not silently yank an already-placed pin out
   // from under them.
-  const autoLocateQuery = [streetCross, area, landmark, district, state].filter(Boolean).join(", ")
+  //
+  // Root-cause fix (bug: "technician's map location doesn't match the
+  // customer's actual location"): this used to (a) omit doorNo/flatNo/
+  // pincode from the geocoded string even though pincode gates the effect,
+  // so Google had nothing more precise than street+area+landmark to work
+  // with — routinely resolving to the street/locality centroid rather than
+  // the actual premise — and (b) wrote straight into the form's lat/lng,
+  // which AddressMapPicker renders as an already-CONFIRMED green pin with
+  // no prompt to verify, so an imprecise guess shipped silently. Fixed by
+  // sending the full address (including door/flat number and pincode) and
+  // by passing the result as `suggestedLat`/`suggestedLng` instead — that
+  // renders as an amber DRAFT pin (draggable, "needs confirmation") that
+  // staff must explicitly confirm or correct, exactly like every other
+  // ambiguous "search anyway" result already behaves.
+  const autoLocateQuery = [doorNo, flatNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
+  const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number } | null>(null)
   useEffect(() => {
     if (lat != null && lng != null) return
     if (!area.trim() || pincode.trim().length !== 6) return
@@ -194,11 +211,10 @@ export function CustomerFormPage() {
         const top = results[0]
         if (!top) return
         // Re-check fresh values, not the stale closure above — the request
-        // was in flight for a moment, and the technician may have already
-        // searched/dragged a pin themselves in that window.
+        // was in flight for a moment, and staff may have already
+        // searched/dragged/confirmed a pin themselves in that window.
         if (addressForm.getValues("lat") != null && addressForm.getValues("lng") != null) return
-        addressForm.setValue("lat", top.lat, { shouldValidate: true })
-        addressForm.setValue("lng", top.lon, { shouldValidate: true })
+        setSuggestedPin({ lat: top.lat, lng: top.lon })
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -447,9 +463,12 @@ export function CustomerFormPage() {
             <AddressMapPicker
               lat={addressForm.watch("lat")}
               lng={addressForm.watch("lng")}
+              suggestedLat={suggestedPin?.lat}
+              suggestedLng={suggestedPin?.lng}
               onConfirm={({ lat: newLat, lng: newLng }) => {
                 addressForm.setValue("lat", newLat, { shouldValidate: true })
                 addressForm.setValue("lng", newLng, { shouldValidate: true })
+                setSuggestedPin(null)
               }}
               onAddressSelect={(r) => {
                 if (!addressForm.getValues("area") && (r.suburb || r.city)) {

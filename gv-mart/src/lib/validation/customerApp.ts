@@ -18,6 +18,16 @@ export const customerAddressSchema = z.object({
   state: z.string().trim().optional().or(z.literal("")),
   addressType: z.enum(["residential", "commercial"]),
   ownership: z.enum(["own", "rental"]),
+  // Root-cause fix (technician map location bug): this address form never
+  // captured coordinates at all — every customer-self-added address had
+  // lat/lng permanently null, so the technician's map had nothing to plot
+  // and distance/ETA couldn't be computed. Optional here too (same shape as
+  // ADM-04's admin-side addressStepSchema, for the same reason: a schema-
+  // level requirement fights react-hook-form's `undefined` default before a
+  // pin is ever set) — AddressForm.tsx enforces "must confirm a pin" itself
+  // by disabling Save until lat/lng are present, which is the real gate.
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
 })
 export type CustomerAddressInput = z.infer<typeof customerAddressSchema>
 

@@ -24,7 +24,7 @@ export function AutomationFlowsTab() {
   const fields: CrudFieldDef[] = [
     { key: "trigger", label: t("automation.flows.trigger"), type: "select", options: TRIGGERS.map((v) => ({ value: v, label: t(`leads.enquiryType.${v}`) })) },
     { key: "action", label: t("automation.flows.action"), type: "select", options: ACTIONS.map((v) => ({ value: v, label: t(`automation.flows.actions.${v}`) })) },
-    { key: "asset_url", label: t("automation.flows.assetUrl"), type: "text" },
+    { key: "asset_url", label: t("automation.flows.assetUrl"), type: "url" },
     { key: "is_active", label: t("automation.flows.active"), type: "select", options: [{ value: "true", label: t("common.yes") }, { value: "false", label: t("common.no") }] },
   ]
 

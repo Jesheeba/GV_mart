@@ -52,10 +52,11 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
           <Input
             type="number"
             min={1}
+            step={1}
             className="w-20"
             placeholder={t("purchase.items.qty")}
             value={row.qty}
-            onChange={(e) => update(i, { qty: Number(e.target.value) || 0 })}
+            onChange={(e) => update(i, { qty: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
           />
           <Input
             type="number"

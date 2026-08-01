@@ -208,6 +208,8 @@ export function TechniciansListPage() {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Indian mobile: 10 digits, starts 6-9 — same rule as lib/validation/technician.ts.
+const MOBILE_REGEX = /^[6-9]\d{9}$/
 
 /**
  * Primary path: a real, immediately-usable login created server-side by the
@@ -258,7 +260,8 @@ function AddTechnicianPanel({
   }
 
   const capacityValid = /^\d+$/.test(dailyCapacity.trim()) && Number(dailyCapacity) > 0
-  const formValid = fullName.trim().length > 0 && phone.trim().length > 0 && EMAIL_RE.test(email.trim()) && capacityValid
+  const phoneValid = MOBILE_REGEX.test(phone.trim())
+  const formValid = fullName.trim().length > 0 && phoneValid && EMAIL_RE.test(email.trim()) && capacityValid
 
   function handleCreate() {
     if (!formValid) return
@@ -297,7 +300,14 @@ function AddTechnicianPanel({
         </div>
         <div className="space-y-1">
           <Label htmlFor="new-tech-phone">{t("technicians.detail.fields.phone")}</Label>
-          <Input id="new-tech-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Input
+            id="new-tech-phone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            aria-invalid={!!phone && !phoneValid}
+          />
+          {phone && !phoneValid ? <p className="text-xs text-danger">{t("technician.errors.mobileInvalid")}</p> : null}
         </div>
         <div className="space-y-1">
           <Label htmlFor="new-tech-email">{t("technicians.list.fields.email")}</Label>

@@ -50,7 +50,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
     if (!selectedProduct) return
     const brand = (brands ?? []).find((b) => b.id === selectedProduct.brand_id)
     const model = (models ?? []).find((m) => m.id === selectedProduct.model_id)
-    const qty = Math.max(1, Number(productQty) || 1)
+    const qty = Math.max(1, Math.floor(Number(productQty) || 1))
     const line: CartProductLine = {
       productId: selectedProduct.id,
       name: selectedProduct.name,
@@ -72,7 +72,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
 
   function addSpare() {
     if (!selectedSpare) return
-    const qty = Math.max(1, Number(spareQty) || 1)
+    const qty = Math.max(1, Math.floor(Number(spareQty) || 1))
     setCart((c) => ({
       ...c,
       spareLines: [...c.spareLines, { spareId: selectedSpare.id, name: selectedSpare.name, price: Number(selectedSpare.price), qty }],
@@ -157,7 +157,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                   </option>
                 ))}
               </select>
-              <Input type="number" min={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+              <Input type="number" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
             </div>
             <div className="flex items-center justify-between px-1 pt-2">
               <p className="text-xs text-text-muted">
@@ -182,7 +182,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                   </option>
                 ))}
               </select>
-              <Input type="number" min={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+              <Input type="number" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
             </div>
             <div className="flex justify-end px-1 pt-2">
               <Button type="button" size="sm" disabled={!selectedSpare} onClick={addSpare}>
@@ -215,8 +215,9 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
             <Input
               type="number"
               min={1}
+              step={1}
               value={line.qty}
-              onChange={(e) => updateProductLine(i, { qty: Math.max(1, Number(e.target.value) || 1) })}
+              onChange={(e) => updateProductLine(i, { qty: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
               className="w-20"
             />
             <span className="text-sm text-text-muted">{formatCurrency(line.price)} × {line.qty} = {formatCurrency(line.price * line.qty)}</span>
@@ -232,8 +233,9 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                 <Input
                   type="number"
                   min={1}
+                  step={1}
                   value={line.warrantyMonths}
-                  onChange={(e) => updateProductLine(i, { warrantyMonths: Math.max(1, Number(e.target.value) || 1) })}
+                  onChange={(e) => updateProductLine(i, { warrantyMonths: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
                   className="w-16"
                 />
               </span>
@@ -259,8 +261,9 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
             <Input
               type="number"
               min={1}
+              step={1}
               value={line.qty}
-              onChange={(e) => updateSpareQty(i, Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) => updateSpareQty(i, Math.max(1, Math.floor(Number(e.target.value) || 1)))}
               className="w-20"
             />
             <span className="text-sm text-text-muted">{formatCurrency(line.price)} × {line.qty} = {formatCurrency(line.price * line.qty)}</span>

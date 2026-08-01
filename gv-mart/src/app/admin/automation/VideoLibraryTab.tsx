@@ -18,7 +18,7 @@ export function VideoLibraryTab() {
 
   const fields: CrudFieldDef[] = [
     { key: "topic", label: t("automation.videos.topic"), type: "select", options: TOPICS.map((v) => ({ value: v, label: t(`leads.enquiryType.${v}`) })) },
-    { key: "url", label: t("automation.videos.url"), type: "text" },
+    { key: "url", label: t("automation.videos.url"), type: "url", required: true },
   ]
 
   return (

@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validation/customerApp"
 import type { AddressRow } from "@/services/customerApp"
 
@@ -12,6 +13,16 @@ import type { AddressRow } from "@/services/customerApp"
  * Shared add/edit address form — used by the Profile page's address list and
  * by AddressPickerModal (Task 3, 2026-07-30) so both stay on one
  * validation/markup path instead of two copies drifting apart.
+ *
+ * Root-cause fix (bug: "technician's map location doesn't match the
+ * customer's actual location, and distance/ETA are wrong"): this form used
+ * to be text-only — it never captured `lat`/`lng` at all, so every address a
+ * customer added or edited through their own Profile/booking flow had
+ * permanently null coordinates, and the technician's Map page had nothing
+ * real to plot or compute a distance from. Now mounts the same
+ * `AddressMapPicker` the admin-side customer form already uses (search,
+ * drag-to-adjust, "use my location"), required before the address can be
+ * saved.
  */
 export function AddressForm({
   initial,
@@ -30,6 +41,9 @@ export function AddressForm({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm<CustomerAddressInput>({
     resolver: zodResolver(customerAddressSchema),
@@ -45,8 +59,12 @@ export function AddressForm({
       state: initial?.state ?? "",
       addressType: initial?.address_type ?? "residential",
       ownership: initial?.ownership ?? "own",
+      lat: initial?.lat ?? undefined,
+      lng: initial?.lng ?? undefined,
     },
   })
+  const lat = watch("lat")
+  const lng = watch("lng")
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5 border-t border-border pt-3">
@@ -75,6 +93,27 @@ export function AddressForm({
         <Input placeholder={t("customerApp.profile.address.district")} {...register("district")} />
         <Input placeholder={t("customerApp.profile.address.state")} {...register("state")} />
       </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs text-text-muted">{t("customerApp.profile.address.mapLabel")}</Label>
+        <p className="text-xs text-text-muted">{t("customerApp.profile.address.mapHint")}</p>
+        <AddressMapPicker
+          lat={lat}
+          lng={lng}
+          onConfirm={({ lat: newLat, lng: newLng }) => {
+            setValue("lat", newLat, { shouldValidate: true })
+            setValue("lng", newLng, { shouldValidate: true })
+          }}
+          onAddressSelect={(r) => {
+            if (!getValues("area") && (r.suburb || r.city)) setValue("area", r.suburb ?? r.city ?? "", { shouldValidate: true })
+            if (!getValues("pincode") && r.postcode) setValue("pincode", r.postcode, { shouldValidate: true })
+            if (!getValues("district") && r.district) setValue("district", r.district, { shouldValidate: true })
+            if (!getValues("state") && r.state) setValue("state", r.state, { shouldValidate: true })
+          }}
+        />
+        {lat == null || lng == null ? <p className="text-xs text-warning">{t("customerApp.profile.address.mapRequired")}</p> : null}
+      </div>
+
       <div className="grid grid-cols-2 gap-2.5">
         <div className="space-y-1">
           <Label className="text-xs text-text-muted">{t("customerApp.profile.address.type")}</Label>
@@ -96,7 +135,7 @@ export function AddressForm({
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
           {t("common.cancel")}
         </Button>
-        <Button type="submit" size="sm" disabled={isPending}>
+        <Button type="submit" size="sm" disabled={isPending || lat == null || lng == null}>
           {isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
         </Button>
       </div>

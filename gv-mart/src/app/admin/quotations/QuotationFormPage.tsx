@@ -68,14 +68,14 @@ export function QuotationFormPage() {
   function addProductLine() {
     const p = (products ?? []).find((x) => x.id === productId)
     if (!p) return
-    setLines((ls) => [...ls, { itemType: "product", itemId: p.id, name: p.name, price: Number(p.price), qty: Math.max(1, Number(qty) || 1) }])
+    setLines((ls) => [...ls, { itemType: "product", itemId: p.id, name: p.name, price: Number(p.price), qty: Math.max(1, Math.floor(Number(qty) || 1)) }])
     setProductId("")
     setQty("1")
   }
   function addSpareLine() {
     const s = (spares ?? []).find((x) => x.id === spareId)
     if (!s) return
-    setLines((ls) => [...ls, { itemType: "spare", itemId: s.id, name: s.name, price: Number(s.price), qty: Math.max(1, Number(qty) || 1) }])
+    setLines((ls) => [...ls, { itemType: "spare", itemId: s.id, name: s.name, price: Number(s.price), qty: Math.max(1, Math.floor(Number(qty) || 1)) }])
     setSpareId("")
     setQty("1")
   }
@@ -156,7 +156,7 @@ export function QuotationFormPage() {
               </option>
             ))}
           </select>
-          <Input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+          <Input type="number" min={1} step={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
           <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={addProductLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}
@@ -171,7 +171,7 @@ export function QuotationFormPage() {
               </option>
             ))}
           </select>
-          <Input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+          <Input type="number" min={1} step={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
           <Button type="button" size="sm" variant="outline" disabled={!spareId} onClick={addSpareLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}

@@ -69,14 +69,40 @@ export function CustomerBookingDetailPage() {
             {[ticket.addresses.door_no, ticket.addresses.area, ticket.addresses.pincode].filter(Boolean).join(", ")}
           </p>
         ) : null}
-        {appt?.scheduled_at ? (
-          <p className="px-1 text-xs text-text-muted">
-            {t("customerApp.bookingDetail.scheduledFor", { date: new Date(appt.scheduled_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) })}
-          </p>
-        ) : null}
       </Card>
 
-      {technician ? (
+      {/* Task 5 (Customer Dashboard Booking Audit, 2026-07-31): show the
+          actual appointment details the customer picked — a booking has a
+          real date+slot from the moment it's created, so there's no reason
+          to show a vague "finding a technician" placeholder once a real
+          appointment exists. Slot name/times join live off appointment_slots
+          (see getTicketDetail's select), so an admin retiming a slot updates
+          this automatically. */}
+      {appt?.scheduled_at ? (
+        <Card className="gap-1.5">
+          <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.bookingDetail.appointmentTitle")}</h2>
+          <div className="grid grid-cols-2 gap-y-1 px-1 text-sm">
+            <span className="text-text-muted">{t("customerApp.bookingDetail.appointmentDate")}</span>
+            <span className="text-text">{new Date(appt.scheduled_at).toLocaleDateString(undefined, { dateStyle: "medium" })}</span>
+            {appt.appointment_slots ? (
+              <>
+                <span className="text-text-muted">{t("customerApp.bookingDetail.appointmentSlot")}</span>
+                <span className="text-text">{appt.appointment_slots.name}</span>
+                <span className="text-text-muted">{t("customerApp.bookingDetail.estimatedVisitTime")}</span>
+                <span className="text-text">
+                  {appt.appointment_slots.start_time.slice(0, 5)}–{appt.appointment_slots.end_time.slice(0, 5)}
+                </span>
+              </>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
+
+      {appt?.follow_up_flagged_at ? (
+        <Card className="gap-1.5 border-warning/40 bg-warning/10">
+          <p className="px-1 text-sm text-warning">{t("customerApp.bookingDetail.followUpNotice")}</p>
+        </Card>
+      ) : technician ? (
         <Card className="gap-2">
           <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.bookingDetail.technician")}</h2>
           <div className="flex items-center justify-between px-1">

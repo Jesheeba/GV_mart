@@ -30,7 +30,7 @@ export function ModelsTab() {
 
   const fields: CrudFieldDef[] = [
     { key: "brand_id", label: t("masters.models.brand"), type: "select", options: brandOptions },
-    { key: "name", label: t("masters.models.name"), type: "text" },
+    { key: "name", label: t("masters.models.name"), type: "text", required: true },
     { key: "type", label: t("masters.models.type"), type: "text", placeholder: t("masters.models.typePlaceholder") },
   ]
 

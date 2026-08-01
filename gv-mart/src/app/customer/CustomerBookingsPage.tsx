@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react"
+import { type ReactNode, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { CalendarClock, ChevronLeft, ChevronRight, SlidersHorizontal, Wrench, X } from "lucide-react"
@@ -10,7 +10,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError } from "@/components/shared/FullPageLoader"
-import { useMyCustomerId, useMyTicketsFiltered, useMyTicketTechnicians } from "@/hooks/useCustomerApp"
+import { useMyCustomerId, useMyTicketsFiltered, useMyTicketTechnicians, useResolveStaleBookings } from "@/hooks/useCustomerApp"
 import { TICKET_FILTER_PAGE_SIZE, type FilteredTicketItem, type TicketFilters } from "@/services/customerApp"
 
 const STATUS_TONE: Record<string, StatusTone> = {
@@ -35,12 +35,24 @@ const EMPTY_FILTERS: TicketFilters = {}
 export function CustomerBookingsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { customerId, isLoading: loadingId } = useMyCustomerId()
+  const { customerId, orgId, isLoading: loadingId } = useMyCustomerId()
   const [filters, setFilters] = useState<TicketFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { data, isLoading, isError, refetch } = useMyTicketsFiltered(customerId, filters, page)
   const { data: technicians } = useMyTicketTechnicians(customerId)
+
+  // Task 4 — resolve-on-view: best-effort, once per mount, so any of this
+  // customer's bookings whose day ended with no technician assigned gets
+  // flagged (and admins notified) just by the customer opening this page.
+  const resolveStale = useResolveStaleBookings(orgId)
+  const resolvedOnceRef = useRef(false)
+  useEffect(() => {
+    if (resolvedOnceRef.current || !orgId) return
+    resolvedOnceRef.current = true
+    resolveStale.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId])
 
   function updateFilter<K extends keyof TicketFilters>(key: K, value: TicketFilters[K] | "") {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }))
@@ -242,8 +254,13 @@ function BookingRow({ ticket, onClick }: { ticket: FilteredTicketItem; onClick: 
   const { t } = useTranslation()
   const appt = ticket.appointment
   const dateLabel = appt?.scheduled_at
-    ? new Date(appt.scheduled_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    ? new Date(appt.scheduled_at).toLocaleDateString(undefined, { dateStyle: "medium" })
     : t("customerApp.bookings.anytime")
+  const slotLabel =
+    appt?.slot_name && appt.slot_start_time && appt.slot_end_time
+      ? `${appt.slot_name} (${appt.slot_start_time.slice(0, 5)}–${appt.slot_end_time.slice(0, 5)})`
+      : null
+  const needsFollowUp = !!appt?.follow_up_flagged_at
 
   return (
     <Card size="sm" className="cursor-pointer gap-1.5" onClick={onClick}>
@@ -258,10 +275,17 @@ function BookingRow({ ticket, onClick }: { ticket: FilteredTicketItem; onClick: 
       </div>
       <div className="flex items-center justify-between px-1">
         <StatusDot tone={STATUS_TONE[ticket.status] ?? "neutral"} label={t(`customerApp.bookings.status.${ticket.status}`)} />
-        <span className="text-xs text-text-muted">{dateLabel}</span>
+        <span className="text-xs text-text-muted">
+          {dateLabel}
+          {slotLabel ? ` · ${slotLabel}` : ""}
+        </span>
       </div>
       {ticket.name_of_complaint ? <p className="truncate px-1 text-xs text-text-muted">{ticket.name_of_complaint}</p> : null}
-      <p className="px-1 text-xs text-text-muted">{appt?.technician?.full_name ?? t("customerApp.bookings.unassigned")}</p>
+      {needsFollowUp ? (
+        <p className="rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs font-medium text-warning">{t("customerApp.bookings.followUpNotice")}</p>
+      ) : (
+        <p className="px-1 text-xs text-text-muted">{appt?.technician?.full_name ?? t("customerApp.bookings.unassigned")}</p>
+      )}
     </Card>
   )
 }

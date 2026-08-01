@@ -58,11 +58,11 @@ export function AmcPlansTab() {
   )
 
   const fields: CrudFieldDef[] = [
-    { key: "name", label: t("masters.amcPlans.name"), type: "text", placeholder: t("masters.amcPlans.namePlaceholder") },
-    { key: "years", label: t("masters.amcPlans.years"), type: "number", step: "1" },
-    { key: "price_per_year", label: t("masters.amcPlans.pricePerYear"), type: "number", step: "0.01" },
-    { key: "price", label: t("masters.amcPlans.price"), type: "number", step: "0.01" },
-    { key: "visits_per_year", label: t("masters.amcPlans.visitsPerYear"), type: "number", step: "1" },
+    { key: "name", label: t("masters.amcPlans.name"), type: "text", placeholder: t("masters.amcPlans.namePlaceholder"), required: true },
+    { key: "years", label: t("masters.amcPlans.years"), type: "number", step: "1", required: true, min: 1 },
+    { key: "price_per_year", label: t("masters.amcPlans.pricePerYear"), type: "number", step: "0.01", min: 0 },
+    { key: "price", label: t("masters.amcPlans.price"), type: "number", step: "0.01", min: 0 },
+    { key: "visits_per_year", label: t("masters.amcPlans.visitsPerYear"), type: "number", step: "1", required: true, min: 0 },
     { key: "gift_id", label: t("masters.amcPlans.gift"), type: "select", options: giftOptions },
     { key: "inclusions", label: t("masters.amcPlans.inclusions"), type: "text", placeholder: t("masters.amcPlans.inclusionsPlaceholder") },
   ]

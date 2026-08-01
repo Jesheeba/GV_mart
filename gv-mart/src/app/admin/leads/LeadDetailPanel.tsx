@@ -36,6 +36,8 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
   const [referrerId, setReferrerId] = useState("")
   const [referrerLabel, setReferrerLabel] = useState("")
   const [points, setPoints] = useState("50")
+  const pointsNum = Number(points)
+  const pointsValid = points.trim() !== "" && Number.isFinite(pointsNum) && pointsNum >= 1
   const referrerAutocomplete = useCustomerAutocomplete(orgId, referrerSearch)
 
   return (
@@ -162,17 +164,18 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
                   setReferrerLabel(`${c.name} · ${c.mobile}`)
                 }}
               />
-              <Input type="number" min={1} value={points} onChange={(e) => setPoints(e.target.value)} />
+              <Input type="number" min={1} step="1" value={points} onChange={(e) => setPoints(e.target.value)} />
               <div className="flex justify-end">
                 <Button
                   size="sm"
-                  disabled={!referrerId || !points || awardPoints.isPending}
+                  disabled={!referrerId || !pointsValid || awardPoints.isPending}
                   onClick={async () => {
+                    if (!pointsValid) return
                     try {
                       await awardPoints.mutateAsync({
                         orgId: orgId!,
                         customerId: referrerId,
-                        points: Number(points) || 0,
+                        points: pointsNum,
                         reason: t("leads.detail.referralReason", { name: lead.customers?.name ?? lead.name }),
                         refId: lead.id,
                       })

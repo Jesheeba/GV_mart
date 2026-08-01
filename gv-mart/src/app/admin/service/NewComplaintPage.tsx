@@ -29,7 +29,7 @@ import {
   type ComplaintAppointmentStepInput,
   type ComplaintDetailsStepInput,
 } from "@/lib/validation/service"
-import { isBookableDate, isNarrowWindow, largestFreeWindow, type TimeWindow } from "@/lib/booking-window"
+import { isNarrowWindow, largestFreeWindow, type TimeWindow } from "@/lib/booking-window"
 import { TicketTypeBadge } from "./TicketBadges"
 
 function todayInput() {
@@ -183,7 +183,7 @@ export function NewComplaintPage() {
   // B4: the customer's own standing exemption windows — shown red so the
   // admin can see why a slot is off-limits without re-deriving it.
   const { data: exemptionWindows } = useCustomerExemptionWindows(customerId || undefined)
-  const { data: slaSettings } = useSlaSettings(orgId)
+  const { data: slaSettings, isLoading: slaSettingsLoading } = useSlaSettings(orgId)
 
   const createTicket = useCreateComplaintTicket()
 
@@ -286,7 +286,11 @@ export function NewComplaintPage() {
       priority: details.priority,
       channel: "call",
       appointmentMode: appt.mode,
-      scheduledAt: appt.mode === "datetime" && appt.scheduledAt ? new Date(`${appt.scheduledAt}T00:00:00`).toISOString() : null,
+      // See BookServicePage.tsx's matching comment: anchor to UTC midnight
+      // (not local midnight) so the server's date-only read of this value
+      // matches the date actually picked, regardless of the staff device's
+      // timezone.
+      scheduledAt: appt.mode === "datetime" && appt.scheduledAt ? new Date(`${appt.scheduledAt}T00:00:00Z`).toISOString() : null,
       autoAssign: appt.autoAssign,
       availableFrom: null,
       availableTo: null,
@@ -585,19 +589,20 @@ export function NewComplaintPage() {
               </button>
             ))}
           </div>
-          {appointmentForm.watch("mode") === "datetime" ? (
+          {appointmentForm.watch("mode") === "datetime" && slaSettingsLoading ? (
+            <p className="text-xs text-text-muted">{t("common.loading")}</p>
+          ) : null}
+          {appointmentForm.watch("mode") === "datetime" && !slaSettingsLoading && slaSettings ? (
             (() => {
-              const workStart = (slaSettings?.work_start ?? "09:00").slice(0, 5)
-              const workEnd = (slaSettings?.work_end ?? "19:30").slice(0, 5)
-              const narrowThreshold = slaSettings?.narrow_window_threshold_minutes ?? 90
-              const estimatedMinutes = slaSettings?.default_duration_paid_minutes ?? 45
+              const workStart = slaSettings.work_start.slice(0, 5)
+              const workEnd = slaSettings.work_end.slice(0, 5)
+              const narrowThreshold = slaSettings.narrow_window_threshold_minutes
               const windowMode = appointmentForm.watch("windowMode")
               const unavailableWindows = appointmentForm.watch("unavailableWindows") ?? []
               const exemptionBlocks: TimeWindow[] = (exemptionWindows ?? []).map((w) => ({ start: w.start_time.slice(0, 5), end: w.end_time.slice(0, 5) }))
               const blockedForPreview = windowMode === "any" ? exemptionBlocks : [...unavailableWindows, ...exemptionBlocks]
               const freeWindow = largestFreeWindow(workStart, workEnd, blockedForPreview)
               const narrow = isNarrowWindow(freeWindow, narrowThreshold)
-              const bookableToday = isBookableDate(freeWindow, narrowThreshold, estimatedMinutes)
               const pickedDate = appointmentForm.watch("scheduledAt")
 
               return (
@@ -708,7 +713,6 @@ export function NewComplaintPage() {
                         {narrow
                           ? t("customerApp.bookService.narrowWindowWarning", { start: freeWindow.availableFrom, end: freeWindow.availableTo })
                           : t("customerApp.bookService.availableWindowPreview", { start: freeWindow.availableFrom, end: freeWindow.availableTo })}
-                        {!bookableToday ? <span className="mt-1 block">{t("customerApp.bookService.mayMoveNextDay")}</span> : null}
                       </div>
                     ) : (
                       <div className="flex items-start gap-2 rounded-xl bg-danger/10 px-3.5 py-2.5 text-xs text-danger">

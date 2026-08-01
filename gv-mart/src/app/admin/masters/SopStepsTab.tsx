@@ -24,8 +24,8 @@ export function SopStepsTab() {
   )
 
   const fields: CrudFieldDef[] = [
-    { key: "name", label: t("masters.sopSteps.name"), type: "text" },
-    { key: "default_expected_minutes", label: t("masters.sopSteps.expectedMinutes"), type: "number", step: "1" },
+    { key: "name", label: t("masters.sopSteps.name"), type: "text", required: true },
+    { key: "default_expected_minutes", label: t("masters.sopSteps.expectedMinutes"), type: "number", step: "1", min: 1 },
     { key: "product_id", label: t("masters.sopSteps.product"), type: "select", options: productOptions },
   ]
 

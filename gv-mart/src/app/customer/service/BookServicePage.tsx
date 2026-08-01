@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, Loader2 } from "lucide-react"
+import { useLocation, useNavigate } from "react-router-dom"
+import { ArrowLeft, CheckCircle2, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
@@ -13,17 +13,15 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { DraftBanner } from "@/components/shared/DraftBanner"
 import { AddressPickerModal } from "@/components/shared/AddressPickerModal"
 import {
+  useAppointmentSlots,
   useBookServiceTicket,
-  useCustomerAppSettings,
   useMyAddresses,
   useMyCustomerId,
-  useMyExemptionWindows,
   useMyOwnedProducts,
   useOwnedProducts,
 } from "@/hooks/useCustomerApp"
 import { complaintTypesHooks } from "@/hooks/useMasters"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { generateTimeSlots, isBookableDate, isNarrowWindow, largestFreeWindow, slotsToWindows, type TimeWindow } from "@/lib/booking-window"
 
 const DRAFT_KEY = "gv_mart_draft:customer_book_service"
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
@@ -31,6 +29,10 @@ type ProductView = "owned" | "categories" | "category"
 
 function todayInput() {
   return new Date().toISOString().slice(0, 10)
+}
+
+function formatSlotTime(t: string) {
+  return t.slice(0, 5)
 }
 
 /** Restorable subset of the wizard's state — see useLocalDraft. */
@@ -41,30 +43,29 @@ type BookServiceDraftData = {
   nameOfComplaint: string
   natureOfComplaint: string
   addressId: string
-  appointmentMode: "always" | "datetime"
-  // B1 (Build Order Step 4): date-only + unavailable-windows booking model —
-  // replaces the old exact-time `scheduledAt` + single availableFrom/To pair.
   pickedDate: string
-  // Raw per-slot picks from the tap-to-mark grid (not the merged TimeWindow[]
-  // form) — restoring straight into per-slot state avoids needing `slots`
-  // (which depends on settings/exemption data) available at draft-restore
-  // time, which runs before this component's data-loading guards resolve.
-  unavailableSlotStarts: string[]
+  // Customer Dashboard Booking Audit (2026-07-31) Tasks 2-4: replaces the
+  // old appointmentMode/unavailableSlotStarts geometry with a plain
+  // admin-configured slot pick — see BookServicePage's step 2.
+  slotId: string
 }
 
 export function BookServicePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Task 1 (2026-07-31 audit): "My Products → Book Service" passes the
+  // already-selected registered product via route state — the customer
+  // must never be asked to pick it again. Read once; location.state doesn't
+  // change for the life of this mount.
+  const incomingProductId = (location.state as { productId?: string } | null)?.productId
   const { customerId, orgId, isLoading: loadingId } = useMyCustomerId()
   const { data: addresses, isLoading: loadingAddresses, isError: errorAddresses, refetch: refetchAddresses } = useMyAddresses(customerId)
   // "products" = full catalog (used for lookup + the "choose another product" browser).
   const { data: products, isLoading: loadingProducts } = useOwnedProducts(orgId)
   // The customer's actually-owned products (warranty/AMC on file) — the default, primary picker path.
   const { data: myProducts, isLoading: loadingMyProducts } = useMyOwnedProducts(customerId)
-  const { data: settings } = useCustomerAppSettings(orgId)
-  // B4: the customer's own standing exemption windows — shown red and
-  // pre-excluded from the derived available window without re-marking them.
-  const { data: exemptionWindows } = useMyExemptionWindows(customerId)
+  const { data: appointmentSlots, isLoading: loadingSlots } = useAppointmentSlots(orgId)
 
   const [step, setStep] = useState(0)
   // Only ever grows — tracks the furthest step reached so navigating back
@@ -78,18 +79,8 @@ export function BookServicePage() {
   const [nameOfComplaint, setNameOfComplaint] = useState("")
   const [natureOfComplaint, setNatureOfComplaint] = useState("")
   const [addressId, setAddressId] = useState("")
-  // "Anytime" (no-date-required) booking was removed from this flow — every
-  // customer booking now requires picking a date. "always" mode still exists
-  // as a valid appointment_mode elsewhere (e.g. product installations), so
-  // the type/backend payload shape is untouched; this screen just never
-  // offers it as a choice anymore.
-  const [appointmentMode, setAppointmentMode] = useState<"always" | "datetime">("datetime")
   const [pickedDate, setPickedDate] = useState("")
-  // Tap-to-mark-unavailable slot picker (replaces free-text "available
-  // from/to" time entry) — the set of slot START times the customer marked
-  // unavailable. Merged into TimeWindow ranges via slotsToWindows below,
-  // only where that's actually needed (preview + submit).
-  const [unavailableSlotStarts, setUnavailableSlotStarts] = useState<Set<string>>(new Set())
+  const [slotId, setSlotId] = useState("")
   const [addressPickerOpen, setAddressPickerOpen] = useState(false)
 
   const bookTicket = useBookServiceTicket()
@@ -130,14 +121,16 @@ export function BookServicePage() {
     nameOfComplaint,
     natureOfComplaint,
     addressId,
-    appointmentMode,
     pickedDate,
-    unavailableSlotStarts: [...unavailableSlotStarts],
+    slotId,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<BookServiceDraftData>(DRAFT_KEY, draftSnapshot)
   const appliedDraftRef = useRef(false)
   useEffect(() => {
-    if (appliedDraftRef.current || !restoredDraft) return
+    // An explicit incoming product (from My Products → Book Service) is
+    // fresher intent than a stale abandoned draft — never let the draft
+    // clobber it.
+    if (appliedDraftRef.current || !restoredDraft || incomingProductId) return
     appliedDraftRef.current = true
     if (restoredDraft.step != null) {
       setStep(restoredDraft.step)
@@ -148,14 +141,21 @@ export function BookServicePage() {
     if (restoredDraft.nameOfComplaint) setNameOfComplaint(restoredDraft.nameOfComplaint)
     if (restoredDraft.natureOfComplaint) setNatureOfComplaint(restoredDraft.natureOfComplaint)
     if (restoredDraft.addressId) setAddressId(restoredDraft.addressId)
-    // A draft saved before "Anytime" was removed from this flow could still
-    // have appointmentMode: "always" sitting in localStorage — coerce it so
-    // a restored draft never lands in a mode this screen no longer offers a
-    // way to pick or change.
-    if (restoredDraft.appointmentMode) setAppointmentMode(restoredDraft.appointmentMode === "always" ? "datetime" : restoredDraft.appointmentMode)
     if (restoredDraft.pickedDate) setPickedDate(restoredDraft.pickedDate)
-    if (restoredDraft.unavailableSlotStarts) setUnavailableSlotStarts(new Set(restoredDraft.unavailableSlotStarts))
-  }, [restoredDraft])
+    if (restoredDraft.slotId) setSlotId(restoredDraft.slotId)
+  }, [restoredDraft, incomingProductId])
+
+  // Task 1 — skip straight past product selection (step 0) when a specific
+  // registered product was already chosen on the My Products page.
+  const appliedIncomingProductRef = useRef(false)
+  useEffect(() => {
+    if (appliedIncomingProductRef.current || !incomingProductId) return
+    appliedIncomingProductRef.current = true
+    setProductId(incomingProductId)
+    setProductUnknown(false)
+    setStep(1)
+    setMaxStepReached((m) => Math.max(m, 1))
+  }, [incomingProductId])
 
   // The booking is done — the local draft has served its purpose and would
   // otherwise sit around as stale dead data offering to "resume" a booking
@@ -179,16 +179,23 @@ export function BookServicePage() {
 
   function discardBookingDraft() {
     discardDraft()
-    setStep(0)
-    setMaxStepReached(0)
-    setProductId("")
+    // An incoming product (My Products → Book Service) isn't part of the
+    // discardable draft — discarding a stale draft must not un-select it.
+    if (incomingProductId) {
+      setStep(1)
+      setMaxStepReached(1)
+      setProductId(incomingProductId)
+    } else {
+      setStep(0)
+      setMaxStepReached(0)
+      setProductId("")
+    }
     setProductUnknown(false)
     setNameOfComplaint("")
     setNatureOfComplaint("")
     setAddressId("")
-    setAppointmentMode("datetime")
     setPickedDate("")
-    setUnavailableSlotStarts(new Set())
+    setSlotId("")
   }
 
   const steps = [
@@ -217,11 +224,8 @@ export function BookServicePage() {
           {result?.scheduled_at ? (
             <p className="px-1 text-sm font-medium text-text">
               {new Date(result.scheduled_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
-              {result.available_from && result.available_to ? ` · ${result.available_from.slice(0, 5)}–${result.available_to.slice(0, 5)}` : ""}
+              {result?.slot_name ? ` · ${result.slot_name} (${formatSlotTime(result.slot_start_time)}–${formatSlotTime(result.slot_end_time)})` : ""}
             </p>
-          ) : null}
-          {result?.next_day_priority ? (
-            <p className="mx-1 rounded-xl bg-warning/10 px-3.5 py-2.5 text-xs text-warning">{t("customerApp.bookService.nextDayPriorityNote")}</p>
           ) : null}
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate("/customer")}>
@@ -234,35 +238,13 @@ export function BookServicePage() {
     )
   }
 
-  // v2.2 §6.4 working hours (09:00–19:30) — settings.work_start/end are the
-  // admin-editable source of truth; these literals are only the fallback for
-  // the brief window before settings has loaded.
-  const workStart = (settings?.work_start ?? "09:00").slice(0, 5)
-  const workEnd = (settings?.work_end ?? "19:30").slice(0, 5)
-  const narrowThreshold = settings?.narrow_window_threshold_minutes ?? 90
-  // No detected ticket type yet at booking time (that's server-side, on
-  // submit) — the paid-service default is a reasonable stand-in for the
-  // client-only "will this likely fit today" preview; the server always
-  // recomputes with the ticket's real type once it exists.
-  const estimatedMinutes = settings?.default_duration_paid_minutes ?? 45
-
-  const exemptionBlocks: TimeWindow[] = (exemptionWindows ?? []).map((w) => ({ start: w.start_time.slice(0, 5), end: w.end_time.slice(0, 5) }))
-  // Tap-to-mark slot grid — exemption-blocked slots are pre-marked/disabled
-  // (see generateTimeSlots), so they don't need re-marking here on top.
-  const slots = generateTimeSlots(workStart, workEnd, exemptionBlocks)
-  const unavailableWindows = slotsToWindows(slots, unavailableSlotStarts)
-  const blockedForPreview = [...unavailableWindows, ...exemptionBlocks]
-  const freeWindow = largestFreeWindow(workStart, workEnd, blockedForPreview)
-  const narrow = isNarrowWindow(freeWindow, narrowThreshold)
-  const bookableToday = isBookableDate(freeWindow, narrowThreshold, estimatedMinutes)
-
-  // B1: only a DATE is required now — "Anytime" needs nothing further.
-  const appointmentValid = appointmentMode === "always" || !!pickedDate
+  const activeSlots = appointmentSlots ?? []
+  const selectedSlot = activeSlots.find((s) => s.id === slotId)
 
   const canGoNext =
     (step === 0 && (productUnknown || !!productId)) ||
     (step === 1 && nameOfComplaint.trim().length >= 3) ||
-    (step === 2 && !!addressId && appointmentValid) ||
+    (step === 2 && !!addressId && !!pickedDate && !!slotId) ||
     false
 
   function goNext() {
@@ -271,18 +253,8 @@ export function BookServicePage() {
     setMaxStepReached((m) => Math.max(m, next))
   }
 
-  function toggleSlot(slotStart: string, blocked: boolean) {
-    if (blocked) return
-    setUnavailableSlotStarts((prev) => {
-      const next = new Set(prev)
-      if (next.has(slotStart)) next.delete(slotStart)
-      else next.add(slotStart)
-      return next
-    })
-  }
-
   async function handleSubmit() {
-    if (!orgId || !customerId) return
+    if (!orgId || !customerId || !pickedDate || !slotId) return
     bookTicket.mutate({
       orgId,
       addressId,
@@ -292,20 +264,25 @@ export function BookServicePage() {
       nameOfComplaint,
       natureOfComplaint,
       priority: "normal",
-      appointmentMode,
-      scheduledAt: appointmentMode === "datetime" && pickedDate ? new Date(`${pickedDate}T00:00:00`).toISOString() : null,
-      availableFrom: null,
-      availableTo: null,
-      // B1: the raw marks only — exemption windows are folded in server-side
-      // from customer_exemption_windows, not resubmitted as one-off marks.
-      // Empty array (nothing marked) is exactly "available all day."
-      unavailableWindows: appointmentMode === "datetime" ? unavailableWindows : null,
+      scheduledDate: pickedDate,
+      slotId,
     })
   }
 
   return (
     <div className="space-y-4 pb-4 pt-2">
-      <button type="button" onClick={() => (step === 0 ? navigate(-1) : setStep((s) => s - 1))} className="flex items-center gap-1.5 text-sm font-medium text-text-muted">
+      <button
+        type="button"
+        onClick={() => {
+          // With an incoming product, step 0 (product selection) is skipped
+          // entirely — treat step 1 as the first step so "back" leaves the
+          // wizard instead of surfacing a picker screen there's no reason to see.
+          const firstStep = incomingProductId ? 1 : 0
+          if (step <= firstStep) navigate(-1)
+          else setStep((s) => s - 1)
+        }}
+        className="flex items-center gap-1.5 text-sm font-medium text-text-muted"
+      >
         <ArrowLeft className="size-4" />
         {t("customerApp.bookService.back")}
       </button>
@@ -323,7 +300,12 @@ export function BookServicePage() {
       />
 
       <Card>
-        <Stepper steps={steps} currentIndex={step} maxCompletedIndex={maxStepReached} onStepClick={setStep} />
+        <Stepper
+          steps={steps}
+          currentIndex={step}
+          maxCompletedIndex={maxStepReached}
+          onStepClick={(next) => (incomingProductId && next === 0 ? undefined : setStep(next))}
+        />
       </Card>
 
       {step === 0 ? (
@@ -496,82 +478,43 @@ export function BookServicePage() {
             </Button>
           </div>
 
-          <div className="space-y-2 border-t border-border px-1 pt-3">
-            <Label>{t("customerApp.bookService.appointmentMode")}</Label>
+          <div className="space-y-3 border-t border-border px-1 pt-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="pickedDate">{t("customerApp.bookService.pickDate")}</Label>
+              <DatePicker id="pickedDate" min={todayInput()} value={pickedDate} onChange={setPickedDate} aria-invalid={!pickedDate} />
+              {!pickedDate ? <p className="text-xs text-warning">{t("customerApp.bookService.dateRequired")}</p> : null}
+            </div>
 
-            {appointmentMode === "datetime" ? (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="pickedDate">{t("customerApp.bookService.pickDate")}</Label>
-                  <DatePicker id="pickedDate" min={todayInput()} value={pickedDate} onChange={setPickedDate} aria-invalid={!pickedDate} />
-                  {!pickedDate ? <p className="text-xs text-warning">{t("customerApp.bookService.dateRequired")}</p> : null}
+            <div className="space-y-1.5">
+              <Label>{t("customerApp.bookService.selectSlot")}</Label>
+              {loadingSlots ? (
+                <Skeleton className="h-16 w-full" />
+              ) : activeSlots.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border px-3.5 py-2.5 text-sm text-warning">
+                  {t("customerApp.bookService.noSlotsConfigured")}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {activeSlots.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSlotId(s.id)}
+                      aria-pressed={slotId === s.id}
+                      className={`rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
+                        slotId === s.id ? "border-accent bg-accent-soft" : "border-border"
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold text-text">{s.name}</span>
+                      <span className="block text-xs text-text-muted">
+                        {formatSlotTime(s.start_time)}–{formatSlotTime(s.end_time)}
+                      </span>
+                    </button>
+                  ))}
                 </div>
-
-                {exemptionBlocks.length > 0 ? (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-text-muted">{t("customerApp.bookService.exemptionWindowsLabel")}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(exemptionWindows ?? []).map((w) => (
-                        <span key={w.id} className="rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
-                          {w.label} · {w.start_time.slice(0, 5)}–{w.end_time.slice(0, 5)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label>{t("customerApp.bookService.slotsLabel")}</Label>
-                    {unavailableSlotStarts.size > 0 ? (
-                      <button type="button" onClick={() => setUnavailableSlotStarts(new Set())} className="text-xs font-medium text-accent">
-                        {t("customerApp.bookService.slotsClearAll")}
-                      </button>
-                    ) : null}
-                  </div>
-                  <p className="text-xs text-text-muted">{t("customerApp.bookService.slotsHint")}</p>
-                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                    {slots.map((slot) => {
-                      const marked = unavailableSlotStarts.has(slot.start)
-                      return (
-                        <button
-                          key={slot.start}
-                          type="button"
-                          disabled={slot.blocked}
-                          onClick={() => toggleSlot(slot.start, slot.blocked)}
-                          aria-pressed={marked}
-                          className={`rounded-xl border px-2.5 py-2 text-xs font-medium transition-colors ${
-                            slot.blocked
-                              ? "cursor-not-allowed border-border bg-surface-alt text-text-muted/50 line-through"
-                              : marked
-                                ? "border-danger/40 bg-danger/10 text-danger"
-                                : "border-success/30 bg-success/10 text-success"
-                          }`}
-                        >
-                          {slot.start}–{slot.end}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {pickedDate ? (
-                  freeWindow.availableFrom ? (
-                    <div className={`rounded-xl px-3.5 py-2.5 text-xs ${narrow ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
-                      {narrow
-                        ? t("customerApp.bookService.narrowWindowWarning", { start: freeWindow.availableFrom, end: freeWindow.availableTo })
-                        : t("customerApp.bookService.availableWindowPreview", { start: freeWindow.availableFrom, end: freeWindow.availableTo })}
-                      {!bookableToday ? <span className="mt-1 block">{t("customerApp.bookService.mayMoveNextDay")}</span> : null}
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-2 rounded-xl bg-danger/10 px-3.5 py-2.5 text-xs text-danger">
-                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                      <span>{t("customerApp.bookService.fullyBlockedWarning")}</span>
-                    </div>
-                  )
-                ) : null}
-              </div>
-            ) : null}
+              )}
+              {!slotId ? <p className="text-xs text-warning">{t("customerApp.bookService.slotRequired")}</p> : null}
+            </div>
           </div>
         </Card>
       ) : null}
@@ -604,13 +547,11 @@ export function BookServicePage() {
             <p>
               <span className="text-text-muted">{t("customerApp.bookService.appointmentMode")}: </span>
               <span className="text-text">
-                {appointmentMode === "always"
-                  ? t("customerApp.bookService.mode.always")
-                  : pickedDate
-                    ? `${new Date(`${pickedDate}T00:00:00`).toLocaleDateString(undefined, { dateStyle: "medium" })}${
-                        freeWindow.availableFrom ? ` · ${freeWindow.availableFrom}–${freeWindow.availableTo}` : ""
-                      }`
-                    : "—"}
+                {pickedDate
+                  ? `${new Date(`${pickedDate}T00:00:00`).toLocaleDateString(undefined, { dateStyle: "medium" })}${
+                      selectedSlot ? ` · ${selectedSlot.name} (${formatSlotTime(selectedSlot.start_time)}–${formatSlotTime(selectedSlot.end_time)})` : ""
+                    }`
+                  : "—"}
               </span>
             </p>
           </div>
@@ -624,7 +565,7 @@ export function BookServicePage() {
             {t("customerApp.bookService.next")}
           </Button>
         ) : (
-          <Button type="button" onClick={handleSubmit} disabled={bookTicket.isPending || !addressId || !appointmentValid} className="w-full">
+          <Button type="button" onClick={handleSubmit} disabled={bookTicket.isPending || !addressId || !pickedDate || !slotId} className="w-full">
             {bookTicket.isPending ? <Loader2 className="size-4 animate-spin" /> : t("customerApp.bookService.confirmBooking")}
           </Button>
         )}

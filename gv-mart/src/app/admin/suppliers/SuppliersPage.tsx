@@ -22,10 +22,10 @@ export function SuppliersPage() {
   const selected = (rows ?? []).find((r) => r.id === selectedId) ?? null
 
   const fields: CrudFieldDef[] = [
-    { key: "name", label: t("suppliers.name"), type: "text" },
-    { key: "contact", label: t("suppliers.contact"), type: "text" },
-    { key: "whatsapp", label: t("suppliers.whatsapp"), type: "text" },
-    { key: "rating", label: t("suppliers.rating"), type: "number", step: "0.1" },
+    { key: "name", label: t("suppliers.name"), type: "text", required: true },
+    { key: "contact", label: t("suppliers.contact"), type: "tel", pattern: "[0-9+\\-\\s]{7,15}", patternMessage: t("masters.errors.phoneInvalid") },
+    { key: "whatsapp", label: t("suppliers.whatsapp"), type: "tel", pattern: "[0-9+\\-\\s]{7,15}", patternMessage: t("masters.errors.phoneInvalid") },
+    { key: "rating", label: t("suppliers.rating"), type: "number", step: "0.1", min: 0, max: 5 },
   ]
 
   return (

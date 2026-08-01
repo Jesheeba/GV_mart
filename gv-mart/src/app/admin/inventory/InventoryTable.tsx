@@ -107,15 +107,26 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
     setMinStock(String(row.min_stock))
     setMaxStock(String(row.max_stock))
   }
+  const minStockNum = Number(minStock)
+  const maxStockNum = Number(maxStock)
+  const thresholdsValid =
+    minStock.trim() !== "" &&
+    maxStock.trim() !== "" &&
+    Number.isFinite(minStockNum) &&
+    Number.isFinite(maxStockNum) &&
+    minStockNum >= 0 &&
+    maxStockNum >= 0
+
   function saveEdit(id: string) {
+    if (!thresholdsValid) return
     updateThresholds.mutate(
       {
         id,
         patch: {
-          min_stock: Number(minStock) || 0,
+          min_stock: minStockNum,
           // Order qty = max_stock − current stock — max_stock is now the
           // sole, required replenishment target (no more reorder_qty fallback).
-          max_stock: Number(maxStock) || 0,
+          max_stock: maxStockNum,
         },
       },
       { onSuccess: () => setEditingId(null) }
@@ -286,10 +297,10 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                 // to give the two threshold inputs room without wrapping.
                 <div className="col-span-2 flex flex-col gap-0.5 pr-4">
                   <div className="flex items-center gap-1">
-                    <Input className="h-7 w-11 px-1 text-xs" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} title={t("inventory.min")} />
+                    <Input className="h-7 w-11 px-1 text-xs" type="number" min={0} step="1" value={minStock} onChange={(e) => setMinStock(e.target.value)} title={t("inventory.min")} />
                     <span className="text-xs text-text-muted">/</span>
-                    <Input className="h-7 w-11 px-1 text-xs" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} title={t("inventory.max")} placeholder={t("inventory.max")} />
-                    <Button size="icon-xs" variant="ghost" onClick={() => saveEdit(r.id)} disabled={updateThresholds.isPending}>
+                    <Input className="h-7 w-11 px-1 text-xs" type="number" min={0} step="1" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} title={t("inventory.max")} placeholder={t("inventory.max")} />
+                    <Button size="icon-xs" variant="ghost" onClick={() => saveEdit(r.id)} disabled={updateThresholds.isPending || !thresholdsValid}>
                       {updateThresholds.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5 text-success" />}
                     </Button>
                     <Button size="icon-xs" variant="ghost" onClick={() => setEditingId(null)}>

@@ -27,8 +27,8 @@ export function IncentiveRulesTab() {
       type: "select",
       options: TYPES.map((v) => ({ value: v, label: t(`masters.incentives.types.${v}`) })),
     },
-    { key: "threshold", label: t("masters.incentives.threshold"), type: "number", step: "0.01" },
-    { key: "amount", label: t("masters.incentives.amount"), type: "number", step: "0.01" },
+    { key: "threshold", label: t("masters.incentives.threshold"), type: "number", step: "0.01", required: true, min: 0 },
+    { key: "amount", label: t("masters.incentives.amount"), type: "number", step: "0.01", required: true, min: 0 },
   ]
 
   return (

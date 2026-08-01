@@ -13,6 +13,7 @@ import type { GiftRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
 import { settingsSchema, type SettingsFormInput, type SettingsOutput } from "@/lib/validation/settings"
 import { cn } from "@/lib/utils"
+import { AppointmentSlotsCard } from "./AppointmentSlotsCard"
 
 function hhmm(value: string) {
   return value.slice(0, 5)
@@ -49,6 +50,7 @@ export function SettingsTab() {
         work_start: hhmm(settings.work_start),
         work_end: hhmm(settings.work_end),
         late_cutoff: hhmm(settings.late_cutoff),
+        very_late_threshold_minutes: settings.very_late_threshold_minutes,
         lunch_minutes_allowed: settings.lunch_minutes_allowed,
         lunch_minutes_red_threshold: settings.lunch_minutes_red_threshold,
         discount_tech_max: Number(settings.discount_tech_max),
@@ -133,9 +135,11 @@ export function SettingsTab() {
           {field("work_start", t("settings.workStart"), "time")}
           {field("work_end", t("settings.workEnd"), "time")}
           {field("late_cutoff", t("settings.lateCutoff"), "time")}
+          {field("very_late_threshold_minutes", t("settings.veryLateThreshold"), "number", "1")}
           {field("lunch_minutes_allowed", t("settings.lunchAllowed"), "number", "1")}
           {field("lunch_minutes_red_threshold", t("settings.lunchRed"), "number", "1")}
         </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.attendanceStatusHint")}</p>
       </Card>
 
       <Card className="gap-4">
@@ -179,6 +183,8 @@ export function SettingsTab() {
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.narrowWindowThresholdHint")}</p>
       </Card>
+
+      <AppointmentSlotsCard />
 
       <Card className="gap-4">
         <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.amcReferral")}</h3>

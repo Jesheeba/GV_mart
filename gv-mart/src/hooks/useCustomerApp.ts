@@ -241,6 +241,16 @@ export function useRegisterProductViaQr(orgId: string | undefined, customerId: s
 }
 
 // ── Service Booking (CUST-02) ─────────────────────────────────────────────
+// Customer Dashboard Booking Audit (2026-07-31) Tasks 2-4.
+
+export function useAppointmentSlots(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "appointmentSlots", orgId],
+    queryFn: () => api.listAppointmentSlots(orgId!),
+    enabled: !!orgId,
+    staleTime: 5 * 60_000,
+  })
+}
 
 export function useBookServiceTicket() {
   const queryClient = useQueryClient()
@@ -250,6 +260,16 @@ export function useBookServiceTicket() {
       queryClient.invalidateQueries({ queryKey: ["customerApp", "tickets"] })
       queryClient.invalidateQueries({ queryKey: ["customerApp", "leads"] })
     },
+  })
+}
+
+// Task 4 — resolve-on-view, best-effort. Fire from a page mount; never
+// surfaces an error (a missed sweep just runs again next view).
+export function useResolveStaleBookings(orgId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.resolveStaleBookings(orgId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customerApp", "tickets"] }),
   })
 }
 
