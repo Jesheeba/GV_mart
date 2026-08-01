@@ -68,7 +68,7 @@ export function DatePicker({
           {selected ? selected.toLocaleDateString(undefined, { dateStyle: "medium" }) : t("common.selectDate")}
         </span>
       </PopoverTrigger>
-      <PopoverContent align="start">
+      <PopoverContent align="start" className="w-auto border-0 bg-transparent p-0 shadow-none ring-0">
         <Calendar
           value={selected}
           onSelect={(date) => {

@@ -13,6 +13,7 @@ import {
 import { createPortal } from "react-dom"
 import { Locate, Loader2, Minus, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useTheme } from "@/lib/theme/ThemeProvider"
 
 declare global {
   interface Window {
@@ -43,6 +44,23 @@ const FINEXY_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#e3ecd8" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
   { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#d8d3c8" }] },
+]
+
+// Dark counterpart of FINEXY_MAP_STYLE, matching the .dark overrides in
+// index.css (--bg #14130f, --surface #1e1c17, --surface-alt #262319,
+// --text-muted #a39d8c) so the map reads as part of the dark UI instead of
+// a bright rectangle punched into it.
+const FINEXY_MAP_STYLE_DARK: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#14130f" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#a39d8c" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#14130f" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#1e1c17" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#262319" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#211f19" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#132420" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#1a2317" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#332f22" }] },
 ]
 
 let mapsLoadPromise: Promise<void> | null = null
@@ -120,6 +138,7 @@ function DefaultLoader() {
 }
 
 function Map({ className, apiKey, viewport, onViewportChange, onLoadError, children }: MapProps) {
+  const { theme } = useTheme()
   const containerRef = useRef<HTMLDivElement>(null)
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null)
   const internalUpdateRef = useRef(false)
@@ -127,6 +146,8 @@ function Map({ className, apiKey, viewport, onViewportChange, onLoadError, child
   onViewportChangeRef.current = onViewportChange
   const onLoadErrorRef = useRef(onLoadError)
   onLoadErrorRef.current = onLoadError
+  const themeRef = useRef(theme)
+  themeRef.current = theme
 
   useEffect(() => {
     if (!apiKey) return
@@ -147,7 +168,7 @@ function Map({ className, apiKey, viewport, onViewportChange, onLoadError, child
           disableDefaultUI: true,
           gestureHandling: "greedy",
           clickableIcons: false,
-          styles: FINEXY_MAP_STYLE,
+          styles: themeRef.current === "dark" ? FINEXY_MAP_STYLE_DARK : FINEXY_MAP_STYLE,
         })
         map.addListener("idle", () => {
           if (internalUpdateRef.current) return
@@ -191,6 +212,13 @@ function Map({ className, apiKey, viewport, onViewportChange, onLoadError, child
     }, 0)
     return () => window.clearTimeout(id)
   }, [mapInstance, viewport.center, viewport.zoom])
+
+  // Restyles an already-created map in place when the theme toggles, instead
+  // of tearing the map down and re-running the mount effect above.
+  useEffect(() => {
+    if (!mapInstance) return
+    mapInstance.setOptions({ styles: theme === "dark" ? FINEXY_MAP_STYLE_DARK : FINEXY_MAP_STYLE })
+  }, [mapInstance, theme])
 
   const contextValue = useMemo(() => ({ map: mapInstance }), [mapInstance])
 

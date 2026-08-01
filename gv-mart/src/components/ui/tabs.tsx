@@ -58,10 +58,10 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
       className={cn(
         // `not-data-active:` scopes the hover color to inactive tabs only — without it,
         // hovering an already-active tab raced `hover:text-text` (near-black) against
-        // `data-active:text-white` and could win, rendering black text on the black
-        // active-pill background (invisible label on hover/after-click).
+        // `data-active:text-primary-foreground` and could win, rendering near-black text
+        // on the active-pill background (invisible label on hover/after-click).
         "relative inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-full border border-transparent px-3.5 py-0.5 text-sm font-medium whitespace-nowrap text-text-muted transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start not-data-active:hover:text-text focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        "data-active:bg-ink data-active:text-white",
+        "data-active:bg-primary data-active:text-primary-foreground",
         className
       )}
       {...props}

@@ -21,11 +21,18 @@
   --surface-alt: #f7f5f1;
   --border: #ece8e1;
   --text: #1a1a1a;
-  --text-muted: #8a8a82;
+  --text-muted: #6d6d66;
   --success: #2fae5f;
   --warning: #e8932b;
   --danger: #e5484d;
   --info: #2e6be6;
+
+  /* AA-safe text variants of --accent/--warning: those tokens are also used
+     as solid fills (buttons, dots, chart bars) where the brighter brand hue
+     is correct, so small/normal text usage reads from these darker,
+     same-hue variants instead of shifting the shared token globally. */
+  --accent-text: #c23a09;
+  --warning-text: #995b11;
 
   /* Radii */
   --radius: 0.625rem;
@@ -74,6 +81,11 @@
   --border: #33301f;
   --text: #f4f1ec;
   --text-muted: #a39d8c;
+
+  /* Original brand hues already clear 4.5:1 against the dark surfaces, so
+     the text variants can stay the same as the base tokens here. */
+  --accent-text: var(--accent);
+  --warning-text: var(--warning);
 
   --background: var(--bg);
   --foreground: var(--text);
@@ -199,5 +211,28 @@
   }
   .maplibregl-popup-tip {
     @apply hidden!;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer utilities {
+  /* --accent/--warning stay bright for fills (buttons, dots, chart bars);
+     text usage of the same utility classes reads from the darker AA-safe
+     variants above instead. */
+  .text-accent {
+    color: var(--accent-text);
+  }
+  .text-warning {
+    color: var(--warning-text);
   }
 }

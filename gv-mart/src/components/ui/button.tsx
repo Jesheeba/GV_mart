@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         /** Finexy primary — solid ink pill */
-        default: "bg-ink text-white hover:bg-ink/85",
+        default: "bg-primary text-primary-foreground hover:bg-primary/85",
         /** Finexy secondary — outline pill */
         outline:
           "border-border bg-transparent text-text hover:bg-surface-alt aria-expanded:bg-surface-alt",

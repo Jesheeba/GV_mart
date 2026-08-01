@@ -7,6 +7,8 @@ import { ToastContext, type ToastContextValue, type ToastRecord, type ToastVaria
 // Long enough to read a short sentence, short enough not to pile up if
 // several mutations fail back-to-back.
 const AUTO_DISMISS_MS = 4000
+// Matches the duration-150 exit used by Dialog/Popover/DropdownMenu.
+const EXIT_DURATION_MS = 150
 
 /**
  * Minimal context + portal toast system (no dependency — this codebase has
@@ -17,17 +19,32 @@ const AUTO_DISMISS_MS = 4000
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastRecord[]>([])
+  const [closingIds, setClosingIds] = useState<Set<string>>(new Set())
   // Tracks pending auto-dismiss timers so a manual (tap-to-dismiss) close
   // also clears the timer instead of leaving a stray setState-after-unmount.
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // Guards against a toast already animating out being dismissed twice
+  // (e.g. auto-dismiss firing right as the user taps it).
+  const closing = useRef(new Set<string>())
 
   const dismiss = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((item) => item.id !== id))
     const timer = timers.current.get(id)
     if (timer) {
       clearTimeout(timer)
       timers.current.delete(id)
     }
+    if (closing.current.has(id)) return
+    closing.current.add(id)
+    setClosingIds((prev) => new Set(prev).add(id))
+    setTimeout(() => {
+      closing.current.delete(id)
+      setToasts((prev) => prev.filter((item) => item.id !== id))
+      setClosingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }, EXIT_DURATION_MS)
   }, [])
 
   const push = useCallback(
@@ -57,7 +74,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <Toaster toasts={toasts} onDismiss={dismiss} />
+      <Toaster toasts={toasts} closingIds={closingIds} onDismiss={dismiss} />
     </ToastContext.Provider>
   )
 }
@@ -76,7 +93,15 @@ const VARIANT_ICON_CLASS: Record<ToastVariant, string> = {
   info: "text-info",
 }
 
-function Toaster({ toasts, onDismiss }: { toasts: ToastRecord[]; onDismiss: (id: string) => void }) {
+function Toaster({
+  toasts,
+  closingIds,
+  onDismiss,
+}: {
+  toasts: ToastRecord[]
+  closingIds: Set<string>
+  onDismiss: (id: string) => void
+}) {
   // Fixed to the viewport, not any particular shell — sits above the
   // technician/customer bottom tab bar (which reserves ~5rem and is z-40)
   // and above the admin sidebar/header, via extra bottom padding + a
@@ -96,7 +121,10 @@ function Toaster({ toasts, onDismiss }: { toasts: ToastRecord[]; onDismiss: (id:
             key={item.id}
             type="button"
             onClick={() => onDismiss(item.id)}
-            className="pointer-events-auto flex w-full max-w-sm animate-in items-start gap-2.5 rounded-card border border-border bg-surface px-4 py-3 text-left text-sm text-text shadow-[0_1px_2px_rgba(26,26,26,0.04),0_8px_24px_-12px_rgba(26,26,26,0.08)] fade-in-0 slide-in-from-bottom-2"
+            className={cn(
+              "pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-card border border-border bg-surface px-4 py-3 text-left text-sm text-text shadow-[0_1px_2px_rgba(26,26,26,0.04),0_8px_24px_-12px_rgba(26,26,26,0.08)] duration-150",
+              closingIds.has(item.id) ? "animate-out fade-out-0 slide-out-to-bottom-2" : "animate-in fade-in-0 slide-in-from-bottom-2"
+            )}
           >
             <Icon className={cn("mt-0.5 size-4 shrink-0", VARIANT_ICON_CLASS[item.variant])} />
             <span className="min-w-0 flex-1 break-words">{item.message}</span>

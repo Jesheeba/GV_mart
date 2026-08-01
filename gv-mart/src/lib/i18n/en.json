@@ -412,6 +412,7 @@
     "edit": "Edit",
     "delete": "Delete",
     "confirmDelete": "Delete?",
+    "confirmDiscard": "Discard changes to this edit?",
     "costPriceNotSet": "Cost not set",
     "active": "Active",
     "inactive": "Inactive",

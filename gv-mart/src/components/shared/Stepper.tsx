@@ -51,7 +51,10 @@ export function Stepper({
                 onClick={() => onStepClick?.(i)}
                 aria-label={step.label}
                 aria-current={i === currentIndex ? "step" : undefined}
-                className={cn("flex items-center gap-2 rounded-md", clickable ? "cursor-pointer hover:opacity-75" : "cursor-default")}
+                className={cn(
+                  "flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md p-2",
+                  clickable ? "cursor-pointer hover:opacity-75" : "cursor-default"
+                )}
               >
                 <span
                   className={cn(

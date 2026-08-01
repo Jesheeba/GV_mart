@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -126,6 +126,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   // mutateAsync-backed promise so we can catch and surface failures here.
   const [formError, setFormError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
 
   function openAddForm() {
     setEditingId(null)
@@ -147,6 +148,15 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
     setFormOpen(false)
     setEditingId(null)
     setFormError(null)
+    setConfirmDiscardOpen(false)
+  }
+  // Discarding a fresh, still-empty Add form loses nothing, so it closes
+  // immediately. Discarding an in-progress edit silently would lose real
+  // unsaved changes with no way back, so that path requires an explicit
+  // confirm step first (mirrors DraftBanner's discard-confirm pattern).
+  function requestCloseForm() {
+    if (editingId) setConfirmDiscardOpen(true)
+    else closeForm()
   }
   async function submit() {
     setFormError(null)
@@ -221,9 +231,9 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <Button size="sm" variant={formOpen && !editingId ? "outline" : "accent"} onClick={() => (formOpen ? closeForm() : openAddForm())}>
-          <Plus className="size-3.5" />
-          {addLabel}
+        <Button size="sm" variant={formOpen ? "outline" : "accent"} onClick={() => (formOpen ? requestCloseForm() : openAddForm())}>
+          {formOpen ? <X className="size-3.5" /> : <Plus className="size-3.5" />}
+          {formOpen ? t("common.cancel") : addLabel}
         </Button>
       </div>
 
@@ -231,6 +241,18 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
 
       {formOpen ? (
         <div className="rounded-xl border border-border p-3.5">
+          {confirmDiscardOpen ? (
+            <p className="mb-3 flex flex-wrap items-center gap-1.5 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+              {t("masters.confirmDiscard")}
+              <button type="button" className="font-medium hover:underline" onClick={closeForm}>
+                {t("common.yes")}
+              </button>
+              <span aria-hidden="true">·</span>
+              <button type="button" className="font-medium hover:underline" onClick={() => setConfirmDiscardOpen(false)}>
+                {t("common.no")}
+              </button>
+            </p>
+          ) : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {fields.map((f) => (
               <div key={f.key} className="space-y-1">
@@ -240,7 +262,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     id={`f-${f.key}`}
                     value={values[f.key] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                    className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                    className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
                   >
                     {resolveOptions(f, values).map((o) => (
                       <option key={o.value} value={o.value}>
@@ -265,7 +287,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
             ))}
           </div>
           <div className="mt-3 flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={closeForm}>
+            <Button size="sm" variant="ghost" onClick={requestCloseForm}>
               {t("common.cancel")}
             </Button>
             <Button size="sm" onClick={submit} disabled={isMutating}>

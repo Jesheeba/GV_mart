@@ -40,12 +40,12 @@ export function HighlightKpiCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-card bg-gradient-to-br from-accent to-[#FF7A45] p-5 text-white",
+        "flex flex-col gap-3 rounded-card bg-[color-mix(in_srgb,var(--accent)_70%,var(--ink)_30%)] p-5 text-white",
         className
       )}
     >
       <div className="flex items-start justify-between">
-        <span className="text-sm font-medium text-white/85">{label}</span>
+        <span className="text-sm font-medium text-white">{label}</span>
         {icon ? (
           <span className="flex size-8 items-center justify-center rounded-full bg-white/15">
             {icon}
@@ -53,7 +53,7 @@ export function HighlightKpiCard({
         ) : null}
       </div>
       <div className="text-3xl font-bold tabular-nums">{value}</div>
-      {caption ? <span className="text-xs text-white/80">{caption}</span> : null}
+      {caption ? <span className="text-xs text-white">{caption}</span> : null}
     </div>
   )
 }
