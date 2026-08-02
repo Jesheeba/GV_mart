@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Check, Repeat, TriangleAlert } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -28,8 +29,8 @@ const COLUMN_HEADER_LABEL: Record<string, string> = {
 }
 const COLUMN_COUNT_PILL: Record<string, string> = {
   muted: "border border-border bg-surface text-text-muted",
-  warning: "bg-[#FCF1DF] text-warning",
-  success: "bg-[#E7F6ED] text-success",
+  warning: "bg-warning/10 text-warning",
+  success: "bg-success/10 text-success",
 }
 
 /** Kanban-by-status view (ADM-09 "table + kanban toggle"). Read-only board —
@@ -51,7 +52,12 @@ export function TicketsKanban({
   repeatCustomers?: Set<string>
 }) {
   const { t } = useTranslation()
-  const now = Date.now()
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   if (error) {
     return (
@@ -139,37 +145,39 @@ function TicketKanbanCard({
  * 991-1005), which isn't just the ticket type: it's whichever signal is most
  * urgent, all derived from real fields (no fabricated numbers):
  *   completed -> checkmark, overdue (sla_due_at passed) -> "Overdue",
- *   due within 2h (same threshold SlaCountdown uses) -> live countdown,
- *   otherwise -> the ticket type pill.
+ *   otherwise, whenever there's an SLA to track -> a live countdown (amber
+ *   within the 2h "due soon" window SlaCountdown uses, green otherwise) so
+ *   this stays informationally equivalent to the table view's SlaCountdown
+ *   for every row, not just the ones already near/past due —
+ *   only tickets with no SLA at all fall back to the ticket type pill.
  */
 function CardStatusBadge({ row, now, overdue }: { row: TicketListItem; now: number; overdue: boolean }) {
   const { t } = useTranslation()
 
   if (row.status === "completed") {
     return (
-      <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[#E7F6ED] text-success">
+      <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
         <Check className="size-2.5" strokeWidth={3} />
       </span>
     )
   }
 
   if (overdue) {
-    return <span className="shrink-0 rounded-full bg-[#FCEAEA] px-[7px] py-0.5 text-[9px] font-bold text-danger">{t("service.kanban.overdue")}</span>
+    return <span className="shrink-0 rounded-full bg-danger/10 px-[7px] py-0.5 text-[9px] font-bold text-danger">{t("service.kanban.overdue")}</span>
   }
 
   if (row.sla_due_at && row.status !== "cancelled") {
     const diffMs = new Date(row.sla_due_at).getTime() - now
-    if (diffMs > 0 && diffMs <= 2 * 60 * 60 * 1000) {
-      const hours = Math.floor(diffMs / 3_600_000)
-      const minutes = Math.floor((diffMs % 3_600_000) / 60_000)
-      const label = hours >= 1 ? t("service.kanban.hoursLeft", { count: hours }) : t("service.kanban.minutesLeft", { count: minutes })
-      return (
-        <span className="inline-flex shrink-0 items-center gap-1 text-[9px] font-bold text-warning">
-          <span className="size-1.5 animate-pulse rounded-full bg-warning" />
-          {label}
-        </span>
-      )
-    }
+    const dueSoon = diffMs <= 2 * 60 * 60 * 1000
+    const hours = Math.floor(diffMs / 3_600_000)
+    const minutes = Math.floor((diffMs % 3_600_000) / 60_000)
+    const label = hours >= 1 ? t("service.kanban.hoursLeft", { count: hours }) : t("service.kanban.minutesLeft", { count: minutes })
+    return (
+      <span className={cn("inline-flex shrink-0 items-center gap-1 text-[9px] font-bold", dueSoon ? "text-warning" : "text-success")}>
+        <span className={cn("size-1.5 rounded-full", dueSoon ? "animate-pulse bg-warning" : "bg-success")} />
+        {label}
+      </span>
+    )
   }
 
   if (!row.type) return null

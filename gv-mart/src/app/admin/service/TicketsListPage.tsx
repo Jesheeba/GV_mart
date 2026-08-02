@@ -302,7 +302,12 @@ function TicketsTable({
         rows.map((r) => (
           <div
             key={r.id}
+            role="button"
+            tabIndex={0}
             onClick={() => onRowClick(r)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") onRowClick(r)
+            }}
             className={cn("grid cursor-pointer items-center border-b border-[#F1EDE6] px-[22px] py-[14px] last:border-b-0 hover:bg-[#FAF8F4]", TABLE_GRID_COLS)}
           >
             <div className="flex items-center gap-1.5">

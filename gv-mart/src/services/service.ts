@@ -94,13 +94,22 @@ export async function listTickets(orgId: string, filters: TicketFiltersInput): P
     query = query.ilike("name_of_complaint", `%${term}%`)
   }
 
-  const { data, error } = await query.limit(200)
+  // The 200 cap only applies when a status filter has already narrowed the
+  // result set server-side. Callers with no status filter (every field-ops
+  // dashboard/list default) need an accurate count of *all* open tickets —
+  // capping an unfiltered, most-recent-first query would silently drop old,
+  // still-open (and therefore most-likely-overdue) tickets once an org has
+  // more than 200 tickets total, before the client-side filters below even
+  // run.
+  if (filters.status) query = query.limit(200)
+
+  const { data, error } = await query
   if (error) throw error
   let rows = (data ?? []) as unknown as TicketListItem[]
 
   // Filters that reach through the joined appointment/address rows can't be
   // expressed as a single PostgREST `.eq()` on the base table — applied
-  // client-side after the fetch instead (dataset is org-scoped + capped).
+  // client-side after the fetch instead.
   if (filters.technicianId) {
     rows = rows.filter((r) => r.appointments.some((a) => a.technician_id === filters.technicianId))
   }

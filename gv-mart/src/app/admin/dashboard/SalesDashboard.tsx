@@ -32,9 +32,14 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
 
   const { data: salesService, isLoading: ssLoading } = useSalesServiceReport(orgId, range)
   const { data: leads, isLoading: leadsLoading } = useLeads(orgId, { dateRange: range })
+  // Open Leads / Lead Pipeline are a live queue-depth signal ("what's still
+  // open right now"), not a historical metric — filtering them to "created
+  // during period" would silently hide older still-open leads, so they stay
+  // unfiltered regardless of `period` (matches OwnerDashboard's Open Tickets).
+  const { data: allLeads, isLoading: allLeadsLoading } = useLeads(orgId)
   const { data: quotations } = useQuotationsList(orgId, range)
 
-  const openLeads = leads?.filter((l) => l.status !== "won" && l.status !== "lost") ?? []
+  const openLeads = allLeads?.filter((l) => l.status !== "won" && l.status !== "lost") ?? []
   const wonLeads = leads?.filter((l) => l.status === "won").length ?? 0
   const totalLeads = leads?.length ?? 0
   const conversionPct = totalLeads ? Math.round((wonLeads / totalLeads) * 100) : 0
@@ -45,8 +50,8 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
 
   const pipelineCounts = LEAD_STAGES.map((stage) => ({
     stage,
-    count: leads?.filter((l) => l.status === stage).length ?? 0,
-    sample: leads?.find((l) => l.status === stage) ?? null,
+    count: allLeads?.filter((l) => l.status === stage).length ?? 0,
+    sample: allLeads?.find((l) => l.status === stage) ?? null,
   }))
 
   const sourceCounts = new Map<string, number>()
@@ -98,13 +103,13 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
       <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-3">
         <div className="relative flex flex-col gap-4 overflow-hidden rounded-card bg-gradient-to-br from-accent to-[#FF7E47] p-5.5 text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,0.65)]">
           <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
-          <span className="relative text-[13px] font-semibold text-white/90">{t("dashboard.salesThisMonth")}</span>
+          <span className="relative text-[13px] font-semibold text-white/90">{t("dashboard.totalRevenue")}</span>
           <div className="relative text-[31px] font-extrabold leading-none tracking-tight tabular-nums">{ssLoading ? "—" : formatCurrency(salesService?.totalRevenue ?? 0)}</div>
           <span className="relative w-fit rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">{periodLabel}</span>
         </div>
         <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
           <span className="text-[13px] font-semibold text-text-muted">{t("dashboard.openLeads")}</span>
-          <div className="text-[31px] font-extrabold leading-none tracking-tight tabular-nums text-text">{leadsLoading ? "—" : openLeads.length}</div>
+          <div className="text-[31px] font-extrabold leading-none tracking-tight tabular-nums text-text">{allLeadsLoading ? "—" : openLeads.length}</div>
           <span className="text-xs font-semibold text-text-muted">{totalLeads} {t("dashboard.leads")}</span>
         </div>
         <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">

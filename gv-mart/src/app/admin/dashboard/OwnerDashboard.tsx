@@ -118,7 +118,7 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
           <button
             type="button"
             onClick={() => navigate("/admin/service/new")}
-            className="flex items-center gap-1.5 rounded-full border border-[#DAD5CC] bg-surface px-4 py-2.5 text-sm font-bold text-text"
+            className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-bold text-text"
           >
             <TriangleAlert className="size-4 text-accent" />
             {t("dashboard.newComplaint")}
@@ -158,7 +158,7 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
           label={t("dashboard.openTickets")}
           value={ticketsLoading ? "—" : String(openTickets.length)}
           icon={<TriangleAlert className="size-4.5" />}
-          note={<span className="rounded-full bg-[#FCF1DF] px-2.5 py-1 text-xs font-bold text-[#E8932B]">{openTickets.length} {t("dashboard.open")}</span>}
+          note={<span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">{openTickets.length} {t("dashboard.open")}</span>}
         />
         {/* Always the literal calendar-day "today" — never scoped to `period` (a
             past month/year has no meaningful "today's sales"). Dimmed with an
@@ -171,7 +171,7 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
           dimmed={!periodIncludesToday}
           note={
             periodIncludesToday ? (
-              <span className="rounded-full bg-[#E7F6ED] px-2.5 py-1 text-xs font-bold text-success">{t("common.today")}</span>
+              <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-bold text-success">{t("common.today")}</span>
             ) : (
               <span className="text-xs font-medium text-text-muted">{t("dashboard.todaysSalesOutOfPeriod")}</span>
             )
@@ -263,7 +263,7 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
             recentTickets.map((tk, i) => {
               const initials = (tk.customers?.name ?? "—").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()
               return (
-                <div key={tk.id} className={cn("grid grid-cols-[1.4fr_1.2fr_0.9fr_1fr] items-center px-5.5 py-3.25", i < recentTickets.length - 1 && "border-b border-[#F1EDE6]")}>
+                <div key={tk.id} className={cn("grid grid-cols-[1.4fr_1.2fr_0.9fr_1fr] items-center px-5.5 py-3.25", i < recentTickets.length - 1 && "border-b border-border")}>
                   <div className="flex items-center gap-2.5">
                     <span className="flex size-7.5 items-center justify-center rounded-[9px] bg-accent-soft text-[11px] font-bold text-accent">{initials}</span>
                     <div className="leading-tight">
@@ -271,7 +271,7 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
                       <div className="text-[11px] font-medium text-text-muted">{tk.addresses?.area ?? "—"}</div>
                     </div>
                   </div>
-                  <span className="text-[13px] font-medium text-[#3A3A36]">{tk.products?.name ?? "—"}</span>
+                  <span className="text-[13px] font-medium text-text-muted">{tk.products?.name ?? "—"}</span>
                   <span>
                     <span className="rounded-full bg-info/10 px-2.5 py-1 text-[11px] font-bold text-info">{tk.type ? t(`service.type.${tk.type}`) : "—"}</span>
                   </span>
@@ -386,7 +386,7 @@ function MixRow({ color, label, amount, pct }: { color: string; label: string; a
 }
 
 function AttentionRow({ tone, title, subtitle }: { tone: "danger" | "warning" | "info"; title: string; subtitle: string }) {
-  const toneClass = tone === "danger" ? "bg-[#FCEAEA] text-danger" : tone === "warning" ? "bg-[#FCF1DF] text-warning" : "bg-[#E6EEFC] text-info"
+  const toneClass = tone === "danger" ? "bg-danger/10 text-danger" : tone === "warning" ? "bg-warning/10 text-warning" : "bg-info/10 text-info"
   return (
     <div className="flex items-start gap-2.75">
       <span className={cn("flex size-7.5 shrink-0 items-center justify-center rounded-[9px]", toneClass)}>

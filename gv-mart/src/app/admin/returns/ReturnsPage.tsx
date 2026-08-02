@@ -33,6 +33,7 @@ export function ReturnsPage() {
   const [qty, setQty] = useState("1")
   const [reason, setReason] = useState("")
   const [isReplacement, setIsReplacement] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<{ id: string; status: ReturnStatus } | null>(null)
 
   const selectedInvoice = invoices.data?.find((i) => i.id === invoiceId)
   const itemOptions = selectedInvoice?.invoice_items ?? []
@@ -64,6 +65,19 @@ export function ReturnsPage() {
     )
   }
 
+  function requestStatusChange(id: string, status: ReturnStatus) {
+    if (status === "rejected" || status === "completed") {
+      setConfirmAction({ id, status })
+    } else {
+      updateStatus.mutate({ id, status })
+    }
+  }
+
+  function confirmStatusChange() {
+    if (!confirmAction) return
+    updateStatus.mutate(confirmAction, { onSuccess: () => setConfirmAction(null) })
+  }
+
   const columns: DataTableColumn<ReturnListItem>[] = [
     { key: "customer", header: t("returns.table.customer"), render: (r) => r.invoices?.customers?.name ?? "—" },
     { key: "type", header: t("returns.table.itemType"), render: (r) => t(`returns.itemType.${r.item_type}`) },
@@ -77,16 +91,32 @@ export function ReturnsPage() {
       className: "text-right",
       render: (r) => {
         const next = NEXT_STATUS[r.status as ReturnStatus]
+        const isRowPending = updateStatus.isPending && updateStatus.variables?.id === r.id
+
+        if (confirmAction?.id === r.id) {
+          return (
+            <div className="flex items-center justify-end gap-2">
+              <span className="text-xs text-text-muted">{t(`returns.actions.confirm${confirmAction.status === "rejected" ? "Rejected" : "Completed"}`)}</span>
+              <Button size="xs" variant="ghost" onClick={() => setConfirmAction(null)} disabled={updateStatus.isPending}>
+                {t("common.cancel")}
+              </Button>
+              <Button size="xs" variant={confirmAction.status === "rejected" ? "destructive" : "default"} onClick={confirmStatusChange} disabled={updateStatus.isPending}>
+                {updateStatus.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.confirm")}
+              </Button>
+            </div>
+          )
+        }
+
         return (
           <div className="flex items-center justify-end gap-1.5">
             {next ? (
-              <Button size="xs" variant="outline" onClick={() => updateStatus.mutate({ id: r.id, status: next })}>
-                {t(`returns.actions.moveTo.${next}`)}
+              <Button size="xs" variant="outline" onClick={() => requestStatusChange(r.id, next)} disabled={isRowPending}>
+                {isRowPending ? <Loader2 className="size-3.5 animate-spin" /> : t(`returns.actions.moveTo.${next}`)}
               </Button>
             ) : null}
             {r.status === "requested" ? (
-              <Button size="xs" variant="ghost" onClick={() => updateStatus.mutate({ id: r.id, status: "rejected" })}>
-                {t("returns.actions.reject")}
+              <Button size="xs" variant="ghost" onClick={() => requestStatusChange(r.id, "rejected")} disabled={isRowPending}>
+                {isRowPending ? <Loader2 className="size-3.5 animate-spin" /> : t("returns.actions.reject")}
               </Button>
             ) : null}
           </div>

@@ -38,9 +38,21 @@ export function PasswordRevealDialog({
       ? `https://wa.me/${waNumber}?text=${encodeURIComponent(t("technicians.list.whatsappShareText", { password }))}`
       : null
 
+  // The triggering control isn't guaranteed to still be mounted when this
+  // dialog closes (e.g. the Create Technician panel unmounts as soon as it
+  // reveals the password), so base-ui's default trigger-restoration can
+  // silently drop focus to <body>. Fall back to the page's <main> landmark,
+  // which is always present, so focus lands somewhere meaningful instead.
+  function focusStableFallback(): HTMLElement | null {
+    const main = document.querySelector<HTMLElement>("main")
+    if (!main) return null
+    if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1")
+    return main
+  }
+
   return (
     <Dialog open={!!password} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showClose={false}>
+      <DialogContent showClose={false} finalFocus={() => focusStableFallback()}>
         <DialogTitle>{t("technicians.list.passwordDialogTitle")}</DialogTitle>
         <DialogDescription>{t("technicians.list.passwordDialogHint")}</DialogDescription>
         <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5">

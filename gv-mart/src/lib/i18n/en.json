@@ -187,7 +187,7 @@
     "lateAfter": "Late",
     "absent": "Absent",
     "escalations": "Escalations",
-    "noEscalations": "No urgent tickets open right now",
+    "noEscalations": "No tickets past their SLA deadline right now",
     "newQuotation": "New Quotation",
     "newLead": "New Lead",
     "salesThisMonth": "Sales This Month",
@@ -1083,7 +1083,9 @@
       "completed": "Completed",
       "cancelled": "Cancelled",
       "overdueBy": "Overdue by {{hours}}h {{minutes}}m",
-      "dueIn": "Due in {{hours}}h {{minutes}}m"
+      "dueIn": "Due in {{hours}}h {{minutes}}m",
+      "announceDueSoon": "SLA now due soon",
+      "announceOverdue": "SLA now overdue"
     },
     "newComplaint": {
       "title": "New Complaint",
@@ -1140,7 +1142,7 @@
       "timeline": "Day schedule",
       "noTechnicians": "No technicians yet.",
       "noJobs": "No jobs",
-      "dropToUnassignHint": "Drag here to view ticket details.",
+      "dropToUnassignHint": "Drag an assigned job here to unassign its technician.",
       "autoAssignEngine": "Auto-assign engine",
       "autoAssignDescription": "Bulk-assign unscheduled jobs by availability.",
       "unassigned": "Unassigned ({{count}})",
@@ -1148,7 +1150,11 @@
       "selected": "Selected",
       "viewTicket": "View ticket",
       "forceReassign": "Force reassign",
-      "nextDayPriorityShort": "Next-day priority"
+      "nextDayPriorityShort": "Next-day priority",
+      "confirmUnassign": "Unassign {{name}} from this appointment's technician?",
+      "reassign": "Reassign",
+      "unassign": "Unassign",
+      "noTechnicianAssigned": "Not yet assigned"
     },
     "detail": {
       "createdFromInvoice": "Created from invoice #{{id}}",
@@ -2407,6 +2413,7 @@
       "deactivate": "Deactivate",
       "reactivate": "Reactivate",
       "resetPassword": "Reset Password",
+      "confirmResetPassword": "Reset {{name}}'s password? Their current login will stop working until you share the new password with them.",
       "confirmDeactivate": "Deactivate {{name}}? They'll be hidden from active lists and can't be assigned new jobs, but their history stays intact.",
       "confirmReactivate": "Reactivate {{name}}? They'll be assignable again.",
       "confirmDelete": "Delete {{name}}'s login permanently? This can't be undone. Only allowed because they have no service history yet.",
@@ -2904,7 +2911,9 @@
         "approved": "Approve",
         "completed": "Mark Completed"
       },
-      "reject": "Reject"
+      "reject": "Reject",
+      "confirmCompleted": "Mark this return as completed? This can't be undone.",
+      "confirmRejected": "Reject this return request? This can't be undone."
     }
   },
   "auditLog": {

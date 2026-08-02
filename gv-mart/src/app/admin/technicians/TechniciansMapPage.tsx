@@ -114,6 +114,28 @@ function statusTone(status: TrackingStatus): StatusTone {
   return "neutral"
 }
 
+const STALE_WARNING_MINUTES = 10
+const STALE_DANGER_MINUTES = 60
+
+/** Independent of TrackingStatus/idle detection above (both of which only
+ * apply while a technician has an active job) — this covers the case a
+ * technician's location feed has simply gone silent (phone off, app
+ * force-closed) with nothing else in the UI to flag it. */
+function minutesAgoClass(minutesAgo: number) {
+  if (minutesAgo >= STALE_DANGER_MINUTES) return "text-danger"
+  if (minutesAgo >= STALE_WARNING_MINUTES) return "text-warning"
+  return "text-text-muted"
+}
+
+function useTicker(intervalMs: number) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+  return now
+}
+
 /**
  * Build Order A4: independent of TrackingStatus above (that's about travel
  * toward the *next* destination; this is about time spent *inside* the job
@@ -153,7 +175,6 @@ export function TechniciansMapPage() {
   const [liveLocations, setLiveLocations] = useState<Record<string, TechnicianLocationRow>>({})
   const [history, setHistory] = useState<Record<string, TechnicianLocationRow[]>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [now, setNow] = useState(() => Date.now())
   const [viewport, setViewport] = useState<MapViewport>(CHENNAI_CENTER)
   const [mapLoadFailed, setMapLoadFailed] = useState(false)
 
@@ -189,35 +210,40 @@ export function TechniciansMapPage() {
     return { segments, idleSpots }
   }, [trackingTechId, trackedAppointments.data, trackedVisits.data, trackedTrail.data, dateStr, settings?.per_km_minutes])
 
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 15_000)
-    return () => clearInterval(interval)
-  }, [])
-
   // Build Order A4 admin popup: fires a `notifications` row the moment a
   // technician's open visit crosses its ticket's estimated_duration_minutes.
   // notifiedVisitIdsRef is a same-session guard against re-firing every 15s
   // tick; notifyJobOverrunAlert itself re-checks the DB before inserting, so
   // reopening this page later still won't duplicate an alert already raised.
+  // Runs its own interval (reading Date.now() directly) rather than driving
+  // this off page-level render state, so this background check doesn't force
+  // the whole technician list/map to re-render every 15s.
   const notifiedVisitIdsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (!orgId || !openVisits) return
-    for (const [techId, visit] of openVisits) {
-      const overrun = computeJobOverrun(
-        { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.allowedDurationMinutes },
-        now
-      )
-      if (!overrun.isOverrun || notifiedVisitIdsRef.current.has(visit.visitId)) continue
-      notifiedVisitIdsRef.current.add(visit.visitId)
-      const loc = liveLocations[techId]
-      void notifyJobOverrunAlert(
-        orgId,
-        visit,
-        overrun.overrunByMinutes!,
-        loc ? { lat: loc.lat, lng: loc.lng, recordedAt: loc.recorded_at } : null
-      )
+    const safeOrgId = orgId
+    function checkOverruns() {
+      const nowMs = Date.now()
+      for (const [techId, visit] of openVisits!) {
+        const overrun = computeJobOverrun(
+          { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.allowedDurationMinutes },
+          nowMs
+        )
+        if (!overrun.isOverrun || notifiedVisitIdsRef.current.has(visit.visitId)) continue
+        notifiedVisitIdsRef.current.add(visit.visitId)
+        const loc = liveLocations[techId]
+        void notifyJobOverrunAlert(
+          safeOrgId,
+          visit,
+          overrun.overrunByMinutes!,
+          loc ? { lat: loc.lat, lng: loc.lng, recordedAt: loc.recorded_at } : null
+        )
+      }
     }
-  }, [orgId, openVisits, now, liveLocations])
+    checkOverruns()
+    const interval = setInterval(checkOverruns, 15_000)
+    return () => clearInterval(interval)
+  }, [orgId, openVisits, liveLocations])
 
   // Seeds the idle-detection buffer with recent history so idle/off-route
   // status is available immediately on load, not only after ~5 minutes of
@@ -378,7 +404,6 @@ export function TechniciansMapPage() {
                   activeJob={activeJobs?.get(row.id)}
                   openVisit={openVisits?.get(row.id)}
                   history={history[row.id] ?? []}
-                  now={now}
                   selected={selectedId === row.id}
                   onSelect={() => handleSelect(row)}
                 />
@@ -419,7 +444,6 @@ export function TechniciansMapPage() {
                       activeJob={activeJobs?.get(row.id)}
                       openVisit={openVisits?.get(row.id)}
                       history={history[row.id] ?? []}
-                      now={now}
                     />
                   ))}
                   {tracked
@@ -482,14 +506,13 @@ function TechnicianMarker({
   activeJob,
   openVisit,
   history,
-  now,
 }: {
   row: TechnicianWithLatestLocation
   activeJob: TechnicianActiveJob | undefined
   openVisit: TechnicianOpenVisit | undefined
   history: TechnicianLocationRow[]
-  now: number
 }) {
+  const now = useTicker(15_000)
   const { status } = useTechnicianTrackingStatus(row.latestLocation, activeJob, history, now)
   const overrun = useJobOverrunAlert(openVisit, now)
   if (!row.latestLocation) return null
@@ -511,7 +534,6 @@ function TechnicianRow({
   activeJob,
   openVisit,
   history,
-  now,
   selected,
   onSelect,
 }: {
@@ -519,11 +541,11 @@ function TechnicianRow({
   activeJob: TechnicianActiveJob | undefined
   openVisit: TechnicianOpenVisit | undefined
   history: TechnicianLocationRow[]
-  now: number
   selected: boolean
   onSelect: () => void
 }) {
   const { t } = useTranslation()
+  const now = useTicker(15_000)
   const { status, idleMinutes } = useTechnicianTrackingStatus(row.latestLocation, activeJob, history, now)
   const overrun = useJobOverrunAlert(openVisit, now)
   const minutesAgo = row.latestLocation ? Math.round((now - new Date(row.latestLocation.recorded_at).getTime()) / 60_000) : null
@@ -551,7 +573,7 @@ function TechnicianRow({
       <div className="flex w-full items-center justify-between gap-2">
         <div>
           <p className="text-sm font-medium text-text">{row.profiles?.full_name ?? "—"}</p>
-          <p className="text-xs text-text-muted">
+          <p className={cn("text-xs", minutesAgo != null ? minutesAgoClass(minutesAgo) : "text-text-muted")}>
             {minutesAgo != null ? t("technicians.map.updatedMinutesAgo", { count: minutesAgo }) : t("technicians.map.noLocationYet")}
           </p>
         </div>

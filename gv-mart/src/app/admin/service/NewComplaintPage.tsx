@@ -10,6 +10,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
+import { SegButton } from "@/components/shared/SegButton"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { DraftBanner } from "@/components/shared/DraftBanner"
 import { useProfile } from "@/hooks/useProfile"
@@ -383,16 +384,9 @@ export function NewComplaintPage() {
 
           <div className="flex gap-1 rounded-full bg-surface-alt p-1">
             {(["owned", "new", "none"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setEquipmentMode(m)}
-                className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  equipmentMode === m ? "bg-ink text-white" : "text-text-muted"
-                }`}
-              >
+              <SegButton key={m} active={equipmentMode === m} onClick={() => setEquipmentMode(m)} className="flex-1 py-1.5 text-sm font-medium">
                 {t(`service.newComplaint.equipmentMode.${m}`)}
-              </button>
+              </SegButton>
             ))}
           </div>
 
@@ -577,16 +571,14 @@ export function NewComplaintPage() {
           <Label>{t("service.newComplaint.appointmentMode")}</Label>
           <div className="flex gap-1 rounded-full bg-surface-alt p-1">
             {(["always", "datetime"] as const).map((m) => (
-              <button
+              <SegButton
                 key={m}
-                type="button"
+                active={appointmentForm.watch("mode") === m}
                 onClick={() => appointmentForm.setValue("mode", m, { shouldValidate: true })}
-                className={`flex-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  appointmentForm.watch("mode") === m ? "bg-ink text-white" : "text-text-muted"
-                }`}
+                className="flex-1 py-1.5 text-sm font-medium"
               >
                 {t(`service.appointment.${m}`)}
-              </button>
+              </SegButton>
             ))}
           </div>
           {appointmentForm.watch("mode") === "datetime" && slaSettingsLoading ? (
@@ -630,16 +622,14 @@ export function NewComplaintPage() {
 
                   <div className="flex gap-1 rounded-full bg-surface-alt p-1">
                     {(["any", "custom"] as const).map((wm) => (
-                      <button
+                      <SegButton
                         key={wm}
-                        type="button"
+                        active={windowMode === wm}
                         onClick={() => appointmentForm.setValue("windowMode", wm, { shouldValidate: true })}
-                        className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                          windowMode === wm ? "bg-ink text-white" : "text-text-muted"
-                        }`}
+                        className="flex-1 py-1.5 font-medium"
                       >
                         {t(`customerApp.bookService.windowMode.${wm}`)}
-                      </button>
+                      </SegButton>
                     ))}
                   </div>
 

@@ -6,7 +6,17 @@ import { cn } from "@/lib/utils"
  * Extracted from the identical markup AmcWarrantyListPage.tsx and PnlReportTab.tsx
  * each had inline, now the shared building block for any Month/Year/Custom-style
  * mode switch (see PeriodFilter.tsx). */
-export function SegButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+export function SegButton({
+  active,
+  onClick,
+  children,
+  className,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+  className?: string
+}) {
   return (
     <button
       type="button"
@@ -14,7 +24,8 @@ export function SegButton({ active, onClick, children }: { active: boolean; onCl
       aria-pressed={active}
       className={cn(
         "rounded-full px-4 py-[7px] text-xs font-semibold transition-colors",
-        active ? "bg-ink text-white" : "text-text-muted"
+        active ? "bg-ink text-white" : "text-text-muted",
+        className
       )}
     >
       {children}

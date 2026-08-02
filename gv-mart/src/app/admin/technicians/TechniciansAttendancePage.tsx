@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Check, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -16,10 +16,10 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function lunchMinutes(r: AttendanceListItem) {
+function lunchMinutes(r: AttendanceListItem, now: number) {
   if (!r.lunch_start) return null
-  const end = r.lunch_end ?? new Date().toISOString()
-  return Math.round((new Date(end).getTime() - new Date(r.lunch_start).getTime()) / 60_000)
+  const endMs = r.lunch_end ? new Date(r.lunch_end).getTime() : now
+  return Math.round((endMs - new Date(r.lunch_start).getTime()) / 60_000)
 }
 
 function Tick({ ok }: { ok: boolean }) {
@@ -41,6 +41,15 @@ export function TechniciansAttendancePage() {
   const { data: settings } = useSettings(orgId)
   const lunchRedMin = settings?.lunch_minutes_red_threshold ?? 45
 
+  const [now, setNow] = useState(() => Date.now())
+  const hasOngoingLunch = (rows ?? []).some((r) => r.lunch_start && !r.lunch_end)
+
+  useEffect(() => {
+    if (!hasOngoingLunch) return
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [hasOngoingLunch])
+
   const columns: DataTableColumn<AttendanceListItem>[] = [
     { key: "technician", header: t("technicians.attendance.technician"), render: (r) => r.technicians?.profiles?.full_name ?? "—" },
     {
@@ -56,7 +65,7 @@ export function TechniciansAttendancePage() {
       key: "lunch",
       header: t("technicians.attendance.lunch"),
       render: (r) => {
-        const mins = lunchMinutes(r)
+        const mins = lunchMinutes(r, now)
         if (mins === null) return "—"
         return <span className={mins > lunchRedMin ? "font-medium text-danger" : "text-text"}>{t("technicians.attendance.lunchMinutes", { minutes: mins })}</span>
       },

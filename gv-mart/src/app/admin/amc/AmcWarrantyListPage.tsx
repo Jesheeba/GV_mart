@@ -4,19 +4,17 @@ import { useNavigate } from "react-router-dom"
 import { Inbox, Plus, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
+import { StatusDot } from "@/components/shared/StatusDot"
 import { SegButton } from "@/components/shared/SegButton"
 import { useProfile } from "@/hooks/useProfile"
 import { useAmcContracts, useRefreshAmcStatuses, useWarranties } from "@/hooks/useAmc"
 import { amcPlansHooks, useSettings } from "@/hooks/useMasters"
 import { pricePerYearOf } from "@/lib/amc-window"
+import { AMC_STATUS_TONE } from "@/lib/amc-status"
 import { cn } from "@/lib/utils"
 import { SellAmcPanel } from "./SellAmcPanel"
 import type { AmcContractListItem, WarrantyListItem } from "@/services/amc"
 import type { AmcPlanRow } from "@/services/masters"
-
-const AMC_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
-const WARRANTY_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
 
 // Tier swatch colors cycle across plans sorted by price (design line 1078-1090:
 // Silver=#8A8A82, Gold=#F5612C, Platinum=#1A1A1A) — a presentational mapping
@@ -480,7 +478,7 @@ function WarrantyTable({
             <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{w.serial_no ?? "—"}</span>
             <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{fmt(w.expiry_date)}</span>
             <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{fmt(w.next_service_date)}</span>
-            <StatusDot tone={WARRANTY_STATUS_TONE[w.computedStatus] ?? "neutral"} label={t(`amc.status.${w.computedStatus}`)} />
+            <StatusDot tone={AMC_STATUS_TONE[w.computedStatus as keyof typeof AMC_STATUS_TONE] ?? "neutral"} label={t(`amc.status.${w.computedStatus}`)} />
           </div>
         ))
       )}

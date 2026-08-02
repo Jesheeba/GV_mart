@@ -90,6 +90,7 @@ export function TechnicianDetailPage() {
   const [editCity, setEditCity] = useState("")
   const [editState, setEditState] = useState("")
   const [editPincode, setEditPincode] = useState("")
+  const [confirmingResetPassword, setConfirmingResetPassword] = useState(false)
   const [confirmingDeactivate, setConfirmingDeactivate] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
@@ -151,7 +152,12 @@ export function TechnicianDetailPage() {
     )
   }
   function resetPassword() {
-    resetPasswordMut.mutate(technician!.id, { onSuccess: ({ password }) => setRevealedPassword(password) })
+    resetPasswordMut.mutate(technician!.id, {
+      onSuccess: ({ password }) => {
+        setRevealedPassword(password)
+        setConfirmingResetPassword(false)
+      },
+    })
   }
   function confirmDelete() {
     deleteMut.mutate(technician!.id, { onSuccess: () => navigate("/admin/technicians") })
@@ -211,7 +217,7 @@ export function TechnicianDetailPage() {
               size="icon"
               title={t("technicians.detail.resetPassword")}
               disabled={resetPasswordMut.isPending}
-              onClick={resetPassword}
+              onClick={() => setConfirmingResetPassword(true)}
             >
               {resetPasswordMut.isPending ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
             </Button>
@@ -236,6 +242,18 @@ export function TechnicianDetailPage() {
             ) : null}
           </div>
         </div>
+
+        {confirmingResetPassword ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-alt px-4 py-3">
+            <p className="flex-1 text-sm text-text">{t("technicians.detail.confirmResetPassword", { name })}</p>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmingResetPassword(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button size="sm" variant="destructive" disabled={resetPasswordMut.isPending} onClick={resetPassword}>
+              {resetPasswordMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("technicians.detail.resetPassword")}
+            </Button>
+          </div>
+        ) : null}
 
         {confirmingDeactivate ? (
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-alt px-4 py-3">

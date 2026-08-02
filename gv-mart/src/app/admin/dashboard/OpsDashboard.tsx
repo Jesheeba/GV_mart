@@ -3,11 +3,15 @@ import { useNavigate } from "react-router-dom"
 import { MapPin, Plus, TriangleAlert } from "lucide-react"
 import { useTicketsList, useAppointmentsRange, useTechnicians } from "@/hooks/useService"
 import { useAttendanceForDate } from "@/hooks/useTechniciansAdmin"
+import { useOverdueSlaTickets } from "@/hooks/useSystemPages"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { KpiCard } from "@/components/shared/KpiCard"
+import { HighlightKpiCard } from "@/components/shared/HighlightKpiCard"
 import { todayRange } from "./dashboardMath"
 
 const APPT_STATUS_TONE: Record<string, string> = {
-  scheduled: "#8A8A82",
+  scheduled: "var(--text-muted)",
   in_progress: "#E8932B",
   completed: "#2FAE5F",
   cancelled: "#E5484D",
@@ -22,6 +26,7 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
   const { data: technicians } = useTechnicians(orgId)
   const { data: appointments, isLoading: apptLoading } = useAppointmentsRange(orgId, `${today}T00:00:00`, `${today}T23:59:59`)
   const { data: attendance, isLoading: attendanceLoading } = useAttendanceForDate(orgId, today)
+  const { data: overdueSla, isLoading: overdueSlaLoading } = useOverdueSlaTickets(orgId)
 
   const openTickets = tickets?.filter((tk) => tk.status !== "completed" && tk.status !== "cancelled") ?? []
   const urgentOpen = openTickets.filter((tk) => tk.priority === "very_urgent" || tk.priority === "urgent")
@@ -44,44 +49,46 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
           <p className="text-sm font-medium text-text-muted">{t("dashboard.operationAdminSubtitle")}</p>
         </div>
         <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => navigate("/admin/technicians/map")}
-            className="flex items-center gap-2 rounded-full border border-[#DAD5CC] bg-surface px-4 py-2.5 text-sm font-semibold text-text"
-          >
+          <Button type="button" variant="outline" onClick={() => navigate("/admin/technicians/map")}>
             <MapPin className="size-4" />
             {t("dashboard.liveTracking")}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/admin/service")}
-            className="flex items-center gap-1.5 rounded-full bg-ink px-[18px] py-2.75 text-sm font-bold text-white shadow-[0_10px_20px_-12px_rgba(26,26,26,0.6)]"
-          >
+          </Button>
+          <Button type="button" onClick={() => navigate("/admin/service")} className="shadow-[0_10px_20px_-12px_rgba(26,26,26,0.6)]">
             <Plus className="size-4" />
             {t("dashboard.assignJobs")}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-3">
-        <div className="relative flex flex-col gap-4 overflow-hidden rounded-card bg-gradient-to-br from-accent to-[#FF7E47] p-5.5 text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,0.65)]">
-          <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
-          <span className="relative text-[13px] font-semibold text-white/90">{t("dashboard.completedToday")}</span>
-          <div className="relative text-[31px] font-extrabold leading-none tracking-tight tabular-nums">{ticketsLoading ? "—" : completedToday}</div>
-          <span className="relative w-fit rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">{t("common.today")}</span>
-        </div>
-        <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
-          <span className="text-[13px] font-semibold text-text-muted">{t("dashboard.openTickets")}</span>
-          <div className="text-[31px] font-extrabold leading-none tracking-tight tabular-nums text-text">{ticketsLoading ? "—" : openTickets.length}</div>
-          <span className="w-fit rounded-full bg-[#FCF1DF] px-2.5 py-1 text-xs font-bold text-warning">{urgentOpen.length} {t("dashboard.urgent")}</span>
-        </div>
-        <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
-          <span className="text-[13px] font-semibold text-text-muted">{t("dashboard.onDutyTechs")}</span>
-          <div className="text-[31px] font-extrabold leading-none tracking-tight tabular-nums text-text">
-            {attendanceLoading ? "—" : onDuty} <span className="text-[15px] font-semibold text-text-muted">/ {totalTechs}</span>
-          </div>
-          <span className="text-xs font-semibold text-text-muted">{absent} {t("dashboard.absentToday")}</span>
-        </div>
+        <HighlightKpiCard
+          label={t("dashboard.completedToday")}
+          value={ticketsLoading ? "—" : completedToday}
+          caption={t("common.today")}
+          loading={ticketsLoading}
+        />
+        <KpiCard
+          label={t("dashboard.openTickets")}
+          loading={ticketsLoading}
+          value={
+            <div className="flex flex-col gap-2">
+              <span className="text-[31px] font-extrabold leading-none tracking-tight tabular-nums text-text">{openTickets.length}</span>
+              <span className="w-fit rounded-full bg-[#FCF1DF] px-2.5 py-1 text-xs font-bold text-warning">{urgentOpen.length} {t("dashboard.urgent")}</span>
+            </div>
+          }
+        />
+        <KpiCard
+          label={t("dashboard.onDutyTechs")}
+          loading={attendanceLoading}
+          value={
+            <div className="flex flex-col gap-2">
+              <span className="text-[31px] font-extrabold leading-none tracking-tight tabular-nums text-text">
+                {onDuty} <span className="text-[15px] font-semibold text-text-muted">/ {totalTechs}</span>
+              </span>
+              <span className="w-fit text-xs font-semibold text-text-muted">{absent} {t("dashboard.absentToday")}</span>
+            </div>
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4.5 lg:grid-cols-[1.55fr_1fr]">
@@ -108,8 +115,8 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
                 </span>
                 <span className="text-[13px] font-semibold text-text">{ap.service_tickets?.customers?.name ?? "—"}</span>
                 <span className="text-[13px] font-medium text-[#3A3A36]">{ap.technicians?.profiles?.full_name ?? t("dashboard.unassigned")}</span>
-                <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: APPT_STATUS_TONE[ap.status] ?? "#8A8A82" }}>
-                  <span className="size-1.75 rounded-full" style={{ background: APPT_STATUS_TONE[ap.status] ?? "#8A8A82" }} />
+                <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: APPT_STATUS_TONE[ap.status] ?? "var(--text-muted)" }}>
+                  <span className="size-1.75 rounded-full" style={{ background: APPT_STATUS_TONE[ap.status] ?? "var(--text-muted)" }} />
                   {t(`service.appointmentStatus.${ap.status}`)}
                 </span>
               </div>
@@ -142,13 +149,13 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
 
           <div className="rounded-card border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
             <h3 className="mb-3.5 text-base font-bold tracking-tight text-text">{t("dashboard.escalations")}</h3>
-            {ticketsLoading ? (
+            {overdueSlaLoading ? (
               <p className="text-sm text-text-muted">{t("common.loading")}</p>
-            ) : urgentOpen.length === 0 ? (
+            ) : !overdueSla || overdueSla.length === 0 ? (
               <p className="text-sm text-text-muted">{t("dashboard.noEscalations")}</p>
             ) : (
               <div className="flex flex-col gap-3">
-                {urgentOpen.slice(0, 3).map((tk) => (
+                {overdueSla.slice(0, 3).map((tk) => (
                   <div key={tk.id} className="flex items-start gap-2.75">
                     <span className="flex size-7.5 shrink-0 items-center justify-center rounded-[9px] bg-[#FCEAEA] text-danger">
                       <TriangleAlert className="size-4" />
@@ -156,7 +163,7 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
                     <div className="leading-tight">
                       <div className="text-[13px] font-semibold text-text">{tk.customers?.name ?? "—"}</div>
                       <div className="text-[11px] font-medium text-text-muted">
-                        {tk.type ? t(`service.type.${tk.type}`) : "—"} · {tk.products?.name ?? "—"}
+                        {tk.name_of_complaint ?? "—"} · {tk.products?.name ?? "—"}
                       </div>
                     </div>
                   </div>
