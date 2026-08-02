@@ -131,7 +131,7 @@ export function TicketsListPage() {
           <button
             type="button"
             onClick={() => navigate("/admin/service/appointments")}
-            className="flex items-center gap-2 rounded-full border border-[#DAD5CC] bg-surface px-4 py-2.5 text-sm font-bold text-text"
+            className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-bold text-text"
           >
             <CalendarClock className="size-4" />
             {t("service.appointments.title")}
@@ -287,7 +287,7 @@ function TicketsTable({
         </div>
       ) : loading ? (
         Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={cn("grid items-center border-b border-[#F1EDE6] px-[22px] py-[14px]", TABLE_GRID_COLS)}>
+          <div key={i} className={cn("grid items-center border-b border-border px-[22px] py-[14px]", TABLE_GRID_COLS)}>
             {headers.map((h) => (
               <Skeleton key={h} className="h-4 w-3/4 max-w-32" />
             ))}
@@ -308,7 +308,7 @@ function TicketsTable({
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") onRowClick(r)
             }}
-            className={cn("grid cursor-pointer items-center border-b border-[#F1EDE6] px-[22px] py-[14px] last:border-b-0 hover:bg-[#FAF8F4]", TABLE_GRID_COLS)}
+            className={cn("grid cursor-pointer items-center border-b border-border px-[22px] py-[14px] last:border-b-0 hover:bg-surface-alt", TABLE_GRID_COLS)}
           >
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-ink">#{r.id.slice(0, 8)}</span>
@@ -322,15 +322,15 @@ function TicketsTable({
                 {[r.addresses?.area, r.products?.name].filter(Boolean).join(" · ") || "—"}
               </div>
             </div>
-            <span className="truncate text-[13px] font-medium text-[#3A3A36]">{r.name_of_complaint || "—"}</span>
+            <span className="truncate text-[13px] font-medium text-text">{r.name_of_complaint || "—"}</span>
             <span>
               <TicketTypeBadge type={r.type} />
             </span>
             <PriorityText priority={r.priority} />
-            <span className="text-[13px] font-medium text-[#3A3A36]">
+            <span className="text-[13px] font-medium text-text">
               {r.appointments[0]?.technicians?.profiles?.full_name ?? t("service.table.unassigned")}
             </span>
-            <span className="text-xs font-medium text-[#3A3A36]">
+            <span className="text-xs font-medium text-text">
               {r.appointments[0]?.mode === "always"
                 ? t("service.appointment.always")
                 : r.appointments[0]?.scheduled_at

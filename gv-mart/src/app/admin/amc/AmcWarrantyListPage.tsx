@@ -370,7 +370,7 @@ function AmcTable({
         </div>
       ) : loading ? (
         Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={cn("grid items-center border-b border-[#F1EDE6] px-[22px] py-[14px]", AMC_GRID)}>
+          <div key={i} className={cn("grid items-center border-b border-border px-[22px] py-[14px]", AMC_GRID)}>
             {headers.map((h) => (
               <Skeleton key={h} className="h-4 w-3/4 max-w-32" />
             ))}
@@ -393,19 +393,19 @@ function AmcTable({
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") onRowClick(c.id)
               }}
-              className={cn("grid cursor-pointer items-center border-b border-[#F1EDE6] px-[22px] py-[14px] last:border-b-0 hover:bg-[#FAF8F4]", AMC_GRID)}
+              className={cn("grid cursor-pointer items-center border-b border-border px-[22px] py-[14px] last:border-b-0 hover:bg-surface-alt", AMC_GRID)}
             >
               <div className="leading-tight">
                 <div className="text-[13px] font-semibold text-text">{c.customers?.name ?? "—"}</div>
                 <div className="text-[11px] font-medium text-text-muted">{c.customers?.mobile ?? "—"}</div>
               </div>
-              <span className="text-[13px] font-medium text-[#3A3A36]">{c.products?.name ?? "—"}</span>
+              <span className="text-[13px] font-medium text-text">{c.products?.name ?? "—"}</span>
               <span className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: tierColor }}>
                 <span className="size-1.75 shrink-0 rounded-[2px]" style={{ background: tierColor }} />
                 {c.amc_plans?.name ?? "—"}
               </span>
-              <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{fmt(c.expiry_date)}</span>
-              <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{fmt(c.next_service_date)}</span>
+              <span className="text-[13px] font-medium tabular-nums text-text">{fmt(c.expiry_date)}</span>
+              <span className="text-[13px] font-medium tabular-nums text-text">{fmt(c.next_service_date)}</span>
               <StatusDot tone={AMC_STATUS_TONE[c.status] ?? "neutral"} label={t(`amc.status.${c.status}`)} />
             </div>
           )
@@ -456,7 +456,7 @@ function WarrantyTable({
         </div>
       ) : loading ? (
         Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={cn("grid items-center border-b border-[#F1EDE6] px-[22px] py-[14px]", WARRANTY_GRID)}>
+          <div key={i} className={cn("grid items-center border-b border-border px-[22px] py-[14px]", WARRANTY_GRID)}>
             {headers.map((h) => (
               <Skeleton key={h} className="h-4 w-3/4 max-w-32" />
             ))}
@@ -469,15 +469,15 @@ function WarrantyTable({
         </div>
       ) : (
         rows.map((w) => (
-          <div key={w.id} className={cn("grid items-center border-b border-[#F1EDE6] px-[22px] py-[14px] last:border-b-0 hover:bg-[#FAF8F4]", WARRANTY_GRID)}>
+          <div key={w.id} className={cn("grid items-center border-b border-border px-[22px] py-[14px] last:border-b-0 hover:bg-surface-alt", WARRANTY_GRID)}>
             <div className="leading-tight">
               <div className="text-[13px] font-semibold text-text">{w.customers?.name ?? "—"}</div>
               <div className="text-[11px] font-medium text-text-muted">{w.customers?.mobile ?? "—"}</div>
             </div>
-            <span className="text-[13px] font-medium text-[#3A3A36]">{w.products?.name ?? "—"}</span>
-            <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{w.serial_no ?? "—"}</span>
-            <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{fmt(w.expiry_date)}</span>
-            <span className="text-[13px] font-medium tabular-nums text-[#3A3A36]">{fmt(w.next_service_date)}</span>
+            <span className="text-[13px] font-medium text-text">{w.products?.name ?? "—"}</span>
+            <span className="text-[13px] font-medium tabular-nums text-text">{w.serial_no ?? "—"}</span>
+            <span className="text-[13px] font-medium tabular-nums text-text">{fmt(w.expiry_date)}</span>
+            <span className="text-[13px] font-medium tabular-nums text-text">{fmt(w.next_service_date)}</span>
             <StatusDot tone={AMC_STATUS_TONE[w.computedStatus as keyof typeof AMC_STATUS_TONE] ?? "neutral"} label={t(`amc.status.${w.computedStatus}`)} />
           </div>
         ))
