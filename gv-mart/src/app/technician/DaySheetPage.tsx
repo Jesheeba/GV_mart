@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { HighlightKpiCard } from "@/components/shared/HighlightKpiCard"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
-import { useMyTechnician } from "@/hooks/useTechnician"
+import { useMyTechnician, useTodayAttendance } from "@/hooks/useTechnician"
 import { useDaySheetSummary } from "@/hooks/useWorkspace"
 import { formatCurrency } from "@/lib/sale-calc"
 import { ATTENDANCE_STATUS_I18N_KEY } from "@/lib/attendance-status"
@@ -17,13 +17,17 @@ export function DaySheetPage() {
   const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile()
   const technician = useMyTechnician()
   const summary = useDaySheetSummary(profile?.org_id, technician.data?.id)
+  const attendanceFallback = useTodayAttendance(technician.data?.id)
 
   if (profileLoading || technician.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (profileError || !profile) {
     return <FullPageError message={t("auth.profileLoadError")} onRetry={() => refetchProfile()} retryLabel={t("common.retry")} />
   }
+  if (technician.isError || !technician.data) {
+    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => technician.refetch()} retryLabel={t("common.retry")} />
+  }
 
-  const attendance = summary.data?.attendance ?? null
+  const attendance = summary.data?.attendance ?? attendanceFallback.data ?? null
   const attendanceStatusKey = !attendance ? "technician.daySheet.attendance.notMarked" : ATTENDANCE_STATUS_I18N_KEY[attendance.status]
 
   return (
@@ -66,29 +70,29 @@ export function DaySheetPage() {
               <p className="text-xs text-text-muted">{t("technician.daySheet.jobsPending")}</p>
             </Card>
           </div>
-
-          <Card className="flex-row items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-info/10 text-info">
-              <CalendarCheck2 className="size-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-text">{t("technician.daySheet.attendanceTitle")}</p>
-              <p className="text-xs text-text-muted">{t(attendanceStatusKey)}</p>
-            </div>
-            {attendance ? (
-              <CheckCircle2 className="size-5 shrink-0 text-success" />
-            ) : (
-              <XCircle className="size-5 shrink-0 text-text-muted" />
-            )}
-          </Card>
-
-          {!attendance ? (
-            <Button type="button" className="w-full" onClick={() => navigate("/technician/attendance")}>
-              {t("technician.daySheet.goToAttendance")}
-            </Button>
-          ) : null}
         </>
       )}
+
+      <Card className="flex-row items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-info/10 text-info">
+          <CalendarCheck2 className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-text">{t("technician.daySheet.attendanceTitle")}</p>
+          <p className="text-xs text-text-muted">{t(attendanceStatusKey)}</p>
+        </div>
+        {attendance ? (
+          <CheckCircle2 className="size-5 shrink-0 text-success" />
+        ) : (
+          <XCircle className="size-5 shrink-0 text-text-muted" />
+        )}
+      </Card>
+
+      {!attendance ? (
+        <Button type="button" className="w-full" onClick={() => navigate("/technician/attendance")}>
+          {t("technician.daySheet.goToAttendance")}
+        </Button>
+      ) : null}
     </div>
   )
 }

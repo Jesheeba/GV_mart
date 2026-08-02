@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { CheckCircle2, Loader2, Plus, Save, Trash2, TriangleAlert } from "lucide-react"
+import { CheckCircle2, Loader2, Plus, Save, Trash2, TriangleAlert, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { Stepper } from "@/components/shared/Stepper"
+import { SegButton } from "@/components/shared/SegButton"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { PhotoCapture } from "../components/PhotoCapture"
@@ -200,6 +201,50 @@ export function OnSiteVisitPage() {
   const [draftRestored, setDraftRestored] = useState(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const hydratingTicketRef = useRef<string | null>(null)
+
+  // Tap-again-to-confirm state for the small, frequently-mis-tapped
+  // destructive controls on this page (SOP-step / evidence-photo removal) —
+  // a lighter-weight version of the Card-based discard-draft confirm above,
+  // sized for a single list row / grid tile instead of a whole-draft wipe.
+  // Each auto-reverts a few seconds after the first tap so a stray tap never
+  // leaves the UI stuck in a "confirm?" state.
+  const [pendingRemoveStepId, setPendingRemoveStepId] = useState<string | null>(null)
+  const [pendingRemoveEvidenceIndex, setPendingRemoveEvidenceIndex] = useState<number | null>(null)
+  const pendingRemoveStepTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingRemoveEvidenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => {
+      if (pendingRemoveStepTimeoutRef.current) clearTimeout(pendingRemoveStepTimeoutRef.current)
+      if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
+    }
+  }, [])
+
+  // GV.md offline-first — completing a visit (OTP verify) is the one action
+  // in this flow that can't be queued (see handlePaymentSubmit's doc
+  // comment), so this tracks live connectivity to surface that requirement
+  // proactively on the Payment step instead of only at the final submit
+  // attempt.
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine)
+  useEffect(() => {
+    function handleOnline() { setIsOnline(true) }
+    function handleOffline() { setIsOnline(false) }
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+    return () => {
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
+    }
+  }, [])
+
+  // Moves focus to the (visually hidden) heading for the new step and
+  // scrolls back to the top on every step change, so advancing/going back
+  // through this long stepper is announced to screen readers and never
+  // leaves a technician stranded mid-scroll on the new step's content.
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    stepHeadingRef.current?.focus()
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [step])
   // Set right before discardDraft() resets every field to its default —
   // without this, the reset itself changes draftSnapshot, and ~500ms later
   // the still-active autosave effect below would dutifully write that
@@ -717,13 +762,13 @@ export function OnSiteVisitPage() {
   const seconds = String(elapsedSec % 60).padStart(2, "0")
 
   return (
-    <div className="space-y-4 pt-2 pb-8">
+    <div className="space-y-4 pt-2 pb-24">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-text">{t("technician.onsite.title")}</h1>
         <span
           className={cn(
-            "rounded-full px-3 py-1 font-mono text-sm font-semibold text-white",
-            isCurrentSopStepOverdue ? "bg-danger" : "bg-ink"
+            "rounded-full px-3 py-1 font-mono text-sm font-semibold",
+            isCurrentSopStepOverdue ? "bg-danger text-white" : "bg-primary text-primary-foreground"
           )}
         >
           {minutes}:{seconds}
@@ -737,9 +782,9 @@ export function OnSiteVisitPage() {
           {draftRestored ? t("technician.onsite.draft.restoredNote") : t("technician.onsite.draft.autosaveNote")}
         </p>
         {draftRestored ? (
-          <button type="button" className="text-xs font-medium text-danger" onClick={() => setShowDiscardConfirm((v) => !v)}>
+          <Button type="button" variant="ghost" size="sm" className="text-danger hover:text-danger" onClick={() => setShowDiscardConfirm((v) => !v)}>
             {t("technician.onsite.draft.discard")}
-          </button>
+          </Button>
         ) : null}
       </div>
       {showDiscardConfirm ? (
@@ -759,6 +804,10 @@ export function OnSiteVisitPage() {
       <Card>
         <Stepper steps={steps} currentIndex={step} maxCompletedIndex={maxStepReached} />
       </Card>
+
+      <h2 ref={stepHeadingRef} tabIndex={-1} aria-live="polite" className="sr-only">
+        {steps[step]?.label}
+      </h2>
 
       {currentKey === "sop" ? (
         <div className="space-y-4">
@@ -785,9 +834,9 @@ export function OnSiteVisitPage() {
                         type="button"
                         onClick={() => toggleSopStep(s)}
                         disabled={!!s.doneAt}
-                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-alt text-text-muted disabled:opacity-100"
+                        className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-alt text-text-muted disabled:opacity-100"
                       >
-                        {s.doneAt ? <CheckCircle2 className="size-5 text-success" /> : null}
+                        {s.doneAt ? <CheckCircle2 className="size-6 text-success" /> : null}
                       </button>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-text">{s.name}</p>
@@ -801,9 +850,49 @@ export function OnSiteVisitPage() {
                         ) : null}
                       </div>
                       {!s.doneAt ? (
-                        <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeSopStep(s.id)}>
-                          <Trash2 className="size-3.5 text-danger" />
-                        </Button>
+                        pendingRemoveStepId === s.id ? (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={t("common.cancel")}
+                              onClick={() => {
+                                if (pendingRemoveStepTimeoutRef.current) clearTimeout(pendingRemoveStepTimeoutRef.current)
+                                setPendingRemoveStepId(null)
+                              }}
+                            >
+                              <X className="size-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon-sm"
+                              aria-label={t("common.remove")}
+                              onClick={() => {
+                                if (pendingRemoveStepTimeoutRef.current) clearTimeout(pendingRemoveStepTimeoutRef.current)
+                                removeSopStep(s.id)
+                                setPendingRemoveStepId(null)
+                              }}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("common.remove")}
+                            onClick={() => {
+                              setPendingRemoveStepId(s.id)
+                              if (pendingRemoveStepTimeoutRef.current) clearTimeout(pendingRemoveStepTimeoutRef.current)
+                              pendingRemoveStepTimeoutRef.current = setTimeout(() => setPendingRemoveStepId(null), 4000)
+                            }}
+                          >
+                            <Trash2 className="size-3.5 text-danger" />
+                          </Button>
+                        )
                       ) : null}
                     </div>
                   )
@@ -928,13 +1017,50 @@ export function OnSiteVisitPage() {
                 {evidenceImages.map((url, idx) => (
                   <div key={idx} className="relative">
                     <img src={url} alt="" className="aspect-square w-full rounded-lg border border-border object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => void removeEvidencePhoto(idx)}
-                      className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-danger text-white"
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
+                    {pendingRemoveEvidenceIndex === idx ? (
+                      <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-lg bg-bg/90">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-xs"
+                          aria-label={t("common.cancel")}
+                          onClick={() => {
+                            if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
+                            setPendingRemoveEvidenceIndex(null)
+                          }}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon-xs"
+                          aria-label={t("common.remove")}
+                          onClick={() => {
+                            if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
+                            void removeEvidencePhoto(idx)
+                            setPendingRemoveEvidenceIndex(null)
+                          }}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon-xs"
+                        aria-label={t("common.remove")}
+                        className="absolute top-1 right-1 rounded-full"
+                        onClick={() => {
+                          setPendingRemoveEvidenceIndex(idx)
+                          if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
+                          pendingRemoveEvidenceTimeoutRef.current = setTimeout(() => setPendingRemoveEvidenceIndex(null), 4000)
+                        }}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1013,17 +1139,17 @@ export function OnSiteVisitPage() {
 
       {currentKey === "payment" ? (
         <Card className="gap-3">
+          {!isOnline ? (
+            <p className="flex items-center gap-1.5 rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
+              <TriangleAlert className="size-4 shrink-0" /> {t("technician.onsite.otp.errors.offline")}
+            </p>
+          ) : null}
           <Label>{t("technician.onsite.payment.method")}</Label>
-          <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
+          <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
             {(["cash", "transfer"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setPaymentMethod(m)}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${paymentMethod === m ? "bg-ink text-white" : "text-text-muted"}`}
-              >
+              <SegButton key={m} active={paymentMethod === m} onClick={() => setPaymentMethod(m)}>
                 {t(`technician.onsite.payment.${m}`)}
-              </button>
+              </SegButton>
             ))}
           </div>
           {paymentMethod === "transfer" ? (
@@ -1088,23 +1214,37 @@ export function OnSiteVisitPage() {
             <p className="px-1 text-sm text-success">{t("technician.onsite.enquiry.sent")}</p>
           ) : (
             <div className="space-y-2.5 px-1">
-              <Input value={enquiryName} onChange={(e) => setEnquiryName(e.target.value)} placeholder={t("technician.onsite.enquiry.namePlaceholder")} />
-              <Input
-                type="tel"
-                value={enquiryMobile}
-                onChange={(e) => setEnquiryMobile(e.target.value)}
-                placeholder={t("technician.onsite.enquiry.mobilePlaceholder")}
-              />
-              <select
-                value={enquiryType}
-                onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type">)}
-                className="h-10 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
-              >
-                {(["online", "price", "quality", "customization", "water_premium", "budget"] as const).map((et) => (
-                  <option key={et} value={et}>{t(`technician.onsite.enquiry.type.${et}`)}</option>
-                ))}
-              </select>
-              <Input value={enquiryNote} onChange={(e) => setEnquiryNote(e.target.value)} placeholder={t("technician.onsite.enquiry.notePlaceholder")} />
+              <div className="space-y-1.5">
+                <Label htmlFor="enquiryName">{t("technician.onsite.enquiry.namePlaceholder")}</Label>
+                <Input id="enquiryName" value={enquiryName} onChange={(e) => setEnquiryName(e.target.value)} placeholder={t("technician.onsite.enquiry.namePlaceholder")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="enquiryMobile">{t("technician.onsite.enquiry.mobilePlaceholder")}</Label>
+                <Input
+                  id="enquiryMobile"
+                  type="tel"
+                  value={enquiryMobile}
+                  onChange={(e) => setEnquiryMobile(e.target.value)}
+                  placeholder={t("technician.onsite.enquiry.mobilePlaceholder")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="enquiryType">{t("leads.new.enquiryType")}</Label>
+                <select
+                  id="enquiryType"
+                  value={enquiryType}
+                  onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type">)}
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
+                >
+                  {(["online", "price", "quality", "customization", "water_premium", "budget"] as const).map((et) => (
+                    <option key={et} value={et}>{t(`technician.onsite.enquiry.type.${et}`)}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="enquiryNote">{t("technician.onsite.enquiry.notePlaceholder")}</Label>
+                <Input id="enquiryNote" value={enquiryNote} onChange={(e) => setEnquiryNote(e.target.value)} placeholder={t("technician.onsite.enquiry.notePlaceholder")} />
+              </div>
               {enquiryError ? <p className="text-xs text-danger">{t(enquiryError)}</p> : null}
               <Button type="button" variant="outline" onClick={handleSendEnquiry} disabled={generateEnquiry.isPending || !enquiryName.trim()}>
                 {generateEnquiry.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.enquiry.send")}
@@ -1114,7 +1254,7 @@ export function OnSiteVisitPage() {
         ) : null}
       </Card>
 
-      <div className="flex justify-between">
+      <div className="fixed inset-x-0 bottom-0 z-40 flex justify-between gap-3 border-t border-border bg-surface px-4 py-3 [padding-bottom:calc(env(safe-area-inset-bottom)+0.75rem)]">
         <Button type="button" variant="outline" onClick={() => (step === 0 ? navigate(-1) : setStep(step - 1))}>
           {step === 0 ? t("common.cancel") : t("common.back")}
         </Button>

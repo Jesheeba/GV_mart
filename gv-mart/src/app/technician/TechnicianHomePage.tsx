@@ -172,9 +172,12 @@ export function TechnicianHomePage() {
   const settings = useTechnicianSettings(profile?.org_id)
   const attendance = useTodayAttendance(technician.data?.id)
 
-  if (isLoading) return <FullPageLoader label={t("common.loading")} />
+  if (isLoading || technician.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
     return <FullPageError message={t("auth.profileLoadError")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
+  }
+  if (technician.isError) {
+    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => technician.refetch()} retryLabel={t("common.retry")} />
   }
 
   // Task 1 — a technician who hasn't checked in today (or has already checked

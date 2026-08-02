@@ -44,10 +44,18 @@ export async function logCall(input: { orgId: string; technicianId: string | nul
 
 // ── Profile / settings (read-through cached) ────────────────────────────
 
-export async function getMyTechnician(profileId: string) {
-  const { data, error } = await supabase.from("technicians").select("*").eq("profile_id", profileId).single()
-  if (error) throw error
-  return data
+export async function getMyTechnician(profileId: string): Promise<TechnicianRow> {
+  if (navigator.onLine) {
+    const { data, error } = await supabase.from("technicians").select("*").eq("profile_id", profileId).single()
+    if (!error && data) {
+      const row = data as unknown as TechnicianRow
+      await db.technicianCache.put({ profileId, data: row, updatedAt: Date.now() })
+      return row
+    }
+  }
+  const cached = await db.technicianCache.get(profileId)
+  if (cached) return cached.data as TechnicianRow
+  throw new Error("technician_unavailable_offline")
 }
 
 export async function getSettings(orgId: string): Promise<SettingsRow> {

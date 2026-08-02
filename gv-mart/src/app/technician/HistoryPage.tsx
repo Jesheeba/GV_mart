@@ -5,6 +5,7 @@ import { ChevronRight, History as HistoryIcon } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { SegButton } from "@/components/shared/SegButton"
 import { JobTypeBadge } from "./components/JobBadges"
 import { useMyTechnician, useMyHistory } from "@/hooks/useTechnician"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -40,23 +41,18 @@ export function HistoryPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="px-1 text-xs text-text-muted">{t("technician.history.from")}</label>
-            <DatePicker value={from} onChange={setFrom} />
+            <DatePicker value={from} onChange={setFrom} aria-label={t("technician.history.from")} />
           </div>
           <div className="space-y-1">
             <label className="px-1 text-xs text-text-muted">{t("technician.history.to")}</label>
-            <DatePicker value={to} onChange={setTo} />
+            <DatePicker value={to} onChange={setTo} aria-label={t("technician.history.to")} />
           </div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-[3px] rounded-full border border-border bg-surface-alt p-1">
           {TYPE_FILTERS.map((tf) => (
-            <button
-              key={tf}
-              type="button"
-              onClick={() => setType(tf)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${type === tf ? "bg-ink text-white" : "bg-surface-alt text-text-muted"}`}
-            >
+            <SegButton key={tf} active={type === tf} onClick={() => setType(tf)}>
               {tf === "all" ? t("technician.history.allTypes") : t(`service.type.${tf}`)}
-            </button>
+            </SegButton>
           ))}
         </div>
       </Card>

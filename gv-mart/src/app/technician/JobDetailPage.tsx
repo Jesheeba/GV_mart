@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigation, Phone, Route } from "lucide-react"
+import { ArrowLeft, CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigation, Phone, Route } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -89,7 +89,12 @@ export function JobDetailPage() {
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-text">{t("technician.jobDetail.title")}</h1>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="ghost" size="icon-sm" onClick={() => navigate(-1)} aria-label={t("common.back")}>
+            <ArrowLeft className="size-4" />
+          </Button>
+          <h1 className="text-xl font-bold text-text">{t("technician.jobDetail.title")}</h1>
+        </div>
         <div className="flex items-center gap-1.5">
           <JobTypeBadge type={ticket.type} />
           <PriorityBadge priority={ticket.priority} />
@@ -254,27 +259,32 @@ export function JobDetailPage() {
         </Card>
       ) : (
         <>
-          <Button type="button" variant="outline" onClick={() => navigate(`/technician/map?ticketId=${ticketId}`)}>
-            <Navigation className="size-4" />
-            {t("technician.jobDetail.navigate")}
-          </Button>
           {/* Task 4 — arrival confirmation is mandatory. If no visit has been
               started yet (openVisit null), a service_visits row can only be
-              created by MapPage's geofence-confirmed arrival flow, so route
-              there instead of straight to the checklist. Once a visit exists
-              (arrival already confirmed), resume it directly as before. */}
-          <Button
-            type="button"
-            onClick={() => navigate(openVisit ? `/technician/jobs/${ticketId}/visit` : `/technician/map?ticketId=${ticketId}`)}
-          >
-            {t("technician.jobDetail.startVisit")}
-            <ChevronRight className="size-4" />
-          </Button>
+              created by MapPage's geofence-confirmed arrival flow, so both
+              actions route there — collapsed into one CTA so its label
+              doesn't promise a checklist screen it can't actually open yet.
+              Once a visit exists (arrival already confirmed), split back
+              into a plain "Navigate" (map) and "Start Visit" (checklist). */}
+          {openVisit ? (
+            <>
+              <Button type="button" variant="outline" onClick={() => navigate(`/technician/map?ticketId=${ticketId}`)}>
+                <Navigation className="size-4" />
+                {t("technician.jobDetail.navigate")}
+              </Button>
+              <Button type="button" onClick={() => navigate(`/technician/jobs/${ticketId}/visit`)}>
+                {t("technician.jobDetail.startVisit")}
+                <ChevronRight className="size-4" />
+              </Button>
+            </>
+          ) : (
+            <Button type="button" onClick={() => navigate(`/technician/map?ticketId=${ticketId}`)}>
+              <Navigation className="size-4" />
+              {t("technician.jobDetail.navigateConfirmArrival")}
+            </Button>
+          )}
         </>
       )}
-      <Button type="button" variant="outline" onClick={() => navigate(-1)}>
-        {t("common.back")}
-      </Button>
     </div>
   )
 }

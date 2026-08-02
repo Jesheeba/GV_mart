@@ -32,6 +32,7 @@ export function SearchPage() {
           value={term}
           onChange={(e) => setTerm(e.target.value)}
           placeholder={t("technician.search.placeholder")}
+          aria-label={t("technician.search.title")}
           className="pl-10"
         />
       </div>

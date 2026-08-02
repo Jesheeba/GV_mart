@@ -1,6 +1,6 @@
 import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Camera, Loader2, RefreshCcw } from "lucide-react"
+import { Camera, Loader2, RefreshCcw, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { captureWatermarkedPhoto } from "@/lib/offline/capture"
 import { getCurrentPosition } from "@/lib/offline/geo"
@@ -26,9 +26,11 @@ export function PhotoCapture({
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleFile(file: File) {
     setBusy(true)
+    setError(null)
     try {
       let geo = null
       try {
@@ -38,6 +40,8 @@ export function PhotoCapture({
       }
       const { dataUrl: watermarked } = await captureWatermarkedPhoto(file, geo)
       onCaptured(watermarked)
+    } catch {
+      setError(t("technician.photo.error"))
     } finally {
       setBusy(false)
     }
@@ -53,6 +57,11 @@ export function PhotoCapture({
           <Camera className="size-8" />
         </div>
       )}
+      {error ? (
+        <p className="flex items-center gap-1.5 text-xs text-danger">
+          <TriangleAlert className="size-3.5 shrink-0" /> {error}
+        </p>
+      ) : null}
       <input
         ref={inputRef}
         type="file"

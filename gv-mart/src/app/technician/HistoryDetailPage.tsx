@@ -99,7 +99,7 @@ export function HistoryDetailPage() {
           <p className="px-1 text-sm font-semibold text-text">{t("technician.onsite.evidence.title")}</p>
           <div className="grid grid-cols-3 gap-2">
             {visit.evidence_photo_urls.map((url, i) => (
-              <img key={i} src={url} alt="" className="aspect-square w-full rounded-xl border border-border object-cover" />
+              <img key={i} src={url} alt={`${t("technician.onsite.evidence.title")} ${i + 1}`} className="aspect-square w-full rounded-xl border border-border object-cover" />
             ))}
           </div>
         </Card>

@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useLocation, useNavigate } from "react-router-dom"
-import { CheckCircle2, Loader2, Star } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Loader2, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
@@ -113,8 +114,15 @@ export function RatingPage() {
 
   return (
     <div className="space-y-4 pt-2">
-      <h1 className="text-xl font-bold text-text">{t("technician.rating.title")}</h1>
-      <p className="px-1 text-sm text-text-muted">{t("technician.rating.subtitle")}</p>
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="ghost" size="icon-sm" onClick={() => navigate(-1)} aria-label={t("common.back")}>
+          <ArrowLeft className="size-4" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold text-text">{t("technician.rating.title")}</h1>
+          <p className="text-sm text-text-muted">{t("technician.rating.subtitle")}</p>
+        </div>
+      </div>
 
       <Card className="items-center gap-4 py-6">
         <div className="flex gap-2">
@@ -128,14 +136,14 @@ export function RatingPage() {
       </Card>
 
       <Card className="gap-2">
-        <p className="px-1 text-sm font-semibold text-text">{t("technician.rating.reviewLabel")}</p>
-        <textarea value={review} onChange={(e) => setReview(e.target.value)} placeholder={t("technician.rating.reviewPlaceholder")} rows={3} className={textareaClass} />
+        <Label htmlFor="review" className="px-1 text-sm font-semibold text-text">{t("technician.rating.reviewLabel")}</Label>
+        <textarea id="review" value={review} onChange={(e) => setReview(e.target.value)} placeholder={t("technician.rating.reviewPlaceholder")} rows={3} className={textareaClass} />
       </Card>
 
       {stars > 0 && stars < 3 ? (
         <Card className="gap-2">
-          <p className="px-1 text-sm font-semibold text-text">{t("technician.rating.lowRatingReasonLabel")}</p>
-          <textarea value={lowRatingReason} onChange={(e) => setLowRatingReason(e.target.value)} placeholder={t("technician.rating.lowRatingReasonPlaceholder")} rows={3} className={textareaClass} />
+          <Label htmlFor="lowRatingReason" className="px-1 text-sm font-semibold text-text">{t("technician.rating.lowRatingReasonLabel")}</Label>
+          <textarea id="lowRatingReason" value={lowRatingReason} onChange={(e) => setLowRatingReason(e.target.value)} placeholder={t("technician.rating.lowRatingReasonPlaceholder")} rows={3} className={textareaClass} />
           <p className="px-1 text-xs text-text-muted">{t("technician.rating.lowRatingNotice")}</p>
         </Card>
       ) : null}

@@ -104,6 +104,13 @@ export interface CachedSettings {
   updatedAt: number
 }
 
+/** Local mirror of the signed-in technician's own `technicians` row, keyed by profile id — same read-through-cache shape as CachedSettings, so a cold app load while offline (phone restart, killed PWA) resolves to the last-known row instead of a hard failure. */
+export interface CachedTechnician {
+  profileId: string
+  data: unknown
+  updatedAt: number
+}
+
 /**
  * On-device draft of the TECH-07 on-site stepper's own form state — SOP
  * checklist items, spares picked, charges/discount typed, RO checklist
@@ -131,6 +138,7 @@ const db = new Dexie("gv_mart_technician") as Dexie & {
   media: EntityTable<CachedMedia, "id">
   settingsCache: EntityTable<CachedSettings, "orgId">
   visitFormDrafts: EntityTable<VisitFormDraft, "ticketId">
+  technicianCache: EntityTable<CachedTechnician, "profileId">
 }
 
 db.version(1).stores({
@@ -158,6 +166,13 @@ db.version(2).stores({
 // or tables are touched.
 db.version(3).stores({
   outbox: "++id, kind, status, createdAt, nextRetryAt",
+})
+
+// v4 adds technicianCache — read-through cache for getMyTechnician (own
+// technician row), same shape/purpose as settingsCache above. Purely
+// additive new table; nothing else changes.
+db.version(4).stores({
+  technicianCache: "profileId",
 })
 
 export { db }

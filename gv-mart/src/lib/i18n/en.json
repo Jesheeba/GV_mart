@@ -107,6 +107,8 @@
     "searchPlaceholder": "Search customers, tickets, invoices…",
     "searchEmpty": "No matches found",
     "notifications": "Notifications",
+    "switchToDarkMode": "Switch to dark mode",
+    "switchToLightMode": "Switch to light mode",
     "signOut": "Sign out",
     "comingSoonTitle": "{{module}} is coming soon",
     "comingSoonBody": "This module is scheduled for a later build phase. The route, navigation, and role access are already wired.",
@@ -1745,12 +1747,21 @@
     },
     "photo": {
       "capture": "Capture",
-      "retake": "Retake photo"
+      "retake": "Retake photo",
+      "error": "Couldn't process that photo. Please try again."
     },
     "signature": {
       "placeholder": "Sign here",
       "captured": "Signature captured",
-      "clear": "Clear"
+      "clear": "Clear",
+      "canvasLabel": "Signature drawing area. Draw with finger or stylus, or use \"Type instead\" below.",
+      "typeInstead": "Type instead",
+      "typedPlaceholder": "Type full name to sign",
+      "typedApply": "Use as signature",
+      "clearConfirmTitle": "Clear this signature?",
+      "clearConfirmBody": "This will discard the signature that was just captured. This can't be undone.",
+      "clearConfirmCancel": "Keep it",
+      "clearConfirmAction": "Clear signature"
     },
     "voiceNote": {
       "label": "Voice note",
@@ -1777,7 +1788,8 @@
       "jobKind": {
         "attendance": {
           "mark": "Attendance check-in",
-          "lunch": "Lunch break update"
+          "lunch": "Lunch break update",
+          "checkout": "Attendance check-out"
         },
         "spare_handover": {
           "confirm": "Spare handover confirmation"
@@ -1797,13 +1809,17 @@
           "create": "Invoice creation"
         },
         "rating": {
-          "submit": "Customer rating"
+          "submit": "Customer rating",
+          "mark_review_clicked": "Review link click"
         },
         "lead": {
           "generate": "Lead creation"
         },
         "location": {
           "ping": "Location update"
+        },
+        "amc": {
+          "sell_onsite": "AMC sale"
         }
       }
     },
@@ -1927,6 +1943,7 @@
       "historySparesLabel": "Parts changed",
       "historyVoiceNoteLabel": "Previous voice note",
       "navigate": "Navigate",
+      "navigateConfirmArrival": "Navigate & confirm arrival",
       "startVisit": "Start visit",
       "closedTitle": "This job is already closed",
       "overrunBadge": "{{count}} min over estimate",

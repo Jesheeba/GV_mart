@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Bell, Home, MapPin, CalendarCheck, History, User, UserX } from "lucide-react"
+import { Bell, Home, MapPin, CalendarCheck, History, Moon, Sun, User, UserX } from "lucide-react"
 import { BottomTabBar, type BottomTab } from "@/components/shared/BottomTabBar"
 import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { UserMenu } from "@/components/shared/UserMenu"
@@ -13,12 +13,14 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { SyncStatusChip } from "./components/SyncStatusChip"
 import { startSyncEngine, stopSyncEngine } from "@/lib/offline/sync"
 import { signOut } from "@/services/auth"
+import { useTheme } from "@/lib/theme/ThemeProvider"
 
 export function TechnicianShell() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: profile, isLoading, isError, refetch } = useProfile()
   const { data: unreadCount } = useUnreadNotificationCount(profile?.org_id, profile?.id, profile?.role)
+  const { theme, toggleTheme } = useTheme()
 
   // Starts the offline outbox flush loop once for the whole technician app
   // (DoD: "Full job lifecycle works offline and syncs") — idempotent, safe
@@ -79,6 +81,14 @@ export function TechnicianShell() {
         </div>
         <div className="flex items-center gap-2">
           <SyncStatusChip />
+          <button
+            type="button"
+            aria-label={theme === "dark" ? t("shell.switchToLightMode") : t("shell.switchToDarkMode")}
+            onClick={toggleTheme}
+            className="flex size-9 items-center justify-center rounded-full bg-surface text-text-muted hover:bg-surface-alt hover:text-text"
+          >
+            {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </button>
           <button
             type="button"
             aria-label={t("shell.notifications")}

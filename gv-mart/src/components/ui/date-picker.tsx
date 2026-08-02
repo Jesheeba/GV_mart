@@ -36,6 +36,7 @@ export function DatePicker({
   disabled,
   className,
   "aria-invalid": ariaInvalid,
+  "aria-label": ariaLabel,
 }: {
   id?: string
   value: string
@@ -46,6 +47,7 @@ export function DatePicker({
   disabled?: boolean
   className?: string
   "aria-invalid"?: boolean
+  "aria-label"?: string
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -58,6 +60,7 @@ export function DatePicker({
         type="button"
         disabled={disabled}
         aria-invalid={ariaInvalid}
+        aria-label={ariaLabel}
         className={cn(
           "flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 text-left text-sm text-text outline-none transition-colors hover:bg-surface-alt/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger",
           className
