@@ -69,7 +69,7 @@ export function LeadsPage() {
         <select
           value={source}
           onChange={(e) => setSource(e.target.value as Enums<"lead_source"> | "")}
-          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
         >
           <option value="">{t("leads.filters.allSources")}</option>
           {SOURCE_OPTIONS.map((s) => (
@@ -81,7 +81,7 @@ export function LeadsPage() {
         <select
           value={enquiryType}
           onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type"> | "")}
-          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
         >
           <option value="">{t("leads.filters.allTopics")}</option>
           {TOPIC_OPTIONS.map((et) => (
@@ -93,7 +93,7 @@ export function LeadsPage() {
         <select
           value={kind}
           onChange={(e) => setKind(e.target.value as Enums<"lead_kind"> | "")}
-          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
         >
           <option value="">{t("leads.filters.allKinds")}</option>
           {KIND_OPTIONS.map((k) => (

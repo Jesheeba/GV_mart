@@ -4,7 +4,7 @@ import { Bell, CheckCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
-import { useAllMyNotifications, useMarkAllNotificationsRead, useMarkNotificationRead } from "@/hooks/useSystemPages"
+import { useAllMyNotifications, useMarkAllNotificationsRead, useMarkNotificationRead, useMyNotificationTypes } from "@/hooks/useSystemPages"
 import { cn } from "@/lib/utils"
 
 export function NotificationsPage() {
@@ -18,7 +18,7 @@ export function NotificationsPage() {
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
 
-  const typeOptions = useMemo(() => [...new Set((data ?? []).map((n) => n.type))], [data])
+  const { data: typeOptions } = useMyNotificationTypes(profile?.org_id, profile?.id, profile?.role)
   const unreadIds = useMemo(() => (data ?? []).filter((n) => !n.is_read).map((n) => n.id), [data])
 
   return (
@@ -39,7 +39,7 @@ export function NotificationsPage() {
           <label className="block text-xs font-medium text-text-muted">{t("notifications.filters.type")}</label>
           <select value={type} onChange={(e) => setType(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("notifications.filters.all")}</option>
-            {typeOptions.map((tOpt) => (
+            {(typeOptions ?? []).map((tOpt) => (
               <option key={tOpt} value={tOpt}>
                 {t(`notifications.types.${tOpt}`, { defaultValue: tOpt })}
               </option>

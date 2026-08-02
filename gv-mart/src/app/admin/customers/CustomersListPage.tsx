@@ -5,7 +5,7 @@ import { Download, Plus, Search, SlidersHorizontal, UserPlus, X } from "lucide-r
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
-import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
+import { StatusDot } from "@/components/shared/StatusDot"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { useProfile } from "@/hooks/useProfile"
 import {
@@ -16,18 +16,33 @@ import {
 } from "@/hooks/useCustomers"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { avatarPalette, initials } from "@/lib/avatar"
+import { AMC_STATUS_TONE } from "@/lib/amc-status"
 import { cn } from "@/lib/utils"
-import type { CustomerListItem } from "@/services/customers"
+import { getCustomerListEnrichment, listCustomers } from "@/services/customers"
+import type { CustomerListItem, CustomerRowEnrichment } from "@/services/customers"
 import type { Enums } from "@/types/database"
-
-const AMC_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
 
 type QuickFilter = "all" | "hasAmc" | "amcDueSoon" | "dormant"
 
-function toCsv(rows: CustomerListItem[], header: string[]) {
+function toCsv(
+  rows: CustomerListItem[],
+  header: string[],
+  enrichment: Map<string, CustomerRowEnrichment> | undefined,
+  amcStatusLabel: (status: string) => string
+) {
   const lines = rows.map((r) => {
     const primary = r.addresses.find((a) => a.is_primary) ?? r.addresses[0]
-    return [r.name, r.mobile, r.profession ?? "", primary?.area ?? "", primary?.pincode ?? "", String(r.member_count[0]?.count ?? 1)]
+    const info = enrichment?.get(r.id)
+    return [
+      r.name,
+      r.mobile,
+      r.profession ?? "",
+      primary?.area ?? "",
+      primary?.pincode ?? "",
+      String(r.member_count[0]?.count ?? 1),
+      info?.amcStatus ? amcStatusLabel(info.amcStatus) : "",
+      fmtDate(info?.lastServiceAt),
+    ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(",")
   })
@@ -69,6 +84,7 @@ export function CustomersListPage() {
   const [pincode, setPincode] = useState("")
   const [hasWarranty, setHasWarranty] = useState(false)
   const [page, setPage] = useState(1)
+  const [isExporting, setIsExporting] = useState(false)
 
   const filters = useMemo(
     () => ({
@@ -105,23 +121,42 @@ export function CustomersListPage() {
     setPage(1)
   }
 
-  function exportCsv() {
-    if (!data?.rows.length) return
-    const header = [
-      t("customers.export.name"),
-      t("customers.export.mobile"),
-      t("customers.export.profession"),
-      t("customers.export.area"),
-      t("customers.export.pincode"),
-      t("customers.export.members"),
-    ]
-    const blob = new Blob([toCsv(data.rows, header)], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `gv-mart-customers-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  async function exportCsv() {
+    if (!orgId || !data?.count) return
+    setIsExporting(true)
+    try {
+      const pageSize = data.pageSize ?? 20
+      const pageCount = Math.max(1, Math.ceil(data.count / pageSize))
+      const pages = await Promise.all(
+        Array.from({ length: pageCount }, (_, i) => listCustomers(orgId, filters, i + 1))
+      )
+      const rows = pages.flatMap((p) => p.rows)
+      const enrichmentMap = await getCustomerListEnrichment(
+        orgId,
+        rows.map((r) => r.id)
+      )
+      const header = [
+        t("customers.export.name"),
+        t("customers.export.mobile"),
+        t("customers.export.profession"),
+        t("customers.export.area"),
+        t("customers.export.pincode"),
+        t("customers.export.members"),
+        t("customers.table.amc"),
+        t("customers.table.lastService"),
+      ]
+      const blob = new Blob([toCsv(rows, header, enrichmentMap, (status) => t(`amc.status.${status}`))], {
+        type: "text/csv;charset=utf-8;",
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `gv-mart-customers-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const columns: DataTableColumn<CustomerListItem>[] = [
@@ -189,9 +224,9 @@ export function CustomersListPage() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <Button variant="outline" className="border-[#DAD5CC]" onClick={exportCsv} disabled={!data?.rows.length}>
+          <Button variant="outline" className="border-[#DAD5CC]" onClick={exportCsv} disabled={!data?.rows.length || isExporting}>
             <Download className="size-4" />
-            {t("customers.exportButton")}
+            {isExporting ? t("common.loading") : t("customers.exportButton")}
           </Button>
           <Button onClick={() => navigate("/admin/customers/new")} className="shadow-[0_10px_20px_-12px_rgba(26,26,26,0.6)]">
             <Plus className="size-4" />

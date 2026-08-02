@@ -1,9 +1,14 @@
 import { useTranslation } from "react-i18next"
 import { Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { SegButton } from "@/components/shared/SegButton"
+import { cn } from "@/lib/utils"
 import type { PeriodMode, PeriodValue } from "@/services/reports"
 import { DateRangeFilter } from "./DateRangeFilter"
+
+const SELECT_CLASS =
+  "h-10 w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-1 text-sm text-text transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-50"
 
 const MODES: PeriodMode[] = ["month", "year", "range"]
 
@@ -51,11 +56,11 @@ export function PeriodFilter({
           {value.mode === "month" ? (
             <div className="space-y-1">
               <label className="block text-xs font-medium text-text-muted">{t("reports.filters.mode.month")}</label>
-              <input
+              <Input
                 type="month"
                 value={value.month}
                 onChange={(e) => onChange({ mode: "month", month: e.target.value })}
-                className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                className="h-9 w-auto"
               />
             </div>
           ) : null}
@@ -66,7 +71,7 @@ export function PeriodFilter({
               <select
                 value={value.year}
                 onChange={(e) => onChange({ mode: "year", year: Number(e.target.value) })}
-                className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                className={cn(SELECT_CLASS, "h-9 w-auto")}
               >
                 {years.map((y) => (
                   <option key={y} value={y}>

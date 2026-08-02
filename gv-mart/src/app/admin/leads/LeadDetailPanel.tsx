@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { FileText, Loader2, Search, X } from "lucide-react"
@@ -30,6 +30,9 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
 
   const [activityType, setActivityType] = useState<(typeof ACTIVITY_TYPES)[number]>("call")
   const [note, setNote] = useState("")
+
+  const [displayStatus, setDisplayStatus] = useState<LeadStatus>(lead.status)
+  useEffect(() => setDisplayStatus(lead.status), [lead.id, lead.status])
 
   const [showReferral, setShowReferral] = useState(false)
   const [referrerSearch, setReferrerSearch] = useState("")
@@ -76,9 +79,9 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
           <Button
             key={s}
             size="sm"
-            variant={lead.status === s ? "accent" : "outline"}
+            variant={displayStatus === s ? "accent" : "outline"}
             disabled={updateStatus.isPending}
-            onClick={() => updateStatus.mutate({ leadId: lead.id, status: s })}
+            onClick={() => updateStatus.mutate({ leadId: lead.id, status: s }, { onSuccess: () => setDisplayStatus(s) })}
           >
             {t(`leads.status.${s}`)}
           </Button>
@@ -143,28 +146,36 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
           </div>
           {showReferral ? (
             <div className="space-y-2">
-              <Autocomplete
-                value={referrerId ? referrerLabel : referrerSearch}
-                onChange={(v) => {
-                  setReferrerSearch(v)
-                  setReferrerId("")
-                }}
-                suggestions={referrerAutocomplete.data ?? []}
-                loading={referrerAutocomplete.isFetching}
-                icon={<Search className="size-4" />}
-                emptyMessage={t("common.noData")}
-                getKey={(c) => c.id}
-                getLabel={(c) => (
-                  <span>
-                    <span className="font-medium">{c.name}</span> <span className="text-text-muted">{c.mobile}</span>
-                  </span>
-                )}
-                onSelect={(c) => {
-                  setReferrerId(c.id)
-                  setReferrerLabel(`${c.name} · ${c.mobile}`)
-                }}
-              />
-              <Input type="number" min={1} step="1" value={points} onChange={(e) => setPoints(e.target.value)} />
+              <div className="space-y-1.5">
+                <Label htmlFor="referral-referrer">{t("leads.detail.referrerSearchLabel")}</Label>
+                <Autocomplete
+                  id="referral-referrer"
+                  value={referrerId ? referrerLabel : referrerSearch}
+                  onChange={(v) => {
+                    setReferrerSearch(v)
+                    setReferrerId("")
+                  }}
+                  suggestions={referrerAutocomplete.data ?? []}
+                  loading={referrerAutocomplete.isFetching}
+                  placeholder={t("leads.detail.referrerSearchPlaceholder")}
+                  icon={<Search className="size-4" />}
+                  emptyMessage={t("common.noData")}
+                  getKey={(c) => c.id}
+                  getLabel={(c) => (
+                    <span>
+                      <span className="font-medium">{c.name}</span> <span className="text-text-muted">{c.mobile}</span>
+                    </span>
+                  )}
+                  onSelect={(c) => {
+                    setReferrerId(c.id)
+                    setReferrerLabel(`${c.name} · ${c.mobile}`)
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="referral-points">{t("leads.detail.pointsLabel")}</Label>
+                <Input id="referral-points" type="number" min={1} step="1" value={points} onChange={(e) => setPoints(e.target.value)} />
+              </div>
               <div className="flex justify-end">
                 <Button
                   size="sm"

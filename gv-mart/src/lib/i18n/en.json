@@ -280,6 +280,8 @@
       "remove": "Remove",
       "moveOut": "Move out to new customer",
       "confirm": "Confirm",
+      "confirmRemove": "Remove member?",
+      "confirmMoveOut": "Move out to a new customer?",
       "serviceHistoryTitle": "Service history",
       "timeline": {
         "amcSold": "AMC sold — {{plan}}",
@@ -2222,7 +2224,10 @@
       "noActivity": "No activity logged yet.",
       "referralPoints": "Referral points",
       "awardPoints": "Award points",
-      "referralReason": "Referral: {{name}} converted"
+      "referralReason": "Referral: {{name}} converted",
+      "referrerSearchLabel": "Referrer",
+      "referrerSearchPlaceholder": "Search customer by name or mobile…",
+      "pointsLabel": "Points"
     }
   },
   "automation": {
@@ -2793,6 +2798,8 @@
     "empty": "Nothing pending approval.",
     "approve": "Approve",
     "reject": "Reject",
+    "confirmApprove": "Approve this request?",
+    "confirmReject": "Reject this request?",
     "requestedBy": "Requested by",
     "decidedBy": "Decided by",
     "filters": {

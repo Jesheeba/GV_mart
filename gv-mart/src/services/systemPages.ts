@@ -37,6 +37,17 @@ export async function listAllMyNotifications(
   return merged
 }
 
+/** Unfiltered distinct notification types for the type-filter dropdown, so picking a type doesn't collapse the option list to just that type. */
+export async function listMyNotificationTypes(orgId: string, userId: string, role: Enums<"user_role">): Promise<string[]> {
+  const [ownRes, roleRes] = await Promise.all([
+    supabase.from("notifications").select("type").eq("org_id", orgId).eq("user_id", userId).limit(1000),
+    supabase.from("notifications").select("type").eq("org_id", orgId).eq("role", role).limit(1000),
+  ])
+  if (ownRes.error) throw ownRes.error
+  if (roleRes.error) throw roleRes.error
+  return [...new Set([...(ownRes.data ?? []), ...(roleRes.data ?? [])].map((r) => r.type))].sort()
+}
+
 /**
  * Lightweight unread count for the header bell badge — row-count only (no
  * data fetched). Notifications previously only surfaced on navigating to

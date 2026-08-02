@@ -280,6 +280,8 @@
       "remove": "நீக்கு",
       "moveOut": "புதிய வாடிக்கையாளராக நகர்த்து",
       "confirm": "உறுதிப்படுத்து",
+      "confirmRemove": "உறுப்பினரை நீக்கவா?",
+      "confirmMoveOut": "புதிய வாடிக்கையாளராக நகர்த்தவா?",
       "serviceHistoryTitle": "சேவை வரலாறு",
       "timeline": {
         "amcSold": "AMC விற்பனை — {{plan}}",
@@ -2222,7 +2224,10 @@
       "noActivity": "இதுவரை செயல்பாடு பதிவு செய்யப்படவில்லை.",
       "referralPoints": "பரிந்துரை புள்ளிகள்",
       "awardPoints": "புள்ளிகள் வழங்கு",
-      "referralReason": "பரிந்துரை: {{name}} மாற்றப்பட்டது"
+      "referralReason": "பரிந்துரை: {{name}} மாற்றப்பட்டது",
+      "referrerSearchLabel": "பரிந்துரையாளர்",
+      "referrerSearchPlaceholder": "பெயர் அல்லது மொபைல் மூலம் வாடிக்கையாளரைத் தேடவும்…",
+      "pointsLabel": "புள்ளிகள்"
     }
   },
   "automation": {
@@ -2793,6 +2798,8 @@
     "empty": "ஒப்புதலுக்கு நிலுவையில் எதுவும் இல்லை.",
     "approve": "ஒப்புதல்",
     "reject": "நிராகரி",
+    "confirmApprove": "இந்த கோரிக்கையை ஒப்புதல் அளிக்கவா?",
+    "confirmReject": "இந்த கோரிக்கையை நிராகரிக்கவா?",
     "requestedBy": "கோரியவர்",
     "decidedBy": "முடிவு செய்தவர்",
     "filters": {

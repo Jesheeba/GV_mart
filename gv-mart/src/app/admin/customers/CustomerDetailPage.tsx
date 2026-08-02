@@ -198,7 +198,7 @@ export function CustomerDetailPage() {
               return (
                 <div key={`${entry.kind}-${entry.id}`} className="flex gap-3.25">
                   <div className="flex flex-col items-center">
-                    <span className={cn("size-2.75 shrink-0 rounded-full", dotOn ? "border-2.5 border-success/20 bg-success" : "bg-[#C9C4BA]")} />
+                    <span className={cn("size-2.75 shrink-0 rounded-full", dotOn ? "border-2.5 border-success/20 bg-success" : "bg-border")} />
                     {i < arr.length - 1 ? <span className="w-0.5 flex-1 bg-border" /> : null}
                   </div>
                   <div className={cn("min-w-0", i < arr.length - 1 && "pb-4.5")}>
@@ -272,7 +272,7 @@ export function CustomerDetailPage() {
 
           <div className="flex flex-wrap gap-2.25 border-t border-border px-1 pt-4">
             <Button onClick={() => navigate("/admin/sales/new")}>{t("customers.detail.actions.newSale")}</Button>
-            <Button variant="outline" className="border-[#DAD5CC]" onClick={() => navigate(`/admin/service/new?customerId=${customer.id}`)}>
+            <Button variant="outline" onClick={() => navigate(`/admin/service/new?customerId=${customer.id}`)}>
               {t("customers.detail.actions.newTicket")}
             </Button>
             <Button variant="ghost" className="bg-accent-soft text-accent hover:bg-accent-soft/80" onClick={() => navigate("/admin/amc")}>
@@ -349,7 +349,7 @@ export function CustomerDetailPage() {
               <EmptyTab icon={ReceiptText} label={t("customers.detail.emptyTabs.invoices")} />
             ) : (
               (invoices.data ?? []).map((inv, i, arr) => (
-                <div key={inv.id} className={cn("grid grid-cols-[1fr_2fr_1fr_1fr] items-center px-5.5 py-3.25", i < arr.length - 1 && "border-b border-[#F1EDE6]")}>
+                <div key={inv.id} className={cn("grid grid-cols-[1fr_2fr_1fr_1fr] items-center px-5.5 py-3.25", i < arr.length - 1 && "border-b border-border")}>
                   <span className="gv-tnum text-xs font-bold text-text">#{inv.id.slice(0, 8).toUpperCase()}</span>
                   <span className="truncate pr-2 text-sm font-medium text-[#3A3A36]">{inv.itemsLabel}</span>
                   <span className="gv-tnum text-sm font-bold text-text">{formatCurrency(inv.total)}</span>

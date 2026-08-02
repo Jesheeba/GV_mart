@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,7 @@ export function ApprovalRow({
 }) {
   const { t } = useTranslation()
   const ref = useResolveApprovalRef(approval.type, approval.ref_id)
+  const [confirming, setConfirming] = useState<"approve" | "reject" | null>(null)
 
   return (
     <Card size="sm" className="flex-row flex-wrap items-center justify-between gap-3">
@@ -36,15 +38,49 @@ export function ApprovalRow({
         </p>
       </div>
       {approval.status === "pending" ? (
-        <div className="flex shrink-0 gap-2">
-          <Button type="button" size="sm" variant="outline" disabled={isMutating} onClick={onReject}>
-            <X className="size-3.5 text-danger" />
-            {t("approvals.reject")}
-          </Button>
-          <Button type="button" size="sm" disabled={isMutating} onClick={onApprove}>
-            <Check className="size-3.5" />
-            {t("approvals.approve")}
-          </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {confirming ? (
+            <>
+              <span className="text-xs text-text-muted">{t(`approvals.confirm${confirming === "approve" ? "Approve" : "Reject"}`)}</span>
+              <Button type="button" size="sm" variant="outline" disabled={isMutating} onClick={() => setConfirming(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={confirming === "reject" ? "destructive" : "default"}
+                disabled={isMutating}
+                onClick={() => {
+                  setConfirming(null)
+                  if (confirming === "reject") onReject()
+                  else onApprove()
+                }}
+              >
+                {confirming === "reject" ? (
+                  <>
+                    <X className="size-3.5" />
+                    {t("approvals.reject")}
+                  </>
+                ) : (
+                  <>
+                    <Check className="size-3.5" />
+                    {t("approvals.approve")}
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button type="button" size="sm" variant="outline" disabled={isMutating} onClick={() => setConfirming("reject")}>
+                <X className="size-3.5 text-danger" />
+                {t("approvals.reject")}
+              </Button>
+              <Button type="button" size="sm" disabled={isMutating} onClick={() => setConfirming("approve")}>
+                <Check className="size-3.5" />
+                {t("approvals.approve")}
+              </Button>
+            </>
+          )}
         </div>
       ) : null}
     </Card>

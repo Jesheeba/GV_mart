@@ -126,12 +126,13 @@ export function ExemptionWindowsPanel({
         <div className="space-y-2 border-t border-border px-1 pt-3.5">
           <div className="flex gap-2">
             <div className="flex-1 space-y-1">
-              <Label>{t("customers.detail.exemptionsPanel.label")}</Label>
-              <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("customers.detail.exemptionsPanel.labelPlaceholder")} />
+              <Label htmlFor="exemption-window-label">{t("customers.detail.exemptionsPanel.label")}</Label>
+              <Input id="exemption-window-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("customers.detail.exemptionsPanel.labelPlaceholder")} />
             </div>
             <div className="flex-1 space-y-1">
-              <Label>{t("customers.detail.exemptionsPanel.dayOfWeek")}</Label>
+              <Label htmlFor="exemption-window-day">{t("customers.detail.exemptionsPanel.dayOfWeek")}</Label>
               <select
+                id="exemption-window-day"
                 value={dayOfWeek}
                 onChange={(e) => setDayOfWeek(e.target.value)}
                 className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
@@ -147,12 +148,12 @@ export function ExemptionWindowsPanel({
           </div>
           <div className="flex gap-2">
             <div className="flex-1 space-y-1">
-              <Label>{t("customers.detail.exemptionsPanel.startTime")}</Label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              <Label htmlFor="exemption-window-start">{t("customers.detail.exemptionsPanel.startTime")}</Label>
+              <Input id="exemption-window-start" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </div>
             <div className="flex-1 space-y-1">
-              <Label>{t("customers.detail.exemptionsPanel.endTime")}</Label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              <Label htmlFor="exemption-window-end">{t("customers.detail.exemptionsPanel.endTime")}</Label>
+              <Input id="exemption-window-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
             </div>
           </div>
           {formError ? <p className="text-xs text-danger">{formError}</p> : null}

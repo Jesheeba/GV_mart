@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -31,6 +31,16 @@ export function FamilyMembersPanel({
   const [showAddForm, setShowAddForm] = useState(false)
   const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null)
   const [confirmingMoveOut, setConfirmingMoveOut] = useState<string | null>(null)
+  const removeConfirmRef = useRef<HTMLButtonElement>(null)
+  const moveOutConfirmRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (confirmingRemove) removeConfirmRef.current?.focus()
+  }, [confirmingRemove])
+
+  useEffect(() => {
+    if (confirmingMoveOut) moveOutConfirmRef.current?.focus()
+  }, [confirmingMoveOut])
 
   const addMember = useAddMember(orgId, customerId)
   const removeMember = useRemoveMember(customerId)
@@ -123,7 +133,9 @@ export function FamilyMembersPanel({
                   )}
                   {confirmingMoveOut === member.id && (
                     <span className="flex items-center gap-1.5">
+                      <span className="text-text-muted">{t("customers.detail.confirmMoveOut")}</span>
                       <button
+                        ref={moveOutConfirmRef}
                         type="button"
                         className="font-semibold text-danger hover:underline"
                         disabled={moveOut.isPending}
@@ -155,7 +167,9 @@ export function FamilyMembersPanel({
                   )}
                   {confirmingRemove === member.id && (
                     <span className="flex items-center gap-1.5">
+                      <span className="text-text-muted">{t("customers.detail.confirmRemove")}</span>
                       <button
+                        ref={removeConfirmRef}
                         type="button"
                         className="font-semibold text-danger hover:underline"
                         disabled={removeMember.isPending}

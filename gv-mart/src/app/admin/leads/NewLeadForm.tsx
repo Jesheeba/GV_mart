@@ -48,17 +48,17 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label>{t("leads.new.name")}</Label>
-          <Input {...form.register("name")} />
+          <Label htmlFor="lead-name">{t("leads.new.name")}</Label>
+          <Input id="lead-name" {...form.register("name")} />
           {form.formState.errors.name ? <p className="text-xs text-danger">{t(form.formState.errors.name.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
-          <Label>{t("leads.new.mobile")}</Label>
-          <Input {...form.register("mobile")} />
+          <Label htmlFor="lead-mobile">{t("leads.new.mobile")}</Label>
+          <Input id="lead-mobile" {...form.register("mobile")} />
         </div>
         <div className="space-y-1.5">
-          <Label>{t("leads.new.source")}</Label>
-          <select {...form.register("source")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <Label htmlFor="lead-source">{t("leads.new.source")}</Label>
+          <select id="lead-source" {...form.register("source")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             {SOURCES.map((s) => (
               <option key={s} value={s}>
                 {t(`leads.source.${s}`)}
@@ -67,8 +67,8 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label>{t("leads.new.enquiryType")}</Label>
-          <select {...form.register("enquiryType")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <Label htmlFor="lead-enquiry-type">{t("leads.new.enquiryType")}</Label>
+          <select id="lead-enquiry-type" {...form.register("enquiryType")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("service.filters.all")}</option>
             {ENQUIRY_TYPES.map((e) => (
               <option key={e} value={e}>
@@ -78,8 +78,8 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label>{t("leads.new.kind")}</Label>
-          <select {...form.register("kind")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
+          <select id="lead-kind" {...form.register("kind")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("service.filters.all")}</option>
             {KINDS.map((k) => (
               <option key={k} value={k}>

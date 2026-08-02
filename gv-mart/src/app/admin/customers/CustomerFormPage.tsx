@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
+import { SegButton } from "@/components/shared/SegButton"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -61,6 +62,7 @@ function MemberFieldRow({
   const { t } = useTranslation()
   const mobile = watch(`members.${index}.mobile`)
   const dup = useMobileDuplicateCheck(orgId, mobile)
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
   void control
 
   return (
@@ -81,20 +83,10 @@ function MemberFieldRow({
             <p className="text-xs text-warning">{t("customers.form.duplicateWarning", { name: dup.data.name })}</p>
           ) : null}
         </div>
-        <div className="flex items-center gap-1 pt-1">
-          <Button type="button" size="icon-xs" variant={isPrimary ? "accent" : "ghost"} title={t("customers.detail.setPrimary")} onClick={onSetPrimary}>
-            <Star className={isPrimary ? "size-3.5 fill-current" : "size-3.5"} />
-          </Button>
-          {canRemove ? (
-            <Button type="button" size="icon-xs" variant="ghost" title={t("customers.detail.remove")} onClick={onRemove}>
-              <Trash2 className="size-3.5 text-danger" />
-            </Button>
-          ) : null}
-        </div>
       </div>
-      {/* Primary member IS the customer — relation-to-household doesn't apply to them. */}
-      {!isPrimary ? (
-        <div className="mt-2 space-y-1">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        {/* Primary member IS the customer — relation-to-household doesn't apply to them. */}
+        {!isPrimary ? (
           <select
             aria-label={t("customers.form.memberRelation")}
             defaultValue=""
@@ -108,8 +100,47 @@ function MemberFieldRow({
               </option>
             ))}
           </select>
+        ) : (
+          <span className="flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">
+            <Star className="size-2.5 fill-current" />
+            {t("customers.detail.primary")}
+          </span>
+        )}
+        <div className="flex items-center gap-x-2.5 text-xs">
+          {!isPrimary ? (
+            <button type="button" className="font-semibold text-text-muted hover:text-text" onClick={onSetPrimary}>
+              {t("customers.detail.setPrimary")}
+            </button>
+          ) : null}
+          {canRemove && !confirmingRemove ? (
+            <button
+              type="button"
+              className="flex items-center gap-1 font-semibold text-danger hover:underline"
+              title={t("customers.detail.remove")}
+              onClick={() => setConfirmingRemove(true)}
+            >
+              <Trash2 className="size-3" />
+            </button>
+          ) : null}
+          {canRemove && confirmingRemove ? (
+            <span className="flex items-center gap-1.5">
+              <button
+                type="button"
+                className="font-semibold text-danger hover:underline"
+                onClick={() => {
+                  onRemove()
+                  setConfirmingRemove(false)
+                }}
+              >
+                {t("customers.detail.confirm")}
+              </button>
+              <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingRemove(false)}>
+                {t("common.cancel")}
+              </button>
+            </span>
+          ) : null}
         </div>
-      ) : null}
+      </div>
     </div>
   )
 }
@@ -492,16 +523,9 @@ export function CustomerFormPage() {
               <Label>{t("customers.form.addressType")}</Label>
               <div className="flex gap-1 rounded-full bg-surface-alt p-1">
                 {(["residential", "commercial"] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => addressForm.setValue("addressType", v)}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                      addressForm.watch("addressType") === v ? "bg-ink text-white" : "text-text-muted"
-                    }`}
-                  >
+                  <SegButton key={v} active={addressForm.watch("addressType") === v} onClick={() => addressForm.setValue("addressType", v)}>
                     {t(`customers.form.${v}`)}
-                  </button>
+                  </SegButton>
                 ))}
               </div>
             </div>
@@ -509,16 +533,9 @@ export function CustomerFormPage() {
               <Label>{t("customers.form.ownership")}</Label>
               <div className="flex gap-1 rounded-full bg-surface-alt p-1">
                 {(["own", "rental"] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => addressForm.setValue("ownership", v)}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                      addressForm.watch("ownership") === v ? "bg-ink text-white" : "text-text-muted"
-                    }`}
-                  >
+                  <SegButton key={v} active={addressForm.watch("ownership") === v} onClick={() => addressForm.setValue("ownership", v)}>
                     {t(`customers.form.${v}`)}
-                  </button>
+                  </SegButton>
                 ))}
               </div>
             </div>

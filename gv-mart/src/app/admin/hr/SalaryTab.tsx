@@ -2,12 +2,13 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useActiveTechnicians, useComputeSalary, useSalaries } from "@/hooks/useHr"
+import { formatCurrency } from "@/lib/sale-calc"
 import type { SalaryListItem } from "@/services/hr"
 
 function currentMonthIso() {
@@ -16,10 +17,6 @@ function currentMonthIso() {
 
 function monthToPeriodDate(month: string) {
   return `${month}-01`
-}
-
-function money(n: number) {
-  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 }
 
 /**
@@ -42,15 +39,22 @@ export function SalaryTab() {
   const { data: technicians } = useActiveTechnicians(orgId)
   const { data: salaries, isLoading, isError, refetch } = useSalaries(orgId, period)
   const computeMut = useComputeSalary()
-  const [computingId, setComputingId] = useState<string | null>(null)
+  const [computingIds, setComputingIds] = useState<Set<string>>(new Set())
   const [printing, setPrinting] = useState<SalaryListItem | null>(null)
 
   function computeFor(technicianId: string) {
     if (!orgId) return
-    setComputingId(technicianId)
+    setComputingIds((prev) => new Set(prev).add(technicianId))
     computeMut.mutate(
       { orgId, technicianId, period },
-      { onSettled: () => setComputingId(null) }
+      {
+        onSettled: () =>
+          setComputingIds((prev) => {
+            const next = new Set(prev)
+            next.delete(technicianId)
+            return next
+          }),
+      }
     )
   }
 
@@ -59,21 +63,23 @@ export function SalaryTab() {
     for (const tech of technicians) computeFor(tech.id)
   }
 
+  const isBulkComputing = computingIds.size > 0
+
   const columns: DataTableColumn<SalaryListItem>[] = [
     { key: "technician", header: t("hr.salary.technician"), render: (r) => r.technicians?.profiles?.full_name ?? "—" },
-    { key: "base", header: t("hr.salary.base"), render: (r) => money(r.base) },
-    { key: "revenueComponent", header: t("hr.salary.revenueComponent"), render: (r) => money(r.revenue_component) },
-    { key: "lateDeduction", header: t("hr.salary.lateDeduction"), render: (r) => `-${money(r.late_deduction)}` },
-    { key: "incentives", header: t("hr.salary.incentives"), render: (r) => `+${money(r.incentives)}` },
-    { key: "net", header: t("hr.salary.net"), render: (r) => <span className="font-semibold text-text">{money(r.net)}</span> },
+    { key: "base", header: t("hr.salary.base"), render: (r) => formatCurrency(r.base) },
+    { key: "revenueComponent", header: t("hr.salary.revenueComponent"), render: (r) => formatCurrency(r.revenue_component) },
+    { key: "lateDeduction", header: t("hr.salary.lateDeduction"), render: (r) => `-${formatCurrency(r.late_deduction)}` },
+    { key: "incentives", header: t("hr.salary.incentives"), render: (r) => `+${formatCurrency(r.incentives)}` },
+    { key: "net", header: t("hr.salary.net"), render: (r) => <span className="font-semibold text-text">{formatCurrency(r.net)}</span> },
     {
       key: "__actions",
       header: "",
       className: "text-right",
       render: (r) => (
         <div className="flex justify-end gap-1.5">
-          <Button size="xs" variant="outline" onClick={() => computeFor(r.technician_id)} disabled={computingId === r.technician_id}>
-            {computingId === r.technician_id ? <Loader2 className="size-3 animate-spin" /> : t("hr.salary.recompute")}
+          <Button size="xs" variant="outline" onClick={() => computeFor(r.technician_id)} disabled={computingIds.has(r.technician_id)}>
+            {computingIds.has(r.technician_id) ? <Loader2 className="size-3 animate-spin" /> : t("hr.salary.recompute")}
           </Button>
           <Button size="icon-xs" variant="ghost" onClick={() => setPrinting(r)} title={t("hr.salary.payslip")}>
             <Printer className="size-3.5" />
@@ -98,7 +104,8 @@ export function SalaryTab() {
           </Label>
           <Input id="salary-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 max-w-44 border-border" />
         </div>
-        <Button variant="accent" onClick={computeAll} disabled={!technicians || technicians.length === 0}>
+        <Button variant="accent" onClick={computeAll} disabled={!technicians || technicians.length === 0 || isBulkComputing}>
+          {isBulkComputing ? <Loader2 className="size-3.5 animate-spin" /> : null}
           {t("hr.salary.computeAll")}
         </Button>
       </div>
@@ -114,32 +121,37 @@ export function SalaryTab() {
       />
 
       {printing ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:static print:bg-transparent print:p-0">
-          <Card size="default" className="w-full max-w-md gap-3 px-5 print:shadow-none">
-            <p className="text-lg font-bold text-text">{t("hr.salary.payslip")}</p>
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setPrinting(null)
+          }}
+        >
+          <DialogContent className="gap-3 print:static print:max-h-none print:w-full print:max-w-none print:translate-x-0 print:translate-y-0 print:border-none print:p-0 print:shadow-none">
+            <DialogTitle className="text-lg font-bold">{t("hr.salary.payslip")}</DialogTitle>
             <p className="text-sm text-text-muted">
               {printing.technicians?.profiles?.full_name ?? "—"} · {month}
             </p>
             <div className="space-y-1.5 border-t border-border pt-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-muted">{t("hr.salary.base")}</span>
-                <span className="text-text">{money(printing.base)}</span>
+                <span className="text-text">{formatCurrency(printing.base)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-muted">{t("hr.salary.revenueComponent")}</span>
-                <span className="text-text">{money(printing.revenue_component)}</span>
+                <span className="text-text">{formatCurrency(printing.revenue_component)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-muted">{t("hr.salary.lateDeduction")}</span>
-                <span className="text-danger">-{money(printing.late_deduction)}</span>
+                <span className="text-danger">-{formatCurrency(printing.late_deduction)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-muted">{t("hr.salary.incentives")}</span>
-                <span className="text-success">+{money(printing.incentives)}</span>
+                <span className="text-success">+{formatCurrency(printing.incentives)}</span>
               </div>
               <div className="mt-1 flex justify-between border-t border-border pt-2 text-base font-bold">
                 <span className="text-text">{t("hr.salary.net")}</span>
-                <span className="text-text">{money(printing.net)}</span>
+                <span className="text-text">{formatCurrency(printing.net)}</span>
               </div>
             </div>
             <div className="flex justify-end gap-2 print:hidden">
@@ -151,8 +163,8 @@ export function SalaryTab() {
                 {t("hr.salary.print")}
               </Button>
             </div>
-          </Card>
-        </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </div>
   )

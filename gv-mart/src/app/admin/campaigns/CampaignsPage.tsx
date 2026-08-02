@@ -28,6 +28,7 @@ export function CampaignsPage() {
   const deleteCampaign = useDeleteCampaign()
 
   const [formOpen, setFormOpen] = useState(false)
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [channel, setChannel] = useState(CHANNEL_OPTIONS[0])
   const [targetSegment, setTargetSegment] = useState("")
@@ -85,9 +86,30 @@ export function CampaignsPage() {
               {t("campaigns.actions.complete")}
             </Button>
           ) : null}
-          <Button size="icon-xs" variant="ghost" title={t("common.delete")} onClick={() => deleteCampaign.mutate(c.id)}>
-            <Trash2 className="size-3.5 text-danger" />
-          </Button>
+          {confirmingDeleteId === c.id ? (
+            <span className="flex items-center gap-1.5 text-xs">
+              <button
+                type="button"
+                className="text-danger hover:underline disabled:opacity-50"
+                disabled={deleteCampaign.isPending}
+                onClick={() => deleteCampaign.mutate(c.id, { onSuccess: () => setConfirmingDeleteId(null) })}
+              >
+                {deleteCampaign.isPending ? <Loader2 className="size-3 animate-spin" /> : t("masters.confirmDelete")}
+              </button>
+              <button
+                type="button"
+                className="text-text-muted hover:underline disabled:opacity-50"
+                disabled={deleteCampaign.isPending}
+                onClick={() => setConfirmingDeleteId(null)}
+              >
+                {t("common.cancel")}
+              </button>
+            </span>
+          ) : (
+            <Button size="icon-xs" variant="ghost" title={t("common.delete")} onClick={() => setConfirmingDeleteId(c.id)}>
+              <Trash2 className="size-3.5 text-danger" />
+            </Button>
+          )}
         </div>
       ),
     },

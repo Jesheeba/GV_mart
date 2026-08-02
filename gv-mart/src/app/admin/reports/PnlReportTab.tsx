@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
+import { SegButton } from "@/components/shared/SegButton"
 import { PeriodFilter } from "./PeriodFilter"
 
 // Expense bar color rank: biggest category = ink, smallest = the muted
@@ -86,22 +87,12 @@ export function PnlReportTab() {
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-text">{t("reports.pnl.gstToggle")}</span>
         <div className="flex gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-          <button
-            type="button"
-            onClick={() => setWithGst(true)}
-            aria-pressed={withGst}
-            className={cn("rounded-full px-4 py-[7px] text-xs font-semibold transition-colors", withGst ? "bg-ink text-white" : "text-text-muted")}
-          >
+          <SegButton active={withGst} onClick={() => setWithGst(true)}>
             {t("reports.pnl.withGst")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setWithGst(false)}
-            aria-pressed={!withGst}
-            className={cn("rounded-full px-4 py-[7px] text-xs font-semibold transition-colors", !withGst ? "bg-ink text-white" : "text-text-muted")}
-          >
+          </SegButton>
+          <SegButton active={!withGst} onClick={() => setWithGst(false)}>
             {t("reports.pnl.withoutGst")}
-          </button>
+          </SegButton>
         </div>
       </div>
 
@@ -302,8 +293,9 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
-          <Label>{t("reports.pnl.category")}</Label>
+          <Label htmlFor="pnl-expense-category">{t("reports.pnl.category")}</Label>
           <select
+            id="pnl-expense-category"
             {...form.register("category")}
             className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
@@ -316,13 +308,17 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
           {form.formState.errors.category ? <p className="text-xs text-danger">{t(form.formState.errors.category.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
-          <Label>{t("reports.pnl.amount")}</Label>
-          <Input type="number" min={0} step="0.01" {...form.register("amount")} />
+          <Label htmlFor="pnl-expense-amount">{t("reports.pnl.amount")}</Label>
+          <Input id="pnl-expense-amount" type="number" min={0} step="0.01" {...form.register("amount")} />
           {form.formState.errors.amount ? <p className="text-xs text-danger">{t(form.formState.errors.amount.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
-          <Label>{t("reports.pnl.date")}</Label>
-          <Controller control={form.control} name="date" render={({ field }) => <DatePicker value={field.value ?? ""} onChange={field.onChange} />} />
+          <Label htmlFor="pnl-expense-date">{t("reports.pnl.date")}</Label>
+          <Controller
+            control={form.control}
+            name="date"
+            render={({ field }) => <DatePicker id="pnl-expense-date" value={field.value ?? ""} onChange={field.onChange} />}
+          />
           {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
         </div>
       </div>

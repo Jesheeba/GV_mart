@@ -55,12 +55,12 @@ export function InboundTestTab() {
         <p className="text-xs text-text-muted">{t("automation.inbox.testHint")}</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <Label>{t("automation.inbox.fromMobile")}</Label>
-            <Input {...form.register("fromMobile")} />
+            <Label htmlFor="inbound-from-mobile">{t("automation.inbox.fromMobile")}</Label>
+            <Input id="inbound-from-mobile" {...form.register("fromMobile")} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label>{t("automation.inbox.body")}</Label>
-            <Input placeholder={t("automation.inbox.bodyPlaceholder")} {...form.register("body")} />
+            <Label htmlFor="inbound-body">{t("automation.inbox.body")}</Label>
+            <Input id="inbound-body" placeholder={t("automation.inbox.bodyPlaceholder")} {...form.register("body")} />
           </div>
         </div>
         {simulate.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(simulate.error as Error).message}</p> : null}
