@@ -14,6 +14,10 @@ import { OwnedProductStatusCard } from "@/app/customer/components/OwnedProductSt
 import { useMyCustomerId, useOwnedProducts, useOwnedProductsWithStatus, useRegisterProductViaQr } from "@/hooks/useCustomerApp"
 import { registerProductSchema, type RegisterProductInput } from "@/lib/validation/customerApp"
 
+const PRODUCT_FIELD_ID = "register-product-id"
+const SERIAL_FIELD_ID = "register-product-serial-no"
+const PURCHASE_DATE_FIELD_ID = "register-product-purchase-date"
+
 function RegisterProductForm({ orgId, customerId, onDone }: { orgId: string | undefined; customerId: string | undefined; onDone: () => void }) {
   const { t } = useTranslation()
   const { data: products } = useOwnedProducts(orgId)
@@ -42,9 +46,10 @@ function RegisterProductForm({ orgId, customerId, onDone }: { orgId: string | un
       <p className="px-1 text-xs text-text-muted">{t("customerApp.products.registerHint")}</p>
       <form onSubmit={onSubmit} className="space-y-2.5 px-1">
         <div className="space-y-1">
-          <Label>{t("customerApp.products.selectProduct")}</Label>
+          <Label htmlFor={PRODUCT_FIELD_ID}>{t("customerApp.products.selectProduct")}</Label>
           <select
-            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            id={PRODUCT_FIELD_ID}
+            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
             aria-invalid={!!errors.productId}
             {...register("productId")}
           >
@@ -58,15 +63,15 @@ function RegisterProductForm({ orgId, customerId, onDone }: { orgId: string | un
           {errors.productId ? <p className="text-xs text-danger">{t(errors.productId.message!)}</p> : null}
         </div>
         <div className="space-y-1">
-          <Label>{t("customerApp.products.serialNo")}</Label>
-          <Input placeholder={t("customerApp.products.serialNoPlaceholder")} {...register("serialNo")} />
+          <Label htmlFor={SERIAL_FIELD_ID}>{t("customerApp.products.serialNo")}</Label>
+          <Input id={SERIAL_FIELD_ID} placeholder={t("customerApp.products.serialNoPlaceholder")} {...register("serialNo")} />
         </div>
         <div className="space-y-1">
-          <Label>{t("customerApp.products.purchaseDate")}</Label>
+          <Label htmlFor={PURCHASE_DATE_FIELD_ID}>{t("customerApp.products.purchaseDate")}</Label>
           <Controller
             control={control}
             name="purchaseDate"
-            render={({ field }) => <DatePicker value={field.value ?? ""} onChange={field.onChange} />}
+            render={({ field }) => <DatePicker id={PURCHASE_DATE_FIELD_ID} value={field.value ?? ""} onChange={field.onChange} />}
           />
         </div>
         {registerProduct.isError ? <p className="text-xs text-danger">{(registerProduct.error as Error).message}</p> : null}

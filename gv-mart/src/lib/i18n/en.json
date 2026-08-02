@@ -1358,7 +1358,8 @@
       "updatedJustNow": "Just now",
       "updatedMinutesAgo_one": "{{count}} minute ago",
       "updatedMinutesAgo_other": "{{count}} minutes ago",
-      "mapLoadFailed": "Couldn't load the map right now."
+      "mapLoadFailed": "Couldn't load the map right now.",
+      "recenter": "Recenter"
     },
     "errors": {
       "doorNoRequired": "Door/Flat number is required",
@@ -1474,6 +1475,7 @@
         "bookingNumberPlaceholder": "e.g. 88bfe052",
         "search": "Search",
         "searchPlaceholder": "Search by issue description",
+        "more": "More filters",
         "clear": "Clear filters",
         "type": {
           "paid": "Paid service",
@@ -1489,7 +1491,8 @@
       }
     },
     "otpAlert": {
-      "message": "Your technician needs your confirmation code — tap to view"
+      "message": "Your technician needs your confirmation code — tap to view",
+      "dismiss": "Dismiss"
     },
     "bookingDetail": {
       "loadError": "Couldn't load this booking. Please retry.",
@@ -1500,6 +1503,9 @@
       "appointmentDate": "Date",
       "appointmentSlot": "Slot",
       "estimatedVisitTime": "Estimated visit time",
+      "pricingInfoTitle": "About pricing",
+      "pricingInfoBody": "Your technician will confirm the exact cost after inspecting the issue. Any visit or spare charges will be shown here once the invoice is ready.",
+      "evidencePhoto": "Service evidence photo {{index}}",
       "followUpNotice": "The technician couldn't visit today. They'll be available first thing tomorrow as top priority, or our team will call you shortly to confirm a convenient time.",
       "technician": "Technician",
       "assignedTechnician": "Assigned technician",
@@ -1674,6 +1680,10 @@
       "fullyBlockedWarning": "You've blocked out the entire working day — the visit will still be booked for this date. If nobody ends up available, our team will call to confirm a priority slot.",
       "nextDayPriorityNote": "Your requested date was fully booked, so we've moved your visit to the next available day as top priority.",
       "confirmTitle": "Review your booking",
+      "visitCostLabel": "Visit cost",
+      "visitCostCovered": "Covered under your warranty/AMC — no charge for this visit.",
+      "visitCostChargeable": "Chargeable — your technician will quote the exact cost before starting work.",
+      "visitCostUnknown": "Our team will confirm whether this visit is chargeable once your product is identified.",
       "next": "Next",
       "confirmBooking": "Confirm booking",
       "bookedTitle": "Booking confirmed",

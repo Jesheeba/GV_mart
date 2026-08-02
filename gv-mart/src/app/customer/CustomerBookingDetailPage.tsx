@@ -71,6 +71,16 @@ export function CustomerBookingDetailPage() {
         ) : null}
       </Card>
 
+      {!invoice && ticket.status !== "cancelled" ? (
+        <Card className="gap-1.5 bg-surface-alt">
+          <div className="flex items-center gap-2 px-1">
+            <FileText className="size-4 text-text-muted" />
+            <h2 className="text-sm font-semibold text-text">{t("customerApp.bookingDetail.pricingInfoTitle")}</h2>
+          </div>
+          <p className="px-1 text-xs text-text-muted">{t("customerApp.bookingDetail.pricingInfoBody")}</p>
+        </Card>
+      ) : null}
+
       {/* Task 5 (Customer Dashboard Booking Audit, 2026-07-31): show the
           actual appointment details the customer picked — a booking has a
           real date+slot from the moment it's created, so there's no reason
@@ -161,7 +171,11 @@ export function CustomerBookingDetailPage() {
             <div className="grid grid-cols-3 gap-2 px-1">
               {visit.evidence_photo_urls.map((url, i) => (
                 <a key={i} href={url} target="_blank" rel="noreferrer">
-                  <img src={url} alt="" className="aspect-square w-full rounded-xl object-cover" />
+                  <img
+                    src={url}
+                    alt={t("customerApp.bookingDetail.evidencePhoto", { index: i + 1 })}
+                    className="aspect-square w-full rounded-xl object-cover"
+                  />
                 </a>
               ))}
             </div>

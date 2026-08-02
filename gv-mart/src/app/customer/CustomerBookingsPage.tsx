@@ -1,25 +1,18 @@
-import { type ReactNode, useEffect, useRef, useState } from "react"
+import { type ReactNode, useEffect, useId, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarClock, ChevronLeft, ChevronRight, SlidersHorizontal, Wrench, X } from "lucide-react"
+import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, Wrench, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
+import { StatusDot } from "@/components/shared/StatusDot"
 import { FullPageError } from "@/components/shared/FullPageLoader"
+import { BOOKING_STATUS_TONE } from "@/lib/booking-status"
 import { useMyCustomerId, useMyTicketsFiltered, useMyTicketTechnicians, useResolveStaleBookings } from "@/hooks/useCustomerApp"
 import { TICKET_FILTER_PAGE_SIZE, type FilteredTicketItem, type TicketFilters } from "@/services/customerApp"
-
-const STATUS_TONE: Record<string, StatusTone> = {
-  open: "warning",
-  assigned: "info",
-  in_progress: "warning",
-  completed: "success",
-  cancelled: "neutral",
-}
 
 // Real product categories this app actually sells (brand_category enum) —
 // the spec's own list (RO/AC/Inverter/Washing Machine/Refrigerator/Others)
@@ -39,6 +32,7 @@ export function CustomerBookingsPage() {
   const [filters, setFilters] = useState<TicketFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false)
   const { data, isLoading, isError, refetch } = useMyTicketsFiltered(customerId, filters, page)
   const { data: technicians } = useMyTicketTechnicians(customerId)
 
@@ -106,22 +100,6 @@ export function CustomerBookingsPage() {
 
       {filtersOpen ? (
         <Card className="gap-2.5">
-          <div className="grid grid-cols-2 gap-2.5">
-            <FilterField label={t("customerApp.bookings.filters.fromDate")}>
-              <DatePicker value={filters.fromDate ?? ""} max={filters.toDate} onChange={(v) => updateFilter("fromDate", v)} className="h-9" />
-            </FilterField>
-            <FilterField label={t("customerApp.bookings.filters.toDate")}>
-              <DatePicker value={filters.toDate ?? ""} min={filters.fromDate} onChange={(v) => updateFilter("toDate", v)} className="h-9" />
-            </FilterField>
-          </div>
-
-          <FilterSelect
-            label={t("customerApp.bookings.filters.productType")}
-            value={filters.productCategory ?? ""}
-            onChange={(v) => updateFilter("productCategory", v)}
-            options={PRODUCT_CATEGORIES.map((c) => ({ value: c, label: t(`customerApp.bookService.category.${c}`) }))}
-            allLabel={t("customerApp.bookings.filters.all")}
-          />
           <FilterSelect
             label={t("customerApp.bookings.filters.bookingStatus")}
             value={filters.status ?? ""}
@@ -129,42 +107,87 @@ export function CustomerBookingsPage() {
             options={BOOKING_STATUSES.map((s) => ({ value: s, label: t(`customerApp.bookings.status.${s}`) }))}
             allLabel={t("customerApp.bookings.filters.all")}
           />
-          <FilterSelect
-            label={t("customerApp.bookings.filters.serviceType")}
-            value={filters.serviceType ?? ""}
-            onChange={(v) => updateFilter("serviceType", v as TicketFilters["serviceType"])}
-            options={SERVICE_TYPES.map((s) => ({ value: s, label: t(`customerApp.bookings.filters.type.${s}`) }))}
-            allLabel={t("customerApp.bookings.filters.all")}
-          />
-          <FilterSelect
-            label={t("customerApp.bookings.filters.amcStatus")}
-            value={filters.amcStatus ?? ""}
-            onChange={(v) => updateFilter("amcStatus", v as TicketFilters["amcStatus"])}
-            options={AMC_STATUSES.map((s) => ({ value: s, label: t(`customerApp.amc.status.${s}`) }))}
-            allLabel={t("customerApp.bookings.filters.all")}
-          />
-          <FilterSelect
-            label={t("customerApp.bookings.filters.assignedTechnician")}
-            value={filters.technicianId ?? ""}
-            onChange={(v) => updateFilter("technicianId", v)}
-            options={(technicians ?? []).map((tc) => ({ value: tc.technician_id, label: tc.full_name }))}
-            allLabel={t("customerApp.bookings.filters.all")}
-          />
 
-          <FilterField label={t("customerApp.bookings.filters.bookingNumber")}>
+          <div className="grid grid-cols-2 gap-2.5">
+            <FilterField id="booking-filter-from-date" label={t("customerApp.bookings.filters.fromDate")}>
+              <DatePicker
+                id="booking-filter-from-date"
+                value={filters.fromDate ?? ""}
+                max={filters.toDate}
+                onChange={(v) => updateFilter("fromDate", v)}
+                className="h-9"
+              />
+            </FilterField>
+            <FilterField id="booking-filter-to-date" label={t("customerApp.bookings.filters.toDate")}>
+              <DatePicker
+                id="booking-filter-to-date"
+                value={filters.toDate ?? ""}
+                min={filters.fromDate}
+                onChange={(v) => updateFilter("toDate", v)}
+                className="h-9"
+              />
+            </FilterField>
+          </div>
+
+          <FilterField id="booking-filter-search" label={t("customerApp.bookings.filters.search")}>
             <Input
-              value={filters.bookingNumber ?? ""}
-              onChange={(e) => updateFilter("bookingNumber", e.target.value)}
-              placeholder={t("customerApp.bookings.filters.bookingNumberPlaceholder")}
-            />
-          </FilterField>
-          <FilterField label={t("customerApp.bookings.filters.search")}>
-            <Input
+              id="booking-filter-search"
               value={filters.search ?? ""}
               onChange={(e) => updateFilter("search", e.target.value)}
               placeholder={t("customerApp.bookings.filters.searchPlaceholder")}
             />
           </FilterField>
+
+          <button
+            type="button"
+            onClick={() => setMoreFiltersOpen((v) => !v)}
+            className="flex items-center gap-1 self-start text-xs font-medium text-accent"
+            aria-expanded={moreFiltersOpen}
+          >
+            {t("customerApp.bookings.filters.more")}
+            <ChevronDown className={`size-3.5 transition-transform ${moreFiltersOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {moreFiltersOpen ? (
+            <>
+              <FilterSelect
+                label={t("customerApp.bookings.filters.productType")}
+                value={filters.productCategory ?? ""}
+                onChange={(v) => updateFilter("productCategory", v)}
+                options={PRODUCT_CATEGORIES.map((c) => ({ value: c, label: t(`customerApp.bookService.category.${c}`) }))}
+                allLabel={t("customerApp.bookings.filters.all")}
+              />
+              <FilterSelect
+                label={t("customerApp.bookings.filters.serviceType")}
+                value={filters.serviceType ?? ""}
+                onChange={(v) => updateFilter("serviceType", v as TicketFilters["serviceType"])}
+                options={SERVICE_TYPES.map((s) => ({ value: s, label: t(`customerApp.bookings.filters.type.${s}`) }))}
+                allLabel={t("customerApp.bookings.filters.all")}
+              />
+              <FilterSelect
+                label={t("customerApp.bookings.filters.amcStatus")}
+                value={filters.amcStatus ?? ""}
+                onChange={(v) => updateFilter("amcStatus", v as TicketFilters["amcStatus"])}
+                options={AMC_STATUSES.map((s) => ({ value: s, label: t(`customerApp.amc.status.${s}`) }))}
+                allLabel={t("customerApp.bookings.filters.all")}
+              />
+              <FilterSelect
+                label={t("customerApp.bookings.filters.assignedTechnician")}
+                value={filters.technicianId ?? ""}
+                onChange={(v) => updateFilter("technicianId", v)}
+                options={(technicians ?? []).map((tc) => ({ value: tc.technician_id, label: tc.full_name }))}
+                allLabel={t("customerApp.bookings.filters.all")}
+              />
+              <FilterField id="booking-filter-number" label={t("customerApp.bookings.filters.bookingNumber")}>
+                <Input
+                  id="booking-filter-number"
+                  value={filters.bookingNumber ?? ""}
+                  onChange={(e) => updateFilter("bookingNumber", e.target.value)}
+                  placeholder={t("customerApp.bookings.filters.bookingNumberPlaceholder")}
+                />
+              </FilterField>
+            </>
+          ) : null}
         </Card>
       ) : null}
 
@@ -209,10 +232,12 @@ export function CustomerBookingsPage() {
   )
 }
 
-function FilterField({ label, children }: { label: string; children: ReactNode }) {
+function FilterField({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-text-muted">{label}</Label>
+      <Label htmlFor={id} className="text-xs text-text-muted">
+        {label}
+      </Label>
       {children}
     </div>
   )
@@ -231,10 +256,14 @@ function FilterSelect({
   options: { value: string; label: string }[]
   allLabel: string
 }) {
+  const id = useId()
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-text-muted">{label}</Label>
+      <Label htmlFor={id} className="text-xs text-text-muted">
+        {label}
+      </Label>
       <select
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
@@ -274,7 +303,7 @@ function BookingRow({ ticket, onClick }: { ticket: FilteredTicketItem; onClick: 
         <ChevronRight className="size-4 shrink-0 text-text-muted" />
       </div>
       <div className="flex items-center justify-between px-1">
-        <StatusDot tone={STATUS_TONE[ticket.status] ?? "neutral"} label={t(`customerApp.bookings.status.${ticket.status}`)} />
+        <StatusDot tone={BOOKING_STATUS_TONE[ticket.status] ?? "neutral"} label={t(`customerApp.bookings.status.${ticket.status}`)} />
         <span className="text-xs text-text-muted">
           {dateLabel}
           {slotLabel ? ` · ${slotLabel}` : ""}

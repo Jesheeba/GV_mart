@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { MapPin, Navigation } from "lucide-react"
+import { Locate, MapPin, Navigation } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useLatestTechnicianLocation } from "@/hooks/useCustomerApp"
 import { useMapApiKey } from "@/hooks/useMaps"
 import { Map, MapMarker, MapMarkerLabel, type MapViewport } from "@/components/ui/map"
+import { Button } from "@/components/ui/button"
 import type { TechnicianLocationRow } from "@/services/customerApp"
 
 const LABEL_CLASS =
@@ -30,6 +31,7 @@ export function LiveTracking({ technicianId, technicianName }: { technicianId: s
   const { data: apiKey, isError: apiKeyError } = useMapApiKey()
   const [viewport, setViewport] = useState<MapViewport | null>(null)
   const [mapLoadFailed, setMapLoadFailed] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(true)
 
   useEffect(() => {
     setLocation(initialLocation ?? null)
@@ -50,13 +52,23 @@ export function LiveTracking({ technicianId, technicianName }: { technicianId: s
     }
   }, [technicianId])
 
-  // Re-centers on every fresh Realtime ping so the map follows the
-  // technician's live position instead of requiring the customer to
-  // manually pan back to a moving marker.
+  // Centers on the technician's first known position, then keeps following
+  // fresh Realtime pings only while the customer hasn't manually panned —
+  // once they pan (isFollowing goes false via handleViewportChange below),
+  // new pings no longer yank the map back until they tap "Recenter".
   useEffect(() => {
     if (!location) return
-    setViewport({ center: [location.lng, location.lat], zoom: 15 })
-  }, [location])
+    setViewport((prev) => (prev && !isFollowing ? prev : { center: [location.lng, location.lat], zoom: prev?.zoom ?? 15 }))
+  }, [location, isFollowing])
+
+  const handleViewportChange = (next: MapViewport) => {
+    setViewport(next)
+    setIsFollowing(false)
+  }
+
+  const handleRecenter = () => {
+    setIsFollowing(true)
+  }
 
   if (isLoading) {
     return <div className="animate-pulse rounded-xl bg-surface-alt px-3.5 py-6 text-center text-sm text-text-muted">{t("common.loading")}</div>
@@ -103,12 +115,25 @@ export function LiveTracking({ technicianId, technicianName }: { technicianId: s
             <p className="px-3 text-center text-xs text-text-muted">{t("customerApp.tracking.mapLoadFailed")}</p>
           </div>
         ) : viewport ? (
-          <Map apiKey={apiKey} viewport={viewport} onViewportChange={setViewport} onLoadError={() => setMapLoadFailed(true)}>
+          <Map apiKey={apiKey} viewport={viewport} onViewportChange={handleViewportChange} onLoadError={() => setMapLoadFailed(true)}>
             <MapMarker longitude={location.lng} latitude={location.lat} title={technicianName} />
             {technicianName ? (
               <MapMarkerLabel longitude={location.lng} latitude={location.lat} className={LABEL_CLASS}>
                 {technicianName}
               </MapMarkerLabel>
+            ) : null}
+            {!isFollowing ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={handleRecenter}
+                aria-label={t("customerApp.tracking.recenter")}
+                title={t("customerApp.tracking.recenter")}
+                className="absolute right-2 bottom-2 z-10 bg-surface shadow-sm"
+              >
+                <Locate className="size-4" />
+              </Button>
             ) : null}
           </Map>
         ) : null}

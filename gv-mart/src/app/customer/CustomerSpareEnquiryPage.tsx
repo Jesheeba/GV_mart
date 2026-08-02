@@ -13,6 +13,11 @@ import { AddressPickerModal } from "@/components/shared/AddressPickerModal"
 import { useMyAddresses, useMyCustomerId, useOwnedProducts, useSparesForProduct, useSubmitEnquiry } from "@/hooks/useCustomerApp"
 import { enquirySchema, type EnquiryInput } from "@/lib/validation/customerApp"
 
+const PRODUCT_FIELD_ID = "spare-enquiry-product"
+const CUSTOM_PRODUCT_NAME_FIELD_ID = "spare-enquiry-custom-product-name"
+const SPARE_FIELD_ID = "spare-enquiry-spare"
+const DESCRIPTION_FIELD_ID = "spare-enquiry-description"
+
 export function CustomerSpareEnquiryPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -95,8 +100,9 @@ export function CustomerSpareEnquiryPage() {
       <Card className="gap-3">
         <form onSubmit={onSubmit} className="space-y-2.5 px-1">
           <div className="space-y-1">
-            <Label>{t("customerApp.spareEnquiry.selectProduct")}</Label>
+            <Label htmlFor={PRODUCT_FIELD_ID}>{t("customerApp.spareEnquiry.selectProduct")}</Label>
             <select
+              id={PRODUCT_FIELD_ID}
               value={productId}
               onChange={(e) => {
                 setProductId(e.target.value)
@@ -115,8 +121,9 @@ export function CustomerSpareEnquiryPage() {
 
           {!productId ? (
             <div className="space-y-1">
-              <Label>{t("customerApp.spareEnquiry.orTypeProductName")}</Label>
+              <Label htmlFor={CUSTOM_PRODUCT_NAME_FIELD_ID}>{t("customerApp.spareEnquiry.orTypeProductName")}</Label>
               <Input
+                id={CUSTOM_PRODUCT_NAME_FIELD_ID}
                 value={customProductName}
                 onChange={(e) => setCustomProductName(e.target.value)}
                 placeholder={t("customerApp.spareEnquiry.productNamePlaceholder")}
@@ -126,8 +133,9 @@ export function CustomerSpareEnquiryPage() {
 
           {productId && hasMappedSpares && !manualSpare ? (
             <div className="space-y-1">
-              <Label>{t("customerApp.spareEnquiry.selectSpare")}</Label>
+              <Label htmlFor={SPARE_FIELD_ID}>{t("customerApp.spareEnquiry.selectSpare")}</Label>
               <select
+                id={SPARE_FIELD_ID}
                 value={spareId}
                 onChange={(e) => setSpareId(e.target.value)}
                 className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
@@ -171,8 +179,9 @@ export function CustomerSpareEnquiryPage() {
           </div>
 
           <div className="space-y-1">
-            <Label>{t("customerApp.spareEnquiry.partDescription")}</Label>
+            <Label htmlFor={DESCRIPTION_FIELD_ID}>{t("customerApp.spareEnquiry.partDescription")}</Label>
             <textarea
+              id={DESCRIPTION_FIELD_ID}
               rows={3}
               placeholder={t("customerApp.spareEnquiry.partDescriptionPlaceholder")}
               aria-invalid={!!errors.description}

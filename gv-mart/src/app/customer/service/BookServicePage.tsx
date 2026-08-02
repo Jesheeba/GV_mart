@@ -16,8 +16,10 @@ import {
   useAppointmentSlots,
   useBookServiceTicket,
   useMyAddresses,
+  useMyAmcContracts,
   useMyCustomerId,
   useMyOwnedProducts,
+  useMyWarranties,
   useOwnedProducts,
 } from "@/hooks/useCustomerApp"
 import { complaintTypesHooks } from "@/hooks/useMasters"
@@ -66,6 +68,13 @@ export function BookServicePage() {
   // The customer's actually-owned products (warranty/AMC on file) — the default, primary picker path.
   const { data: myProducts, isLoading: loadingMyProducts } = useMyOwnedProducts(customerId)
   const { data: appointmentSlots, isLoading: loadingSlots } = useAppointmentSlots(orgId)
+  // Booking-time cost disclosure (see `isCoveredVisit` below): a product with
+  // an active warranty or active/due_soon AMC on file is a free visit —
+  // otherwise it's chargeable, same free-vs-paid rule the technician-side
+  // "costing rule" copy already encodes, just surfaced before the customer
+  // commits instead of only after a technician arrives.
+  const { data: myWarranties } = useMyWarranties(customerId)
+  const { data: myAmcContracts } = useMyAmcContracts(customerId)
 
   const [step, setStep] = useState(0)
   // Only ever grows — tracks the furthest step reached so navigating back
@@ -82,6 +91,10 @@ export function BookServicePage() {
   const [pickedDate, setPickedDate] = useState("")
   const [slotId, setSlotId] = useState("")
   const [addressPickerOpen, setAddressPickerOpen] = useState(false)
+  // Step 2's date/slot fields start neutral — "required" styling only kicks
+  // in once the customer has actually interacted with the step, not the
+  // instant it mounts pristine (see the step===2 block below).
+  const [addressStepTouched, setAddressStepTouched] = useState(false)
 
   const bookTicket = useBookServiceTicket()
 
@@ -177,6 +190,16 @@ export function BookServicePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addresses])
 
+  // Moves focus to the (visually hidden) heading for the new step, so
+  // advancing/going back through the wizard is announced to screen-reader
+  // and keyboard users instead of silently swapping the Card's content out
+  // from under a stale, already-activated Next/Back button — same pattern
+  // as the technician on-site flow's step heading.
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    stepHeadingRef.current?.focus()
+  }, [step])
+
   function discardBookingDraft() {
     discardDraft()
     // An incoming product (My Products → Book Service) isn't part of the
@@ -240,6 +263,17 @@ export function BookServicePage() {
 
   const activeSlots = appointmentSlots ?? []
   const selectedSlot = activeSlots.find((s) => s.id === slotId)
+
+  // Booking-time cost disclosure — free only when the selected product has
+  // an active warranty or an active/due_soon AMC contract on file; "not
+  // sure / not listed" and any product without live coverage are treated as
+  // a normal chargeable visit (see the hooks fetched above).
+  const today = todayInput()
+  const hasActiveWarranty =
+    !productUnknown && !!productId && (myWarranties ?? []).some((w) => w.product_id === productId && w.expiry_date >= today)
+  const hasActiveAmc =
+    !productUnknown && !!productId && (myAmcContracts ?? []).some((a) => a.product_id === productId && (a.status === "active" || a.status === "due_soon"))
+  const isCoveredVisit = hasActiveWarranty || hasActiveAmc
 
   const canGoNext =
     (step === 0 && (productUnknown || !!productId)) ||
@@ -308,6 +342,10 @@ export function BookServicePage() {
         />
       </Card>
 
+      <h2 ref={stepHeadingRef} tabIndex={-1} aria-live="polite" className="sr-only">
+        {steps[step]?.label}
+      </h2>
+
       {step === 0 ? (
         <Card className="gap-3">
           {productView === "owned" ? (
@@ -327,6 +365,7 @@ export function BookServicePage() {
                         setProductId(p.id)
                         setProductUnknown(false)
                       }}
+                      aria-pressed={!productUnknown && productId === p.id}
                       className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
                         !productUnknown && productId === p.id ? "border-accent bg-accent-soft" : "border-border"
                       }`}
@@ -395,6 +434,7 @@ export function BookServicePage() {
                             setProductId(p.id)
                             setProductUnknown(false)
                           }}
+                          aria-pressed={!productUnknown && productId === p.id}
                           className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
                             !productUnknown && productId === p.id ? "border-accent bg-accent-soft" : "border-border"
                           }`}
@@ -416,6 +456,7 @@ export function BookServicePage() {
                 setProductUnknown(true)
                 setProductId("")
               }}
+              aria-pressed={productUnknown}
               className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
                 productUnknown ? "border-accent bg-accent-soft text-accent" : "border-border text-text-muted"
               }`}
@@ -457,7 +498,7 @@ export function BookServicePage() {
       ) : null}
 
       {step === 2 ? (
-        <Card className="gap-3">
+        <Card className="gap-3" onClickCapture={() => setAddressStepTouched(true)}>
           <div className="space-y-1.5 px-1">
             <Label>{t("customerApp.bookService.selectAddress")}</Label>
             {(() => {
@@ -474,15 +515,21 @@ export function BookServicePage() {
               )
             })()}
             <Button type="button" size="sm" variant="outline" onClick={() => setAddressPickerOpen(true)}>
-              {t("customerApp.addressPicker.changeAddress")}
+              {(addresses ?? []).length === 0 ? t("customerApp.bookService.addAddressCta") : t("customerApp.addressPicker.changeAddress")}
             </Button>
           </div>
 
           <div className="space-y-3 border-t border-border px-1 pt-3">
             <div className="space-y-1.5">
               <Label htmlFor="pickedDate">{t("customerApp.bookService.pickDate")}</Label>
-              <DatePicker id="pickedDate" min={todayInput()} value={pickedDate} onChange={setPickedDate} aria-invalid={!pickedDate} />
-              {!pickedDate ? <p className="text-xs text-warning">{t("customerApp.bookService.dateRequired")}</p> : null}
+              <DatePicker
+                id="pickedDate"
+                min={todayInput()}
+                value={pickedDate}
+                onChange={setPickedDate}
+                aria-invalid={addressStepTouched && !pickedDate}
+              />
+              {addressStepTouched && !pickedDate ? <p className="text-xs text-warning">{t("customerApp.bookService.dateRequired")}</p> : null}
             </div>
 
             <div className="space-y-1.5">
@@ -513,7 +560,7 @@ export function BookServicePage() {
                   ))}
                 </div>
               )}
-              {!slotId ? <p className="text-xs text-warning">{t("customerApp.bookService.slotRequired")}</p> : null}
+              {addressStepTouched && !slotId ? <p className="text-xs text-warning">{t("customerApp.bookService.slotRequired")}</p> : null}
             </div>
           </div>
         </Card>
@@ -552,6 +599,16 @@ export function BookServicePage() {
                       selectedSlot ? ` · ${selectedSlot.name} (${formatSlotTime(selectedSlot.start_time)}–${formatSlotTime(selectedSlot.end_time)})` : ""
                     }`
                   : "—"}
+              </span>
+            </p>
+            <p>
+              <span className="text-text-muted">{t("customerApp.bookService.visitCostLabel")}: </span>
+              <span className="text-text">
+                {productUnknown
+                  ? t("customerApp.bookService.visitCostUnknown")
+                  : isCoveredVisit
+                    ? t("customerApp.bookService.visitCostCovered")
+                    : t("customerApp.bookService.visitCostChargeable")}
               </span>
             </p>
           </div>

@@ -70,21 +70,28 @@ export function CompletionOtpCard({ visitId, initialOtp }: { visitId: string; in
         <KeyRound className="size-4 text-text-muted" />
         <h2 className="text-sm font-semibold text-text">{t("customerApp.bookingDetail.otpTitle")}</h2>
       </div>
-      {isVerified ? (
-        <p className="flex items-center gap-1.5 px-1 text-sm text-success">
-          <CheckCircle2 className="size-4" /> {t("customerApp.bookingDetail.otpVerified")}
-        </p>
-      ) : isExpired ? (
-        <p className="px-1 text-sm text-warning">{t("customerApp.bookingDetail.otpExpired")}</p>
-      ) : (
-        <>
-          <p className="px-1 text-center font-mono text-3xl font-bold tracking-[0.5em] text-text">{otp.code}</p>
-          <p className="px-1 text-xs text-text-muted">{t("customerApp.bookingDetail.otpHint")}</p>
-          <p className="px-1 text-xs text-text-muted">
-            {t("customerApp.bookingDetail.otpExpiresAt", { time: new Date(otp.expires_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) })}
+      <div role="status" aria-live="polite">
+        {isVerified ? (
+          <p className="flex items-center gap-1.5 px-1 text-sm text-success">
+            <CheckCircle2 className="size-4" /> {t("customerApp.bookingDetail.otpVerified")}
           </p>
-        </>
-      )}
+        ) : isExpired ? (
+          <p className="px-1 text-sm text-warning">{t("customerApp.bookingDetail.otpExpired")}</p>
+        ) : (
+          <>
+            <p
+              className="px-1 text-center font-mono text-3xl font-bold tracking-[0.5em] text-text"
+              aria-label={otp.code.split("").join(" ")}
+            >
+              {otp.code}
+            </p>
+            <p className="px-1 text-xs text-text-muted">{t("customerApp.bookingDetail.otpHint")}</p>
+            <p className="px-1 text-xs text-text-muted">
+              {t("customerApp.bookingDetail.otpExpiresAt", { time: new Date(otp.expires_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) })}
+            </p>
+          </>
+        )}
+      </div>
     </Card>
   )
 }

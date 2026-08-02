@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { ArrowLeft, Check, CheckCircle2, Loader2, MessageCircleQuestion, X } from "lucide-react"
+import { ArrowLeft, Check, CheckCircle2, Loader2, MessageCircleQuestion } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
@@ -28,7 +28,6 @@ export function CustomerProductEnquiryPage() {
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors },
   } = useForm<EnquiryInput>({ resolver: zodResolver(enquirySchema), mode: "onChange", defaultValues: { description: "" } })
 
@@ -141,8 +140,7 @@ export function CustomerProductEnquiryPage() {
           </div>
           {submitEnquiry.isError ? <p className="text-xs text-danger">{(submitEnquiry.error as Error).message}</p> : null}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => reset()}>
-              <X className="size-3.5" />
+            <Button type="button" variant="ghost" size="sm" onClick={() => navigate(-1)}>
               {t("common.cancel")}
             </Button>
             <Button type="submit" size="sm" disabled={submitEnquiry.isPending || !orgId}>

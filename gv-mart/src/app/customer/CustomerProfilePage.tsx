@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form"
 import { Coins, Home as HomeIcon, Loader2, LogOut, Pencil, Plus, Star, Trash2, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { AddressForm } from "@/components/shared/AddressForm"
@@ -106,10 +107,11 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
                   </Button>
                 ) : null}
                 {confirmingDelete === a.id ? (
-                  <span className="flex items-center gap-1 text-xs">
-                    <button
+                  <span className="flex items-center gap-1">
+                    <Button
                       type="button"
-                      className="text-danger hover:underline"
+                      size="xs"
+                      variant="destructive"
                       disabled={deleteAddress.isPending}
                       onClick={() =>
                         deleteAddress.mutate(a.id, {
@@ -119,10 +121,10 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
                       }
                     >
                       {deleteAddress.isPending ? <Loader2 className="size-3 animate-spin" /> : t("customerApp.profile.confirm")}
-                    </button>
-                    <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingDelete(null)}>
+                    </Button>
+                    <Button type="button" size="xs" variant="ghost" onClick={() => setConfirmingDelete(null)}>
                       {t("common.cancel")}
-                    </button>
+                    </Button>
                   </span>
                 ) : null}
               </div>
@@ -215,10 +217,11 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
             </div>
             {!m.is_primary ? (
               confirmingRemove === m.id ? (
-                <span className="flex items-center gap-1 text-xs">
-                  <button
+                <span className="flex items-center gap-1">
+                  <Button
                     type="button"
-                    className="text-danger hover:underline"
+                    size="xs"
+                    variant="destructive"
                     disabled={removeMember.isPending}
                     onClick={() =>
                       removeMember.mutate(m.id, {
@@ -228,10 +231,10 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
                     }
                   >
                     {removeMember.isPending ? <Loader2 className="size-3 animate-spin" /> : t("customerApp.profile.confirm")}
-                  </button>
-                  <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingRemove(null)}>
+                  </Button>
+                  <Button type="button" size="xs" variant="ghost" onClick={() => setConfirmingRemove(null)}>
                     {t("common.cancel")}
-                  </button>
+                  </Button>
                 </span>
               ) : (
                 <Button size="icon-xs" variant="ghost" title={t("common.remove")} onClick={() => setConfirmingRemove(m.id)}>
@@ -247,11 +250,13 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
         <form onSubmit={onAdd} className="space-y-2 border-t border-border px-1 pt-3">
           <div className="flex gap-2">
             <div className="flex-1 space-y-1">
-              <Input placeholder={t("customerApp.profile.memberName")} aria-invalid={!!errors.name} {...register("name")} />
+              <Label htmlFor="member-name">{t("customerApp.profile.memberName")}</Label>
+              <Input id="member-name" placeholder={t("customerApp.profile.memberName")} aria-invalid={!!errors.name} {...register("name")} />
               {errors.name ? <p className="text-xs text-danger">{t(errors.name.message!)}</p> : null}
             </div>
             <div className="flex-1 space-y-1">
-              <Input placeholder={t("customerApp.profile.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
+              <Label htmlFor="member-mobile">{t("customerApp.profile.memberMobile")}</Label>
+              <Input id="member-mobile" placeholder={t("customerApp.profile.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>
