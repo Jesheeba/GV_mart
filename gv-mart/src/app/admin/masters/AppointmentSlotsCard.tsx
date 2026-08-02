@@ -135,20 +135,18 @@ export function AppointmentSlotsCard() {
           </div>
           <div className="space-y-1">
             <Label>{t("settings.appointmentSlots.startTime")}</Label>
-            <input
+            <Input
               type="time"
               value={form.startTime}
               onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
             />
           </div>
           <div className="space-y-1">
             <Label>{t("settings.appointmentSlots.endTime")}</Label>
-            <input
+            <Input
               type="time"
               value={form.endTime}
               onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
             />
           </div>
           <div className="space-y-1">

@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Card } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useSettings } from "@/hooks/useMasters"
 import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
 import { amcSubtotal, productSubtotal, spareSubtotal, type SaleCartState } from "./types"
@@ -19,8 +20,8 @@ export function SaleSummaryPanel({
   redeemAmount?: number
 }) {
   const { t } = useTranslation()
-  const { data: settings } = useSettings(orgId)
-  const gstRate = settings ? Number(settings.gst_rate) : 18
+  const { data: settings, isLoading: settingsLoading, isError: settingsError } = useSettings(orgId)
+  const gstRate = settings ? Number(settings.gst_rate) : 0
 
   const spareBill = spareSubtotal(cart) > 0 ? billBreakdown(spareSubtotal(cart), discountPercent, gstRate) : null
   const productBill = productSubtotal(cart) > 0 ? billBreakdown(productSubtotal(cart), discountPercent, gstRate) : null
@@ -38,7 +39,15 @@ export function SaleSummaryPanel({
   return (
     <Card className="sticky top-4 gap-3 px-5">
       <p className="px-1 text-sm font-semibold text-text">{t("sales.summary.title")}</p>
-      {bills.length === 0 ? (
+      {settingsLoading ? (
+        <div className="space-y-2 px-1 py-1">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      ) : settingsError ? (
+        <p className="px-1 text-sm text-danger">{t("common.error")}</p>
+      ) : bills.length === 0 ? (
         <p className="px-1 text-sm text-text-muted">{t("sales.items.emptyCart")}</p>
       ) : (
         <>
@@ -66,7 +75,7 @@ export function SaleSummaryPanel({
             </div>
           ))}
           {bills.length > 1 ? (
-            <div className="flex justify-between px-1 text-sm font-bold text-text">
+            <div className="flex justify-between px-1 text-sm font-bold text-text" aria-live="polite" aria-atomic="true">
               <span>{t("sales.summary.grandTotal")}</span>
               <span>{formatCurrency(grandTotal)}</span>
             </div>
@@ -79,7 +88,7 @@ export function SaleSummaryPanel({
                 <span>{t("sales.summary.redeemDiscount")}</span>
                 <span>−{formatCurrency(redeemDiscount)}</span>
               </div>
-              <div className="flex justify-between px-1 text-sm font-bold text-text">
+              <div className="flex justify-between px-1 text-sm font-bold text-text" aria-live="polite" aria-atomic="true">
                 <span>{t("sales.summary.payable")}</span>
                 <span>{formatCurrency(payable)}</span>
               </div>

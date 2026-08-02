@@ -160,7 +160,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
     t("inventory.item"),
     t("inventory.brand"),
     t("inventory.stock"),
-    t("inventory.min"),
+    t("inventory.thresholds"),
     t("inventory.level"),
     t("inventory.status.label"),
   ]
@@ -194,7 +194,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
         </div>
       ) : isLoading ? (
         Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={cn("grid items-center border-b border-[#F1EDE6] px-5.5 py-3.5", TABLE_GRID_COLS)}>
+          <div key={i} className={cn("grid items-center border-b border-border px-5.5 py-3.5", TABLE_GRID_COLS)}>
             {headers.map((h) => (
               <Skeleton key={h} className="h-4 w-3/4 max-w-32" />
             ))}
@@ -213,7 +213,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
           return (
             <div
               key={r.id}
-              className={cn("grid items-center border-b border-[#F1EDE6] px-5.5 py-3.5 last:border-b-0 hover:bg-[#FAF8F4]", TABLE_GRID_COLS)}
+              className={cn("grid items-center border-b border-border px-5.5 py-3.5 last:border-b-0 hover:bg-surface-alt", TABLE_GRID_COLS)}
             >
               <div className="min-w-0 pr-2">
                 <div className="flex items-center gap-1">
@@ -248,10 +248,10 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                       onChange={(e) => setStdTimeInput(e.target.value)}
                     />
                     <span className="text-[10px] text-text-muted">{t("inventory.min")}</span>
-                    <Button size="icon-xs" variant="ghost" onClick={() => saveStandardTime(r)} disabled={setStandardTime.isPending}>
+                    <Button size="icon-xs" variant="ghost" title={t("common.save")} onClick={() => saveStandardTime(r)} disabled={setStandardTime.isPending}>
                       {setStandardTime.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3 text-success" />}
                     </Button>
-                    <Button size="icon-xs" variant="ghost" onClick={() => setEditingTimeId(null)}>
+                    <Button size="icon-xs" variant="ghost" title={t("common.cancel")} onClick={() => setEditingTimeId(null)}>
                       <X className="size-3 text-text-muted" />
                     </Button>
                   </div>
@@ -262,7 +262,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                   </button>
                 )}
               </div>
-              <span className="truncate pr-2 text-[13px] font-medium text-[#3A3A36]">{r.itemBrand ?? "—"}</span>
+              <span className="truncate pr-2 text-[13px] font-medium text-text-muted">{r.itemBrand ?? "—"}</span>
 
               {adjustingId === r.id ? (
                 <div className="flex flex-wrap items-center gap-1">
@@ -274,10 +274,10 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                     value={adjustDelta}
                     onChange={(e) => setAdjustDelta(e.target.value)}
                   />
-                  <Button size="icon-xs" variant="ghost" onClick={() => applyAdjust(r)} disabled={adjustStock.isPending}>
+                  <Button size="icon-xs" variant="ghost" title={t("common.save")} onClick={() => applyAdjust(r)} disabled={adjustStock.isPending}>
                     {adjustStock.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5 text-success" />}
                   </Button>
-                  <Button size="icon-xs" variant="ghost" onClick={() => { setAdjustingId(null); setAdjustDelta("") }}>
+                  <Button size="icon-xs" variant="ghost" title={t("common.cancel")} onClick={() => { setAdjustingId(null); setAdjustDelta("") }}>
                     <X className="size-3.5 text-text-muted" />
                   </Button>
                 </div>
@@ -300,10 +300,10 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                     <Input className="h-7 w-11 px-1 text-xs" type="number" min={0} step="1" value={minStock} onChange={(e) => setMinStock(e.target.value)} title={t("inventory.min")} />
                     <span className="text-xs text-text-muted">/</span>
                     <Input className="h-7 w-11 px-1 text-xs" type="number" min={0} step="1" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} title={t("inventory.max")} placeholder={t("inventory.max")} />
-                    <Button size="icon-xs" variant="ghost" onClick={() => saveEdit(r.id)} disabled={updateThresholds.isPending || !thresholdsValid}>
+                    <Button size="icon-xs" variant="ghost" title={t("common.save")} onClick={() => saveEdit(r.id)} disabled={updateThresholds.isPending || !thresholdsValid}>
                       {updateThresholds.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5 text-success" />}
                     </Button>
-                    <Button size="icon-xs" variant="ghost" onClick={() => setEditingId(null)}>
+                    <Button size="icon-xs" variant="ghost" title={t("common.cancel")} onClick={() => setEditingId(null)}>
                       <X className="size-3.5 text-text-muted" />
                     </Button>
                   </div>
@@ -324,7 +324,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                   </div>
 
                   <span className="pr-4.5">
-                    <span className="block h-1.5 overflow-hidden rounded-full bg-[#F0EBE3]">
+                    <span className="block h-1.5 overflow-hidden rounded-full bg-surface-alt">
                       <span className={cn("block h-full rounded-full", style.bar)} style={{ width: `${pct}%` }} />
                     </span>
                   </span>

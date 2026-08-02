@@ -374,6 +374,7 @@ function GiftThresholdRow({
       <button
         type="button"
         disabled={savingLimits || updateGiftMut.isPending}
+        title={t("settings.discountGift.saveLimitsHint")}
         onClick={() => {
           if (giftDirty) updateGiftMut.mutate({ id: entryGift.id, patch: { threshold_amount: localThreshold } })
           onSaveLimits()

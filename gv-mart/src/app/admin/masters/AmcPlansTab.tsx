@@ -69,6 +69,33 @@ export function AmcPlansTab() {
 
   return (
     <div className="space-y-4">
+      {!isLoading && !isError && (rows ?? []).length > 0 ? (
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {(rows ?? []).map((r, i) => (
+            <div
+              key={r.id}
+              className={`flex min-w-56 flex-1 flex-col gap-3 rounded-card p-5 text-white ${
+                i % 2 === 0 ? "bg-ink" : "bg-[color-mix(in_srgb,var(--accent)_70%,var(--ink)_30%)]"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-base font-semibold">{r.name}</span>
+                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-medium">
+                  {r.years} {t("masters.amcPlans.years")}
+                </span>
+              </div>
+              <div>
+                <div className="text-xs text-white/70">{t("masters.amcPlans.pricePerYear")}</div>
+                <div className="text-2xl font-bold tabular-nums">₹{displayPricePerYear(r)}</div>
+              </div>
+              <div className="text-xs text-white/70">
+                {t("masters.amcPlans.visitsPerYear")}: {r.visits_per_year}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <EntityCrudTable<AmcPlanRow>
         fields={fields}
         rows={rows ?? []}

@@ -32,7 +32,7 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
           <select
             value={row.itemType}
             onChange={(e) => update(i, { itemType: e.target.value as "product" | "spare", itemId: "" })}
-            className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none"
+            className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           >
             <option value="spare">{t("masters.tabs.spares")}</option>
             <option value="product">{t("masters.tabs.products")}</option>
@@ -40,7 +40,7 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
           <select
             value={row.itemId}
             onChange={(e) => update(i, { itemId: e.target.value })}
-            className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none"
+            className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           >
             <option value="">{t("purchase.items.selectItem")}</option>
             {options(row.itemType).map((o) => (
@@ -67,7 +67,7 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
             value={row.price}
             onChange={(e) => update(i, { price: Number(e.target.value) || 0 })}
           />
-          <Button size="icon-xs" variant="ghost" onClick={() => remove(i)}>
+          <Button size="icon-xs" variant="ghost" onClick={() => remove(i)} aria-label={t("common.remove")}>
             <Trash2 className="size-3.5 text-danger" />
           </Button>
         </div>

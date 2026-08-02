@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,26 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
 
   const [amcPlanId, setAmcPlanId] = useState("")
 
+  const [productLineIds, setProductLineIds] = useState<string[]>(() => cart.productLines.map(() => crypto.randomUUID()))
+  const [spareLineIds, setSpareLineIds] = useState<string[]>(() => cart.spareLines.map(() => crypto.randomUUID()))
+  const productAddBtnRef = useRef<HTMLButtonElement>(null)
+  const spareAddBtnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    setProductLineIds((ids) =>
+      ids.length < cart.productLines.length
+        ? [...ids, ...Array.from({ length: cart.productLines.length - ids.length }, () => crypto.randomUUID())]
+        : ids
+    )
+  }, [cart.productLines.length])
+  useEffect(() => {
+    setSpareLineIds((ids) =>
+      ids.length < cart.spareLines.length
+        ? [...ids, ...Array.from({ length: cart.spareLines.length - ids.length }, () => crypto.randomUUID())]
+        : ids
+    )
+  }, [cart.spareLines.length])
+
   const filteredModels = useMemo(() => (models ?? []).filter((m) => !brandId || m.brand_id === brandId), [models, brandId])
   const filteredProducts = useMemo(
     () => (products ?? []).filter((p) => (!brandId || p.brand_id === brandId) && (!modelId || p.model_id === modelId)),
@@ -64,6 +84,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
       installation: false,
     }
     setCart((c) => ({ ...c, productLines: [...c.productLines, line] }))
+    setProductLineIds((ids) => [...ids, crypto.randomUUID()])
     setBrandId("")
     setModelId("")
     setProductId("")
@@ -77,6 +98,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
       ...c,
       spareLines: [...c.spareLines, { spareId: selectedSpare.id, name: selectedSpare.name, price: Number(selectedSpare.price), qty }],
     }))
+    setSpareLineIds((ids) => [...ids, crypto.randomUUID()])
     setSpareId("")
     setSpareQty("1")
   }
@@ -85,13 +107,17 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
     setCart((c) => ({ ...c, productLines: c.productLines.map((l, i) => (i === index ? { ...l, ...patch } : l)) }))
   }
   function removeProductLine(index: number) {
+    setProductLineIds((ids) => ids.filter((_, i) => i !== index))
     setCart((c) => ({ ...c, productLines: c.productLines.filter((_, i) => i !== index) }))
+    productAddBtnRef.current?.focus()
   }
   function updateSpareQty(index: number, qty: number) {
     setCart((c) => ({ ...c, spareLines: c.spareLines.map((l, i) => (i === index ? { ...l, qty } : l)) }))
   }
   function removeSpareLine(index: number) {
+    setSpareLineIds((ids) => ids.filter((_, i) => i !== index))
     setCart((c) => ({ ...c, spareLines: c.spareLines.filter((_, i) => i !== index) }))
+    spareAddBtnRef.current?.focus()
   }
 
   function addAmc() {
@@ -165,7 +191,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                   ? t("sales.items.stockHint", { count: stockFor(selectedProduct.id, productStock) ?? 0 })
                   : t("sales.items.pickProductHint")}
               </p>
-              <Button type="button" size="sm" disabled={!selectedProduct} onClick={addProduct}>
+              <Button ref={productAddBtnRef} type="button" size="sm" disabled={!selectedProduct} onClick={addProduct}>
                 <Plus className="size-3.5" />
                 {t("sales.items.add")}
               </Button>
@@ -185,7 +211,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
               <Input type="number" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
             </div>
             <div className="flex justify-end px-1 pt-2">
-              <Button type="button" size="sm" disabled={!selectedSpare} onClick={addSpare}>
+              <Button ref={spareAddBtnRef} type="button" size="sm" disabled={!selectedSpare} onClick={addSpare}>
                 <Plus className="size-3.5" />
                 {t("sales.items.add")}
               </Button>
@@ -199,7 +225,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
       ) : null}
 
       {cart.productLines.map((line, i) => (
-        <Card key={`${line.productId}-${i}`} size="sm" className="gap-2 px-4">
+        <Card key={productLineIds[i] ?? line.productId} size="sm" className="gap-2 px-4">
           <div className="flex items-start justify-between px-1">
             <div>
               <p className="text-sm font-semibold text-text">{line.name}</p>
@@ -250,7 +276,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
       ))}
 
       {cart.spareLines.map((line, i) => (
-        <Card key={`${line.spareId}-${i}`} size="sm" className="gap-2 px-4">
+        <Card key={spareLineIds[i] ?? line.spareId} size="sm" className="gap-2 px-4">
           <div className="flex items-center justify-between px-1">
             <p className="text-sm font-semibold text-text">{line.name}</p>
             <Button type="button" size="icon-xs" variant="ghost" onClick={() => removeSpareLine(i)}>

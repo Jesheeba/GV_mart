@@ -57,7 +57,8 @@ export function QuotationFormPage() {
   const { data: spares } = sparesHooks.useList(orgId)
   const [productId, setProductId] = useState("")
   const [spareId, setSpareId] = useState("")
-  const [qty, setQty] = useState("1")
+  const [productQty, setProductQty] = useState("1")
+  const [spareQty, setSpareQty] = useState("1")
 
   const createQuotation = useCreateQuotation()
   const logLeadActivity = useLogLeadActivity()
@@ -68,16 +69,16 @@ export function QuotationFormPage() {
   function addProductLine() {
     const p = (products ?? []).find((x) => x.id === productId)
     if (!p) return
-    setLines((ls) => [...ls, { itemType: "product", itemId: p.id, name: p.name, price: Number(p.price), qty: Math.max(1, Math.floor(Number(qty) || 1)) }])
+    setLines((ls) => [...ls, { itemType: "product", itemId: p.id, name: p.name, price: Number(p.price), qty: Math.max(1, Math.floor(Number(productQty) || 1)) }])
     setProductId("")
-    setQty("1")
+    setProductQty("1")
   }
   function addSpareLine() {
     const s = (spares ?? []).find((x) => x.id === spareId)
     if (!s) return
-    setLines((ls) => [...ls, { itemType: "spare", itemId: s.id, name: s.name, price: Number(s.price), qty: Math.max(1, Math.floor(Number(qty) || 1)) }])
+    setLines((ls) => [...ls, { itemType: "spare", itemId: s.id, name: s.name, price: Number(s.price), qty: Math.max(1, Math.floor(Number(spareQty) || 1)) }])
     setSpareId("")
-    setQty("1")
+    setSpareQty("1")
   }
   function removeLine(i: number) {
     setLines((ls) => ls.filter((_, idx) => idx !== i))
@@ -156,7 +157,7 @@ export function QuotationFormPage() {
               </option>
             ))}
           </select>
-          <Input type="number" min={1} step={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+          <Input type="number" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
           <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={addProductLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}
@@ -171,7 +172,7 @@ export function QuotationFormPage() {
               </option>
             ))}
           </select>
-          <Input type="number" min={1} step={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+          <Input type="number" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
           <Button type="button" size="sm" variant="outline" disabled={!spareId} onClick={addSpareLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}

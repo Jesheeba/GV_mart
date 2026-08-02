@@ -624,7 +624,8 @@
       "above": "> {{value}}%",
       "freeGiftThreshold": "Free gift threshold",
       "freeGiftThresholdDesc": "Auto-suggest \"{{name}}\" when the invoice total exceeds this",
-      "saveLimits": "Save limits",
+      "saveLimits": "Save all settings",
+      "saveLimitsHint": "Saves this whole Settings page, including any unsaved edits in other sections above.",
       "noGifts": "No gift tiers configured yet — add one in the Gifts tab to set a free-gift threshold."
     },
     "perKmMinutes": "Travel time (minutes per km)",

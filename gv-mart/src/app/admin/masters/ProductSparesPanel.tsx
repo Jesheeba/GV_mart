@@ -42,6 +42,7 @@ export function ProductSparesPanel({
 
   const [pickerSpareId, setPickerSpareId] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [confirmingRemoveId, setConfirmingRemoveId] = useState<string | null>(null)
 
   const mappedSpareIds = new Set((mappings ?? []).map((m) => m.spare_id))
   const availableToAdd = (allSpares ?? []).filter((s) => !mappedSpareIds.has(s.id))
@@ -60,6 +61,7 @@ export function ProductSparesPanel({
     setError(null)
     try {
       await removeMut.mutateAsync(id)
+      setConfirmingRemoveId(null)
     } catch (e) {
       setError(extractErrorMessage(e))
     }
@@ -106,15 +108,31 @@ export function ProductSparesPanel({
                         </span>
                       ) : null}
                     </span>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      title={t("masters.delete")}
-                      disabled={removeMut.isPending}
-                      onClick={() => handleRemove(m.id)}
-                    >
-                      <Trash2 className="size-3.5 text-danger" />
-                    </Button>
+                    {confirmingRemoveId === m.id ? (
+                      <span className="flex shrink-0 items-center gap-1.5 text-xs">
+                        <button
+                          type="button"
+                          className="text-danger hover:underline disabled:opacity-50"
+                          disabled={removeMut.isPending}
+                          onClick={() => handleRemove(m.id)}
+                        >
+                          {removeMut.isPending ? <Loader2 className="size-3 animate-spin" /> : t("masters.confirmDelete")}
+                        </button>
+                        <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingRemoveId(null)}>
+                          {t("common.cancel")}
+                        </button>
+                      </span>
+                    ) : (
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        title={t("masters.delete")}
+                        disabled={removeMut.isPending}
+                        onClick={() => setConfirmingRemoveId(m.id)}
+                      >
+                        <Trash2 className="size-3.5 text-danger" />
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>

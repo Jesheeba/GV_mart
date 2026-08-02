@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Check, ClipboardList, Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { complaintTypesHooks } from "@/hooks/useMasters"
 import type { ComplaintTypeRow } from "@/services/masters"
@@ -26,10 +26,9 @@ function extractErrorMessage(e: unknown): string {
  * the same panel. Not a bulk migration tool: "start from defaults" only ever
  * touches the one product currently open here.
  *
- * Shell choice: this app has no Dialog/Sheet primitive yet (checked
- * components/ui/) — other admin overlays (StuckJobsPanel.tsx) use a plain
- * `fixed inset-0` backdrop + Card, so this follows the same pattern rather
- * than introducing a new one.
+ * Shell: built on the shared Dialog primitive (components/ui/dialog.tsx),
+ * matching ProductSparesPanel — the sibling per-product connector opened
+ * from the same ProductsTab row.
  */
 export function ProductComplaintsPanel({
   orgId,
@@ -120,155 +119,150 @@ export function ProductComplaintsPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 px-4 py-10" role="presentation" onClick={onClose}>
-      <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-        <Card>
-          <CardHeader className="border-b border-border pb-4">
-            <CardTitle className="flex items-center gap-1.5">
-              <ClipboardList className="size-4 text-accent" />
-              {t("masters.productComplaints.title")} — {productName}
-            </CardTitle>
-            <CardAction>
-              <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label={t("masters.productComplaints.close")}>
-                <X className="size-4" />
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose()
+      }}
+    >
+      <DialogContent className="max-w-lg gap-5">
+        <DialogTitle className="flex items-center gap-1.5">
+          <ClipboardList className="size-4 text-accent" />
+          {t("masters.productComplaints.title")} — {productName}
+        </DialogTitle>
+
+        {isError ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <p className="text-sm text-text-muted">{t("masters.loadFailed")}</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : isLoading ? (
+          <p className="py-4 text-center text-sm text-text-muted">{t("common.loading")}</p>
+        ) : (
+          <>
+            {/* Category defaults — read-only here, owned by ComplaintTypesTab. */}
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                {t("masters.productComplaints.categoryDefaultsTitle")}
+              </h3>
+              <p className="text-xs text-text-muted">{t("masters.productComplaints.categoryDefaultsHint")}</p>
+              {categoryDefaults.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-text-muted">
+                  {t("masters.productComplaints.categoryDefaultsEmpty")}
+                </p>
+              ) : (
+                <ul className="space-y-1">
+                  {categoryDefaults.map((d) => (
+                    <li key={d.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+                      <span className="text-sm text-text">{d.label}</span>
+                      <span className="shrink-0 rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-semibold text-text-muted">
+                        {t("masters.productComplaints.categoryDefaultBadge")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={isSeeding || missingDefaults.length === 0}
+                onClick={startFromDefaults}
+              >
+                {isSeeding ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                {missingDefaults.length === 0
+                  ? t("masters.productComplaints.startFromDefaultsDone")
+                  : t("masters.productComplaints.startFromDefaults")}
               </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="flex max-h-[70vh] flex-col gap-5 overflow-y-auto pt-4">
-            {isError ? (
-              <div className="flex flex-col items-center gap-2 py-6 text-center">
-                <p className="text-sm text-text-muted">{t("masters.loadFailed")}</p>
-                <Button variant="outline" size="sm" onClick={() => refetch()}>
-                  {t("common.retry")}
+              {seedError ? <p className="text-xs text-danger">{seedError}</p> : null}
+            </section>
+
+            <div className="border-t border-border" />
+
+            {/* This product's own complaints — full add/edit/delete. */}
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                {t("masters.productComplaints.ownTitle")}
+              </h3>
+              {ownComplaints.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-text-muted">
+                  {t("masters.productComplaints.ownEmpty")}
+                </p>
+              ) : (
+                <ul className="space-y-1">
+                  {ownComplaints.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+                      {editingId === r.id ? (
+                        <div className="flex flex-1 items-center gap-1.5">
+                          <Input
+                            className="h-8 flex-1 text-sm"
+                            value={editLabel}
+                            onChange={(e) => setEditLabel(e.target.value)}
+                            autoFocus
+                          />
+                          <Button size="icon-xs" variant="ghost" onClick={() => saveEdit(r.id)} disabled={updateMut.isPending}>
+                            {updateMut.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5 text-success" />}
+                          </Button>
+                          <Button size="icon-xs" variant="ghost" onClick={() => setEditingId(null)}>
+                            <X className="size-3.5 text-text-muted" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-sm text-text">{r.label}</span>
+                          {confirmingDeleteId === r.id ? (
+                            <span className="flex shrink-0 items-center gap-1.5 text-xs">
+                              <button
+                                type="button"
+                                className="text-danger hover:underline disabled:opacity-50"
+                                disabled={deleteMut.isPending}
+                                onClick={() => handleDelete(r.id)}
+                              >
+                                {deleteMut.isPending ? <Loader2 className="size-3 animate-spin" /> : t("masters.confirmDelete")}
+                              </button>
+                              <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingDeleteId(null)}>
+                                {t("common.cancel")}
+                              </button>
+                            </span>
+                          ) : (
+                            <span className="flex shrink-0 items-center gap-1">
+                              <Button size="icon-xs" variant="ghost" title={t("masters.edit")} onClick={() => startEdit(r)}>
+                                <Pencil className="size-3.5" />
+                              </Button>
+                              <Button size="icon-xs" variant="ghost" title={t("masters.delete")} onClick={() => setConfirmingDeleteId(r.id)}>
+                                <Trash2 className="size-3.5 text-danger" />
+                              </Button>
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="flex items-center gap-1.5">
+                <Input
+                  className="h-9 flex-1"
+                  placeholder={t("masters.productComplaints.addPlaceholder")}
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAdd()
+                  }}
+                />
+                <Button size="sm" className="gap-1" disabled={!newLabel.trim() || createMut.isPending} onClick={handleAdd}>
+                  {createMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                  {t("masters.productComplaints.add")}
                 </Button>
               </div>
-            ) : isLoading ? (
-              <p className="py-4 text-center text-sm text-text-muted">{t("common.loading")}</p>
-            ) : (
-              <>
-                {/* Category defaults — read-only here, owned by ComplaintTypesTab. */}
-                <section className="space-y-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                    {t("masters.productComplaints.categoryDefaultsTitle")}
-                  </h3>
-                  <p className="text-xs text-text-muted">{t("masters.productComplaints.categoryDefaultsHint")}</p>
-                  {categoryDefaults.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-text-muted">
-                      {t("masters.productComplaints.categoryDefaultsEmpty")}
-                    </p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {categoryDefaults.map((d) => (
-                        <li key={d.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
-                          <span className="text-sm text-text">{d.label}</span>
-                          <span className="shrink-0 rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-semibold text-text-muted">
-                            {t("masters.productComplaints.categoryDefaultBadge")}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    disabled={isSeeding || missingDefaults.length === 0}
-                    onClick={startFromDefaults}
-                  >
-                    {isSeeding ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-                    {missingDefaults.length === 0
-                      ? t("masters.productComplaints.startFromDefaultsDone")
-                      : t("masters.productComplaints.startFromDefaults")}
-                  </Button>
-                  {seedError ? <p className="text-xs text-danger">{seedError}</p> : null}
-                </section>
-
-                <div className="border-t border-border" />
-
-                {/* This product's own complaints — full add/edit/delete. */}
-                <section className="space-y-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                    {t("masters.productComplaints.ownTitle")}
-                  </h3>
-                  {ownComplaints.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-text-muted">
-                      {t("masters.productComplaints.ownEmpty")}
-                    </p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {ownComplaints.map((r) => (
-                        <li key={r.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
-                          {editingId === r.id ? (
-                            <div className="flex flex-1 items-center gap-1.5">
-                              <Input
-                                className="h-8 flex-1 text-sm"
-                                value={editLabel}
-                                onChange={(e) => setEditLabel(e.target.value)}
-                                autoFocus
-                              />
-                              <Button size="icon-xs" variant="ghost" onClick={() => saveEdit(r.id)} disabled={updateMut.isPending}>
-                                {updateMut.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5 text-success" />}
-                              </Button>
-                              <Button size="icon-xs" variant="ghost" onClick={() => setEditingId(null)}>
-                                <X className="size-3.5 text-text-muted" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <>
-                              <span className="text-sm text-text">{r.label}</span>
-                              {confirmingDeleteId === r.id ? (
-                                <span className="flex shrink-0 items-center gap-1.5 text-xs">
-                                  <button
-                                    type="button"
-                                    className="text-danger hover:underline disabled:opacity-50"
-                                    disabled={deleteMut.isPending}
-                                    onClick={() => handleDelete(r.id)}
-                                  >
-                                    {deleteMut.isPending ? <Loader2 className="size-3 animate-spin" /> : t("masters.confirmDelete")}
-                                  </button>
-                                  <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingDeleteId(null)}>
-                                    {t("common.cancel")}
-                                  </button>
-                                </span>
-                              ) : (
-                                <span className="flex shrink-0 items-center gap-1">
-                                  <Button size="icon-xs" variant="ghost" title={t("masters.edit")} onClick={() => startEdit(r)}>
-                                    <Pencil className="size-3.5" />
-                                  </Button>
-                                  <Button size="icon-xs" variant="ghost" title={t("masters.delete")} onClick={() => setConfirmingDeleteId(r.id)}>
-                                    <Trash2 className="size-3.5 text-danger" />
-                                  </Button>
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      className="h-9 flex-1"
-                      placeholder={t("masters.productComplaints.addPlaceholder")}
-                      value={newLabel}
-                      onChange={(e) => setNewLabel(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleAdd()
-                      }}
-                    />
-                    <Button size="sm" className="gap-1" disabled={!newLabel.trim() || createMut.isPending} onClick={handleAdd}>
-                      {createMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-                      {t("masters.productComplaints.add")}
-                    </Button>
-                  </div>
-                  {addError ? <p className="text-xs text-danger">{addError}</p> : null}
-                </section>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+              {addError ? <p className="text-xs text-danger">{addError}</p> : null}
+            </section>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Receipt, Search, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useInventoryList } from "@/hooks/useInventory"
 import { useLinkedItemKeys } from "@/hooks/useSuppliers"
 import { useProfile } from "@/hooks/useProfile"
-import { cn } from "@/lib/utils"
 import type { ItemType } from "@/services/inventory"
 import { InventoryTable } from "./InventoryTable"
 
@@ -93,43 +94,15 @@ export function InventoryPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+      <Card className="gap-0 py-0">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5.5 py-4">
-          <div className="flex gap-1 rounded-full border border-border bg-surface-alt p-1">
-            <button
-              type="button"
-              aria-pressed={itemType === "product"}
-              onClick={() => setItemType("product")}
-              className={cn(
-                "rounded-full px-4 py-1.75 text-xs font-semibold transition-colors",
-                itemType === "product" ? "bg-ink text-white" : "text-text-muted"
-              )}
-            >
-              {t("masters.tabs.products")}
-            </button>
-            <button
-              type="button"
-              aria-pressed={itemType === "spare"}
-              onClick={() => setItemType("spare")}
-              className={cn(
-                "rounded-full px-4 py-1.75 text-xs font-semibold transition-colors",
-                itemType === "spare" ? "bg-ink text-white" : "text-text-muted"
-              )}
-            >
-              {t("masters.tabs.spares")}
-            </button>
-            <button
-              type="button"
-              aria-pressed={itemType === "gift"}
-              onClick={() => setItemType("gift")}
-              className={cn(
-                "rounded-full px-4 py-1.75 text-xs font-semibold transition-colors",
-                itemType === "gift" ? "bg-ink text-white" : "text-text-muted"
-              )}
-            >
-              {t("masters.tabs.gifts")}
-            </button>
-          </div>
+          <Tabs value={itemType} onValueChange={(v) => setItemType(v as ItemType)}>
+            <TabsList>
+              <TabsTrigger value="product">{t("masters.tabs.products")}</TabsTrigger>
+              <TabsTrigger value="spare">{t("masters.tabs.spares")}</TabsTrigger>
+              <TabsTrigger value="gift">{t("masters.tabs.gifts")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <div className="flex w-70 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
             <Search className="size-3.75 shrink-0 text-text-muted" />
@@ -150,7 +123,7 @@ export function InventoryPage() {
         </div>
 
         <InventoryTable itemType={itemType} search={search} />
-      </div>
+      </Card>
     </div>
   )
 }

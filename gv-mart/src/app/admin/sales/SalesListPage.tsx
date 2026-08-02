@@ -117,27 +117,19 @@ export function SalesListPage() {
         <div>
           <h1 className="text-2xl font-bold text-text">{t("sales.list.title")}</h1>
           <p className="text-sm font-medium text-text-muted">
-            {isLoading
+            {isLoading || isError
               ? t("sales.list.subtitle")
               : t("sales.list.stats", { amount: formatCurrency(stats.monthTotal), count: stats.monthCount, quotationsOpen: stats.openQuotations })}
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => navigate("/admin/quotations/new")}
-            className="flex items-center gap-1.5 rounded-full border border-[#DAD5CC] bg-surface px-4 py-2.5 text-sm font-bold text-text"
-          >
+          <Button variant="outline" onClick={() => navigate("/admin/quotations/new")}>
             {t("sales.list.newQuotationButton")}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/admin/sales/new")}
-            className="flex items-center gap-1.5 rounded-full bg-ink px-[18px] py-2.75 text-sm font-bold text-white shadow-[0_10px_20px_-12px_rgba(26,26,26,0.6)]"
-          >
+          </Button>
+          <Button variant="default" onClick={() => navigate("/admin/sales/new")}>
             <Plus className="size-4" />
             {t("sales.list.newSaleButton")}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -145,29 +137,49 @@ export function SalesListPage() {
         <div className="relative flex flex-col gap-4 overflow-hidden rounded-card bg-gradient-to-br from-accent to-[#FF7E47] p-5.5 text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,0.65)]">
           <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
           <span className="relative text-[13px] font-semibold text-white/90">{t("sales.list.kpi.todaySales")}</span>
-          <div className="relative text-[30px] font-extrabold tabular-nums leading-none tracking-tight">
-            {isLoading ? "—" : formatCurrency(stats.todayTotal)}
-          </div>
-          <span className="relative inline-flex w-fit items-center gap-1 rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">
-            {stats.vsYesterdayPct === null
-              ? stats.todayTotal > 0
-                ? t("sales.list.kpi.firstSaleToday")
-                : t("sales.list.kpi.noSalesToday")
-              : `${stats.vsYesterdayPct >= 0 ? "▲" : "▼"} ${Math.abs(stats.vsYesterdayPct)}% ${t("sales.list.kpi.vsYesterday")}`}
-          </span>
+          {isLoading ? (
+            <Skeleton className="relative h-8 w-28 bg-white/25" />
+          ) : (
+            <div className="relative text-[30px] font-extrabold tabular-nums leading-none tracking-tight">
+              {isError ? "—" : formatCurrency(stats.todayTotal)}
+            </div>
+          )}
+          {isLoading ? (
+            <Skeleton className="relative h-5 w-32 bg-white/25" />
+          ) : (
+            <span className="relative inline-flex w-fit items-center gap-1 rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">
+              {isError
+                ? t("sales.list.error.loadFailed")
+                : stats.vsYesterdayPct === null
+                ? stats.todayTotal > 0
+                  ? t("sales.list.kpi.firstSaleToday")
+                  : t("sales.list.kpi.noSalesToday")
+                : `${stats.vsYesterdayPct >= 0 ? "▲" : "▼"} ${Math.abs(stats.vsYesterdayPct)}% ${t("sales.list.kpi.vsYesterday")}`}
+            </span>
+          )}
         </div>
 
         <SalesKpiCard
           label={t("sales.list.kpi.productSales")}
-          value={isLoading ? "—" : formatCurrency(stats.monthProductTotal)}
-          note={<span className="text-xs font-semibold text-text-muted">{t("sales.list.kpi.ofRevenue", { pct: stats.productPct })}</span>}
+          loading={isLoading}
+          value={isError ? "—" : formatCurrency(stats.monthProductTotal)}
+          note={
+            isError ? (
+              <span className="text-xs font-semibold text-danger">{t("sales.list.error.loadFailed")}</span>
+            ) : (
+              <span className="text-xs font-semibold text-text-muted">{t("sales.list.kpi.ofRevenue", { pct: stats.productPct })}</span>
+            )
+          }
         />
 
         <SalesKpiCard
           label={t("sales.list.kpi.avgTicket")}
-          value={isLoading ? "—" : formatCurrency(stats.avgTicket)}
+          loading={isLoading}
+          value={isError ? "—" : formatCurrency(stats.avgTicket)}
           note={
-            stats.avgTicketDeltaPct === null ? (
+            isError ? (
+              <span className="text-xs font-semibold text-danger">{t("sales.list.error.loadFailed")}</span>
+            ) : stats.avgTicketDeltaPct === null ? (
               <span className="text-xs font-semibold text-text-muted">{t("sales.list.kpi.invoicesThisMonth", { count: stats.monthCount })}</span>
             ) : (
               <span
@@ -184,11 +196,16 @@ export function SalesListPage() {
 
         <SalesKpiCard
           label={t("sales.list.kpi.quotationToSale")}
-          value={`${stats.conversionRate}%`}
+          loading={isLoading}
+          value={isError ? "—" : `${stats.conversionRate}%`}
           note={
-            <span className="text-xs font-semibold text-text-muted">
-              {t("sales.list.kpi.convertedOf", { converted: stats.convertedQuotations, decided: stats.decidedQuotations })}
-            </span>
+            isError ? (
+              <span className="text-xs font-semibold text-danger">{t("sales.list.error.loadFailed")}</span>
+            ) : (
+              <span className="text-xs font-semibold text-text-muted">
+                {t("sales.list.kpi.convertedOf", { converted: stats.convertedQuotations, decided: stats.decidedQuotations })}
+              </span>
+            )
           }
         />
       </div>
@@ -240,7 +257,7 @@ export function SalesListPage() {
           </div>
         ) : isLoading ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className={cn("grid items-center border-b border-[#F1EDE6] px-5.5 py-3.5", TABLE_GRID_COLS)}>
+            <div key={i} className={cn("grid items-center border-b border-border px-5.5 py-3.5", TABLE_GRID_COLS)}>
               {Array.from({ length: 7 }).map((_, j) => (
                 <Skeleton key={j} className="h-4 w-3/4 max-w-32" />
               ))}
@@ -262,16 +279,27 @@ export function SalesListPage() {
             <div
               key={inv.id}
               onClick={() => navigate(`/admin/sales/invoices/${inv.id}`)}
-              className={cn("grid cursor-pointer items-center border-b border-[#F1EDE6] px-5.5 py-3.5 last:border-b-0 hover:bg-[#FAF8F4]", TABLE_GRID_COLS)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  navigate(`/admin/sales/invoices/${inv.id}`)
+                }
+              }}
+              className={cn(
+                "grid cursor-pointer items-center border-b border-border px-5.5 py-3.5 outline-none last:border-b-0 hover:bg-surface-alt focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
+                TABLE_GRID_COLS
+              )}
             >
-              <span className="text-xs font-bold tabular-nums text-ink">#{inv.id.slice(0, 8)}</span>
+              <span className="text-xs font-bold tabular-nums text-text">#{inv.id.slice(0, 8)}</span>
               <span className="text-[13px] font-semibold text-text">{inv.customers?.name ?? "—"}</span>
-              <span className="truncate pr-2 text-[13px] font-medium text-[#3A3A36]">{inv.itemsSummary}</span>
+              <span className="truncate pr-2 text-[13px] font-medium text-text-muted">{inv.itemsSummary}</span>
               <span>
                 <InvoiceTypeBadge type={inv.type} />
               </span>
               <span className="text-[13px] font-bold tabular-nums text-text">{formatCurrency(inv.total)}</span>
-              <span className="text-[13px] font-medium text-[#3A3A36]">{inv.payment_method ? t(PAYMENT_METHOD_KEY[inv.payment_method]) : "—"}</span>
+              <span className="text-[13px] font-medium text-text-muted">{inv.payment_method ? t(PAYMENT_METHOD_KEY[inv.payment_method]) : "—"}</span>
               <span>
                 <PaymentStatusBadge status={inv.payment_status} />
               </span>
@@ -283,7 +311,17 @@ export function SalesListPage() {
   )
 }
 
-function SalesKpiCard({ label, value, note }: { label: string; value: ReactNode; note: ReactNode }) {
+function SalesKpiCard({ label, value, note, loading = false }: { label: string; value: ReactNode; note: ReactNode; loading?: boolean }) {
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-8 w-28" />
+        <Skeleton className="h-4 w-20" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
       <span className="text-[13px] font-semibold text-text-muted">{label}</span>
@@ -298,9 +336,10 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        "rounded-full border border-border px-[15px] py-2 text-xs font-bold transition-colors",
-        active ? "bg-ink text-white" : "bg-surface text-ink"
+        "rounded-full border border-border px-[15px] py-2 text-xs font-bold outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+        active ? "bg-ink text-white" : "bg-surface text-text"
       )}
     >
       {children}
