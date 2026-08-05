@@ -91,7 +91,7 @@ export function QuotationFormPage() {
       }
       if (item.spareId) {
         const s = spares.find((x) => x.id === item.spareId)
-        if (s) seeded.push({ itemType: "spare", itemId: s.id, name: s.name, price: Number(s.price), qty: 1 })
+        if (s) seeded.push({ itemType: "spare", itemId: s.id, name: s.name, price: Number(s.price), qty: Math.max(1, Math.floor(item.qty ?? 1)) })
       }
     }
     if (seeded.length > 0) setLines((ls) => [...ls, ...seeded])

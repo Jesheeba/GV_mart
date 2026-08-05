@@ -57,7 +57,7 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
 
       {(lead.lead_items ?? []).length > 0 ? (
         <p className="text-xs text-text-muted">
-          {t("leads.detail.items")}: {(lead.lead_items ?? []).map((li) => li.products?.name ?? li.spares?.name).filter(Boolean).join(", ")}
+          {t("leads.detail.items")}: {(lead.lead_items ?? []).map((li) => li.spares?.name ?? li.products?.name).filter(Boolean).join(", ")}
         </p>
       ) : null}
 
@@ -75,7 +75,16 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
               // Spare Enquiry multi-product line items (2026-08-05) — every
               // product/spare the enquiry asked for, prefilling the
               // quotation's item cart instead of making the admin reselect.
-              items: (lead.lead_items ?? []).map((li) => ({ productId: li.product_id, spareId: li.spare_id, qty: li.qty })),
+              // For a `spare`-kind lead, lead_items.product_id is only the
+              // context product the spare belongs to (CustomerSpareEnquiryPage
+              // always sets it to resolve the spare picker) — it is NOT a
+              // request to buy that product, so it must not seed its own
+              // full-price product line alongside the spare.
+              items: (lead.lead_items ?? []).map((li) => ({
+                productId: lead.kind === "spare" ? null : li.product_id,
+                spareId: li.spare_id,
+                qty: li.qty,
+              })),
             },
           })
         }
