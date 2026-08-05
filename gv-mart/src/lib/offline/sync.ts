@@ -1,6 +1,27 @@
 import { supabase } from "@/lib/supabase"
-import type { Json, TablesInsert, TablesUpdate } from "@/types/database"
+import type { Json, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 import { db, type OutboxJob } from "./db"
+
+type AttendanceRow = Tables<"attendance">
+type AttendanceSyncListener = (row: AttendanceRow) => void
+const attendanceListeners = new Set<AttendanceSyncListener>()
+
+/**
+ * Notified with the server's own row (post-trigger, e.g. the `status`/`is_late`
+ * computed by the `_attendance_compute_status` trigger in
+ * 20260731190000_dynamic_attendance_status.sql) once an attendance outbox job
+ * actually lands in Supabase. The optimistic row written to the query cache at
+ * mark-time can't know this — it's computed server-side from live `settings`
+ * — so callers use this to reconcile the cache with the authoritative value.
+ */
+export function subscribeAttendanceSync(cb: AttendanceSyncListener) {
+  attendanceListeners.add(cb)
+  return () => attendanceListeners.delete(cb)
+}
+
+function emitAttendanceSync(row: AttendanceRow | null) {
+  if (row) attendanceListeners.forEach((l) => l(row))
+}
 
 /**
  * Flushes the Dexie outbox to Supabase, in insertion order, on reconnect and
@@ -67,26 +88,37 @@ async function runJob(job: OutboxJob): Promise<void> {
   const p = job.payload as Record<string, unknown>
   switch (job.kind) {
     case "attendance.mark": {
-      const { error } = await supabase.from("attendance").upsert(p as unknown as TablesInsert<"attendance">, { onConflict: "technician_id,date" })
+      const { data, error } = await supabase
+        .from("attendance")
+        .upsert(p as unknown as TablesInsert<"attendance">, { onConflict: "technician_id,date" })
+        .select()
+        .single()
       if (error) throw error
+      emitAttendanceSync(data)
       return
     }
     case "attendance.lunch": {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("attendance")
         .update(p.patch as TablesUpdate<"attendance">)
         .eq("technician_id", p.technicianId as string)
         .eq("date", p.date as string)
+        .select()
+        .single()
       if (error) throw error
+      emitAttendanceSync(data)
       return
     }
     case "attendance.checkout": {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("attendance")
         .update({ check_out_at: p.checkOutAt } as unknown as TablesUpdate<"attendance">)
         .eq("technician_id", p.technicianId as string)
         .eq("date", p.date as string)
+        .select()
+        .single()
       if (error) throw error
+      emitAttendanceSync(data)
       return
     }
     case "spare_handover.confirm": {
@@ -134,10 +166,11 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_service_charge: p.serviceCharge as number,
         p_discount_percent: p.discountPercent as number,
         p_spares: p.spares as Json,
-        p_payment_method: p.paymentMethod as "cash" | "transfer",
+        p_payment_method: p.paymentMethod as "cash" | "transfer" | "upi",
         p_txn_id: (p.txnId as string) ?? null,
         p_payment_description: (p.paymentDescription as string) ?? null,
         p_is_chargeable: p.isChargeable as boolean,
+        p_amount_paid: (p.amountPaid as number | undefined) ?? null,
       })
       if (error) throw error
       return

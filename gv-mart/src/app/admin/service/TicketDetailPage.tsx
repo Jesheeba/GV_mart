@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import { CalendarClock, KeyRound, Loader2, Pencil, PhoneCall, ShieldOff, Trash2, TriangleAlert, UserCog, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -8,10 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { SegButton } from "@/components/shared/SegButton"
+import { NotInInventoryProductDialog } from "@/components/shared/NotInInventoryProductDialog"
 import { useToast } from "@/components/ui/toast-context"
 import { useCustomerExemptionWindows } from "@/hooks/useCustomers"
 import { useProfile } from "@/hooks/useProfile"
-import { useSettings } from "@/hooks/useMasters"
+import { brandsHooks, modelsHooks, productsHooks, useSettings } from "@/hooks/useMasters"
 import {
   useAdminOverrideVisitCompletion,
   useAssignTicketTechnician,
@@ -20,18 +23,32 @@ import {
   useCustomerAddresses,
   useDeleteServiceTicket,
   useLogConfirmedAvailability,
+  useOwnedEquipment,
   useTechnicians,
   useTicket,
   useTicketEvidence,
+  useTicketPhotos,
   useUpdateTicketAddress,
   useUpdateTicketEstimatedDuration,
+  useUpdateTicketProduct,
 } from "@/hooks/useService"
 import type { ConfirmedAvailabilityReason } from "@/services/service"
+import { ticketPhotoSignedUrl } from "@/services/ticketPhotos"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { cn } from "@/lib/utils"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
+
+function TicketPhotoThumb({ storagePath }: { storagePath: string }) {
+  const { data: url } = useQuery({
+    queryKey: ["ticketPhotoUrl", storagePath],
+    queryFn: () => ticketPhotoSignedUrl(storagePath),
+    staleTime: 30 * 60_000,
+  })
+  if (!url) return <div className="size-16 shrink-0 animate-pulse rounded-lg bg-surface-alt" />
+  return <img src={url} alt="" className="size-16 shrink-0 rounded-lg object-cover" />
+}
 
 const textareaClass =
   "w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
@@ -75,6 +92,38 @@ export function TicketDetailPage() {
   const addresses = useCustomerAddresses(editingAddress ? ticket?.customer_id : undefined)
   const updateAddress = useUpdateTicketAddress()
 
+  // Gate-assignment-on-product (2026-08-04) — same editingAddress pattern,
+  // but with three source modes (owned / catalog / not-in-inventory free
+  // text) instead of a single dropdown. See NewComplaintPage.tsx's
+  // equipment step for the sibling implementation.
+  const [editingProduct, setEditingProduct] = useState(false)
+  const [productMode, setProductMode] = useState<"owned" | "catalog">("owned")
+  const [productOwnedId, setProductOwnedId] = useState("")
+  const [productBrandId, setProductBrandId] = useState("")
+  const [productModelId, setProductModelId] = useState("")
+  const [productCatalogId, setProductCatalogId] = useState("")
+  const [notInInventoryDialogOpen, setNotInInventoryDialogOpen] = useState(false)
+  const updateProduct = useUpdateTicketProduct()
+  const owned = useOwnedEquipment(ticket?.org_id, ticket?.customer_id)
+  const { data: brands } = brandsHooks.useList(ticket?.org_id)
+  const { data: models } = modelsHooks.useList(ticket?.org_id)
+  const { data: products } = productsHooks.useList(ticket?.org_id)
+  const filteredModels = useMemo(() => (models ?? []).filter((m) => !productBrandId || m.brand_id === productBrandId), [models, productBrandId])
+  const filteredProducts = useMemo(
+    () => (products ?? []).filter((p) => (!productBrandId || p.brand_id === productBrandId) && (!productModelId || p.model_id === productModelId)),
+    [products, productBrandId, productModelId]
+  )
+  const photos = useTicketPhotos(ticket?.id)
+  // Auto-expand the editor the moment a product-less ticket loads — this is
+  // not an optional edit like address, the assignment gate requires it.
+  useEffect(() => {
+    if (ticket && !ticket.product_id && !ticket.unlisted_product_name) {
+      setEditingProduct(true)
+      setProductMode("owned")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket?.id])
+
   const [cancelling, setCancelling] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
   const cancelTicket = useCancelServiceTicket()
@@ -107,6 +156,7 @@ export function TicketDetailPage() {
   }
 
   const appointment = ticket.appointments[0]
+  const productDefined = !!ticket.product_id || !!ticket.unlisted_product_name
   const visit = ticket.service_visits?.[0]
   const openVisit = ticket.service_visits?.find((v) => v.timer_start && !v.timer_end) ?? null
   const totalMinutes = visit ? minutesBetween(visit.timer_start, visit.timer_end) : null
@@ -159,6 +209,37 @@ export function TicketDetailPage() {
     updateAddress.mutate(
       { ticketId: ticket!.id, addressId: addressPickerId || null },
       { onSuccess: () => setEditingAddress(false), onError: () => toast.error(t("common.actionFailed")) }
+    )
+  }
+
+  function startEditingProduct() {
+    setProductMode(ticket!.product_id ? "catalog" : "owned")
+    setProductOwnedId(ticket!.product_id ?? "")
+    setProductBrandId(ticket!.brand_id ?? "")
+    setProductModelId(ticket!.model_id ?? "")
+    setProductCatalogId(ticket!.product_id ?? "")
+    setEditingProduct(true)
+  }
+  function saveProduct() {
+    const resolvedId = productMode === "owned" ? productOwnedId : productCatalogId
+    const ownedMatch = (owned.data ?? []).find((o) => o.productId === resolvedId)
+    const brandId = productMode === "owned" ? (ownedMatch?.brandId ?? null) : productBrandId || null
+    const modelId = productMode === "owned" ? (ownedMatch?.modelId ?? null) : productModelId || null
+    updateProduct.mutate(
+      { ticketId: ticket!.id, productId: resolvedId || null, brandId, modelId, unlistedProductName: null },
+      { onSuccess: () => setEditingProduct(false), onError: () => toast.error(t("common.actionFailed")) }
+    )
+  }
+  function saveNotInInventoryProduct(name: string) {
+    updateProduct.mutate(
+      { ticketId: ticket!.id, productId: null, brandId: null, modelId: null, unlistedProductName: name },
+      {
+        onSuccess: () => {
+          setEditingProduct(false)
+          setNotInInventoryDialogOpen(false)
+        },
+        onError: () => toast.error(t("common.actionFailed")),
+      }
     )
   }
 
@@ -301,7 +382,19 @@ export function TicketDetailPage() {
           ) : null}
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-          <Field label={t("service.table.product")} value={[ticket.products?.name, ticket.brands?.name, ticket.models?.name].filter(Boolean).join(" · ") || "—"} />
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-text-muted">
+              {t("service.table.product")}
+              {!editingProduct ? (
+                <button type="button" onClick={startEditingProduct} className="text-accent" title={t("service.detail.productEditor.editButton")}>
+                  <Pencil className="size-3" />
+                </button>
+              ) : null}
+            </div>
+            <div className="text-text">
+              {[ticket.products?.name, ticket.brands?.name, ticket.models?.name].filter(Boolean).join(" · ") || ticket.unlisted_product_name || "—"}
+            </div>
+          </div>
           <Field label={t("service.newComplaint.nameOfComplaint")} value={ticket.name_of_complaint || "—"} />
           <Field label={t("service.newComplaint.natureOfComplaint")} value={ticket.nature_of_complaint || "—"} />
           <Field label={t("service.table.appointment")} value={appointment?.mode === "always" ? t("service.appointment.always") : appointment?.scheduled_at ? new Date(appointment.scheduled_at).toLocaleString() : "—"} />
@@ -344,6 +437,143 @@ export function TicketDetailPage() {
           )}
         </div>
 
+        {editingProduct ? (
+          <div className="space-y-3 border-t border-border pt-3">
+            {!ticket.product_id && !ticket.unlisted_product_name ? (
+              <div className="flex items-start gap-2 rounded-xl bg-warning/10 px-3 py-2.5 text-sm text-warning">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                <div>
+                  <p className="font-medium">{t("service.detail.productEditor.missingTitle")}</p>
+                  <p className="text-xs">{t("service.detail.productEditor.missingHint")}</p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+              {(["owned", "catalog", "notInInventory"] as const).map((m) => (
+                <SegButton
+                  key={m}
+                  active={m !== "notInInventory" && productMode === m}
+                  onClick={() => (m === "notInInventory" ? setNotInInventoryDialogOpen(true) : setProductMode(m))}
+                  className="flex-1 py-1.5 text-xs font-medium"
+                >
+                  {t(`service.detail.productEditor.mode.${m}`)}
+                </SegButton>
+              ))}
+            </div>
+
+            {productMode === "owned" ? (
+              (owned.data ?? []).length === 0 ? (
+                <p className="text-sm text-text-muted">{t("service.newComplaint.noOwnedEquipment")}</p>
+              ) : (
+                <div className="space-y-2">
+                  {(owned.data ?? []).map((o) => (
+                    <button
+                      key={o.productId}
+                      type="button"
+                      onClick={() => setProductOwnedId(o.productId)}
+                      className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
+                        productOwnedId === o.productId ? "border-accent bg-accent-soft" : "border-border"
+                      }`}
+                    >
+                      <span className="font-medium text-text">{o.productName}</span>{" "}
+                      <span className="text-text-muted">{[o.brandName, o.modelName].filter(Boolean).join(" · ")}</span>
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label>{t("service.newComplaint.brand")}</Label>
+                  <select
+                    value={productBrandId}
+                    onChange={(e) => {
+                      setProductBrandId(e.target.value)
+                      setProductModelId("")
+                      setProductCatalogId("")
+                    }}
+                    className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                  >
+                    <option value="">{t("service.filters.all")}</option>
+                    {(brands ?? []).map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{t("service.newComplaint.model")}</Label>
+                  <select
+                    value={productModelId}
+                    onChange={(e) => {
+                      setProductModelId(e.target.value)
+                      setProductCatalogId("")
+                    }}
+                    className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                  >
+                    <option value="">{t("service.filters.all")}</option>
+                    {filteredModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{t("service.newComplaint.product")}</Label>
+                  <select
+                    value={productCatalogId}
+                    onChange={(e) => setProductCatalogId(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                  >
+                    <option value="">{t("service.filters.all")}</option>
+                    {filteredProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                size="xs"
+                disabled={updateProduct.isPending || (productMode === "owned" ? !productOwnedId : !productCatalogId)}
+                onClick={saveProduct}
+              >
+                {updateProduct.isPending ? <Loader2 className="size-3 animate-spin" /> : t("service.detail.productEditor.save")}
+              </Button>
+              {ticket.product_id || ticket.unlisted_product_name ? (
+                <Button size="xs" variant="ghost" onClick={() => setEditingProduct(false)}>
+                  {t("service.detail.productEditor.cancel")}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <NotInInventoryProductDialog
+          open={notInInventoryDialogOpen}
+          initialValue={ticket.unlisted_product_name ?? ""}
+          onOpenChange={setNotInInventoryDialogOpen}
+          onSave={saveNotInInventoryProduct}
+        />
+
+        {(photos.data ?? []).length > 0 ? (
+          <div className="space-y-1.5 border-t border-border pt-3">
+            <p className="text-xs text-text-muted">{t("service.detail.attachedPhotos")}</p>
+            <div className="flex flex-wrap gap-2">
+              {photos.data!.map((p) => (
+                <TicketPhotoThumb key={p.id} storagePath={p.storage_path} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {(appointment?.appointment_unavailable_windows?.length ?? 0) > 0 || (exemptionWindows.data?.length ?? 0) > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
             <ShieldOff className="size-3.5 text-danger" />
@@ -372,7 +602,7 @@ export function TicketDetailPage() {
             <Button
               size="sm"
               onClick={() => autoAssign.mutate(ticket.id, { onError: () => toast.error(t("common.actionFailed")) })}
-              disabled={autoAssign.isPending}
+              disabled={autoAssign.isPending || !productDefined}
             >
               {autoAssign.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UserCog className="size-3.5" />}
               {t("service.detail.autoAssign")}
@@ -380,7 +610,8 @@ export function TicketDetailPage() {
             <select
               value={pickerTechId}
               onChange={(e) => setPickerTechId(e.target.value)}
-              className="h-8 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+              disabled={!productDefined}
+              className="h-8 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none disabled:opacity-50"
             >
               <option value="">{t("service.detail.pickTechnician")}</option>
               {(technicians ?? []).map((tc) => (
@@ -392,7 +623,7 @@ export function TicketDetailPage() {
             <Button
               size="sm"
               variant="outline"
-              disabled={!pickerTechId || assign.isPending}
+              disabled={!pickerTechId || assign.isPending || !productDefined}
               onClick={() =>
                 appointment &&
                 assign.mutate(
@@ -407,6 +638,9 @@ export function TicketDetailPage() {
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noAppointment")}</p>
         )}
+        {appointment && !appointment.technician_id && !productDefined ? (
+          <p className="text-xs text-warning">{t("service.assign.productRequired")}</p>
+        ) : null}
         {autoAssign.data && !autoAssign.data.assigned ? (
           <p className="text-xs text-warning">{t(autoAssign.data.reason_key ?? "service.assign.noneAvailable")}</p>
         ) : null}

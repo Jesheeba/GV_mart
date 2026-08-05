@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { KpiCard } from "@/components/shared/KpiCard"
 import { HighlightKpiCard } from "@/components/shared/HighlightKpiCard"
+import { MissingProductAlert } from "@/components/shared/MissingProductAlert"
 import { todayRange } from "./dashboardMath"
 
 const APPT_STATUS_TONE: Record<string, string> = {
@@ -35,11 +36,13 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
   const onDuty = attendance?.filter((a) => a.check_in_at).length ?? 0
   const totalTechs = technicians?.length ?? 0
   const onTime = attendance?.filter((a) => a.check_in_at && !a.is_late).length ?? 0
-  const late = attendance?.filter((a) => a.is_late).length ?? 0
+  const late = attendance?.filter((a) => a.status === "late").length ?? 0
+  const veryLate = attendance?.filter((a) => a.status === "very_late").length ?? 0
   const absent = Math.max(0, totalTechs - onDuty)
-  const attendanceTotal = onTime + late + absent || 1
+  const attendanceTotal = onTime + late + veryLate + absent || 1
   const onTimePct = Math.round((onTime / attendanceTotal) * 100)
   const latePct = Math.round((late / attendanceTotal) * 100)
+  const veryLatePct = Math.round((veryLate / attendanceTotal) * 100)
 
   return (
     <div>
@@ -59,6 +62,8 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
           </Button>
         </div>
       </div>
+
+      <MissingProductAlert orgId={orgId} />
 
       <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-3">
         <HighlightKpiCard
@@ -130,7 +135,11 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
             <div className="mb-4 flex items-center gap-4.5">
               <div
                 className="relative size-24 shrink-0 rounded-full"
-                style={{ background: attendanceLoading ? "#F0EBE3" : `conic-gradient(#2FAE5F 0 ${onTimePct}%, #E8932B ${onTimePct}% ${onTimePct + latePct}%, #E5484D ${onTimePct + latePct}% 100%)` }}
+                style={{
+                  background: attendanceLoading
+                    ? "#F0EBE3"
+                    : `conic-gradient(#2FAE5F 0 ${onTimePct}%, #E8932B ${onTimePct}% ${onTimePct + latePct}%, #E5484D ${onTimePct + latePct}% ${onTimePct + latePct + veryLatePct}%, var(--text-muted) ${onTimePct + latePct + veryLatePct}% 100%)`,
+                }}
               >
                 <div className="absolute inset-3.25 flex flex-col items-center justify-center rounded-full bg-surface">
                   <div className="text-[19px] font-extrabold tabular-nums text-text">
@@ -142,7 +151,8 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
               <div className="flex flex-1 flex-col gap-2.25 text-xs font-semibold text-text">
                 <span className="flex items-center gap-1.75"><span className="size-2.25 rounded-[3px] bg-success" />{t("dashboard.onTime")} · {onTime}</span>
                 <span className="flex items-center gap-1.75"><span className="size-2.25 rounded-[3px] bg-warning" />{t("dashboard.lateAfter")} · {late}</span>
-                <span className="flex items-center gap-1.75"><span className="size-2.25 rounded-[3px] bg-danger" />{t("dashboard.absent")} · {absent}</span>
+                <span className="flex items-center gap-1.75"><span className="size-2.25 rounded-[3px] bg-danger" />{t("technician.attendance.status.veryLate")} · {veryLate}</span>
+                <span className="flex items-center gap-1.75"><span className="size-2.25 rounded-[3px] bg-text-muted" />{t("dashboard.absent")} · {absent}</span>
               </div>
             </div>
           </div>

@@ -99,7 +99,7 @@ export function CustomerBookingsPage() {
       </div>
 
       {filtersOpen ? (
-        <Card className="gap-2.5">
+        <Card className="gap-2.5 lg:px-5">
           <FilterSelect
             label={t("customerApp.bookings.filters.bookingStatus")}
             value={filters.status ?? ""}
@@ -198,7 +198,7 @@ export function CustomerBookingsPage() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <Card className="items-center gap-1.5 py-8 text-center">
+        <Card className="items-center gap-1.5 py-8 text-center lg:px-5">
           <CalendarClock className="size-6 text-text-muted" />
           <p className="text-sm text-text-muted">{activeFilterCount > 0 ? t("customerApp.bookings.noResults") : t("customerApp.bookings.empty")}</p>
           {activeFilterCount === 0 ? (
@@ -288,11 +288,13 @@ function BookingRow({ ticket, onClick }: { ticket: FilteredTicketItem; onClick: 
   const slotLabel =
     appt?.slot_name && appt.slot_start_time && appt.slot_end_time
       ? `${appt.slot_name} (${appt.slot_start_time.slice(0, 5)}–${appt.slot_end_time.slice(0, 5)})`
-      : null
+      : appt?.available_from && appt.available_to
+        ? `${appt.available_from.slice(0, 5)}–${appt.available_to.slice(0, 5)}`
+        : null
   const needsFollowUp = !!appt?.follow_up_flagged_at
 
   return (
-    <Card size="sm" className="cursor-pointer gap-1.5" onClick={onClick}>
+    <Card size="sm" className="cursor-pointer gap-1.5 lg:px-5" onClick={onClick}>
       <div className="flex items-center justify-between px-1">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="shrink-0 text-xs font-bold text-text-muted">#{ticket.id.slice(0, 8)}</span>

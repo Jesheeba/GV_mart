@@ -1,6 +1,9 @@
 /** Geolocation + geofence helpers shared by Attendance (TECH-01) and Map (TECH-04). */
 
-export type GeoPoint = { lat: number; lng: number; accuracy?: number }
+/** heading/speed mirror GeolocationCoordinates.heading/.speed — both
+ * frequently null (device stationary or sensor doesn't report them), never
+ * required. heading is degrees clockwise from true north; speed is m/s. */
+export type GeoPoint = { lat: number; lng: number; accuracy?: number; heading?: number | null; speed?: number | null }
 
 export function getCurrentPosition(options?: PositionOptions): Promise<GeoPoint> {
   return new Promise((resolve, reject) => {
@@ -9,7 +12,14 @@ export function getCurrentPosition(options?: PositionOptions): Promise<GeoPoint>
       return
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+      (pos) =>
+        resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          heading: pos.coords.heading,
+          speed: pos.coords.speed,
+        }),
       (err) => reject(err),
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 5_000, ...options }
     )
@@ -22,7 +32,14 @@ export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: Geolo
     return () => {}
   }
   const id = navigator.geolocation.watchPosition(
-    (pos) => cb({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+    (pos) =>
+      cb({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+        heading: pos.coords.heading,
+        speed: pos.coords.speed,
+      }),
     onError,
     { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }
   )

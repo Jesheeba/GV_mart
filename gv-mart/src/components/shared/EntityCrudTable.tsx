@@ -22,7 +22,7 @@ export type CrudFieldOption = { value: string; label: string }
 export type CrudFieldDef = {
   key: string
   label: string
-  type: "text" | "number" | "email" | "tel" | "url" | "select"
+  type: "text" | "number" | "email" | "tel" | "url" | "select" | "textarea"
   // Either a static list, or derived from the form's current in-progress
   // values — e.g. a Model select filtered down to whichever Brand is
   // currently selected in the same open form. Re-evaluated on every render
@@ -255,7 +255,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
           ) : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {fields.map((f) => (
-              <div key={f.key} className="space-y-1">
+              <div key={f.key} className={`space-y-1 ${f.type === "textarea" ? "col-span-2 sm:col-span-3" : ""}`}>
                 <Label htmlFor={`f-${f.key}`}>{f.label}</Label>
                 {f.type === "select" ? (
                   <select
@@ -270,6 +270,15 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                       </option>
                     ))}
                   </select>
+                ) : f.type === "textarea" ? (
+                  <textarea
+                    id={`f-${f.key}`}
+                    rows={3}
+                    placeholder={f.placeholder}
+                    value={values[f.key] ?? ""}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                    className="w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                  />
                 ) : (
                   <Input
                     id={`f-${f.key}`}

@@ -19,7 +19,7 @@ function monthToPeriodDate(month: string) {
   return `${month}-01`
 }
 
-const CATEGORIES: RewardCategory[] = ["attendance", "highest_review", "highest_revenue"]
+const CATEGORIES: RewardCategory[] = ["attendance", "highest_review", "highest_revenue", "highest_referral"]
 
 /**
  * ADM-26. v2.2 minimums (min 51 reviews, min ₹1,50,000 revenue) are applied
@@ -28,6 +28,11 @@ const CATEGORIES: RewardCategory[] = ["attendance", "highest_review", "highest_r
  * candidate here if they clear the bar. Logging is a plain insert into the
  * existing `rewards` table (rewards_write_ops already permits
  * is_ops_staff()); no new RPC needed for the write side.
+ *
+ * Client rewards spec (2026-08-04): attendance is now "full attendance + <=3h
+ * late/month" (was "zero late days"), revenue combines service + sales, and
+ * a 4th category (highest_referral, >= 20 cumulative Sales/Service/AMC
+ * referrals) was added — see 20260804160000_reward_candidates_v2.sql.
  */
 export function RewardsTab() {
   const { t } = useTranslation()
@@ -80,7 +85,7 @@ export function RewardsTab() {
         <Input id="rewards-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-44" />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {CATEGORIES.map((category) => {
           const list = candidatesByCategory.get(category) ?? []
           return (

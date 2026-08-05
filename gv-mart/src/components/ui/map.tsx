@@ -63,6 +63,16 @@ const FINEXY_MAP_STYLE_DARK: google.maps.MapTypeStyle[] = [
   { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#332f22" }] },
 ]
 
+// Premium Live Tracking's map (redesign 2026-08-05) — customer feedback on
+// the earlier "route-focused" style (all labels/POIs/roads scrubbed to
+// near-white) was that it read as broken/blank rather than a real map, even
+// though it was the genuine Google Maps JS API underneath. Reverted to
+// Google's own default road-map styling (empty `styles` array = no
+// override) so street names, road colors, and landmarks are immediately
+// recognizable as "the real Google Maps" — still wrapped in the app's own
+// rounded-card chrome and orange-accent markers/route line.
+const STANDARD_MAP_STYLE: google.maps.MapTypeStyle[] = []
+
 let mapsLoadPromise: Promise<void> | null = null
 
 /** Loads the Maps JavaScript API exactly once per page, however many <Map>s mount/unmount. */
@@ -126,6 +136,10 @@ type MapProps = {
   viewport: MapViewport
   onViewportChange?: (viewport: MapViewport) => void
   onLoadError?: () => void
+  /** "standard" selects STANDARD_MAP_STYLE (Google's own default road-map
+   * look — Premium Live Tracking) so the map reads unmistakably as real
+   * Google Maps. Defaults to the app's muted FINEXY_MAP_STYLE everywhere else. */
+  variant?: "default" | "standard"
   children?: ReactNode
 }
 
@@ -137,7 +151,12 @@ function DefaultLoader() {
   )
 }
 
-function Map({ className, apiKey, viewport, onViewportChange, onLoadError, children }: MapProps) {
+function stylesFor(theme: string, variant: "default" | "standard") {
+  if (variant === "standard") return STANDARD_MAP_STYLE
+  return theme === "dark" ? FINEXY_MAP_STYLE_DARK : FINEXY_MAP_STYLE
+}
+
+function Map({ className, apiKey, viewport, onViewportChange, onLoadError, variant = "default", children }: MapProps) {
   const { theme } = useTheme()
   const containerRef = useRef<HTMLDivElement>(null)
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null)
@@ -148,6 +167,8 @@ function Map({ className, apiKey, viewport, onViewportChange, onLoadError, child
   onLoadErrorRef.current = onLoadError
   const themeRef = useRef(theme)
   themeRef.current = theme
+  const variantRef = useRef(variant)
+  variantRef.current = variant
 
   useEffect(() => {
     if (!apiKey) return
@@ -168,7 +189,7 @@ function Map({ className, apiKey, viewport, onViewportChange, onLoadError, child
           disableDefaultUI: true,
           gestureHandling: "greedy",
           clickableIcons: false,
-          styles: themeRef.current === "dark" ? FINEXY_MAP_STYLE_DARK : FINEXY_MAP_STYLE,
+          styles: stylesFor(themeRef.current, variantRef.current),
         })
         map.addListener("idle", () => {
           if (internalUpdateRef.current) return
@@ -213,12 +234,12 @@ function Map({ className, apiKey, viewport, onViewportChange, onLoadError, child
     return () => window.clearTimeout(id)
   }, [mapInstance, viewport.center, viewport.zoom])
 
-  // Restyles an already-created map in place when the theme toggles, instead
-  // of tearing the map down and re-running the mount effect above.
+  // Restyles an already-created map in place when the theme (or variant)
+  // changes, instead of tearing the map down and re-running the mount effect above.
   useEffect(() => {
     if (!mapInstance) return
-    mapInstance.setOptions({ styles: theme === "dark" ? FINEXY_MAP_STYLE_DARK : FINEXY_MAP_STYLE })
-  }, [mapInstance, theme])
+    mapInstance.setOptions({ styles: stylesFor(theme, variant) })
+  }, [mapInstance, theme, variant])
 
   const contextValue = useMemo(() => ({ map: mapInstance }), [mapInstance])
 
@@ -267,6 +288,42 @@ function ringIconUrl(color: string) {
   )
 }
 
+/** Live tracking — customer's own address marker (spec: "house icon, label
+ * Your Location"), visually distinct from the default orange pin so the two
+ * markers on the tracking map never get confused at a glance. */
+function houseIconUrl(color: string) {
+  return (
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24">` +
+        `<circle cx="12" cy="12" r="11" fill="#ffffff" stroke="${color}" stroke-width="1.5"/>` +
+        `<path d="M5 11.5 12 6l7 5.5V18a1 1 0 0 1-1 1h-3.5v-4.5h-5V19H6a1 1 0 0 1-1-1z" fill="${color}"/>` +
+        `</svg>`
+    )
+  )
+}
+
+/** Live tracking — technician marker, a heading-aware arrow (spec: "rotate
+ * according to heading", "exactly like Uber/Rapido/Google Maps navigation").
+ * `technician_locations` has no persisted heading/speed column (see
+ * useLiveTracking.ts) — bearing is computed client-side from the last two
+ * GPS fixes and baked directly into this SVG's rotate() transform, since a
+ * legacy google.maps.Marker's Icon has no rotation property of its own for
+ * image icons (that only exists for vector Symbol paths). */
+function arrowIconUrl(color: string, rotationDeg: number) {
+  return (
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">` +
+        `<circle cx="17" cy="17" r="16" fill="${color}" fill-opacity="0.18"/>` +
+        `<g transform="rotate(${rotationDeg} 17 17)">` +
+        `<path d="M17 6 L24 24 L17 20 L10 24 Z" fill="${color}" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>` +
+        `</g>` +
+        `</svg>`
+    )
+  )
+}
+
 type MapMarkerProps = {
   longitude: number
   latitude: number
@@ -277,8 +334,14 @@ type MapMarkerProps = {
   color?: string
   /** "ring" renders a larger ring-styled marker (see ringIconUrl) instead of
    * the small filled dot — used to mark a route trail's idle spot distinctly
-   * from ordinary points/the moving-route polyline. Requires `color`. */
-  variant?: "dot" | "ring"
+   * from ordinary points/the moving-route polyline. "house" renders the live
+   * tracking customer-location marker (houseIconUrl). "arrow" renders the
+   * live tracking technician marker, rotated by `rotationDeg` (arrowIconUrl).
+   * "dot"/"ring"/"arrow" require `color`; "house" defaults to the accent
+   * color if `color` is omitted. */
+  variant?: "dot" | "ring" | "house" | "arrow"
+  /** Heading in degrees clockwise from north — only meaningful with variant="arrow". */
+  rotationDeg?: number
   /** Native browser tooltip on hover (e.g. technician name). */
   title?: string
   /** Kept for call-site compatibility — a legacy google.maps.Marker can't host
@@ -287,7 +350,13 @@ type MapMarkerProps = {
   children?: ReactNode
 }
 
-function markerIcon(color: string | undefined, variant: "dot" | "ring" = "dot") {
+function markerIcon(color: string | undefined, variant: "dot" | "ring" | "house" | "arrow" = "dot", rotationDeg = 0) {
+  if (variant === "house") {
+    return { url: houseIconUrl(color ?? "#F5612C"), scaledSize: new google.maps.Size(30, 30), anchor: new google.maps.Point(15, 15) }
+  }
+  if (color && variant === "arrow") {
+    return { url: arrowIconUrl(color, rotationDeg), scaledSize: new google.maps.Size(34, 34), anchor: new google.maps.Point(17, 17) }
+  }
   if (color && variant === "ring") {
     return { url: ringIconUrl(color), scaledSize: new google.maps.Size(30, 30), anchor: new google.maps.Point(15, 15) }
   }
@@ -296,7 +365,7 @@ function markerIcon(color: string | undefined, variant: "dot" | "ring" = "dot") 
     : { url: PIN_ICON_URL, scaledSize: new google.maps.Size(28, 28), anchor: new google.maps.Point(14, 24) }
 }
 
-function MapMarker({ longitude, latitude, draggable = false, onDragEnd, color, variant = "dot", title }: MapMarkerProps) {
+function MapMarker({ longitude, latitude, draggable = false, onDragEnd, color, variant = "dot", rotationDeg = 0, title }: MapMarkerProps) {
   const { map } = useMap()
   const [marker, setMarker] = useState<google.maps.Marker | null>(null)
   const onDragEndRef = useRef(onDragEnd)
@@ -309,7 +378,8 @@ function MapMarker({ longitude, latitude, draggable = false, onDragEnd, color, v
       position: { lat: latitude, lng: longitude },
       draggable,
       title,
-      icon: markerIcon(color, variant),
+      icon: markerIcon(color, variant, rotationDeg),
+      zIndex: variant === "arrow" ? 20 : undefined,
     })
     m.addListener("dragend", () => {
       const pos = m.getPosition()
@@ -336,9 +406,9 @@ function MapMarker({ longitude, latitude, draggable = false, onDragEnd, color, v
   // rather than tearing down and recreating the google.maps.Marker.
   useEffect(() => {
     if (!marker) return
-    marker.setIcon(markerIcon(color, variant))
+    marker.setIcon(markerIcon(color, variant, rotationDeg))
     marker.setTitle(title ?? null)
-  }, [marker, color, variant, title])
+  }, [marker, color, variant, rotationDeg, title])
 
   return null
 }
@@ -365,6 +435,13 @@ function MapPolyline({ path, color, weight = 4, opacity = 0.9, zIndex }: MapPoly
 
   useEffect(() => {
     if (!map) return
+    if (path.length < 2) {
+      // Premium Live Tracking requirement: log any rendering error to the
+      // console — a Polyline with 0-1 points renders nothing, silently, and
+      // that's indistinguishable from "the map is just broken" without this.
+      console.error("[MapPolyline] Refusing to render — path has fewer than 2 points", { pathLength: path.length })
+      return
+    }
     const poly = new google.maps.Polyline({
       map,
       path,
@@ -373,6 +450,7 @@ function MapPolyline({ path, color, weight = 4, opacity = 0.9, zIndex }: MapPoly
       strokeWeight: weight,
       zIndex,
     })
+    console.info("[MapPolyline] Rendered polyline on map", { pointCount: path.length, color, weight })
     polylineRef.current = poly
     return () => {
       poly.setMap(null)
@@ -470,6 +548,85 @@ function MapMarkerLabel({ longitude, latitude, className, children }: MapMarkerL
 
   if (!container) return null
   return createPortal(<div className={className}>{children}</div>, container)
+}
+
+type MapPulseMarkerProps = {
+  longitude: number
+  latitude: number
+  color: string
+  size?: number
+}
+
+/**
+ * "Live" pulse ring centered on a point (Premium Live Tracking's route map —
+ * spec: technician marker should feel animated). Same OverlayView+portal
+ * technique as MapMarkerLabel above (a legacy google.maps.Marker's Icon is a
+ * static raster image with no room for a CSS animation), just centered
+ * (`translate(-50%, -50%)`) instead of offset below, and rendering a plain
+ * animated ring/dot instead of text. Meant to sit underneath a MapMarker at
+ * the same coordinates — mount this first (or give it a lower zIndex
+ * expectation) so the marker's own icon renders on top of the ring.
+ */
+function MapPulseMarker({ longitude, latitude, color, size = 44 }: MapPulseMarkerProps) {
+  const { map } = useMap()
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  const overlayRef = useRef<google.maps.OverlayView & { redraw: () => void }>(null)
+  const posRef = useRef({ longitude, latitude })
+  posRef.current = { longitude, latitude }
+
+  useEffect(() => {
+    if (!map) return
+    class PulseOverlay extends google.maps.OverlayView {
+      div: HTMLDivElement | null = null
+      onAdd() {
+        const div = document.createElement("div")
+        div.style.position = "absolute"
+        div.style.transform = "translate(-50%, -50%)"
+        div.style.pointerEvents = "none"
+        this.div = div
+        this.getPanes()!.overlayLayer.appendChild(div)
+        setContainer(div)
+      }
+      draw() {
+        if (!this.div) return
+        const projection = this.getProjection()
+        const { latitude: lat, longitude: lng } = posRef.current
+        const point = projection?.fromLatLngToDivPixel(new google.maps.LatLng(lat, lng))
+        if (!point) return
+        this.div.style.left = `${point.x}px`
+        this.div.style.top = `${point.y}px`
+      }
+      onRemove() {
+        this.div?.remove()
+        this.div = null
+      }
+      redraw() {
+        this.draw()
+      }
+    }
+    const overlay = new PulseOverlay()
+    overlay.setMap(map)
+    overlayRef.current = overlay
+    return () => {
+      overlay.setMap(null)
+      overlayRef.current = null
+      setContainer(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map])
+
+  useEffect(() => {
+    overlayRef.current?.redraw()
+  }, [longitude, latitude])
+
+  if (!container) return null
+  return createPortal(
+    <div style={{ width: size, height: size }} className="relative">
+      <span className="absolute inset-0 animate-ping rounded-full opacity-40" style={{ backgroundColor: color, animationDuration: "1.8s" }} />
+      <span className="absolute inset-[35%] rounded-full" style={{ backgroundColor: color }} />
+    </div>,
+    container
+  )
 }
 
 type MapControlsProps = {
@@ -576,5 +733,5 @@ function MapControls({ position = "bottom-right", showZoom = true, showLocate = 
   )
 }
 
-export { Map, useMap, MapMarker, MarkerContent, MapMarkerLabel, MapControls, MapPolyline }
+export { Map, useMap, MapMarker, MarkerContent, MapMarkerLabel, MapPulseMarker, MapControls, MapPolyline }
 export type { MapViewport }

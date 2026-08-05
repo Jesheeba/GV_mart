@@ -21,6 +21,7 @@ export function Autocomplete<T>({
   icon,
   className,
   inputClassName,
+  openOnFocus,
 }: {
   id?: string
   value: string
@@ -36,11 +37,20 @@ export function Autocomplete<T>({
   className?: string
   /** Overrides the input's own classes (e.g. a pill-shaped search box) instead of the wrapper's. */
   inputClassName?: string
+  /**
+   * Show the full suggestion list on focus, before any text is typed —
+   * i.e. behave like a real dropdown. Off by default: most callers here
+   * back onto a server-side/open-ended search (customers, addresses,
+   * products) where an empty query has no meaningful "show everything"
+   * result. Only turn this on for a bounded, pre-filtered suggestion set
+   * (e.g. complaint types for an already-selected product).
+   */
+  openOnFocus?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const listboxId = useId()
-  const showList = open && value.trim().length > 0
+  const showList = open && (openOnFocus || value.trim().length > 0)
   const activeOptionId = activeIndex >= 0 && activeIndex < suggestions.length ? `${listboxId}-option-${activeIndex}` : undefined
 
   const selectItem = (item: T) => {

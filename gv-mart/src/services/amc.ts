@@ -51,6 +51,8 @@ export type SellAmcInput = {
    * Optional — sell_amc_plan falls back to the plan's own years when
    * omitted, for backward compatibility. */
   years?: number
+  /** Rewards spec (2026-08-04) — optional finder-credit referral. Ignored server-side if the id doesn't resolve to a technician in this org. */
+  referredByTechnicianId?: string | null
 }
 
 export async function sellAmcPlan(input: SellAmcInput) {
@@ -61,6 +63,7 @@ export async function sellAmcPlan(input: SellAmcInput) {
     p_plan_id: input.planId,
     p_start_date: input.startDate,
     p_years: input.years ?? null,
+    p_referred_by_technician_id: input.referredByTechnicianId ?? null,
   })
   if (error) throw error
   return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }

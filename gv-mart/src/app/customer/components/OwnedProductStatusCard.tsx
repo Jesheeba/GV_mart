@@ -50,7 +50,7 @@ export function OwnedProductStatusCard({
   )
 
   return (
-    <Card className="gap-2.5">
+    <Card className="gap-2.5 lg:px-5">
       {onHeaderClick ? (
         <button type="button" onClick={onHeaderClick} className="text-left">
           {header}

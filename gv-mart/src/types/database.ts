@@ -21,6 +21,8 @@ export type Database = {
           id: string
           name: string
           gst_no: string | null
+          address: string | null
+          phone: string | null
           created_at: string
           updated_at: string
         }
@@ -28,6 +30,8 @@ export type Database = {
           id?: string
           name: string
           gst_no?: string | null
+          address?: string | null
+          phone?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -35,6 +39,8 @@ export type Database = {
           id?: string
           name?: string
           gst_no?: string | null
+          address?: string | null
+          phone?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -527,6 +533,15 @@ export type Database = {
           standard_time_minutes: number | null
           // Task 6 (2026-07-30) — see 20260730170000_product_spare_mapping_and_active_flags.sql.
           is_active: boolean
+          // Product Enquiry rebuild (2026-08-04) — see
+          // 20260804090000_product_media_and_attributes.sql. custom_attributes
+          // is a map keyed by product_attribute_keys.id (added in Phase 2);
+          // feature_bullets is a plain ordered array of strings.
+          custom_attributes: Json
+          feature_bullets: string[]
+          // 20260806096000_add_product_description.sql — free-text,
+          // admin-editable, shown to customers in Product Enquiry.
+          description: string | null
           created_at: string
           updated_at: string
         }
@@ -543,6 +558,9 @@ export type Database = {
           warranty_months?: number
           standard_time_minutes?: number | null
           is_active?: boolean
+          custom_attributes?: Json
+          feature_bullets?: string[]
+          description?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -559,6 +577,9 @@ export type Database = {
           warranty_months?: number
           standard_time_minutes?: number | null
           is_active?: boolean
+          custom_attributes?: Json
+          feature_bullets?: string[]
+          description?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -678,6 +699,490 @@ export type Database = {
             columns: ["spare_id"]
             isOneToOne: false
             referencedRelation: "spares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      // Product Enquiry rebuild (2026-08-04) — see 20260804092000_product_attribute_keys.sql.
+      product_attribute_keys: {
+        Row: {
+          id: string
+          org_id: string
+          key_name: string
+          label: string
+          data_type: string
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          key_name: string
+          label: string
+          data_type?: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          key_name?: string
+          label?: string
+          data_type?: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_attribute_keys_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      // Product Enquiry rebuild (2026-08-04) — see 20260804090000_product_media_and_attributes.sql.
+      product_images: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string
+          storage_path: string
+          sort_order: number
+          is_primary: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id: string
+          storage_path: string
+          sort_order?: number
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string
+          storage_path?: string
+          sort_order?: number
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_images_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_documents: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string
+          storage_path: string
+          label: string
+          doc_type: string
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id: string
+          storage_path: string
+          label: string
+          doc_type?: string
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string
+          storage_path?: string
+          label?: string
+          doc_type?: string
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_documents_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_videos: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string
+          url: string
+          title: string | null
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id: string
+          url: string
+          title?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string
+          url?: string
+          title?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_videos_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_videos_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_related: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string
+          related_product_id: string
+          relation_type: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id: string
+          related_product_id: string
+          relation_type?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string
+          related_product_id?: string
+          relation_type?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_related_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_related_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_related_related_product_id_fkey"
+            columns: ["related_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_cta_overrides: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string
+          cta_type: Database["public"]["Enums"]["product_enquiry_cta_type"]
+          is_enabled: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id: string
+          cta_type: Database["public"]["Enums"]["product_enquiry_cta_type"]
+          is_enabled: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string
+          cta_type?: Database["public"]["Enums"]["product_enquiry_cta_type"]
+          is_enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_cta_overrides_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_cta_overrides_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      // Product Enquiry rebuild (2026-08-04) Phase 2 — see 20260804100000_product_enquiry_config.sql.
+      product_enquiry_tabs: {
+        Row: {
+          id: string
+          org_id: string
+          tab_type: Database["public"]["Enums"]["product_enquiry_tab_type"]
+          label: string
+          sort_order: number
+          is_active: boolean
+          config: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          tab_type: Database["public"]["Enums"]["product_enquiry_tab_type"]
+          label: string
+          sort_order?: number
+          is_active?: boolean
+          config?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          tab_type?: Database["public"]["Enums"]["product_enquiry_tab_type"]
+          label?: string
+          sort_order?: number
+          is_active?: boolean
+          config?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_enquiry_tabs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_enquiry_filters: {
+        Row: {
+          id: string
+          org_id: string
+          product_field: Database["public"]["Enums"]["product_enquiry_field"] | null
+          attribute_key_id: string | null
+          label: string
+          sort_order: number
+          is_active: boolean
+          config: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_field?: Database["public"]["Enums"]["product_enquiry_field"] | null
+          attribute_key_id?: string | null
+          label: string
+          sort_order?: number
+          is_active?: boolean
+          config?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_field?: Database["public"]["Enums"]["product_enquiry_field"] | null
+          attribute_key_id?: string | null
+          label?: string
+          sort_order?: number
+          is_active?: boolean
+          config?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_enquiry_filters_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_enquiry_filters_attribute_key_id_fkey"
+            columns: ["attribute_key_id"]
+            isOneToOne: false
+            referencedRelation: "product_attribute_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_enquiry_comparison_fields: {
+        Row: {
+          id: string
+          org_id: string
+          product_field: Database["public"]["Enums"]["product_enquiry_field"] | null
+          attribute_key_id: string | null
+          label: string
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_field?: Database["public"]["Enums"]["product_enquiry_field"] | null
+          attribute_key_id?: string | null
+          label: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_field?: Database["public"]["Enums"]["product_enquiry_field"] | null
+          attribute_key_id?: string | null
+          label?: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_enquiry_comparison_fields_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_enquiry_comparison_fields_attribute_key_id_fkey"
+            columns: ["attribute_key_id"]
+            isOneToOne: false
+            referencedRelation: "product_attribute_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_enquiry_cta_config: {
+        Row: {
+          id: string
+          org_id: string
+          cta_type: Database["public"]["Enums"]["product_enquiry_cta_type"]
+          label: string
+          sort_order: number
+          is_active: boolean
+          config: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          cta_type: Database["public"]["Enums"]["product_enquiry_cta_type"]
+          label: string
+          sort_order?: number
+          is_active?: boolean
+          config?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          cta_type?: Database["public"]["Enums"]["product_enquiry_cta_type"]
+          label?: string
+          sort_order?: number
+          is_active?: boolean
+          config?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_enquiry_cta_config_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1492,6 +1997,7 @@ export type Database = {
           txn_id: string | null
           payment_description: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
+          amount_paid: number
           gift_id: string | null
           sold_by: string | null
           created_at: string
@@ -1510,6 +2016,7 @@ export type Database = {
           txn_id?: string | null
           payment_description?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          amount_paid?: number
           gift_id?: string | null
           sold_by?: string | null
           created_at?: string
@@ -1528,6 +2035,7 @@ export type Database = {
           txn_id?: string | null
           payment_description?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          amount_paid?: number
           gift_id?: string | null
           sold_by?: string | null
           created_at?: string
@@ -1682,6 +2190,7 @@ export type Database = {
           product_id: string | null
           brand_id: string | null
           model_id: string | null
+          unlisted_product_name: string | null
           name_of_complaint: string | null
           nature_of_complaint: string | null
           type: Database["public"]["Enums"]["ticket_type"] | null
@@ -1709,6 +2218,7 @@ export type Database = {
           product_id?: string | null
           brand_id?: string | null
           model_id?: string | null
+          unlisted_product_name?: string | null
           name_of_complaint?: string | null
           nature_of_complaint?: string | null
           type?: Database["public"]["Enums"]["ticket_type"] | null
@@ -1736,6 +2246,7 @@ export type Database = {
           product_id?: string | null
           brand_id?: string | null
           model_id?: string | null
+          unlisted_product_name?: string | null
           name_of_complaint?: string | null
           nature_of_complaint?: string | null
           type?: Database["public"]["Enums"]["ticket_type"] | null
@@ -1824,6 +2335,45 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_ticket_photos: {
+        Row: {
+          id: string
+          org_id: string
+          ticket_id: string
+          storage_path: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          ticket_id: string
+          storage_path: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          ticket_id?: string
+          storage_path?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_ticket_photos_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_ticket_photos_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "service_tickets"
             referencedColumns: ["id"]
           },
         ]
@@ -2914,6 +3464,13 @@ export type Database = {
           technician_id: string
           lat: number
           lng: number
+          // Premium Live Tracking (2026-08-05) — hand-patched, see
+          // 20260805110000_technician_locations_heading_speed_accuracy.sql;
+          // this file predates that migration (Docker-based `supabase gen
+          // types` isn't available in this environment).
+          heading: number | null
+          speed: number | null
+          accuracy: number | null
           recorded_at: string
           created_at: string
           updated_at: string
@@ -2924,6 +3481,9 @@ export type Database = {
           technician_id: string
           lat: number
           lng: number
+          heading?: number | null
+          speed?: number | null
+          accuracy?: number | null
           recorded_at?: string
           created_at?: string
           updated_at?: string
@@ -2934,6 +3494,9 @@ export type Database = {
           technician_id?: string
           lat?: number
           lng?: number
+          heading?: number | null
+          speed?: number | null
+          accuracy?: number | null
           recorded_at?: string
           created_at?: string
           updated_at?: string
@@ -2972,6 +3535,13 @@ export type Database = {
           // Task 3 (2026-07-30): optional address association for
           // spare/product enquiries — see 20260730110000_address_everywhere.sql.
           address_id: string | null
+          // Product Enquiry rebuild (2026-08-04) Phase 4 — see
+          // 20260804110000_structured_enquiry_and_callback.sql.
+          product_id: string | null
+          qty: number | null
+          // Spare Enquiry -> Quotation autofill (2026-08-04) — see
+          // 20260804140000_spare_enquiry_structured_quotation.sql.
+          spare_id: string | null
           created_at: string
           updated_at: string
         }
@@ -2989,6 +3559,9 @@ export type Database = {
           score?: number | null
           visit_id?: string | null
           address_id?: string | null
+          product_id?: string | null
+          qty?: number | null
+          spare_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3006,6 +3579,9 @@ export type Database = {
           score?: number | null
           visit_id?: string | null
           address_id?: string | null
+          product_id?: string | null
+          qty?: number | null
+          spare_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3043,6 +3619,20 @@ export type Database = {
             columns: ["address_id"]
             isOneToOne: false
             referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_spare_id_fkey"
+            columns: ["spare_id"]
+            isOneToOne: false
+            referencedRelation: "spares"
             referencedColumns: ["id"]
           },
         ]
@@ -3091,6 +3681,65 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_items: {
+        Row: {
+          id: string
+          org_id: string
+          lead_id: string
+          product_id: string | null
+          spare_id: string | null
+          qty: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          lead_id: string
+          product_id?: string | null
+          spare_id?: string | null
+          qty?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          lead_id?: string
+          product_id?: string | null
+          spare_id?: string | null
+          qty?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_items_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_items_spare_id_fkey"
+            columns: ["spare_id"]
+            isOneToOne: false
+            referencedRelation: "spares"
             referencedColumns: ["id"]
           },
         ]
@@ -3506,6 +4155,11 @@ export type Database = {
           narrow_window_threshold_minutes: number
           review_time_allowance_minutes: number
           enquiry_time_allowance_minutes: number
+          // Product Enquiry rebuild (2026-08-04) Phase 2 — see
+          // 20260804100000_product_enquiry_config.sql.
+          emi_enabled: boolean
+          emi_tenure_months: Json
+          emi_disclaimer: string | null
           created_at: string
           updated_at: string
         }
@@ -3543,6 +4197,9 @@ export type Database = {
           narrow_window_threshold_minutes?: number
           review_time_allowance_minutes?: number
           enquiry_time_allowance_minutes?: number
+          emi_enabled?: boolean
+          emi_tenure_months?: Json
+          emi_disclaimer?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3580,6 +4237,9 @@ export type Database = {
           narrow_window_threshold_minutes?: number
           review_time_allowance_minutes?: number
           enquiry_time_allowance_minutes?: number
+          emi_enabled?: boolean
+          emi_tenure_months?: Json
+          emi_disclaimer?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3589,6 +4249,111 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: true
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_settings: {
+        Row: {
+          id: string
+          org_id: string
+          merchant_name: string
+          upi_id: string
+          phone_number: string | null
+          payment_enabled: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          merchant_name?: string
+          upi_id?: string
+          phone_number?: string | null
+          payment_enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          merchant_name?: string
+          upi_id?: string
+          phone_number?: string | null
+          payment_enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          id: string
+          org_id: string
+          invoice_id: string
+          visit_id: string | null
+          amount: number
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          gateway_reference: string | null
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          paid_at: string
+          confirmed_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          invoice_id: string
+          visit_id?: string | null
+          amount: number
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          gateway_reference?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          paid_at?: string
+          confirmed_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          invoice_id?: string
+          visit_id?: string | null
+          amount?: number
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          gateway_reference?: string | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          paid_at?: string
+          confirmed_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "service_visits"
             referencedColumns: ["id"]
           },
         ]
@@ -3983,6 +4748,9 @@ export type Database = {
           p_cart: Json
           p_quotation_id?: string | null
           p_redeem_points?: number | null
+          // Rewards spec (2026-08-04) — optional finder-credit referral,
+          // see 20260804150000_referral_capture_functions.sql.
+          p_referred_by_technician_id?: string | null
         }
         Returns: Json
       }
@@ -4045,14 +4813,17 @@ export type Database = {
           p_priority: Database["public"]["Enums"]["priority_level"]
           p_channel: Database["public"]["Enums"]["ticket_channel"]
           p_appointment_mode: Database["public"]["Enums"]["appointment_mode"] | null
-          p_scheduled_at: string | null
           p_auto_assign: boolean
-          p_available_from?: string | null
-          p_available_to?: string | null
-          // B1: jsonb array of {"start":"HH:MM","end":"HH:MM"} — see
-          // 20260723101000_step4_booking_rpcs.sql. Null = legacy caller,
-          // falls back to p_available_from/p_available_to as-is.
-          p_unavailable_windows?: Json | null
+          // Admin/customer booking-format parity (2026-08-03) — mirrors
+          // book_service_ticket's p_scheduled_date/p_slot_id; only
+          // meaningful when p_appointment_mode is 'datetime'. Replaces the
+          // old p_scheduled_at/p_available_from/p_available_to/
+          // p_unavailable_windows geometry.
+          p_scheduled_date?: string | null
+          p_slot_id?: string | null
+          // Rewards spec (2026-08-04) — optional finder-credit referral,
+          // see 20260804150000_referral_capture_functions.sql.
+          p_referred_by_technician_id?: string | null
         }
         Returns: Json
       }
@@ -4084,6 +4855,29 @@ export type Database = {
         Args: { p_org_id: string; p_visit_id: string; p_reason: string }
         Returns: Json
       }
+      get_visit_payment_state: {
+        Args: { p_org_id: string; p_visit_id: string }
+        Returns: Json
+      }
+      record_upi_payment: {
+        Args: { p_org_id: string; p_visit_id: string }
+        Returns: Json
+      }
+      // Partial-payment top-up fix — hand-patched, see
+      // 20260806098000_record_additional_payment.sql; Docker-based
+      // `supabase gen types` isn't available in this environment (see
+      // memory: hand-patch instead).
+      record_additional_payment: {
+        Args: {
+          p_org_id: string
+          p_invoice_id: string
+          p_amount: number
+          p_payment_method: Database["public"]["Enums"]["payment_method"]
+          p_txn_id?: string | null
+          p_payment_description?: string | null
+        }
+        Returns: Database["public"]["Tables"]["invoices"]["Row"]
+      }
       delete_service_ticket: {
         Args: { p_ticket_id: string }
         Returns: undefined
@@ -4096,6 +4890,9 @@ export type Database = {
           p_plan_id: string
           p_start_date?: string
           p_years?: number | null
+          // Rewards spec (2026-08-04) — optional finder-credit referral,
+          // see 20260804150000_referral_capture_functions.sql.
+          p_referred_by_technician_id?: string | null
         }
         Returns: Json
       }
@@ -4133,6 +4930,18 @@ export type Database = {
         Args: { p_org_id: string; p_visit_id: string; p_stars: number; p_review: string | null; p_low_rating_reason: string | null }
         Returns: string
       }
+      // Premium Live Tracking (2026-08-04) — hand-patched, see
+      // 20260804230000_customer_rating_and_technician_stats.sql; this file
+      // predates that migration and Docker-based `supabase gen types` isn't
+      // available in this environment (see memory: hand-patch instead).
+      submit_customer_rating: {
+        Args: { p_org_id: string; p_visit_id: string; p_stars: number; p_review: string | null }
+        Returns: string
+      }
+      get_technician_public_stats: {
+        Args: { p_technician_id: string }
+        Returns: Json
+      }
       mark_google_review_clicked: {
         Args: { p_org_id: string; p_visit_id: string }
         Returns: undefined
@@ -4151,10 +4960,9 @@ export type Database = {
         Returns: undefined
       }
       book_service_ticket: {
-        // Customer Dashboard Booking Audit (2026-07-31) Tasks 2-4 — signature
-        // replaced (was appointment_mode/scheduled_at/available_from/to/
-        // unavailable_windows geometry) with a plain date + admin-configured
-        // slot. See 20260731170000_appointment_slots_and_stale_booking_followup.sql.
+        // Restored to unavailability-window geometry (2026-08-04 change
+        // request) — see 20260804200000_restore_customer_unavailability_booking.sql.
+        // p_slot_id was replaced back with p_unavailable_windows.
         Args: {
           p_org_id: string
           p_address_id: string | null
@@ -4165,7 +4973,7 @@ export type Database = {
           p_nature_of_complaint: string | null
           p_priority: Database["public"]["Enums"]["priority_level"]
           p_scheduled_date: string
-          p_slot_id: string
+          p_unavailable_windows: Json
         }
         Returns: Json
       }
@@ -4183,8 +4991,23 @@ export type Database = {
           // Task 3 (2026-07-30): optional selected address — see
           // 20260730110000_address_everywhere.sql.
           p_address_id?: string | null
+          // Spare Enquiry multi-product line items (2026-08-05) — replaces
+          // the old scalar p_product_id/p_qty/p_spare_id with an array of
+          // {product_id, spare_id, qty}, see
+          // 20260805141000_spare_enquiry_line_items.sql.
+          p_items?: Json
         }
         Returns: string
+      }
+      request_callback: {
+        Args: {
+          p_org_id: string
+          p_scheduled_date: string
+          p_slot_id: string
+          p_product_id?: string | null
+          p_note?: string | null
+        }
+        Returns: Json
       }
       renew_amc_plan: {
         Args: {
@@ -4346,7 +5169,7 @@ export type Database = {
       po_status: "draft" | "sent" | "received"
       quotation_status: "open" | "converted" | "lost"
       invoice_type: "product" | "spare" | "amc"
-      payment_method: "cash" | "transfer"
+      payment_method: "cash" | "transfer" | "upi"
       payment_status: "paid" | "partial" | "due"
       ticket_type: "paid" | "warranty" | "amc" | "installation"
       priority_level: "very_urgent" | "urgent" | "normal"
@@ -4356,12 +5179,18 @@ export type Database = {
       appointment_status: "scheduled" | "in_progress" | "completed" | "cancelled"
       amc_status: "active" | "due_soon" | "expired"
       enquiry_type: "online" | "price" | "quality" | "customization" | "water_premium" | "budget"
+      // Product Enquiry rebuild (2026-08-04) — see 20260804090000_product_media_and_attributes.sql.
+      product_enquiry_cta_type: "quotation" | "callback" | "share"
+      // Product Enquiry rebuild (2026-08-04) Phase 2 — see 20260804100000_product_enquiry_config.sql.
+      product_enquiry_tab_type: "catalog_grid" | "video_library"
+      product_enquiry_field: "category" | "brand" | "price_range"
       lead_status: "new" | "contacted" | "quoted" | "won" | "lost"
       lead_source: "field" | "customer_app" | "whatsapp" | "walk_in" | "referral" | "other"
       lead_kind: "service" | "spare" | "product" | "amc"
       automation_action: "send_video" | "quotation" | "link"
       incentive_type: "service_income" | "sales_income" | "review" | "finder_credit"
-      reward_category: "attendance" | "highest_review" | "highest_revenue"
+      // Rewards spec (2026-08-04) — 4th category, see 20260804140000_reward_referral_category.sql.
+      reward_category: "attendance" | "highest_review" | "highest_revenue" | "highest_referral"
       expense_category: "marketing" | "stationery" | "salary" | "petrol" | "purchase" | "other"
       approval_type: "discount" | "po" | "price_override" | "leave"
       approval_status: "pending" | "approved" | "rejected"

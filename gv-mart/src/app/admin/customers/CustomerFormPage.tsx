@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { useFieldArray, useForm, type Control, type FieldErrors, type UseFormRegister, type UseFormWatch } from "react-hook-form"
@@ -25,6 +25,7 @@ import {
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
+import { isPreciseGeocodeResult } from "@/services/maps"
 import { getPrimaryAddressId, setAddressZone } from "@/services/customers"
 import {
   useAreaAutocomplete,
@@ -233,7 +234,7 @@ export function CustomerFormPage() {
   // ambiguous "search anyway" result already behaves.
   const autoLocateQuery = [doorNo, flatNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
-  const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number } | null>(null)
+  const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {
     if (lat != null && lng != null) return
     if (!area.trim() || pincode.trim().length !== 6) return
@@ -245,11 +246,31 @@ export function CustomerFormPage() {
         // was in flight for a moment, and staff may have already
         // searched/dragged/confirmed a pin themselves in that window.
         if (addressForm.getValues("lat") != null && addressForm.getValues("lng") != null) return
-        setSuggestedPin({ lat: top.lat, lng: top.lon })
+        setSuggestedPin({ lat: top.lat, lng: top.lon, formatted: top.formatted, precise: isPreciseGeocodeResult(top.locationType) })
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedAutoLocateQuery, pincode, lat, lng])
+
+  // Bug fix: this effect's guard above ("once set... later edits must not
+  // silently yank an already-placed pin") was written to protect a pin staff
+  // just placed *this session* — but it also protected a STALE pin loaded
+  // from an existing customer's DB row when staff corrects that address's
+  // text afterwards (e.g. a placeholder door/area later fixed to the real
+  // one). The pin then keeps pointing at the old address with nothing
+  // prompting a re-check, so the technician's "Open in Maps" ends up at the
+  // wrong place. Snapshot the text the currently-confirmed pin belongs to
+  // (set on load and whenever a pin is confirmed below) and clear the pin
+  // the moment the address text diverges from it, so the auto-suggest effect
+  // above treats it like a fresh, unconfirmed address again.
+  const confirmedLocationTextRef = useRef(autoLocateQuery)
+  useEffect(() => {
+    if ((lat == null && lng == null) || autoLocateQuery === confirmedLocationTextRef.current) return
+    addressForm.setValue("lat", undefined, { shouldValidate: true })
+    addressForm.setValue("lng", undefined, { shouldValidate: true })
+    setSuggestedPin(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLocateQuery])
 
   useEffect(() => {
     if (mode === "edit" && existing.data) {
@@ -271,6 +292,18 @@ export function CustomerFormPage() {
           lat: primary.lat ?? undefined,
           lng: primary.lng ?? undefined,
         })
+        confirmedLocationTextRef.current = [
+          primary.door_no,
+          primary.flat_no,
+          primary.street_cross,
+          primary.area,
+          primary.landmark,
+          primary.pincode,
+          primary.district,
+          primary.state,
+        ]
+          .filter(Boolean)
+          .join(", ")
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -496,10 +529,13 @@ export function CustomerFormPage() {
               lng={addressForm.watch("lng")}
               suggestedLat={suggestedPin?.lat}
               suggestedLng={suggestedPin?.lng}
+              suggestedFormatted={suggestedPin?.formatted}
+              suggestedPrecise={suggestedPin?.precise}
               onConfirm={({ lat: newLat, lng: newLng }) => {
                 addressForm.setValue("lat", newLat, { shouldValidate: true })
                 addressForm.setValue("lng", newLng, { shouldValidate: true })
                 setSuggestedPin(null)
+                confirmedLocationTextRef.current = autoLocateQuery
               }}
               onAddressSelect={(r) => {
                 if (!addressForm.getValues("area") && (r.suburb || r.city)) {
@@ -516,6 +552,9 @@ export function CustomerFormPage() {
                 }
               }}
             />
+            {lat == null && lng == null && !autoLocate.isPending ? (
+              <p className="text-xs text-warning">{t("customers.form.map.pinRequired")}</p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-4 border-t border-border px-1 pt-3">

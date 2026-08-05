@@ -26,6 +26,8 @@ export function AddressMapPicker({
   lng,
   suggestedLat,
   suggestedLng,
+  suggestedFormatted,
+  suggestedPrecise,
   onConfirm,
   onAddressSelect,
 }: {
@@ -41,6 +43,19 @@ export function AddressMapPicker({
    */
   suggestedLat?: number
   suggestedLng?: number
+  /** The place text Google actually matched this guess to (e.g. "Muno India
+   * Private Limited, 1-A, Anna Salai...") — shown next to the draft pin so a
+   * mismatch against what the user typed is obvious before they confirm,
+   * instead of only a small marker on a thumbnail-sized map. */
+  suggestedFormatted?: string
+  /** False (or omitted) when the guess came from a coarse Google match
+   * (GEOMETRIC_CENTER/APPROXIMATE/unknown) rather than a precise
+   * ROOFTOP/RANGE_INTERPOLATED one — see isPreciseGeocodeResult. Survey-
+   * number/rural addresses routinely fall here, and an imprecise guess can
+   * land on an unrelated nearby place entirely. When false, "Confirm
+   * location" stays disabled until the user actually drags the pin at least
+   * once, so a coarse guess can never be accepted with a single blind tap. */
+  suggestedPrecise?: boolean
   /** Fires only when the user explicitly confirms a location (selecting a search result, or confirming a drag adjustment). */
   onConfirm: (coords: Coords) => void
   /** Fires when a search result is picked, before drag adjustment — lets the caller auto-fill area/pincode/district/state. */
@@ -63,6 +78,12 @@ export function AddressMapPicker({
 
   const [pin, setPin] = useState<Coords | null>(lat != null && lng != null ? { lat, lng } : null)
   const [draftPin, setDraftPin] = useState<Coords | null>(null)
+  // True while the current draft pin is an unverified auto-suggestion from a
+  // coarse geocode match (suggestedPrecise === false) that the user hasn't
+  // yet dragged — gates "Confirm location" below so a low-confidence guess
+  // can never be accepted with a single blind tap. Cleared the moment the
+  // user actually moves the pin (see the marker's onDragEnd).
+  const [draftNeedsVerification, setDraftNeedsVerification] = useState(false)
   const [viewport, setViewport] = useState<{ center: [number, number]; zoom: number }>(() =>
     lat != null && lng != null ? { center: [lng, lat], zoom: PIN_ZOOM } : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM }
   )
@@ -78,6 +99,12 @@ export function AddressMapPicker({
     if (lat != null && lng != null) {
       setPin({ lat, lng })
       setViewport({ center: [lng, lat], zoom: PIN_ZOOM })
+    } else {
+      // Parent cleared lat/lng (e.g. typed address text diverged from the
+      // confirmed pin) — drop our stale pin too, or the suggested-pin effect
+      // below stays silently blocked by `if (pin) return` and a new
+      // auto-geocoded suggestion never gets a chance to show.
+      setPin(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lat, lng])
@@ -92,9 +119,10 @@ export function AddressMapPicker({
     if (suggestedLat != null && suggestedLng != null) {
       setDraftPin({ lat: suggestedLat, lng: suggestedLng })
       setViewport({ center: [suggestedLng, suggestedLat], zoom: PIN_ZOOM })
+      setDraftNeedsVerification(!suggestedPrecise)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [suggestedLat, suggestedLng])
+  }, [suggestedLat, suggestedLng, suggestedPrecise])
 
   // Live-as-you-type suggestions — the whole point of a session token is
   // that every keystroke in one search reuses it, so it's created once above
@@ -157,7 +185,7 @@ export function AddressMapPicker({
   }
 
   function confirmDraft() {
-    if (!draftPin) return
+    if (!draftPin || draftNeedsVerification) return
     setPin(draftPin)
     setDraftPin(null)
     skipNextPropSync.current = true
@@ -279,7 +307,10 @@ export function AddressMapPicker({
                 longitude={activePin.lng}
                 latitude={activePin.lat}
                 draggable
-                onDragEnd={(lngLat) => setDraftPin({ lat: lngLat.lat, lng: lngLat.lng })}
+                onDragEnd={(lngLat) => {
+                  setDraftPin({ lat: lngLat.lat, lng: lngLat.lng })
+                  setDraftNeedsVerification(false)
+                }}
               >
                 <MarkerContent>
                   <MapPin className="size-7 -translate-y-3.5 fill-accent text-ink drop-shadow" strokeWidth={1.5} />
@@ -297,17 +328,24 @@ export function AddressMapPicker({
       </div>
 
       {activePin ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-alt px-3 py-2">
-          <span className={cn("flex items-center gap-1.5 text-xs font-medium", draftPin ? "text-warning" : "text-success")}>
-            {draftPin ? <TriangleAlert className="size-3.5" /> : <Check className="size-3.5" />}
-            {draftPin
-              ? t("customers.form.map.draftPin")
-              : t("customers.form.map.confirmedPin", { lat: pin!.lat.toFixed(6), lng: pin!.lng.toFixed(6) })}
-          </span>
-          {draftPin ? (
-            <Button type="button" size="sm" onClick={confirmDraft}>
-              {t("customers.form.map.confirmLocation")}
-            </Button>
+        <div className="space-y-1.5 rounded-xl bg-surface-alt px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className={cn("flex items-center gap-1.5 text-xs font-medium", draftPin ? "text-warning" : "text-success")}>
+              {draftPin ? <TriangleAlert className="size-3.5" /> : <Check className="size-3.5" />}
+              {draftPin
+                ? draftNeedsVerification
+                  ? t("customers.form.map.draftPinUnverified")
+                  : t("customers.form.map.draftPin")
+                : t("customers.form.map.confirmedPin", { lat: pin!.lat.toFixed(6), lng: pin!.lng.toFixed(6) })}
+            </span>
+            {draftPin ? (
+              <Button type="button" size="sm" disabled={draftNeedsVerification} onClick={confirmDraft} title={draftNeedsVerification ? t("customers.form.map.confirmLocationDisabledHint") : undefined}>
+                {t("customers.form.map.confirmLocation")}
+              </Button>
+            ) : null}
+          </div>
+          {draftPin && suggestedFormatted ? (
+            <p className="text-xs text-text-muted">{t("customers.form.map.suggestedPlaceLabel", { place: suggestedFormatted })}</p>
           ) : null}
         </div>
       ) : null}

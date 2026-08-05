@@ -88,7 +88,7 @@ export async function computeIncentives(orgId: string, period: string) {
 
 // ── ADM-26: Rewards ────────────────────────────────────────────────────────
 
-export type RewardCategory = "attendance" | "highest_review" | "highest_revenue"
+export type RewardCategory = "attendance" | "highest_review" | "highest_revenue" | "highest_referral"
 
 export type RewardCandidate = { category: RewardCategory; technician_id: string; metric: number }
 

@@ -40,6 +40,21 @@ export const settingsSchema = z
     // GV.md 1.2: "admin also sets a review time and a new-enquiry time allowance."
     review_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     enquiry_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    // Product Enquiry rebuild (2026-08-04) Phase 2 — EMI is purely
+    // illustrative display config (see 20260804100000_product_enquiry_
+    // config.sql), not a real financing product: tenures held as a
+    // comma-separated string in the form, transformed to a number[] for
+    // the jsonb column on submit.
+    emi_enabled: z.boolean(),
+    emi_tenure_months: z
+      .string()
+      .transform((s) =>
+        s
+          .split(",")
+          .map((x) => Number(x.trim()))
+          .filter((n) => Number.isInteger(n) && n > 0)
+      ),
+    emi_disclaimer: z.string().optional().or(z.literal("")),
   })
   .refine((v) => v.lunch_minutes_red_threshold > v.lunch_minutes_allowed, {
     message: "settings.errors.lunchRedAfterAllowed",

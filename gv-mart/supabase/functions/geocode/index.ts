@@ -34,6 +34,17 @@ export type GeocodeResult = {
   state: string | null
   postcode: string | null
   suburb: string | null
+  // Google's own confidence flag for this match: ROOFTOP (precise premise
+  // match) / RANGE_INTERPOLATED (interpolated between two points on a
+  // street) are trustworthy; GEOMETRIC_CENTER / APPROXIMATE mean Google
+  // couldn't resolve the input past a street/locality/postal-code centroid
+  // and is guessing — which is exactly what happens for survey-number/rural
+  // addresses ("sy.no. 203/10B, Zamin Pallavaram") that don't match a real
+  // premise, and can land the "guess" on an unrelated nearby POI. Threaded
+  // through so callers can require extra verification for a low-confidence
+  // auto-suggestion instead of treating every geocode result as equally
+  // trustworthy.
+  locationType: string | null
 }
 
 type AutocompletePrediction = { placeId: string; description: string }
@@ -79,14 +90,14 @@ function extractComponents(components: GoogleAddressComponent[]) {
 
 function toGeocodeResult(r: {
   formatted_address?: string
-  geometry?: { location?: { lat?: number; lng?: number } }
+  geometry?: { location?: { lat?: number; lng?: number }; location_type?: string }
   address_components?: GoogleAddressComponent[]
 }): GeocodeResult | null {
   const lat = r.geometry?.location?.lat
   const lon = r.geometry?.location?.lng
   if (lat == null || lon == null) return null
   const { city, district, state, postcode, suburb } = extractComponents(r.address_components ?? [])
-  return { formatted: r.formatted_address ?? "", lat, lon, city, district, state, postcode, suburb }
+  return { formatted: r.formatted_address ?? "", lat, lon, city, district, state, postcode, suburb, locationType: r.geometry?.location_type ?? null }
 }
 
 // GV Mart operates out of Chennai — a soft preference (biases ranking, does
@@ -221,9 +232,16 @@ Deno.serve(async (req) => {
       // fall back to duration when traffic data isn't returned.
       const durationSeconds =
         data.routes?.[0]?.legs?.[0]?.duration_in_traffic?.value ?? data.routes?.[0]?.legs?.[0]?.duration?.value ?? null
+      // Premium route-focused tracking map — the actual road-following
+      // geometry (Google's encoded polyline algorithm), so the customer map
+      // can draw the real route instead of a straight line. Decoded
+      // client-side (src/services/maps.ts) rather than here, since the
+      // decoded point array would bloat this response for no benefit.
+      const overviewPolyline: string | null = data.routes?.[0]?.overview_polyline?.points ?? null
       return jsonOk({
         distanceKm: distanceMeters != null ? distanceMeters / 1000 : null,
         durationMinutes: durationSeconds != null ? durationSeconds / 60 : null,
+        overviewPolyline,
       })
     }
 

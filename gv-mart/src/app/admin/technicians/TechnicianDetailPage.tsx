@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { Briefcase, ChevronLeft, ChevronRight, Gift, History, KeyRound, Loader2, Pencil, Phone, Power, Trash2, X } from "lucide-react"
+import { Briefcase, ChevronLeft, ChevronRight, Gift, History, KeyRound, Loader2, Pencil, Phone, Power, Trash2, UserPlus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
-import { StatusDot } from "@/components/shared/StatusDot"
+import { DOT_TONE_CLASS, StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import {
   useDeleteTechnicianAccount,
@@ -27,6 +27,8 @@ import {
   useUpdateTechnicianProfile,
   useUpsertTechnicianAvailability,
 } from "@/hooks/useTechniciansAdmin"
+import { useLeads } from "@/hooks/useAutomation"
+import type { LeadListItem } from "@/services/automation"
 import { PriorityBadge, TicketTypeBadge } from "@/app/admin/service/TicketBadges"
 import { pickHistoryVisit, TECHNICIAN_SKILL_OPTIONS } from "@/services/techniciansAdmin"
 import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
@@ -80,6 +82,7 @@ export function TechnicianDetailPage() {
   const currentJob = useTechnicianCurrentJob(id)
   const history = useTechnicianTicketHistory(id)
   const rewards = useTechnicianRewards(id)
+  const referrals = useLeads(orgId, { source: "referral", ownerId: id })
 
   const [editing, setEditing] = useState(false)
   const [editZone, setEditZone] = useState("")
@@ -378,6 +381,9 @@ export function TechnicianDetailPage() {
           <TabsTrigger value="rewards">
             <Gift className="size-3.5" /> {t("technicians.detail.tabs.rewards")}
           </TabsTrigger>
+          <TabsTrigger value="referrals">
+            <UserPlus className="size-3.5" /> {t("technicians.detail.tabs.referrals")}
+          </TabsTrigger>
           <TabsTrigger value="availability">{t("technicians.detail.tabs.availability")}</TabsTrigger>
         </TabsList>
 
@@ -395,6 +401,10 @@ export function TechnicianDetailPage() {
 
         <TabsContent value="rewards" className="mt-3.5">
           <RewardsTab loading={rewards.isLoading} rows={rewards.data ?? []} />
+        </TabsContent>
+
+        <TabsContent value="referrals" className="mt-3.5">
+          <ReferralsTab loading={referrals.isLoading} rows={referrals.data ?? []} onOpenCustomer={(customerId) => navigate(`/admin/customers/${customerId}`)} />
         </TabsContent>
 
         <TabsContent value="availability" className="mt-3.5">
@@ -662,7 +672,7 @@ function AttendanceTab({ technicianId }: { technicianId: string | undefined }) {
                   )}
                 >
                   <span className={cn("font-semibold", c.inMonth ? "text-text" : "text-text-muted/50")}>{c.day}</span>
-                  {record ? <span className={cn("size-1.5 rounded-full", record.is_late ? "bg-danger" : "bg-success")} aria-hidden="true" /> : null}
+                  {record ? <span className={cn("size-1.5 rounded-full", DOT_TONE_CLASS[ATTENDANCE_STATUS_TONE[record.status]])} aria-hidden="true" /> : null}
                 </button>
               )
             })}
@@ -670,10 +680,13 @@ function AttendanceTab({ technicianId }: { technicianId: string | undefined }) {
 
           <div className="flex flex-wrap items-center gap-4 border-t border-border px-1 pt-3">
             <span className="flex items-center gap-1.5 text-xs text-text-muted">
-              <span className="size-1.5 rounded-full bg-success" aria-hidden="true" /> {t("technician.attendance.onTimeBadge")}
+              <span className={cn("size-1.5 rounded-full", DOT_TONE_CLASS.success)} aria-hidden="true" /> {t("technician.attendance.status.onTime")}
             </span>
             <span className="flex items-center gap-1.5 text-xs text-text-muted">
-              <span className="size-1.5 rounded-full bg-danger" aria-hidden="true" /> {t("technician.attendance.lateBadge")}
+              <span className={cn("size-1.5 rounded-full", DOT_TONE_CLASS.warning)} aria-hidden="true" /> {t("technician.attendance.status.late")}
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-text-muted">
+              <span className={cn("size-1.5 rounded-full", DOT_TONE_CLASS.danger)} aria-hidden="true" /> {t("technician.attendance.status.veryLate")}
             </span>
           </div>
 
@@ -774,6 +787,38 @@ function RewardsTab({ loading, rows }: { loading: boolean; rows: TechnicianRewar
           </div>
           <Gift className="size-4 shrink-0 text-accent" />
         </div>
+      ))}
+    </div>
+  )
+}
+
+function ReferralsTab({
+  loading,
+  rows,
+  onOpenCustomer,
+}: {
+  loading: boolean
+  rows: LeadListItem[]
+  onOpenCustomer: (customerId: string) => void
+}) {
+  const { t } = useTranslation()
+  if (loading) return <Skeleton className="h-32 w-full" />
+  if (rows.length === 0) return <EmptyState label={t("technicians.detail.noReferrals")} />
+  return (
+    <div className="space-y-2">
+      {rows.map((r) => (
+        <button
+          key={r.id}
+          type="button"
+          onClick={() => r.customer_id && onOpenCustomer(r.customer_id)}
+          className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-left hover:bg-surface-alt"
+        >
+          <div>
+            <p className="text-sm font-semibold text-text">{r.customers?.name ?? r.name}</p>
+            <p className="text-xs text-text-muted">{r.customers?.mobile ?? "—"} · {fmtDate(r.created_at)}</p>
+          </div>
+          <StatusDot tone={r.status === "won" ? "success" : r.status === "lost" ? "danger" : "warning"} label={t(`leads.status.${r.status}`)} />
+        </button>
       ))}
     </div>
   )

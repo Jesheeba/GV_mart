@@ -1,11 +1,12 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarRange, LogOut, Star, TrendingUp } from "lucide-react"
+import { CalendarRange, LogOut, Star, TrendingUp, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SegButton } from "@/components/shared/SegButton"
+import { useLeads } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import { useMyTechnician, useTechnicianStats } from "@/hooks/useTechnician"
 import { signOut } from "@/services/auth"
@@ -37,6 +38,7 @@ export function ProfilePage() {
   const technician = useMyTechnician()
   const [earningsPreset, setEarningsPreset] = useState<EarningsPreset>("last30d")
   const stats = useTechnicianStats(technician.data?.id, profile?.org_id, rangeForEarningsPreset(earningsPreset))
+  const referrals = useLeads(profile?.org_id, { source: "referral", ownerId: technician.data?.id })
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
@@ -114,6 +116,34 @@ export function ProfilePage() {
           </Card>
         </>
       )}
+
+      <Card className="gap-3">
+        <div className="flex items-center gap-2 px-1">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+            <UserPlus className="size-4" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-text">{t("technician.profile.referralsTitle")}</p>
+            {referrals.data && referrals.data.length > 0 ? (
+              <p className="text-xs text-text-muted">{t("technician.profile.referralsCount", { count: referrals.data.length })}</p>
+            ) : null}
+          </div>
+        </div>
+        {referrals.isLoading ? (
+          <p className="px-1 text-sm text-text-muted">{t("common.loading")}</p>
+        ) : !referrals.data || referrals.data.length === 0 ? (
+          <p className="px-1 text-sm text-text-muted">{t("technician.profile.noReferrals")}</p>
+        ) : (
+          <div className="space-y-1.5 px-1">
+            {referrals.data.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+                <p className="text-sm text-text">{r.customers?.name ?? r.name}</p>
+                <p className="text-xs text-text-muted">{new Date(r.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Button type="button" variant="outline" onClick={() => navigate("/technician/day-sheet")}>
         <CalendarRange className="size-4" />

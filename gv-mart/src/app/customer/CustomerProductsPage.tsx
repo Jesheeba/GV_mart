@@ -38,7 +38,7 @@ function RegisterProductForm({ orgId, customerId, onDone }: { orgId: string | un
   })
 
   return (
-    <Card className="gap-3">
+    <Card className="gap-3 lg:px-5">
       <div className="flex items-center gap-2 px-1">
         <QrCode className="size-4 text-text-muted" />
         <h2 className="text-sm font-semibold text-text">{t("customerApp.products.registerTitle")}</h2>
@@ -115,7 +115,7 @@ export function CustomerProductsPage() {
       {showRegister ? <RegisterProductForm orgId={orgId} customerId={customerId} onDone={() => setShowRegister(false)} /> : null}
 
       {(rows ?? []).length === 0 ? (
-        <Card className="items-center gap-1.5 py-8 text-center">
+        <Card className="items-center gap-1.5 py-8 text-center lg:px-5">
           <Package className="size-6 text-text-muted" />
           <p className="text-sm text-text-muted">{t("customerApp.products.empty")}</p>
           <Button size="sm" variant="outline" onClick={() => setShowRegister(true)}>

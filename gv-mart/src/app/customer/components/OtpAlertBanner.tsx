@@ -74,7 +74,7 @@ export function OtpAlertBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="mx-4 mb-3 flex items-center gap-2.5 rounded-xl border border-accent/30 bg-accent-soft pl-3.5 pr-2 py-1"
+      className="mx-4 mb-3 flex items-center gap-2.5 rounded-xl border border-accent/30 bg-accent-soft pl-3.5 pr-2 py-1 lg:mx-25"
     >
       <KeyRound className="size-4 shrink-0 text-accent" />
       <button

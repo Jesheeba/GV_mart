@@ -61,10 +61,18 @@ export type TicketFiltersInput = {
   status?: string
   priority?: string
   type?: string
+  // "" = all, a technician uuid = that technician, or the sentinel
+  // "unassigned" = no technician on any open appointment (see
+  // isUnassignedRow below) — TicketsListPage's Technician filter and its
+  // "Unassigned" quick chip both write/read this same value.
   technicianId?: string
   date?: string
   area?: string
   search?: string
+}
+
+export function isUnassignedRow(r: TicketListItem) {
+  return r.appointments.length === 0 || r.appointments.every((a) => !a.technician_id)
 }
 
 const TICKET_SELECT = `
@@ -110,7 +118,9 @@ export async function listTickets(orgId: string, filters: TicketFiltersInput): P
   // Filters that reach through the joined appointment/address rows can't be
   // expressed as a single PostgREST `.eq()` on the base table — applied
   // client-side after the fetch instead.
-  if (filters.technicianId) {
+  if (filters.technicianId === "unassigned") {
+    rows = rows.filter(isUnassignedRow)
+  } else if (filters.technicianId) {
     rows = rows.filter((r) => r.appointments.some((a) => a.technician_id === filters.technicianId))
   }
   if (filters.area) {
@@ -142,6 +152,46 @@ export async function getTicket(id: string) {
 /** Sets/changes a ticket's service address after creation (e.g. it was created with none). */
 export async function updateTicketAddress(ticketId: string, addressId: string | null) {
   const { data, error } = await supabase.from("service_tickets").update({ address_id: addressId }).eq("id", ticketId).select().single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * Gate-assignment-on-product (2026-08-04): sets/changes a ticket's product
+ * after creation — either a real catalog product (productId/brandId/modelId)
+ * or a free-text name typed by an admin when the customer's actual product
+ * isn't in Masters yet (unlistedProductName). The two are mutually
+ * exclusive — always send all four so the unused side gets cleared.
+ */
+export async function updateTicketProduct(
+  ticketId: string,
+  patch: { productId: string | null; brandId: string | null; modelId: string | null; unlistedProductName: string | null }
+) {
+  const { data, error } = await supabase
+    .from("service_tickets")
+    .update({
+      product_id: patch.productId,
+      brand_id: patch.brandId,
+      model_id: patch.modelId,
+      unlisted_product_name: patch.unlistedProductName,
+    })
+    .eq("id", ticketId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/** Gate-assignment-on-product (2026-08-04): open tickets with no product defined yet — feeds the Dashboard/Masters nag and the "Missing Product" filter chip. */
+export async function listTicketsMissingProduct(orgId: string) {
+  const { data, error } = await supabase
+    .from("service_tickets")
+    .select("id, name_of_complaint, created_at, customers(name), addresses(area)")
+    .eq("org_id", orgId)
+    .is("product_id", null)
+    .is("unlisted_product_name", null)
+    .not("status", "in", "(completed,cancelled)")
+    .order("created_at", { ascending: true })
   if (error) throw error
   return data
 }
@@ -205,24 +255,19 @@ export type CreateComplaintInput = {
   priority: PriorityLevel
   channel: Enums<"ticket_channel">
   appointmentMode: AppointmentMode | null
-  scheduledAt: string | null
   autoAssign: boolean
-  // Customer availability time window (Phase 1.5 of the technician
-  // assignment rework) — only meaningful when appointmentMode is
-  // 'datetime'; null/undefined otherwise. `p_available_from`/`p_available_to`
-  // post-date the last database.ts regen (see create_complaint_ticket's new
-  // trailing params in 20260721091000_appointment_availability_window.sql),
-  // so they're intentionally typed here rather than sourced from the
-  // generated RPC Args type.
-  availableFrom?: string | null
-  availableTo?: string | null
-  // B1 (Build Order Step 4): windows the admin marked as the customer NOT
-  // being available on the chosen date. Undefined/null = legacy caller
-  // (falls back to availableFrom/availableTo as-is); an array (possibly
-  // empty) engages the date-only + unavailable-windows computation,
-  // including B2's narrow-window guard and B3's next-day-priority bump.
-  // See 20260723101000_step4_booking_rpcs.sql.
-  unavailableWindows?: { start: string; end: string }[] | null
+  // Admin/customer booking-format parity (2026-08-03): the "New Complaint"
+  // appointment step now uses the same admin-configured appointment-slot
+  // picker as the customer app's own booking flow (see
+  // customerApp.ts#bookServiceTicket) instead of the old free-text
+  // available-time-window builder. Only meaningful when appointmentMode is
+  // 'datetime'. See 20260803130000_admin_complaint_appointment_slots.sql.
+  scheduledDate?: string | null
+  slotId?: string | null
+  /** Rewards spec (2026-08-04) — optional finder-credit referral for this complaint/booking. Ignored server-side if the id doesn't resolve to a technician in this org. */
+  referredByTechnicianId?: string | null
+  /** Gate-assignment-on-product (2026-08-04) — admin-typed product name when the customer's real product isn't in Masters yet. Mutually exclusive with productId. */
+  unlistedProductName?: string | null
 }
 
 export async function createComplaintTicket(input: CreateComplaintInput) {
@@ -238,11 +283,11 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     p_priority: input.priority,
     p_channel: input.channel,
     p_appointment_mode: input.appointmentMode,
-    p_scheduled_at: input.scheduledAt,
     p_auto_assign: input.autoAssign,
-    p_available_from: input.availableFrom ?? null,
-    p_available_to: input.availableTo ?? null,
-    p_unavailable_windows: input.unavailableWindows ?? null,
+    p_scheduled_date: input.scheduledDate ?? null,
+    p_slot_id: input.slotId ?? null,
+    p_referred_by_technician_id: input.referredByTechnicianId ?? null,
+    p_unlisted_product_name: input.unlistedProductName ?? null,
   })
   if (error) throw error
   return data as {
@@ -251,10 +296,10 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     detected_type: unknown
     assign_result: unknown
     scheduled_at: string | null
-    available_from: string | null
-    available_to: string | null
-    is_narrow_window: boolean | null
-    next_day_priority: boolean | null
+    slot_id: string | null
+    slot_name: string | null
+    slot_start_time: string | null
+    slot_end_time: string | null
   }
 }
 

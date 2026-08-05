@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as api from "@/services/customerApp"
+import * as catalogApi from "@/services/customerCatalog"
+import * as enquiryConfigApi from "@/services/customerProductEnquiryConfig"
 import type {
   AddressInput,
   EnquiryRpcInput,
@@ -306,6 +308,15 @@ export function useMyTicketTechnicians(customerId: string | undefined) {
   })
 }
 
+export function useActiveAssignedTickets(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "activeAssignedTickets", customerId],
+    queryFn: () => api.listActiveAssignedTickets(),
+    enabled: !!customerId,
+    refetchInterval: 20_000,
+  })
+}
+
 export function useTicketDetail(ticketId: string | undefined) {
   return useQuery({
     queryKey: ["customerApp", "ticketDetail", ticketId],
@@ -354,6 +365,71 @@ export function useVideoLibrary(orgId: string | undefined) {
   })
 }
 
+// ── Product Enquiry rebuild (2026-08-04), Phase 3+ ──────────────────────
+export function useProductEnquiryTabs(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "productEnquiryTabs", orgId],
+    queryFn: () => enquiryConfigApi.listActiveProductEnquiryTabs(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useCatalogProducts(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "catalogProducts", orgId],
+    queryFn: () => catalogApi.listCatalogProducts(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useProductDetail(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "productDetail", productId],
+    queryFn: () => catalogApi.getCatalogProduct(productId!),
+    enabled: !!productId,
+  })
+}
+
+export function useCatalogProductsByIds(orgId: string | undefined, ids: string[]) {
+  return useQuery({
+    queryKey: ["customerApp", "catalogProductsByIds", orgId, ids],
+    queryFn: () => catalogApi.listCatalogProductsByIds(orgId!, ids),
+    enabled: !!orgId && ids.length > 0,
+  })
+}
+
+export function useEffectiveProductCtas(orgId: string | undefined, productId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "effectiveProductCtas", orgId, productId],
+    queryFn: () => enquiryConfigApi.listEffectiveProductCtas(orgId!, productId!),
+    enabled: !!orgId && !!productId,
+  })
+}
+
+export function useActiveProductAttributeKeys(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "activeProductAttributeKeys", orgId],
+    queryFn: () => enquiryConfigApi.listActiveProductAttributeKeys(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useProductEnquiryFilters(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "productEnquiryFilters", orgId],
+    queryFn: () => enquiryConfigApi.listActiveProductEnquiryFilters(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useProductEnquiryComparisonFields(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "productEnquiryComparisonFields", orgId],
+    queryFn: () => enquiryConfigApi.listActiveProductEnquiryComparisonFields(orgId!),
+    enabled: !!orgId,
+  })
+}
+
 // Task 6 (2026-07-30) — spares mapped to the selected product, for the
 // Spare Enquiry picker.
 export function useSparesForProduct(productId: string | undefined) {
@@ -368,6 +444,15 @@ export function useSubmitEnquiry() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: EnquiryRpcInput) => api.submitCustomerEnquiry(input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customerApp", "leads"] }),
+  })
+}
+
+// Product Enquiry rebuild (2026-08-04) Phase 4.
+export function useRequestCallback() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: api.CallbackRpcInput) => api.requestCallback(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customerApp", "leads"] }),
   })
 }
@@ -400,5 +485,26 @@ export function useLatestTechnicianLocation(technicianId: string | undefined) {
     queryKey: ["customerApp", "technicianLocation", technicianId],
     queryFn: () => api.getLatestTechnicianLocation(technicianId!),
     enabled: !!technicianId,
+  })
+}
+
+export function useTechnicianPublicStats(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["customerApp", "technicianPublicStats", technicianId],
+    queryFn: () => api.getTechnicianPublicStats(technicianId!),
+    enabled: !!technicianId,
+    staleTime: 5 * 60_000,
+  })
+}
+
+export function useSubmitCustomerRating() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.submitCustomerRating,
+    // Also refetch on error: the most common failure is the technician having
+    // already collected this visit's rating in person (ratings.visit_id is
+    // unique — one rating total). Re-fetching swaps the stale empty form for
+    // the real rating instead of leaving the customer stuck retrying forever.
+    onSettled: () => qc.invalidateQueries({ queryKey: ["customerApp", "ticketDetail"] }),
   })
 }

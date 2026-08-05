@@ -16,12 +16,13 @@ import { useSettings, giftsHooks, brandsHooks, modelsHooks, productsHooks, spare
 import { useInventoryList } from "@/hooks/useInventory"
 import { useCreateSale, useCustomerReferralBalance } from "@/hooks/useSales"
 import { useQuotation } from "@/hooks/useQuotations"
+import { useTechnicians } from "@/hooks/useService"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { discountNeedsApproval, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
+import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
 import { formatCurrency } from "@/lib/sale-calc"
 import { ItemsStep } from "./ItemsStep"
 import { SaleSummaryPanel } from "./SaleSummaryPanel"
-import { cartIsEmpty, combinedSubtotal, type CartProductLine, type CartSpareLine, type SaleCartState } from "./types"
+import { cartIsEmpty, combinedSubtotal, payableTotal, type CartProductLine, type CartSpareLine, type SaleCartState } from "./types"
 import type { Enums } from "@/types/database"
 
 const STEP_KEYS = ["customer", "items", "discount", "gift", "payment", "review"] as const
@@ -43,6 +44,8 @@ type NewSaleDraftData = {
   txnId: string
   paymentDescription: string
   redeemPointsInput: string
+  amountPaidInput: string
+  amountPaidTouched: boolean
 }
 
 /**
@@ -81,8 +84,16 @@ export function NewSalePage() {
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [redeemPointsInput, setRedeemPointsInput] = useState("0")
+  // Amount actually collected — defaults to (and keeps tracking) the live
+  // payable total until the cashier types over it, so a normal
+  // fully-paid-now sale needs zero extra input; only a genuine partial/due
+  // sale requires typing a smaller number.
+  const [amountPaidInput, setAmountPaidInput] = useState("")
+  const [amountPaidTouched, setAmountPaidTouched] = useState(false)
+  const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
 
   const { data: settings } = useSettings(orgId)
+  const { data: technicians } = useTechnicians(orgId)
   const { data: gifts } = giftsHooks.useList(orgId)
   // Stock is informational here, not a hard gate — an out-of-stock gift is
   // still selectable (it just won't physically decrement below 0; see
@@ -177,6 +188,8 @@ export function NewSalePage() {
     txnId,
     paymentDescription,
     redeemPointsInput,
+    amountPaidInput,
+    amountPaidTouched,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -197,6 +210,8 @@ export function NewSalePage() {
     if (restoredDraft.txnId) setTxnId(restoredDraft.txnId)
     if (restoredDraft.paymentDescription) setPaymentDescription(restoredDraft.paymentDescription)
     if (restoredDraft.redeemPointsInput != null) setRedeemPointsInput(restoredDraft.redeemPointsInput)
+    if (restoredDraft.amountPaidInput != null) setAmountPaidInput(restoredDraft.amountPaidInput)
+    if (restoredDraft.amountPaidTouched != null) setAmountPaidTouched(restoredDraft.amountPaidTouched)
   }, [restoredDraft])
 
   const techMax = settings ? Number(settings.discount_tech_max) : 5
@@ -205,6 +220,14 @@ export function NewSalePage() {
   const eligibleGifts = (gifts ?? []).filter((g) => combined >= Number(g.threshold_amount))
   const selectedGift = (gifts ?? []).find((g) => g.id === giftId) ?? null
   const giftStockById = new Map((giftInventory ?? []).map((r) => [r.item_id, r.stock_qty]))
+
+  const gstRate = settings ? Number(settings.gst_rate) : 0
+  const computedPayable = payableTotal(cart, discountPercent, gstRate, redeemAmount)
+  useEffect(() => {
+    if (!amountPaidTouched) setAmountPaidInput(computedPayable.toFixed(2))
+  }, [computedPayable, amountPaidTouched])
+  const amountPaid = Math.max(0, Number(amountPaidInput) || 0)
+  const amountDue = Math.max(0, computedPayable - amountPaid)
 
   const steps = STEP_KEYS.map((key) => ({ key, label: t(`sales.steps.${key}`) }))
 
@@ -216,9 +239,13 @@ export function NewSalePage() {
   }
 
   function handlePaymentContinue() {
-    const result = paymentDetailsSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription })
+    const result = paymentDetailsSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription, amountPaid })
     if (!result.success) {
       setPaymentError(result.error.issues[0]?.message ?? "sales.errors.paymentInvalid")
+      return
+    }
+    if (isAmountPaidBlocked(amountPaid, computedPayable)) {
+      setPaymentError("sales.errors.amountPaidExceedsTotal")
       return
     }
     setPaymentError(null)
@@ -249,6 +276,8 @@ export function NewSalePage() {
         redeemPoints,
       },
       quotationId,
+      referredByTechnicianId: referredByTechnicianId || null,
+      amountPaid,
     })
     clearDraft()
     const primaryInvoiceId = result.product_invoice_id ?? result.spare_invoice_id ?? result.amc_invoice_id
@@ -284,6 +313,9 @@ export function NewSalePage() {
             setTxnId("")
             setPaymentDescription("")
             setRedeemPointsInput("0")
+            setAmountPaidInput("")
+            setAmountPaidTouched(false)
+            setReferredByTechnicianId("")
           }}
         />
       ) : null}
@@ -445,6 +477,31 @@ export function NewSalePage() {
                 </div>
               ) : null}
               <p className="text-xs text-text-muted">{t("sales.payment.noGatewayNote")}</p>
+
+              <div className="space-y-1.5 border-t border-border pt-3">
+                <Label htmlFor="amountPaid">{t("sales.payment.amountCollected")}</Label>
+                <Input
+                  id="amountPaid"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={amountPaidInput}
+                  onChange={(e) => {
+                    setAmountPaidTouched(true)
+                    setAmountPaidInput(e.target.value)
+                  }}
+                  className="w-40"
+                />
+                <p className="text-xs text-text-muted">{t("sales.payment.payableNote", { amount: formatCurrency(computedPayable) })}</p>
+                {amountDue > 0.01 ? (
+                  <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
+                    {amountPaid <= 0
+                      ? t("sales.payment.willBeDue")
+                      : t("sales.payment.willBePartial", { amount: formatCurrency(amountDue) })}
+                  </p>
+                ) : null}
+              </div>
+
               {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
             </Card>
           ) : null}
@@ -459,6 +516,23 @@ export function NewSalePage() {
               {redeemPoints > 0 ? (
                 <p className="text-sm text-success">{t("sales.review.redeemPoints", { points: redeemPoints, amount: formatCurrency(redeemAmount) })}</p>
               ) : null}
+
+              <div className="space-y-1.5 border-t border-border pt-3">
+                <Label>{t("common.referredByTechnician")}</Label>
+                <select
+                  value={referredByTechnicianId}
+                  onChange={(e) => setReferredByTechnicianId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
+                >
+                  <option value="">{t("common.none")}</option>
+                  {(technicians ?? []).map((tech) => (
+                    <option key={tech.id} value={tech.id}>
+                      {tech.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {createSale.isError ? (
                 <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createSale.error as Error).message}</p>
               ) : null}

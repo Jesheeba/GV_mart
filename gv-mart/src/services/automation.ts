@@ -10,6 +10,17 @@ export type LeadActivityRow = Tables<"lead_activities">
 export type LeadListItem = LeadRow & {
   customers: { name: string; mobile: string } | null
   technicians: { profiles: { full_name: string } | null } | null
+  // Spare Enquiry multi-product line items (2026-08-05) — every product/
+  // spare the lead's enquiry asked for, used to seed the quotation cart
+  // with more than one item (see LeadDetailPanel / QuotationFormPage).
+  lead_items: {
+    id: string
+    product_id: string | null
+    spare_id: string | null
+    qty: number
+    products: { name: string; price: number } | null
+    spares: { name: string; price: number } | null
+  }[]
 }
 
 export type LeadFilters = {
@@ -20,6 +31,12 @@ export type LeadFilters = {
    *  for the dashboard's period-filtered Lead→Sale Conversion tile. Optional
    *  and additive — every existing caller keeps returning all-time leads. */
   dateRange?: DateRange
+  /** Technician-referral surfacing (2026-08-04): CustomerDetailPage's
+   *  "referred by" chip filters by customerId, TechnicianDetailPage's and
+   *  the technician app's own Referrals list filter by ownerId — both
+   *  combined with source: "referral". */
+  ownerId?: string
+  customerId?: string
 }
 
 /**
@@ -33,12 +50,14 @@ export type LeadFilters = {
 export async function listLeads(orgId: string, filters: LeadFilters = {}): Promise<LeadListItem[]> {
   let query = supabase
     .from("leads")
-    .select("*, customers(name, mobile), technicians(profiles(full_name))")
+    .select("*, customers(name, mobile), technicians(profiles(full_name)), lead_items(id, product_id, spare_id, qty, products(name, price), spares(name, price))")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
   if (filters.source) query = query.eq("source", filters.source)
   if (filters.enquiryType) query = query.eq("enquiry_type", filters.enquiryType)
   if (filters.kind) query = query.eq("kind", filters.kind)
+  if (filters.ownerId) query = query.eq("owner_id", filters.ownerId)
+  if (filters.customerId) query = query.eq("customer_id", filters.customerId)
   if (filters.dateRange) {
     query = query.gte("created_at", `${filters.dateRange.from}T00:00:00`).lte("created_at", `${filters.dateRange.to}T23:59:59.999`)
   }

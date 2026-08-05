@@ -205,10 +205,10 @@ export async function registerProductViaQr(orgId: string, productId: string, ser
 
 // ── Service Booking (CUST-02) ─────────────────────────────────────────────
 //
-// Customer Dashboard Booking Audit (2026-07-31) Tasks 2-4: replaced the old
-// appointmentMode/scheduledAt/availableFrom/availableTo/unavailableWindows
-// geometry with a plain date + admin-configured appointment slot. See
-// 20260731170000_appointment_slots_and_stale_booking_followup.sql.
+// Restored to unavailability-window geometry booking (2026-08-04 change
+// request — the admin-configured appointment-slot system introduced
+// 2026-07-31 stays live for the admin flow only). See
+// 20260804200000_restore_customer_unavailability_booking.sql.
 
 export type AppointmentSlotRow = Tables<"appointment_slots">
 
@@ -220,6 +220,8 @@ export async function listAppointmentSlots(orgId: string, activeOnly = true) {
   return data
 }
 
+export type UnavailableWindow = { start: string; end: string }
+
 export type ServiceBookingRpcInput = {
   orgId: string
   addressId: string
@@ -230,7 +232,7 @@ export type ServiceBookingRpcInput = {
   natureOfComplaint?: string
   priority: Enums<"priority_level">
   scheduledDate: string
-  slotId: string
+  unavailableWindows: UnavailableWindow[]
 }
 
 export async function bookServiceTicket(input: ServiceBookingRpcInput) {
@@ -244,7 +246,7 @@ export async function bookServiceTicket(input: ServiceBookingRpcInput) {
     p_nature_of_complaint: input.natureOfComplaint ?? "",
     p_priority: input.priority,
     p_scheduled_date: input.scheduledDate,
-    p_slot_id: input.slotId,
+    p_unavailable_windows: input.unavailableWindows,
   })
   if (error) throw error
   return data as {
@@ -254,10 +256,10 @@ export async function bookServiceTicket(input: ServiceBookingRpcInput) {
     lead_id: string | null
     assign_result: { assigned: boolean; reason_key?: string } | null
     scheduled_at: string | null
-    slot_id: string
-    slot_name: string
-    slot_start_time: string
-    slot_end_time: string
+    available_from: string | null
+    available_to: string | null
+    is_narrow_window: boolean
+    next_day_priority: boolean
   }
 }
 
@@ -323,6 +325,10 @@ export type FilteredTicketItem = {
     slot_name: string | null
     slot_start_time: string | null
     slot_end_time: string | null
+    // Restored 2026-08-04 for geometry-booked (no slot_id) customer bookings.
+    available_from: string | null
+    available_to: string | null
+    is_narrow_window: boolean
     technician: { id: string; full_name: string } | null
   } | null
   amc_status: Enums<"amc_status"> | null
@@ -364,12 +370,30 @@ export async function getTicketDetail(ticketId: string) {
       // Customer Dashboard Booking Audit (2026-07-31) Task 3/5: the slot
       // join is live (name/times), not frozen at booking time — an admin
       // retiming a slot shows up here automatically.
-      "*, products(name), brands(name), models(name), addresses(*), invoices(*), appointments(*, technicians(id, profile_id, profiles(full_name, phone)), appointment_slots(name, start_time, end_time)), service_visits(*, ratings(*), ro_checklists(*), service_visit_otps(code, generated_at, expires_at, verified_at))"
+      "*, products(name), brands(name), models(name), addresses(*), invoices(*), appointments(*, technicians(id, profile_id, skills, profiles(full_name, phone)), appointment_slots(name, start_time, end_time)), service_visits(*, ratings(*), ro_checklists(*), service_visit_otps(code, generated_at, expires_at, verified_at))"
     )
     .eq("id", ticketId)
     .single()
   if (error) throw error
   return data
+}
+
+export type ActiveAssignedTicket = { id: string; status: Enums<"ticket_status"> }
+
+// Technician-assignment banner (Customer Dashboard) — the ticket(s) that
+// currently have a technician assigned and aren't finished yet, so the
+// banner has something to point at across a page reload (a realtime event
+// alone would lose the banner on refresh).
+export async function listActiveAssignedTickets() {
+  const { data, error } = await supabase
+    .from("service_tickets")
+    .select("id, status, updated_at, appointments(technician_id)")
+    .in("status", ["assigned", "in_progress"])
+    .order("updated_at", { ascending: false })
+  if (error) throw error
+  return (data ?? [])
+    .filter((t) => t.appointments?.some((a) => a.technician_id))
+    .map((t) => ({ id: t.id, status: t.status }) as ActiveAssignedTicket)
 }
 
 // ── AMC (CUST-03) ─────────────────────────────────────────────────────────
@@ -493,6 +517,8 @@ export async function listSparesForProduct(productId: string): Promise<ProductSp
   return (data ?? []).map((row) => row.spares).filter((s): s is NonNullable<typeof s> => !!s)
 }
 
+export type EnquiryItemInput = { productId?: string; spareId?: string; qty?: number }
+
 export type EnquiryRpcInput = {
   orgId: string
   kind: "product" | "spare"
@@ -501,9 +527,28 @@ export type EnquiryRpcInput = {
   photoUrl?: string
   /** Task 3 (2026-07-30) — optional selected address for the enquiry. */
   addressId?: string
+  /** Product Enquiry rebuild (2026-08-04) Phase 4 — structured per-product quote request. */
+  productId?: string
+  qty?: number
+  /** Spare Enquiry -> Quotation autofill (2026-08-04) — the selected spare, if any. */
+  spareId?: string
+  /**
+   * Spare Enquiry multi-product line items (2026-08-05) — one or more
+   * product/spare requests in a single enquiry (CustomerSpareEnquiryPage's
+   * "+ Add another product" rows). Falls back to the singular productId/
+   * spareId/qty above when omitted, so QuotationCta.tsx and
+   * VideoLibraryTabContent.tsx (single-item callers) need no changes.
+   */
+  items?: EnquiryItemInput[]
 }
 
 export async function submitCustomerEnquiry(input: EnquiryRpcInput) {
+  const items =
+    input.items && input.items.length > 0
+      ? input.items
+      : input.productId || input.spareId
+        ? [{ productId: input.productId, spareId: input.spareId, qty: input.qty }]
+        : []
   const { data, error } = await supabase.rpc("submit_customer_enquiry", {
     p_org_id: input.orgId,
     p_kind: input.kind,
@@ -511,9 +556,31 @@ export async function submitCustomerEnquiry(input: EnquiryRpcInput) {
     p_description: input.description,
     p_photo_url: input.photoUrl ?? "",
     p_address_id: input.addressId ?? null,
+    p_items: items.map((i) => ({ product_id: i.productId ?? null, spare_id: i.spareId ?? null, qty: i.qty ?? 1 })),
   })
   if (error) throw error
   return data as string
+}
+
+// ── Product Enquiry rebuild (2026-08-04) Phase 4 — Request Callback ──────
+export type CallbackRpcInput = {
+  orgId: string
+  scheduledDate: string
+  slotId: string
+  productId?: string
+  note?: string
+}
+
+export async function requestCallback(input: CallbackRpcInput) {
+  const { data, error } = await supabase.rpc("request_callback", {
+    p_org_id: input.orgId,
+    p_scheduled_date: input.scheduledDate,
+    p_slot_id: input.slotId,
+    p_product_id: input.productId ?? null,
+    p_note: input.note ?? null,
+  })
+  if (error) throw error
+  return data
 }
 
 // ── Referral wallet (CUST-08) ─────────────────────────────────────────────
@@ -548,4 +615,25 @@ export async function getLatestTechnicianLocation(technicianId: string) {
     .maybeSingle()
   if (error) throw error
   return data
+}
+
+// ── Premium live tracking — rating submission + technician public stats ──
+
+export async function submitCustomerRating(input: { orgId: string; visitId: string; stars: number; review: string | null }) {
+  const { data, error } = await supabase.rpc("submit_customer_rating", {
+    p_org_id: input.orgId,
+    p_visit_id: input.visitId,
+    p_stars: input.stars,
+    p_review: input.review,
+  })
+  if (error) throw error
+  return data
+}
+
+export type TechnicianPublicStats = { avg_rating: number | null; completed_count: number }
+
+export async function getTechnicianPublicStats(technicianId: string): Promise<TechnicianPublicStats> {
+  const { data, error } = await supabase.rpc("get_technician_public_stats", { p_technician_id: technicianId })
+  if (error) throw error
+  return data as unknown as TechnicianPublicStats
 }

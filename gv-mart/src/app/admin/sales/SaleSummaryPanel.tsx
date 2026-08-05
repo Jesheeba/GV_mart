@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSettings } from "@/hooks/useMasters"
 import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
-import { amcSubtotal, productSubtotal, spareSubtotal, type SaleCartState } from "./types"
+import { amcSubtotal, payableTotal, productSubtotal, spareSubtotal, type SaleCartState } from "./types"
 
 export function SaleSummaryPanel({
   orgId,
@@ -28,7 +28,7 @@ export function SaleSummaryPanel({
   const amcBill = amcSubtotal(cart) > 0 ? billBreakdown(amcSubtotal(cart), discountPercent, gstRate) : null
   const grandTotal = (spareBill?.total ?? 0) + (productBill?.total ?? 0) + (amcBill?.total ?? 0)
   const redeemDiscount = Math.min(redeemAmount ?? 0, grandTotal)
-  const payable = Math.max(0, grandTotal - redeemDiscount)
+  const payable = payableTotal(cart, discountPercent, gstRate, redeemAmount ?? 0)
 
   const bills = [
     { key: "product", label: t("sales.summary.productBill"), bill: productBill },

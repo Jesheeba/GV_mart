@@ -90,11 +90,11 @@ export function AdminShell() {
   const items = ADMIN_NAV.filter((item) => item.roles.includes(profile.role))
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg">
+    <div className="flex h-screen overflow-hidden bg-bg print:block print:h-auto print:overflow-visible">
       {/* Its own independently-scrolling region — never moves when the main
           content scrolls, and (if the nav list ever outgrows the viewport)
           scrolls internally instead of dragging header/content with it. */}
-      <aside className="my-4 ml-4 flex h-[calc(100vh-2rem)] w-16 shrink-0 flex-col items-center gap-2 overflow-y-auto rounded-card border border-border bg-surface py-4">
+      <aside className="my-4 ml-4 flex h-[calc(100vh-2rem)] w-16 shrink-0 flex-col items-center gap-2 overflow-y-auto rounded-card border border-border bg-surface py-4 print:hidden">
         <span className="mb-2 flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-white p-1">
           <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
         </span>
@@ -122,8 +122,8 @@ export function AdminShell() {
         </nav>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex shrink-0 items-center gap-3 px-6 py-4">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:block print:overflow-visible">
+        <header className="flex shrink-0 items-center gap-3 px-6 py-4 print:hidden">
           <AdminGlobalSearch orgId={profile.org_id} />
           <div className="ml-auto flex items-center gap-2">
             <button
@@ -145,7 +145,7 @@ export function AdminShell() {
         </header>
 
         {/* The only scrolling region on the page now — sidebar and header stay put. */}
-        <main className="flex-1 overflow-y-auto px-6 pb-8">
+        <main className="flex-1 overflow-y-auto px-6 pb-8 print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>

@@ -55,6 +55,12 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
         </Button>
       </div>
 
+      {(lead.lead_items ?? []).length > 0 ? (
+        <p className="text-xs text-text-muted">
+          {t("leads.detail.items")}: {(lead.lead_items ?? []).map((li) => li.products?.name ?? li.spares?.name).filter(Boolean).join(", ")}
+        </p>
+      ) : null}
+
       <Button
         size="sm"
         variant="outline"
@@ -66,6 +72,10 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
               name: lead.customers?.name ?? lead.name,
               mobile: lead.mobile ?? lead.customers?.mobile ?? null,
               status: lead.status,
+              // Spare Enquiry multi-product line items (2026-08-05) — every
+              // product/spare the enquiry asked for, prefilling the
+              // quotation's item cart instead of making the admin reselect.
+              items: (lead.lead_items ?? []).map((li) => ({ productId: li.product_id, spareId: li.spare_id, qty: li.qty })),
             },
           })
         }

@@ -93,6 +93,9 @@ const CustomerAmcProductDetailPage = lazyPage(
   "CustomerAmcProductDetailPage"
 )
 const CustomerProductEnquiryPage = lazyPage(() => import("@/app/customer/CustomerProductEnquiryPage"), "CustomerProductEnquiryPage")
+const CustomerProductDetailPage = lazyPage(() => import("@/app/customer/CustomerProductDetailPage"), "CustomerProductDetailPage")
+const CustomerRequestCallbackPage = lazyPage(() => import("@/app/customer/CustomerRequestCallbackPage"), "CustomerRequestCallbackPage")
+const CustomerCompareProductsPage = lazyPage(() => import("@/app/customer/CustomerCompareProductsPage"), "CustomerCompareProductsPage")
 const CustomerSpareEnquiryPage = lazyPage(() => import("@/app/customer/CustomerSpareEnquiryPage"), "CustomerSpareEnquiryPage")
 const BookServicePage = lazyPage(() => import("@/app/customer/service/BookServicePage"), "BookServicePage")
 const CustomerNotificationsPage = lazyPage(() => import("@/app/customer/NotificationsPage"), "NotificationsPage")
@@ -282,7 +285,15 @@ export const router = createBrowserRouter([
                 ],
               },
               { path: "book-service", element: <BookServicePage /> },
-              { path: "product-enquiry", element: <CustomerProductEnquiryPage /> },
+              {
+                path: "product-enquiry",
+                children: [
+                  { index: true, element: <CustomerProductEnquiryPage /> },
+                  { path: "catalog/:productId", element: <CustomerProductDetailPage /> },
+                  { path: "callback", element: <CustomerRequestCallbackPage /> },
+                  { path: "compare", element: <CustomerCompareProductsPage /> },
+                ],
+              },
               { path: "spare-enquiry", element: <CustomerSpareEnquiryPage /> },
               { path: "notifications", element: <CustomerNotificationsPage /> },
             ],

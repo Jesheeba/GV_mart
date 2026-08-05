@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Plus, Target, TrendingUp, Trophy } from "lucide-react"
+import { Inbox, LayoutGrid, Plus, Table2, Target, TrendingUp, TriangleAlert, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard } from "@/components/shared/KpiCard"
+import { StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
@@ -10,6 +12,9 @@ import { LeadDetailPanel } from "./LeadDetailPanel"
 import { NewLeadForm } from "./NewLeadForm"
 import type { LeadListItem } from "@/services/automation"
 import type { Enums } from "@/types/database"
+import { cn } from "@/lib/utils"
+
+const TABLE_GRID_COLS = "grid-cols-[1.4fr_1fr_1fr_0.8fr_1fr_0.9fr_1.2fr_1fr]"
 
 const SOURCE_OPTIONS: Enums<"lead_source">[] = ["field", "customer_app", "whatsapp", "walk_in", "referral", "other"]
 const TOPIC_OPTIONS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
@@ -20,6 +25,7 @@ export function LeadsPage() {
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
+  const [view, setView] = useState<"table" | "kanban">("kanban")
   const [source, setSource] = useState<Enums<"lead_source"> | "">("")
   const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
   const [kind, setKind] = useState<Enums<"lead_kind"> | "">("")
@@ -46,10 +52,38 @@ export function LeadsPage() {
           <h1 className="text-2xl font-bold text-text">{t("nav.leads")}</h1>
           <p className="text-sm text-text-muted">{t("leads.subtitle")}</p>
         </div>
-        <Button variant="accent" onClick={() => setShowNew((v) => !v)}>
-          <Plus className="size-4" />
-          {t("leads.new.title")}
-        </Button>
+        <div className="flex items-center gap-2.5">
+          <div className="flex gap-[3px] rounded-full border border-border bg-surface p-1">
+            <button
+              type="button"
+              onClick={() => setView("table")}
+              aria-pressed={view === "table"}
+              title={t("leads.view.table")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3.5 py-[7px] text-xs font-semibold transition-colors",
+                view === "table" ? "bg-ink text-white" : "text-text-muted"
+              )}
+            >
+              <Table2 className="size-3.5" /> {t("leads.view.table")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("kanban")}
+              aria-pressed={view === "kanban"}
+              title={t("leads.view.kanban")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3.5 py-[7px] text-xs font-semibold transition-colors",
+                view === "kanban" ? "bg-ink text-white" : "text-text-muted"
+              )}
+            >
+              <LayoutGrid className="size-3.5" /> {t("leads.view.kanban")}
+            </button>
+          </div>
+          <Button variant="accent" onClick={() => setShowNew((v) => !v)}>
+            <Plus className="size-4" />
+            {t("leads.new.title")}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -124,13 +158,23 @@ export function LeadsPage() {
             instead of stretching to a third of the page when nothing (or a
             single lead) is shown there. */}
         <div className="min-w-0 lg:flex-1">
-          <LeadsKanban
-            rows={leads.data ?? []}
-            loading={leads.isLoading}
-            error={leads.isError ? t("leads.loadFailed") : null}
-            onRetry={() => leads.refetch()}
-            onCardClick={setSelected}
-          />
+          {view === "table" ? (
+            <LeadsTable
+              rows={leads.data ?? []}
+              loading={leads.isLoading}
+              error={leads.isError ? t("leads.loadFailed") : null}
+              onRetry={() => leads.refetch()}
+              onRowClick={setSelected}
+            />
+          ) : (
+            <LeadsKanban
+              rows={leads.data ?? []}
+              loading={leads.isLoading}
+              error={leads.isError ? t("leads.loadFailed") : null}
+              onRetry={() => leads.refetch()}
+              onCardClick={setSelected}
+            />
+          )}
         </div>
         <div className="lg:w-80 lg:shrink-0">
           {selected ? (
@@ -142,6 +186,95 @@ export function LeadsPage() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// Bespoke grid table (not the shared <DataTable>) — mirrors the pattern
+// TicketsListPage.tsx uses for its Table/Kanban toggle.
+function LeadsTable({
+  rows,
+  loading,
+  error,
+  onRetry,
+  onRowClick,
+}: {
+  rows: LeadListItem[]
+  loading: boolean
+  error: string | null
+  onRetry: () => void
+  onRowClick: (row: LeadListItem) => void
+}) {
+  const { t } = useTranslation()
+
+  const headers = [
+    t("leads.table.name"),
+    t("leads.table.mobile"),
+    t("leads.table.source"),
+    t("leads.table.kind"),
+    t("leads.table.topic"),
+    t("leads.table.status"),
+    t("leads.table.technician"),
+    t("leads.table.created"),
+  ]
+
+  return (
+    <div className="overflow-hidden rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+      <div className={cn("grid items-center border-b border-border bg-surface-alt px-[22px] py-[11px]", TABLE_GRID_COLS)}>
+        {headers.map((h) => (
+          <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+            {h}
+          </span>
+        ))}
+      </div>
+
+      {error ? (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <TriangleAlert className="size-6 text-danger" />
+          <p className="text-sm text-text-muted">{error}</p>
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            {t("common.retry")}
+          </Button>
+        </div>
+      ) : loading ? (
+        Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className={cn("grid items-center border-b border-border px-[22px] py-[14px]", TABLE_GRID_COLS)}>
+            {headers.map((h) => (
+              <Skeleton key={h} className="h-4 w-3/4 max-w-32" />
+            ))}
+          </div>
+        ))
+      ) : rows.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <Inbox className="size-6 text-text-muted" />
+          <p className="text-sm text-text-muted">{t("leads.empty")}</p>
+        </div>
+      ) : (
+        rows.map((r) => (
+          <div
+            key={r.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onRowClick(r)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") onRowClick(r)
+            }}
+            className={cn("grid cursor-pointer items-center border-b border-border px-[22px] py-[14px] last:border-b-0 hover:bg-surface-alt", TABLE_GRID_COLS)}
+          >
+            <span className="truncate text-[13px] font-semibold text-text">{r.customers?.name ?? r.name}</span>
+            <span className="text-[13px] font-medium text-text-muted">{r.mobile ?? r.customers?.mobile ?? "—"}</span>
+            <span className="text-[13px] font-medium text-text">{t(`leads.source.${r.source}`)}</span>
+            <span className="text-[13px] font-medium text-text">{r.kind ? t(`leads.kind.${r.kind}`) : "—"}</span>
+            <span className="text-[13px] font-medium text-text">{r.enquiry_type ? t(`leads.enquiryType.${r.enquiry_type}`) : "—"}</span>
+            <StatusDot
+              tone={r.status === "won" ? "success" : r.status === "lost" ? "danger" : "warning"}
+              label={t(`leads.status.${r.status}`)}
+            />
+            <span className="truncate text-[13px] font-medium text-text">{r.technicians?.profiles?.full_name ?? "—"}</span>
+            <span className="text-xs font-medium text-text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
+          </div>
+        ))
+      )}
     </div>
   )
 }

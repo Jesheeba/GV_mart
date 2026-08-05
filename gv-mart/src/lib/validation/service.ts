@@ -24,32 +24,23 @@ export const complaintDetailsStepSchema = z.object({
 })
 export type ComplaintDetailsStepInput = z.infer<typeof complaintDetailsStepSchema>
 
-// B1 (Build Order Step 4): a single window the customer/admin marked as NOT
-// available, "HH:MM" strings from native time inputs.
-export const unavailableWindowSchema = z
-  .object({
-    start: z.string().min(1, "service.newComplaint.availableWindowInvalid"),
-    end: z.string().min(1, "service.newComplaint.availableWindowInvalid"),
-  })
-  .refine((v) => v.start < v.end, { message: "service.newComplaint.availableWindowInvalid", path: ["end"] })
-export type UnavailableWindowInput = z.infer<typeof unavailableWindowSchema>
-
-export const complaintAppointmentStepSchema = z
-  .object({
-    mode: z.enum(["always", "datetime"], { message: "service.errors.modeRequired" }),
-    // Holds a DATE ("YYYY-MM-DD") when mode is 'datetime' — B1 replaces
-    // exact-time picking with date-only + unavailable-windows below.
-    scheduledAt: z.string().optional().or(z.literal("")),
-    autoAssign: z.boolean(),
-    // "any" = full working-hours window (B1's "Any time"); "custom" = the
-    // windows below are the customer's marked NOT-available times.
-    windowMode: z.enum(["any", "custom"]),
-    unavailableWindows: z.array(unavailableWindowSchema),
-  })
-  .refine((v) => v.mode === "always" || !!v.scheduledAt, {
-    message: "service.errors.scheduledAtRequired",
-    path: ["scheduledAt"],
-  })
+// Admin/customer booking-format parity (2026-08-03): mirrors the customer
+// app's plain date + admin-configured appointment-slot pick (see
+// lib/validation/customerApp.ts's serviceBookingSchema note on why the two
+// validation files stay separate declarations) — replaces the old
+// windowMode/unavailableWindows free-text builder. The "always"/anytime
+// appointment mode was dropped from this form (2026-08-03 follow-up) so a
+// date + slot is always required, matching the customer app's own flow,
+// which never offered "always" either — 'always' remains a valid
+// `appointment_mode` value everywhere it's already displayed/stored
+// (TicketDetailPage, AppointmentsPage, TicketsListPage, etc.), only the
+// admin's own New Complaint form stops creating new appointments with it.
+export const complaintAppointmentStepSchema = z.object({
+  // Holds a DATE ("YYYY-MM-DD").
+  scheduledDate: z.string().min(1, "service.errors.scheduledAtRequired"),
+  slotId: z.string().min(1, "customerApp.bookService.slotRequired"),
+  autoAssign: z.boolean(),
+})
 export type ComplaintAppointmentStepInput = z.infer<typeof complaintAppointmentStepSchema>
 
 export const ticketFiltersSchema = z.object({

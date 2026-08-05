@@ -31,8 +31,11 @@ import {
   useQueueSopStepComplete,
   useQueueVisitEvidencePhotos,
   useQueueVisitImage,
+  useRecordUpiPayment,
+  useTechnicianPaymentSettings,
   useTechnicianSettings,
   useVerifyVisitOtp,
+  useVisitPaymentState,
 } from "@/hooks/useTechnician"
 import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema } from "@/lib/validation/technician"
@@ -119,6 +122,7 @@ export function OnSiteVisitPage() {
   const { data: profile } = useProfile()
   const technician = useMyTechnician()
   const settings = useTechnicianSettings(profile?.org_id)
+  const paymentSettings = useTechnicianPaymentSettings(profile?.org_id)
   const jobDetail = useJobDetail(ticketId)
   const sopStepTemplatesQuery = sopStepTemplatesHooks.useList(profile?.org_id)
 
@@ -130,6 +134,7 @@ export function OnSiteVisitPage() {
   const generateEnquiry = useGenerateEnquiry()
   const generateOtp = useGenerateVisitOtp()
   const verifyOtp = useVerifyVisitOtp()
+  const recordUpiPayment = useRecordUpiPayment()
   const cacheSignature = useCacheVisitSignature()
   const cacheVoiceNote = useCacheVisitVoiceNote()
 
@@ -444,8 +449,17 @@ export function OnSiteVisitPage() {
   // step doesn't re-request a code the customer may already be reading out.
   const activeStepKeysForOtp = STEP_KEYS.filter((k) => k !== "ro" || isRo)
   const isOnPaymentStepForOtp = activeStepKeysForOtp[step] === "payment"
+  const isUpi = paymentMethod === "upi"
+  // QR Payment (2026-08-06): gates the auto-code-generation effect below on
+  // payment being confirmed first when UPI is selected — the server-side
+  // gate in generate_visit_otp is the real enforcement (see the migration),
+  // this just avoids firing a request that would only bounce with
+  // payment_pending.
+  const paymentStateQuery = useVisitPaymentState(profile?.org_id, visitId ?? undefined, isUpi && isOnPaymentStepForOtp)
+  const isUpiPaid = paymentStateQuery.data?.invoice_found === true && paymentStateQuery.data.payment_status === "paid"
   useEffect(() => {
     if (!isOnPaymentStepForOtp || !visitId || !profile) return
+    if (isUpi && !isUpiPaid) return
     if (otpRequestedForVisitRef.current === visitId) return
     otpRequestedForVisitRef.current = visitId
     setOtpGenerating(true)
@@ -460,7 +474,7 @@ export function OnSiteVisitPage() {
       }
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnPaymentStepForOtp, visitId, profile])
+  }, [isOnPaymentStepForOtp, visitId, profile, isUpi, isUpiPaid])
 
   // GV.md 1.1/D4: reconciles the SOP checklist against the technician's
   // current spare selection — adds a checklist step (name + admin-set
@@ -638,6 +652,7 @@ export function OnSiteVisitPage() {
       txnId: paymentMethod === "transfer" ? txnId : undefined,
       paymentDescription: paymentMethod === "transfer" ? paymentDescription : undefined,
       isChargeable: chargeable,
+      amountPaid: paymentMethod === "upi" ? 0 : undefined,
     })
     setInvoiceQueued(true)
   }
@@ -1146,7 +1161,7 @@ export function OnSiteVisitPage() {
           ) : null}
           <Label>{t("technician.onsite.payment.method")}</Label>
           <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-            {(["cash", "transfer"] as const).map((m) => (
+            {(paymentSettings.data?.payment_enabled ? (["cash", "transfer", "upi"] as const) : (["cash", "transfer"] as const)).map((m) => (
               <SegButton key={m} active={paymentMethod === m} onClick={() => setPaymentMethod(m)}>
                 {t(`technician.onsite.payment.${m}`)}
               </SegButton>
@@ -1164,39 +1179,74 @@ export function OnSiteVisitPage() {
               </div>
             </div>
           ) : null}
-          <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p>
+          {!isUpi ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p> : null}
           {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
 
-          <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
-            <p className="text-sm font-semibold text-text">{t("technician.onsite.otp.title")}</p>
-            <p className="text-xs text-text-muted">{t("technician.onsite.otp.hint")}</p>
-            <div className="flex items-end gap-2">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="otpCode">{t("technician.onsite.otp.codeLabel")}</Label>
-                <Input
-                  id="otpCode"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  placeholder="••••"
-                  className="text-center text-lg tracking-[0.5em]"
-                />
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={handleResendOtp} disabled={otpGenerating || !visitId}>
-                {otpGenerating ? <Loader2 className="size-3.5 animate-spin" /> : t("technician.onsite.otp.resendButton")}
-              </Button>
-            </div>
-            {otpErrorKey ? (
-              <p className="text-xs text-danger">
-                {t(otpErrorKey, { remaining: otpRemaining ?? 0 })}
+          {isUpi ? (
+            isUpiPaid ? (
+              <p className="flex items-center gap-1.5 rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success">
+                <CheckCircle2 className="size-4" /> {t("technician.onsite.payment.upiCollect.confirmed")}
               </p>
-            ) : null}
-          </div>
+            ) : (
+              <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
+                <p className="text-sm font-semibold text-text">{t("technician.onsite.payment.upiCollect.title")}</p>
+                <p className="text-xs text-text-muted">{t("technician.onsite.payment.upiCollect.hint")}</p>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (!visitId || !profile) return
+                    recordUpiPayment.mutate(
+                      { orgId: profile.org_id, visitId },
+                      {
+                        onError: (err) => {
+                          const message = err instanceof Error ? err.message : String(err)
+                          toast.error(message.includes("invoice_pending") ? t("technician.onsite.payment.upiCollect.invoicePending") : t("common.actionFailed"))
+                        },
+                      }
+                    )
+                  }}
+                  disabled={recordUpiPayment.isPending}
+                >
+                  {recordUpiPayment.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.payment.upiCollect.confirmButton")}
+                </Button>
+              </div>
+            )
+          ) : null}
 
-          <Button type="button" onClick={handlePaymentSubmit} disabled={verifyOtp.isPending}>
-            {verifyOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.payment.complete")}
-          </Button>
+          {!isUpi || isUpiPaid ? (
+            <>
+              <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
+                <p className="text-sm font-semibold text-text">{t("technician.onsite.otp.title")}</p>
+                <p className="text-xs text-text-muted">{t("technician.onsite.otp.hint")}</p>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Label htmlFor="otpCode">{t("technician.onsite.otp.codeLabel")}</Label>
+                    <Input
+                      id="otpCode"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="••••"
+                      className="text-center text-lg tracking-[0.5em]"
+                    />
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={handleResendOtp} disabled={otpGenerating || !visitId}>
+                    {otpGenerating ? <Loader2 className="size-3.5 animate-spin" /> : t("technician.onsite.otp.resendButton")}
+                  </Button>
+                </div>
+                {otpErrorKey ? (
+                  <p className="text-xs text-danger">
+                    {t(otpErrorKey, { remaining: otpRemaining ?? 0 })}
+                  </p>
+                ) : null}
+              </div>
+
+              <Button type="button" onClick={handlePaymentSubmit} disabled={verifyOtp.isPending}>
+                {verifyOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.payment.complete")}
+              </Button>
+            </>
+          ) : null}
         </Card>
       ) : null}
 

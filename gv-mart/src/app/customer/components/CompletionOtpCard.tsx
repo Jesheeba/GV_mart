@@ -65,7 +65,7 @@ export function CompletionOtpCard({ visitId, initialOtp }: { visitId: string; in
   const isVerified = !!otp.verified_at
 
   return (
-    <Card className="gap-2">
+    <Card className="gap-2 lg:px-5">
       <div className="flex items-center gap-2 px-1">
         <KeyRound className="size-4 text-text-muted" />
         <h2 className="text-sm font-semibold text-text">{t("customerApp.bookingDetail.otpTitle")}</h2>

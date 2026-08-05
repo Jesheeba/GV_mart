@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { MessageCircle, Printer } from "lucide-react"
@@ -8,14 +9,23 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useProfile } from "@/hooks/useProfile"
 import { useInvoice, useInvoiceExtras, useOrganization } from "@/hooks/useSales"
 import { formatCurrency } from "@/lib/sale-calc"
+import { amountInWords } from "@/lib/amount-in-words"
+import { RecordPaymentDialog } from "./RecordPaymentDialog"
 import type { StatusTone } from "@/components/shared/StatusDot"
 
 const PAYMENT_STATUS_TONE: Record<string, StatusTone> = { paid: "success", partial: "warning", due: "danger" }
+const CELL = "border border-[#444] p-2 align-top"
 
 function toWhatsappLink(mobile: string, message: string) {
   const digits = mobile.replace(/\D/g, "")
   const withCountryCode = digits.length === 10 ? `91${digits}` : digits
   return `https://wa.me/${withCountryCode}?text=${encodeURIComponent(message)}`
+}
+
+function ddmmyyyy(iso: string) {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
 }
 
 export function InvoicePage() {
@@ -28,6 +38,7 @@ export function InvoicePage() {
   const { data: invoice, isLoading, isError, refetch } = useInvoice(orgId, id)
   const { data: org } = useOrganization(orgId)
   const { data: extras } = useInvoiceExtras(id)
+  const [recordPaymentOpen, setRecordPaymentOpen] = useState(false)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !invoice) {
@@ -36,6 +47,7 @@ export function InvoicePage() {
 
   const withoutGst = invoice.subtotal - invoice.discount
   const paymentTone = PAYMENT_STATUS_TONE[invoice.payment_status] ?? "neutral"
+  const balanceDue = Math.max(0, invoice.total - invoice.amount_paid)
 
   // Cost/margin tracking (stage 1) — cost is a snapshot taken at sale time
   // (see _sale_create_line_invoice / create_service_invoice), null when the
@@ -46,6 +58,12 @@ export function InvoicePage() {
   const invoiceProfit = invoice.invoice_items
     .filter((it) => it.cost != null)
     .reduce((sum, it) => sum + (it.qty * it.price - it.discount - it.qty * (it.cost ?? 0)), 0)
+
+  const primaryAddress = invoice.customers?.addresses.find((a) => a.is_primary) ?? invoice.customers?.addresses[0]
+  const addressLine = primaryAddress
+    ? [primaryAddress.door_no, primaryAddress.flat_no, primaryAddress.street_cross, primaryAddress.area, primaryAddress.pincode].filter(Boolean).join(", ")
+    : ""
+  const invoiceNo = invoice.id.slice(0, 8).toUpperCase()
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 pt-2">
@@ -78,7 +96,131 @@ export function InvoicePage() {
         </div>
       </div>
 
-      <Card className="gap-4 px-5">
+      {/* Customer-facing printout — matches the shop's standard bill format
+          (letterhead + bordered fields table + items table + amount in
+          words) rather than the staff-facing card below, which carries
+          internal margin/profit data that has no place on a printed bill. */}
+      <div className="hidden bg-white text-black print:block">
+        <table className="w-full border-collapse">
+          <tbody>
+            <tr>
+              <td className="p-2 align-top">
+                <strong>GSTIN:</strong> {org?.gst_no ?? "—"}
+              </td>
+              <td className="p-2 text-center align-top">
+                <h2 className="m-1 text-xl font-bold">{org?.name ?? t("common.appName")}</h2>
+                {org?.address ? <div>{org.address}</div> : null}
+                <h3 className="m-1 text-lg font-bold">{t(`sales.invoice.printTitle.${invoice.type}`)}</h3>
+              </td>
+              <td className="p-2 text-right align-top">
+                (ORIGINAL)
+                {org?.phone ? (
+                  <>
+                    <br />
+                    {org.phone}
+                  </>
+                ) : null}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table className="mt-2 w-full border-collapse">
+          <tbody>
+            <tr>
+              <td className={`${CELL} w-[55%]`}>
+                <b>To:</b> {invoice.customers?.name} - {invoice.customers?.mobile}
+                {addressLine ? (
+                  <>
+                    <br />
+                    {addressLine}
+                  </>
+                ) : null}
+              </td>
+              <td className="p-0 align-top">
+                <table className="w-full border-collapse">
+                  <tbody>
+                    <tr>
+                      <td className={CELL}>{t("sales.invoice.paymentMethod")}</td>
+                      <td className={CELL}>{invoice.payment_method ? t(`sales.payment.${invoice.payment_method}`) : "—"}</td>
+                    </tr>
+                    <tr>
+                      <td className={CELL}>{t("sales.invoice.invoiceNoLabel")}</td>
+                      <td className={CELL}>{invoiceNo}</td>
+                    </tr>
+                    <tr>
+                      <td className={CELL}>{t("sales.invoice.dateLabel")}</td>
+                      <td className={CELL}>{ddmmyyyy(invoice.created_at)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table className="mt-2 w-full border-collapse">
+          <thead>
+            <tr>
+              <th className={CELL}>{t("sales.invoice.sno")}</th>
+              <th className={CELL}>{t("sales.invoice.description")}</th>
+              <th className={CELL}>{t("sales.invoice.qty")}</th>
+              <th className={CELL}>{t("sales.invoice.rate")}</th>
+              <th className={CELL}>{t("sales.invoice.value")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.invoice_items.map((item, i) => (
+              <tr key={item.id}>
+                <td className={CELL}>{i + 1}</td>
+                <td className={CELL}>{item.itemName}</td>
+                <td className={`${CELL} text-right`}>{item.qty}</td>
+                <td className={`${CELL} text-right`}>{item.price.toFixed(2)}</td>
+                <td className={`${CELL} text-right`}>{(item.qty * item.price - item.discount).toFixed(2)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td colSpan={4} className={`${CELL} text-right`}>
+                <b>{t("sales.summary.subtotal")}</b>
+              </td>
+              <td className={`${CELL} text-right`}>
+                <b>{invoice.subtotal.toFixed(2)}</b>
+              </td>
+            </tr>
+            {invoice.discount > 0 ? (
+              <tr>
+                <td colSpan={4} className={`${CELL} text-right`}>
+                  {t("sales.summary.discount")}
+                </td>
+                <td className={`${CELL} text-right`}>−{invoice.discount.toFixed(2)}</td>
+              </tr>
+            ) : null}
+            {invoice.gst > 0 ? (
+              <tr>
+                <td colSpan={4} className={`${CELL} text-right`}>
+                  {t("sales.invoice.gstAmount")}
+                </td>
+                <td className={`${CELL} text-right`}>{invoice.gst.toFixed(2)}</td>
+              </tr>
+            ) : null}
+            <tr>
+              <td colSpan={4} className={`${CELL} text-right`}>
+                <b>{t("sales.invoice.netAmount")}</b>
+              </td>
+              <td className={`${CELL} text-right`}>
+                <b>{invoice.total.toFixed(2)}</b>
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={5} className={CELL}>
+                <b>{amountInWords(invoice.total)}</b>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <Card className="gap-4 px-5 print:hidden">
         <div className="flex items-start justify-between border-b border-border px-1 pb-3">
           <div>
             <p className="text-lg font-bold text-text">{org?.name ?? t("common.appName")}</p>
@@ -153,6 +295,16 @@ export function InvoicePage() {
             <span>{t("sales.invoice.totalWithGst")}</span>
             <span>{formatCurrency(invoice.total)}</span>
           </div>
+          <div className="flex justify-between text-sm text-text-muted">
+            <span>{t("sales.invoice.amountCollected")}</span>
+            <span>{formatCurrency(invoice.amount_paid)}</span>
+          </div>
+          {balanceDue > 0.01 ? (
+            <div className="flex justify-between text-sm font-semibold text-warning">
+              <span>{t("sales.invoice.balanceDue")}</span>
+              <span>{formatCurrency(balanceDue)}</span>
+            </div>
+          ) : null}
           {invoice.invoice_items.length > 0 ? (
             <div className="flex justify-between border-t border-border pt-1 text-sm font-semibold text-success">
               <span>{t("sales.invoice.profit")}</span>
@@ -173,8 +325,19 @@ export function InvoicePage() {
             {invoice.txn_id ? <p className="text-xs text-text-muted">{t("sales.payment.txnId")}: {invoice.txn_id}</p> : null}
             {invoice.payment_description ? <p className="text-xs text-text-muted">{invoice.payment_description}</p> : null}
           </div>
-          <StatusDot tone={paymentTone} label={t(`sales.invoice.paymentStatus.${invoice.payment_status}`)} />
+          <div className="flex items-center gap-2">
+            <StatusDot tone={paymentTone} label={t(`sales.invoice.paymentStatus.${invoice.payment_status}`)} />
+            {invoice.payment_status !== "paid" ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => setRecordPaymentOpen(true)}>
+                {t("sales.invoice.recordPayment")}
+              </Button>
+            ) : null}
+          </div>
         </div>
+
+        {recordPaymentOpen && orgId ? (
+          <RecordPaymentDialog orgId={orgId} invoiceId={invoice.id} remaining={balanceDue} onClose={() => setRecordPaymentOpen(false)} />
+        ) : null}
 
         {invoice.gifts ? (
           <p className="px-1 text-sm text-success">{t("sales.summary.giftApplied", { gift: invoice.gifts.name })}</p>
@@ -182,7 +345,7 @@ export function InvoicePage() {
       </Card>
 
       {extras && (extras.warranties.length > 0 || extras.tickets.length > 0 || extras.amcContract) ? (
-        <Card className="gap-2 px-5">
+        <Card className="gap-2 px-5 print:hidden">
           <p className="px-1 text-sm font-semibold text-text">{t("sales.invoice.generatedTitle")}</p>
           {extras.warranties.map((w) => (
             <p key={w.id} className="px-1 text-sm text-text-muted">

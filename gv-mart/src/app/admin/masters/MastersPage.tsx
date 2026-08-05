@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { CheckSquare, ClipboardList, Gift, Layers, Package, ShieldCheck, SlidersHorizontal, Tag, TrendingUp, Wrench } from "lucide-react"
+import { CheckSquare, ClipboardList, Gift, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
+import { MissingProductAlert } from "@/components/shared/MissingProductAlert"
 import {
   amcPlansHooks,
   brandsHooks,
@@ -11,6 +12,7 @@ import {
   giftsHooks,
   incentiveRulesHooks,
   modelsHooks,
+  productEnquiryTabsHooks,
   productsHooks,
   sopStepTemplatesHooks,
   sparesHooks,
@@ -25,9 +27,23 @@ import { AmcPlansTab } from "./AmcPlansTab"
 import { IncentiveRulesTab } from "./IncentiveRulesTab"
 import { ComplaintTypesTab } from "./ComplaintTypesTab"
 import { SopStepsTab } from "./SopStepsTab"
+import { ProductEnquiryConfigTab } from "./ProductEnquiryConfigTab"
 import { SettingsTab } from "./SettingsTab"
+import { PaymentSettingsTab } from "./PaymentSettingsTab"
 
-type ModuleId = "brands" | "models" | "products" | "spares" | "gifts" | "amcPlans" | "incentives" | "complaintTypes" | "sopSteps" | "settings"
+type ModuleId =
+  | "brands"
+  | "models"
+  | "products"
+  | "spares"
+  | "gifts"
+  | "amcPlans"
+  | "incentives"
+  | "complaintTypes"
+  | "sopSteps"
+  | "productEnquiry"
+  | "settings"
+  | "paymentSettings"
 
 // Icon-swatch colors cycle through the design's palette (design-template-decoded.html
 // line 1273-1278: orange / blue / green / amber / ink) — a presentational rotation,
@@ -55,6 +71,7 @@ export function MastersPage() {
   const { data: incentiveRules } = incentiveRulesHooks.useList(orgId)
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
   const { data: sopStepTemplates } = sopStepTemplatesHooks.useList(orgId)
+  const { data: productEnquiryTabs } = productEnquiryTabsHooks.useList(orgId)
   // complaintTypes now also holds product-specific rows (product_id set),
   // managed from Inventory / Masters > Products, not from this tab. The
   // overview count should match what ComplaintTypesTab actually lists —
@@ -72,7 +89,15 @@ export function MastersPage() {
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
     { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypeDefaultsCount }) },
     { id: "sopSteps", icon: CheckSquare, swatch: "info", title: t("masters.tabs.sopSteps"), desc: t("masters.overview.sopStepsDesc", { count: sopStepTemplates?.length ?? 0 }) },
+    {
+      id: "productEnquiry",
+      icon: SquareStack,
+      swatch: "accent",
+      title: t("masters.tabs.productEnquiry"),
+      desc: t("masters.overview.productEnquiryDesc", { count: productEnquiryTabs?.length ?? 0 }),
+    },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
+    { id: "paymentSettings", icon: QrCode, swatch: "green", title: t("masters.tabs.paymentSettings"), desc: t("masters.overview.paymentSettingsDesc") },
   ]
 
   return (
@@ -81,6 +106,8 @@ export function MastersPage() {
         <h1 className="mb-1.5 text-[28px] leading-[1.05] font-extrabold tracking-tight text-text">{t("masters.pageTitle")}</h1>
         <p className="text-sm font-medium text-text-muted">{t("masters.subtitle")}</p>
       </div>
+
+      <MissingProductAlert orgId={orgId} />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ModuleId)}>
         <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -132,8 +159,14 @@ export function MastersPage() {
           <TabsContent value="sopSteps">
             <SopStepsTab />
           </TabsContent>
+          <TabsContent value="productEnquiry">
+            <ProductEnquiryConfigTab />
+          </TabsContent>
           <TabsContent value="settings">
             <SettingsTab />
+          </TabsContent>
+          <TabsContent value="paymentSettings">
+            <PaymentSettingsTab />
           </TabsContent>
         </Card>
       </Tabs>

@@ -114,10 +114,6 @@ export function LoginPage() {
     <div className="flex min-h-screen bg-bg">
       {/* Hero panel */}
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-ink px-12 py-10 text-white lg:flex">
-        <div
-          className="pointer-events-none absolute -right-16 -top-16 size-72 rounded-full bg-gradient-to-br from-accent to-[#FF7A45] opacity-70"
-          aria-hidden="true"
-        />
         <div className="relative flex items-center gap-3">
           <img src="/logo-icon.svg" alt="GV Mart" className="size-12" />
           <div>

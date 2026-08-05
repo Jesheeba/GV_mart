@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Bell, ChevronRight, MapPin, ShieldCheck, Sparkles, Wrench } from "lucide-react"
@@ -15,7 +14,6 @@ function AddressBar() {
   const { customerId } = useMyCustomerId()
   const { data: addresses, isLoading } = useMyAddresses(customerId)
   const primary = addresses?.find((a) => a.is_primary) ?? addresses?.[0]
-  const [expanded, setExpanded] = useState(false)
 
   const fullAddress = primary
     ? [primary.door_no, primary.street_cross, primary.area, primary.pincode].filter(Boolean).join(", ")
@@ -31,14 +29,7 @@ function AddressBar() {
         {isLoading ? (
           <p className="text-xs text-text-muted">{t("common.loading")}</p>
         ) : primary ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className={`text-left text-xs font-medium text-text ${expanded ? "whitespace-normal break-words" : "truncate"}`}
-            aria-expanded={expanded}
-          >
-            {fullAddress}
-          </button>
+          <p className="whitespace-normal break-words text-xs font-medium text-text">{fullAddress}</p>
         ) : (
           <p className="text-xs font-medium text-warning">{t("customerApp.home.noAddressYet")}</p>
         )}
@@ -126,7 +117,7 @@ function StatusCards() {
 
   if (!hasAny) {
     return (
-      <Card className="items-center gap-1.5 py-6 text-center">
+      <Card className="items-center gap-1.5 py-6 text-center lg:px-5">
         <ShieldCheck className="size-6 text-text-muted" />
         <p className="text-sm text-text-muted">{t("customerApp.home.noProductsYet")}</p>
         <Button size="sm" variant="outline" onClick={() => navigate("/customer/products")}>
@@ -142,7 +133,7 @@ function StatusCards() {
         const today = new Date().toISOString().slice(0, 10)
         const tone = c.status === "active" ? "success" : c.status === "due_soon" ? "warning" : "danger"
         return (
-          <Card key={c.id} size="sm" className="gap-1.5" onClick={() => navigate("/customer/amc")}>
+          <Card key={c.id} size="sm" className="gap-1.5 lg:px-5" onClick={() => navigate("/customer/amc")}>
             <p className="px-1 text-xs font-medium text-text-muted">{(c as { products?: { name?: string } }).products?.name ?? t("customerApp.home.amcCoverage")}</p>
             <StatusDot tone={tone} label={t(`customerApp.amc.status.${c.status}`)} className="px-1" />
             <p className="px-1 text-xs text-text-muted">
@@ -155,7 +146,7 @@ function StatusCards() {
         const today = new Date().toISOString().slice(0, 10)
         const active = w.expiry_date >= today
         return (
-          <Card key={w.id} size="sm" className="gap-1.5" onClick={() => navigate("/customer/products")}>
+          <Card key={w.id} size="sm" className="gap-1.5 lg:px-5" onClick={() => navigate("/customer/products")}>
             <p className="px-1 text-xs font-medium text-text-muted">{(w as { products?: { name?: string } }).products?.name ?? t("customerApp.home.warrantyCoverage")}</p>
             <StatusDot tone={active ? "info" : "neutral"} label={active ? t("customerApp.home.warrantyActive") : t("customerApp.home.warrantyExpired")} className="px-1" />
             <p className="px-1 text-xs text-text-muted">{t("customerApp.home.expiresOn", { date: w.expiry_date })}</p>

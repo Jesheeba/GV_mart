@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as masters from "@/services/masters"
-import type { TablesInsert, TablesUpdate } from "@/types/database"
+import * as productAttributes from "@/services/productAttributes"
+import * as productEnquiryConfig from "@/services/productEnquiryConfig"
+import * as productMedia from "@/services/productMedia"
+import type { Json, TablesInsert, TablesUpdate } from "@/types/database"
 
 // All three generics are inferred from the concrete functions passed in
 // `api` (e.g. masters.createBrand) — call sites never specify type args.
@@ -188,5 +191,193 @@ export function useUpdateSettings(orgId: string | undefined) {
   return useMutation({
     mutationFn: (patch: TablesUpdate<"settings">) => masters.updateSettings(orgId!, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["settings", orgId] }),
+  })
+}
+
+// ── Product Enquiry rebuild (2026-08-04), Phase 1 ───────────────────────
+// Attribute keys fit entityHooks as-is (a flat org-level master list).
+export const productAttributeKeysHooks = entityHooks("product_attribute_keys", {
+  list: productAttributes.listProductAttributeKeys,
+  create: productAttributes.createProductAttributeKey,
+  update: productAttributes.updateProductAttributeKey,
+  remove: productAttributes.deleteProductAttributeKey,
+})
+
+// ── Product Enquiry rebuild (2026-08-04), Phase 2 ───────────────────────
+// Module-config tables are all flat org-level lists — entityHooks as-is.
+export const productEnquiryTabsHooks = entityHooks("product_enquiry_tabs", {
+  list: productEnquiryConfig.listProductEnquiryTabs,
+  create: productEnquiryConfig.createProductEnquiryTab,
+  update: productEnquiryConfig.updateProductEnquiryTab,
+  remove: productEnquiryConfig.deleteProductEnquiryTab,
+})
+export const productEnquiryFiltersHooks = entityHooks("product_enquiry_filters", {
+  list: productEnquiryConfig.listProductEnquiryFilters,
+  create: productEnquiryConfig.createProductEnquiryFilter,
+  update: productEnquiryConfig.updateProductEnquiryFilter,
+  remove: productEnquiryConfig.deleteProductEnquiryFilter,
+})
+export const productEnquiryComparisonFieldsHooks = entityHooks("product_enquiry_comparison_fields", {
+  list: productEnquiryConfig.listProductEnquiryComparisonFields,
+  create: productEnquiryConfig.createProductEnquiryComparisonField,
+  update: productEnquiryConfig.updateProductEnquiryComparisonField,
+  remove: productEnquiryConfig.deleteProductEnquiryComparisonField,
+})
+export const productEnquiryCtaConfigHooks = entityHooks("product_enquiry_cta_config", {
+  list: productEnquiryConfig.listProductEnquiryCtaConfig,
+  create: productEnquiryConfig.createProductEnquiryCtaConfig,
+  update: productEnquiryConfig.updateProductEnquiryCtaConfig,
+  remove: productEnquiryConfig.deleteProductEnquiryCtaConfig,
+})
+
+// Images/documents/videos/related/CTA-overrides are all queried per-product
+// (not a flat list), same shape as useProductSpares above.
+export function useProductImages(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["product_images", "list", productId],
+    queryFn: () => productMedia.listProductImages(productId!),
+    enabled: !!productId,
+  })
+}
+export function useUploadProductImage(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, file }: { orgId: string; file: File }) => productMedia.uploadProductImage(orgId, productId!, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_images", "list", productId] }),
+  })
+}
+export function useUpdateProductImage(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: TablesUpdate<"product_images"> }) => productMedia.updateProductImage(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_images", "list", productId] }),
+  })
+}
+export function useDeleteProductImage(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => productMedia.deleteProductImage(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_images", "list", productId] }),
+  })
+}
+export function useSetPrimaryProductImage(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (imageId: string) => productMedia.setPrimaryProductImage(productId!, imageId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_images", "list", productId] }),
+  })
+}
+
+export function useProductDocuments(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["product_documents", "list", productId],
+    queryFn: () => productMedia.listProductDocuments(productId!),
+    enabled: !!productId,
+  })
+}
+export function useUploadProductDocument(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, file, label, docType }: { orgId: string; file: File; label: string; docType: TablesInsert<"product_documents">["doc_type"] }) =>
+      productMedia.uploadProductDocument(orgId, productId!, file, label, docType),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_documents", "list", productId] }),
+  })
+}
+export function useDeleteProductDocument(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => productMedia.deleteProductDocument(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_documents", "list", productId] }),
+  })
+}
+
+export function useProductVideos(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["product_videos", "list", productId],
+    queryFn: () => productMedia.listProductVideos(productId!),
+    enabled: !!productId,
+  })
+}
+export function useCreateProductVideo(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (row: TablesInsert<"product_videos">) => productMedia.createProductVideo(row),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_videos", "list", productId] }),
+  })
+}
+export function useUpdateProductVideo(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: TablesUpdate<"product_videos"> }) => productMedia.updateProductVideo(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_videos", "list", productId] }),
+  })
+}
+export function useDeleteProductVideo(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => productMedia.deleteProductVideo(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_videos", "list", productId] }),
+  })
+}
+
+export function useSetProductCustomAttribute() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ productId, current, keyId, value }: { productId: string; current: Json; keyId: string; value: string | number | boolean | null }) =>
+      productAttributes.setProductCustomAttribute(productId, current, keyId, value),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["products", "list"] }),
+  })
+}
+export function useSetProductFeatureBullets() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ productId, bullets }: { productId: string; bullets: string[] }) => productAttributes.setProductFeatureBullets(productId, bullets),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["products", "list"] }),
+  })
+}
+
+export function useProductRelated(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["product_related", "list", productId],
+    queryFn: () => productAttributes.listProductRelated(productId!),
+    enabled: !!productId,
+  })
+}
+export function useAddProductRelated(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, relatedProductId, relationType }: { orgId: string; relatedProductId: string; relationType: TablesInsert<"product_related">["relation_type"] }) =>
+      productAttributes.addProductRelated(orgId, productId!, relatedProductId, relationType),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_related", "list", productId] }),
+  })
+}
+export function useRemoveProductRelated(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => productAttributes.removeProductRelated(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_related", "list", productId] }),
+  })
+}
+
+export function useProductCtaOverrides(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["product_cta_overrides", "list", productId],
+    queryFn: () => productAttributes.listProductCtaOverrides(productId!),
+    enabled: !!productId,
+  })
+}
+export function useSetProductCtaOverride(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, ctaType, isEnabled }: { orgId: string; ctaType: TablesInsert<"product_cta_overrides">["cta_type"]; isEnabled: boolean }) =>
+      productAttributes.setProductCtaOverride(orgId, productId!, ctaType, isEnabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_cta_overrides", "list", productId] }),
+  })
+}
+export function useClearProductCtaOverride(productId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ctaType: TablesInsert<"product_cta_overrides">["cta_type"]) => productAttributes.clearProductCtaOverride(productId!, ctaType),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["product_cta_overrides", "list", productId] }),
   })
 }

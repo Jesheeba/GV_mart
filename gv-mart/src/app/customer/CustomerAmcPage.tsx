@@ -29,7 +29,7 @@ export function CustomerAmcPage() {
       <h1 className="text-xl font-bold text-text">{t("customerApp.amc.title")}</h1>
 
       {(rows ?? []).length === 0 ? (
-        <Card className="items-center gap-1.5 py-8 text-center">
+        <Card className="items-center gap-1.5 py-8 text-center lg:px-5">
           <ShieldCheck className="size-6 text-text-muted" />
           <p className="text-sm text-text-muted">{t("customerApp.amc.noCoverage")}</p>
           <Button size="sm" variant="outline" onClick={() => navigate("/customer/products")}>

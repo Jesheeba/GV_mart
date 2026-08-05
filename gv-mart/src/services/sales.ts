@@ -40,7 +40,11 @@ export async function createSale(
   orgId: string,
   customerId: string,
   cart: SaleCart,
-  quotationId?: string | null
+  quotationId?: string | null,
+  /** Rewards spec (2026-08-04) — optional finder-credit referral for a walk-in sale with no pre-existing lead/quotation. Ignored server-side if the id doesn't resolve to a technician in this org. */
+  referredByTechnicianId?: string | null,
+  /** Whole-cart amount actually collected — create_sale allocates it across however many of {spare,product,amc} invoices the cart produces and derives each one's payment_status from it. Omitted/undefined defaults server-side to "fully paid" (create_sale's p_amount_paid default). */
+  amountPaid?: number | null
 ): Promise<SaleResult> {
   const { data, error } = await supabase.rpc("create_sale", {
     p_org_id: orgId,
@@ -63,6 +67,8 @@ export async function createSale(
     },
     p_quotation_id: quotationId ?? null,
     p_redeem_points: cart.redeemPoints ?? 0,
+    p_referred_by_technician_id: referredByTechnicianId ?? null,
+    p_amount_paid: amountPaid ?? null,
   })
   if (error) throw error
   return data as SaleResult
@@ -127,8 +133,10 @@ export async function itemNameLookup(orgId: string, items: { item_type: Enums<"i
   return names
 }
 
+export type InvoiceAddress = { door_no: string | null; flat_no: string | null; street_cross: string | null; area: string | null; pincode: string | null; is_primary: boolean }
+
 export type InvoiceDetail = InvoiceRow & {
-  customers: { name: string; mobile: string } | null
+  customers: { name: string; mobile: string; addresses: InvoiceAddress[] } | null
   gifts: { name: string } | null
   invoice_items: (InvoiceItemRow & { itemName: string })[]
 }
@@ -136,7 +144,7 @@ export type InvoiceDetail = InvoiceRow & {
 export async function getInvoice(orgId: string, id: string): Promise<InvoiceDetail> {
   const { data, error } = await supabase
     .from("invoices")
-    .select("*, customers(name,mobile), gifts(name), invoice_items(*)")
+    .select("*, customers(name,mobile,addresses(door_no,flat_no,street_cross,area,pincode,is_primary)), gifts(name), invoice_items(*)")
     .eq("id", id)
     .single()
   if (error) throw error
@@ -146,6 +154,27 @@ export async function getInvoice(orgId: string, id: string): Promise<InvoiceDeta
     ...data,
     invoice_items: data.invoice_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—" })),
   } as InvoiceDetail
+}
+
+/** Top up a partial/due invoice with a follow-up payment — the only settlement path besides UPI's record_upi_payment (which is UPI-only and always jumps straight to fully-paid). Server re-derives payment_status from the new amount_paid; never trust a client-computed status. */
+export async function recordAdditionalPayment(
+  orgId: string,
+  invoiceId: string,
+  amount: number,
+  paymentMethod: Enums<"payment_method">,
+  txnId?: string | null,
+  paymentDescription?: string | null
+): Promise<InvoiceRow> {
+  const { data, error } = await supabase.rpc("record_additional_payment", {
+    p_org_id: orgId,
+    p_invoice_id: invoiceId,
+    p_amount: amount,
+    p_payment_method: paymentMethod,
+    p_txn_id: txnId ?? null,
+    p_payment_description: paymentDescription ?? null,
+  })
+  if (error) throw error
+  return data as InvoiceRow
 }
 
 export async function getWarrantiesForInvoice(invoiceId: string) {
@@ -167,7 +196,12 @@ export async function getAmcContractForInvoice(invoiceId: string) {
 }
 
 export async function getOrganization(orgId: string) {
-  const { data, error } = await supabase.from("organizations").select("name,gst_no").eq("id", orgId).single()
+  const { data, error } = await supabase.from("organizations").select("name,gst_no,address,phone").eq("id", orgId).single()
   if (error) throw error
   return data
+}
+
+export async function updateOrganization(orgId: string, patch: { gst_no: string | null; address: string | null; phone: string | null }) {
+  const { error } = await supabase.from("organizations").update(patch).eq("id", orgId)
+  if (error) throw error
 }

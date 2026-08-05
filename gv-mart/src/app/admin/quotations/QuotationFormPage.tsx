@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Loader2, Plus, Search, Trash2 } from "lucide-react"
@@ -31,6 +31,10 @@ type QuotationNavState = {
   name?: string | null
   mobile?: string | null
   status?: Enums<"lead_status">
+  // Spare Enquiry multi-product line items (2026-08-05) — a product/spare
+  // enquiry lead carries every structured item it was raised for, so the
+  // cart below can seed itself instead of making the admin reselect them.
+  items?: { productId?: string | null; spareId?: string | null; qty?: number | null }[]
 }
 
 export function QuotationFormPage() {
@@ -65,6 +69,33 @@ export function QuotationFormPage() {
   const updateLeadStatus = useUpdateLeadStatus()
 
   const total = useMemo(() => lines.reduce((sum, l) => sum + l.price * l.qty, 0), [lines])
+
+  // Seed the cart once from the lead's structured items (one entry per
+  // product/spare the enquiry asked for), as soon as the products/spares
+  // lists are loaded to look them up in. Guarded by a ref (not just
+  // navState) so a background refetch of products/spares can't re-append
+  // the same lines a second time. Seeded lines are ordinary cart entries —
+  // the admin can still remove any of them (removeLine) or add further
+  // product/spare lines (addProductLine/addSpareLine) before saving.
+  const seededFromLead = useRef(false)
+  useEffect(() => {
+    if (seededFromLead.current) return
+    if (!navState?.items || navState.items.length === 0) return
+    if (!products || !spares) return
+    seededFromLead.current = true
+    const seeded: QuoteLine[] = []
+    for (const item of navState.items) {
+      if (item.productId) {
+        const p = products.find((x) => x.id === item.productId)
+        if (p) seeded.push({ itemType: "product", itemId: p.id, name: p.name, price: Number(p.price), qty: Math.max(1, Math.floor(item.qty ?? 1)) })
+      }
+      if (item.spareId) {
+        const s = spares.find((x) => x.id === item.spareId)
+        if (s) seeded.push({ itemType: "spare", itemId: s.id, name: s.name, price: Number(s.price), qty: 1 })
+      }
+    }
+    if (seeded.length > 0) setLines((ls) => [...ls, ...seeded])
+  }, [products, spares, navState])
 
   function addProductLine() {
     const p = (products ?? []).find((x) => x.id === productId)

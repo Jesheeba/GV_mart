@@ -8,6 +8,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { OtpAlertBanner } from "@/app/customer/components/OtpAlertBanner"
+import { TechnicianAssignedBanner } from "@/app/customer/components/TechnicianAssignedBanner"
 
 export function CustomerShell() {
   const { t } = useTranslation()
@@ -29,7 +30,7 @@ export function CustomerShell() {
 
   return (
     <div className="min-h-screen bg-bg pb-20">
-      <header className="flex items-center justify-between px-4 py-3">
+      <header className="flex items-center justify-between px-4 py-3 lg:px-25">
         <div className="flex items-center gap-2">
           <span className="flex size-8 items-center justify-center rounded-md border border-border bg-white p-1">
             <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
@@ -54,8 +55,9 @@ export function CustomerShell() {
           <UserMenu fullName={profile.full_name} role={profile.role} />
         </div>
       </header>
+      <TechnicianAssignedBanner />
       <OtpAlertBanner />
-      <main className="px-4">
+      <main className="px-4 lg:px-25">
         <Outlet />
       </main>
       <BottomTabBar tabs={tabs} />

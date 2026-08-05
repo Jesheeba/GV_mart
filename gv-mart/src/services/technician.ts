@@ -58,6 +58,13 @@ export async function getMyTechnician(profileId: string): Promise<TechnicianRow>
   throw new Error("technician_unavailable_offline")
 }
 
+/** QR Payment (2026-08-06): whether UPI is offered on the Payment step — payment_settings_select_staff RLS covers any org member, technicians included. */
+export async function getPaymentSettingsForTechnician(orgId: string): Promise<Tables<"payment_settings"> | null> {
+  const { data, error } = await supabase.from("payment_settings").select("*").eq("org_id", orgId).maybeSingle()
+  if (error) throw error
+  return data
+}
+
 export async function getSettings(orgId: string): Promise<SettingsRow> {
   if (navigator.onLine) {
     const { data, error } = await supabase.from("settings").select("*").eq("org_id", orgId).single()
@@ -475,9 +482,30 @@ export async function queueLocationPing(orgId: string, technicianId: string, lat
  * position replayed minutes later from the outbox is worse than useless for
  * a "where is the technician right now" admin map, so a ping dropped while
  * offline is simply skipped rather than queued for later delivery.
+ *
+ * heading/speed/accuracy (Premium Live Tracking) are the device's own
+ * GeolocationCoordinates values, straight from watchPosition — all
+ * optional/nullable since browsers frequently don't report them (e.g. no
+ * heading while stationary). The customer tracking map prefers this real
+ * device heading over the bearing it would otherwise compute from
+ * consecutive lat/lng points, falling back to that computation when null.
  */
-export async function pingLiveLocation(orgId: string, technicianId: string, lat: number, lng: number) {
-  const { error } = await supabase.from("technician_locations").insert({ org_id: orgId, technician_id: technicianId, lat, lng })
+export async function pingLiveLocation(
+  orgId: string,
+  technicianId: string,
+  lat: number,
+  lng: number,
+  extra?: { heading?: number | null; speed?: number | null; accuracy?: number | null }
+) {
+  const { error } = await supabase.from("technician_locations").insert({
+    org_id: orgId,
+    technician_id: technicianId,
+    lat,
+    lng,
+    heading: extra?.heading ?? null,
+    speed: extra?.speed ?? null,
+    accuracy: extra?.accuracy ?? null,
+  })
   // Best-effort (see doc comment above) — logged, not swallowed, so a real
   // RLS/network failure is diagnosable instead of just silently never
   // appearing on the admin map with no trace of why.
@@ -792,6 +820,31 @@ export async function verifyVisitOtp(orgId: string, visitId: string, code: strin
   return data as unknown as VerifyVisitOtpResult
 }
 
+// ── QR Payment (2026-08-06) ─────────────────────────────────────────────
+// Same "not queued offline" posture as the OTP pair above: a technician has
+// no direct SELECT/UPDATE policy on `invoices`, and payment confirmation
+// must be a live round-trip, never a fire-and-forget queued write.
+
+export type VisitPaymentState =
+  | { invoice_found: false }
+  | { invoice_found: true; invoice_id: string; payment_method: Enums<"payment_method">; payment_status: Enums<"payment_status">; total: number }
+
+/** Learns the visit's invoice payment state — technicians have no direct read access to `invoices`. */
+export async function getVisitPaymentState(orgId: string, visitId: string): Promise<VisitPaymentState> {
+  const { data, error } = await supabase.rpc("get_visit_payment_state", { p_org_id: orgId, p_visit_id: visitId })
+  if (error) throw error
+  return data as unknown as VisitPaymentState
+}
+
+export type RecordUpiPaymentResult = { ok: true; invoice_id: string; total: number; already_paid: boolean }
+
+/** Records the technician's on-site confirmation that a UPI payment was received — idempotent, see the migration for why. */
+export async function recordUpiPayment(orgId: string, visitId: string): Promise<RecordUpiPaymentResult> {
+  const { data, error } = await supabase.rpc("record_upi_payment", { p_org_id: orgId, p_visit_id: visitId })
+  if (error) throw error
+  return data as unknown as RecordUpiPaymentResult
+}
+
 /**
  * TECH-07 step 9 captures technician + customer on-screen signatures.
  * `service_visits.tech_sign_url`/`customer_sign_url` now exist
@@ -863,6 +916,8 @@ export type CreateServiceInvoiceInput = {
   txnId?: string
   paymentDescription?: string
   isChargeable: boolean
+  /** QR Payment (2026-08-06): pass 0 for `paymentMethod: "upi"` so the invoice starts unpaid instead of defaulting to "fully paid" — see create_service_invoice's p_amount_paid. Omitted for cash/transfer, unchanged existing behavior. */
+  amountPaid?: number
 }
 
 export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput) {
@@ -876,6 +931,7 @@ export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput
     txnId: input.txnId,
     paymentDescription: input.paymentDescription,
     isChargeable: input.isChargeable,
+    amountPaid: input.amountPaid,
   })
 }
 

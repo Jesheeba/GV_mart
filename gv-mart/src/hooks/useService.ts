@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as service from "@/services/service"
 import type { CreateComplaintInput, TicketFiltersInput } from "@/services/service"
+import * as ticketPhotos from "@/services/ticketPhotos"
 
 export function useTicketsList(orgId: string | undefined, filters: TicketFiltersInput) {
   return useQuery({
@@ -33,6 +34,37 @@ export function useUpdateTicketAddress() {
   return useMutation({
     mutationFn: ({ ticketId, addressId }: { ticketId: string; addressId: string | null }) => service.updateTicketAddress(ticketId, addressId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["service_tickets"] }),
+  })
+}
+
+/** Gate-assignment-on-product — see service.ts#updateTicketProduct. */
+export function useUpdateTicketProduct() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      ticketId,
+      productId,
+      brandId,
+      modelId,
+      unlistedProductName,
+    }: {
+      ticketId: string
+      productId: string | null
+      brandId: string | null
+      modelId: string | null
+      unlistedProductName: string | null
+    }) => service.updateTicketProduct(ticketId, { productId, brandId, modelId, unlistedProductName }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service_tickets"] }),
+  })
+}
+
+/** Gate-assignment-on-product — feeds the Dashboard/Masters nag. */
+export function useTicketsMissingProduct(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["service_tickets", "missingProduct", orgId],
+    queryFn: () => service.listTicketsMissingProduct(orgId!),
+    enabled: !!orgId,
+    refetchInterval: 30_000,
   })
 }
 
@@ -229,5 +261,25 @@ export function useTicketEvidence(ticketId: string | undefined) {
     queryKey: ["service_tickets", "evidence", ticketId],
     queryFn: () => service.getTicketEvidence(ticketId!),
     enabled: !!ticketId,
+  })
+}
+
+// ── Gate-assignment-on-product (2026-08-04): optional customer photo(s) ───
+// attached when booking with "I don't know the product" — see ticketPhotos.ts.
+
+export function useTicketPhotos(ticketId: string | undefined) {
+  return useQuery({
+    queryKey: ["service_ticket_photos", ticketId],
+    queryFn: () => ticketPhotos.listTicketPhotos(ticketId!),
+    enabled: !!ticketId,
+  })
+}
+
+export function useUploadTicketPhoto() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, ticketId, file }: { orgId: string; ticketId: string; file: File }) =>
+      ticketPhotos.uploadTicketPhoto(orgId, ticketId, file),
+    onSuccess: (_data, variables) => qc.invalidateQueries({ queryKey: ["service_ticket_photos", variables.ticketId] }),
   })
 }

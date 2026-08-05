@@ -1,20 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { CheckCircle2, Loader2, MapPin, Navigation, TriangleAlert } from "lucide-react"
+import { CheckCircle2, Loader2, MapPin, Navigation, RefreshCw, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useDirectionsDistance } from "@/hooks/useMaps"
 import { useJobDetail, useMyTechnician, useStartVisit, useTechnicianSettings, useTodaysJobs } from "@/hooks/useTechnician"
-import { classifyGeoError, distanceKm, expectedMinutes, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
+import { classifyGeoError, distanceKm, expectedMinutes, getCurrentPosition, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
 import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, selectNextJob } from "@/services/technician"
 import { cn } from "@/lib/utils"
 import { PhotoCapture } from "./components/PhotoCapture"
 
-function googleMapsUrl(dest: GeoPoint) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}`
+// Deliberately takes the technician's own live-tracked `position` as an
+// explicit `origin=`, rather than leaving it out and letting Google Maps
+// resolve "Your location" itself on open — that resolution can return a
+// stale/cached browser geolocation fix, which reads to the technician as
+// the map "repeating the old" starting point on every tap instead of
+// routing from where they actually are right now.
+function googleMapsUrl(dest: GeoPoint, origin?: GeoPoint | null) {
+  const params = new URLSearchParams({ api: "1", destination: `${dest.lat},${dest.lng}` })
+  if (origin) params.set("origin", `${origin.lat},${origin.lng}`)
+  return `https://www.google.com/maps/dir/?${params.toString()}`
 }
 
 // v2.2 §6.5/§6.6: arrival is detected "within a small threshold" and must
@@ -33,6 +41,15 @@ function googleMapsUrl(dest: GeoPoint) {
 const ARRIVAL_GEOFENCE_RADIUS_M = 250
 const ARRIVAL_CONFIRM_MS = 15_000
 const MAX_USABLE_ACCURACY_M = 75
+
+// The browser Geolocation API only returns real GPS on a device with a GPS
+// chip (phones); on a desktop/laptop it falls back to Wi-Fi/IP-based
+// positioning, which is routinely off by several kilometres. Rather than
+// silently showing a confidently-wrong distance/ETA from a fix that coarse,
+// surface it — `position.accuracy` past this threshold means "don't trust
+// this number" (well above MAX_USABLE_ACCURACY_M, which gates the much
+// stricter arrival-detection radius above).
+const LOW_ACCURACY_WARNING_M = 500
 
 const GEO_ERROR_KEYS: Record<ReturnType<typeof classifyGeoError>, string> = {
   unsupported: "technician.map.locationUnsupported",
@@ -57,6 +74,7 @@ export function MapPage() {
 
   const [position, setPosition] = useState<GeoPoint | null>(null)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const [refreshingLocation, setRefreshingLocation] = useState(false)
   const [arrived, setArrived] = useState(false)
   const [arrivedAt, setArrivedAt] = useState<number | null>(null)
   const [elapsedSec, setElapsedSec] = useState(0)
@@ -113,7 +131,13 @@ export function MapPage() {
   // disabled/guard checks rather than the sustained-proximity state machine.
   const insideArrivalGeofence = position != null && dest != null && isInsideGeofence(position, dest, ARRIVAL_GEOFENCE_RADIUS_M)
 
-  const directions = useDirectionsDistance(dest ? origin : null, dest)
+  // Deliberately `position` (the raw GPS fix), not `origin` — `origin` falls
+  // back to OFFICE_LOCATION so selectNextJob above always has *some* start
+  // point to order today's jobs from. Reusing that same fallback here would
+  // silently show the technician a real "office → customer" distance/ETA
+  // whenever their own GPS fix hasn't arrived yet, with nothing on screen to
+  // say it isn't actually their position.
+  const directions = useDirectionsDistance(dest && position ? position : null, dest)
 
   // The confirm-window interval below is set up once and never re-runs (see
   // its own comment), so it must call through a ref rather than closing over
@@ -166,6 +190,23 @@ export function MapPage() {
     return stop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Manual re-fetch for when the continuous watch above is stuck on a stale
+  // fix — some browsers/OSes only push a fresh Wi-Fi/IP-based position
+  // occasionally, so a technician who's physically moved can otherwise be
+  // stuck looking at an old reading with no way to force a retry.
+  async function refreshLocation() {
+    setRefreshingLocation(true)
+    setGeoError(null)
+    try {
+      const pos = await getCurrentPosition({ maximumAge: 0 })
+      setPosition(pos)
+    } catch (err) {
+      setGeoError(t(GEO_ERROR_KEYS[classifyGeoError(err)]))
+    } finally {
+      setRefreshingLocation(false)
+    }
+  }
 
   // Resets/restores arrival state when the destination job changes — and, if
   // this job already has an open visit (started from a previous visit to
@@ -255,7 +296,10 @@ export function MapPage() {
     return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobDetail.refetch()} retryLabel={t("common.retry")} />
   }
 
-  const routeKm = dest ? (directions.data?.distanceKm ?? (position ? distanceKm(origin, dest) : null)) : null
+  // Same reasoning as the `directions` hook above: only compute a distance
+  // once we have the technician's actual GPS fix, never from the
+  // OFFICE_LOCATION fallback baked into `origin`.
+  const routeKm = dest && position ? (directions.data?.distanceKm ?? distanceKm(position, dest)) : null
   const km = routeKm
   // Task 2 — prefer the real Directions API travel time (live-traffic aware)
   // over the flat admin-set per-km-minutes rate; the flat rate only fills in
@@ -302,13 +346,31 @@ export function MapPage() {
       ) : (
         <>
           <Card className="gap-3">
-            <div className="flex items-center gap-2 px-1">
-              <span className={cn("flex size-2.5 shrink-0 rounded-full", statusDotColor)} />
-              <p className={cn("text-sm font-medium", statusColor)}>{statusLabel}</p>
+            <div className="flex items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-2">
+                <span className={cn("flex size-2.5 shrink-0 rounded-full", statusDotColor)} />
+                <p className={cn("text-sm font-medium", statusColor)}>{statusLabel}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void refreshLocation()}
+                disabled={refreshingLocation}
+                className="flex items-center gap-1 text-xs font-medium text-text-muted disabled:opacity-50"
+              >
+                <RefreshCw className={cn("size-3.5", refreshingLocation && "animate-spin")} />
+                {t("technician.map.refreshLocation")}
+              </button>
             </div>
             {geoError ? (
               <p className="flex items-center gap-1.5 px-1 text-xs text-danger">
                 <TriangleAlert className="size-3.5" /> {geoError}
+              </p>
+            ) : !position ? (
+              <p className="px-1 text-xs text-text-muted">{t("technician.map.awaitingLocation")}</p>
+            ) : position.accuracy != null && position.accuracy > LOW_ACCURACY_WARNING_M ? (
+              <p className="flex items-center gap-1.5 px-1 text-xs text-warning">
+                <TriangleAlert className="size-3.5 shrink-0" />
+                {t("technician.map.lowAccuracyWarning", { accuracy: Math.round(position.accuracy).toLocaleString("en-IN") })}
               </p>
             ) : null}
 
@@ -348,7 +410,7 @@ export function MapPage() {
               <p className="text-xs text-text-muted">{[destAddress?.door_no, destAddress?.area].filter(Boolean).join(", ") || "—"}</p>
             </div>
 
-            <a href={googleMapsUrl(dest)} target="_blank" rel="noreferrer" className="w-full">
+            <a href={googleMapsUrl(dest, position)} target="_blank" rel="noreferrer" className="w-full">
               <Button type="button" variant="outline" className="w-full">
                 <Navigation className="size-4" />
                 {t("technician.map.openInMaps")}

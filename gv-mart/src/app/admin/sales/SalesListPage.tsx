@@ -19,6 +19,7 @@ const TABLE_GRID_COLS = "grid-cols-[1fr_1.4fr_1.6fr_0.8fr_1fr_0.9fr_1fr]"
 const PAYMENT_METHOD_KEY: Record<Enums<"payment_method">, string> = {
   cash: "sales.payment.cash",
   transfer: "sales.payment.transfer",
+  upi: "sales.payment.upi",
 }
 
 type TypeFilter = "all" | Enums<"invoice_type">
@@ -300,8 +301,13 @@ export function SalesListPage() {
               </span>
               <span className="text-[13px] font-bold tabular-nums text-text">{formatCurrency(inv.total)}</span>
               <span className="text-[13px] font-medium text-text-muted">{inv.payment_method ? t(PAYMENT_METHOD_KEY[inv.payment_method]) : "—"}</span>
-              <span>
+              <span className="flex flex-col items-start gap-0.5">
                 <PaymentStatusBadge status={inv.payment_status} />
+                {inv.payment_status !== "paid" ? (
+                  <span className="text-[11px] font-medium text-warning">
+                    {t("sales.list.balanceDue", { amount: formatCurrency(Math.max(0, inv.total - inv.amount_paid)) })}
+                  </span>
+                ) : null}
               </span>
             </div>
           ))

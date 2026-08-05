@@ -29,6 +29,8 @@
     "selectDate": "Select date",
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
+    "none": "None",
+    "referredByTechnician": "Referred by technician (optional)",
     "errors": {
       "fieldRequired": "{{field}} is required",
       "fieldMustBeNumber": "{{field}} must be a number",
@@ -274,6 +276,7 @@
       "amcRenewsIn": "AMC renews in {{days}} day(s) — contact for renewal",
       "amcRenewsToday": "AMC renews today — contact for renewal",
       "noUpcomingRenewals": "No upcoming renewals right now",
+      "referredBy": "Referred by {{name}}",
       "membersTitle": "Family Members ({{count}}/5)",
       "addMember": "Add member",
       "setPrimary": "Set primary",
@@ -387,6 +390,7 @@
       "map": {
         "title": "Pin location on map",
         "autoLocating": "Locating from the address above…",
+        "pinRequired": "This address has no confirmed pin yet — search or drag the pin below so the technician navigates to the right place.",
         "searchPlaceholder": "Search for the address…",
         "searchError": "Couldn't search right now. Check your connection and try again.",
         "selectError": "Couldn't get details for that place. Try another result.",
@@ -395,6 +399,9 @@
         "mapError": "Couldn't load the map right now.",
         "emptyHint": "Search above or use your location to drop a pin",
         "draftPin": "Drag to fine-tune, then confirm",
+        "draftPinUnverified": "This is only an approximate guess — drag the pin to the exact spot before confirming",
+        "confirmLocationDisabledHint": "Drag the pin to the exact spot first",
+        "suggestedPlaceLabel": "Google matched this to: {{place}}",
         "confirmedPin": "Location confirmed · {{lat}}, {{lng}}",
         "confirmLocation": "Confirm location"
       }
@@ -438,7 +445,9 @@
       "incentivesDesc": "{{count}} incentive rules",
       "complaintTypesDesc": "{{count}} complaint types",
       "sopStepsDesc": "{{count}} SOP steps",
-      "settingsDesc": "Discount, travel, hours & SLA"
+      "productEnquiryDesc": "{{count}} customer app tabs configured",
+      "settingsDesc": "Discount, travel, hours & SLA",
+      "paymentSettingsDesc": "UPI merchant details for customer QR payments"
     },
     "tabs": {
       "brands": "Brands",
@@ -450,7 +459,9 @@
       "incentives": "Incentives",
       "complaintTypes": "Complaint Types",
       "sopSteps": "SOP Steps",
-      "settings": "Settings"
+      "productEnquiry": "Product Enquiry",
+      "settings": "Settings",
+      "paymentSettings": "Payment Settings"
     },
     "categories": {
       "ro": "RO / Water Purifier",
@@ -483,6 +494,8 @@
       "hsn": "HSN code",
       "warrantyMonths": "Warranty (months)",
       "standardTime": "Standard time (min)",
+      "description": "Description",
+      "descriptionPlaceholder": "Shown to customers in Product Enquiry",
       "add": "Add product",
       "empty": "No products yet — add your first one.",
       "needsBrandModelFirst": "Add a brand and model first — products need both.",
@@ -604,9 +617,141 @@
       "pickPlaceholder": "Select a spare to add",
       "noneToAdd": "Every spare is already mapped to this product.",
       "add": "Add"
+    },
+    "productMedia": {
+      "manage": "Manage media",
+      "title": "Media",
+      "imagesTab": "Images",
+      "documentsTab": "Documents",
+      "videosTab": "Videos",
+      "imagesEmpty": "No images uploaded yet.",
+      "uploadImage": "Upload image",
+      "primary": "Primary",
+      "setPrimary": "Set as primary",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "fileTooLarge": "File is too large (max 5MB).",
+      "documentsEmpty": "No documents uploaded yet.",
+      "docLabel": "Document label",
+      "docLabelPlaceholder": "e.g. User Manual",
+      "uploadDocument": "Upload document",
+      "docType": {
+        "brochure": "Brochure",
+        "manual": "Manual",
+        "warranty_card": "Warranty Card",
+        "other": "Other"
+      },
+      "videosEmpty": "No videos added yet.",
+      "videoTitlePlaceholder": "Title (optional)",
+      "videoUrlPlaceholder": "Video URL",
+      "addVideo": "Add"
+    },
+    "productAttributes": {
+      "manage": "Manage attributes",
+      "title": "Custom Attributes",
+      "empty": "No custom attributes set on this product yet.",
+      "pickPlaceholder": "Select an attribute",
+      "noneToAdd": "Every attribute is already set on this product.",
+      "valuePlaceholder": "Value",
+      "add": "Add",
+      "addNewKey": "Add a new attribute",
+      "newKeyLabel": "New attribute",
+      "newKeyLabelPlaceholder": "Display label, e.g. Filtration Stages",
+      "newKeyNamePlaceholder": "key_name (auto-formatted)",
+      "createKey": "Create attribute",
+      "dataType": {
+        "text": "Text",
+        "number": "Number",
+        "boolean": "Yes/No"
+      }
+    },
+    "productFeatures": {
+      "manage": "Manage features & related products",
+      "title": "Features & Related Products",
+      "bulletsTitle": "Feature bullets",
+      "bulletsEmpty": "No feature bullets added yet.",
+      "bulletPlaceholder": "e.g. 7-stage filtration",
+      "add": "Add",
+      "relatedTitle": "Related products",
+      "relatedEmpty": "No related products linked yet.",
+      "pickPlaceholder": "Select a product to link",
+      "noneToAdd": "Every other product is already linked.",
+      "relationType": {
+        "related": "Related",
+        "accessory": "Accessory",
+        "frequently_bought_with": "Frequently bought with"
+      }
+    },
+    "productCtaOverrides": {
+      "manage": "Manage CTA overrides",
+      "title": "CTA Overrides",
+      "ctaType": {
+        "quotation": "Request Quotation",
+        "callback": "Request Callback",
+        "share": "Share"
+      },
+      "choice": {
+        "default": "Use default",
+        "on": "Force on",
+        "off": "Force off"
+      }
+    },
+    "productEnquiryConfig": {
+      "tabsTitle": "Tabs",
+      "filtersTitle": "Filters",
+      "comparisonFieldsTitle": "Comparison Fields",
+      "ctaTitle": "CTA Buttons",
+      "attributeKeysTitle": "Attribute Keys",
+      "label": "Label",
+      "tabType": "Tab type",
+      "tabTypes": {
+        "catalog_grid": "Catalog Grid",
+        "video_library": "Videos & Topics"
+      },
+      "topics": "Topics shown in this tab",
+      "addTab": "Add tab",
+      "tabsEmpty": "No tabs configured yet.",
+      "source": "Source",
+      "sourceProductField": "Base product field",
+      "sourceAttribute": "Custom attribute",
+      "field": "Field",
+      "productFields": {
+        "category": "Category",
+        "brand": "Brand",
+        "price_range": "Price"
+      },
+      "addFilter": "Add filter",
+      "filtersEmpty": "No filters configured yet.",
+      "addComparisonField": "Add comparison field",
+      "comparisonFieldsEmpty": "No comparison fields configured yet.",
+      "ctaType": "CTA type",
+      "addCta": "Add CTA",
+      "ctaEmpty": "No CTA buttons configured yet.",
+      "minQty": "Min quantity",
+      "maxQty": "Max quantity",
+      "maxDaysAhead": "Max days ahead bookable",
+      "shareFields": "Fields included when sharing",
+      "shareField": {
+        "name": "Name",
+        "price": "Price",
+        "emi": "EMI estimate",
+        "brand": "Brand"
+      },
+      "keyName": "Key name",
+      "dataType": "Data type",
+      "addAttributeKey": "Add attribute key",
+      "attributeKeysEmpty": "No attribute keys yet — add your first one."
     }
   },
   "settings": {
+    "orgProfile": {
+      "title": "Business Details",
+      "hint": "Printed on invoices and quotations.",
+      "gstNo": "GSTIN",
+      "address": "Business address",
+      "phone": "Business phone",
+      "saved": "Saved"
+    },
     "groups": {
       "travel": "Travel & Geofence",
       "attendance": "Work Hours & Attendance",
@@ -615,7 +760,8 @@
       "inventory": "Inventory Defaults",
       "sla": "Service SLA (hours by priority)",
       "jobDuration": "Default Job Duration (minutes by ticket type)",
-      "booking": "Booking Model"
+      "booking": "Booking Model",
+      "productEnquiry": "Product Enquiry — EMI Display"
     },
     "discountGift": {
       "title": "Discount & Gift Limits",
@@ -660,6 +806,13 @@
     "poRequiresApprovalHint": "Off: purchase orders send automatically when stock hits the minimum. On: every auto-drafted PO waits as a draft until an owner approves it.",
     "poQuoteTimeoutHours": "Supplier quote timeout (hours)",
     "poQuoteTimeoutHoursHint": "On low stock, a quote request goes to every known supplier first. If a reply is logged before this many hours pass, the lowest reply wins; if nobody replies in time, it falls back to the last-known-cheapest supplier automatically so stock is never stranded.",
+    "emiTenureMonths": "EMI tenure options (months)",
+    "emiTenureMonthsPlaceholder": "e.g. 6, 12, 24",
+    "emiTenureMonthsHint": "Comma-separated list of tenure options shown on a product's detail page. Illustrative only — no lender is involved.",
+    "emiDisclaimer": "EMI disclaimer text",
+    "emiDisclaimerPlaceholder": "Illustrative only — a flat price ÷ tenure estimate with no interest or processing fee. Not a loan offer.",
+    "emiEnabled": "Show EMI estimate on product pages",
+    "emiEnabledHint": "Turns the whole EMI block on the customer product detail page on/off.",
     "slaVeryUrgent": "Very urgent (hours)",
     "slaUrgent": "Urgent (hours)",
     "slaNormal": "Normal (hours)",
@@ -702,6 +855,22 @@
       "latRange": "Must be between -90 and 90",
       "lngRange": "Must be between -180 and 180",
       "urlInvalid": "Must be a valid URL (e.g. https://...)"
+    }
+  },
+  "paymentSettings": {
+    "title": "UPI Payment Settings",
+    "hint": "Configure the UPI details customers see when paying by QR code after a service visit — never hardcoded, always read live from here.",
+    "merchantName": "Merchant name",
+    "upiId": "UPI ID",
+    "upiIdPlaceholder": "yourbusiness@okhdfcbank",
+    "phoneNumber": "Phone number",
+    "enabled": "Enable UPI payments",
+    "enabledHint": "Turns the QR payment step on for technicians and customers.",
+    "previewLabel": "Preview",
+    "saved": "Payment settings saved.",
+    "errors": {
+      "merchantNameRequired": "Merchant name is required",
+      "upiIdInvalid": "Enter a valid UPI ID (e.g. name@bank)"
     }
   },
   "inventory": {
@@ -833,9 +1002,14 @@
       "method": "Payment method",
       "cash": "Cash",
       "transfer": "Bank transfer",
+      "upi": "UPI",
       "txnId": "Transaction ID",
       "description": "Description",
-      "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually."
+      "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually.",
+      "amountCollected": "Amount collected now",
+      "payableNote": "Amount payable: {{amount}}",
+      "willBePartial": "This sale will be recorded as Partially paid — {{amount}} still due.",
+      "willBeDue": "No payment recorded yet — this sale will be marked Payment due."
     },
     "review": {
       "title": "Review",
@@ -847,7 +1021,10 @@
     "errors": {
       "txnIdRequired": "Enter the transaction ID for a bank transfer",
       "paymentDescriptionRequired": "Enter a short description for the bank transfer",
-      "paymentInvalid": "Check the payment details and try again"
+      "paymentInvalid": "Check the payment details and try again",
+      "amountPaidInvalid": "Enter a valid amount collected",
+      "amountPaidExceedsTotal": "Amount collected cannot exceed the payable total",
+      "recordPaymentInvalid": "Enter an amount greater than 0 and no more than the balance due"
     },
     "summary": {
       "title": "Summary",
@@ -906,7 +1083,8 @@
       },
       "error": {
         "loadFailed": "Couldn't load sales. Check your connection and try again."
-      }
+      },
+      "balanceDue": "{{amount}} due"
     },
     "invoice": {
       "loadFailed": "Couldn't load this invoice. Check your connection and try again.",
@@ -915,6 +1093,13 @@
       "whatsappMessage": "GV Mart invoice {{id}} — total {{total}}. Thank you for your business!",
       "gstNo": "GSTIN {{gst}}",
       "invoiceNo": "Invoice #{{id}}",
+      "invoiceNoLabel": "Invoice No",
+      "dateLabel": "Date",
+      "sno": "S.No",
+      "description": "Description",
+      "rate": "Rate",
+      "value": "Value",
+      "netAmount": "Net Amount",
       "billedTo": "Billed to",
       "item": "Item",
       "qty": "Qty",
@@ -931,6 +1116,10 @@
       "profitMissingCostNote_one": "{{count}} item has no cost set — profit is undercounted.",
       "profitMissingCostNote_other": "{{count}} items have no cost set — profit is undercounted.",
       "paymentMethod": "Payment method",
+      "amountCollected": "Amount collected",
+      "balanceDue": "Balance due",
+      "recordPayment": "Record payment",
+      "recordPaymentHint": "Balance remaining: {{amount}}",
       "generatedTitle": "Generated from this sale",
       "warrantyLine": "Warranty registered, expires {{date}}",
       "ticketLine": "Installation ticket — {{status}}",
@@ -939,6 +1128,11 @@
         "product": "Product sale",
         "spare": "Spares sale",
         "amc": "AMC sale"
+      },
+      "printTitle": {
+        "product": "TAX INVOICE",
+        "spare": "TAX INVOICE",
+        "amc": "AMC INVOICE"
       },
       "paymentStatus": {
         "paid": "Paid",
@@ -963,6 +1157,10 @@
     "confirmLost": "Confirm lost",
     "lostReasonLabel": "Lost reason",
     "lostReasonPlaceholder": "Why was this quotation lost?",
+    "print": "Print",
+    "printTitle": "QUOTATION",
+    "quotationNo": "Quotation #{{id}}",
+    "quotationNoLabel": "Quotation No",
     "stats": {
       "open": "Open",
       "converted": "Converted",
@@ -1010,7 +1208,8 @@
       "overdue": "Overdue",
       "amc": "AMC",
       "warranty": "Warranty",
-      "unassigned": "Unassigned"
+      "unassigned": "Unassigned",
+      "missingProduct": "Missing product"
     },
     "table": {
       "ticket": "Ticket",
@@ -1106,25 +1305,27 @@
       "equipmentMode": {
         "owned": "Owned",
         "new": "New",
-        "none": "None"
+        "notInInventory": "Not in inventory"
       },
       "noOwnedEquipment": "No products in the customer's history. Select 'New' to add one.",
       "brand": "Brand",
       "model": "Model",
       "product": "Product",
+      "notInInventoryPopup": {
+        "title": "Product not in inventory",
+        "label": "Product name",
+        "placeholder": "e.g. Kent Grand Plus RO",
+        "hint": "Use this when the customer's actual product isn't in Masters yet. Typing a name here still lets this ticket be assigned to a technician.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
       "nameOfComplaint": "Name of complaint",
       "nameOfComplaintPlaceholder": "e.g. Water flow stopped, Not cooling",
       "natureOfComplaint": "Nature of complaint (optional)",
       "natureOfComplaintPlaceholder": "e.g. Issue observed for past 2 days",
       "natureOfComplaintHint": "Additional details to help the technician.",
       "priority": "Priority",
-      "appointmentMode": "Appointment mode",
       "scheduledAt": "Scheduled date & time",
-      "workHoursHint": "Appointments are scheduled during working hours.",
-      "availableFrom": "Available from (optional)",
-      "availableTo": "Available to (optional)",
-      "availableWindowHint": "Narrow the window if the customer is only free at certain times.",
-      "availableWindowInvalid": "\"Available to\" must be later than \"Available from\".",
       "autoAssign": "Auto-assign to available technician",
       "create": "Create complaint",
       "typeNotSelectable": "Type is auto-detected and non-selectable.",
@@ -1137,8 +1338,7 @@
         "discard": "Discard draft",
         "discardWarning": "This clears everything you've entered on this device for this complaint (customer, equipment, details, appointment). Nothing already saved to the server is affected.",
         "confirmDiscard": "Yes, discard"
-      },
-      "equipmentNoneHint": "No equipment on file for this customer yet — you can still continue without selecting one."
+      }
     },
     "appointments": {
       "title": "Appointments",
@@ -1170,6 +1370,19 @@
       "editAddress": "Edit address",
       "offDuty": "Off duty",
       "assignManually": "Assign manually",
+      "productEditor": {
+        "editButton": "Edit product",
+        "missingTitle": "This ticket needs a product before it can be assigned",
+        "missingHint": "Pick from the customer's owned products, search the catalog, or type a name if it's not in inventory yet.",
+        "mode": {
+          "owned": "Owned",
+          "catalog": "Catalog",
+          "notInInventory": "Not in inventory"
+        },
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "attachedPhotos": "Customer-attached photos",
       "confirmedAvailability": {
         "title": "Confirmed availability",
         "logButton": "Log a call",
@@ -1262,7 +1475,16 @@
     "assign": {
       "noneAvailable": "No technicians available for auto-assign.",
       "technicianBusy": "Technician is busy at scheduled time.",
-      "exemptionWindowConflict": "This customer has an exemption window covering this time — no technician can be assigned then."
+      "exemptionWindowConflict": "This customer has an exemption window covering this time — no technician can be assigned then.",
+      "productRequired": "This ticket needs a product before it can be assigned."
+    },
+    "missingProductAlert": {
+      "title": "Tickets missing a product",
+      "body_one": "{{count}} service ticket has no product defined yet — technicians can't be assigned until it's filled in.",
+      "body_other": "{{count}} service tickets have no product defined yet — technicians can't be assigned until they're filled in.",
+      "reviewButton": "Review",
+      "closeButton": "Remind me later",
+      "viewTicket": "View ticket"
     }
   },
   "amc": {
@@ -1359,7 +1581,67 @@
       "updatedMinutesAgo_one": "{{count}} minute ago",
       "updatedMinutesAgo_other": "{{count}} minutes ago",
       "mapLoadFailed": "Couldn't load the map right now.",
-      "recenter": "Recenter"
+      "recenter": "Recenter",
+      "yourLocation": "Your location",
+      "reconnecting": "Reconnecting…",
+      "etaMinutes_one": "Arriving in {{count}} min",
+      "etaMinutes_other": "Arriving in {{count}} mins",
+      "expectedBetween": "Expected between",
+      "call": "Call",
+      "support": "Support",
+      "distanceAway": "{{distance}} km away",
+      "servicesCompleted_one": "{{count}} service completed",
+      "servicesCompleted_other": "{{count}} services completed",
+      "shareTracking": "Share tracking",
+      "shareTitle": "Track my technician",
+      "linkCopied": "Tracking link copied",
+      "serviceAddress": "Service address",
+      "timelineTitle": "Status",
+      "stage": {
+        "booking_confirmed": "Booking Confirmed",
+        "technician_assigned": "Technician Assigned",
+        "heading_to_you": "Heading to You",
+        "nearby": "Nearby",
+        "arrived_working": "Working",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      },
+      "timeline": {
+        "bookingConfirmed": "Booking Created",
+        "technicianAssigned": "Technician Assigned",
+        "headingToYou": "On the Way",
+        "arrivedWorking": "Service Started",
+        "completed": "Service Completed"
+      },
+      "waitingForTechnician": "Waiting for Technician",
+      "arrivedTitle": "Your technician has arrived!",
+      "arrivedBodyNamed": "{{name}} is here and starting your service.",
+      "arrivedBody": "Your technician is here and starting your service.",
+      "completionTitle": "Service completed",
+      "completionBodyNamed": "Thank you for choosing us — {{name}} has completed your service.",
+      "completionBody": "Thank you for choosing us. Your service has been completed.",
+      "bookAnother": "Book another service",
+      "rateStars_one": "Rate {{count}} star",
+      "rateStars_other": "Rate {{count}} stars",
+      "reviewPlaceholder": "Tell us about your experience (optional)",
+      "ratingFailed": "Couldn't submit your rating — please try again.",
+      "submitRating": "Submit rating",
+      "printInvoice": "Print",
+      "routeCard": {
+        "titleAssigned": "Technician has been assigned",
+        "titleOnTheWay": "Technician is on the way",
+        "titleNearby": "Technician is nearby",
+        "titleArrivingNow": "Technician is right outside",
+        "titleArrived": "Technician has arrived",
+        "eta": "ETA",
+        "etaValue_one": "{{count}} min",
+        "etaValue_other": "{{count}} mins",
+        "distance": "Distance",
+        "distanceValue": "{{distance}} km",
+        "distanceValueMeters": "{{meters}} m",
+        "status": "Status",
+        "routeUnavailable": "Route unavailable ({{code}})"
+      }
     },
     "errors": {
       "doorNoRequired": "Door/Flat number is required",
@@ -1494,6 +1776,9 @@
       "message": "Your technician needs your confirmation code — tap to view",
       "dismiss": "Dismiss"
     },
+    "technicianAssignedAlert": {
+      "message": "Technician assigned — tap to track"
+    },
     "bookingDetail": {
       "loadError": "Couldn't load this booking. Please retry.",
       "back": "Back to bookings",
@@ -1515,11 +1800,19 @@
       "before": "Before",
       "after": "After",
       "yourRating": "Your rating",
+      "googleReviewButton": "Leave a Google review",
+      "googleReviewLinkMissing": "Google review link isn't configured yet.",
       "otpTitle": "Job completion code",
       "otpHint": "Give this code to your technician once the work is done, to confirm the job is complete.",
       "otpExpiresAt": "Valid until {{time}}",
       "otpExpired": "This code expired — ask your technician to send you a new one.",
       "otpVerified": "Completion confirmed with this code.",
+      "payment": {
+        "title": "Pay for this service",
+        "unavailable": "Online payment isn't available for this booking yet — please contact the office.",
+        "confirmed": "Payment received — thank you!",
+        "waitingHint": "Scan this code with any UPI app to pay. This screen updates automatically once your technician confirms the payment."
+      },
       "invoice": "Invoice",
       "invoiceSubtotal": "Subtotal",
       "invoiceDiscount": "Discount",
@@ -1594,6 +1887,58 @@
         "customization": "Customization",
         "water_premium": "Water Premium",
         "budget": "Budget"
+      },
+      "catalog": {
+        "empty": "No products to show yet."
+      },
+      "compare": {
+        "cta": "Compare",
+        "selectedCount": "{{count}}/{{max}} selected",
+        "title": "Compare Products",
+        "loadError": "Couldn't load products to compare. Please retry.",
+        "empty": "Select 2-3 products from the catalog to compare them here.",
+        "field": "Specification",
+        "category": {
+          "ro": "RO / Water Purifier",
+          "ac": "AC",
+          "inverter": "Inverter",
+          "battery": "Battery"
+        }
+      },
+      "detail": {
+        "loadError": "Couldn't load this product. Please retry.",
+        "warrantyBadge": "{{months}} months warranty",
+        "descriptionTitle": "About this product",
+        "featuresTitle": "Features",
+        "attributesTitle": "Specifications",
+        "mediaTitle": "Documents & Videos",
+        "relatedTitle": "Related products",
+        "emiTitle": "EMI estimate",
+        "emiPerMonth": "for {{months}} months",
+        "emiDisclaimer": "Illustrative only — a flat price ÷ tenure estimate with no interest or processing fee. Not a loan offer; no financing partner is involved.",
+        "requestQuotationCta": "Request Quotation",
+        "qtyLabel": "Quantity",
+        "noteLabel": "Note (optional)",
+        "notePlaceholder": "Anything specific you'd like us to know?",
+        "submit": "Submit",
+        "quotationSubmitted": "Quotation request submitted — our team will get back to you shortly.",
+        "shareCta": "Share",
+        "shareCopiedToast": "Copied to clipboard",
+        "sharePerMonth": "~₹{{amount}}/mo",
+        "shareTagline": "Check it out on the GV Mart app."
+      },
+      "callback": {
+        "title": "Request a Callback",
+        "subtitle": "Pick a date and time slot — our sales team will call you back.",
+        "loadError": "Couldn't load available slots. Please retry.",
+        "dateLabel": "Preferred date",
+        "slotLabel": "Preferred time slot",
+        "noteLabel": "Note (optional)",
+        "notePlaceholder": "Anything specific you'd like to discuss?",
+        "submit": "Request callback",
+        "submittedTitle": "Callback requested",
+        "submittedBody": "Our team will call you back during your chosen slot.",
+        "noSlotsAvailable": "No time slots are configured yet — please try again later."
       }
     },
     "spareEnquiry": {
@@ -1601,6 +1946,7 @@
       "subtitle": "Tell us which part you need and we'll follow up.",
       "loadError": "Couldn't load your products. Please retry.",
       "close": "Close",
+      "whatLookingFor": "What are you looking for?",
       "selectProduct": "Product",
       "selectProductPlaceholder": "Select an owned product",
       "orTypeProductName": "Or type your product name",
@@ -1609,6 +1955,8 @@
       "selectSparePlaceholder": "Select a spare part",
       "cantFindSpare": "Can't find your spare part?",
       "backToSpareList": "Back to spare part list",
+      "noMappedSpares": "No spare parts listed for this product yet — describe what you need below.",
+      "addAnotherProduct": "Add another product",
       "partDescription": "Which part do you need?",
       "partDescriptionPlaceholder": "e.g. Membrane, pre-filter, pump…",
       "photoHint": "A text description is enough — photo upload is coming soon.",
@@ -1639,6 +1987,10 @@
       },
       "noProductsInCategory": "No products found in this category.",
       "productUnknown": "I'm not sure / not listed",
+      "photoAttachLabel": "Add a photo to help us identify it (optional)",
+      "photoAttachHint": "Up to 3 photos. This helps our team recognize your product before the visit.",
+      "photoAddButton": "Add photo",
+      "photoRemove": "Remove",
       "nameOfComplaint": "What's the issue?",
       "nameOfComplaintPlaceholder": "e.g. Water leakage, low output…",
       "natureOfComplaint": "Any more details? (optional)",
@@ -1663,22 +2015,28 @@
       "dateRequired": "Please choose a date.",
       "selectSlot": "Choose a time slot",
       "noSlotsConfigured": "No appointment slots are configured yet — please contact us to book.",
+      "noSlotsLeftToday": "All of today's time slots have already passed — please choose a different date.",
       "slotRequired": "Please choose a time slot.",
-      "windowMode": {
-        "any": "Any time",
-        "custom": "I'm not available at certain times"
-      },
-      "anyTimeInfo": "Our technicians work {{start}}–{{end}}. Your technician will arrive within this window.",
-      "exemptionWindowsLabel": "Always blocked for you",
-      "unavailableWindowsLabel": "Times you're not available",
-      "noUnavailableWindows": "No windows marked yet — add one below.",
       "slotsLabel": "Available times",
       "slotsHint": "Tap any time you're NOT available — we'll schedule around the rest.",
       "slotsClearAll": "I'm available all day",
-      "availableWindowPreview": "We'll aim to visit between {{start}} and {{end}}.",
-      "narrowWindowWarning": "That only leaves a narrow window ({{start}}–{{end}}). We'll treat this as a specific-time booking.",
-      "fullyBlockedWarning": "You've blocked out the entire working day — the visit will still be booked for this date. If nobody ends up available, our team will call to confirm a priority slot.",
       "nextDayPriorityNote": "Your requested date was fully booked, so we've moved your visit to the next available day as top priority.",
+      "unavailability": {
+        "heading": "Choose Your Unavailable Time",
+        "helper": "If you're available throughout the day, you don't need to select anything. Simply continue with your booking.",
+        "sectionTitle": "Unavailability Time Slots",
+        "empty": "You're available all day.",
+        "startTime": "Start time",
+        "endTime": "End time",
+        "rangeSeparator": "to",
+        "addTimeRange": "Add time range",
+        "removeTimeRange": "Remove time range",
+        "invalidRange": "End time must be later than start time.",
+        "availableWindowPreview": "Your available window: {{from}}–{{to}}",
+        "narrowWindowWarning": "This is a short window — we'll do our best, but a technician may not be able to make it in time.",
+        "mayMoveNextDay": "This date may be fully booked given your unavailable times — we may move your visit to the next available day as priority.",
+        "fullyBlockedWarning": "You've marked yourself unavailable for the entire day — please free up some time or choose a different date."
+      },
       "confirmTitle": "Review your booking",
       "visitCostLabel": "Visit cost",
       "visitCostCovered": "Covered under your warranty/AMC — no charge for this visit.",
@@ -1904,6 +2262,9 @@
       "statusConfirming": "Confirming arrival…",
       "statusIdle": "Idle / off-route",
       "statusTracking": "Tracking…",
+      "awaitingLocation": "Waiting for your GPS location — distance and ETA will appear once it's found.",
+      "refreshLocation": "Refresh location",
+      "lowAccuracyWarning": "Location accuracy is low (~{{accuracy}} m) — distance and ETA may be off. This is common on desktop/laptop browsers, which use Wi-Fi/IP-based location instead of real GPS. Try a mobile device outdoors for an accurate fix.",
       "noDestinationTitle": "No destination selected",
       "noDestinationBody": "Open this from a job card to navigate to a customer.",
       "jobClosedTitle": "This job is already completed",
@@ -2054,10 +2415,18 @@
         "method": "Payment method",
         "cash": "Cash",
         "transfer": "Bank transfer",
+        "upi": "UPI",
         "txnId": "Transaction ID",
         "description": "Description",
         "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually.",
-        "complete": "Verify & complete visit"
+        "complete": "Verify & complete visit",
+        "upiCollect": {
+          "title": "Collect UPI payment",
+          "hint": "Ask the customer to scan the QR code shown in their app. Once their payment goes through, tap below to confirm.",
+          "confirmButton": "Payment received",
+          "confirmed": "UPI payment confirmed.",
+          "invoicePending": "Still syncing the invoice — please wait a few seconds and try again."
+        }
       },
       "otp": {
         "title": "Customer confirmation code",
@@ -2159,7 +2528,11 @@
       "ratingCount_one": "{{count}} rating",
       "ratingCount_other": "{{count}} ratings",
       "kpiTitle": "KPI score",
-      "kpiNote": "A composite KPI score isn't computed yet — this shows the raw numbers behind it."
+      "kpiNote": "A composite KPI score isn't computed yet — this shows the raw numbers behind it.",
+      "referralsTitle": "My Referrals",
+      "referralsCount_one": "{{count}} customer referred",
+      "referralsCount_other": "{{count}} customers referred",
+      "noReferrals": "No referrals yet — refer a customer during a sale, service booking, or AMC sign-up to see it here."
     },
     "daySheet": {
       "title": "Day Sheet",
@@ -2179,6 +2552,21 @@
   "leads": {
     "subtitle": "Track enquiries from field, WhatsApp, referrals and the customer app through to a won or lost sale.",
     "loadFailed": "Could not load leads.",
+    "empty": "No leads yet.",
+    "view": {
+      "table": "Table",
+      "kanban": "Kanban"
+    },
+    "table": {
+      "name": "Name",
+      "mobile": "Mobile",
+      "source": "Source",
+      "kind": "Kind",
+      "topic": "Topic",
+      "status": "Status",
+      "technician": "Technician",
+      "created": "Created"
+    },
     "filters": {
       "allSources": "All sources",
       "allTopics": "All topics",
@@ -2244,6 +2632,7 @@
     },
     "detail": {
       "selectHint": "Select a lead to view activity and update status.",
+      "items": "Items",
       "logActivity": "Log activity",
       "notePlaceholder": "Optional note",
       "addActivity": "Add",
@@ -2462,12 +2851,14 @@
         "history": "History",
         "attendance": "Attendance",
         "rewards": "Rewards",
+        "referrals": "Referrals",
         "availability": "Availability"
       },
       "noCurrentJob": "No active job right now.",
       "noHistory": "No jobs assigned yet.",
       "noAttendance": "No attendance recorded yet.",
       "noRewards": "No rewards given yet.",
+      "noReferrals": "No customers referred yet.",
       "viewTicket": "View ticket",
       "outsideGeofence": "Outside office",
       "jobStatus": {
@@ -2623,14 +3014,16 @@
       "givenAt": "Given On",
       "note": "Note",
       "categories": {
-        "attendance": "On-time Attendance",
+        "attendance": "Full Attendance",
         "highest_review": "Highest Reviews",
-        "highest_revenue": "Highest Revenue"
+        "highest_revenue": "Highest Revenue",
+        "highest_referral": "Highest Referral"
       },
       "minimums": {
-        "attendance": "No late check-ins this month",
+        "attendance": "Full attendance, late within 3 hrs/month",
         "highest_review": "Minimum 51 reviews",
-        "highest_revenue": "Minimum ₹1,50,000 revenue"
+        "highest_revenue": "Minimum ₹1,50,000 revenue",
+        "highest_referral": "Minimum 20 referrals (Sales/Service/AMC)"
       },
       "noEligible": "No one qualifies yet",
       "metric": "Score: {{value}}",

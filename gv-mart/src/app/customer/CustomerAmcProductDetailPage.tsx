@@ -94,7 +94,7 @@ export function CustomerAmcProductDetailPage() {
         {t("customerApp.amc.backToOverview")}
       </button>
 
-      <Card className="gap-1">
+      <Card className="gap-1 lg:px-5">
         <div className="flex items-center justify-between px-1">
           <div>
             <p className="text-base font-semibold text-text">{product.name}</p>
@@ -107,7 +107,7 @@ export function CustomerAmcProductDetailPage() {
       </Card>
 
       {isRo ? (
-        <Card className="gap-3">
+        <Card className="gap-3 lg:px-5">
           <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.amc.currentPlan")}</h2>
           {amc ? (
             <div className="space-y-1.5 px-1 text-xs">
@@ -145,13 +145,13 @@ export function CustomerAmcProductDetailPage() {
       ) : null}
 
       {isRo ? (
-        <Card className="gap-2">
+        <Card className="gap-2 lg:px-5">
           <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.amc.historyTitle")}</h2>
           <HistoryList tickets={amcHistory} t={t} />
         </Card>
       ) : null}
 
-      <Card className="gap-3">
+      <Card className="gap-3 lg:px-5">
         <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.products.warrantyActive")}</h2>
         {warranty ? (
           <div className="space-y-1.5 px-1 text-xs">

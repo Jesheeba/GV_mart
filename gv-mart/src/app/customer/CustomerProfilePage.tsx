@@ -45,7 +45,7 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
   const deleteAddress = useDeleteMyAddress(customerId)
 
   return (
-    <Card className="gap-3">
+    <Card className="gap-3 lg:px-5">
       <div className="flex items-center justify-between px-1">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text">
           <HomeIcon className="size-4 text-text-muted" />
@@ -179,7 +179,7 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
   })
 
   return (
-    <Card className="gap-3">
+    <Card className="gap-3 lg:px-5">
       <div className="flex items-center justify-between px-1">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text">
           <UserPlus className="size-4 text-text-muted" />
@@ -330,7 +330,7 @@ function ReferralWalletCard({ customerId }: { customerId: string }) {
   const total = (points ?? []).reduce((sum, p) => sum + p.points, 0)
 
   return (
-    <Card className="gap-2">
+    <Card className="gap-2 lg:px-5">
       <div className="flex items-center gap-2 px-1">
         <span className="flex size-8 items-center justify-center rounded-full bg-accent-soft text-accent">
           <Coins className="size-4" />
@@ -373,7 +373,7 @@ export function CustomerProfilePage() {
         </Button>
       </div>
 
-      <Card className="gap-3">
+      <Card className="gap-3 lg:px-5">
         <div className="flex items-center gap-3 px-1">
           <span className="flex size-12 items-center justify-center rounded-full bg-ink text-base font-semibold text-white">
             {profile.full_name.slice(0, 2).toUpperCase()}

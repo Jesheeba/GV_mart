@@ -85,8 +85,21 @@ export type ServiceBookingInput = z.infer<typeof serviceBookingSchema>
 export const enquirySchema = z.object({
   description: z.string().trim().min(3, "customerApp.errors.descriptionRequired"),
   photoUrl: z.string().trim().optional().or(z.literal("")),
+  // Product Enquiry rebuild (2026-08-04) Phase 4 — structured per-product
+  // quote requests from a product detail page; both optional so the
+  // existing free-text-only "no specific product" form keeps working.
+  productId: z.string().uuid().optional(),
+  qty: z.number().int().min(1).optional(),
 })
 export type EnquiryInput = z.infer<typeof enquirySchema>
+
+// ── Product Enquiry rebuild (2026-08-04) Phase 4 — Request Callback ──────
+export const callbackRequestSchema = z.object({
+  scheduledDate: z.string().min(1, "customerApp.errors.callbackDateRequired"),
+  slotId: z.string().uuid("customerApp.errors.callbackSlotRequired"),
+  note: z.string().trim().optional().or(z.literal("")),
+})
+export type CallbackRequestInput = z.infer<typeof callbackRequestSchema>
 
 // ── CUST-06 register-via-QR ───────────────────────────────────────────────
 export const registerProductSchema = z.object({

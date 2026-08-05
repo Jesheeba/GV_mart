@@ -1,12 +1,16 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ClipboardList, Wrench } from "lucide-react"
+import { ClipboardList, Image as ImageIcon, Link2, Sparkles, ToggleLeft, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
 import { useProfile } from "@/hooks/useProfile"
-import type { Enums } from "@/types/database"
+import type { Enums, Json } from "@/types/database"
+import { ProductAttributesPanel } from "./ProductAttributesPanel"
 import { ProductComplaintsPanel } from "./ProductComplaintsPanel"
+import { ProductCtaOverridesPanel } from "./ProductCtaOverridesPanel"
+import { ProductFeaturesAndRelatedPanel } from "./ProductFeaturesAndRelatedPanel"
+import { ProductMediaPanel } from "./ProductMediaPanel"
 import { ProductSparesPanel } from "./ProductSparesPanel"
 
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const satisfies readonly Enums<"brand_category">[]
@@ -21,12 +25,17 @@ type ProductWithRefs = {
   price: number
   cost_price: number | null
   hsn_code: string | null
+  description: string | null
   warranty_months: number
   // GV.md 1.1 — same admin-set standard time as spares (SparesTab.tsx).
   standard_time_minutes: number | null
   // Task 6 (2026-07-30) — enable/disable, see
   // 20260730170000_product_spare_mapping_and_active_flags.sql.
   is_active: boolean
+  // Product Enquiry rebuild (2026-08-04) — see
+  // 20260804090000_product_media_and_attributes.sql.
+  custom_attributes: Json
+  feature_bullets: string[]
   created_at: string
   updated_at: string
   brands: { name: string } | null
@@ -55,6 +64,20 @@ export function ProductsTab() {
   const [sparesProductId, setSparesProductId] = useState<string | null>(null)
   const sparesProduct = (rows ?? []).find((r) => r.id === sparesProductId) as ProductWithRefs | undefined
 
+  // Product Enquiry rebuild (2026-08-04) — 4 more per-row connectors, same
+  // per-row-action pattern as complaints/spares above.
+  const [mediaProductId, setMediaProductId] = useState<string | null>(null)
+  const mediaProduct = (rows ?? []).find((r) => r.id === mediaProductId) as ProductWithRefs | undefined
+
+  const [attributesProductId, setAttributesProductId] = useState<string | null>(null)
+  const attributesProduct = (rows ?? []).find((r) => r.id === attributesProductId) as ProductWithRefs | undefined
+
+  const [featuresProductId, setFeaturesProductId] = useState<string | null>(null)
+  const featuresProduct = (rows ?? []).find((r) => r.id === featuresProductId) as ProductWithRefs | undefined
+
+  const [ctaOverridesProductId, setCtaOverridesProductId] = useState<string | null>(null)
+  const ctaOverridesProduct = (rows ?? []).find((r) => r.id === ctaOverridesProductId) as ProductWithRefs | undefined
+
   const brandOptions = useMemo(() => (brands ?? []).map((b) => ({ value: b.id, label: b.name })), [brands])
   const modelOptions = useMemo(
     () =>
@@ -80,6 +103,7 @@ export function ProductsTab() {
     { key: "hsn_code", label: t("masters.products.hsn"), type: "text", pattern: "\\d{4,8}", patternMessage: t("masters.errors.hsnInvalid") },
     { key: "warranty_months", label: t("masters.products.warrantyMonths"), type: "number", step: "1", min: 0 },
     { key: "standard_time_minutes", label: t("masters.products.standardTime"), type: "number", step: "1", min: 0 },
+    { key: "description", label: t("masters.products.description"), type: "textarea", placeholder: t("masters.products.descriptionPlaceholder") },
   ]
 
   if (!brands?.length || !models?.length) {
@@ -108,6 +132,7 @@ export function ProductsTab() {
           hsn_code: r.hsn_code ?? "",
           warranty_months: String(r.warranty_months),
           standard_time_minutes: r.standard_time_minutes != null ? String(r.standard_time_minutes) : "",
+          description: r.description ?? "",
         })}
         columns={[
           { key: "name", header: t("masters.products.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
@@ -162,6 +187,46 @@ export function ProductsTab() {
               </Button>
             ),
           },
+          {
+            key: "media",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <Button size="icon-xs" variant="ghost" title={t("masters.productMedia.manage")} onClick={() => setMediaProductId(r.id)}>
+                <ImageIcon className="size-3.5" />
+              </Button>
+            ),
+          },
+          {
+            key: "attributes",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <Button size="icon-xs" variant="ghost" title={t("masters.productAttributes.manage")} onClick={() => setAttributesProductId(r.id)}>
+                <Sparkles className="size-3.5" />
+              </Button>
+            ),
+          },
+          {
+            key: "features",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <Button size="icon-xs" variant="ghost" title={t("masters.productFeatures.manage")} onClick={() => setFeaturesProductId(r.id)}>
+                <Link2 className="size-3.5" />
+              </Button>
+            ),
+          },
+          {
+            key: "ctaOverrides",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <Button size="icon-xs" variant="ghost" title={t("masters.productCtaOverrides.manage")} onClick={() => setCtaOverridesProductId(r.id)}>
+                <ToggleLeft className="size-3.5" />
+              </Button>
+            ),
+          },
         ]}
         onCreate={(v) =>
           createMut.mutateAsync({
@@ -175,6 +240,7 @@ export function ProductsTab() {
             hsn_code: v.hsn_code || null,
             warranty_months: Number(v.warranty_months) || 12,
             standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
+            description: v.description || null,
           })
         }
         onUpdate={(id, v) =>
@@ -190,6 +256,7 @@ export function ProductsTab() {
               hsn_code: v.hsn_code || null,
               warranty_months: Number(v.warranty_months) || 12,
               standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
+              description: v.description || null,
             },
           })
         }
@@ -214,6 +281,48 @@ export function ProductsTab() {
           productId={sparesProduct.id}
           productName={sparesProduct.name}
           onClose={() => setSparesProductId(null)}
+        />
+      ) : null}
+
+      {mediaProduct ? (
+        <ProductMediaPanel
+          key={mediaProduct.id}
+          orgId={orgId}
+          productId={mediaProduct.id}
+          productName={mediaProduct.name}
+          onClose={() => setMediaProductId(null)}
+        />
+      ) : null}
+
+      {attributesProduct ? (
+        <ProductAttributesPanel
+          key={attributesProduct.id}
+          orgId={orgId}
+          productId={attributesProduct.id}
+          productName={attributesProduct.name}
+          customAttributes={attributesProduct.custom_attributes}
+          onClose={() => setAttributesProductId(null)}
+        />
+      ) : null}
+
+      {featuresProduct ? (
+        <ProductFeaturesAndRelatedPanel
+          key={featuresProduct.id}
+          orgId={orgId}
+          productId={featuresProduct.id}
+          productName={featuresProduct.name}
+          featureBullets={featuresProduct.feature_bullets}
+          onClose={() => setFeaturesProductId(null)}
+        />
+      ) : null}
+
+      {ctaOverridesProduct ? (
+        <ProductCtaOverridesPanel
+          key={ctaOverridesProduct.id}
+          orgId={orgId}
+          productId={ctaOverridesProduct.id}
+          productName={ctaOverridesProduct.name}
+          onClose={() => setCtaOverridesProductId(null)}
         />
       ) : null}
     </>

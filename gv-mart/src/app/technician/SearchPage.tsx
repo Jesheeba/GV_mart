@@ -6,12 +6,34 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useProfile } from "@/hooks/useProfile"
 import { useAddressSearch, useLogCall, useMyTechnician } from "@/hooks/useTechnician"
+import { getCurrentPosition } from "@/lib/offline/geo"
 import { JobTypeBadge } from "./components/JobBadges"
 
 const OPEN_STATUSES = new Set(["open", "assigned", "in_progress"])
 
-function googleMapsUrl(lat: number, lng: number) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+function googleMapsUrl(lat: number, lng: number, origin?: { lat: number; lng: number } | null) {
+  const params = new URLSearchParams({ api: "1", destination: `${lat},${lng}` })
+  if (origin) params.set("origin", `${origin.lat},${origin.lng}`)
+  return `https://www.google.com/maps/dir/?${params.toString()}`
+}
+
+// This screen (unlike MapPage) doesn't keep a live GPS watch running, so
+// there's no already-tracked position to hand Google Maps as `origin=` —
+// without one, Maps resolves "Your location" itself on open, which can use
+// a stale/cached browser fix instead of where the technician actually is.
+// Grabbing a fresh one-shot fix here and threading it through as an
+// explicit origin avoids that. The tab is opened synchronously (before the
+// `await`) so it stays tied to the click gesture and isn't popup-blocked;
+// it's then pointed at the resolved URL once the fix (or the timeout/denial
+// fallback) resolves.
+async function openNavigation(lat: number, lng: number) {
+  const win = window.open("", "_blank")
+  try {
+    const origin = await getCurrentPosition()
+    if (win) win.location.href = googleMapsUrl(lat, lng, origin)
+  } catch {
+    if (win) win.location.href = googleMapsUrl(lat, lng)
+  }
 }
 
 export function SearchPage() {
@@ -91,12 +113,10 @@ export function SearchPage() {
                     </a>
                   ) : null}
                   {addr.lat != null && addr.lng != null ? (
-                    <a href={googleMapsUrl(addr.lat, addr.lng)} target="_blank" rel="noreferrer" className="flex-1">
-                      <Button type="button" variant="outline" className="w-full">
-                        <MapPin className="size-3.5" />
-                        {t("technician.search.navigate")}
-                      </Button>
-                    </a>
+                    <Button type="button" variant="outline" className="w-full flex-1" onClick={() => void openNavigation(addr.lat!, addr.lng!)}>
+                      <MapPin className="size-3.5" />
+                      {t("technician.search.navigate")}
+                    </Button>
                   ) : null}
                 </div>
               </Card>

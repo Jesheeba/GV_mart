@@ -15,6 +15,12 @@ import { cn } from "@/lib/utils"
 // filters), just the plain list + per-card and bulk "mark read" actions.
 const NO_FILTERS = {}
 
+// Live tracking notifications (technician_assigned/service_started/
+// service_completed) carry the ticket id as ref_id — unlike the technician-
+// facing 'appointment_assigned' type, which uses the appointment id — see
+// 20260804220000_customer_tracking_notifications.sql.
+const TRACKING_DEEP_LINK_TYPES = new Set(["technician_assigned", "service_started", "service_completed"])
+
 export function NotificationsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -46,25 +52,32 @@ export function NotificationsPage() {
       </div>
 
       {notifications.isError ? (
-        <Card className="items-center gap-2 py-8 text-center">
+        <Card className="items-center gap-2 py-8 text-center lg:px-5">
           <p className="text-sm text-danger">{t("notifications.loadFailed")}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => notifications.refetch()}>
             {t("common.retry")}
           </Button>
         </Card>
       ) : notifications.isLoading ? (
-        <Card className="items-center py-8 text-center">
+        <Card className="items-center py-8 text-center lg:px-5">
           <p className="text-sm text-text-muted">{t("common.loading")}</p>
         </Card>
       ) : (notifications.data?.length ?? 0) === 0 ? (
-        <Card className="items-center gap-2 py-10 text-center">
+        <Card className="items-center gap-2 py-10 text-center lg:px-5">
           <Bell className="size-8 text-text-muted" />
           <p className="text-sm text-text-muted">{t("notifications.empty")}</p>
         </Card>
       ) : (
         <div className="space-y-2.5">
-          {notifications.data!.map((n) => (
-            <Card key={n.id} size="sm" className={cn("gap-2", !n.is_read && "border-info/40 bg-info/5")}>
+          {notifications.data!.map((n) => {
+            const deepLink = TRACKING_DEEP_LINK_TYPES.has(n.type) && n.ref_id ? `/customer/bookings/${n.ref_id}` : null
+            return (
+            <Card
+              key={n.id}
+              size="sm"
+              className={cn("gap-2 lg:px-5", !n.is_read && "border-info/40 bg-info/5", deepLink && "cursor-pointer hover:bg-surface-alt/60")}
+              onClick={deepLink ? () => navigate(deepLink) : undefined}
+            >
               <div className="flex items-start justify-between gap-2 px-1">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-text">{n.title}</p>
@@ -75,7 +88,15 @@ export function NotificationsPage() {
               <div className="flex items-center justify-between gap-2 px-1">
                 <span className="text-[10px] text-text-muted">{new Date(n.created_at).toLocaleString()}</span>
                 {!n.is_read ? (
-                  <Button type="button" size="xs" variant="ghost" onClick={() => markRead.mutate({ id: n.id })}>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      markRead.mutate({ id: n.id })
+                    }}
+                  >
                     {t("notifications.markRead")}
                   </Button>
                 ) : (
@@ -83,7 +104,8 @@ export function NotificationsPage() {
                 )}
               </div>
             </Card>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -319,13 +319,28 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
             <h3 className="mb-4 text-base font-bold tracking-tight text-text">{t("dashboard.needsAttention")}</h3>
             <div className="flex flex-col gap-3">
               {lowStockCount > 0 && (
-                <AttentionRow tone="danger" title={t("dashboard.lowStockCount", { count: lowStockCount })} subtitle={t("dashboard.lowStockSubtitle")} />
+                <AttentionRow
+                  tone="danger"
+                  title={t("dashboard.lowStockCount", { count: lowStockCount })}
+                  subtitle={t("dashboard.lowStockSubtitle")}
+                  onClick={() => navigate("/admin/inventory")}
+                />
               )}
               {amcDueSoon.length > 0 && (
-                <AttentionRow tone="info" title={t("dashboard.amcDueCount", { count: amcDueSoon.length })} subtitle={t("dashboard.amcDueSubtitle")} />
+                <AttentionRow
+                  tone="info"
+                  title={t("dashboard.amcDueCount", { count: amcDueSoon.length })}
+                  subtitle={t("dashboard.amcDueSubtitle")}
+                  onClick={() => navigate("/admin/amc")}
+                />
               )}
               {openTickets.length > 0 && (
-                <AttentionRow tone="warning" title={t("dashboard.openTicketsCount", { count: openTickets.length })} subtitle={t("dashboard.openTicketsSubtitle")} />
+                <AttentionRow
+                  tone="warning"
+                  title={t("dashboard.openTicketsCount", { count: openTickets.length })}
+                  subtitle={t("dashboard.openTicketsSubtitle")}
+                  onClick={() => navigate("/admin/service")}
+                />
               )}
               {lowStockCount === 0 && amcDueSoon.length === 0 && openTickets.length === 0 && (
                 <p className="text-sm text-text-muted">{t("dashboard.allClear")}</p>
@@ -385,10 +400,24 @@ function MixRow({ color, label, amount, pct }: { color: string; label: string; a
   )
 }
 
-function AttentionRow({ tone, title, subtitle }: { tone: "danger" | "warning" | "info"; title: string; subtitle: string }) {
+function AttentionRow({
+  tone,
+  title,
+  subtitle,
+  onClick,
+}: {
+  tone: "danger" | "warning" | "info"
+  title: string
+  subtitle: string
+  onClick?: () => void
+}) {
   const toneClass = tone === "danger" ? "bg-danger/10 text-danger" : tone === "warning" ? "bg-warning/10 text-warning" : "bg-info/10 text-info"
   return (
-    <div className="flex items-start gap-2.75">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-start gap-2.75 rounded-lg text-left transition-colors hover:bg-surface-alt/60 -mx-1 px-1 py-0.5"
+    >
       <span className={cn("flex size-7.5 shrink-0 items-center justify-center rounded-[9px]", toneClass)}>
         <TriangleAlert className="size-4" />
       </span>
@@ -396,6 +425,6 @@ function AttentionRow({ tone, title, subtitle }: { tone: "danger" | "warning" | 
         <div className="text-[13px] font-semibold text-text">{title}</div>
         <div className="text-[11px] font-medium text-text-muted">{subtitle}</div>
       </div>
-    </div>
+    </button>
   )
 }

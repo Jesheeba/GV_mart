@@ -1,0 +1,11 @@
+-- Client rewards spec (4 criteria) — referral category, schema half.
+--
+-- Adds the 4th reward bucket ("Highest Referral in Sales/Service/AMC,
+-- cumulative qty >= 20") to the existing ADM-26 reward_category enum
+-- (attendance/highest_review/highest_revenue, 20260701090000_extensions_and_enums.sql).
+-- Kept in its own file/transaction: Postgres will not let a later statement
+-- in the SAME transaction reference a brand-new enum label (same precedent
+-- as 20260723130000_finder_credit_schema.sql adding 'finder_credit') — the
+-- reward_candidates() branch that uses 'highest_referral' lives in a later
+-- migration in this batch.
+alter type public.reward_category add value if not exists 'highest_referral';

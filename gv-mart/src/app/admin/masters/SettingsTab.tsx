@@ -11,6 +11,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { giftsHooks, useSettings, useUpdateSettings } from "@/hooks/useMasters"
 import type { GiftRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
+import { useOrganization, useUpdateOrganization } from "@/hooks/useSales"
 import { settingsSchema, type SettingsFormInput, type SettingsOutput } from "@/lib/validation/settings"
 import { cn } from "@/lib/utils"
 import { AppointmentSlotsCard } from "./AppointmentSlotsCard"
@@ -74,6 +75,9 @@ export function SettingsTab() {
         po_quote_timeout_hours: Number(settings.po_quote_timeout_hours),
         review_time_allowance_minutes: settings.review_time_allowance_minutes,
         enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
+        emi_enabled: settings.emi_enabled,
+        emi_tenure_months: (Array.isArray(settings.emi_tenure_months) ? settings.emi_tenure_months : []).join(","),
+        emi_disclaimer: settings.emi_disclaimer ?? "",
       })
     }
   }, [settings, reset])
@@ -107,6 +111,8 @@ export function SettingsTab() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      <OrgProfileCard orgId={orgId} />
+
       <DiscountGiftCard
         techMax={techMax}
         adminMax={adminMax}
@@ -216,6 +222,22 @@ export function SettingsTab() {
         </label>
       </Card>
 
+      <Card className="gap-4">
+        <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.productEnquiry")}</h3>
+        <div className="px-1">
+          {field("emi_tenure_months", t("settings.emiTenureMonths"), "text", undefined, t("settings.emiTenureMonthsPlaceholder"))}
+          <p className="mt-1 text-xs text-text-muted">{t("settings.emiTenureMonthsHint")}</p>
+        </div>
+        <div className="px-1">{field("emi_disclaimer", t("settings.emiDisclaimer"), "text", undefined, t("settings.emiDisclaimerPlaceholder"))}</div>
+        <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
+          <input type="checkbox" className="size-4 accent-accent" {...register("emi_enabled")} />
+          <span>
+            <span className="block font-medium">{t("settings.emiEnabled")}</span>
+            <span className="block text-xs text-text-muted">{t("settings.emiEnabledHint")}</span>
+          </span>
+        </label>
+      </Card>
+
       {updateMut.isError ? (
         <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(updateMut.error as Error).message}</p>
       ) : null}
@@ -229,6 +251,67 @@ export function SettingsTab() {
         </Button>
       </div>
     </form>
+  )
+}
+
+// The org's letterhead info (GSTIN/address/phone) has no other settings home —
+// it's stored on organizations, not the app_settings row the rest of this
+// page edits, so it gets its own small local form + mutation instead of
+// joining the big react-hook-form above.
+function OrgProfileCard({ orgId }: { orgId: string | undefined }) {
+  const { t } = useTranslation()
+  const { data: org, isLoading } = useOrganization(orgId)
+  const updateMut = useUpdateOrganization(orgId)
+
+  const [gstNo, setGstNo] = useState("")
+  const [address, setAddress] = useState("")
+  const [phone, setPhone] = useState("")
+
+  useEffect(() => {
+    if (org) {
+      setGstNo(org.gst_no ?? "")
+      setAddress(org.address ?? "")
+      setPhone(org.phone ?? "")
+    }
+  }, [org])
+
+  if (isLoading || !org) {
+    return <div className="h-32 animate-pulse rounded-card border border-border bg-surface" />
+  }
+
+  const dirty = gstNo !== (org.gst_no ?? "") || address !== (org.address ?? "") || phone !== (org.phone ?? "")
+
+  return (
+    <Card className="gap-4">
+      <div>
+        <h3 className="px-1 text-sm font-semibold text-text">{t("settings.orgProfile.title")}</h3>
+        <p className="px-1 text-xs text-text-muted">{t("settings.orgProfile.hint")}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 px-1 sm:grid-cols-3">
+        <div className="space-y-1">
+          <Label htmlFor="org-gst-no">{t("settings.orgProfile.gstNo")}</Label>
+          <Input id="org-gst-no" value={gstNo} onChange={(e) => setGstNo(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="org-phone">{t("settings.orgProfile.phone")}</Label>
+          <Input id="org-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div className="space-y-1 sm:col-span-1">
+          <Label htmlFor="org-address">{t("settings.orgProfile.address")}</Label>
+          <Input id="org-address" value={address} onChange={(e) => setAddress(e.target.value)} />
+        </div>
+      </div>
+      <div className="flex items-center justify-end gap-2 px-1">
+        {updateMut.isSuccess && !dirty ? <span className="text-xs text-success">{t("settings.orgProfile.saved")}</span> : null}
+        <Button
+          type="button"
+          disabled={!dirty || updateMut.isPending}
+          onClick={() => updateMut.mutate({ gst_no: gstNo || null, address: address || null, phone: phone || null })}
+        >
+          {updateMut.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
+        </Button>
+      </div>
+    </Card>
   )
 }
 

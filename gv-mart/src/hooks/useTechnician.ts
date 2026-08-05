@@ -4,9 +4,9 @@ import * as tech from "@/services/technician"
 import type { DateRange } from "@/services/reports"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
-import { subscribeSyncState } from "@/lib/offline/sync"
+import { subscribeAttendanceSync, subscribeSyncState } from "@/lib/offline/sync"
 import { watchPendingCount, watchStuckJobs } from "@/lib/offline/outbox"
-import { watchPosition } from "@/lib/offline/geo"
+import { distanceKm, watchPosition } from "@/lib/offline/geo"
 import type { Enums } from "@/types/database"
 import type { OutboxJob } from "@/lib/offline/db"
 
@@ -63,6 +63,26 @@ export function useStuckJobs() {
 
 export function useTodayAttendance(technicianId: string | undefined) {
   const date = todayIso()
+  const qc = useQueryClient()
+
+  // The optimistic row written by useMarkAttendance/useLunchToggle/useCheckOut
+  // can't know `status`/`is_late` — those are computed server-side (from live
+  // `settings.work_start`/`late_cutoff`) by the DB trigger once the offline
+  // outbox actually syncs. Reconcile the cache with that authoritative row as
+  // soon as it lands, instead of leaving the optimistic (status-less) one
+  // displayed indefinitely.
+  useEffect(() => {
+    if (!technicianId) return
+    const unsubscribe = subscribeAttendanceSync((row) => {
+      if (row.technician_id === technicianId && row.date === date) {
+        qc.setQueryData(["attendance", "today", technicianId, date], row)
+      }
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [technicianId, date, qc])
+
   return useQuery({
     queryKey: ["attendance", "today", technicianId, date],
     queryFn: () => tech.getTodayAttendance(technicianId!, date),
@@ -188,27 +208,61 @@ export function useQueueLocationPing() {
 
 /**
  * Streams the technician's live GPS position to `technician_locations` for
- * the admin tracking map (v2.2 §6.6), for as long as the technician is
- * logged into the app — mounted once at the shell root in TechnicianShell so
- * it keeps running across every screen, not just while an active job exists
- * (the admin map already renders a neutral "no active job" marker for a
- * tracked technician with none — see TechniciansMapPage's "no-job" status —
- * so there's nothing to gate here; ETA/on-time logic is what's scoped to an
- * active job, not the position stream itself).
- * Throttled to one write per ~20s: watchPosition can fire far more often
- * than the admin map needs a fresh point, and every write is a Realtime
- * broadcast + DB row.
+ * the admin tracking map (v2.2 §6.6) and the customer live-tracking screen,
+ * for as long as the technician is logged into the app — mounted once at the
+ * shell root in TechnicianShell so it keeps running across every screen, not
+ * just while an active job exists (the admin map already renders a neutral
+ * "no active job" marker for a tracked technician with none — see
+ * TechniciansMapPage's "no-job" status — so there's nothing to gate here;
+ * ETA/on-time logic is what's scoped to an active job, not the position
+ * stream itself).
+ *
+ * Adaptive throttle (Premium Live Tracking — battery optimization): publish
+ * interval scales with how fast the technician is actually moving —
+ * 3s while driving, 10s at walking/slow-traffic pace, 20s (the ceiling this
+ * always used to be, flat) once stationary. This can only publish MORE often
+ * than before, never less — TechniciansMapPage.tsx's idle-detection
+ * (IDLE_TRIGGER_MINUTES = 5) is tuned against the old flat 20s baseline and
+ * stays valid unchanged.
+ *
+ * Speed prefers the device's own GeolocationCoordinates.speed (m/s, most
+ * browsers only populate this while actually moving) over one computed from
+ * consecutive fixes — more accurate, especially right after the throttle
+ * itself has stretched the gap between fixes out to 10-20s.
  */
+const THROTTLE_MOVING_FAST_MS = 3_000
+const THROTTLE_MOVING_SLOW_MS = 10_000
+const THROTTLE_STATIONARY_MS = 20_000
+const SPEED_FAST_KMH = 15
+const SPEED_SLOW_KMH = 3
+
 export function useLiveLocationStream(orgId: string | undefined, technicianId: string | undefined) {
   const lastSentRef = useRef(0)
+  const lastFixRef = useRef<{ lat: number; lng: number; at: number } | null>(null)
   useEffect(() => {
     if (!orgId || !technicianId) return
     lastSentRef.current = 0
+    lastFixRef.current = null
     const stop = watchPosition((pos) => {
       const now = Date.now()
-      if (now - lastSentRef.current < 20_000) return
+      const prevFix = lastFixRef.current
+      let speedKmh: number | null = pos.speed != null ? pos.speed * 3.6 : null
+      if (speedKmh == null && prevFix) {
+        const elapsedHours = (now - prevFix.at) / 3_600_000
+        speedKmh = elapsedHours > 0 ? distanceKm(prevFix, pos) / elapsedHours : 0
+      }
+      const throttleMs =
+        speedKmh == null
+          ? THROTTLE_STATIONARY_MS
+          : speedKmh >= SPEED_FAST_KMH
+            ? THROTTLE_MOVING_FAST_MS
+            : speedKmh >= SPEED_SLOW_KMH
+              ? THROTTLE_MOVING_SLOW_MS
+              : THROTTLE_STATIONARY_MS
+      if (now - lastSentRef.current < throttleMs) return
       lastSentRef.current = now
-      void tech.pingLiveLocation(orgId, technicianId, pos.lat, pos.lng)
+      lastFixRef.current = { lat: pos.lat, lng: pos.lng, at: now }
+      void tech.pingLiveLocation(orgId, technicianId, pos.lat, pos.lng, { heading: pos.heading, speed: pos.speed, accuracy: pos.accuracy })
     })
     return stop
   }, [orgId, technicianId])
@@ -319,6 +373,37 @@ export function useVerifyVisitOtp() {
   return useMutation({
     mutationFn: ({ orgId, visitId, code, notes }: { orgId: string; visitId: string; code: string; notes?: string }) =>
       tech.verifyVisitOtp(orgId, visitId, code, notes),
+  })
+}
+
+// ── QR Payment (2026-08-06) ─────────────────────────────────────────────
+
+/** Whether UPI is offered as a payment method on the Payment step — same table read as usePaymentSettings' admin variant, scoped by payment_settings_select_staff (any org member, including technician). */
+export function useTechnicianPaymentSettings(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["paymentSettings", "technician", orgId],
+    queryFn: () => tech.getPaymentSettingsForTechnician(orgId!),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
+
+/** Learns the visit's invoice payment state — see services/technician.ts#getVisitPaymentState. */
+export function useVisitPaymentState(orgId: string | undefined, visitId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["visitPaymentState", visitId],
+    queryFn: () => tech.getVisitPaymentState(orgId!, visitId!),
+    enabled: enabled && !!orgId && !!visitId,
+    refetchInterval: (query) => (query.state.data?.invoice_found ? false : 5_000),
+  })
+}
+
+/** Records the technician's on-site UPI payment confirmation — see services/technician.ts#recordUpiPayment. Not queued offline; requires a live connection. */
+export function useRecordUpiPayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, visitId }: { orgId: string; visitId: string }) => tech.recordUpiPayment(orgId, visitId),
+    onSuccess: (_result, variables) => qc.invalidateQueries({ queryKey: ["visitPaymentState", variables.visitId] }),
   })
 }
 

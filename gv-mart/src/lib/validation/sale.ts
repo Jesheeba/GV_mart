@@ -24,6 +24,7 @@ export const paymentDetailsSchema = z
       .max(200)
       .optional()
       .or(z.literal("")),
+    amountPaid: z.number().min(0, "sales.errors.amountPaidInvalid"),
   })
   .refine((v) => v.method !== "transfer" || !!v.txnId, {
     message: "sales.errors.txnIdRequired",
@@ -34,6 +35,11 @@ export const paymentDetailsSchema = z
     path: ["description"],
   })
 export type PaymentDetailsInput = z.infer<typeof paymentDetailsSchema>
+
+/** amount actually collected can never exceed what the sale comes to — total isn't known to the zod schema itself (same reason isDiscountBlocked below is a plain function, not baked into a schema), so this is checked separately in the component. */
+export function isAmountPaidBlocked(amountPaid: number, payableTotal: number) {
+  return amountPaid < 0 || amountPaid > payableTotal + 0.01
+}
 
 /** Mirrors the DB bound in `create_sale` (settings.discount_admin_max) — checked client-side for instant feedback, re-checked server-side as the source of truth. */
 export function isDiscountBlocked(percent: number, adminMax: number) {

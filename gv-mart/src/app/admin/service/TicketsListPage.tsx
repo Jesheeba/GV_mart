@@ -3,12 +3,12 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { CalendarClock, Inbox, LayoutGrid, Plus, Repeat, Table2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SegButton } from "@/components/shared/SegButton"
 import { useProfile } from "@/hooks/useProfile"
 import { useRepeatComplaintCustomers, useTechnicians, useTicketsList } from "@/hooks/useService"
-import type { TicketListItem } from "@/services/service"
+import { isUnassignedRow, type TicketListItem } from "@/services/service"
 import { cn } from "@/lib/utils"
 import { SlaCountdown } from "./SlaCountdown"
 import { PriorityText, TicketTypeBadge } from "./TicketBadges"
@@ -22,13 +22,12 @@ const TYPE_OPTIONS = ["paid", "warranty", "amc", "installation"] as const
 // Ticket / Customer / Complaint / Type / Prio / Technician / Appointment / SLA.
 const TABLE_GRID_COLS = "grid-cols-[0.95fr_1.5fr_1.5fr_0.8fr_0.6fr_1.1fr_1.1fr_1fr]"
 
-type QuickFilter = "all" | "overdue" | "amc" | "warranty" | "unassigned"
-
 function isOverdueRow(r: TicketListItem, now: number) {
   return !!r.sla_due_at && r.status !== "completed" && r.status !== "cancelled" && new Date(r.sla_due_at).getTime() <= now
 }
-function isUnassignedRow(r: TicketListItem) {
-  return r.appointments.length === 0 || r.appointments.every((a) => !a.technician_id)
+
+function isMissingProductRow(r: TicketListItem) {
+  return !r.product_id && !r.unlisted_product_name
 }
 
 export function TicketsListPage() {
@@ -38,13 +37,22 @@ export function TicketsListPage() {
   const orgId = profile?.org_id
 
   const [view, setView] = useState<"table" | "kanban">("table")
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all")
   const [status, setStatus] = useState("")
   const [priority, setPriority] = useState("")
   const [type, setType] = useState("")
+  // "" = all, a technician uuid, or the sentinel "unassigned" — shared by
+  // both the Technician select and the "Unassigned" quick chip below, so
+  // the two can never disagree (see services/service.ts#isUnassignedRow).
   const [technicianId, setTechnicianId] = useState("")
   const [date, setDate] = useState("")
   const [area, setArea] = useState("")
+  // Independent toggle (not part of the server filters below) — ANDs with
+  // every other filter instead of being mutually exclusive with them, so
+  // "overdue AMC tickets for technician X" is expressible.
+  const [overdueOnly, setOverdueOnly] = useState(false)
+  // Gate-assignment-on-product (2026-08-04) — same independent-toggle shape
+  // as overdueOnly, for tickets with neither product_id nor unlisted_product_name.
+  const [missingProductOnly, setMissingProductOnly] = useState(false)
 
   const filters = useMemo(
     () => ({ status, priority, type, technicianId, date, area }),
@@ -57,40 +65,33 @@ export function TicketsListPage() {
 
   const areaOptions = useMemo(() => [...new Set((rows ?? []).map((r) => r.addresses?.area).filter((a): a is string => !!a))], [rows]);
 
-  // Quick-filter chips (design line 955-961): "All open / Overdue / AMC /
-  // Warranty / Unassigned" operate client-side on whatever the advanced
-  // filters above already fetched — same pattern service.ts already uses for
-  // area/date/technician (fields that can't be expressed as a single
-  // PostgREST .eq()). Counts are real, derived from the fetched rows; no
-  // "avg resolution" style stat is shown because there's no completed-at
-  // field to compute it from.
+  // Quick-filter chip counts — derived from whatever the advanced filters
+  // above already fetched (same pattern service.ts uses for area/date/
+  // technician, fields that can't be expressed as a single PostgREST
+  // .eq()). No "avg resolution" style stat is shown because there's no
+  // completed-at field to compute it from.
   const allRows = useMemo(() => rows ?? [], [rows])
   const now = Date.now()
   const openCount = allRows.filter((r) => r.status !== "completed" && r.status !== "cancelled").length
   const overdueCount = allRows.filter((r) => isOverdueRow(r, now)).length
+  const unassignedCount = allRows.filter(isUnassignedRow).length
+  const missingProductCount = allRows.filter(isMissingProductRow).length
 
   const visibleRows = useMemo(() => {
-    switch (quickFilter) {
-      case "all":
-        // The default "hide finished/cancelled noise" view — but an explicit
-        // Status filter (e.g. "Completed") is the admin deliberately asking
-        // to see exactly that status, so it must not be silently re-excluded
-        // by this same-named "all" quick filter still being selected.
-        return status ? allRows : allRows.filter((r) => r.status !== "completed" && r.status !== "cancelled")
-      case "overdue":
-        return allRows.filter((r) => isOverdueRow(r, now))
-      case "amc":
-        return allRows.filter((r) => r.type === "amc")
-      case "warranty":
-        return allRows.filter((r) => r.type === "warranty")
-      case "unassigned":
-        return allRows.filter((r) => isUnassignedRow(r))
-      default:
-        return allRows
-    }
-  }, [allRows, quickFilter, now, status])
+    let out = allRows
+    // The default "hide finished/cancelled noise" view — but an explicit
+    // Status filter (e.g. "Completed") is the admin deliberately asking to
+    // see exactly that status, so it must not be silently re-excluded.
+    if (!status) out = out.filter((r) => r.status !== "completed" && r.status !== "cancelled")
+    if (overdueOnly) out = out.filter((r) => isOverdueRow(r, now))
+    if (missingProductOnly) out = out.filter(isMissingProductRow)
+    return out
+  }, [allRows, status, overdueOnly, missingProductOnly, now])
 
-  const hasAdvancedFilters = status || priority || type || technicianId || date || area
+  const hasActiveFilters = !!(status || priority || type || technicianId || date || area || overdueOnly || missingProductOnly)
+  function clearAllFilters() {
+    setStatus(""); setPriority(""); setType(""); setTechnicianId(""); setDate(""); setArea(""); setOverdueOnly(false); setMissingProductOnly(false)
+  }
 
   return (
     <div className="space-y-4 pt-2">
@@ -143,59 +144,69 @@ export function TicketsListPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2.5">
-        <QuickFilterChip active={quickFilter === "all"} onClick={() => setQuickFilter("all")}>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <QuickFilterChip active={!status} onClick={() => setStatus("")}>
           {t("service.quickFilters.allOpen")} · {openCount}
         </QuickFilterChip>
         <button
           type="button"
-          onClick={() => setQuickFilter(quickFilter === "overdue" ? "all" : "overdue")}
+          onClick={() => setOverdueOnly((v) => !v)}
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full bg-[#FCEAEA] px-[15px] py-2 text-xs font-semibold text-danger",
-            quickFilter === "overdue" ? "outline outline-2 outline-danger" : ""
+            overdueOnly ? "outline outline-2 outline-danger" : ""
           )}
         >
           <span className="size-1.5 rounded-full bg-danger" />
           {t("service.quickFilters.overdue")} · {overdueCount}
         </button>
-        <QuickFilterChip active={quickFilter === "amc"} onClick={() => setQuickFilter(quickFilter === "amc" ? "all" : "amc")}>
-          {t("service.quickFilters.amc")}
+        <QuickFilterChip active={technicianId === "unassigned"} onClick={() => setTechnicianId(technicianId === "unassigned" ? "" : "unassigned")}>
+          {t("service.quickFilters.unassigned")} · {unassignedCount}
         </QuickFilterChip>
-        <QuickFilterChip active={quickFilter === "warranty"} onClick={() => setQuickFilter(quickFilter === "warranty" ? "all" : "warranty")}>
-          {t("service.quickFilters.warranty")}
+        <QuickFilterChip active={missingProductOnly} onClick={() => setMissingProductOnly((v) => !v)}>
+          {t("service.quickFilters.missingProduct")} · {missingProductCount}
         </QuickFilterChip>
-        <QuickFilterChip active={quickFilter === "unassigned"} onClick={() => setQuickFilter(quickFilter === "unassigned" ? "all" : "unassigned")}>
-          {t("service.quickFilters.unassigned")}
-        </QuickFilterChip>
-      </div>
 
-      <Card size="sm" className="flex-row flex-wrap items-center gap-2">
+        <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
+
+        <div className="flex gap-[3px] rounded-full border border-border bg-surface-alt p-1">
+          <SegButton active={!type} onClick={() => setType("")}>
+            {t("service.filters.all")}
+          </SegButton>
+          {TYPE_OPTIONS.map((tp) => (
+            <SegButton key={tp} active={type === tp} onClick={() => setType(type === tp ? "" : tp)}>
+              {t(`service.type.${tp}`)}
+            </SegButton>
+          ))}
+        </div>
+        <div className="flex gap-[3px] rounded-full border border-border bg-surface-alt p-1">
+          <SegButton active={!priority} onClick={() => setPriority("")}>
+            {t("service.filters.all")}
+          </SegButton>
+          {PRIORITY_OPTIONS.map((p) => (
+            <SegButton key={p} active={priority === p} onClick={() => setPriority(priority === p ? "" : p)}>
+              {t(`service.priority.${p}`)}
+            </SegButton>
+          ))}
+        </div>
+
         <FilterSelect label={t("service.filters.status")} value={status} onChange={setStatus} options={STATUS_OPTIONS.map((s) => ({ value: s, label: t(`service.status.${s}`) }))} />
-        <FilterSelect label={t("service.filters.priority")} value={priority} onChange={setPriority} options={PRIORITY_OPTIONS.map((p) => ({ value: p, label: t(`service.priority.${p}`) }))} />
-        <FilterSelect label={t("service.filters.type")} value={type} onChange={setType} options={TYPE_OPTIONS.map((tp) => ({ value: tp, label: t(`service.type.${tp}`) }))} />
         <FilterSelect
           label={t("service.filters.technician")}
           value={technicianId}
           onChange={setTechnicianId}
-          options={(technicians ?? []).map((tc) => ({ value: tc.id, label: tc.full_name }))}
+          options={[{ value: "unassigned", label: t("service.table.unassigned") }, ...(technicians ?? []).map((tc) => ({ value: tc.id, label: tc.full_name }))]}
         />
         <FilterSelect label={t("service.filters.area")} value={area} onChange={setArea} options={areaOptions.map((a) => ({ value: a, label: a }))} />
         <div className="space-y-1">
           <label className="block text-xs font-medium text-text-muted">{t("service.filters.date")}</label>
-          <DatePicker value={date} onChange={setDate} className="h-9 w-36" />
+          <DatePicker value={date} onChange={setDate} className="h-10 w-36 rounded-full" />
         </div>
-        {hasAdvancedFilters ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setStatus(""); setPriority(""); setType(""); setTechnicianId(""); setDate(""); setArea("")
-            }}
-          >
+        {hasActiveFilters ? (
+          <Button size="sm" variant="ghost" onClick={clearAllFilters}>
             {t("service.filters.clear")}
           </Button>
         ) : null}
-      </Card>
+      </div>
 
       {view === "table" ? (
         <TicketsTable
@@ -319,7 +330,7 @@ function TicketsTable({
             <div className="leading-tight">
               <div className="text-[13px] font-semibold text-text">{r.customers?.name ?? "—"}</div>
               <div className="text-[11px] font-medium text-text-muted">
-                {[r.addresses?.area, r.products?.name].filter(Boolean).join(" · ") || "—"}
+                {[r.addresses?.area, r.products?.name ?? r.unlisted_product_name].filter(Boolean).join(" · ") || "—"}
               </div>
             </div>
             <span className="truncate text-[13px] font-medium text-text">{r.name_of_complaint || "—"}</span>
@@ -363,7 +374,7 @@ function FilterSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+        className="h-10 rounded-full border border-border bg-surface px-3.5 text-sm text-text outline-none"
       >
         <option value="">{t("service.filters.all")}</option>
         {options.map((o) => (

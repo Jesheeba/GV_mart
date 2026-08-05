@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { BatteryCharging, ChevronLeft, Droplet, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, Wind, Wrench, Zap } from "lucide-react"
+import { BatteryCharging, ChevronLeft, Droplet, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, UserPlus, Wind, Wrench, Zap } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,6 +15,7 @@ import {
   useCustomerProducts,
   useCustomerTimeline,
 } from "@/hooks/useCustomers"
+import { useLeads } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -94,6 +95,8 @@ export function CustomerDetailPage() {
   const invoices = useCustomerInvoices(orgId, customer?.id)
   const lifetime = useCustomerLifetimeSummary(orgId, customer?.id)
   const exemptionWindows = useCustomerExemptionWindows(customer?.id)
+  const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
+  const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !customer) {
@@ -257,6 +260,12 @@ export function CustomerDetailPage() {
                   ) : (
                     <span className="text-sm text-text-muted">{t("customers.detail.noAddress")}</span>
                   )}
+                  {referredByTechnicianName ? (
+                    <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
+                      <UserPlus className="size-3" />
+                      {t("customers.detail.referredBy", { name: referredByTechnicianName })}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>

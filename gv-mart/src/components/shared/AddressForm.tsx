@@ -1,4 +1,4 @@
-import { useId } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { useGeocodeAddress } from "@/hooks/useMaps"
+import { isPreciseGeocodeResult } from "@/services/maps"
 import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validation/customerApp"
 import type { AddressRow } from "@/services/customerApp"
 
@@ -67,6 +70,66 @@ export function AddressForm({
   })
   const lat = watch("lat")
   const lng = watch("lng")
+  const [doorNo, flatNo, streetCross, area, pincode, landmark, district, state] = watch([
+    "doorNo",
+    "flatNo",
+    "streetCross",
+    "area",
+    "pincode",
+    "landmark",
+    "district",
+    "state",
+  ])
+  const locationText = [doorNo, flatNo, streetCross, area, pincode, landmark, district, state].join("|")
+  // Bug fix: editing an existing address's text (e.g. correcting the door
+  // number/area to a real address after it was saved with a placeholder)
+  // used to leave the OLD pin's lat/lng untouched — the map picker showed it
+  // as already-confirmed, so nothing prompted a re-check, and the
+  // technician's "Open in Maps" silently navigated to wherever the stale pin
+  // was instead of the corrected address. Snapshot the text the currently
+  // confirmed pin belongs to, and drop the pin the moment the text diverges
+  // from it, so `mapRequired` below fires and the user must re-confirm.
+  const confirmedLocationTextRef = useRef(locationText)
+  useEffect(() => {
+    if ((lat == null && lng == null) || locationText === confirmedLocationTextRef.current) return
+    setValue("lat", undefined, { shouldValidate: true })
+    setValue("lng", undefined, { shouldValidate: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationText])
+
+  // Auto-places a SUGGESTED map pin from the address fields already typed
+  // above, once there's enough to geocode meaningfully — same fix already
+  // applied on the admin-side CustomerFormPage (v2.2 feedback there: typing
+  // the same address twice, once in these fields and again into the map's
+  // own search box, was redundant and error-prone). Fires only while no pin
+  // exists yet: once set, by this or by the customer's own search/drag, later
+  // field edits must not silently yank an already-placed pin out from under
+  // them (that's what the confirmedLocationTextRef effect above already
+  // guards via clearing lat/lng, which re-opens this effect to suggest again).
+  const geocodeAddress = useGeocodeAddress()
+  const autoLocateQuery = [doorNo, flatNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
+  const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
+  const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
+  useEffect(() => {
+    if (lat != null && lng != null) return
+    if (!area.trim() || pincode.trim().length !== 6) return
+    geocodeAddress.mutate(debouncedAutoLocateQuery, {
+      onSuccess: (results) => {
+        const top = results[0]
+        if (!top) return
+        // Re-check fresh values, not the stale closure above — the request
+        // was in flight for a moment, and the customer may have already
+        // searched/dragged/confirmed a pin themselves in that window.
+        if (getValues("lat") != null && getValues("lng") != null) return
+        setSuggestedPin({ lat: top.lat, lng: top.lon, formatted: top.formatted, precise: isPreciseGeocodeResult(top.locationType) })
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedAutoLocateQuery, pincode, lat, lng])
+
+  useEffect(() => {
+    setSuggestedPin(null)
+  }, [locationText])
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5 border-t border-border pt-3">
@@ -107,14 +170,28 @@ export function AddressForm({
       </div>
 
       <div className="space-y-1">
-        <Label className="text-xs text-text-muted">{t("customerApp.profile.address.mapLabel")}</Label>
+        <div className="flex items-center gap-1.5">
+          <Label className="text-xs text-text-muted">{t("customerApp.profile.address.mapLabel")}</Label>
+          {geocodeAddress.isPending && lat == null ? (
+            <span className="flex items-center gap-1 text-xs text-text-muted">
+              <Loader2 className="size-3 animate-spin" />
+              {t("customers.form.map.autoLocating")}
+            </span>
+          ) : null}
+        </div>
         <p className="text-xs text-text-muted">{t("customerApp.profile.address.mapHint")}</p>
         <AddressMapPicker
           lat={lat}
           lng={lng}
+          suggestedLat={suggestedPin?.lat}
+          suggestedLng={suggestedPin?.lng}
+          suggestedFormatted={suggestedPin?.formatted}
+          suggestedPrecise={suggestedPin?.precise}
           onConfirm={({ lat: newLat, lng: newLng }) => {
             setValue("lat", newLat, { shouldValidate: true })
             setValue("lng", newLng, { shouldValidate: true })
+            setSuggestedPin(null)
+            confirmedLocationTextRef.current = locationText
           }}
           onAddressSelect={(r) => {
             if (!getValues("area") && (r.suburb || r.city)) setValue("area", r.suburb ?? r.city ?? "", { shouldValidate: true })

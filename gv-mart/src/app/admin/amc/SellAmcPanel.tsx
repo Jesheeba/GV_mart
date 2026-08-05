@@ -12,6 +12,7 @@ import { Autocomplete } from "@/components/shared/Autocomplete"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useRoProducts, useSellAmcPlan } from "@/hooks/useAmc"
+import { useTechnicians } from "@/hooks/useService"
 import { amcPlansHooks } from "@/hooks/useMasters"
 import { sellAmcSchema, type SellAmcFormInput, type SellAmcInput } from "@/lib/validation/amc"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -34,6 +35,8 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   const customerAutocomplete = useCustomerAutocomplete(orgId, customerSearch)
   const { data: roProducts } = useRoProducts(orgId)
   const { data: plans } = amcPlansHooks.useList(orgId)
+  const { data: technicians } = useTechnicians(orgId)
+  const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
   const sellAmc = useSellAmcPlan()
 
   const form = useForm<SellAmcFormInput, unknown, SellAmcInput>({
@@ -54,6 +57,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
       planId: values.planId,
       startDate: values.startDate,
       years: values.years,
+      referredByTechnicianId: referredByTechnicianId || null,
     })
     onSold()
   }
@@ -144,6 +148,22 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
       {selectedPlan ? (
         <p className="px-1 text-sm font-medium text-text">{t("amc.sellAmc.totalPrice", { amount: formatCurrency(computedTotal) })}</p>
       ) : null}
+
+      <div className="space-y-1.5">
+        <Label>{t("common.referredByTechnician")}</Label>
+        <select
+          value={referredByTechnicianId}
+          onChange={(e) => setReferredByTechnicianId(e.target.value)}
+          className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
+        >
+          <option value="">{t("common.none")}</option>
+          {(technicians ?? []).map((tech) => (
+            <option key={tech.id} value={tech.id}>
+              {tech.full_name}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {sellAmc.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(sellAmc.error as Error).message}</p> : null}
 
