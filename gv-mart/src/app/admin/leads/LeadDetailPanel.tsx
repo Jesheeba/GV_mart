@@ -12,9 +12,24 @@ import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useAwardReferralPoints, useLeadActivities, useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
+import type { Enums } from "@/types/database"
 
 const STATUSES: LeadStatus[] = ["new", "contacted", "quoted", "won", "lost"]
 const ACTIVITY_TYPES = ["call", "note", "whatsapp", "meeting"] as const
+
+type QuoteItemSeed = { productId: string | null; spareId: string | null; qty: number | null }
+
+// For a `spare`-kind lead, product_id is only the context product the spare
+// belongs to (CustomerSpareEnquiryPage always sets it to resolve the spare
+// picker) — it is NOT a request to buy that product, so it must not seed its
+// own full-price product line alongside the spare. Rows that end up with
+// neither id (e.g. a legacy lead whose spare was never resolved to a real
+// spare_id) are dropped — there is nothing priced to seed.
+function toQuoteItems(kind: Enums<"lead_kind"> | null, rows: QuoteItemSeed[]) {
+  return rows
+    .map((r) => ({ productId: kind === "spare" ? null : r.productId, spareId: r.spareId, qty: r.qty }))
+    .filter((r) => r.productId || r.spareId)
+}
 
 export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose: () => void }) {
   const { t } = useTranslation()
@@ -75,16 +90,18 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
               // Spare Enquiry multi-product line items (2026-08-05) — every
               // product/spare the enquiry asked for, prefilling the
               // quotation's item cart instead of making the admin reselect.
-              // For a `spare`-kind lead, lead_items.product_id is only the
-              // context product the spare belongs to (CustomerSpareEnquiryPage
-              // always sets it to resolve the spare picker) — it is NOT a
-              // request to buy that product, so it must not seed its own
-              // full-price product line alongside the spare.
-              items: (lead.lead_items ?? []).map((li) => ({
-                productId: lead.kind === "spare" ? null : li.product_id,
-                spareId: li.spare_id,
-                qty: li.qty,
-              })),
+              // Falls back to the lead's own scalar product_id/spare_id/qty
+              // (kept for backward compatibility, see
+              // 20260805141000_spare_enquiry_line_items.sql) for leads
+              // created before the lead_items table existed, so pre-2026-08-05
+              // leads that did capture a single structured item still autofill
+              // instead of forcing a manual reselect.
+              items: toQuoteItems(
+                lead.kind,
+                (lead.lead_items ?? []).length > 0
+                  ? (lead.lead_items ?? []).map((li) => ({ productId: li.product_id, spareId: li.spare_id, qty: li.qty }))
+                  : [{ productId: lead.product_id, spareId: lead.spare_id, qty: lead.qty }]
+              ),
             },
           })
         }
