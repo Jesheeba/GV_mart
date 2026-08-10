@@ -232,7 +232,11 @@ export function CustomerFormPage() {
   // renders as an amber DRAFT pin (draggable, "needs confirmation") that
   // staff must explicitly confirm or correct, exactly like every other
   // ambiguous "search anyway" result already behaves.
-  const autoLocateQuery = [doorNo, flatNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
+  //
+  // flatNo (e.g. "8th floor") is deliberately excluded — a floor number
+  // isn't a geocodable component (no premise/street_number token Google can
+  // match), so including it only adds noise to the query, never precision.
+  const autoLocateQuery = [doorNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {

@@ -107,7 +107,10 @@ export function AddressForm({
   // them (that's what the confirmedLocationTextRef effect above already
   // guards via clearing lat/lng, which re-opens this effect to suggest again).
   const geocodeAddress = useGeocodeAddress()
-  const autoLocateQuery = [doorNo, flatNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
+  // flatNo (e.g. "8th floor") is deliberately excluded — a floor number
+  // isn't a geocodable component (no premise/street_number token Google can
+  // match), so including it only adds noise to the query, never precision.
+  const autoLocateQuery = [doorNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Bell, Search } from "lucide-react"
 import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -7,12 +7,16 @@ import { ADMIN_NAV } from "./nav"
 import { useProfile } from "@/hooks/useProfile"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
-import { useTicketSearch } from "@/hooks/useService"
+import { useTicketSearch, useServiceTicketsRealtimeInvalidate } from "@/hooks/useService"
+import { useTechniciansOpenVisits, useTechniciansWithLocation } from "@/hooks/useTechniciansAdmin"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { useToast } from "@/components/ui/toast-context"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { UserMenu } from "@/components/shared/UserMenu"
+import { computeJobOverrun } from "@/lib/job-overrun"
+import { notifyJobOverrunAlert } from "@/services/techniciansAdmin"
 
 // Header search bar (ADM shell) — scoped to exactly what's fast + useful to
 // jump to from anywhere: a customer by name/mobile (reusing the same
@@ -81,6 +85,50 @@ export function AdminShell() {
   const navigate = useNavigate()
   const { data: profile, isLoading, isError, refetch } = useProfile()
   const { data: unreadCount } = useUnreadNotificationCount(profile?.org_id, profile?.id, profile?.role)
+  useServiceTicketsRealtimeInvalidate(profile?.org_id)
+
+  // Job-overrun popup: this used to run only inside TechniciansMapPage, so an
+  // admin not on that specific page never saw it. Mounted here instead (every
+  // admin route renders AdminShell) so the toast — and the underlying
+  // `job_overrun` notification row — fire app-wide, the moment any
+  // technician's open visit crosses estimate + OVERRUN_BUFFER_MINUTES,
+  // regardless of which screen the admin is currently on.
+  const { toast } = useToast()
+  const { data: openVisits } = useTechniciansOpenVisits(profile?.org_id)
+  const { data: techniciansWithLocation } = useTechniciansWithLocation(profile?.org_id)
+  const notifiedVisitIdsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const orgId = profile?.org_id
+    if (!orgId || !openVisits) return
+    function checkOverruns() {
+      const nowMs = Date.now()
+      for (const [techId, visit] of openVisits!) {
+        const overrun = computeJobOverrun(
+          { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.allowedDurationMinutes },
+          nowMs
+        )
+        if (!overrun.isOverrun || notifiedVisitIdsRef.current.has(visit.visitId)) continue
+        notifiedVisitIdsRef.current.add(visit.visitId)
+        toast.error(
+          t("shell.jobOverrunAlert", {
+            name: visit.customerName ?? t("shell.notifications"),
+            minutes: Math.round(overrun.overrunByMinutes!),
+            estimate: visit.estimatedDurationMinutes ?? "—",
+          })
+        )
+        const loc = (techniciansWithLocation ?? []).find((tech) => tech.id === techId)?.latestLocation
+        void notifyJobOverrunAlert(
+          orgId!,
+          visit,
+          overrun.overrunByMinutes!,
+          loc ? { lat: loc.lat, lng: loc.lng, recordedAt: loc.recorded_at } : null
+        )
+      }
+    }
+    checkOverruns()
+    const interval = setInterval(checkOverruns, 15_000)
+    return () => clearInterval(interval)
+  }, [profile?.org_id, openVisits, techniciansWithLocation, toast, t])
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {

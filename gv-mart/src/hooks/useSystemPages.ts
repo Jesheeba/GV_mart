@@ -1,4 +1,6 @@
+import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { supabase } from "@/lib/supabase"
 import * as sys from "@/services/systemPages"
 import type {
   AuditLogFilters,
@@ -32,8 +34,31 @@ export function useMyNotificationTypes(orgId: string | undefined, userId: string
   })
 }
 
-/** Polls every 30s so the header bell badge reflects new notifications without a manual page visit/refresh. */
+/**
+ * Polls every 30s as a fallback, but also holds a realtime subscription on
+ * `notifications` INSERT so a new one (e.g. a job just auto-assigned) bumps
+ * the bell within moments instead of waiting out the poll. RLS
+ * (notifications_select_own_user / _own_role) already scopes which rows this
+ * session receives, so the channel isn't filtered further — same "poll +
+ * realtime nudge" pattern as TechnicianAssignedBanner.
+ */
 export function useUnreadNotificationCount(orgId: string | undefined, userId: string | undefined, role: Enums<"user_role"> | undefined) {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!orgId) return
+    const channel = supabase
+      .channel(`notifications-alerts-${orgId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `org_id=eq.${orgId}` }, () => {
+        void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [orgId, queryClient])
+
   return useQuery({
     queryKey: ["notifications", "unreadCount", orgId, userId, role],
     queryFn: () => sys.countUnreadNotifications(orgId!, userId!, role!),

@@ -19,6 +19,7 @@ import { useLeads } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
@@ -183,6 +184,8 @@ export function CustomerDetailPage() {
                   entry.technicianName,
                   fmtDate(entry.date),
                   entry.ticketType ? t(`service.type.${entry.ticketType}`) : t(`service.status.${entry.status}`),
+                  entry.durationMinutes != null ? formatDurationMinutes(entry.durationMinutes) : null,
+                  entry.completedLate === true ? t("customers.detail.timeline.wasLate") : null,
                   formatCurrency(entry.amount),
                 ]
               } else if (entry.kind === "amc") {

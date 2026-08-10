@@ -4,7 +4,7 @@ import { Loader2, Plus, Search, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useSpareSearch, useSparesForProduct } from "@/hooks/useTechnician"
+import { useSpareSearch, useSparesForComplaintType } from "@/hooks/useTechnician"
 import { formatCurrency } from "@/lib/sale-calc"
 
 // GV.md 1.1/D4: standardTimeMinutes (admin-set on the spare master) rides
@@ -15,23 +15,27 @@ export type SelectedSpare = { spareId: string; name: string; sku: string | null;
 
 export function SpareSelectStep({
   orgId,
-  productId,
+  complaintTypeId,
   selected,
   onChange,
 }: {
   orgId: string | undefined
-  /** Task 6 (2026-07-30) — the job's product, for the "suggested" quick-add
-   * list below. Free search always stays available alongside it: the
-   * product↔spare mapping is admin-curated and may be incomplete, so it
-   * must never be the only way to log a spare. */
-  productId: string | null | undefined
+  /** Issue-based spare suggestions (2026-08-06) — the job's complaint_type,
+   * for the "suggested" quick-add list below (replaces the earlier
+   * product-based mapping: which spares fix *this issue* is more useful
+   * than which spares are generically associated with the product). Free
+   * search always stays available alongside it: the mapping is
+   * admin-curated and may be incomplete or the ticket's complaint may be
+   * free-typed with no matching complaint_types row, so it must never be
+   * the only way to log a spare. */
+  complaintTypeId: string | null | undefined
   selected: SelectedSpare[]
   onChange: (next: SelectedSpare[]) => void
 }) {
   const { t } = useTranslation()
   const [term, setTerm] = useState("")
   const results = useSpareSearch(orgId, term)
-  const suggested = useSparesForProduct(productId ?? undefined)
+  const suggested = useSparesForComplaintType(complaintTypeId ?? undefined)
   const suggestedToShow = (suggested.data ?? []).filter((s) => !selected.some((sel) => sel.spareId === s.id))
 
   function addSpare(spare: { id: string; name: string; sku: string | null; price: number; standard_time_minutes: number | null }) {

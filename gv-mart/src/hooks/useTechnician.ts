@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as tech from "@/services/technician"
+import { uploadPaymentProof } from "@/services/paymentProofs"
 import type { DateRange } from "@/services/reports"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
@@ -371,8 +372,8 @@ export function useGenerateVisitOtp() {
 /** Checks the OTP server-side and, only if correct, closes the visit's productivity timer (TECH-07 step 10 -> TECH-08 handoff) — see services/technician.ts#verifyVisitOtp. Not queued offline; requires a live connection. */
 export function useVerifyVisitOtp() {
   return useMutation({
-    mutationFn: ({ orgId, visitId, code, notes }: { orgId: string; visitId: string; code: string; notes?: string }) =>
-      tech.verifyVisitOtp(orgId, visitId, code, notes),
+    mutationFn: ({ orgId, visitId, code, enquiryGenerated, notes }: { orgId: string; visitId: string; code: string; enquiryGenerated: boolean; notes?: string }) =>
+      tech.verifyVisitOtp(orgId, visitId, code, enquiryGenerated, notes),
   })
 }
 
@@ -404,6 +405,14 @@ export function useRecordUpiPayment() {
   return useMutation({
     mutationFn: ({ orgId, visitId }: { orgId: string; visitId: string }) => tech.recordUpiPayment(orgId, visitId),
     onSuccess: (_result, variables) => qc.invalidateQueries({ queryKey: ["visitPaymentState", variables.visitId] }),
+  })
+}
+
+/** Task 2 — uploads a UPI payment proof (screenshot or camera capture) and links it server-side via record_payment_proof. Not queued offline; requires a live connection, same as record_upi_payment. */
+export function useUploadPaymentProof() {
+  return useMutation({
+    mutationFn: ({ orgId, visitId, file, transactionReference }: { orgId: string; visitId: string; file: File; transactionReference?: string }) =>
+      uploadPaymentProof(orgId, visitId, file, transactionReference),
   })
 }
 
@@ -439,11 +448,11 @@ export function useSpareSearch(orgId: string | undefined, term: string) {
   })
 }
 
-export function useSparesForProduct(productId: string | undefined) {
+export function useSparesForComplaintType(complaintTypeId: string | undefined) {
   return useQuery({
-    queryKey: ["spares", "forProduct", productId],
-    queryFn: () => tech.listSparesForProduct(productId!),
-    enabled: !!productId,
+    queryKey: ["spares", "forComplaintType", complaintTypeId],
+    queryFn: () => tech.listSparesForComplaintType(complaintTypeId!),
+    enabled: !!complaintTypeId,
   })
 }
 

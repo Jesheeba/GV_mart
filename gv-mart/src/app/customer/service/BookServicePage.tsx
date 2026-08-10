@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle2, ChevronRight, ImagePlus, Loader2, X } from "lu
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Stepper } from "@/components/shared/Stepper"
@@ -45,6 +46,11 @@ type BookServiceDraftData = {
   productUnknown: boolean
   nameOfComplaint: string
   natureOfComplaint: string
+  // Issue-based spare suggestions (2026-08-06) — the complaint_types row
+  // resolved when the customer picked a suggestion from the Autocomplete
+  // below, rather than free-typing. Null once they edit the text away from
+  // that suggestion.
+  complaintTypeId: string | null
   addressId: string
   pickedDate: string
   // Restored 2026-08-04 — see BookServicePage's step 2.
@@ -91,6 +97,7 @@ export function BookServicePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [nameOfComplaint, setNameOfComplaint] = useState("")
   const [natureOfComplaint, setNatureOfComplaint] = useState("")
+  const [complaintTypeId, setComplaintTypeId] = useState<string | null>(null)
   const [addressId, setAddressId] = useState("")
   const [pickedDate, setPickedDate] = useState("")
   const [unavailableWindows, setUnavailableWindows] = useState<TimeWindow[]>([])
@@ -142,6 +149,7 @@ export function BookServicePage() {
     productUnknown,
     nameOfComplaint,
     natureOfComplaint,
+    complaintTypeId,
     addressId,
     pickedDate,
     unavailableWindows,
@@ -162,6 +170,7 @@ export function BookServicePage() {
     if (restoredDraft.productUnknown) setProductUnknown(restoredDraft.productUnknown)
     if (restoredDraft.nameOfComplaint) setNameOfComplaint(restoredDraft.nameOfComplaint)
     if (restoredDraft.natureOfComplaint) setNatureOfComplaint(restoredDraft.natureOfComplaint)
+    if (restoredDraft.complaintTypeId) setComplaintTypeId(restoredDraft.complaintTypeId)
     if (restoredDraft.addressId) setAddressId(restoredDraft.addressId)
     if (restoredDraft.pickedDate) setPickedDate(restoredDraft.pickedDate)
     if (restoredDraft.unavailableWindows) setUnavailableWindows(restoredDraft.unavailableWindows)
@@ -294,6 +303,16 @@ export function BookServicePage() {
     !productUnknown && !!productId && (myAmcContracts ?? []).some((a) => a.product_id === productId && (a.status === "active" || a.status === "due_soon"))
   const isCoveredVisit = hasActiveWarranty || hasActiveAmc
 
+  // Task 3 — AMC/Warranty status tag for each owned product in the picker
+  // below, reusing the same myAmcContracts/myWarranties data already fetched
+  // for the cost-disclosure calc above (no extra query). AMC takes priority
+  // over Warranty when a product happens to carry both.
+  function getProductCoverageTag(pid: string): "amc" | "warranty" | "none" {
+    if ((myAmcContracts ?? []).some((a) => a.product_id === pid && (a.status === "active" || a.status === "due_soon"))) return "amc"
+    if ((myWarranties ?? []).some((w) => w.product_id === pid && w.expiry_date >= today)) return "warranty"
+    return "none"
+  }
+
   const workStart = (settings?.work_start ?? "09:00").slice(0, 5)
   const workEnd = (settings?.work_end ?? "19:30").slice(0, 5)
   const narrowThreshold = settings?.narrow_window_threshold_minutes ?? 90
@@ -325,6 +344,7 @@ export function BookServicePage() {
       modelId: productUnknown ? null : (selectedProduct?.model_id ?? null),
       nameOfComplaint,
       natureOfComplaint,
+      complaintTypeId,
       priority: "normal",
       scheduledDate: pickedDate,
       unavailableWindows,
@@ -385,23 +405,31 @@ export function BookServicePage() {
                 <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.noOwnedProducts")}</p>
               ) : (
                 <div className="space-y-2 px-1">
-                  {(myProducts ?? []).map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        setProductId(p.id)
-                        setProductUnknown(false)
-                      }}
-                      aria-pressed={!productUnknown && productId === p.id}
-                      className={`block w-full rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
-                        !productUnknown && productId === p.id ? "border-accent bg-accent-soft" : "border-border"
-                      }`}
-                    >
-                      <span className="font-medium text-text">{p.name}</span>{" "}
-                      <span className="text-text-muted">{[p.brands?.name, p.models?.name].filter(Boolean).join(" · ")}</span>
-                    </button>
-                  ))}
+                  {(myProducts ?? []).map((p) => {
+                    const coverage = getProductCoverageTag(p.id)
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setProductId(p.id)
+                          setProductUnknown(false)
+                        }}
+                        aria-pressed={!productUnknown && productId === p.id}
+                        className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left text-sm transition-colors ${
+                          !productUnknown && productId === p.id ? "border-accent bg-accent-soft" : "border-border"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="font-medium text-text">{p.name}</span>{" "}
+                          <span className="text-text-muted">{[p.brands?.name, p.models?.name].filter(Boolean).join(" · ")}</span>
+                        </span>
+                        <Badge variant={coverage === "amc" ? "success" : coverage === "warranty" ? "info" : "outline"} className="shrink-0">
+                          {t(`customerApp.bookService.coverageTag.${coverage}`)}
+                        </Badge>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
               <div className="px-1">
@@ -541,13 +569,19 @@ export function BookServicePage() {
             <Autocomplete
               id="nameOfComplaint"
               value={nameOfComplaint}
-              onChange={setNameOfComplaint}
+              onChange={(v) => {
+                setNameOfComplaint(v)
+                setComplaintTypeId(null)
+              }}
               suggestions={filteredComplaintTypes}
               placeholder={t("customerApp.bookService.nameOfComplaintPlaceholder")}
               emptyMessage={t("common.noData")}
               getKey={(ct) => ct.id}
               getLabel={(ct) => ct.label}
-              onSelect={(ct) => setNameOfComplaint(ct.label)}
+              onSelect={(ct) => {
+                setNameOfComplaint(ct.label)
+                setComplaintTypeId(ct.id)
+              }}
               openOnFocus
             />
           </div>

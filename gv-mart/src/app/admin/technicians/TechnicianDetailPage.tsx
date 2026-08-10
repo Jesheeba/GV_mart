@@ -32,6 +32,7 @@ import type { LeadListItem } from "@/services/automation"
 import { PriorityBadge, TicketTypeBadge } from "@/app/admin/service/TicketBadges"
 import { pickHistoryVisit, TECHNICIAN_SKILL_OPTIONS } from "@/services/techniciansAdmin"
 import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
+import { formatDurationMinutes, minutesBetween, resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
@@ -48,13 +49,9 @@ function fmtDateTime(iso: string | null | undefined) {
   if (!iso) return "—"
   return new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
 }
-/** Requirement 2/11 — shared local formatter for History's visit duration and Attendance's worked-hours readout (e.g. "7h 32m"); not a shared util, both call sites live in this one file. */
+/** Requirement 2/11 — convenience wrapper over the shared visit-duration.ts primitives, for Attendance's worked-hours readout (plain check-in/check-out, no persisted duration column). History's visit duration uses resolveVisitDurationMinutes directly (see below) to prefer the persisted actual_duration_minutes. */
 function fmtDuration(startIso: string, endIso: string): string {
-  const ms = Math.max(0, new Date(endIso).getTime() - new Date(startIso).getTime())
-  const totalMinutes = Math.round(ms / 60_000)
-  const h = Math.floor(totalMinutes / 60)
-  const m = totalMinutes % 60
-  return h > 0 ? `${h}h ${m}m` : `${m}m`
+  return formatDurationMinutes(minutesBetween(startIso, endIso) ?? 0)
 }
 
 function initialsOf(name: string) {
@@ -509,7 +506,10 @@ function HistoryTab({
               <p className="text-xs text-text-muted">{r.name_of_complaint || r.products?.name || "—"} · {fmtDate(r.created_at)}</p>
               {isCompleted ? (
                 <p className="text-xs text-text-muted">
-                  {fmtDuration(visit!.timer_start!, visit!.timer_end!)}
+                  {formatDurationMinutes(resolveVisitDurationMinutes(visit) ?? 0)}
+                  {visit?.completed_late === true ? (
+                    <span className="ml-1.5 rounded-full bg-danger/10 px-2 py-0.5 text-danger">{t("technicians.detail.history.wasLate")}</span>
+                  ) : null}
                   {" · "}
                   {stars != null ? `★ ${stars}` : t("technicians.detail.history.notRated")}
                 </p>

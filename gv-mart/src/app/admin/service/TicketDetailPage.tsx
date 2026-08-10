@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
@@ -24,6 +24,7 @@ import {
   useDeleteServiceTicket,
   useLogConfirmedAvailability,
   useOwnedEquipment,
+  usePaymentProofs,
   useTechnicians,
   useTicket,
   useTicketEvidence,
@@ -34,8 +35,10 @@ import {
 } from "@/hooks/useService"
 import type { ConfirmedAvailabilityReason } from "@/services/service"
 import { ticketPhotoSignedUrl } from "@/services/ticketPhotos"
+import { paymentProofSignedUrl } from "@/services/paymentProofs"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
+import { resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
@@ -50,13 +53,59 @@ function TicketPhotoThumb({ storagePath }: { storagePath: string }) {
   return <img src={url} alt="" className="size-16 shrink-0 rounded-lg object-cover" />
 }
 
+// Enhancement spec Task 2 — one uploaded UPI payment proof, with the
+// screenshot/photo plus the audit-trail fields the spec calls out (payment
+// date/time, method, transaction reference, technician name).
+function PaymentProofCard({
+  proof,
+}: {
+  proof: {
+    id: string
+    storage_path: string
+    transaction_reference: string | null
+    technicians: { profiles: { full_name: string } | null } | null
+    payments: { payment_method: string; paid_at: string } | null
+  }
+}) {
+  const { t } = useTranslation()
+  const { data: url } = useQuery({
+    queryKey: ["paymentProofUrl", proof.storage_path],
+    queryFn: () => paymentProofSignedUrl(proof.storage_path),
+    staleTime: 30 * 60_000,
+  })
+  const paidAt = proof.payments?.paid_at ? new Date(proof.payments.paid_at) : null
+  return (
+    <div className="flex gap-3 rounded-xl border border-border p-2.5">
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer">
+          <img src={url} alt="" className="size-20 shrink-0 rounded-lg object-cover" />
+        </a>
+      ) : (
+        <div className="size-20 shrink-0 animate-pulse rounded-lg bg-surface-alt" />
+      )}
+      <div className="min-w-0 space-y-0.5 text-xs">
+        <p className="text-text-muted">
+          {t("service.detail.paymentProof.date")}: <span className="text-text">{paidAt ? paidAt.toLocaleDateString() : "—"}</span>
+        </p>
+        <p className="text-text-muted">
+          {t("service.detail.paymentProof.time")}: <span className="text-text">{paidAt ? paidAt.toLocaleTimeString() : "—"}</span>
+        </p>
+        <p className="text-text-muted">
+          {t("service.detail.paymentProof.method")}: <span className="text-text">{proof.payments?.payment_method ?? "—"}</span>
+        </p>
+        <p className="text-text-muted">
+          {t("service.detail.paymentProof.txnRef")}: <span className="text-text">{proof.transaction_reference ?? "—"}</span>
+        </p>
+        <p className="text-text-muted">
+          {t("service.detail.paymentProof.technician")}: <span className="text-text">{proof.technicians?.profiles?.full_name ?? "—"}</span>
+        </p>
+      </div>
+    </div>
+  )
+}
+
 const textareaClass =
   "w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-
-function minutesBetween(start: string | null, end: string | null) {
-  if (!start || !end) return null
-  return Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000)
-}
 
 export function TicketDetailPage() {
   const { t } = useTranslation()
@@ -114,6 +163,7 @@ export function TicketDetailPage() {
     [products, productBrandId, productModelId]
   )
   const photos = useTicketPhotos(ticket?.id)
+  const paymentProofs = usePaymentProofs(ticket?.invoice_id ?? undefined)
   // Auto-expand the editor the moment a product-less ticket loads — this is
   // not an optional edit like address, the assignment gate requires it.
   useEffect(() => {
@@ -159,7 +209,8 @@ export function TicketDetailPage() {
   const productDefined = !!ticket.product_id || !!ticket.unlisted_product_name
   const visit = ticket.service_visits?.[0]
   const openVisit = ticket.service_visits?.find((v) => v.timer_start && !v.timer_end) ?? null
-  const totalMinutes = visit ? minutesBetween(visit.timer_start, visit.timer_end) : null
+  const totalMinutes = resolveVisitDurationMinutes(visit)
+  const lateSopSteps = visit?.service_sop_steps?.filter((s) => (s.overdue_minutes ?? 0) > 0)
   const canManage = profile?.role === "master" || profile?.role === "operation_admin"
   const canCancelOrDelete = canManage && ticket.status !== "completed" && ticket.status !== "cancelled"
   // GV.md 1.2: same allowed-time formula as the technician screens (see
@@ -227,7 +278,16 @@ export function TicketDetailPage() {
     const modelId = productMode === "owned" ? (ownedMatch?.modelId ?? null) : productModelId || null
     updateProduct.mutate(
       { ticketId: ticket!.id, productId: resolvedId || null, brandId, modelId, unlistedProductName: null },
-      { onSuccess: () => setEditingProduct(false), onError: () => toast.error(t("common.actionFailed")) }
+      {
+        onSuccess: () => setEditingProduct(false),
+        onError: (err) => {
+          // The toast alone can't distinguish a real failure from a dropped
+          // request — this was silently swallowed before, leaving admins
+          // stuck re-picking the same product with no diagnostic trail.
+          console.error("Failed to save ticket product:", err)
+          toast.error(t("common.actionFailed"))
+        },
+      }
     )
   }
   function saveNotInInventoryProduct(name: string) {
@@ -776,12 +836,59 @@ export function TicketDetailPage() {
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <Field label={t("service.detail.startTime")} value={visit.timer_start ? new Date(visit.timer_start).toLocaleString() : "—"} />
             <Field label={t("service.detail.closeTime")} value={visit.timer_end ? new Date(visit.timer_end).toLocaleString() : "—"} />
-            <Field label={t("service.detail.totalTime")} value={totalMinutes != null ? t("service.detail.minutes", { count: totalMinutes }) : "—"} />
+            <Field
+              label={t("service.detail.totalTime")}
+              value={
+                totalMinutes != null ? (
+                  <span className="flex items-center gap-1.5">
+                    {t("service.detail.minutes", { count: totalMinutes })}
+                    {visit?.completed_late === true ? (
+                      <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">{t("service.detail.wasLate")}</span>
+                    ) : null}
+                  </span>
+                ) : (
+                  "—"
+                )
+              }
+            />
             <Field label={t("service.detail.charge")} value={`₹${visit.service_charge.toLocaleString("en-IN")}`} />
+            <Field
+              label={t("service.detail.enquiryGenerated")}
+              value={visit.enquiry_generated == null ? "—" : visit.enquiry_generated ? t("common.yes") : t("common.no")}
+            />
           </div>
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noVisitYet")}</p>
         )}
+
+        {(paymentProofs.data ?? []).length > 0 ? (
+          <div className="space-y-1.5 border-t border-border pt-3">
+            <p className="text-xs text-text-muted">{t("service.detail.paymentProof.title")}</p>
+            <div className="flex flex-wrap gap-2">
+              {paymentProofs.data!.map((p) => (
+                <PaymentProofCard key={p.id} proof={p} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Technician request (2026-08-07) — per-step lateness persists past
+            the checklist toggle (service_sop_steps.overdue_minutes, see
+            20260807140000_sop_step_overdue_minutes.sql), so it's visible
+            here for admin oversight instead of only living transiently on
+            the technician's own screen while a step is in progress. */}
+        {(lateSopSteps?.length ?? 0) > 0 ? (
+          <div className="space-y-1.5 border-t border-border pt-3">
+            <p className="text-xs text-text-muted">{t("service.detail.lateSopSteps.title")}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {lateSopSteps!.map((s) => (
+                <span key={s.id} className="rounded-full bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+                  {s.step_name} — {t("service.detail.lateSopSteps.lateBy", { minutes: s.overdue_minutes })}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {canManage && openVisit ? (
           <div className="border-t border-border pt-3">
@@ -1082,7 +1189,7 @@ export function TicketDetailPage() {
   )
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <div className="text-xs text-text-muted">{label}</div>

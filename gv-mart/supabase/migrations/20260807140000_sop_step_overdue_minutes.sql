@@ -1,0 +1,14 @@
+-- Technician request (2026-08-07): the SOP checklist already shows a live
+-- red "overdue" flag on the current in-progress step (see
+-- currentSopStepElapsedMin in OnSiteVisitPage.tsx), but that flag vanishes
+-- the instant the item is marked done — a step finished 10 minutes late
+-- looks identical to one finished on time once checked off. This persists
+-- how many minutes late a step actually was, computed once at the moment
+-- it's marked complete, so lateness survives the toggle instead of being
+-- silently discarded.
+--
+-- Nullable, not `default 0`: null means "not computed" (e.g. a row synced
+-- before this column existed), 0 means "computed and was on time" — same
+-- "never invent a value" convention as service_visits.completed_late
+-- (20260807120000_visit_actual_duration.sql).
+alter table public.service_sop_steps add column if not exists overdue_minutes integer;

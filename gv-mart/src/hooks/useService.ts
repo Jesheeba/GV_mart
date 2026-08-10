@@ -1,7 +1,40 @@
+import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { supabase } from "@/lib/supabase"
 import * as service from "@/services/service"
 import type { CreateComplaintInput, TicketFiltersInput } from "@/services/service"
 import * as ticketPhotos from "@/services/ticketPhotos"
+import { listPaymentProofsByInvoice } from "@/services/paymentProofs"
+
+/**
+ * Admin-side counterpart to the "nothing is flagged" gap: the job
+ * board/tickets list/appointments range previously only refreshed on manual
+ * navigation or reload. `service_tickets` is already realtime-published
+ * (customer app's TechnicianAssignedBanner), and both auto-assign paths
+ * update it (`status = 'assigned'`) in the same transaction as setting the
+ * appointment's technician_id, so subscribing here and invalidating both
+ * query namespaces is enough to reflect a fresh assignment live — no need to
+ * separately publish `appointments`. Mount once, shell-level (AdminShell),
+ * so every admin screen benefits.
+ */
+export function useServiceTicketsRealtimeInvalidate(orgId: string | undefined) {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!orgId) return
+    const channel = supabase
+      .channel(`admin-service-tickets-alerts-${orgId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "service_tickets", filter: `org_id=eq.${orgId}` }, () => {
+        void queryClient.invalidateQueries({ queryKey: ["service_tickets"] })
+        void queryClient.invalidateQueries({ queryKey: ["appointments"] })
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [orgId, queryClient])
+}
 
 export function useTicketsList(orgId: string | undefined, filters: TicketFiltersInput) {
   return useQuery({
@@ -37,7 +70,16 @@ export function useUpdateTicketAddress() {
   })
 }
 
-/** Gate-assignment-on-product — see service.ts#updateTicketProduct. */
+/**
+ * Gate-assignment-on-product — see service.ts#updateTicketProduct.
+ * `retry: 2` overrides the app-wide `retry: 0` default (queryClient.ts) —
+ * safe here specifically because this write is a plain idempotent
+ * `.update().eq(id)` (re-applying the same product/brand/model is a no-op),
+ * unlike most mutations in this app which have real side effects and must
+ * never auto-retry. Added because a transient fetch failure here otherwise
+ * strands the admin on a picker that "did nothing" with no way to tell a
+ * real error from a dropped request.
+ */
 export function useUpdateTicketProduct() {
   const qc = useQueryClient()
   return useMutation({
@@ -54,6 +96,7 @@ export function useUpdateTicketProduct() {
       modelId: string | null
       unlistedProductName: string | null
     }) => service.updateTicketProduct(ticketId, { productId, brandId, modelId, unlistedProductName }),
+    retry: 2,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["service_tickets"] }),
   })
 }
@@ -281,5 +324,15 @@ export function useUploadTicketPhoto() {
     mutationFn: ({ orgId, ticketId, file }: { orgId: string; ticketId: string; file: File }) =>
       ticketPhotos.uploadTicketPhoto(orgId, ticketId, file),
     onSuccess: (_data, variables) => qc.invalidateQueries({ queryKey: ["service_ticket_photos", variables.ticketId] }),
+  })
+}
+
+// Enhancement spec Task 2 — UPI payment proofs for the admin Customer
+// History / Booking Details view, see services/paymentProofs.ts.
+export function usePaymentProofs(invoiceId: string | undefined) {
+  return useQuery({
+    queryKey: ["payment_proofs", invoiceId],
+    queryFn: () => listPaymentProofsByInvoice(invoiceId!),
+    enabled: !!invoiceId,
   })
 }

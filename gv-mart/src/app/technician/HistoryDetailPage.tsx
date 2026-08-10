@@ -7,11 +7,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { JobTypeBadge, PriorityBadge } from "./components/JobBadges"
 import { useJobDetail } from "@/hooks/useTechnician"
 import { formatCurrency } from "@/lib/sale-calc"
-
-function minutesBetween(start: string | null, end: string | null) {
-  if (!start || !end) return null
-  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000))
-}
+import { minutesBetween } from "@/lib/visit-duration"
 
 /** TECH-09 "each opens read-only TECH-06/07 summary" — reuses job detail data plus the closed visit's numbers, no editable controls. */
 export function HistoryDetailPage() {

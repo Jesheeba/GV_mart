@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { CheckSquare, ClipboardList, Gift, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wrench } from "lucide-react"
+import { Ban, CheckSquare, ClipboardList, Gift, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
@@ -9,6 +9,7 @@ import {
   amcPlansHooks,
   brandsHooks,
   complaintTypesHooks,
+  giftExclusionProductsHooks,
   giftsHooks,
   incentiveRulesHooks,
   modelsHooks,
@@ -23,6 +24,7 @@ import { ModelsTab } from "./ModelsTab"
 import { ProductsTab } from "./ProductsTab"
 import { SparesTab } from "./SparesTab"
 import { GiftsTab } from "./GiftsTab"
+import { GiftExclusionsTab } from "./GiftExclusionsTab"
 import { AmcPlansTab } from "./AmcPlansTab"
 import { IncentiveRulesTab } from "./IncentiveRulesTab"
 import { ComplaintTypesTab } from "./ComplaintTypesTab"
@@ -37,6 +39,7 @@ type ModuleId =
   | "products"
   | "spares"
   | "gifts"
+  | "giftExclusions"
   | "amcPlans"
   | "incentives"
   | "complaintTypes"
@@ -67,6 +70,7 @@ export function MastersPage() {
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
   const { data: gifts } = giftsHooks.useList(orgId)
+  const { data: giftExclusionProducts } = giftExclusionProductsHooks.useList(orgId)
   const { data: amcPlans } = amcPlansHooks.useList(orgId)
   const { data: incentiveRules } = incentiveRulesHooks.useList(orgId)
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
@@ -85,6 +89,13 @@ export function MastersPage() {
     { id: "products", icon: Package, swatch: "accent", title: t("masters.tabs.products"), desc: t("masters.overview.productsDesc", { count: products?.length ?? 0 }) },
     { id: "spares", icon: Wrench, swatch: "ink", title: t("masters.tabs.spares"), desc: t("masters.overview.sparesDesc", { count: spares?.length ?? 0 }) },
     { id: "gifts", icon: Gift, swatch: "green", title: t("masters.tabs.gifts"), desc: t("masters.overview.giftsDesc", { count: gifts?.length ?? 0 }) },
+    {
+      id: "giftExclusions",
+      icon: Ban,
+      swatch: "warning",
+      title: t("masters.tabs.giftExclusions"),
+      desc: t("masters.overview.giftExclusionsDesc", { count: giftExclusionProducts?.length ?? 0 }),
+    },
     { id: "amcPlans", icon: ShieldCheck, swatch: "info", title: t("masters.tabs.amcPlans"), desc: t("masters.overview.amcPlansDesc", { count: amcPlans?.length ?? 0 }) },
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
     { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypeDefaultsCount }) },
@@ -146,6 +157,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="gifts">
             <GiftsTab />
+          </TabsContent>
+          <TabsContent value="giftExclusions">
+            <GiftExclusionsTab />
           </TabsContent>
           <TabsContent value="amcPlans">
             <AmcPlansTab />

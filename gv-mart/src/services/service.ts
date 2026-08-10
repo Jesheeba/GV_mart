@@ -141,7 +141,7 @@ export async function getTicket(id: string) {
       // (enquiry-logged-this-visit) ride along with the fields A4 already
       // selected here (service_spares_used, ratings) — see
       // src/lib/job-allowance.ts for how they combine into the allowed time.
-      `${TICKET_SELECT}, service_visits(*, service_spares_used(*, spares(name, standard_time_minutes)), ro_checklists(*), ratings(*), leads(id))`
+      `${TICKET_SELECT}, service_visits(*, service_spares_used(*, spares(name, standard_time_minutes)), ro_checklists(*), ratings(*), leads(id), service_sop_steps(*))`
     )
     .eq("id", id)
     .single()
@@ -268,6 +268,10 @@ export type CreateComplaintInput = {
   referredByTechnicianId?: string | null
   /** Gate-assignment-on-product (2026-08-04) — admin-typed product name when the customer's real product isn't in Masters yet. Mutually exclusive with productId. */
   unlistedProductName?: string | null
+  /** Issue-based spare suggestions (2026-08-06) — the complaint_types row the
+   * "Name of complaint" Autocomplete resolved, if the admin picked a
+   * suggestion rather than free-typing. Null for free-typed complaints. */
+  complaintTypeId?: string | null
 }
 
 export async function createComplaintTicket(input: CreateComplaintInput) {
@@ -288,6 +292,7 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     p_slot_id: input.slotId ?? null,
     p_referred_by_technician_id: input.referredByTechnicianId ?? null,
     p_unlisted_product_name: input.unlistedProductName ?? null,
+    p_complaint_type_id: input.complaintTypeId ?? null,
   })
   if (error) throw error
   return data as {

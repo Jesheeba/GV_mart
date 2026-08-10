@@ -126,11 +126,41 @@ export function useRemoveProductSpare(productId: string | undefined) {
   })
 }
 
+export function useComplaintTypeSpares(complaintTypeId: string | undefined) {
+  return useQuery({
+    queryKey: ["complaint_type_spares", "list", complaintTypeId],
+    queryFn: () => masters.listComplaintTypeSpares(complaintTypeId!),
+    enabled: !!complaintTypeId,
+  })
+}
+export function useAddComplaintTypeSpare() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, complaintTypeId, spareId }: { orgId: string; complaintTypeId: string; spareId: string }) =>
+      masters.addComplaintTypeSpare(orgId, complaintTypeId, spareId),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ["complaint_type_spares", "list", vars.complaintTypeId] }),
+  })
+}
+export function useRemoveComplaintTypeSpare(complaintTypeId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => masters.removeComplaintTypeSpare(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["complaint_type_spares", "list", complaintTypeId] }),
+  })
+}
+
 export const giftsHooks = entityHooks("gifts", {
   list: masters.listGifts,
   create: masters.createGift,
   update: masters.updateGift,
   remove: masters.deleteGift,
+})
+
+export const giftExclusionProductsHooks = entityHooks("gift_exclusion_products", {
+  list: masters.listGiftExclusionProducts,
+  create: masters.createGiftExclusionProduct,
+  update: masters.updateGiftExclusionProduct,
+  remove: masters.deleteGiftExclusionProduct,
 })
 
 export const sopStepTemplatesHooks = entityHooks("sop_step_templates", {

@@ -813,9 +813,15 @@ export type VerifyVisitOtpResult =
   | { ok: true; visit_id: string; timer_end: string }
   | { ok: false; reason: "incorrect"; remaining_attempts: number }
 
-/** Checks the code server-side and, only if correct, closes the visit (timer_end) in the same call — see the migration's design decision #2. `notes` carries the technician's free-text on-site findings, same as the old queueEndVisit did. */
-export async function verifyVisitOtp(orgId: string, visitId: string, code: string, notes?: string): Promise<VerifyVisitOtpResult> {
-  const { data, error } = await supabase.rpc("verify_visit_otp", { p_org_id: orgId, p_visit_id: visitId, p_code: code, p_notes: notes?.trim() || null })
+/** Checks the code server-side and, only if correct, closes the visit (timer_end) in the same call — see the migration's design decision #2. `notes` carries the technician's free-text on-site findings, same as the old queueEndVisit did. `enquiryGenerated` (Task 5 — mandatory enquiry confirmation) is validated server-side as required; the RPC itself rejects a null value. */
+export async function verifyVisitOtp(orgId: string, visitId: string, code: string, enquiryGenerated: boolean, notes?: string): Promise<VerifyVisitOtpResult> {
+  const { data, error } = await supabase.rpc("verify_visit_otp", {
+    p_org_id: orgId,
+    p_visit_id: visitId,
+    p_code: code,
+    p_enquiry_generated: enquiryGenerated,
+    p_notes: notes?.trim() || null,
+  })
   if (error) throw error
   return data as unknown as VerifyVisitOtpResult
 }
@@ -875,7 +881,15 @@ export async function cacheVisitVoiceNote(visitId: string, dataUrl: string | nul
   await enqueue("service_visit.arrive", { visitId, patch: { voice_note_url: dataUrl } })
 }
 
-export async function queueSopStepComplete(step: { id: string; orgId: string; visitId: string; stepName: string; expectedMinutes: number; doneAt: string }) {
+export async function queueSopStepComplete(step: {
+  id: string
+  orgId: string
+  visitId: string
+  stepName: string
+  expectedMinutes: number
+  doneAt: string
+  overdueMinutes: number
+}) {
   await enqueue("sop_step.complete", {
     id: step.id,
     org_id: step.orgId,
@@ -883,6 +897,7 @@ export async function queueSopStepComplete(step: { id: string; orgId: string; vi
     step_name: step.stepName,
     expected_minutes: step.expectedMinutes,
     done_at: step.doneAt,
+    overdue_minutes: step.overdueMinutes,
   })
 }
 
@@ -936,18 +951,18 @@ export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput
 }
 
 /**
- * Task 6 (2026-07-30) — spares mapped to the job's product, surfaced as
- * quick-add suggestions in SpareSelectStep ahead of free search. Same
- * query shape as customerApp.ts's listSparesForProduct (product_spares is
- * readable by every org member per its RLS policy) — duplicated rather
- * than cross-imported since it's five lines and the two call sites belong
- * to unrelated domains.
+ * Issue-based spare suggestions (2026-08-06) — spares mapped to the job's
+ * complaint_type (not its product; see 20260806130000_complaint_type_
+ * spares.sql), surfaced as quick-add suggestions in SpareSelectStep ahead
+ * of free search. Same query shape as the old product-based version this
+ * replaces — complaint_type_spares carries the same select-org RLS policy
+ * as product_spares.
  */
-export async function listSparesForProduct(productId: string) {
+export async function listSparesForComplaintType(complaintTypeId: string) {
   const { data, error } = await supabase
-    .from("product_spares")
+    .from("complaint_type_spares")
     .select("spares!inner(id, name, sku, price, standard_time_minutes, is_active)")
-    .eq("product_id", productId)
+    .eq("complaint_type_id", complaintTypeId)
     .eq("spares.is_active", true)
   if (error) throw error
   return (data ?? []).map((row) => row.spares).filter((s): s is NonNullable<typeof s> => !!s)

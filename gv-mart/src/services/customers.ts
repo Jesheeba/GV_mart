@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import { itemNameLookup } from "@/services/sales"
+import { pickHistoryVisit } from "@/services/techniciansAdmin"
 import type { Enums, Tables } from "@/types/database"
 import type { FamilyRelation } from "@/lib/validation/customer"
 
@@ -625,6 +626,10 @@ export type CustomerTimelineEntry =
       ticketType: Enums<"ticket_type"> | null
       technicianName: string | null
       amount: number
+      /** Admin-side only (see CustomerDetailPage.tsx) — actual time taken on the completed visit, if any. */
+      durationMinutes: number | null
+      /** Admin-side only — null means no estimate existed to compare against at close time. */
+      completedLate: boolean | null
     }
   | {
       kind: "amc"
@@ -667,7 +672,7 @@ export async function getCustomerTimeline(orgId: string, customerId: string, lim
     supabase
       .from("service_tickets")
       .select(
-        "id, name_of_complaint, type, status, created_at, updated_at, invoice_id, appointments(technicians(profiles(full_name))), invoices(total)"
+        "id, name_of_complaint, type, status, created_at, updated_at, invoice_id, appointments(technicians(profiles(full_name))), invoices(total), service_visits(timer_start, timer_end, actual_duration_minutes, completed_late)"
       )
       .eq("org_id", orgId)
       .eq("customer_id", customerId)
@@ -702,10 +707,12 @@ export async function getCustomerTimeline(orgId: string, customerId: string, lim
     invoice_id: string | null
     appointments: { technicians: { profiles: { full_name: string } | null } | null }[]
     invoices: { total: number } | null
+    service_visits: { timer_start: string | null; timer_end: string | null; actual_duration_minutes: number | null; completed_late: boolean | null }[]
   }
   const tickets = (ticketsRes.data ?? []) as unknown as TicketRow[]
   const ticketEntries: CustomerTimelineEntry[] = tickets.map((r) => {
     const technicianName = r.appointments.find((a) => a.technicians?.profiles?.full_name)?.technicians?.profiles?.full_name ?? null
+    const visit = pickHistoryVisit(r.service_visits)
     return {
       kind: "ticket",
       id: r.id,
@@ -715,6 +722,8 @@ export async function getCustomerTimeline(orgId: string, customerId: string, lim
       technicianName,
       amount: r.invoices?.total ? Number(r.invoices.total) : 0,
       date: r.status === "completed" ? r.updated_at : r.created_at,
+      durationMinutes: visit?.actual_duration_minutes ?? null,
+      completedLate: visit?.completed_late ?? null,
     }
   })
 

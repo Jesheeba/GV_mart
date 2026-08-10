@@ -703,6 +703,52 @@ export type Database = {
           },
         ]
       }
+      complaint_type_spares: {
+        Row: {
+          id: string
+          org_id: string
+          complaint_type_id: string
+          spare_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          complaint_type_id: string
+          spare_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          complaint_type_id?: string
+          spare_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_type_spares_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "complaint_type_spares_complaint_type_id_fkey"
+            columns: ["complaint_type_id"]
+            isOneToOne: false
+            referencedRelation: "complaint_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "complaint_type_spares_spare_id_fkey"
+            columns: ["spare_id"]
+            isOneToOne: false
+            referencedRelation: "spares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       // Product Enquiry rebuild (2026-08-04) — see 20260804092000_product_attribute_keys.sql.
       product_attribute_keys: {
         Row: {
@@ -1983,6 +2029,48 @@ export type Database = {
           },
         ]
       }
+      gift_exclusion_products: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_exclusion_products_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_exclusion_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           id: string
@@ -2193,6 +2281,7 @@ export type Database = {
           unlisted_product_name: string | null
           name_of_complaint: string | null
           nature_of_complaint: string | null
+          complaint_type_id: string | null
           type: Database["public"]["Enums"]["ticket_type"] | null
           priority: Database["public"]["Enums"]["priority_level"]
           status: Database["public"]["Enums"]["ticket_status"]
@@ -2221,6 +2310,7 @@ export type Database = {
           unlisted_product_name?: string | null
           name_of_complaint?: string | null
           nature_of_complaint?: string | null
+          complaint_type_id?: string | null
           type?: Database["public"]["Enums"]["ticket_type"] | null
           priority?: Database["public"]["Enums"]["priority_level"]
           status?: Database["public"]["Enums"]["ticket_status"]
@@ -2249,6 +2339,7 @@ export type Database = {
           unlisted_product_name?: string | null
           name_of_complaint?: string | null
           nature_of_complaint?: string | null
+          complaint_type_id?: string | null
           type?: Database["public"]["Enums"]["ticket_type"] | null
           priority?: Database["public"]["Enums"]["priority_level"]
           status?: Database["public"]["Enums"]["ticket_status"]
@@ -2314,6 +2405,13 @@ export type Database = {
             columns: ["model_id"]
             isOneToOne: false
             referencedRelation: "models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_tickets_complaint_type_id_fkey"
+            columns: ["complaint_type_id"]
+            isOneToOne: false
+            referencedRelation: "complaint_types"
             referencedColumns: ["id"]
           },
           {
@@ -2576,8 +2674,15 @@ export type Database = {
           discount: number
           otp_verified: boolean
           needs_revisit: boolean
+          enquiry_generated: boolean | null
           notes: string | null
           voice_note_url: string | null
+          // 20260807120000_visit_actual_duration.sql — persisted at close time
+          // (verify_visit_otp / admin_override_visit_completion), not
+          // recomputed live. null completed_late means no estimate existed
+          // to compare against at close time.
+          actual_duration_minutes: number | null
+          completed_late: boolean | null
           created_at: string
           updated_at: string
         }
@@ -2598,8 +2703,11 @@ export type Database = {
           discount?: number
           otp_verified?: boolean
           needs_revisit?: boolean
+          enquiry_generated?: boolean | null
           notes?: string | null
           voice_note_url?: string | null
+          actual_duration_minutes?: number | null
+          completed_late?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -2620,8 +2728,11 @@ export type Database = {
           discount?: number
           otp_verified?: boolean
           needs_revisit?: boolean
+          enquiry_generated?: boolean | null
           notes?: string | null
           voice_note_url?: string | null
+          actual_duration_minutes?: number | null
+          completed_late?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -2733,6 +2844,10 @@ export type Database = {
           step_name: string
           expected_minutes: number
           done_at: string | null
+          // 20260807140000_sop_step_overdue_minutes.sql — computed once at
+          // the moment the step is marked done; null = not computed yet
+          // (e.g. a row synced before this column existed), 0 = on time.
+          overdue_minutes: number | null
           created_at: string
           updated_at: string
         }
@@ -2743,6 +2858,7 @@ export type Database = {
           step_name: string
           expected_minutes: number
           done_at?: string | null
+          overdue_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -2753,6 +2869,7 @@ export type Database = {
           step_name?: string
           expected_minutes?: number
           done_at?: string | null
+          overdue_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -4358,6 +4475,101 @@ export type Database = {
           },
         ]
       }
+      payment_proofs: {
+        Row: {
+          id: string
+          org_id: string
+          payment_id: string
+          invoice_id: string
+          visit_id: string | null
+          ticket_id: string | null
+          customer_id: string
+          technician_id: string
+          storage_path: string
+          transaction_reference: string | null
+          uploaded_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          payment_id: string
+          invoice_id: string
+          visit_id?: string | null
+          ticket_id?: string | null
+          customer_id: string
+          technician_id: string
+          storage_path: string
+          transaction_reference?: string | null
+          uploaded_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          payment_id?: string
+          invoice_id?: string
+          visit_id?: string | null
+          ticket_id?: string | null
+          customer_id?: string
+          technician_id?: string
+          storage_path?: string
+          transaction_reference?: string | null
+          uploaded_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_proofs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "service_visits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "service_tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       approvals: {
         Row: {
           id: string
@@ -4824,6 +5036,10 @@ export type Database = {
           // Rewards spec (2026-08-04) — optional finder-credit referral,
           // see 20260804150000_referral_capture_functions.sql.
           p_referred_by_technician_id?: string | null
+          // Issue-based spare suggestions (2026-08-06) — see
+          // 20260806130000_complaint_type_spares.sql. The complaint_types
+          // row the Autocomplete's onSelect resolved, if any.
+          p_complaint_type_id?: string | null
         }
         Returns: Json
       }
@@ -4848,7 +5064,7 @@ export type Database = {
         Returns: Json
       }
       verify_visit_otp: {
-        Args: { p_org_id: string; p_visit_id: string; p_code: string; p_notes?: string | null }
+        Args: { p_org_id: string; p_visit_id: string; p_code: string; p_enquiry_generated: boolean; p_notes?: string | null }
         Returns: Json
       }
       admin_override_visit_completion: {
@@ -4861,6 +5077,10 @@ export type Database = {
       }
       record_upi_payment: {
         Args: { p_org_id: string; p_visit_id: string }
+        Returns: Json
+      }
+      record_payment_proof: {
+        Args: { p_org_id: string; p_visit_id: string; p_storage_path: string; p_transaction_reference?: string | null }
         Returns: Json
       }
       // Partial-payment top-up fix — hand-patched, see
@@ -4974,6 +5194,9 @@ export type Database = {
           p_priority: Database["public"]["Enums"]["priority_level"]
           p_scheduled_date: string
           p_unavailable_windows: Json
+          // Issue-based spare suggestions (2026-08-06) — see
+          // 20260806130000_complaint_type_spares.sql.
+          p_complaint_type_id?: string | null
         }
         Returns: Json
       }

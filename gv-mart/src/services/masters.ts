@@ -147,6 +147,32 @@ export async function removeProductSpare(id: string) {
   if (error) throw error
 }
 
+// ── Complaint type <-> Spare mapping (2026-08-06, "which spares fix this
+// issue") — same shape as product_spares above, keyed by complaint_type_id
+// instead of product_id. Feeds the on-site "Suggested for this issue" chips
+// (SpareSelectStep.tsx), replacing the old product-based suggestion. ──────
+export async function listComplaintTypeSpares(complaintTypeId: string) {
+  const { data, error } = await supabase
+    .from("complaint_type_spares")
+    .select("*, spares(id, name, sku, is_active)")
+    .eq("complaint_type_id", complaintTypeId)
+  if (error) throw error
+  return data
+}
+export async function addComplaintTypeSpare(orgId: string, complaintTypeId: string, spareId: string) {
+  const { data, error } = await supabase
+    .from("complaint_type_spares")
+    .insert({ org_id: orgId, complaint_type_id: complaintTypeId, spare_id: spareId })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+export async function removeComplaintTypeSpare(id: string) {
+  const { error } = await supabase.from("complaint_type_spares").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── Gifts ────────────────────────────────────────────────────────────────
 export async function listGifts(orgId: string) {
   const { data, error } = await supabase.from("gifts").select("*").eq("org_id", orgId).order("threshold_amount")
@@ -165,6 +191,35 @@ export async function updateGift(id: string, patch: TablesUpdate<"gifts">) {
 }
 export async function deleteGift(id: string) {
   const { error } = await supabase.from("gifts").delete().eq("id", id)
+  if (error) throw error
+}
+
+// ── Gift Exclusion Products (Enhancement spec Task 4) ───────────────────────
+// Products a customer's cart still doesn't earn the standard threshold-based
+// gift for, even though the cart as a whole clears the threshold — see
+// create_sale's gift block (20260807090000_gift_exclusion_products.sql).
+// Joined with the product name for display; same shape as gifts above.
+export async function listGiftExclusionProducts(orgId: string) {
+  const { data, error } = await supabase
+    .from("gift_exclusion_products")
+    .select("*, products(id, name)")
+    .eq("org_id", orgId)
+    .order("created_at")
+  if (error) throw error
+  return data
+}
+export async function createGiftExclusionProduct(row: TablesInsert<"gift_exclusion_products">) {
+  const { data, error } = await supabase.from("gift_exclusion_products").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateGiftExclusionProduct(id: string, patch: TablesUpdate<"gift_exclusion_products">) {
+  const { data, error } = await supabase.from("gift_exclusion_products").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteGiftExclusionProduct(id: string) {
+  const { error } = await supabase.from("gift_exclusion_products").delete().eq("id", id)
   if (error) throw error
 }
 
@@ -299,10 +354,12 @@ export type ModelRow = Tables<"models">
 export type ProductRow = Tables<"products">
 export type SpareRow = Tables<"spares">
 export type GiftRow = Tables<"gifts">
+export type GiftExclusionProductRow = Tables<"gift_exclusion_products"> & { products: Pick<Tables<"products">, "id" | "name"> | null }
 export type AmcPlanRow = Tables<"amc_plans">
 export type IncentiveRuleRow = Tables<"incentive_rules">
 export type ComplaintTypeRow = Tables<"complaint_types">
 export type ProductSpareRow = Tables<"product_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
+export type ComplaintTypeSpareRow = Tables<"complaint_type_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
 export type SettingsRow = Tables<"settings">
 export type SopStepTemplateRow = Tables<"sop_step_templates"> & { products: Pick<Tables<"products">, "name"> | null }
 export type AppointmentSlotRow = Tables<"appointment_slots">

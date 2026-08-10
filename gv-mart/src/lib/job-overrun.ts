@@ -21,7 +21,7 @@ export interface JobOverrunInput {
 }
 
 export interface JobOverrunResult {
-  /** True only for an open visit whose elapsed time exceeds the estimate. */
+  /** True only for an open visit whose elapsed time exceeds the estimate plus the grace buffer. */
   isOverrun: boolean
   /** Minutes elapsed since timer_start; null when there's no open visit. */
   elapsedMinutes: number | null
@@ -32,18 +32,29 @@ export interface JobOverrunResult {
 const NOT_OVERRUN: JobOverrunResult = { isOverrun: false, elapsedMinutes: null, overrunByMinutes: null }
 
 /**
+ * Flat grace period on top of every job's estimate before it's flagged
+ * overdue — a technician isn't red the instant the clock ticks past the
+ * estimate, only once they're 5 minutes past it. Applies uniformly to every
+ * job/call site, not just one; this is the single place that grace period
+ * is defined so it never drifts between the technician and admin screens.
+ */
+export const OVERRUN_BUFFER_MINUTES = 5
+
+/**
  * Compares elapsed time on an in-progress visit against its ticket's
- * estimated duration. Returns non-overrun (not "unknown") whenever the
- * inputs can't support a comparison — no open visit, or no estimate set —
- * since "nothing to compare against" must never render as red.
+ * estimated duration plus OVERRUN_BUFFER_MINUTES. Returns non-overrun (not
+ * "unknown") whenever the inputs can't support a comparison — no open
+ * visit, or no estimate set — since "nothing to compare against" must
+ * never render as red.
  */
 export function computeJobOverrun(input: JobOverrunInput, nowMs: number = Date.now()): JobOverrunResult {
   const { timerStart, timerEnd, estimatedDurationMinutes } = input
   if (!timerStart || timerEnd) return NOT_OVERRUN
   if (estimatedDurationMinutes == null || estimatedDurationMinutes <= 0) return NOT_OVERRUN
 
+  const threshold = estimatedDurationMinutes + OVERRUN_BUFFER_MINUTES
   const elapsedMinutes = (nowMs - new Date(timerStart).getTime()) / 60_000
-  if (elapsedMinutes <= estimatedDurationMinutes) {
+  if (elapsedMinutes <= threshold) {
     return { isOverrun: false, elapsedMinutes, overrunByMinutes: null }
   }
   return { isOverrun: true, elapsedMinutes, overrunByMinutes: elapsedMinutes - estimatedDurationMinutes }

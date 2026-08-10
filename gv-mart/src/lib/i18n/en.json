@@ -117,7 +117,8 @@
     "technicianAppTitle": "Technician App",
     "technicianAppBody": "Attendance, jobs, and field service ship in a later run (Stage 2).",
     "customerAppTitle": "Customer App",
-    "customerAppBody": "Service booking and self-service ship in a later run (Stage 3)."
+    "customerAppBody": "Service booking and self-service ship in a later run (Stage 3).",
+    "jobOverrunAlert": "{{name}} is running {{minutes}} min over the {{estimate}} min estimate."
   },
   "tabs": {
     "home": "Home",
@@ -291,7 +292,8 @@
       "timeline": {
         "amcSold": "AMC sold — {{plan}}",
         "amcRenewed": "AMC renewed — {{plan}}",
-        "invoiceTitle": "{{type}} invoice"
+        "invoiceTitle": "{{type}} invoice",
+        "wasLate": "Late"
       },
       "tabs": {
         "products": "Products",
@@ -441,6 +443,7 @@
       "productsDesc": "{{count}} products configured",
       "sparesDesc": "{{count}} spares configured",
       "giftsDesc": "{{count}} gift tiers",
+      "giftExclusionsDesc": "{{count}} products excluded from gifts",
       "amcPlansDesc": "{{count}} AMC plans",
       "incentivesDesc": "{{count}} incentive rules",
       "complaintTypesDesc": "{{count}} complaint types",
@@ -455,6 +458,7 @@
       "products": "Products",
       "spares": "Spares",
       "gifts": "Gifts",
+      "giftExclusions": "Gift Exclusions",
       "amcPlans": "AMC Plans",
       "incentives": "Incentives",
       "complaintTypes": "Complaint Types",
@@ -542,6 +546,12 @@
       "add": "Add gift",
       "empty": "No gifts yet — add your first one."
     },
+    "giftExclusions": {
+      "product": "Product",
+      "active": "Exclusion enabled",
+      "add": "Exclude a product",
+      "empty": "No products excluded — every product currently counts towards the gift threshold."
+    },
     "amcPlans": {
       "name": "Plan name",
       "namePlaceholder": "e.g. Gold, Silver, Platinum",
@@ -616,6 +626,14 @@
       "empty": "No spares mapped to this product yet.",
       "pickPlaceholder": "Select a spare to add",
       "noneToAdd": "Every spare is already mapped to this product.",
+      "add": "Add"
+    },
+    "complaintTypeSpares": {
+      "manage": "Manage spares",
+      "title": "Spares for this issue",
+      "empty": "No spares mapped to this issue yet.",
+      "pickPlaceholder": "Select a spare to add",
+      "noneToAdd": "Every spare is already mapped to this issue.",
       "add": "Add"
     },
     "productMedia": {
@@ -1409,7 +1427,21 @@
       "totalTime": "Total time",
       "minutes_one": "{{count}} minute",
       "minutes_other": "{{count}} minutes",
+      "wasLate": "Late",
       "charge": "Service charge",
+      "enquiryGenerated": "New enquiry generated",
+      "paymentProof": {
+        "title": "Payment proof",
+        "date": "Payment date",
+        "time": "Payment time",
+        "method": "Payment method",
+        "txnRef": "Transaction reference",
+        "technician": "Technician"
+      },
+      "lateSopSteps": {
+        "title": "SOP steps completed late",
+        "lateBy": "{{minutes}} min late"
+      },
       "noVisitYet": "No visit yet.",
       "cancelTicket": "Cancel ticket",
       "cancelReasonLabel": "Reason for cancellation",
@@ -1978,6 +2010,11 @@
       "myProductsPrompt": "Select from your products",
       "noOwnedProducts": "We don't have any products on file for you yet.",
       "chooseAnotherProduct": "Choose another product",
+      "coverageTag": {
+        "amc": "AMC",
+        "warranty": "Warranty",
+        "none": "Out of Warranty"
+      },
       "chooseCategoryPrompt": "Select a category",
       "category": {
         "ro": "RO Purifier",
@@ -2062,6 +2099,10 @@
       "title": "Account deactivated",
       "body": "Your admin has deactivated your account. You won't see active bookings or receive new assignments. Contact your admin if you think this is a mistake.",
       "signOut": "Sign out"
+    },
+    "newJobAssignedAlert": {
+      "message": "You've been assigned a new job — tap to view",
+      "dismiss": "Dismiss"
     },
     "attendance": {
       "title": "Mark Attendance",
@@ -2360,10 +2401,15 @@
       "beforeImage": "Before photo",
       "afterImage": "After photo",
       "afterImageHint": "Take this once the repair, spares, and RO checklist (if applicable) are done — it should show the completed work.",
+      "afterPhotoLocked": {
+        "title": "Confirm before uploading",
+        "hint": "Tap the circle above to mark it done and unlock the after-photo upload."
+      },
       "sopTitle": "SOP Checklist",
       "sopHint": "Built from the spares you selected, each with its admin-set standard time. Pick an extra step below for anything not covered by a spare.",
       "sopEmpty": "Select spares in the previous step to build this checklist, or pick a step below.",
       "sopExpected": "Expected {{minutes}} min",
+      "sopBrandStickerStep": "Pasted the brand sticker on the product after service",
       "sopStepName": "Add a step",
       "sopStepPickPlaceholder": "Choose a step…",
       "evidence": {
@@ -2378,12 +2424,17 @@
         "empty": "No spares found.",
         "noneSelected": "No spares selected.",
         "standardTime": "{{minutes}} min standard time",
-        "suggestedTitle": "Suggested for this product"
+        "suggestedTitle": "Suggested for this issue"
       },
       "charges": {
         "serviceCharge": "Service charge",
         "notChargeableNote": "This is a warranty/AMC visit — the charge is ₹0, but any spares used are still recorded.",
-        "discountLabel": "Discount (%)",
+        "discountLabel": "Discount",
+        "discountMode": {
+          "percent": "%",
+          "amount": "₹"
+        },
+        "computedPercent": "≈ {{percent}}% of the subtotal",
         "freeUpTo": "Up to {{max}}% — no approval needed.",
         "approvalBand": "{{min}}–{{max}}% — needs a manager's approval (visit still completes).",
         "blockedAbove": "Above {{max}}% is never allowed.",
@@ -2420,12 +2471,31 @@
         "description": "Description",
         "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually.",
         "complete": "Verify & complete visit",
+        "qr": {
+          "title": "Show this QR to the customer",
+          "hint": "They can scan it with any UPI app to pay the amount above directly."
+        },
         "upiCollect": {
           "title": "Collect UPI payment",
-          "hint": "Ask the customer to scan the QR code shown in their app. Once their payment goes through, tap below to confirm.",
+          "hint": "Ask the customer to scan the QR code above (or the one shown in their own app). Once their payment goes through, tap below to confirm.",
           "confirmButton": "Payment received",
           "confirmed": "UPI payment confirmed.",
           "invoicePending": "Still syncing the invoice — please wait a few seconds and try again."
+        }
+      },
+      "paymentProof": {
+        "title": "Upload payment proof",
+        "hint": "Attach the UPI screenshot, receipt, or transaction confirmation before completing this visit.",
+        "transactionReference": "Transaction reference (optional)",
+        "transactionReferencePlaceholder": "UPI reference / transaction ID",
+        "uploadScreenshot": "Upload screenshot",
+        "capturePhoto": "Capture photo",
+        "uploaded": "Payment proof uploaded.",
+        "errors": {
+          "required": "Upload payment proof before completing the visit.",
+          "invoicePending": "Still syncing the invoice — please wait a few seconds and try again.",
+          "paymentMissing": "Confirm the UPI payment first, then upload proof.",
+          "uploadFailed": "Couldn't upload the proof. Check your connection and try again."
         }
       },
       "otp": {
@@ -2453,6 +2523,10 @@
         "sell": "Sell for {{amount}}",
         "queued": "AMC sale queued — it will sync automatically."
       },
+      "enquiryConfirm": {
+        "title": "Have you generated a new customer enquiry during this visit?",
+        "required": "Please answer this before completing the visit."
+      },
       "enquiry": {
         "toggle": "Generate Enquiry (optional)",
         "hint": "Only if the customer mentioned a new product or service interest — skip this if not.",
@@ -2475,7 +2549,14 @@
         "hint": "Optional — anything worth remembering about this visit.",
         "placeholder": "e.g. Customer requested next visit in the morning"
       },
-      "sopOverdue": "Over expected time"
+      "sopOverdue": "Over expected time",
+      "sopCompletedLate": "Completed {{minutes}} min late",
+      "overrunDialog": {
+        "title": "You're running behind schedule",
+        "body": "This visit has gone {{minutes}} min over its allowed time. Please wrap up as soon as you can.",
+        "acknowledge": "Got it"
+      },
+      "overrunBanner": "This job is taking longer than its allowed time."
     },
     "rating": {
       "noVisitTitle": "No visit found",
@@ -2866,7 +2947,8 @@
         "in_progress": "In progress"
       },
       "history": {
-        "notRated": "Not rated"
+        "notRated": "Not rated",
+        "wasLate": "Late"
       },
       "attendance": {
         "checkedInAt": "In: {{time}}",

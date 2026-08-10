@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { minutesBetween } from "@/lib/visit-duration"
 import type { Enums } from "@/types/database"
 
 export type DateRange = { from: string; to: string }
@@ -290,15 +291,6 @@ export type PerformanceRow = {
    *  `check_out_at - check_in_at`, days missing either timestamp skipped).
    *  Null if there's no on-duty time to divide by. */
   productivityJobsPerHour: number | null
-}
-
-// Same `end - start` → minutes diff used ad hoc by TicketDetailPage's
-// `minutesBetween` and HistoryDetailPage's duration computation — duplicated
-// here per this codebase's convention of not centralizing this small
-// date-math helper into a shared util.
-function minutesBetween(start: string | null, end: string | null) {
-  if (!start || !end) return null
-  return Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000)
 }
 
 export async function getPerformanceReport(orgId: string, range: DateRange): Promise<PerformanceRow[]> {

@@ -6,19 +6,25 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { PhotoCapture } from "../components/PhotoCapture"
+import { PaymentProofUpload } from "../components/PaymentProofUpload"
 import { SignaturePad } from "../components/SignaturePad"
 import { VoiceNoteRecorder } from "../components/VoiceNoteRecorder"
 import { SpareSelectStep, type SelectedSpare } from "./SpareSelectStep"
 import { SellAmcSection } from "./SellAmcSection"
+import { PaymentQRCode } from "@/app/customer/components/PaymentQRCode"
+import { OverrunBadge } from "../components/JobBadges"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { sopStepTemplatesHooks } from "@/hooks/useMasters"
+import { computeJobOverrun } from "@/lib/job-overrun"
+import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import {
   useCacheVisitSignature,
   useCacheVisitVoiceNote,
@@ -34,6 +40,7 @@ import {
   useRecordUpiPayment,
   useTechnicianPaymentSettings,
   useTechnicianSettings,
+  useUploadPaymentProof,
   useVerifyVisitOtp,
   useVisitPaymentState,
 } from "@/hooks/useTechnician"
@@ -48,9 +55,10 @@ import type { Enums } from "@/types/database"
 // inventory items (each carrying its admin-set standard time), not free
 // text — which means item selection has to happen BEFORE the checklist can
 // be built from it. "spares" moved ahead of "sop" for exactly that reason
-// (previously sop→spares); the before-photo capture that used to open the
-// flow now happens one step later, bundled into the "sop" screen as before —
-// see the sync effect below for how sopSteps gets seeded from selectedSpares.
+// (previously sop→spares). The before-photo capture lives on the "spares"
+// screen (first step of the visit); the "sop" screen holds only the
+// checklist — see the sync effect below for how sopSteps gets seeded from
+// selectedSpares.
 const STEP_KEYS = ["spares", "sop", "charges", "ro", "afterphoto", "invoice", "signatures", "payment"] as const
 // `spareId` is set only for a step auto-derived from a selected spare (GV.md
 // 1.1/D4) — undefined means a technician-added free-text step (still
@@ -58,9 +66,29 @@ const STEP_KEYS = ["spares", "sop", "charges", "ro", "afterphoto", "invoice", "s
 // diagnostic step with no matching spare, is explicitly out of v2.2 scope —
 // see the existing sopAllDone comment below). Purely a local reconciliation
 // key; service_sop_steps has no spare_id column, so it never gets queued.
-type SopStep = { id: string; name: string; expectedMinutes: number; doneAt: string | null; spareId?: string }
+type SopStep = {
+  id: string
+  name: string
+  expectedMinutes: number
+  doneAt: string | null
+  spareId?: string
+  mandatory?: boolean
+  /** Minutes over `expectedMinutes` at the moment this step was marked done — 0 if on time, undefined until toggled. Persists the transient "overdue" red flag past completion instead of it disappearing once checked off. */
+  overdueMinutes?: number
+}
 /** Fallback expected-minutes for a spare with no standard_time_minutes set yet (GV.md 1.1: null = "not yet timed" by admin). */
 const DEFAULT_SOP_STEP_MINUTES = 10
+// Task 6 — "Pasted the brand sticker on the product after service" is
+// seeded onto every visit's SOP checklist (not admin/picker-driven, unlike
+// every other step here) and can't be removed. Because canAdvanceFrom("sop")
+// already requires every checklist item done (sopAllDone) before the
+// technician can leave this step, and "afterphoto" only comes later in
+// STEP_KEYS, this one seeded item is enough to gate the after-service image
+// upload behind it — no separate visibility condition needed on that step.
+const BRAND_STICKER_STEP_ID = "__brand_sticker__"
+function makeBrandStickerStep(t: (key: string) => string): SopStep {
+  return { id: BRAND_STICKER_STEP_ID, name: t("technician.onsite.sopBrandStickerStep"), expectedMinutes: DEFAULT_SOP_STEP_MINUTES, doneAt: null, mandatory: true }
+}
 
 const textareaClass =
   "w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
@@ -84,6 +112,8 @@ type VisitDraftData = {
   evidenceImages: string[]
   selectedSpares: SelectedSpare[]
   discountInput: string
+  discountMode: "percent" | "amount"
+  discountAmountInput: string
   serviceChargeInput: string
   tdsBefore: string
   tdsAfter: string
@@ -95,6 +125,8 @@ type VisitDraftData = {
   paymentMethod: Enums<"payment_method">
   txnId: string
   paymentDescription: string
+  enquiryGenerated: boolean | null
+  paymentProofUploaded: boolean
   step: number
   invoiceQueued: boolean
   showEnquiry: boolean
@@ -135,12 +167,19 @@ export function OnSiteVisitPage() {
   const generateOtp = useGenerateVisitOtp()
   const verifyOtp = useVerifyVisitOtp()
   const recordUpiPayment = useRecordUpiPayment()
+  const uploadPaymentProof = useUploadPaymentProof()
   const cacheSignature = useCacheVisitSignature()
   const cacheVoiceNote = useCacheVisitVoiceNote()
 
   const [visitId, setVisitId] = useState<string | null>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const elapsedSec = useVisitTimer(startedAt)
+  // Whole-visit overrun popup: fires exactly once per visit the instant the
+  // technician crosses the allowed time, regardless of which checklist step
+  // is active (see `overrun` below) — a new visitId re-arms it for the next
+  // visit.
+  const [overrunDialogOpen, setOverrunDialogOpen] = useState(false)
+  const overrunAcknowledgedForVisitRef = useRef<string | null>(null)
 
   const [beforeImage, setBeforeImage] = useState<string | null>(null)
   const [afterImage, setAfterImage] = useState<string | null>(null)
@@ -160,6 +199,13 @@ export function OnSiteVisitPage() {
 
   const [selectedSpares, setSelectedSpares] = useState<SelectedSpare[]>([])
   const [discountInput, setDiscountInput] = useState("0")
+  // Task 1 — technician can enter the discount as a ₹ amount instead of a
+  // %; the underlying `discountPercent` (derived below, right after
+  // `subtotal`) stays the single source of truth either way, so every
+  // downstream consumer (validation, invoice total, create_service_invoice
+  // payload) is unaffected by which mode was used to arrive at it.
+  const [discountMode, setDiscountMode] = useState<"percent" | "amount">("percent")
+  const [discountAmountInput, setDiscountAmountInput] = useState("0")
   const [serviceChargeInput, setServiceChargeInput] = useState("0")
 
   const [tdsBefore, setTdsBefore] = useState("")
@@ -175,6 +221,16 @@ export function OnSiteVisitPage() {
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  // Task 5 — mandatory "did you generate a new customer enquiry during this
+  // visit?" confirmation. `null` means unanswered; verify_visit_otp rejects
+  // a null value server-side, so this can never silently complete unanswered.
+  const [enquiryGenerated, setEnquiryGenerated] = useState<boolean | null>(null)
+  const [enquiryConfirmError, setEnquiryConfirmError] = useState<string | null>(null)
+  // Task 2 — set once record_payment_proof succeeds; verify_visit_otp
+  // completion is blocked below (handlePaymentSubmit) until this is true
+  // for a UPI-paid visit.
+  const [paymentProofUploaded, setPaymentProofUploaded] = useState(false)
+  const [paymentProofError, setPaymentProofError] = useState<string | null>(null)
 
   // GV.md §2 — OTP completion confirmation. Deliberately NOT part of
   // VisitDraftData/local autosave: the code the technician types is
@@ -305,10 +361,15 @@ export function OnSiteVisitPage() {
       if (d.afterImage) setAfterImage(d.afterImage)
       if (d.visitNotes) setVisitNotes(d.visitNotes)
       if (d.voiceNoteUrl) setVoiceNoteUrl(d.voiceNoteUrl)
-      if (d.sopSteps?.length) setSopSteps(d.sopSteps)
+      if (d.sopSteps?.length) {
+        const hasStickerStep = d.sopSteps.some((s) => s.id === BRAND_STICKER_STEP_ID)
+        setSopSteps(hasStickerStep ? d.sopSteps : [...d.sopSteps, makeBrandStickerStep(t)])
+      }
       if (d.evidenceImages?.length) setEvidenceImages(d.evidenceImages)
       if (d.selectedSpares?.length) setSelectedSpares(d.selectedSpares)
       if (d.discountInput != null) setDiscountInput(d.discountInput)
+      if (d.discountMode) setDiscountMode(d.discountMode)
+      if (d.discountAmountInput != null) setDiscountAmountInput(d.discountAmountInput)
       if (d.serviceChargeInput != null) setServiceChargeInput(d.serviceChargeInput)
       if (d.tdsBefore != null) setTdsBefore(d.tdsBefore)
       if (d.tdsAfter != null) setTdsAfter(d.tdsAfter)
@@ -320,6 +381,8 @@ export function OnSiteVisitPage() {
       if (d.paymentMethod) setPaymentMethod(d.paymentMethod)
       if (d.txnId) setTxnId(d.txnId)
       if (d.paymentDescription) setPaymentDescription(d.paymentDescription)
+      if (d.enquiryGenerated !== undefined) setEnquiryGenerated(d.enquiryGenerated)
+      if (d.paymentProofUploaded) setPaymentProofUploaded(d.paymentProofUploaded)
       if (d.step != null) {
         const restoredStep = d.step
         setStep(restoredStep)
@@ -334,6 +397,7 @@ export function OnSiteVisitPage() {
       setDraftRestored(true)
       setDraftHydrated(true)
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketId])
 
   // Debounced local autosave — covers every text/selection field that has no
@@ -350,6 +414,8 @@ export function OnSiteVisitPage() {
     evidenceImages,
     selectedSpares,
     discountInput,
+    discountMode,
+    discountAmountInput,
     serviceChargeInput,
     tdsBefore,
     tdsAfter,
@@ -361,6 +427,8 @@ export function OnSiteVisitPage() {
     paymentMethod,
     txnId,
     paymentDescription,
+    enquiryGenerated,
+    paymentProofUploaded,
     step,
     invoiceQueued,
     showEnquiry,
@@ -392,6 +460,8 @@ export function OnSiteVisitPage() {
     setEvidenceImages([])
     setSelectedSpares([])
     setDiscountInput("0")
+    setDiscountMode("percent")
+    setDiscountAmountInput("0")
     setServiceChargeInput("0")
     setTdsBefore("")
     setTdsAfter("")
@@ -403,6 +473,10 @@ export function OnSiteVisitPage() {
     setPaymentMethod("cash")
     setTxnId("")
     setPaymentDescription("")
+    setEnquiryGenerated(null)
+    setEnquiryConfirmError(null)
+    setPaymentProofUploaded(false)
+    setPaymentProofError(null)
     setOtpCode("")
     setOtpErrorKey(null)
     setOtpRemaining(null)
@@ -423,6 +497,57 @@ export function OnSiteVisitPage() {
   const ticket = jobDetail.data
   const chargeable = ticket ? isChargeableTicketType(ticket.type) : false
   const isRo = ticket?.products?.category === "ro"
+
+  // Whole-visit overrun — the AUTHORITATIVE "is the technician late" signal
+  // for this screen, using the same job-overrun.ts/job-allowance.ts pair
+  // already shared by 5 other screens. Never resets between checklist steps
+  // — measured from the visit's own timer_start the whole time it's open.
+  // Computed here (before the loading/error guards below) rather than
+  // alongside the per-step block further down, because the popup effect
+  // that reacts to it must itself run unconditionally on every render
+  // (Rules of Hooks) — see that effect below.
+  //
+  // Deliberately does NOT use computeTicketAllowedDuration (which sums the
+  // OPEN VISIT's server-side service_spares_used) — that junction table is
+  // only ever populated by create_service_invoice, called at the Invoice
+  // step (step 5 of 7). Right after Spares/SOP (steps 1-2), it's still
+  // empty server-side even though the technician has already picked spares
+  // and the checklist is already built from them, which made this compute a
+  // 0-item sum → fall back to the ticket's (often unset) type-default
+  // estimate → allowedDuration null → overrun never fires, no matter how
+  // late the visit actually runs. `selectedSpares` (local state, already
+  // driving the SOP checklist's own expectedMinutes below) is known the
+  // instant spares are picked, so summing from it instead keeps this in
+  // sync with reality throughout the visit, not just after the invoice is
+  // created.
+  const nowMs = startedAt != null ? startedAt + elapsedSec * 1000 : Date.now()
+  const openVisit = findOpenVisit(ticket?.service_visits ?? [])
+  const allowedDuration = computeAllowedDurationMinutes({
+    itemsStandardMinutesSum: sumItemStandardMinutes(selectedSpares.map((s) => ({ qty: s.qty, standardTimeMinutes: s.standardTimeMinutes }))),
+    ticketEstimatedDurationMinutes: ticket?.estimated_duration_minutes ?? null,
+    reviewAllowanceMinutes: settings.data?.review_time_allowance_minutes ?? 0,
+    enquiryAllowanceMinutes: settings.data?.enquiry_time_allowance_minutes ?? 0,
+    // A review can only be collected after the visit closes (RatingPage runs
+    // post-completion) — always false for a still-open visit, same rule
+    // job-allowance.ts's own doc comment already documents for every caller.
+    reviewCollected: false,
+    enquiryLoggedThisVisit: enquirySent,
+  })
+  const overrun = computeJobOverrun(
+    { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
+    nowMs
+  )
+
+  // Fires the one-time acknowledge-required popup the instant the visit
+  // crosses into overrun, regardless of which checklist step is active —
+  // never re-fires for the same visitId once acknowledged (see the ref's
+  // declaration above); a new visit gets a fresh visitId so it can fire again.
+  useEffect(() => {
+    if (!overrun.isOverrun || !visitId) return
+    if (overrunAcknowledgedForVisitRef.current === visitId) return
+    overrunAcknowledgedForVisitRef.current = visitId
+    setOverrunDialogOpen(true)
+  }, [overrun.isOverrun, visitId])
 
   // Task 5 — SOP steps not covered by a spare are picked from this
   // admin-curated list instead of free-typed: templates scoped to the
@@ -505,8 +630,11 @@ export function OnSiteVisitPage() {
       // unless it's already marked done, in which case completed work is
       // never silently erased from the checklist.
       const doneButDeselected = prev.filter((s) => s.spareId && !selectedIds.has(s.spareId) && s.doneAt)
-      const manual = prev.filter((s) => !s.spareId)
-      return [...forSelected, ...doneButDeselected, ...manual]
+      const manual = prev.filter((s) => !s.spareId && s.id !== BRAND_STICKER_STEP_ID)
+      // Task 6 — always present, reusing the existing one (keeps its doneAt)
+      // if this visit already has it, otherwise seeding a fresh one.
+      const stickerStep = prev.find((s) => s.id === BRAND_STICKER_STEP_ID) ?? makeBrandStickerStep(t)
+      return [...forSelected, ...doneButDeselected, ...manual, stickerStep]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSpares])
@@ -538,13 +666,30 @@ export function OnSiteVisitPage() {
 
   const techMax = Number(settings.data.discount_tech_max)
   const adminMax = Number(settings.data.discount_admin_max)
-  const discountPercent = Math.max(0, Number(discountInput) || 0)
   const serviceCharge = chargeable ? Math.max(0, Number(serviceChargeInput) || 0) : 0
 
   const spareLinesTotal = selectedSpares.reduce((sum, s) => sum + (chargeable ? s.price * s.qty : 0), 0)
   const subtotal = serviceCharge + spareLinesTotal
+  // Task 1 — ₹-amount entry mode converts to the equivalent % against this
+  // visit's own subtotal; every existing consumer below (blocked/approval
+  // banners, invoice total, create_service_invoice payload) only ever sees
+  // the resulting `discountPercent`, so the admin's existing % policy and
+  // approval logic apply identically regardless of which mode was used.
+  const discountPercent =
+    discountMode === "amount"
+      ? subtotal > 0
+        ? Math.max(0, ((Number(discountAmountInput) || 0) / subtotal) * 100)
+        : 0
+      : Math.max(0, Number(discountInput) || 0)
   const discountAmount = (subtotal * discountPercent) / 100
   const invoiceTotal = Math.max(0, subtotal - discountAmount)
+  // Technician-side payment QR: shown for both "transfer" and "upi" so the
+  // technician can present their own screen when the customer doesn't have
+  // their booking page open (previously the QR only ever rendered on the
+  // customer's own device — see PaymentStatusCard). Same payment_enabled
+  // gate PaymentStatusCard.tsx uses, plus an amount check since a ₹0/free
+  // job has nothing to collect.
+  const showPaymentQr = !!paymentSettings.data?.payment_enabled && !!paymentSettings.data?.upi_id && invoiceTotal > 0
 
   const steps = STEP_KEYS.filter((k) => k !== "ro" || isRo).map((key) => ({ key, label: t(`technician.onsite.steps.${key}`) }))
   const activeStepKeys = STEP_KEYS.filter((k) => k !== "ro" || isRo)
@@ -554,6 +699,13 @@ export function OnSiteVisitPage() {
   // used, no extra template steps picked) must not be stuck forever waiting
   // for an item that will never be added.
   const sopAllDone = sopSteps.every((s) => s.doneAt)
+  // Task 6 — direct gate on the after-photo section itself, not just step
+  // order: a visit already past the "sop" step before this mandatory item
+  // existed would otherwise never be asked for it (canAdvanceFrom("sop")
+  // only ever re-checks at the moment of leaving that step, not
+  // retroactively for a visit that left it under the old rules).
+  const stickerStep = sopSteps.find((s) => s.id === BRAND_STICKER_STEP_ID)
+  const stickerStepDone = !!stickerStep?.doneAt
   const roValid = !isRo || roChecklistSchema.safeParse({
     tdsBefore: tdsBefore === "" ? undefined : Number(tdsBefore),
     tdsAfter: tdsAfter === "" ? undefined : Number(tdsAfter),
@@ -562,30 +714,51 @@ export function OnSiteVisitPage() {
     clientName: roClientName,
   }).success
 
-  // Purely visual "over expected time" flag. Compares live elapsed time
-  // against the step's own `expectedMinutes` (the spare's standard_time or
-  // the picked template's default_expected_minutes — see addSopStep below).
-  // The "current" step is the first one not yet marked
-  // done; its start is either the previous step's doneAt timestamp or, for
-  // the first step, the visit's own timer_start — both already-recorded
-  // technician data, nothing new is captured for this. `nowMs` derives from
-  // the already-ticking `elapsedSec` (useVisitTimer) rather than a fresh
-  // Date.now()/interval, so this recomputes on the same per-second tick the
-  // header timer already uses.
+  // Purely visual, NON-AUTHORITATIVE "over expected time" hint for the
+  // current step only. Compares live elapsed time against the step's own
+  // `expectedMinutes` (the spare's standard_time or the picked template's
+  // default_expected_minutes — see addSopStep below). The "current" step is
+  // the first one not yet marked done; its start is either the previous
+  // step's doneAt timestamp or, for the first step, the visit's own
+  // timer_start — both already-recorded technician data, nothing new is
+  // captured for this. `nowMs` derives from the already-ticking `elapsedSec`
+  // (useVisitTimer) rather than a fresh Date.now()/interval, so this
+  // recomputes on the same per-second tick the header timer already uses.
+  //
+  // Deliberately RESETS to 0 every time a step is marked done (measured from
+  // that step's own start, not the visit's) — this is fine for its purpose
+  // (flagging "this one step is dragging"), but it must never be read as the
+  // overall "is the technician late" signal: a technician who spends 20 min
+  // on a single 10-min step, then moves on, would otherwise show as
+  // "on time" the instant they advance, even though the whole job is already
+  // 10 min behind. `overrun` (computed earlier, alongside `nowMs`, right
+  // after `ticket` — see its own comment) is the whole-visit, never-resets
+  // authoritative signal for that.
   const currentSopStepIndex = sopSteps.findIndex((s) => !s.doneAt)
   const currentSopStep = currentSopStepIndex >= 0 ? sopSteps[currentSopStepIndex] : null
   const currentSopStepStartMs =
     currentSopStepIndex > 0 ? new Date(sopSteps[currentSopStepIndex - 1].doneAt!).getTime() : startedAt
-  const nowMs = startedAt != null ? startedAt + elapsedSec * 1000 : Date.now()
   const currentSopStepElapsedMin = currentSopStepStartMs != null ? (nowMs - currentSopStepStartMs) / 60_000 : 0
   const isCurrentSopStepOverdue = !!currentSopStep && currentSopStepElapsedMin > currentSopStep.expectedMinutes
 
+  // Technician request (2026-08-07): same start-time derivation as
+  // currentSopStepStartMs above, but generalized to any step being toggled —
+  // items aren't required to be completed strictly in order (any not-done
+  // row's circle is clickable), so the step actually being marked done here
+  // isn't always sopSteps[currentSopStepIndex].
+  function sopStepStartMs(step: SopStep): number | null {
+    const idx = sopSteps.findIndex((s) => s.id === step.id)
+    if (idx <= 0) return startedAt
+    const prevDoneAt = sopSteps[idx - 1].doneAt
+    return prevDoneAt ? new Date(prevDoneAt).getTime() : startedAt
+  }
+
   function canAdvanceFrom(key: (typeof STEP_KEYS)[number]) {
-    if (key === "sop") return !!beforeImage && sopAllDone
-    if (key === "spares") return true
+    if (key === "sop") return sopAllDone
+    if (key === "spares") return !!beforeImage
     if (key === "charges") return !isDiscountBlocked(discountPercent, adminMax)
     if (key === "ro") return roValid
-    if (key === "afterphoto") return !!afterImage
+    if (key === "afterphoto") return !!afterImage && stickerStepDone
     if (key === "invoice") return invoiceQueued
     if (key === "signatures") return !!techSign && !!customerSign
     return true
@@ -594,8 +767,11 @@ export function OnSiteVisitPage() {
   async function toggleSopStep(s: SopStep) {
     if (s.doneAt || !visitId || !profile) return
     const doneAt = new Date().toISOString()
-    setSopSteps((prev) => prev.map((p) => (p.id === s.id ? { ...p, doneAt } : p)))
-    await queueSopStepComplete.mutateAsync({ id: s.id, orgId: profile.org_id, visitId, stepName: s.name, expectedMinutes: s.expectedMinutes, doneAt })
+    const startMs = sopStepStartMs(s)
+    const elapsedMin = startMs != null ? (new Date(doneAt).getTime() - startMs) / 60_000 : 0
+    const overdueMinutes = Math.max(0, Math.round(elapsedMin - s.expectedMinutes))
+    setSopSteps((prev) => prev.map((p) => (p.id === s.id ? { ...p, doneAt, overdueMinutes } : p)))
+    await queueSopStepComplete.mutateAsync({ id: s.id, orgId: profile.org_id, visitId, stepName: s.name, expectedMinutes: s.expectedMinutes, doneAt, overdueMinutes })
   }
 
   function addSopStep() {
@@ -609,6 +785,7 @@ export function OnSiteVisitPage() {
   }
 
   function removeSopStep(id: string) {
+    if (id === BRAND_STICKER_STEP_ID) return
     setSopSteps((prev) => prev.filter((s) => s.id !== id))
   }
 
@@ -684,6 +861,17 @@ export function OnSiteVisitPage() {
     }
     setPaymentError(null)
 
+    if (isUpi && !paymentProofUploaded) {
+      setPaymentProofError("technician.onsite.paymentProof.errors.required")
+      return
+    }
+
+    if (enquiryGenerated === null) {
+      setEnquiryConfirmError("technician.onsite.enquiryConfirm.required")
+      return
+    }
+    setEnquiryConfirmError(null)
+
     const trimmedCode = otpCode.trim()
     if (!trimmedCode) {
       setOtpErrorKey("technician.onsite.otp.errors.required")
@@ -698,7 +886,7 @@ export function OnSiteVisitPage() {
     setOtpErrorKey(null)
     setOtpRemaining(null)
     try {
-      const outcome = await verifyOtp.mutateAsync({ orgId: profile.org_id, visitId, code: trimmedCode, notes: visitNotes })
+      const outcome = await verifyOtp.mutateAsync({ orgId: profile.org_id, visitId, code: trimmedCode, enquiryGenerated, notes: visitNotes })
       if (!outcome.ok) {
         setOtpRemaining(outcome.remaining_attempts)
         setOtpErrorKey("technician.onsite.otp.errors.incorrect")
@@ -778,18 +966,54 @@ export function OnSiteVisitPage() {
 
   return (
     <div className="space-y-4 pt-2 pb-24">
+      <Dialog
+        open={overrunDialogOpen}
+        onOpenChange={(open, eventDetails) => {
+          // Only the explicit acknowledge button (DialogClose below) may
+          // close this — an Escape-key attempt is cancelled here, and
+          // disablePointerDismissal (below) blocks outside-press. A silent
+          // dismiss would defeat the point of an interruptive, must-
+          // acknowledge alert.
+          if (eventDetails.reason === "escape-key") {
+            eventDetails.cancel()
+            return
+          }
+          setOverrunDialogOpen(open)
+        }}
+        disablePointerDismissal
+      >
+        <DialogContent showClose={false}>
+          <DialogTitle>{t("technician.onsite.overrunDialog.title")}</DialogTitle>
+          <DialogDescription>
+            {t("technician.onsite.overrunDialog.body", { minutes: Math.round(overrun.overrunByMinutes ?? 0) })}
+          </DialogDescription>
+          <DialogClose asChild>
+            <Button type="button" className="mt-2 w-full">
+              {t("technician.onsite.overrunDialog.acknowledge")}
+            </Button>
+          </DialogClose>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-text">{t("technician.onsite.title")}</h1>
         <span
           className={cn(
             "rounded-full px-3 py-1 font-mono text-sm font-semibold",
-            isCurrentSopStepOverdue ? "bg-danger text-white" : "bg-primary text-primary-foreground"
+            overrun.isOverrun ? "bg-danger text-white" : "bg-primary text-primary-foreground"
           )}
         >
           {minutes}:{seconds}
         </span>
       </div>
       <p className="px-1 text-sm text-text-muted">{ticket.customers?.name} — {ticket.products?.name ?? ticket.name_of_complaint}</p>
+
+      {overrun.isOverrun ? (
+        <Card className="flex-row items-center gap-2 border-danger/40 bg-danger/5 px-4">
+          <OverrunBadge overrunByMinutes={overrun.overrunByMinutes!} />
+          <p className="text-xs text-danger">{t("technician.onsite.overrunBanner")}</p>
+        </Card>
+      ) : null}
 
       <div className="flex items-center justify-between gap-2 px-1">
         <p className="flex items-center gap-1.5 text-xs text-text-muted">
@@ -826,8 +1050,6 @@ export function OnSiteVisitPage() {
 
       {currentKey === "sop" ? (
         <div className="space-y-4">
-          <PhotoCapture label={t("technician.onsite.beforeImage")} dataUrl={beforeImage} onCaptured={handleBeforeImage} />
-
           <Card className="gap-3">
             <p className="px-1 text-sm font-semibold text-text">{t("technician.onsite.sopTitle")}</p>
             <p className="px-1 text-xs text-text-muted">{t("technician.onsite.sopHint")}</p>
@@ -837,12 +1059,20 @@ export function OnSiteVisitPage() {
               <div className="space-y-2">
                 {sopSteps.map((s, idx) => {
                   const isOverdue = idx === currentSopStepIndex && isCurrentSopStepOverdue
+                  // Technician request (2026-08-07) — unlike `isOverdue`
+                  // (only true for the current in-progress step, and
+                  // resolves back to "normal" the instant it's marked
+                  // done), this stays true forever once a step is
+                  // completed late, so the flag doesn't just silently
+                  // disappear on toggle.
+                  const completedLate = !!s.doneAt && !!s.overdueMinutes && s.overdueMinutes > 0
+                  const flagged = isOverdue || completedLate
                   return (
                     <div
                       key={s.id}
                       className={cn(
                         "flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5",
-                        isOverdue ? "border-danger bg-danger/5" : "border-border"
+                        flagged ? "border-danger bg-danger/5" : "border-border"
                       )}
                     >
                       <button
@@ -855,7 +1085,7 @@ export function OnSiteVisitPage() {
                       </button>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-text">{s.name}</p>
-                        <p className={cn("text-xs", isOverdue ? "font-medium text-danger" : "text-text-muted")}>
+                        <p className={cn("text-xs", flagged ? "font-medium text-danger" : "text-text-muted")}>
                           {t("technician.onsite.sopExpected", { minutes: s.expectedMinutes })}
                         </p>
                         {isOverdue ? (
@@ -863,8 +1093,13 @@ export function OnSiteVisitPage() {
                             <TriangleAlert className="size-3" /> {t("technician.onsite.sopOverdue")}
                           </p>
                         ) : null}
+                        {completedLate ? (
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-danger">
+                            <TriangleAlert className="size-3" /> {t("technician.onsite.sopCompletedLate", { minutes: s.overdueMinutes })}
+                          </p>
+                        ) : null}
                       </div>
-                      {!s.doneAt ? (
+                      {!s.doneAt && !s.mandatory ? (
                         pendingRemoveStepId === s.id ? (
                           <div className="flex shrink-0 items-center gap-1">
                             <Button
@@ -942,7 +1177,10 @@ export function OnSiteVisitPage() {
       ) : null}
 
       {currentKey === "spares" ? (
-        <SpareSelectStep orgId={profile?.org_id} productId={ticket.product_id} selected={selectedSpares} onChange={setSelectedSpares} />
+        <div className="space-y-4">
+          <PhotoCapture label={t("technician.onsite.beforeImage")} dataUrl={beforeImage} onCaptured={handleBeforeImage} />
+          <SpareSelectStep orgId={profile?.org_id} complaintTypeId={ticket.complaint_type_id} selected={selectedSpares} onChange={setSelectedSpares} />
+        </div>
       ) : null}
 
       {currentKey === "charges" ? (
@@ -955,7 +1193,31 @@ export function OnSiteVisitPage() {
 
           <div className="space-y-1.5 px-1">
             <Label htmlFor="discount">{t("technician.onsite.charges.discountLabel")}</Label>
-            <Input id="discount" type="number" min={0} max={adminMax} step="0.5" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-32" />
+            <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
+              {(["percent", "amount"] as const).map((m) => (
+                <SegButton key={m} active={discountMode === m} onClick={() => setDiscountMode(m)}>
+                  {t(`technician.onsite.charges.discountMode.${m}`)}
+                </SegButton>
+              ))}
+            </div>
+            {discountMode === "amount" ? (
+              <>
+                <Input
+                  id="discountAmount"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={discountAmountInput}
+                  onChange={(e) => setDiscountAmountInput(e.target.value)}
+                  className="w-32"
+                />
+                <p className="text-xs text-text-muted">
+                  {t("technician.onsite.charges.computedPercent", { percent: discountPercent.toFixed(1) })}
+                </p>
+              </>
+            ) : (
+              <Input id="discount" type="number" min={0} max={adminMax} step="0.5" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-32" />
+            )}
             <p className="text-xs text-text-muted">{t("technician.onsite.charges.freeUpTo", { max: techMax })}</p>
             <p className="text-xs text-warning">{t("technician.onsite.charges.approvalBand", { min: techMax, max: adminMax })}</p>
             <p className="text-xs text-danger">{t("technician.onsite.charges.blockedAbove", { max: adminMax })}</p>
@@ -1019,91 +1281,118 @@ export function OnSiteVisitPage() {
 
       {currentKey === "afterphoto" ? (
         <div className="space-y-4">
-          <p className="px-1 text-sm text-text-muted">{t("technician.onsite.afterImageHint")}</p>
-          <PhotoCapture label={t("technician.onsite.afterImage")} dataUrl={afterImage} onCaptured={handleAfterImage} />
-
-          {/* Task 6 — additional evidence: damaged/replaced/installed parts,
-              beyond the single before/after image. */}
-          <Card className="gap-2">
-            <p className="px-1 text-sm font-medium text-text">{t("technician.onsite.evidence.title")}</p>
-            <p className="px-1 text-xs text-text-muted">{t("technician.onsite.evidence.hint")}</p>
-            {evidenceImages.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2 px-1">
-                {evidenceImages.map((url, idx) => (
-                  <div key={idx} className="relative">
-                    <img src={url} alt="" className="aspect-square w-full rounded-lg border border-border object-cover" />
-                    {pendingRemoveEvidenceIndex === idx ? (
-                      <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-lg bg-bg/90">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon-xs"
-                          aria-label={t("common.cancel")}
-                          onClick={() => {
-                            if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
-                            setPendingRemoveEvidenceIndex(null)
-                          }}
-                        >
-                          <X className="size-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon-xs"
-                          aria-label={t("common.remove")}
-                          onClick={() => {
-                            if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
-                            void removeEvidencePhoto(idx)
-                            setPendingRemoveEvidenceIndex(null)
-                          }}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon-xs"
-                        aria-label={t("common.remove")}
-                        className="absolute top-1 right-1 rounded-full"
-                        onClick={() => {
-                          setPendingRemoveEvidenceIndex(idx)
-                          if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
-                          pendingRemoveEvidenceTimeoutRef.current = setTimeout(() => setPendingRemoveEvidenceIndex(null), 4000)
-                        }}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+          {/* Task 6 — the brand-sticker checklist item is confirmable right
+              here (not just back on the "sop" step) so the technician never
+              has to leave this screen to unlock the photo upload below;
+              toggleSopStep is the same handler the SOP step itself uses, so
+              marking it done here is the exact same server-synced action. */}
+          <Card className={cn("gap-2", !stickerStepDone && "border-warning/60 bg-warning/5")}>
+            <p className="px-1 text-sm font-semibold text-text">{t("technician.onsite.afterPhotoLocked.title")}</p>
+            {stickerStep ? (
+              <div className="flex items-center gap-2.5 rounded-xl border border-border px-3.5 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => toggleSopStep(stickerStep)}
+                  disabled={stickerStepDone}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-alt text-text-muted disabled:opacity-100"
+                >
+                  {stickerStepDone ? <CheckCircle2 className="size-6 text-success" /> : null}
+                </button>
+                <p className="text-sm text-text">{stickerStep.name}</p>
               </div>
             ) : null}
-            <PhotoCapture label={t("technician.onsite.evidence.addLabel")} dataUrl={null} onCaptured={handleAddEvidencePhoto} />
+            {!stickerStepDone ? <p className="px-1 text-xs text-text-muted">{t("technician.onsite.afterPhotoLocked.hint")}</p> : null}
           </Card>
 
-          <Card className="gap-2">
-            <div className="space-y-1 px-1">
-              <Label htmlFor="visitNotes">{t("technician.onsite.visitNotes.label")}</Label>
-              <p className="text-xs text-text-muted">{t("technician.onsite.visitNotes.hint")}</p>
-            </div>
-            <textarea
-              id="visitNotes"
-              value={visitNotes}
-              onChange={(e) => setVisitNotes(e.target.value)}
-              placeholder={t("technician.onsite.visitNotes.placeholder")}
-              rows={4}
-              className={textareaClass}
-            />
-          </Card>
+          {stickerStepDone ? (
+            <>
+              <p className="px-1 text-sm text-text-muted">{t("technician.onsite.afterImageHint")}</p>
+              <PhotoCapture label={t("technician.onsite.afterImage")} dataUrl={afterImage} onCaptured={handleAfterImage} />
 
-          <Card className="gap-2">
-            <div className="space-y-1 px-1">
-              <p className="text-xs text-text-muted">{t("technician.voiceNote.hint")}</p>
-            </div>
-            <VoiceNoteRecorder label={t("technician.voiceNote.label")} dataUrl={voiceNoteUrl} onChange={handleVoiceNote} />
-          </Card>
+              {/* Task 6 — additional evidence: damaged/replaced/installed parts,
+                  beyond the single before/after image. */}
+              <Card className="gap-2">
+                <p className="px-1 text-sm font-medium text-text">{t("technician.onsite.evidence.title")}</p>
+                <p className="px-1 text-xs text-text-muted">{t("technician.onsite.evidence.hint")}</p>
+                {evidenceImages.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2 px-1">
+                    {evidenceImages.map((url, idx) => (
+                      <div key={idx} className="relative">
+                        <img src={url} alt="" className="aspect-square w-full rounded-lg border border-border object-cover" />
+                        {pendingRemoveEvidenceIndex === idx ? (
+                          <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-lg bg-bg/90">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon-xs"
+                              aria-label={t("common.cancel")}
+                              onClick={() => {
+                                if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
+                                setPendingRemoveEvidenceIndex(null)
+                              }}
+                            >
+                              <X className="size-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon-xs"
+                              aria-label={t("common.remove")}
+                              onClick={() => {
+                                if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
+                                void removeEvidencePhoto(idx)
+                                setPendingRemoveEvidenceIndex(null)
+                              }}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon-xs"
+                            aria-label={t("common.remove")}
+                            className="absolute top-1 right-1 rounded-full"
+                            onClick={() => {
+                              setPendingRemoveEvidenceIndex(idx)
+                              if (pendingRemoveEvidenceTimeoutRef.current) clearTimeout(pendingRemoveEvidenceTimeoutRef.current)
+                              pendingRemoveEvidenceTimeoutRef.current = setTimeout(() => setPendingRemoveEvidenceIndex(null), 4000)
+                            }}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <PhotoCapture label={t("technician.onsite.evidence.addLabel")} dataUrl={null} onCaptured={handleAddEvidencePhoto} />
+              </Card>
+
+              <Card className="gap-2">
+                <div className="space-y-1 px-1">
+                  <Label htmlFor="visitNotes">{t("technician.onsite.visitNotes.label")}</Label>
+                  <p className="text-xs text-text-muted">{t("technician.onsite.visitNotes.hint")}</p>
+                </div>
+                <textarea
+                  id="visitNotes"
+                  value={visitNotes}
+                  onChange={(e) => setVisitNotes(e.target.value)}
+                  placeholder={t("technician.onsite.visitNotes.placeholder")}
+                  rows={4}
+                  className={textareaClass}
+                />
+              </Card>
+
+              <Card className="gap-2">
+                <div className="space-y-1 px-1">
+                  <p className="text-xs text-text-muted">{t("technician.voiceNote.hint")}</p>
+                </div>
+                <VoiceNoteRecorder label={t("technician.voiceNote.label")} dataUrl={voiceNoteUrl} onChange={handleVoiceNote} />
+              </Card>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -1168,29 +1457,78 @@ export function OnSiteVisitPage() {
             ))}
           </div>
           {paymentMethod === "transfer" ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="txnId">{t("technician.onsite.payment.txnId")}</Label>
-                <Input id="txnId" value={txnId} onChange={(e) => setTxnId(e.target.value)} />
+            <>
+              {showPaymentQr ? (
+                <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
+                  <p className="text-sm font-semibold text-text">{t("technician.onsite.payment.qr.title")}</p>
+                  <p className="text-xs text-text-muted">{t("technician.onsite.payment.qr.hint")}</p>
+                  <PaymentQRCode
+                    upiId={paymentSettings.data!.upi_id}
+                    merchantName={paymentSettings.data!.merchant_name}
+                    amount={invoiceTotal}
+                    invoiceNumber={visitId ?? ticket.id}
+                  />
+                </div>
+              ) : null}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="txnId">{t("technician.onsite.payment.txnId")}</Label>
+                  <Input id="txnId" value={txnId} onChange={(e) => setTxnId(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="paymentDescription">{t("technician.onsite.payment.description")}</Label>
+                  <Input id="paymentDescription" value={paymentDescription} onChange={(e) => setPaymentDescription(e.target.value)} />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="paymentDescription">{t("technician.onsite.payment.description")}</Label>
-                <Input id="paymentDescription" value={paymentDescription} onChange={(e) => setPaymentDescription(e.target.value)} />
-              </div>
-            </div>
+            </>
           ) : null}
-          {!isUpi ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p> : null}
+          {paymentMethod === "cash" ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p> : null}
           {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
 
           {isUpi ? (
             isUpiPaid ? (
-              <p className="flex items-center gap-1.5 rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success">
-                <CheckCircle2 className="size-4" /> {t("technician.onsite.payment.upiCollect.confirmed")}
-              </p>
+              <>
+                <p className="flex items-center gap-1.5 rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success">
+                  <CheckCircle2 className="size-4" /> {t("technician.onsite.payment.upiCollect.confirmed")}
+                </p>
+                <PaymentProofUpload
+                  uploaded={paymentProofUploaded}
+                  uploading={uploadPaymentProof.isPending}
+                  error={paymentProofError}
+                  onSelectFile={(file, transactionReference) => {
+                    if (!visitId || !profile) return
+                    setPaymentProofError(null)
+                    uploadPaymentProof.mutate(
+                      { orgId: profile.org_id, visitId, file, transactionReference: transactionReference.trim() || undefined },
+                      {
+                        onSuccess: () => setPaymentProofUploaded(true),
+                        onError: (err) => {
+                          const message = err instanceof Error ? err.message : String(err)
+                          setPaymentProofError(
+                            message.includes("invoice_pending")
+                              ? t("technician.onsite.paymentProof.errors.invoicePending")
+                              : message.includes("payment_missing")
+                                ? t("technician.onsite.paymentProof.errors.paymentMissing")
+                                : t("technician.onsite.paymentProof.errors.uploadFailed")
+                          )
+                        },
+                      }
+                    )
+                  }}
+                />
+              </>
             ) : (
               <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
                 <p className="text-sm font-semibold text-text">{t("technician.onsite.payment.upiCollect.title")}</p>
                 <p className="text-xs text-text-muted">{t("technician.onsite.payment.upiCollect.hint")}</p>
+                {showPaymentQr ? (
+                  <PaymentQRCode
+                    upiId={paymentSettings.data!.upi_id}
+                    merchantName={paymentSettings.data!.merchant_name}
+                    amount={invoiceTotal}
+                    invoiceNumber={visitId ?? ticket.id}
+                  />
+                ) : null}
                 <Button
                   type="button"
                   onClick={() => {
@@ -1215,6 +1553,27 @@ export function OnSiteVisitPage() {
 
           {!isUpi || isUpiPaid ? (
             <>
+              <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
+                <p className="text-sm font-semibold text-text">{t("technician.onsite.enquiryConfirm.title")}</p>
+                <div className="flex gap-2">
+                  {[true, false].map((v) => (
+                    <Button
+                      key={String(v)}
+                      type="button"
+                      size="sm"
+                      variant={enquiryGenerated === v ? "default" : "outline"}
+                      onClick={() => {
+                        setEnquiryGenerated(v)
+                        setEnquiryConfirmError(null)
+                      }}
+                    >
+                      {v ? t("common.yes") : t("common.no")}
+                    </Button>
+                  ))}
+                </div>
+                {enquiryConfirmError ? <p className="text-xs text-danger">{t(enquiryConfirmError)}</p> : null}
+              </div>
+
               <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
                 <p className="text-sm font-semibold text-text">{t("technician.onsite.otp.title")}</p>
                 <p className="text-xs text-text-muted">{t("technician.onsite.otp.hint")}</p>

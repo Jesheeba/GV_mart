@@ -403,14 +403,20 @@ export async function listTechnicianRewards(technicianId: string, limit = 20): P
 export type TechnicianHistoryTicket = Tables<"service_tickets"> & {
   customers: { name: string; mobile: string } | null
   products: { name: string } | null
-  service_visits: { timer_start: string | null; timer_end: string | null; ratings: { stars: number } | null }[]
+  service_visits: {
+    timer_start: string | null
+    timer_end: string | null
+    actual_duration_minutes: number | null
+    completed_late: boolean | null
+    ratings: { stars: number } | null
+  }[]
 }
 
 export async function getTechnicianTicketHistory(technicianId: string): Promise<TechnicianHistoryTicket[]> {
   const { data, error } = await supabase
     .from("service_tickets")
     .select(
-      "*, customers(name, mobile), products(name), appointments!inner(technician_id), service_visits(timer_start, timer_end, ratings(stars))"
+      "*, customers(name, mobile), products(name), appointments!inner(technician_id), service_visits(timer_start, timer_end, actual_duration_minutes, completed_late, ratings(stars))"
     )
     .eq("appointments.technician_id", technicianId)
     .order("created_at", { ascending: false })
@@ -427,10 +433,13 @@ export async function getTechnicianTicketHistory(technicianId: string): Promise<
  * Rows whose picked visit isn't actually completed render no duration/rating
  * at all (see HistoryTab in TechnicianDetailPage.tsx) — this only decides
  * *which* visit to look at, not whether to display it.
+ *
+ * Generic over the visit shape (only timer_start/timer_end are required) so
+ * getCustomerTimeline (customers.ts) — which has no use for star ratings but
+ * does need actual_duration_minutes/completed_late — can reuse this same
+ * picker instead of a duplicate, with its own fields preserved on the return.
  */
-export function pickHistoryVisit(
-  visits: { timer_start: string | null; timer_end: string | null; ratings: { stars: number } | null }[]
-) {
+export function pickHistoryVisit<T extends { timer_start: string | null; timer_end: string | null }>(visits: T[]): T | null {
   const completed = visits.filter((v) => v.timer_start && v.timer_end)
   if (completed.length > 0) return completed[completed.length - 1]
   return visits[visits.length - 1] ?? null

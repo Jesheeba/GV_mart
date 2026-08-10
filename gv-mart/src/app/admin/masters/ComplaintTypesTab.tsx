@@ -1,8 +1,12 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import { Wrench } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { complaintTypesHooks } from "@/hooks/useMasters"
 import type { ComplaintTypeRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
+import { ComplaintTypeSparesPanel } from "./ComplaintTypeSparesPanel"
 
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
 
@@ -29,6 +33,12 @@ export function ComplaintTypesTab() {
   const createMut = complaintTypesHooks.useCreate()
   const updateMut = complaintTypesHooks.useUpdate()
   const deleteMut = complaintTypesHooks.useDelete()
+
+  // Issue-based spare suggestions (2026-08-06) — complaint_type<->spares
+  // connector (see ComplaintTypeSparesPanel.tsx), same per-row-action
+  // pattern as ProductsTab.tsx's spares/complaints columns.
+  const [sparesComplaintTypeId, setSparesComplaintTypeId] = useState<string | null>(null)
+  const sparesComplaintType = rows.find((r) => r.id === sparesComplaintTypeId)
 
   const fields: CrudFieldDef[] = [
     {
@@ -57,6 +67,16 @@ export function ComplaintTypesTab() {
         columns={[
           { key: "category", header: t("masters.complaintTypes.category"), render: (r) => t(`masters.categories.${r.product_category}`) },
           { key: "label", header: t("masters.complaintTypes.label"), render: (r) => <span className="font-medium text-text">{r.label}</span> },
+          {
+            key: "spares",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <Button size="icon-xs" variant="ghost" title={t("masters.complaintTypeSpares.manage")} onClick={() => setSparesComplaintTypeId(r.id)}>
+                <Wrench className="size-3.5" />
+              </Button>
+            ),
+          },
         ]}
         onCreate={(v) =>
           createMut.mutateAsync({
@@ -74,6 +94,16 @@ export function ComplaintTypesTab() {
         }
         onDelete={(id) => deleteMut.mutateAsync(id)}
       />
+
+      {sparesComplaintType ? (
+        <ComplaintTypeSparesPanel
+          key={sparesComplaintType.id}
+          orgId={orgId}
+          complaintTypeId={sparesComplaintType.id}
+          complaintTypeLabel={sparesComplaintType.label}
+          onClose={() => setSparesComplaintTypeId(null)}
+        />
+      ) : null}
     </div>
   )
 }

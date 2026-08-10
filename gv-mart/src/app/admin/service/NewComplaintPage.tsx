@@ -136,6 +136,12 @@ export function NewComplaintPage() {
   const resolvedProductCategory = (products ?? []).find((p) => p.id === resolvedProductId)?.category
 
   // Step 3: complaint details
+  // Issue-based spare suggestions (2026-08-06) — the complaint_types row
+  // resolved when the admin picked a suggestion from the "Name of complaint"
+  // Autocomplete, rather than free-typing. Not form-managed (react-hook-form
+  // only tracks nameOfComplaint's text) since it needs to reset to null
+  // whenever that text is edited away from the selected suggestion.
+  const [complaintTypeId, setComplaintTypeId] = useState<string | null>(null)
   const detailsForm = useForm<ComplaintDetailsStepInput>({
     resolver: zodResolver(complaintDetailsStepSchema),
     mode: "onChange",
@@ -292,6 +298,7 @@ export function NewComplaintPage() {
       unlistedProductName: equipmentMode === "notInInventory" ? unlistedProductName || null : null,
       nameOfComplaint: details.nameOfComplaint,
       natureOfComplaint: details.natureOfComplaint || null,
+      complaintTypeId,
       priority: details.priority,
       channel: "call",
       // "always"/anytime mode was dropped from this form — every admin-
@@ -508,13 +515,19 @@ export function NewComplaintPage() {
             <Autocomplete
               id="nameOfComplaint"
               value={nameOfComplaintValue ?? ""}
-              onChange={(v) => detailsForm.setValue("nameOfComplaint", v, { shouldValidate: true })}
+              onChange={(v) => {
+                detailsForm.setValue("nameOfComplaint", v, { shouldValidate: true })
+                setComplaintTypeId(null)
+              }}
               suggestions={filteredComplaintTypes}
               placeholder={t("service.newComplaint.nameOfComplaintPlaceholder")}
               emptyMessage={t("common.noData")}
               getKey={(ct) => ct.id}
               getLabel={(ct) => ct.label}
-              onSelect={(ct) => detailsForm.setValue("nameOfComplaint", ct.label, { shouldValidate: true })}
+              onSelect={(ct) => {
+                detailsForm.setValue("nameOfComplaint", ct.label, { shouldValidate: true })
+                setComplaintTypeId(ct.id)
+              }}
               openOnFocus
             />
             {detailsForm.formState.errors.nameOfComplaint ? (

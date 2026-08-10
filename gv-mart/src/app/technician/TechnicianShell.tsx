@@ -11,6 +11,7 @@ import { useLiveLocationStream, useMyTechnician } from "@/hooks/useTechnician"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SyncStatusChip } from "./components/SyncStatusChip"
+import { NewJobAssignedBanner } from "./components/NewJobAssignedBanner"
 import { startSyncEngine, stopSyncEngine } from "@/lib/offline/sync"
 import { signOut } from "@/services/auth"
 import { useTheme } from "@/lib/theme/ThemeProvider"
@@ -106,6 +107,7 @@ export function TechnicianShell() {
           <UserMenu fullName={profile.full_name} role={profile.role} />
         </div>
       </header>
+      <NewJobAssignedBanner userId={profile.id} />
       <main className="px-4">
         <Outlet />
       </main>

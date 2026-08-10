@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { MapPin, Route } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -17,7 +17,7 @@ import {
   useTechnicianVisitTimingsForDate,
 } from "@/hooks/useTechniciansAdmin"
 import { useSettings } from "@/hooks/useMasters"
-import { listRecentTechnicianLocations, notifyJobOverrunAlert } from "@/services/techniciansAdmin"
+import { listRecentTechnicianLocations } from "@/services/techniciansAdmin"
 import { supabase } from "@/lib/supabase"
 import { distanceKm } from "@/lib/offline/geo"
 import { computeJobOverrun } from "@/lib/job-overrun"
@@ -210,40 +210,13 @@ export function TechniciansMapPage() {
     return { segments, idleSpots }
   }, [trackingTechId, trackedAppointments.data, trackedVisits.data, trackedTrail.data, dateStr, settings?.per_km_minutes])
 
-  // Build Order A4 admin popup: fires a `notifications` row the moment a
-  // technician's open visit crosses its ticket's estimated_duration_minutes.
-  // notifiedVisitIdsRef is a same-session guard against re-firing every 15s
-  // tick; notifyJobOverrunAlert itself re-checks the DB before inserting, so
-  // reopening this page later still won't duplicate an alert already raised.
-  // Runs its own interval (reading Date.now() directly) rather than driving
-  // this off page-level render state, so this background check doesn't force
-  // the whole technician list/map to re-render every 15s.
-  const notifiedVisitIdsRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    if (!orgId || !openVisits) return
-    const safeOrgId = orgId
-    function checkOverruns() {
-      const nowMs = Date.now()
-      for (const [techId, visit] of openVisits!) {
-        const overrun = computeJobOverrun(
-          { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.allowedDurationMinutes },
-          nowMs
-        )
-        if (!overrun.isOverrun || notifiedVisitIdsRef.current.has(visit.visitId)) continue
-        notifiedVisitIdsRef.current.add(visit.visitId)
-        const loc = liveLocations[techId]
-        void notifyJobOverrunAlert(
-          safeOrgId,
-          visit,
-          overrun.overrunByMinutes!,
-          loc ? { lat: loc.lat, lng: loc.lng, recordedAt: loc.recorded_at } : null
-        )
-      }
-    }
-    checkOverruns()
-    const interval = setInterval(checkOverruns, 15_000)
-    return () => clearInterval(interval)
-  }, [orgId, openVisits, liveLocations])
+  // Build Order A4 admin popup: the notify-on-overrun side effect (writing
+  // the `job_overrun` notification row + toasting the admin) now lives in
+  // AdminShell (mounted on every admin route, not just this page) so it
+  // fires regardless of which screen the admin is on. This page still
+  // consumes `openVisits` below purely for the live per-marker red badge
+  // (useJobOverrunAlert) — a separate, render-driven concern from the
+  // once-per-visit notify side effect.
 
   // Seeds the idle-detection buffer with recent history so idle/off-route
   // status is available immediately on load, not only after ~5 minutes of

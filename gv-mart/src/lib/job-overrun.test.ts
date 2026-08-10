@@ -48,14 +48,25 @@ describe("computeJobOverrun", () => {
     expect(result.isOverrun).toBe(false)
   })
 
-  it("turns overrun the moment elapsed time passes the estimate", () => {
-    const result = computeJobOverrun({ timerStart: minutesAgoIso(31), timerEnd: null, estimatedDurationMinutes: 30 }, NOW.getTime())
-    expect(result.isOverrun).toBe(true)
-    expect(result.elapsedMinutes).toBeCloseTo(31, 5)
-    expect(result.overrunByMinutes).toBeCloseTo(1, 5)
+  it("is not overrun while still inside the 5-minute grace buffer past the estimate", () => {
+    const result = computeJobOverrun({ timerStart: minutesAgoIso(34), timerEnd: null, estimatedDurationMinutes: 30 }, NOW.getTime())
+    expect(result.isOverrun).toBe(false)
+    expect(result.overrunByMinutes).toBeNull()
   })
 
-  it("reports how far over the estimate a long-running visit is", () => {
+  it("is not overrun exactly at the estimate + buffer boundary", () => {
+    const result = computeJobOverrun({ timerStart: minutesAgoIso(35), timerEnd: null, estimatedDurationMinutes: 30 }, NOW.getTime())
+    expect(result.isOverrun).toBe(false)
+  })
+
+  it("turns overrun the moment elapsed time passes the estimate plus the 5-minute buffer", () => {
+    const result = computeJobOverrun({ timerStart: minutesAgoIso(36), timerEnd: null, estimatedDurationMinutes: 30 }, NOW.getTime())
+    expect(result.isOverrun).toBe(true)
+    expect(result.elapsedMinutes).toBeCloseTo(36, 5)
+    expect(result.overrunByMinutes).toBeCloseTo(6, 5)
+  })
+
+  it("reports how far over the raw estimate (not the buffered threshold) a long-running visit is", () => {
     const result = computeJobOverrun({ timerStart: minutesAgoIso(90), timerEnd: null, estimatedDurationMinutes: 45 }, NOW.getTime())
     expect(result.isOverrun).toBe(true)
     expect(result.overrunByMinutes).toBeCloseTo(45, 5)

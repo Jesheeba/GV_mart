@@ -230,6 +230,11 @@ export type ServiceBookingRpcInput = {
   modelId: string | null
   nameOfComplaint: string
   natureOfComplaint?: string
+  /** Issue-based spare suggestions (2026-08-06) — the complaint_types row the
+   * "Name of complaint" Autocomplete resolved, if the customer picked a
+   * suggestion rather than free-typing. Feeds the on-site technician's
+   * "Suggested for this issue" spare list; null for free-typed complaints. */
+  complaintTypeId?: string | null
   priority: Enums<"priority_level">
   scheduledDate: string
   unavailableWindows: UnavailableWindow[]
@@ -247,6 +252,7 @@ export async function bookServiceTicket(input: ServiceBookingRpcInput) {
     p_priority: input.priority,
     p_scheduled_date: input.scheduledDate,
     p_unavailable_windows: input.unavailableWindows,
+    p_complaint_type_id: input.complaintTypeId ?? null,
   })
   if (error) throw error
   return data as {
