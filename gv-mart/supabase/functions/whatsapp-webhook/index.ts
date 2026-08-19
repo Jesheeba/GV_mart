@@ -17,7 +17,15 @@
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import { sendMessage } from "../_shared/whatsapp.ts"
 import { routeInbound, type ConversationState, type InboundIntent } from "../_shared/whatsapp-journeys.ts"
-import type { WaLang } from "../_shared/i18n.ts"
+import {
+  enterServiceJourney,
+  routeService,
+  type AddressInfo,
+  type CreateServiceTicketParams,
+  type Identity,
+  type SlotInfo,
+} from "../_shared/whatsapp-service-journey.ts"
+import { t, type WaLang } from "../_shared/i18n.ts"
 
 type MetaInboundMessage = {
   from: string
@@ -94,6 +102,87 @@ function toIntent(msg: MetaInboundMessage): InboundIntent {
   return { kind: "text", text: msg.text?.body ?? "" }
 }
 
+function addressSummary(a: { door_no: string | null; flat_no: string | null; street_cross: string | null; area: string | null; district: string | null }): string {
+  return [a.flat_no, a.door_no, a.street_cross, a.area, a.district].filter(Boolean).join(", ")
+}
+
+/** Plain reads (not business-logic writes) needed to render the Service
+ * journey's own steps — the customer's primary address and the org's
+ * active appointment slots. No RLS concern: service_role bypasses it, and
+ * these are read-only context, not the ticket write itself (that stays
+ * behind wa_create_service_ticket's phone-ownership check). */
+async function fetchServiceContext(admin: SupabaseClient, orgId: string, identity: Identity): Promise<{ address: AddressInfo | null; slots: SlotInfo[] }> {
+  const { data: slotRows } = await admin.from("appointment_slots").select("id, name, start_time, end_time").eq("org_id", orgId).eq("is_active", true).order("sort_order")
+  const slots: SlotInfo[] = slotRows ?? []
+
+  if (!identity.customerId) return { address: null, slots }
+  const { data: addr } = await admin
+    .from("addresses")
+    .select("id, door_no, flat_no, street_cross, area, district")
+    .eq("customer_id", identity.customerId)
+    .eq("is_primary", true)
+    .maybeSingle()
+  return { address: addr ? { id: addr.id, summary: addressSummary(addr) } : null, slots }
+}
+
+async function routeServiceTurn(
+  admin: SupabaseClient,
+  orgId: string,
+  lang: WaLang,
+  conversation: ConversationState,
+  identity: Identity,
+  intent: InboundIntent
+) {
+  const { address, slots } = await fetchServiceContext(admin, orgId, identity)
+  return routeService({ lang, conversation, identity, address, slots, intent })
+}
+
+async function executeServiceAction(
+  admin: SupabaseClient,
+  orgId: string,
+  phone: string,
+  lang: WaLang,
+  action: { type: string; params: Record<string, unknown> },
+  identity: Identity
+) {
+  const params = action.params as unknown as CreateServiceTicketParams
+  const { address } = await fetchServiceContext(admin, orgId, identity)
+  if (!address) {
+    return { nextState: { journey: "service", step: null, collected: {}, status: "handed_off" as const }, reply: { body: t(lang, "whatsapp.service.noAddress") } }
+  }
+
+  const { data, error } = await admin.rpc("wa_create_service_ticket", {
+    p_org_id: orgId,
+    p_phone: phone,
+    p_address_id: address.id,
+    p_product_id: params.productId,
+    p_brand_id: null,
+    p_model_id: null,
+    p_name_of_complaint: params.nameOfComplaint,
+    p_nature_of_complaint: params.nameOfComplaint,
+    p_priority: params.priority,
+    p_appointment_mode: "datetime",
+    p_auto_assign: true,
+    p_scheduled_date: params.scheduledDate,
+    p_slot_id: params.slotId,
+    p_unlisted_product_name: params.unlistedProductName,
+    p_complaint_type_id: null,
+  })
+
+  if (error) {
+    console.error("whatsapp-webhook: wa_create_service_ticket failed", error)
+    return { nextState: { journey: "service", step: null, collected: {}, status: "handed_off" as const }, reply: { body: t(lang, "whatsapp.service.bookingFailed") } }
+  }
+
+  const ticketRef = (data.ticket_id as string).slice(0, 8)
+  const body = t(lang, "whatsapp.service.confirmed", {
+    ticketRef,
+    date: params.scheduledDate,
+    slotName: (data.slot_name as string) ?? "",
+  })
+  return { nextState: { journey: null, step: null, collected: {}, status: "completed" as const }, reply: { body } }
+}
+
 async function handleMessage(admin: SupabaseClient, orgId: string, msg: MetaInboundMessage) {
   // Idempotency FIRST — insert-or-detect-duplicate on wa_message_id before
   // any lookup, RPC, or reply happens. A unique-violation here means Meta
@@ -128,14 +217,37 @@ async function handleMessage(admin: SupabaseClient, orgId: string, msg: MetaInbo
 
   const lang: WaLang = conv.collected?.lang === "ta" ? "ta" : "en"
   const isExpired = !!conv.expires_at && new Date(conv.expires_at).getTime() < Date.now()
+  const intent = toIntent(msg)
+  const identityForJourney: Identity = {
+    found: !!identity?.found,
+    customerId: identity?.found ? identity.customer_id : undefined,
+    products: identity?.found ? (identity.products as Identity["products"]) : undefined,
+  }
 
-  const result = routeInbound({
-    lang,
-    conversation: { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status },
-    customerName: identity?.found ? (identity.name as string) : null,
-    isExpired,
-    intent: toIntent(msg),
-  })
+  let result = isExpired
+    ? routeInbound({ lang, conversation: { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status }, customerName: null, isExpired: true, intent })
+    : conv.journey === "service"
+      ? await routeServiceTurn(admin, orgId, lang, { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status }, identityForJourney, intent)
+      : routeInbound({
+          lang,
+          conversation: { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status },
+          customerName: identity?.found ? (identity.name as string) : null,
+          isExpired: false,
+          intent,
+        })
+
+  // Menu just resolved to "Book Service" — hand off to the real journey's
+  // entry point instead of the generic placeholder routeInbound picked.
+  if (result.nextState.journey === "service" && result.nextState.step === "intro") {
+    const { address, slots } = await fetchServiceContext(admin, orgId, identityForJourney)
+    result = enterServiceJourney(lang, identityForJourney, address, slots)
+  }
+
+  // A completed booking (action present) — perform the actual write via
+  // the phone-ownership-checked wrapper, then render the real outcome.
+  if ("action" in result && result.action) {
+    result = await executeServiceAction(admin, orgId, msg.from, lang, result.action, identityForJourney)
+  }
 
   const nextStatus = result.nextState.status
   await admin.rpc("wa_save_conversation_step", {

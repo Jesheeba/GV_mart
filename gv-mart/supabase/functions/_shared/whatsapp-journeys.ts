@@ -31,11 +31,19 @@ export type InboundIntent =
   | { kind: "list_reply"; id: string }
   | { kind: "text"; text: string }
 
+/** `action` is how a pure journey module (e.g. whatsapp-service-journey.ts)
+ * asks the impure webhook shell to perform a write and come back with the
+ * real outcome — the journey module decides WHEN and with WHAT params, the
+ * webhook performs it via the matching wa_* wrapper. Typed loosely here
+ * (not imported from a journey module) so this file never depends on any
+ * specific journey — Step 3 adds more action `type`s without this file
+ * changing. */
 export type RouteResult = {
   nextState: ConversationState
   reply: Reply
   /** true when this turn should also write a customer_id onto the conversation row (identity resolved but not yet linked). */
   linkCustomerId?: boolean
+  action?: { type: string; params: Record<string, unknown> }
 }
 
 const MECHANIC_KEYWORDS: Record<"menu" | "cancel" | "back" | "expert" | "lang_ta" | "lang_en", string[]> = {

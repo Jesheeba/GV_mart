@@ -3474,6 +3474,36 @@
       "timeout": "It's been a while, so let's start fresh.",
       "fallback": "Sorry, I didn't get that. Reply \"menu\" to see your options.",
       "journeyComingSoon": "This part of the flow isn't ready yet — reply \"back\" or \"menu\" to go elsewhere."
+    },
+    "service": {
+      "notIdentified": "We couldn't find an account for this number, so I can't book a service directly — connecting you to our team.",
+      "noAddress": "You don't have an address on file yet, so I can't schedule a visit — connecting you to our team to sort that out.",
+      "askProduct": {
+        "header": "Which product?",
+        "body": "Which of these needs service?"
+      },
+      "unlistedProductPrompt": "No problem — what product needs service? (e.g. RO purifier, AC, inverter)",
+      "askProblem": "Got it. What's the issue you're facing?",
+      "askUrgency": {
+        "header": "How urgent?",
+        "body": "How urgent is this?",
+        "normal": "Not urgent",
+        "urgent": "Urgent",
+        "veryUrgent": "Very urgent / emergency"
+      },
+      "askSlot": {
+        "header": "Pick a time",
+        "body": "When works for you?",
+        "noSlotsHandoff": "We don't have any slots configured right now — connecting you to our team to schedule this."
+      },
+      "askAddressConfirm": {
+        "body": "We'll send a technician to:\n{{address}}\n\nConfirm this address?",
+        "yes": "Yes, confirm",
+        "no": "No, use a different address"
+      },
+      "differentAddressHandoff": "No problem — connecting you to our team to arrange a different address.",
+      "confirmed": "Your service request is booked! Ticket #{{ticketRef}}, scheduled for {{date}} ({{slotName}}). Our team will confirm the technician shortly.",
+      "bookingFailed": "Something went wrong while booking — connecting you to our team to sort this out."
     }
   }
 }
