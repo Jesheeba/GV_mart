@@ -16,7 +16,7 @@
 // that module without this file changing shape.
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import { sendMessage } from "../_shared/whatsapp.ts"
-import { routeInbound, type ConversationState, type InboundIntent } from "../_shared/whatsapp-journeys.ts"
+import { routeInbound, tryHandleMechanic, type ConversationState, type InboundIntent } from "../_shared/whatsapp-journeys.ts"
 import {
   enterServiceJourney,
   routeService,
@@ -25,6 +25,14 @@ import {
   type Identity,
   type SlotInfo,
 } from "../_shared/whatsapp-service-journey.ts"
+import {
+  enterAccountJourney,
+  enterAmcJourney,
+  enterSalesJourney,
+  enterSparesJourney,
+  routeSales,
+  routeSpares,
+} from "../_shared/whatsapp-other-journeys.ts"
 import { t, type WaLang } from "../_shared/i18n.ts"
 
 type MetaInboundMessage = {
@@ -221,32 +229,78 @@ async function handleMessage(admin: SupabaseClient, orgId: string, msg: MetaInbo
   const identityForJourney: Identity = {
     found: !!identity?.found,
     customerId: identity?.found ? identity.customer_id : undefined,
+    name: identity?.found ? (identity.name as string) : undefined,
     products: identity?.found ? (identity.products as Identity["products"]) : undefined,
+    openTicket: identity?.found ? (identity.open_ticket as Identity["openTicket"]) : undefined,
+    lastService: identity?.found ? (identity.last_service as Identity["lastService"]) : undefined,
   }
+  const conversationState: ConversationState = { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status }
 
-  let result = isExpired
-    ? routeInbound({ lang, conversation: { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status }, customerName: null, isExpired: true, intent })
+  // Mechanics (back/menu/cancel/talk-to-expert/language switch, plus the
+  // step-timeout check) apply on EVERY step, not just while the generic
+  // menu is showing — checked before any journey-specific router gets a
+  // turn, so "back" typed mid-Service-booking doesn't get swallowed as a
+  // literal answer to whatever question is currently being asked.
+  const mechanicResult = tryHandleMechanic(lang, conversationState, isExpired, intent)
+
+  let result = mechanicResult
+    ? mechanicResult
     : conv.journey === "service"
-      ? await routeServiceTurn(admin, orgId, lang, { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status }, identityForJourney, intent)
-      : routeInbound({
-          lang,
-          conversation: { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status },
-          customerName: identity?.found ? (identity.name as string) : null,
-          isExpired: false,
-          intent,
-        })
+      ? await routeServiceTurn(admin, orgId, lang, conversationState, identityForJourney, intent)
+      : conv.journey === "sales"
+        ? routeSales(lang, conversationState, intent)
+        : conv.journey === "spares"
+          ? routeSpares(lang, conversationState, intent)
+          : routeInbound({ lang, conversation: conversationState, customerName: identityForJourney.name ?? null, isExpired: false, intent })
 
-  // Menu just resolved to "Book Service" — hand off to the real journey's
-  // entry point instead of the generic placeholder routeInbound picked.
-  if (result.nextState.journey === "service" && result.nextState.step === "intro") {
-    const { address, slots } = await fetchServiceContext(admin, orgId, identityForJourney)
-    result = enterServiceJourney(lang, identityForJourney, address, slots)
+  // Menu just resolved to a journey — hand off from the generic placeholder
+  // routeInbound picked to that journey's real entry point. Note: the menu
+  // ROW is "Buy / Upgrade" (id "buy", matching its i18n label), but the
+  // journey it starts is Sales, per the plan's own journey list — the menu
+  // button text and the internal journey name are deliberately different.
+  if (result.nextState.step === "intro") {
+    if (result.nextState.journey === "service") {
+      const { address, slots } = await fetchServiceContext(admin, orgId, identityForJourney)
+      result = enterServiceJourney(lang, identityForJourney, address, slots)
+    } else if (result.nextState.journey === "buy") {
+      result = enterSalesJourney(lang)
+    } else if (result.nextState.journey === "spares") {
+      result = enterSparesJourney(lang, identityForJourney)
+    } else if (result.nextState.journey === "amc") {
+      result = enterAmcJourney(lang, identityForJourney)
+    } else if (result.nextState.journey === "account") {
+      result = enterAccountJourney(lang, identityForJourney)
+    }
   }
 
-  // A completed booking (action present) — perform the actual write via
-  // the phone-ownership-checked wrapper, then render the real outcome.
-  if ("action" in result && result.action) {
-    result = await executeServiceAction(admin, orgId, msg.from, lang, result.action, identityForJourney)
+  // A journey step asked for a write (action present) — perform it via the
+  // matching phone-ownership-checked wa_* wrapper, then render the real
+  // outcome instead of the placeholder reply the journey module returned.
+  if (result.action) {
+    if (result.action.type === "create_service_ticket") {
+      result = await executeServiceAction(admin, orgId, msg.from, lang, result.action, identityForJourney)
+    } else if (result.action.type === "create_lead") {
+      const { error: leadError } = await admin.rpc("wa_create_lead", { p_org_id: orgId, p_phone: msg.from, p_trigger: null, p_body: result.action.params.body })
+      if (leadError) {
+        console.error("whatsapp-webhook: wa_create_lead failed", leadError)
+        result = { nextState: { journey: null, step: null, collected: {}, status: "handed_off" }, reply: { body: t(lang, "whatsapp.mechanics.actionFailed") } }
+      }
+    } else if (result.action.type === "create_spare_enquiry") {
+      const { error: enquiryError } = await admin.rpc("wa_create_spare_enquiry", {
+        p_org_id: orgId,
+        p_phone: msg.from,
+        p_kind: "spare",
+        p_enquiry_type: null,
+        p_description: result.action.params.description,
+        p_photo_url: null,
+        p_address_id: null,
+        p_items: [],
+      })
+      if (enquiryError) {
+        console.error("whatsapp-webhook: wa_create_spare_enquiry failed", enquiryError)
+        result = { nextState: { journey: null, step: null, collected: {}, status: "handed_off" }, reply: { body: t(lang, "whatsapp.mechanics.actionFailed") } }
+      }
+    }
   }
 
   const nextStatus = result.nextState.status

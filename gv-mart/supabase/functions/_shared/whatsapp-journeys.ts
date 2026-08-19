@@ -95,18 +95,15 @@ function journeyIntroReply(lang: WaLang, journey: MenuItemId): Reply {
   return { body: `${title}\n${t(lang, "whatsapp.mechanics.journeyComingSoon")}` }
 }
 
-export function routeInbound(input: {
-  lang: WaLang
-  conversation: ConversationState
-  customerName: string | null
-  isExpired: boolean
-  intent: InboundIntent
-}): RouteResult {
-  const { conversation, customerName, isExpired } = input
-  let lang = input.lang
-
-  // Expired session: treat this message as the start of a fresh one, after
-  // telling the user why. Takes priority over everything else below.
+/** Checked BEFORE dispatching to any journey-specific router (Service,
+ * Sales, Spares — not just here) — "back"/"menu"/"cancel"/"talk to an
+ * expert"/a language switch must work on every step, per the plan's own
+ * requirement, not just while the generic menu is showing. Returns null
+ * when nothing matched, so the caller falls through to whatever handles
+ * this conversation's current step. Also handles the step-timeout case,
+ * since an expired session should short-circuit before journey dispatch
+ * the same way a mechanic does. */
+export function tryHandleMechanic(lang: WaLang, conversation: ConversationState, isExpired: boolean, intent: InboundIntent): RouteResult | null {
   if (isExpired && conversation.status === "active") {
     const menu = buildMenuReply(lang)
     return {
@@ -115,14 +112,14 @@ export function routeInbound(input: {
     }
   }
 
-  const text = input.intent.kind === "text" ? input.intent.text : null
+  const text = intent.kind === "text" ? intent.text : null
   const mechanic = text ? detectMechanic(text) : null
 
   if (mechanic === "lang_ta" || mechanic === "lang_en") {
-    lang = mechanic === "lang_ta" ? "ta" : "en"
-    const menu = buildMenuReply(lang)
+    const newLang = mechanic === "lang_ta" ? "ta" : "en"
+    const menu = buildMenuReply(newLang)
     return {
-      nextState: { ...conversation, journey: null, step: "menu_shown", collected: { ...conversation.collected, lang } },
+      nextState: { ...conversation, journey: null, step: "menu_shown", collected: { ...conversation.collected, lang: newLang } },
       reply: menu,
     }
   }
@@ -170,6 +167,21 @@ export function routeInbound(input: {
     }
   }
 
+  return null
+}
+
+export function routeInbound(input: {
+  lang: WaLang
+  conversation: ConversationState
+  customerName: string | null
+  isExpired: boolean
+  intent: InboundIntent
+}): RouteResult {
+  const { conversation, customerName, isExpired, lang } = input
+
+  const mechanicResult = tryHandleMechanic(lang, conversation, isExpired, input.intent)
+  if (mechanicResult) return mechanicResult
+
   // Fresh conversation, first message ever — greet + menu, regardless of content.
   if (conversation.journey === null && conversation.step === null) {
     return {
@@ -180,10 +192,11 @@ export function routeInbound(input: {
 
   // Menu is showing — resolve a tapped list row or a typed item name to a journey.
   if (conversation.journey === null && conversation.step === "menu_shown") {
+    const inboundText = input.intent.kind === "text" ? input.intent.text : null
     const selectedId =
       input.intent.kind === "list_reply"
         ? (input.intent.id.replace(/^menu_/, "") as MenuItemId)
-        : MENU_ITEM_IDS.find((id) => text?.toLowerCase().includes(id))
+        : MENU_ITEM_IDS.find((id) => inboundText?.toLowerCase().includes(id))
 
     if (selectedId && MENU_ITEM_IDS.includes(selectedId)) {
       if (selectedId === "expert") {

@@ -12,8 +12,16 @@
 import { t, type WaLang } from "./i18n.ts"
 import type { ConversationState, InboundIntent, Reply, RouteResult } from "./whatsapp-journeys.ts"
 
-export type IdentifiedProduct = { product_id: string; product_name: string }
-export type Identity = { found: boolean; customerId?: string; products?: IdentifiedProduct[] }
+export type IdentifiedProduct = { product_id: string; product_name: string; coverage?: "amc" | "warranty"; amc_status?: string; expiry_date?: string }
+export type IdentifiedTicketSummary = { id: string; name_of_complaint: string; status?: string }
+export type Identity = {
+  found: boolean
+  customerId?: string
+  name?: string
+  products?: IdentifiedProduct[]
+  openTicket?: IdentifiedTicketSummary | null
+  lastService?: IdentifiedTicketSummary | null
+}
 export type AddressInfo = { id: string; summary: string }
 export type SlotInfo = { id: string; name: string; start_time: string; end_time: string }
 

@@ -3473,7 +3473,8 @@
       "handoff": "Connecting you with our team — someone will reply here shortly.",
       "timeout": "It's been a while, so let's start fresh.",
       "fallback": "Sorry, I didn't get that. Reply \"menu\" to see your options.",
-      "journeyComingSoon": "This part of the flow isn't ready yet — reply \"back\" or \"menu\" to go elsewhere."
+      "journeyComingSoon": "This part of the flow isn't ready yet — reply \"back\" or \"menu\" to go elsewhere.",
+      "actionFailed": "Something went wrong — connecting you to our team."
     },
     "service": {
       "notIdentified": "We couldn't find an account for this number, so I can't book a service directly — connecting you to our team.",
@@ -3504,6 +3505,36 @@
       "differentAddressHandoff": "No problem — connecting you to our team to arrange a different address.",
       "confirmed": "Your service request is booked! Ticket #{{ticketRef}}, scheduled for {{date}} ({{slotName}}). Our team will confirm the technician shortly.",
       "bookingFailed": "Something went wrong while booking — connecting you to our team to sort this out."
+    },
+    "sales": {
+      "askInterest": "What are you looking for? (e.g. a new RO purifier, upgrading your AC, a new inverter)",
+      "confirmed": "Thanks! We've noted your interest — our sales team will reach out shortly."
+    },
+    "spares": {
+      "notIdentified": "We couldn't find an account for this number, so I can't log a spares enquiry directly — connecting you to our team.",
+      "askSpare": "Which part or accessory do you need, and for which product?",
+      "confirmed": "Got it! We've logged your spare parts enquiry — our team will get back to you with pricing and availability shortly."
+    },
+    "amc": {
+      "notIdentified": "We couldn't find an account for this number — connecting you to our team.",
+      "header": "Your AMC status:",
+      "productLine": "{{name}} — {{status}}{{expiry}}",
+      "expirySuffix": " (expires {{date}})",
+      "none": "You don't have an active AMC plan on file yet. Reply \"expert\" to talk to our team about AMC plans.",
+      "footer": "Reply \"menu\" for other options."
+    },
+    "account": {
+      "notIdentified": "We couldn't find an account for this number — connecting you to our team.",
+      "header": "Your GV Mart account:",
+      "productsHeader": "Products:",
+      "noProducts": "No products on file yet.",
+      "productLine": "- {{name}} ({{coverage}}{{expiry}})",
+      "expirySuffix": ", expires {{date}}",
+      "openTicket": "Open ticket: {{complaint}} ({{status}})",
+      "noOpenTicket": "No open service tickets.",
+      "lastService": "Last completed service: {{complaint}}",
+      "noLastService": "No completed services yet.",
+      "footer": "Reply \"menu\" for other options."
     }
   }
 }
