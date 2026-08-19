@@ -102,7 +102,9 @@ export function LoginPage() {
     }
   }
 
-  const onSubmit = handleSubmit((values) => signInMutation.mutate(values))
+  const onSubmit = handleSubmit((values) =>
+    signInMutation.mutate({ ...values, email: values.email.trim().toLowerCase() })
+  )
 
   const signInErrorMessage = (() => {
     if (!signInMutation.isError) return null
@@ -158,6 +160,9 @@ export function LoginPage() {
                   id="email"
                   type="email"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder={t("auth.emailPlaceholder")}
                   className="pl-10"
                   aria-invalid={!!errors.email}

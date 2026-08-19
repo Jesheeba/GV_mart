@@ -1,49 +1,62 @@
 /** Geolocation + geofence helpers shared by Attendance (TECH-01) and Map (TECH-04). */
 
+import { Geolocation, type Position } from "@capacitor/geolocation"
+
 /** heading/speed mirror GeolocationCoordinates.heading/.speed — both
  * frequently null (device stationary or sensor doesn't report them), never
  * required. heading is degrees clockwise from true north; speed is m/s. */
 export type GeoPoint = { lat: number; lng: number; accuracy?: number; heading?: number | null; speed?: number | null }
 
-export function getCurrentPosition(options?: PositionOptions): Promise<GeoPoint> {
-  return new Promise((resolve, reject) => {
-    if (!("geolocation" in navigator)) {
-      reject(new Error("geolocation_unsupported"))
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        resolve({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          heading: pos.coords.heading,
-          speed: pos.coords.speed,
-        }),
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 5_000, ...options }
-    )
-  })
+function toGeoPoint(pos: Position): GeoPoint {
+  return {
+    lat: pos.coords.latitude,
+    lng: pos.coords.longitude,
+    accuracy: pos.coords.accuracy,
+    heading: pos.coords.heading,
+    speed: pos.coords.speed,
+  }
+}
+
+// Routed through @capacitor/geolocation rather than navigator.geolocation
+// directly — on native it drives proper Android/iOS permission prompts, and
+// on web it transparently falls back to the same browser Geolocation API,
+// so this is a drop-in replacement for both platforms.
+
+export async function getCurrentPosition(options?: PositionOptions): Promise<GeoPoint> {
+  try {
+    const pos = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 10_000,
+      maximumAge: 5_000,
+      ...options,
+    })
+    return toGeoPoint(pos)
+  } catch (err) {
+    throw err instanceof Error ? err : new Error("geolocation_unsupported")
+  }
 }
 
 export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: GeolocationPositionError | Error) => void) {
-  if (!("geolocation" in navigator)) {
-    onError?.(new Error("geolocation_unsupported"))
-    return () => {}
+  let watchId: string | null = null
+  let cancelled = false
+
+  Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }, (pos, err) => {
+    if (err) {
+      onError?.(err instanceof Error ? err : new Error(String(err)))
+      return
+    }
+    if (pos) cb(toGeoPoint(pos))
+  })
+    .then((id) => {
+      if (cancelled) void Geolocation.clearWatch({ id })
+      else watchId = id
+    })
+    .catch((err) => onError?.(err instanceof Error ? err : new Error("geolocation_unsupported")))
+
+  return () => {
+    cancelled = true
+    if (watchId) void Geolocation.clearWatch({ id: watchId })
   }
-  const id = navigator.geolocation.watchPosition(
-    (pos) =>
-      cb({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-        heading: pos.coords.heading,
-        speed: pos.coords.speed,
-      }),
-    onError,
-    { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }
-  )
-  return () => navigator.geolocation.clearWatch(id)
 }
 
 /**
@@ -62,6 +75,12 @@ export function classifyGeoError(err: unknown): GeoErrorKind {
   if (code === 1) return "permissionDenied"
   if (code === 2) return "unavailable"
   if (code === 3) return "timeout"
+  // @capacitor/geolocation's native (non-web-fallback) errors don't carry
+  // the numeric GeolocationPositionError.code above — only a message.
+  const message = err instanceof Error ? err.message.toLowerCase() : ""
+  if (message.includes("denied") || message.includes("permission")) return "permissionDenied"
+  if (message.includes("unavailable") || message.includes("disabled")) return "unavailable"
+  if (message.includes("timeout")) return "timeout"
   return "unknown"
 }
 

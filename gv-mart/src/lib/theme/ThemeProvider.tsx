@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+import { Capacitor } from "@capacitor/core"
+import { StatusBar, Style } from "@capacitor/status-bar"
 import { router } from "@/router"
 
 export type Theme = "light" | "dark"
@@ -46,6 +48,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", effectiveTheme === "dark")
+    if (Capacitor.isNativePlatform()) {
+      void StatusBar.setStyle({ style: effectiveTheme === "dark" ? Style.Dark : Style.Light })
+    }
   }, [effectiveTheme])
 
   useEffect(() => {

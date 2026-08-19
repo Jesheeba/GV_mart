@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GV Mart</string>
+    <string name="title_activity_main">GV Mart</string>
+    <string name="package_name">com.gvmart.app</string>
+    <string name="custom_url_scheme">com.gvmart.app</string>
+</resources>

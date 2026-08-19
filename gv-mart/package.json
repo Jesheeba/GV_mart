@@ -10,10 +10,21 @@
     "preview": "vite preview",
     "seed": "tsx supabase/seed/seed.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "cap:sync": "vite build && cap sync",
+    "cap:android": "npm run cap:sync && cap open android",
+    "cap:ios": "npm run cap:sync && cap open ios",
+    "cap:dev:android": "cap run android --livereload --external",
+    "cap:dev:ios": "cap run ios --livereload --external"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/geolocation": "^8.2.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
     "@hookform/resolvers": "^5.4.0",
     "@supabase/supabase-js": "^2.110.0",
@@ -37,6 +48,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/google.maps": "^3.65.2",
     "@types/node": "^24.13.2",

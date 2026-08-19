@@ -11,6 +11,10 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered manually in main.tsx, skipped entirely inside the Capacitor
+      // WebView — a competing Workbox SW fights Capacitor's own local asset
+      // server and risks stale-asset caching bugs.
+      injectRegister: false,
       includeAssets: ['favicon.ico'],
       manifest: {
         name: 'GV Mart Admin',

@@ -30,7 +30,7 @@ export function CustomerShell() {
 
   return (
     <div className="min-h-screen bg-bg pb-20">
-      <header className="flex items-center justify-between px-4 py-3 lg:px-25">
+      <header className="flex items-center justify-between px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] lg:px-25">
         <div className="flex items-center gap-2">
           <span className="flex size-8 items-center justify-center rounded-md border border-border bg-white p-1">
             <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
