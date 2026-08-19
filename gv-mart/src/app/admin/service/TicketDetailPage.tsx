@@ -40,7 +40,7 @@ import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
-import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
+import { ChannelBadge, PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
 
 function TicketPhotoThumb({ storagePath }: { storagePath: string }) {
@@ -424,6 +424,7 @@ export function TicketDetailPage() {
         <div className="flex flex-wrap items-center gap-2">
           <TicketTypeBadge type={ticket.type} />
           <PriorityBadge priority={ticket.priority} />
+          <ChannelBadge channel={ticket.channel} />
           <SlaCountdown slaDueAt={ticket.sla_due_at} status={ticket.status} />
           {appointment?.is_narrow_window ? (
             <span className="flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">

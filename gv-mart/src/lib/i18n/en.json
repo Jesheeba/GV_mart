@@ -300,7 +300,8 @@
         "service": "Service History",
         "invoices": "Invoices",
         "family": "Family",
-        "exemptions": "Exemptions"
+        "exemptions": "Exemptions",
+        "whatsapp": "WhatsApp"
       },
       "exemptionsPanel": {
         "title": "Exemption windows ({{count}})",
@@ -329,7 +330,8 @@
       "emptyTabs": {
         "products": "No products yet — appears once a sale is made.",
         "service": "No service history yet — appears once a job is completed.",
-        "invoices": "No invoices yet — appears once a sale is billed."
+        "invoices": "No invoices yet — appears once a sale is billed.",
+        "whatsapp": "No WhatsApp messages with this customer yet."
       },
       "productCard": {
         "bought": "Bought {{date}}",
@@ -1275,6 +1277,13 @@
       "warranty": "Warranty",
       "amc": "AMC",
       "installation": "Installation"
+    },
+    "channel": {
+      "call": "Call",
+      "whatsapp": "WhatsApp",
+      "walk_in": "Walk-in",
+      "customer_app": "Customer app",
+      "field": "Field"
     },
     "appointment": {
       "always": "Always"
@@ -2730,10 +2739,17 @@
   "automation": {
     "subtitle": "Map enquiry triggers to WhatsApp/AI responses, manage the video library, and test inbound messages.",
     "loadFailed": "Could not load automation data.",
+    "killSwitch": {
+      "on": "Bot: On",
+      "off": "Bot: Off"
+    },
     "tabs": {
       "flows": "Flow Builder",
       "videos": "Video Library",
-      "inbox": "Inbox / Test"
+      "inbox": "Inbox / Test",
+      "conversations": "Conversations",
+      "templates": "Templates",
+      "failedSends": "Failed Sends"
     },
     "flows": {
       "trigger": "Trigger",
@@ -2777,6 +2793,55 @@
       "template": "Template",
       "status": "Status",
       "empty": "No messages logged yet."
+    },
+    "conversations": {
+      "phone": "Phone",
+      "customer": "Customer",
+      "journey": "Journey",
+      "step": "Step",
+      "status": "Status",
+      "lastMessage": "Last message",
+      "empty": "No conversations yet.",
+      "unknownCustomer": "Unknown number",
+      "transcriptTitle": "Transcript — {{phone}}",
+      "transcriptEmpty": "No messages in this conversation yet.",
+      "statuses": {
+        "active": "Active",
+        "completed": "Completed",
+        "expired": "Expired",
+        "handed_off": "Handed off"
+      }
+    },
+    "templates": {
+      "hint": "Milestone notifications and AMC/feedback reminders render through the matching template here when one exists (by name — e.g. milestone.booked, amc_reminder_30, feedback_request), and fall back to a plain placeholder otherwise. Approval status tracks Meta's own template review, it does not block rendering here.",
+      "name": "Name",
+      "namePlaceholder": "e.g. milestone.booked",
+      "category": "Category",
+      "categories": {
+        "utility": "Utility",
+        "marketing": "Marketing"
+      },
+      "approvalStatus": "Approval status",
+      "approvalStatuses": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "body": "Body",
+      "bodyPlaceholder": "Hi {{1}}, your ticket for \"{{2}}\" has been booked.",
+      "variableMap": "Variable map (JSON)",
+      "variableMapPlaceholder": "{\"1\": \"customer_name\", \"2\": \"complaint\"}",
+      "add": "Add Template",
+      "empty": "No templates yet."
+    },
+    "failedSends": {
+      "hint": "Retries happen automatically in the daily scheduled pass — this list is for visibility, not a manual retry button.",
+      "time": "Time",
+      "contact": "Contact",
+      "template": "Template",
+      "body": "Message",
+      "error": "Error",
+      "empty": "No failed sends — nothing stuck right now."
     }
   },
   "purchase": {

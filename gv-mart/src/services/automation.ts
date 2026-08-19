@@ -174,6 +174,85 @@ export async function simulateInboundWhatsapp(input: { orgId: string; fromMobile
   return data
 }
 
+export async function listFailedWhatsappOutbox(orgId: string, limit = 50): Promise<WhatsappOutboxRow[]> {
+  const { data, error } = await supabase
+    .from("whatsapp_outbox")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("status", "failed")
+    .order("created_at", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+/** Customer-scoped history for CustomerDetailPage's WhatsApp tab — same
+ * table as the ops-side Conversations/Failed-Sends views, filtered to one
+ * person's number instead of org-wide. */
+export async function listWhatsappOutboxForCustomer(orgId: string, mobile: string, limit = 50): Promise<WhatsappOutboxRow[]> {
+  const { data, error } = await supabase
+    .from("whatsapp_outbox")
+    .select("*")
+    .eq("org_id", orgId)
+    .or(`to_mobile.eq.${mobile},payload->>from.eq.${mobile}`)
+    .order("created_at", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
+// ── Conversations (Phase 4 ops surface) ─────────────────────────────────
+export type WhatsappConversationRow = Tables<"whatsapp_conversations">
+export type WhatsappConversationListItem = WhatsappConversationRow & { customers: { name: string } | null }
+
+export async function listWhatsappConversations(orgId: string, limit = 100): Promise<WhatsappConversationListItem[]> {
+  const { data, error } = await supabase
+    .from("whatsapp_conversations")
+    .select("*, customers(name)")
+    .eq("org_id", orgId)
+    .order("last_message_at", { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []) as unknown as WhatsappConversationListItem[]
+}
+
+/** Full transcript for one phone number — every inbound/outbound row this
+ * conversation's bot turns and the raw Meta deliveries produced, oldest
+ * first (reading order). */
+export async function listWhatsappTranscript(orgId: string, phone: string): Promise<WhatsappOutboxRow[]> {
+  const { data, error } = await supabase
+    .from("whatsapp_outbox")
+    .select("*")
+    .eq("org_id", orgId)
+    .or(`to_mobile.eq.${phone},payload->>from.eq.${phone}`)
+    .order("created_at", { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+// ── Templates (Phase 4 ops surface) ─────────────────────────────────────
+export type WhatsappTemplateRow = Tables<"whatsapp_templates">
+
+export async function listWhatsappTemplates(orgId: string): Promise<WhatsappTemplateRow[]> {
+  const { data, error } = await supabase.from("whatsapp_templates").select("*").eq("org_id", orgId).order("name")
+  if (error) throw error
+  return data ?? []
+}
+export async function createWhatsappTemplate(row: { org_id: string; name: string; category: string; approval_status: string; body: string; variable_map: Record<string, string> }) {
+  const { data, error } = await supabase.from("whatsapp_templates").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateWhatsappTemplate(id: string, patch: Partial<{ name: string; category: string; approval_status: string; body: string; variable_map: Record<string, string> }>) {
+  const { data, error } = await supabase.from("whatsapp_templates").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteWhatsappTemplate(id: string) {
+  const { error } = await supabase.from("whatsapp_templates").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── Purchase Orders & Bill Entry (ADM-20/21) ─────────────────────────────
 export type PurchaseOrderRow = Tables<"purchase_orders">
 export type PoItemRow = Tables<"po_items">

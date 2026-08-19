@@ -15,7 +15,7 @@ import {
   useCustomerProducts,
   useCustomerTimeline,
 } from "@/hooks/useCustomers"
-import { useLeads } from "@/hooks/useAutomation"
+import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -96,6 +96,7 @@ export function CustomerDetailPage() {
   const invoices = useCustomerInvoices(orgId, customer?.id)
   const lifetime = useCustomerLifetimeSummary(orgId, customer?.id)
   const exemptionWindows = useCustomerExemptionWindows(customer?.id)
+  const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile)
   const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
   const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
 
@@ -220,6 +221,33 @@ export function CustomerDetailPage() {
     )
   }
 
+  function renderWhatsappHistory() {
+    return (
+      <div className="rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+        {whatsappHistory.isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (whatsappHistory.data ?? []).length === 0 ? (
+          <EmptyTab icon={MessageCircle} label={t("customers.detail.emptyTabs.whatsapp")} />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {(whatsappHistory.data ?? []).map((m) => (
+              <div
+                key={m.id}
+                className={cn(
+                  "max-w-[80%] rounded-2xl px-3.5 py-2 text-sm",
+                  m.direction === "inbound" ? "self-start bg-surface-alt text-text" : "self-end bg-accent/15 text-text"
+                )}
+              >
+                <p>{(m.payload as { body?: string } | null)?.body ?? m.template}</p>
+                <p className="mt-1 text-[10px] text-text-muted">{new Date(m.created_at).toLocaleString("en-IN")}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center gap-2 text-sm">
@@ -336,6 +364,7 @@ export function CustomerDetailPage() {
           <TabsTrigger value="exemptions">
             {t("customers.detail.tabs.exemptions")} ({(exemptionWindows.data ?? []).length})
           </TabsTrigger>
+          <TabsTrigger value="whatsapp">{t("customers.detail.tabs.whatsapp")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="mt-3.5">
@@ -386,6 +415,10 @@ export function CustomerDetailPage() {
               <ExemptionWindowsPanel orgId={orgId} customerId={customer.id} windows={exemptionWindows.data ?? []} />
             )}
           </Card>
+        </TabsContent>
+
+        <TabsContent value="whatsapp" className="mt-3.5">
+          {renderWhatsappHistory()}
         </TabsContent>
       </Tabs>
     </div>

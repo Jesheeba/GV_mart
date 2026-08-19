@@ -1,7 +1,9 @@
 import { useTranslation } from "react-i18next"
+import { MessageCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { PriorityLevel, TicketType } from "@/services/service"
+import type { Enums } from "@/types/database"
 
 /**
  * Ticket-type colors, matched to the design source (design-template-decoded.html
@@ -16,6 +18,29 @@ export const TYPE_BADGE_CLASS: Record<TicketType, string> = {
   warranty: "text-[#16855B] bg-[#E2F3EA]",
   amc: "text-info bg-info/10",
   installation: "text-accent bg-accent/10",
+}
+
+/** Only WhatsApp gets its own visual treatment (green, matching this
+ * app's existing WhatsApp-brand accents elsewhere e.g. CustomerDetailPage's
+ * WhatsApp button) — the other four channels are functionally equivalent
+ * "not WhatsApp" origins and share a neutral badge, per the plan's "source
+ * badge where channel is already read" ask (that read specifically wants
+ * WhatsApp-origin tickets to stand out, not a five-way color system). */
+export function ChannelBadge({ channel }: { channel: Enums<"ticket_channel"> }) {
+  const { t } = useTranslation()
+  if (channel === "whatsapp") {
+    return (
+      <Badge variant="outline" className="border-transparent bg-success/15 font-bold text-success">
+        <MessageCircle className="size-3" />
+        {t("service.channel.whatsapp")}
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="border-transparent bg-surface-alt font-medium text-text-muted">
+      {t(`service.channel.${channel}`)}
+    </Badge>
+  )
 }
 
 export function TicketTypeBadge({ type }: { type: TicketType | null }) {

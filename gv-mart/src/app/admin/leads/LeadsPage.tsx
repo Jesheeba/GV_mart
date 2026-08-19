@@ -10,6 +10,7 @@ import { useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
 import { LeadDetailPanel } from "./LeadDetailPanel"
 import { NewLeadForm } from "./NewLeadForm"
+import { SourceBadge } from "./LeadBadges"
 import type { LeadListItem } from "@/services/automation"
 import type { Enums } from "@/types/database"
 import { cn } from "@/lib/utils"
@@ -263,7 +264,7 @@ function LeadsTable({
           >
             <span className="truncate text-[13px] font-semibold text-text">{r.customers?.name ?? r.name}</span>
             <span className="text-[13px] font-medium text-text-muted">{r.mobile ?? r.customers?.mobile ?? "—"}</span>
-            <span className="text-[13px] font-medium text-text">{t(`leads.source.${r.source}`)}</span>
+            <SourceBadge source={r.source} />
             <span className="text-[13px] font-medium text-text">{r.kind ? t(`leads.kind.${r.kind}`) : "—"}</span>
             <span className="text-[13px] font-medium text-text">{r.enquiry_type ? t(`leads.enquiryType.${r.enquiry_type}`) : "—"}</span>
             <StatusDot

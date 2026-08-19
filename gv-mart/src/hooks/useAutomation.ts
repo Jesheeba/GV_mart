@@ -95,6 +95,48 @@ export function useSimulateInboundWhatsapp() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsappOutbox"] }),
   })
 }
+export function useFailedWhatsappOutbox(orgId: string | undefined) {
+  return useQuery({ queryKey: ["whatsappOutbox", "failed", orgId], queryFn: () => automation.listFailedWhatsappOutbox(orgId!), enabled: !!orgId })
+}
+export function useWhatsappOutboxForCustomer(orgId: string | undefined, mobile: string | undefined) {
+  return useQuery({
+    queryKey: ["whatsappOutbox", "customer", orgId, mobile],
+    queryFn: () => automation.listWhatsappOutboxForCustomer(orgId!, mobile!),
+    enabled: !!orgId && !!mobile,
+  })
+}
+
+// ── Conversations ─────────────────────────────────────────────────────────
+export function useWhatsappConversations(orgId: string | undefined) {
+  return useQuery({ queryKey: ["whatsappConversations", orgId], queryFn: () => automation.listWhatsappConversations(orgId!), enabled: !!orgId })
+}
+export function useWhatsappTranscript(orgId: string | undefined, phone: string | undefined) {
+  return useQuery({
+    queryKey: ["whatsappTranscript", orgId, phone],
+    queryFn: () => automation.listWhatsappTranscript(orgId!, phone!),
+    enabled: !!orgId && !!phone,
+  })
+}
+
+// ── Templates ─────────────────────────────────────────────────────────────
+export function useWhatsappTemplates(orgId: string | undefined) {
+  return useQuery({ queryKey: ["whatsappTemplates", orgId], queryFn: () => automation.listWhatsappTemplates(orgId!), enabled: !!orgId })
+}
+export function useCreateWhatsappTemplate() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: automation.createWhatsappTemplate, onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsappTemplates"] }) })
+}
+export function useUpdateWhatsappTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof automation.updateWhatsappTemplate>[1] }) => automation.updateWhatsappTemplate(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsappTemplates"] }),
+  })
+}
+export function useDeleteWhatsappTemplate() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: automation.deleteWhatsappTemplate, onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsappTemplates"] }) })
+}
 
 // ── Purchase ──────────────────────────────────────────────────────────────
 export function usePurchaseOrders(orgId: string | undefined) {
