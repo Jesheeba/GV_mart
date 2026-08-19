@@ -1781,6 +1781,9 @@ export type Database = {
           ref_type: string | null
           ref_id: string | null
           status: string
+          wa_message_id: string | null
+          type: string | null
+          error: string | null
           created_at: string
           updated_at: string
         }
@@ -1796,6 +1799,9 @@ export type Database = {
           ref_type?: string | null
           ref_id?: string | null
           status?: string
+          wa_message_id?: string | null
+          type?: string | null
+          error?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1811,6 +1817,9 @@ export type Database = {
           ref_type?: string | null
           ref_id?: string | null
           status?: string
+          wa_message_id?: string | null
+          type?: string | null
+          error?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1824,6 +1833,110 @@ export type Database = {
           },
           {
             foreignKeyName: "whatsapp_outbox_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_templates: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          category: string
+          approval_status: string
+          body: string
+          variable_map: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          category?: string
+          approval_status?: string
+          body: string
+          variable_map?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string
+          category?: string
+          approval_status?: string
+          body?: string
+          variable_map?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversations: {
+        Row: {
+          id: string
+          org_id: string
+          phone: string
+          customer_id: string | null
+          journey: string | null
+          step: string | null
+          collected: Json
+          status: string
+          expires_at: string | null
+          last_message_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          phone: string
+          customer_id?: string | null
+          journey?: string | null
+          step?: string | null
+          collected?: Json
+          status?: string
+          expires_at?: string | null
+          last_message_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          phone?: string
+          customer_id?: string | null
+          journey?: string | null
+          step?: string | null
+          collected?: Json
+          status?: string
+          expires_at?: string | null
+          last_message_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
@@ -4277,6 +4390,7 @@ export type Database = {
           emi_enabled: boolean
           emi_tenure_months: Json
           emi_disclaimer: string | null
+          whatsapp_bot_enabled: boolean
           created_at: string
           updated_at: string
         }
@@ -4317,6 +4431,7 @@ export type Database = {
           emi_enabled?: boolean
           emi_tenure_months?: Json
           emi_disclaimer?: string | null
+          whatsapp_bot_enabled?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -4357,6 +4472,7 @@ export type Database = {
           emi_enabled?: boolean
           emi_tenure_months?: Json
           emi_disclaimer?: string | null
+          whatsapp_bot_enabled?: boolean
           created_at?: string
           updated_at?: string
         }

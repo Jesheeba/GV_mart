@@ -380,6 +380,14 @@ allow_dynamic_registration = false
 enabled = true
 verify_jwt = false
 
+# Called by GitHub Actions on a schedule (see .github/workflows/wa-
+# scheduled-tasks.yml), also with no Supabase session — same reasoning as
+# whatsapp-webhook above. Guarded by its own bearer-secret check
+# (CRON_SECRET) inside the function.
+[functions.wa-scheduled-tasks]
+enabled = true
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

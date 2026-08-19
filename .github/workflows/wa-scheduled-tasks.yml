@@ -1,0 +1,25 @@
+name: WhatsApp scheduled tasks
+
+# AMC expiry reminders (30/15/7 day), feedback requests, and the outbound
+# failed-send retry pass — see supabase/functions/wa-scheduled-tasks. This
+# stack has deliberately avoided pg_cron elsewhere (see
+# resolve_purchase_quote_requests's resolve-on-view pattern in the
+# migrations), so this workflow is the scheduling mechanism instead of a
+# new Postgres extension: no new extension enabled, nothing to manage
+# inside the database, and it lives next to the rest of this repo's CI.
+on:
+  schedule:
+    # 03:00 UTC = 08:30 IST — well outside working hours (09:00-19:30 IST),
+    # so a reminder never arrives while the office/technicians are mid-shift.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {} # manual trigger, for testing without waiting for the schedule
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call wa-scheduled-tasks
+        run: |
+          curl --fail-with-body -sS -X POST \
+            "https://fsunrjithwcjtsutsgea.supabase.co/functions/v1/wa-scheduled-tasks" \
+            -H "Authorization: Bearer ${{ secrets.WA_CRON_SECRET }}"

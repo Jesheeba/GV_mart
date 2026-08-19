@@ -192,8 +192,16 @@ async function executeServiceAction(
 }
 
 async function handleMessage(admin: SupabaseClient, orgId: string, msg: MetaInboundMessage) {
-  // Idempotency FIRST — insert-or-detect-duplicate on wa_message_id before
-  // any lookup, RPC, or reply happens. A unique-violation here means Meta
+  // Kill switch — checked FIRST, before anything else, including the
+  // idempotency log below. When off, the bot does not log, identify, route,
+  // or reply to anything; Meta still gets its 200 from the caller so it
+  // doesn't retry. Phase 4's ops surface toggles this.
+  const { data: settingsRow, error: settingsError } = await admin.from("settings").select("whatsapp_bot_enabled").eq("org_id", orgId).maybeSingle()
+  if (settingsError) throw settingsError
+  if (settingsRow && settingsRow.whatsapp_bot_enabled === false) return
+
+  // Idempotency — insert-or-detect-duplicate on wa_message_id before any
+  // lookup, RPC, or reply happens. A unique-violation here means Meta
   // retried a delivery we already processed; stop, don't reprocess.
   const { error: dedupeError } = await admin.from("whatsapp_outbox").insert({
     org_id: orgId,
