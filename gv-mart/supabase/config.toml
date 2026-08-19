@@ -371,6 +371,15 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Meta calls this webhook directly (GET verification handshake + POST
+# deliveries) with no Supabase session — it can't send a project JWT, so this
+# is the one function that needs the project-default JWT check turned off.
+# Authenticity is instead enforced inside the function itself, via the
+# X-Hub-Signature-256 HMAC check against WHATSAPP_APP_SECRET.
+[functions.whatsapp-webhook]
+enabled = true
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
