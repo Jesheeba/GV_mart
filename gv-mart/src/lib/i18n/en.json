@@ -3446,5 +3446,34 @@
   "notFound": {
     "title": "Page not found",
     "backToLogin": "Back to login"
+  },
+  "whatsapp": {
+    "greeting": {
+      "known": "Hi {{name}}, welcome back to GV Mart! How can we help you today?",
+      "unknown": "Hi! Welcome to GV Mart. How can we help you today?"
+    },
+    "menu": {
+      "header": "GV Mart",
+      "body": "Choose an option below:",
+      "footer": "Reply \"menu\" anytime to come back here",
+      "buttonText": "View options",
+      "items": {
+        "buy": { "title": "Buy / Upgrade", "description": "Explore our products" },
+        "service": { "title": "Book Service", "description": "Raise a service request" },
+        "spares": { "title": "Parts & Accessories", "description": "Order spares" },
+        "amc": { "title": "AMC & Maintenance", "description": "Check AMC status, renew" },
+        "account": { "title": "My GV Mart Account", "description": "Products, tickets, AMC" },
+        "expert": { "title": "Talk to an Expert", "description": "Connect with our team" }
+      }
+    },
+    "mechanics": {
+      "backNotAvailable": "You're at the first step — nothing to go back to.",
+      "returnedToMenu": "Back to the main menu.",
+      "cancelled": "No problem, cancelled. Here's the main menu again.",
+      "handoff": "Connecting you with our team — someone will reply here shortly.",
+      "timeout": "It's been a while, so let's start fresh.",
+      "fallback": "Sorry, I didn't get that. Reply \"menu\" to see your options.",
+      "journeyComingSoon": "This part of the flow isn't ready yet — reply \"back\" or \"menu\" to go elsewhere."
+    }
   }
 }

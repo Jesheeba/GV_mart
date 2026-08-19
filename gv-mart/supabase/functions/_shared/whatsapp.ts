@@ -19,6 +19,8 @@ export type SendMessageInput = {
   customerId: string | null
   template: string // e.g. "wa.menu", "wa.service.ack" — mirrors whatsapp_outbox.template
   body: string // human-readable text, logged into payload.body for now
+  /** Meta interactive-message shape (list/button), when this reply is more than plain text. Stored in payload.interactive so a real send later has everything it needs without re-deriving it. */
+  interactive?: unknown
   type?: "text" | "template" | "interactive" | "media"
   refType?: string | null
   refId?: string | null
@@ -43,8 +45,8 @@ export async function sendMessage(admin: SupabaseClient, input: SendMessageInput
       to_mobile: input.to,
       customer_id: input.customerId,
       template: input.template,
-      type: input.type ?? "text",
-      payload: { body: input.body },
+      type: input.type ?? (input.interactive ? "interactive" : "text"),
+      payload: input.interactive ? { body: input.body, interactive: input.interactive } : { body: input.body },
       ref_type: input.refType ?? null,
       ref_id: input.refId ?? null,
       status: "sent",

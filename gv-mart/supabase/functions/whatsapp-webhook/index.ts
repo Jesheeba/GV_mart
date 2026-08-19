@@ -1,40 +1,56 @@
-// WhatsApp Integration, Phase 1 — the real webhook the existing ADM-23
-// simulation never had (see InboundTestTab.tsx's own comment: "this is a
-// Vite SPA with no server to host a real HTTP route on"). This is that
-// route, as an Edge Function, following the same shape as geocode/
-// admin-create-technician: JWT verification is off for this one function
-// only (see supabase/config.toml — Meta can't send a Supabase session),
-// and authenticity is instead enforced by verifying Meta's own
+// WhatsApp Integration — the real webhook the existing ADM-23 simulation
+// never had (see InboundTestTab.tsx's own comment: "this is a Vite SPA
+// with no server to host a real HTTP route on"). Follows the same shape as
+// geocode/admin-create-technician: JWT verification is off for this one
+// function only (see supabase/config.toml — Meta can't send a Supabase
+// session), and authenticity is instead enforced by verifying Meta's own
 // X-Hub-Signature-256 HMAC against WHATSAPP_APP_SECRET.
 //
-// Two things this function is deliberately conservative about for Phase 1,
-// left to Phase 2b:
-//   - No journey/menu logic yet. It identifies the customer, loads/creates
-//     the conversation row, and sends one acknowledgment reply — proving the
-//     whole pipe end to end without building the state machine early.
-//   - Idempotency is the FIRST thing checked, before anything else runs —
-//     the proposal's #1 flagged real-world failure mode (Meta retries a
-//     delivery, a naive handler creates a duplicate ticket/lead).
+// Idempotency is the FIRST thing checked, before anything else runs — the
+// proposal's #1 flagged real-world failure mode (Meta retries a delivery,
+// a naive handler creates a duplicate ticket/lead).
+//
+// Phase 2b Step 1 adds the conversation state machine + main menu
+// (routeInbound, in _shared/whatsapp-journeys.ts). Journey-specific step
+// logic (Service in Step 2, Sales/Spares/AMC/Account in Step 3) extends
+// that module without this file changing shape.
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import { sendMessage } from "../_shared/whatsapp.ts"
+import { routeInbound, type ConversationState, type InboundIntent } from "../_shared/whatsapp-journeys.ts"
+import type { WaLang } from "../_shared/i18n.ts"
 
-type MetaTextMessage = {
+type MetaInboundMessage = {
   from: string
   id: string
   timestamp: string
   type: string
   text?: { body: string }
+  interactive?: { type: string; list_reply?: { id: string; title: string }; button_reply?: { id: string; title: string } }
 }
 
 type MetaChangeValue = {
   metadata?: { phone_number_id?: string; display_phone_number?: string }
-  messages?: MetaTextMessage[]
+  messages?: MetaInboundMessage[]
   statuses?: unknown[]
 }
 
 type MetaWebhookBody = {
   entry?: { changes?: { value?: MetaChangeValue }[] }[]
 }
+
+type ConversationRow = {
+  id: string
+  org_id: string
+  phone: string
+  customer_id: string | null
+  journey: string | null
+  step: string | null
+  collected: Record<string, unknown>
+  status: "active" | "completed" | "expired" | "handed_off"
+  expires_at: string | null
+}
+
+const STEP_TIMEOUT_MINUTES = 15
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -72,7 +88,13 @@ async function resolveOrgId(admin: SupabaseClient, phoneNumberId: string | undef
   return null
 }
 
-async function handleMessage(admin: SupabaseClient, orgId: string, msg: MetaTextMessage) {
+function toIntent(msg: MetaInboundMessage): InboundIntent {
+  if (msg.type === "interactive" && msg.interactive?.list_reply) return { kind: "list_reply", id: msg.interactive.list_reply.id }
+  if (msg.type === "interactive" && msg.interactive?.button_reply) return { kind: "list_reply", id: msg.interactive.button_reply.id }
+  return { kind: "text", text: msg.text?.body ?? "" }
+}
+
+async function handleMessage(admin: SupabaseClient, orgId: string, msg: MetaInboundMessage) {
   // Idempotency FIRST — insert-or-detect-duplicate on wa_message_id before
   // any lookup, RPC, or reply happens. A unique-violation here means Meta
   // retried a delivery we already processed; stop, don't reprocess.
@@ -82,7 +104,7 @@ async function handleMessage(admin: SupabaseClient, orgId: string, msg: MetaText
     to_mobile: null,
     template: "inbound.raw",
     type: msg.type ?? "text",
-    payload: { from: msg.from, body: msg.text?.body ?? null, meta_timestamp: msg.timestamp },
+    payload: { from: msg.from, body: msg.text?.body ?? null, interactive: msg.interactive ?? null, meta_timestamp: msg.timestamp },
     wa_message_id: msg.id,
     status: "received",
   })
@@ -96,30 +118,54 @@ async function handleMessage(admin: SupabaseClient, orgId: string, msg: MetaText
 
   const { data: conversation, error: convError } = await admin.rpc("wa_get_conversation", { p_org_id: orgId, p_phone: msg.from })
   if (convError) throw convError
+  const conv = conversation as ConversationRow
 
-  if (identity?.found && !conversation.customer_id) {
-    await admin.rpc("wa_save_conversation_step", {
-      p_org_id: orgId,
-      p_phone: msg.from,
-      p_journey: conversation.journey,
-      p_step: conversation.step,
-      p_customer_id: identity.customer_id,
-    })
+  // A handed-off conversation is out of the bot's hands until a human (or a
+  // future "resume bot" action) reopens it — see Phase 4's ops surface,
+  // not built yet. For now just stop routing; the message is still logged
+  // above so a human can see it.
+  if (conv.status === "handed_off") return
+
+  const lang: WaLang = conv.collected?.lang === "ta" ? "ta" : "en"
+  const isExpired = !!conv.expires_at && new Date(conv.expires_at).getTime() < Date.now()
+
+  const result = routeInbound({
+    lang,
+    conversation: { journey: conv.journey, step: conv.step, collected: conv.collected ?? {}, status: conv.status },
+    customerName: identity?.found ? (identity.name as string) : null,
+    isExpired,
+    intent: toIntent(msg),
+  })
+
+  const nextStatus = result.nextState.status
+  await admin.rpc("wa_save_conversation_step", {
+    p_org_id: orgId,
+    p_phone: msg.from,
+    p_journey: result.nextState.journey,
+    p_step: result.nextState.step,
+    p_collected: result.nextState.collected,
+    p_customer_id: identity?.found ? identity.customer_id : null,
+    p_status: nextStatus,
+  })
+
+  // Refresh the timeout window on every turn except a terminal one — a
+  // handed-off or completed conversation has nothing left to time out of.
+  if (nextStatus === "active") {
+    await admin
+      .from("whatsapp_conversations")
+      .update({ expires_at: new Date(Date.now() + STEP_TIMEOUT_MINUTES * 60_000).toISOString() })
+      .eq("id", conv.id)
   }
-
-  // Phase 1 only proves the pipe end to end — journeys/menu land in Phase 2b.
-  const ackBody = identity?.found
-    ? `Hi ${identity.name as string}, thanks for messaging GV Mart — we've received your message and will be in touch shortly.`
-    : "Thanks for messaging GV Mart — we've received your message and will be in touch shortly."
 
   await sendMessage(admin, {
     orgId,
-    to: identity?.phone ?? msg.from,
-    customerId: identity?.customer_id ?? null,
-    template: "wa.phase1_ack",
-    body: ackBody,
+    to: identity?.found ? (identity.phone as string) : msg.from,
+    customerId: identity?.found ? (identity.customer_id as string) : null,
+    template: `wa.${result.nextState.journey ?? "menu"}.${result.nextState.step ?? nextStatus}`,
+    body: result.reply.body,
+    interactive: result.reply.interactive,
     refType: "whatsapp_conversations",
-    refId: conversation.id,
+    refId: conv.id,
   })
 }
 
@@ -163,7 +209,7 @@ Deno.serve(async (req) => {
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value
-      if (!value?.messages?.length) continue // status/receipt payloads, nothing to do in Phase 1
+      if (!value?.messages?.length) continue // status/receipt payloads, nothing to do
 
       const orgId = await resolveOrgId(admin, value.metadata?.phone_number_id)
       if (!orgId) {
