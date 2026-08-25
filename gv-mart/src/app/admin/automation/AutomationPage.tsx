@@ -12,6 +12,7 @@ import { InboundTestTab } from "./InboundTestTab"
 import { ConversationsTab } from "./ConversationsTab"
 import { TemplatesTab } from "./TemplatesTab"
 import { FailedSendsTab } from "./FailedSendsTab"
+import { AutomationJobsTab } from "./AutomationJobsTab"
 
 /** Prominently placed, not buried in a tab — visible and one click,
  * regardless of which tab is open, per the plan's "bot kill switch,
@@ -62,6 +63,7 @@ export function AutomationPage() {
           <TabsTrigger value="conversations">{t("automation.tabs.conversations")}</TabsTrigger>
           <TabsTrigger value="templates">{t("automation.tabs.templates")}</TabsTrigger>
           <TabsTrigger value="failedSends">{t("automation.tabs.failedSends")}</TabsTrigger>
+          <TabsTrigger value="jobs">{t("automation.tabs.jobs")}</TabsTrigger>
         </TabsList>
         <Card size="default" className="mt-3">
           <TabsContent value="flows">
@@ -81,6 +83,9 @@ export function AutomationPage() {
           </TabsContent>
           <TabsContent value="failedSends">
             <FailedSendsTab />
+          </TabsContent>
+          <TabsContent value="jobs">
+            <AutomationJobsTab />
           </TabsContent>
         </Card>
       </Tabs>

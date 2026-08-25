@@ -7,11 +7,23 @@ name: WhatsApp scheduled tasks
 # migrations), so this workflow is the scheduling mechanism instead of a
 # new Postgres extension: no new extension enabled, nothing to manage
 # inside the database, and it lives next to the rest of this repo's CI.
+#
+# The actual pacing (daily by default) is now admin-configurable via
+# settings.scheduled_tasks_interval_minutes — see
+# 20260825160000_wa_scheduled_job_intervals.sql and
+# _shared/wa-job-pacing.ts. This trigger stays tight/fixed on purpose (GH
+# Actions can't read an interval from a database); the function itself
+# decides whether enough time has actually passed to do real work.
+#
+# Uses CRON_SECRET, same repo secret as wa-milestone-dispatch.yml and the
+# same Supabase project secret the function checks
+# (Deno.env.get("CRON_SECRET")) — previously mismatched as WA_CRON_SECRET,
+# which meant this workflow's first-ever scheduled run (2026-08-25) failed
+# with 401 before doing any work. Fixed here; the CRON_SECRET repo secret
+# itself still needs to be set to match the Supabase project's value.
 on:
   schedule:
-    # 03:00 UTC = 08:30 IST — well outside working hours (09:00-19:30 IST),
-    # so a reminder never arrives while the office/technicians are mid-shift.
-    - cron: "0 3 * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: {} # manual trigger, for testing without waiting for the schedule
 
 jobs:
@@ -22,4 +34,4 @@ jobs:
         run: |
           curl --fail-with-body -sS -X POST \
             "https://fsunrjithwcjtsutsgea.supabase.co/functions/v1/wa-scheduled-tasks" \
-            -H "Authorization: Bearer ${{ secrets.WA_CRON_SECRET }}"
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

@@ -21,6 +21,7 @@
 // because the caller is different, not because this is less careful about it).
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import { sendMessage } from "../_shared/whatsapp.ts"
+import { markJobRan, shouldRunJob } from "../_shared/wa-job-pacing.ts"
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -181,9 +182,14 @@ Deno.serve(async (req) => {
 
   const results = []
   for (const org of orgs ?? []) {
+    if (!(await shouldRunJob(admin, org.id, "scheduled_tasks"))) {
+      results.push({ orgId: org.id, skipped: true })
+      continue
+    }
     const amc = await runAmcReminders(admin, org.id)
     const feedback = await runFeedbackRequests(admin, org.id)
     const retries = await runFailedSendRetries(admin, org.id)
+    await markJobRan(admin, org.id, "scheduled_tasks")
     results.push({ orgId: org.id, amc, feedback, retries })
   }
 

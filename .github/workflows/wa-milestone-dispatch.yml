@@ -1,0 +1,47 @@
+name: WhatsApp milestone dispatch
+
+# Runs every 5 minutes, calling wa-milestone-dispatch to push any WhatsApp
+# outbox row written directly by the milestone DB triggers (ticket booked/
+# assigned/completed, technician on-the-way, invoice) through the real
+# Wasi sendMessage() call — those triggers insert straight into
+# whatsapp_outbox and never call sendMessage() themselves. Deliberately a
+# separate, tight-interval workflow rather than added to wa-scheduled-tasks
+# — a booking confirmation is time-sensitive in a way AMC reminders/
+# feedback requests aren't.
+#
+# The actual pacing is admin-configurable via
+# settings.milestone_dispatch_interval_minutes — see
+# 20260825160000_wa_scheduled_job_intervals.sql and
+# _shared/wa-job-pacing.ts. This trigger stays tight/fixed (GH Actions
+# can't read an interval from a database); the function itself decides
+# whether enough time has actually passed to do real work, per org.
+#
+# Requires a repo secret CRON_SECRET matching the CRON_SECRET set on the
+# Supabase project (`supabase secrets set CRON_SECRET=...`) — the function
+# rejects any request whose Authorization header doesn't match it.
+#
+# NOTE: this file previously existed only as an uncommitted, wrongly-nested
+# copy at gv-mart/.github/workflows/ — GitHub Actions only ever reads
+# .github/workflows/ from the actual repository root, so it was never
+# picked up by anything until moved here.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call wa-milestone-dispatch
+        run: |
+          response=$(curl -s -o response.json -w "%{http_code}" \
+            -X POST "https://fsunrjithwcjtsutsgea.supabase.co/functions/v1/wa-milestone-dispatch" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "HTTP status: $response"
+          cat response.json
+          if [ "$response" -ge 300 ]; then
+            echo "wa-milestone-dispatch returned a non-2xx status"
+            exit 1
+          fi

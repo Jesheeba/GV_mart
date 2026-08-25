@@ -4391,6 +4391,14 @@ export type Database = {
           emi_tenure_months: Json
           emi_disclaimer: string | null
           whatsapp_bot_enabled: boolean
+          // Admin-configurable cron pacing (2026-08-25) — see
+          // 20260825160000_wa_scheduled_job_intervals.sql.
+          milestone_dispatch_enabled: boolean
+          milestone_dispatch_interval_minutes: number
+          milestone_dispatch_last_run_at: string | null
+          scheduled_tasks_enabled: boolean
+          scheduled_tasks_interval_minutes: number
+          scheduled_tasks_last_run_at: string | null
           created_at: string
           updated_at: string
         }
@@ -4432,6 +4440,12 @@ export type Database = {
           emi_tenure_months?: Json
           emi_disclaimer?: string | null
           whatsapp_bot_enabled?: boolean
+          milestone_dispatch_enabled?: boolean
+          milestone_dispatch_interval_minutes?: number
+          milestone_dispatch_last_run_at?: string | null
+          scheduled_tasks_enabled?: boolean
+          scheduled_tasks_interval_minutes?: number
+          scheduled_tasks_last_run_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4473,6 +4487,12 @@ export type Database = {
           emi_tenure_months?: Json
           emi_disclaimer?: string | null
           whatsapp_bot_enabled?: boolean
+          milestone_dispatch_enabled?: boolean
+          milestone_dispatch_interval_minutes?: number
+          milestone_dispatch_last_run_at?: string | null
+          scheduled_tasks_enabled?: boolean
+          scheduled_tasks_interval_minutes?: number
+          scheduled_tasks_last_run_at?: string | null
           created_at?: string
           updated_at?: string
         }

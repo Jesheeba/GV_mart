@@ -2749,7 +2749,25 @@
       "inbox": "Inbox / Test",
       "conversations": "Conversations",
       "templates": "Templates",
-      "failedSends": "Failed Sends"
+      "failedSends": "Failed Sends",
+      "jobs": "Jobs"
+    },
+    "jobs": {
+      "hint": "GitHub Actions triggers both jobs on a tight, fixed schedule — the interval below is what actually controls how often each one does real work.",
+      "enabled": "Enabled",
+      "intervalMinutes": "Interval (minutes)",
+      "lastRun": "Last ran",
+      "never": "Never",
+      "save": "Save",
+      "saved": "Saved.",
+      "milestoneDispatch": {
+        "title": "Milestone Dispatch",
+        "description": "Pushes booking/assignment/technician-on-the-way WhatsApp messages that DB triggers write directly to the outbox."
+      },
+      "scheduledTasks": {
+        "title": "Scheduled Tasks",
+        "description": "AMC expiry reminders, feedback requests, and the failed-send retry pass."
+      }
     },
     "flows": {
       "trigger": "Trigger",
