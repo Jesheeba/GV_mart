@@ -74,7 +74,7 @@ function AdminGlobalSearch({ orgId }: { orgId: string }) {
         setTerm("")
         navigate(r.kind === "customer" ? `/admin/customers/${r.id}` : `/admin/service/${r.id}`)
       }}
-      className="relative flex-1 max-w-md"
+      className="relative min-w-0 flex-1 max-w-md"
       inputClassName="h-10 w-full rounded-full border border-border bg-surface pl-10 pr-4 text-sm text-text outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20"
     />
   )
@@ -173,7 +173,7 @@ export function AdminShell() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:block print:overflow-visible">
         <header className="flex shrink-0 items-center gap-3 px-6 py-4 print:hidden">
           <AdminGlobalSearch orgId={profile.org_id} />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               type="button"
               aria-label={t("shell.notifications")}

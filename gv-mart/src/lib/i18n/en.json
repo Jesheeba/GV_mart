@@ -109,6 +109,7 @@
     "searchPlaceholder": "Search customers, tickets, invoices…",
     "searchEmpty": "No matches found",
     "notifications": "Notifications",
+    "moreOptions": "More options",
     "switchToDarkMode": "Switch to dark mode",
     "switchToLightMode": "Switch to light mode",
     "signOut": "Sign out",
@@ -1681,7 +1682,7 @@
         "distanceValue": "{{distance}} km",
         "distanceValueMeters": "{{meters}} m",
         "status": "Status",
-        "routeUnavailable": "Route unavailable ({{code}})"
+        "routeUnavailable": "Route unavailable ({{code}}) — distance/ETA shown are a straight-line estimate, not the real route"
       }
     },
     "errors": {
@@ -2190,7 +2191,9 @@
       "upload": "Upload audio",
       "clear": "Clear",
       "unsupported": "Voice recording isn't supported on this device/browser. Use Upload audio instead.",
-      "permissionDenied": "Microphone access denied. Enable microphone permission for this site in your browser settings, or use Upload audio instead."
+      "permissionDenied": "Microphone access denied. Enable microphone permission for this site in your browser settings, or use Upload audio instead.",
+      "noMicrophone": "No microphone was found on this device. Use Upload audio instead.",
+      "micInUse": "The microphone is in use by another app. Close it and try again, or use Upload audio instead."
     },
     "sync": {
       "offline": "Offline",
@@ -2323,6 +2326,7 @@
       "distanceKm": "{{km}} km",
       "eta": "ETA",
       "etaMinutes": "{{minutes}} min",
+      "approximateDistance": "Live route couldn't be calculated — this is a straight-line estimate, not a real driving distance/ETA.",
       "expectedArrival": "Expected arrival",
       "scheduledAppointment": "Scheduled appointment",
       "openInMaps": "Open in Maps",

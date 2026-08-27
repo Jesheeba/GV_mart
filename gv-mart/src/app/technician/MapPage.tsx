@@ -306,6 +306,12 @@ export function MapPage() {
   // until Directions resolves (or if it errors/finds no route).
   const realDurationMinutes = directions.data?.durationMinutes ?? null
   const etaMinutes = realDurationMinutes != null ? Math.round(realDurationMinutes) : km != null ? Math.round(expectedMinutes(km, perKmMinutes)) : null
+  // True whenever the figures above came from the haversine/flat-rate
+  // fallback rather than a real Directions API response (REQUEST_DENIED, no
+  // route found, or the call hasn't resolved yet) — surfaced so a
+  // straight-line guess never reads as a routed number the technician can
+  // trust the same way.
+  const isApproximateDistance = km != null && directions.data?.distanceKm == null
   const expectedArrivalAt = etaMinutes != null ? new Date(Date.now() + etaMinutes * 60_000) : null
 
   const isIdle = !!geoError && !position
@@ -377,13 +383,23 @@ export function MapPage() {
             <div className="grid grid-cols-2 gap-3 px-1">
               <div>
                 <p className="text-xs text-text-muted">{t("technician.map.distance")}</p>
-                <p className="text-lg font-semibold text-text">{km != null ? t("technician.map.distanceKm", { km: km.toFixed(1) }) : "—"}</p>
+                <p className="text-lg font-semibold text-text">
+                  {km != null ? (isApproximateDistance ? "~" : "") + t("technician.map.distanceKm", { km: km.toFixed(1) }) : "—"}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-text-muted">{t("technician.map.eta")}</p>
-                <p className="text-lg font-semibold text-text">{etaMinutes != null ? t("technician.map.etaMinutes", { minutes: etaMinutes }) : "—"}</p>
+                <p className="text-lg font-semibold text-text">
+                  {etaMinutes != null ? (isApproximateDistance ? "~" : "") + t("technician.map.etaMinutes", { minutes: etaMinutes }) : "—"}
+                </p>
               </div>
             </div>
+            {isApproximateDistance ? (
+              <p className="flex items-center gap-1.5 px-1 text-xs text-warning">
+                <TriangleAlert className="size-3.5 shrink-0" />
+                {t("technician.map.approximateDistance")}
+              </p>
+            ) : null}
 
             {/* Task 2 — live expected-arrival time alongside the admin's
                 originally scheduled appointment time, kept as two distinct

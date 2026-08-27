@@ -31,7 +31,8 @@ import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDial
 // omitted rather than fabricated. `is_active` is folded into the Status cell
 // instead (an inactive technician always shows "Inactive", regardless of
 // duty state) so that real field isn't lost from the view.
-const TABLE_GRID_COLS = "grid-cols-[1.6fr_1.2fr_1fr_0.9fr_1fr_0.8fr]"
+const TABLE_GRID_COLS =
+  "grid-cols-[minmax(160px,1.6fr)_minmax(120px,1.2fr)_minmax(90px,1fr)_minmax(70px,0.9fr)_minmax(90px,1fr)_minmax(80px,0.8fr)]"
 
 /**
  * ADM-14. Rows navigate to a per-technician detail page
@@ -522,7 +523,7 @@ function TechniciansTable({
   ]
 
   return (
-    <div className="overflow-hidden rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+    <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
       <div className={cn("grid items-center border-b border-border bg-surface-alt px-[22px] py-[11px]", TABLE_GRID_COLS)}>
         {headers.map((h) => (
           <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">

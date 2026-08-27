@@ -91,6 +91,12 @@ function DirectionsRoute({
 
   useEffect(() => {
     if (!map || !origin || !destination || !originKey) return
+    // Captured as their own consts so the non-null narrowing above survives
+    // into fetchRoute()'s nested closure below — TS doesn't propagate a
+    // narrowing on `origin`/`destination` themselves into a function
+    // declared further down in the same scope.
+    const safeOrigin = origin
+    const safeDestination = destination
     const fetchKey = `${originKey}>${destKey}`
     const now = Date.now()
     const last = lastFetchRef.current
@@ -114,8 +120,8 @@ function DirectionsRoute({
       let lastErrorCode = "NO_ROUTE"
       for (const travelMode of FALLBACK_TRAVEL_MODES) {
         const request: google.maps.DirectionsRequest = {
-          origin,
-          destination,
+          origin: safeOrigin,
+          destination: safeDestination,
           travelMode: travelMode as google.maps.TravelMode,
           ...(travelMode === "DRIVING"
             ? { drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel.BEST_GUESS } }

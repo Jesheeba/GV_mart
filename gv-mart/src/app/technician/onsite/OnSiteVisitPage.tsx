@@ -639,19 +639,26 @@ export function OnSiteVisitPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSpares])
 
-  if (technician.isLoading || settings.isLoading || jobDetail.isLoading) return <FullPageLoader label={t("common.loading")} />
+  // OnSiteVisitPage is a sibling route outside TechnicianShell (see
+  // router.tsx), so unlike every other technician screen it gets no header
+  // to provide the top safe-area inset and no <main className="px-4"> to
+  // provide horizontal margins — every returned state here has to supply
+  // both itself.
+  const SAFE_AREA_CLASS = "pt-[calc(env(safe-area-inset-top)+0.75rem)] px-4"
+
+  if (technician.isLoading || settings.isLoading || jobDetail.isLoading) return <FullPageLoader label={t("common.loading")} className={SAFE_AREA_CLASS} />
   if (technician.isError || !technician.data) {
-    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => technician.refetch()} retryLabel={t("common.retry")} />
+    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => technician.refetch()} retryLabel={t("common.retry")} className={SAFE_AREA_CLASS} />
   }
   if (jobDetail.isError || !ticket) {
-    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobDetail.refetch()} retryLabel={t("common.retry")} />
+    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => jobDetail.refetch()} retryLabel={t("common.retry")} className={SAFE_AREA_CLASS} />
   }
   if (settings.isError || !settings.data) {
-    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => settings.refetch()} retryLabel={t("common.retry")} />
+    return <FullPageError message={t("technician.errors.loadFailed")} onRetry={() => settings.refetch()} retryLabel={t("common.retry")} className={SAFE_AREA_CLASS} />
   }
   if (isTicketClosed(ticket.status) && !visitId) {
     return (
-      <div className="pt-2">
+      <div className={SAFE_AREA_CLASS}>
         <Card className="items-center gap-2 py-8 text-center">
           <CheckCircle2 className="size-8 text-success" />
           <p className="text-sm font-medium text-text">{t("technician.onsite.jobClosedTitle")}</p>
@@ -965,7 +972,7 @@ export function OnSiteVisitPage() {
   const seconds = String(elapsedSec % 60).padStart(2, "0")
 
   return (
-    <div className="space-y-4 pt-2 pb-24">
+    <div className={cn("space-y-4 pb-24", SAFE_AREA_CLASS)}>
       <Dialog
         open={overrunDialogOpen}
         onOpenChange={(open, eventDetails) => {
@@ -987,10 +994,8 @@ export function OnSiteVisitPage() {
           <DialogDescription>
             {t("technician.onsite.overrunDialog.body", { minutes: Math.round(overrun.overrunByMinutes ?? 0) })}
           </DialogDescription>
-          <DialogClose asChild>
-            <Button type="button" className="mt-2 w-full">
-              {t("technician.onsite.overrunDialog.acknowledge")}
-            </Button>
+          <DialogClose render={<Button type="button" className="mt-2 w-full" />}>
+            {t("technician.onsite.overrunDialog.acknowledge")}
           </DialogClose>
         </DialogContent>
       </Dialog>

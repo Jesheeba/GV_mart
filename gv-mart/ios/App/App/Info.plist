@@ -77,5 +77,7 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>GV Mart uses your location for attendance check-in and live job tracking.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>GV Mart uses your microphone to record optional voice notes about a service visit.</string>
 </dict>
 </plist>

@@ -43,3 +43,22 @@ export async function markJobRan(admin: SupabaseClient, orgId: string, job: Sche
     .eq("org_id", orgId)
   if (error) console.error(`wa-job-pacing: failed to update ${job}_last_run_at`, error)
 }
+
+/**
+ * The `_enabled` half of shouldRunJob, without the interval half — for
+ * wa-dispatch-now's on-demand calls, which must ignore the cron interval
+ * (that's the whole point of "on-demand") but should still honor an admin
+ * explicitly switching milestone dispatch off (e.g. during a provider
+ * outage). Same fail-open behavior as shouldRunJob on a lookup error or
+ * missing settings row — this is a pacing/kill-switch check, not a safety
+ * mechanism.
+ */
+export async function isJobEnabled(admin: SupabaseClient, orgId: string, job: ScheduledJobKey): Promise<boolean> {
+  const { data, error } = await admin.from("settings").select(`${job}_enabled`).eq("org_id", orgId).maybeSingle()
+  if (error) {
+    console.error(`wa-job-pacing: enabled lookup failed for ${job}, running anyway`, error)
+    return true
+  }
+  if (!data) return true
+  return (data as Record<string, unknown>)[`${job}_enabled`] !== false
+}

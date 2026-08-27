@@ -190,7 +190,6 @@ export function CustomerFormPage() {
     },
   })
   const doorNo = addressForm.watch("doorNo")
-  const flatNo = addressForm.watch("flatNo")
   const area = addressForm.watch("area")
   const pincode = addressForm.watch("pincode")
   const streetCross = addressForm.watch("streetCross")

@@ -4391,6 +4391,9 @@ export type Database = {
           emi_tenure_months: Json
           emi_disclaimer: string | null
           whatsapp_bot_enabled: boolean
+          // Answer Layer kill switch (2026-08-27), independent of
+          // whatsapp_bot_enabled — see 20260827120000_wa_answer_layer_kill_switch.sql.
+          wa_answer_layer_enabled: boolean
           // Admin-configurable cron pacing (2026-08-25) — see
           // 20260825160000_wa_scheduled_job_intervals.sql.
           milestone_dispatch_enabled: boolean
@@ -4440,6 +4443,7 @@ export type Database = {
           emi_tenure_months?: Json
           emi_disclaimer?: string | null
           whatsapp_bot_enabled?: boolean
+          wa_answer_layer_enabled?: boolean
           milestone_dispatch_enabled?: boolean
           milestone_dispatch_interval_minutes?: number
           milestone_dispatch_last_run_at?: string | null
@@ -4487,6 +4491,7 @@ export type Database = {
           emi_tenure_months?: Json
           emi_disclaimer?: string | null
           whatsapp_bot_enabled?: boolean
+          wa_answer_layer_enabled?: boolean
           milestone_dispatch_enabled?: boolean
           milestone_dispatch_interval_minutes?: number
           milestone_dispatch_last_run_at?: string | null

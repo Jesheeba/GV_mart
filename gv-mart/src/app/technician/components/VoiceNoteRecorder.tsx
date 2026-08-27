@@ -69,8 +69,20 @@ export function VoiceNoteRecorder({
       mediaRecorderRef.current = recorder
       recorder.start()
       setRecording(true)
-    } catch {
-      setError(t("technician.voiceNote.permissionDenied"))
+    } catch (err) {
+      // getUserMedia rejects with a DOMException whose `name` distinguishes
+      // "no mic present" and "mic already in use" from an actual permission
+      // denial — the generic permissionDenied message is misleading for the
+      // other two, and only applies to NotAllowedError/SecurityError (and
+      // anything unrecognized, as a safe default).
+      const name = err instanceof DOMException ? err.name : undefined
+      if (name === "NotFoundError" || name === "OverconstrainedError") {
+        setError(t("technician.voiceNote.noMicrophone"))
+      } else if (name === "NotReadableError") {
+        setError(t("technician.voiceNote.micInUse"))
+      } else {
+        setError(t("technician.voiceNote.permissionDenied"))
+      }
     }
   }
 

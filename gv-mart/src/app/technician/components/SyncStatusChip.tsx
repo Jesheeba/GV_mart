@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { AlertTriangle, CloudOff, Loader2, RefreshCw } from "lucide-react"
+import { AlertTriangle, CloudOff, Loader2, RefreshCw, Check } from "lucide-react"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 import { useStuckJobs, useSyncStatus } from "@/hooks/useTechnician"
 import { retryStuckJob } from "@/lib/offline/outbox"
@@ -22,36 +22,56 @@ export function SyncStatusChip() {
   const stuckJobs = useStuckJobs()
   const [panelOpen, setPanelOpen] = useState(false)
 
+  // Icon always shown; label text collapses below `sm` — on a 360-412dp
+  // phone this chip sits alongside four other header controls, and "Synced"/
+  // "Offline"/etc. spelled out every time was a big share of why the row
+  // didn't fit. The icon alone still distinguishes every state (including a
+  // dedicated checkmark for "synced", which previously had no icon at all).
   let chip: ReactNode
   if (stuckJobs.length > 0) {
     chip = (
       <button
         type="button"
         onClick={() => setPanelOpen(true)}
-        className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger"
+        aria-label={t("technician.sync.stuck", { count: stuckJobs.length })}
+        className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2 py-1 text-xs font-medium text-danger sm:px-2.5"
       >
         <AlertTriangle className="size-3" />
-        {t("technician.sync.stuck", { count: stuckJobs.length })}
+        <span className="hidden sm:inline">{t("technician.sync.stuck", { count: stuckJobs.length })}</span>
       </button>
     )
   } else if (!online) {
     chip = (
-      <span className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-medium text-danger">
+      <span
+        role="status"
+        aria-label={t("technician.sync.offline")}
+        className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2 py-1 text-xs font-medium text-danger sm:px-2.5"
+      >
         <CloudOff className="size-3" />
-        {t("technician.sync.offline")}
+        <span className="hidden sm:inline">{t("technician.sync.offline")}</span>
       </span>
     )
   } else if (syncing || pending > 0) {
+    const label = syncing ? t("technician.sync.syncing") : t("technician.sync.pending", { count: pending })
     chip = (
-      <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium", syncing ? "bg-info/10 text-info" : "bg-warning/10 text-warning")}>
+      <span
+        role="status"
+        aria-label={label}
+        className={cn("inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium sm:px-2.5", syncing ? "bg-info/10 text-info" : "bg-warning/10 text-warning")}
+      >
         {syncing ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-        {syncing ? t("technician.sync.syncing") : t("technician.sync.pending", { count: pending })}
+        <span className="hidden sm:inline">{label}</span>
       </span>
     )
   } else {
     chip = (
-      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
-        {t("technician.sync.synced")}
+      <span
+        role="status"
+        aria-label={t("technician.sync.synced")}
+        className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-1 text-xs font-medium text-success sm:px-2.5"
+      >
+        <Check className="size-3" />
+        <span className="hidden sm:inline">{t("technician.sync.synced")}</span>
       </span>
     )
   }

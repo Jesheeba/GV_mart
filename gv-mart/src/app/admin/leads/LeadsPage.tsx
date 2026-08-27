@@ -15,7 +15,8 @@ import type { LeadListItem } from "@/services/automation"
 import type { Enums } from "@/types/database"
 import { cn } from "@/lib/utils"
 
-const TABLE_GRID_COLS = "grid-cols-[1.4fr_1fr_1fr_0.8fr_1fr_0.9fr_1.2fr_1fr]"
+const TABLE_GRID_COLS =
+  "grid-cols-[minmax(140px,1.4fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.8fr)_minmax(90px,1fr)_minmax(110px,0.9fr)_minmax(110px,1.2fr)_minmax(90px,1fr)]"
 
 const SOURCE_OPTIONS: Enums<"lead_source">[] = ["field", "customer_app", "whatsapp", "walk_in", "referral", "other"]
 const TOPIC_OPTIONS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
@@ -220,7 +221,7 @@ function LeadsTable({
   ]
 
   return (
-    <div className="overflow-hidden rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+    <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
       <div className={cn("grid items-center border-b border-border bg-surface-alt px-[22px] py-[11px]", TABLE_GRID_COLS)}>
         {headers.map((h) => (
           <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">

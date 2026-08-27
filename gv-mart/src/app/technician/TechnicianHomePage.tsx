@@ -193,19 +193,19 @@ export function TechnicianHomePage() {
       <h1 className="text-xl font-bold text-text">{t("dashboard.welcomeBack", { name: profile.full_name.split(" ")[0] })}</h1>
 
       <div className="grid grid-cols-2 gap-3">
-        <Button type="button" variant="outline" className="h-auto flex-col gap-1.5 py-3" onClick={() => navigate("/technician/spares")}>
-          <Wrench className="size-4" />
+        <Button type="button" variant="outline" className="h-auto flex-col gap-1 px-3 py-2.5" onClick={() => navigate("/technician/spares")}>
+          <Wrench className="size-3.5" />
           {t("technician.home.spareReceipt")}
         </Button>
-        <Button type="button" variant="outline" className="h-auto flex-col gap-1.5 py-3" onClick={() => navigate("/technician/search")}>
-          <ClipboardList className="size-4" />
+        <Button type="button" variant="outline" className="h-auto flex-col gap-1 px-3 py-2.5" onClick={() => navigate("/technician/search")}>
+          <ClipboardList className="size-3.5" />
           {t("technician.home.searchCustomers")}
         </Button>
       </div>
 
       {showJobsGate ? (
-        <Card className="items-center gap-2 py-8 text-center">
-          <CalendarCheck className="size-6 text-text-muted" />
+        <Card className="items-center gap-2 py-4 text-center">
+          <CalendarCheck className="size-5 text-text-muted" />
           <p className="text-sm font-medium text-text">{t("technician.home.attendanceRequiredTitle")}</p>
           <p className="text-xs text-text-muted">{t("technician.home.attendanceRequiredBody")}</p>
           <Button type="button" className="mt-2" onClick={() => navigate("/technician/attendance")}>

@@ -14,7 +14,8 @@ import { InvoiceTypeBadge, PaymentStatusBadge } from "./SalesBadges"
 
 // Matches the design's 7-column table grid (design-template-decoded.html line 1044):
 // Invoice / Customer / Items / Type / Amount / Method / Status.
-const TABLE_GRID_COLS = "grid-cols-[1fr_1.4fr_1.6fr_0.8fr_1fr_0.9fr_1fr]"
+const TABLE_GRID_COLS =
+  "grid-cols-[minmax(90px,1fr)_minmax(130px,1.4fr)_minmax(140px,1.6fr)_minmax(70px,0.8fr)_minmax(90px,1fr)_minmax(90px,0.9fr)_minmax(100px,1fr)]"
 
 const PAYMENT_METHOD_KEY: Record<Enums<"payment_method">, string> = {
   cash: "sales.payment.cash",
@@ -232,6 +233,7 @@ export function SalesListPage() {
           </FilterChip>
         </div>
 
+        <div className="overflow-x-auto">
         <div className={cn("grid items-center border-y border-border bg-surface-alt px-5.5 py-2.5", TABLE_GRID_COLS)}>
           {[
             t("sales.list.table.invoice"),
@@ -312,6 +314,7 @@ export function SalesListPage() {
             </div>
           ))
         )}
+        </div>
       </div>
     </div>
   )

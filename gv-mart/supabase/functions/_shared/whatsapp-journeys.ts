@@ -5,9 +5,42 @@
 // Account in Step 3) plugs into the `journey === "..."` branch below —
 // the mechanics (menu/back/cancel/handoff/timeout) never change per journey.
 import { t, type WaLang } from "./i18n.ts"
+import type { Intent as ClassifiedIntentKind } from "./whatsapp-classify-intent.ts"
 
 export type MenuItemId = "buy" | "service" | "spares" | "amc" | "account" | "expert"
 const MENU_ITEM_IDS: MenuItemId[] = ["buy", "service", "spares", "amc", "account", "expert"]
+
+/** What Phase 5b's classifier hands back to routeInbound — network call
+ * already happened in handleMessage (the impure shell); routeInbound stays
+ * pure and just decides what to do with the result. */
+export type ClassifiedIntent = { intent: ClassifiedIntentKind; confidence: number }
+
+// Only "clear enough to skip the menu" classifications map to a journey —
+// "support"/"unclear" have no menu row of their own and fall through to the
+// same generic fallback as today (this is Phase 5b: route on a confident
+// classification; Phase "answer layer" is what later replaces that fallback).
+const INTENT_TO_MENU_ITEM: Partial<Record<ClassifiedIntentKind, MenuItemId>> = {
+  sales: "buy",
+  service: "service",
+  spare: "spares",
+  amc: "amc",
+}
+const CLASSIFY_CONFIDENCE_THRESHOLD = 0.6
+
+/** Does this inbound message resolve to a menu row without any AI call —
+ * a tapped list row, or typed text containing a menu item's id (e.g.
+ * "service")? Exported so handleMessage can check this FIRST and only pay
+ * for a classify-intent call when it's actually needed. */
+export function matchMenuSelection(intent: InboundIntent): MenuItemId | undefined {
+  if (intent.kind === "list_reply") return intent.id.replace(/^menu_/, "") as MenuItemId
+  const normalized = intent.text.toLowerCase()
+  return MENU_ITEM_IDS.find((id) => normalized.includes(id))
+}
+
+function matchClassifiedIntent(classified: ClassifiedIntent | undefined): MenuItemId | undefined {
+  if (!classified || classified.confidence < CLASSIFY_CONFIDENCE_THRESHOLD) return undefined
+  return INTENT_TO_MENU_ITEM[classified.intent]
+}
 
 export type ConversationState = {
   journey: string | null
@@ -44,6 +77,21 @@ export type RouteResult = {
   /** true when this turn should also write a customer_id onto the conversation row (identity resolved but not yet linked). */
   linkCustomerId?: boolean
   action?: { type: string; params: Record<string, unknown> }
+  /** Set only when this handoff is the customer explicitly asking for a
+   * human (the "expert" mechanic keyword, or the menu's "Talk to an Expert"
+   * row) — NOT the several other places a journey hands off after a bot-side
+   * failure (unidentified caller, booking failed, action failed, etc). The
+   * webhook uses this to decide whether to alert staff; those other
+   * handoffs stay silent as before. */
+  handoffReason?: "expert_requested"
+  /** Set when this turn's outcome is already being communicated to the
+   * customer through some other channel (a DB milestone trigger writing
+   * its own whatsapp_outbox row), so the webhook's own trailing
+   * sendMessage() at the end of handleMessage should NOT also send
+   * `reply`. `reply.body` is still populated with sensible text (not
+   * left blank) as a fallback in case a future caller forgets to check
+   * this flag. */
+  suppressReply?: boolean
 }
 
 const MECHANIC_KEYWORDS: Record<"menu" | "cancel" | "back" | "expert" | "lang_ta" | "lang_en", string[]> = {
@@ -146,6 +194,7 @@ export function tryHandleMechanic(lang: WaLang, conversation: ConversationState,
     return {
       nextState: { ...conversation, status: "handed_off" },
       reply: { body: t(lang, "whatsapp.mechanics.handoff") },
+      handoffReason: "expert_requested",
     }
   }
 
@@ -176,6 +225,12 @@ export function routeInbound(input: {
   customerName: string | null
   isExpired: boolean
   intent: InboundIntent
+  /** Phase 5b — set only when handleMessage decided a classify-intent call
+   * was worth making (menu showing, free text, no direct keyword match).
+   * Undefined whenever matchMenuSelection() already resolved a row, or the
+   * classifier wasn't confident/reachable — routing behaves exactly as
+   * before 5b in either case. */
+  classifiedIntent?: ClassifiedIntent
 }): RouteResult {
   const { conversation, customerName, isExpired, lang } = input
 
@@ -190,17 +245,20 @@ export function routeInbound(input: {
     }
   }
 
-  // Menu is showing — resolve a tapped list row or a typed item name to a journey.
+  // Menu is showing — resolve a tapped list row or a typed item name to a
+  // journey; if neither matched, fall back to a confident Phase 5b
+  // classification (handleMessage only supplies one when this branch would
+  // otherwise be reached, so no ordering surprise here).
   if (conversation.journey === null && conversation.step === "menu_shown") {
-    const inboundText = input.intent.kind === "text" ? input.intent.text : null
-    const selectedId =
-      input.intent.kind === "list_reply"
-        ? (input.intent.id.replace(/^menu_/, "") as MenuItemId)
-        : MENU_ITEM_IDS.find((id) => inboundText?.toLowerCase().includes(id))
+    const selectedId = matchMenuSelection(input.intent) ?? matchClassifiedIntent(input.classifiedIntent)
 
     if (selectedId && MENU_ITEM_IDS.includes(selectedId)) {
       if (selectedId === "expert") {
-        return { nextState: { ...conversation, status: "handed_off" }, reply: { body: t(lang, "whatsapp.mechanics.handoff") } }
+        return {
+          nextState: { ...conversation, status: "handed_off" },
+          reply: { body: t(lang, "whatsapp.mechanics.handoff") },
+          handoffReason: "expert_requested",
+        }
       }
       return {
         nextState: { journey: selectedId, step: "intro", collected: conversation.collected, status: "active" },

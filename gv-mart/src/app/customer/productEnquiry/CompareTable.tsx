@@ -3,7 +3,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { Enums, Tables } from "@/types/database"
 
 type ComparisonField = Tables<"product_enquiry_comparison_fields"> & { product_attribute_keys: { id: string; label: string; data_type: string } | null }
-type CompareProduct = Tables<"products"> & { brands: { name: string } | null; models: { name: string } | null }
+// Matches the lean column set listCatalogProductsByIds actually selects
+// (services/customerCatalog.ts) — no media/documents needed for a
+// spec/price comparison table, so this must stay a Pick, not the full
+// products row.
+type CompareProduct = Pick<Tables<"products">, "id" | "name" | "category" | "brand_id" | "model_id" | "price" | "warranty_months" | "custom_attributes"> & {
+  brands: { name: string } | null
+  models: { name: string } | null
+}
 
 function resolveFieldValue(field: ComparisonField, product: CompareProduct, t: (key: string) => string): string {
   if (field.attribute_key_id) {

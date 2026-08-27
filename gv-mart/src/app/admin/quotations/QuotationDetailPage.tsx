@@ -162,8 +162,8 @@ export function QuotationDetailPage() {
           <p className="text-sm text-text-muted">{quotation.customers?.mobile}</p>
         </div>
 
-        <div className="overflow-hidden rounded-subcard border border-border">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-subcard border border-border">
+          <table className="w-full min-w-[420px] text-sm">
             <thead className="bg-surface-alt text-text-muted">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">{t("sales.invoice.item")}</th>

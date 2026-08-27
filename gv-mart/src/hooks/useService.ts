@@ -5,6 +5,7 @@ import * as service from "@/services/service"
 import type { CreateComplaintInput, TicketFiltersInput } from "@/services/service"
 import * as ticketPhotos from "@/services/ticketPhotos"
 import { listPaymentProofsByInvoice } from "@/services/paymentProofs"
+import { triggerWaDispatchNow } from "@/services/whatsapp"
 
 /**
  * Admin-side counterpart to the "nothing is flagged" gap: the job
@@ -144,6 +145,7 @@ export function useCreateComplaintTicket() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["service_tickets"] })
       qc.invalidateQueries({ queryKey: ["appointments"] })
+      triggerWaDispatchNow()
     },
   })
 }
@@ -155,6 +157,7 @@ export function useAutoAssignTicket() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["service_tickets"] })
       qc.invalidateQueries({ queryKey: ["appointments"] })
+      triggerWaDispatchNow()
     },
   })
 }
@@ -167,6 +170,7 @@ export function useAssignTicketTechnician() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["service_tickets"] })
       qc.invalidateQueries({ queryKey: ["appointments"] })
+      triggerWaDispatchNow()
     },
   })
 }

@@ -80,6 +80,12 @@ export function CustomerBookingDetailPage() {
   const [routeInfo, setRouteInfo] = useState<RouteInfo>({ distanceKm: null, durationMinutes: null, routeError: null })
   const handleRouteInfo = useCallback((info: RouteInfo) => setRouteInfo(info), [])
   const distanceKm = routeInfo.distanceKm ?? tracking.distanceKm
+  // True whenever what's on screen is the haversine straight-line fallback
+  // rather than a real Directions API response — most persistently once
+  // routeError is set (e.g. REQUEST_DENIED), which never recovers on its
+  // own, so a wrong-looking-real number should never be shown as if it were
+  // a routed distance.
+  const isApproximateDistance = distanceKm != null && routeInfo.distanceKm == null
   // DirectionsService legitimately can (and does) return ZERO_RESULTS when
   // origin/destination are only a few dozen meters apart — there's no
   // meaningful multi-step route to compute at that range. Rather than leave
@@ -226,6 +232,7 @@ export function CustomerBookingDetailPage() {
             stage={tracking.stage}
             etaMinutes={etaMinutes}
             distanceKm={distanceKm}
+            isApproximateDistance={isApproximateDistance}
             statusLabel={t(`customerApp.tracking.stage.${tracking.stage}`)}
             routeError={routeInfo.routeError}
           />

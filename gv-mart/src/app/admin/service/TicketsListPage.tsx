@@ -20,7 +20,8 @@ const TYPE_OPTIONS = ["paid", "warranty", "amc", "installation"] as const
 
 // Matches the design's 8-column table grid (design-template-decoded.html line 964):
 // Ticket / Customer / Complaint / Type / Prio / Technician / Appointment / SLA.
-const TABLE_GRID_COLS = "grid-cols-[0.95fr_1.5fr_1.5fr_0.8fr_0.6fr_1.1fr_1.1fr_1fr]"
+const TABLE_GRID_COLS =
+  "grid-cols-[minmax(90px,0.95fr)_minmax(150px,1.5fr)_minmax(140px,1.5fr)_minmax(70px,0.8fr)_minmax(70px,0.6fr)_minmax(110px,1.1fr)_minmax(120px,1.1fr)_minmax(100px,1fr)]"
 
 function isOverdueRow(r: TicketListItem, now: number) {
   return !!r.sla_due_at && r.status !== "completed" && r.status !== "cancelled" && new Date(r.sla_due_at).getTime() <= now
@@ -279,7 +280,7 @@ function TicketsTable({
   ]
 
   return (
-    <div className="overflow-hidden rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+    <div className="overflow-x-auto rounded-card border border-border bg-surface shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
       <div className={cn("grid items-center border-b border-border bg-surface-alt px-[22px] py-[11px]", TABLE_GRID_COLS)}>
         {headers.map((h) => (
           <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">

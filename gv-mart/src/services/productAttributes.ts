@@ -9,7 +9,7 @@ import type { Json, TablesInsert, TablesUpdate } from "@/types/database"
 // loaded (ProductsTab.tsx's list) and only needs to patch one field.
 
 export async function setProductCustomAttribute(productId: string, current: Json, keyId: string, value: string | number | boolean | null) {
-  const next = { ...((current as Record<string, unknown>) ?? {}) }
+  const next: Record<string, Json> = { ...((current as Record<string, Json>) ?? {}) }
   if (value === null || value === "") {
     delete next[keyId]
   } else {
@@ -51,7 +51,10 @@ export async function deleteProductAttributeKey(id: string) {
 export async function listProductRelated(productId: string) {
   const { data, error } = await supabase
     .from("product_related")
-    .select("*, related:related_product_id(id, name, is_active)")
+    // product_related has two FKs to products (product_id, related_product_id)
+    // — the `products!related_product_id` hint picks the latter explicitly,
+    // same disambiguation getCatalogProduct's embed needs (customerCatalog.ts).
+    .select("*, related:products!related_product_id(id, name, is_active)")
     .eq("product_id", productId)
   if (error) throw error
   return data

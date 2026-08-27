@@ -23,84 +23,19 @@
 // the log-only stub on purpose (Wasi's interactive-message format isn't
 // confirmed yet). Scoped precisely to the ref_type values only these
 // trigger-side writers ever produce.
-import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
-import { sendMessage } from "../_shared/whatsapp.ts"
+//
+// The actual scan-and-send logic now lives in
+// ../_shared/wa-milestone-dispatch-core.ts, shared verbatim with
+// wa-dispatch-now (an on-demand, single-org, user-JWT-authenticated sibling
+// that fires right after a milestone write instead of waiting for this
+// cron tick) — this file keeps only the cron entrypoint: the CRON_SECRET
+// check, the all-orgs loop, and the pacing gate below.
+import { createClient } from "jsr:@supabase/supabase-js@2"
+import { runMilestoneDispatch } from "../_shared/wa-milestone-dispatch-core.ts"
 import { markJobRan, shouldRunJob } from "../_shared/wa-job-pacing.ts"
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
-}
-
-const MILESTONE_REF_TYPES = ["service_ticket", "service_visit", "invoice", "purchase_quote_request"] as const
-
-type StuckOutboxRow = {
-  id: string
-  to_mobile: string | null
-  customer_id: string | null
-  template: string
-  type: string | null
-  payload: { body?: string } | null
-  ref_type: string | null
-  ref_id: string | null
-}
-
-async function runMilestoneDispatch(admin: SupabaseClient, orgId: string): Promise<{ dispatched: number; skippedNoBody: number }> {
-  const { data: rows, error } = await admin
-    .from("whatsapp_outbox")
-    .select("id, to_mobile, customer_id, template, type, payload, ref_type, ref_id")
-    .eq("org_id", orgId)
-    .eq("direction", "outbound")
-    .is("wa_message_id", null)
-    .is("retried_at", null)
-    .in("ref_type", MILESTONE_REF_TYPES)
-
-  if (error) {
-    console.error("wa-milestone-dispatch: whatsapp_outbox query failed", error)
-    return { dispatched: 0, skippedNoBody: 0 }
-  }
-
-  let dispatched = 0
-  let skippedNoBody = 0
-
-  for (const row of (rows ?? []) as StuckOutboxRow[]) {
-    const body = row.payload?.body
-    // No whatsapp_templates row exists for this milestone name yet (see
-    // _wa_render_template's found:false path) — there's nothing readable
-    // to send. Mark retried_at anyway so this doesn't get re-checked
-    // every 5 minutes forever; the real fix is adding the missing
-    // template row (Automation > Templates), not fabricating content here.
-    if (!body) {
-      console.error("wa-milestone-dispatch: skipping row with no renderable body — missing template for", row.template, row.id)
-      skippedNoBody++
-      await admin.from("whatsapp_outbox").update({ retried_at: new Date().toISOString() }).eq("id", row.id)
-      continue
-    }
-    if (!row.to_mobile) {
-      console.error("wa-milestone-dispatch: skipping row with no to_mobile", row.id)
-      await admin.from("whatsapp_outbox").update({ retried_at: new Date().toISOString() }).eq("id", row.id)
-      continue
-    }
-
-    await sendMessage(admin, {
-      orgId,
-      to: row.to_mobile,
-      customerId: row.customer_id,
-      template: row.template,
-      body,
-      type: (row.type as "text" | "template" | "interactive" | "media" | undefined) ?? "text",
-      refType: row.ref_type,
-      refId: row.ref_id,
-    })
-    dispatched++
-
-    // Same bookkeeping shape as runFailedSendRetries: the real outcome
-    // (sent/failed, wa_message_id, error) lives on the NEW row sendMessage()
-    // just inserted, not this one — this row is only marked so the next
-    // poll doesn't pick it up again.
-    await admin.from("whatsapp_outbox").update({ retried_at: new Date().toISOString() }).eq("id", row.id)
-  }
-
-  return { dispatched, skippedNoBody }
 }
 
 Deno.serve(async (req) => {

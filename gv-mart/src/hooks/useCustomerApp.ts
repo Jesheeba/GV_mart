@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as api from "@/services/customerApp"
 import * as catalogApi from "@/services/customerCatalog"
 import * as enquiryConfigApi from "@/services/customerProductEnquiryConfig"
+import { triggerWaDispatchNow } from "@/services/whatsapp"
 import type {
   AddressInput,
   EnquiryRpcInput,
@@ -343,6 +344,7 @@ export function useRenewAmcPlan(customerId: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customerApp", "amcContracts", customerId] })
       queryClient.invalidateQueries({ queryKey: ["customerApp", "tickets", customerId] })
+      triggerWaDispatchNow()
     },
   })
 }

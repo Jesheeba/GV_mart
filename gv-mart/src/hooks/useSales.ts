@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as sales from "@/services/sales"
 import type { Enums } from "@/types/database"
+import { triggerWaDispatchNow } from "@/services/whatsapp"
 
 export function useCreateSale() {
   const qc = useQueryClient()
@@ -26,6 +27,7 @@ export function useCreateSale() {
       qc.invalidateQueries({ queryKey: ["inventory", "list"] })
       qc.invalidateQueries({ queryKey: ["quotations"] })
       qc.invalidateQueries({ queryKey: ["customers", "referralBalance"] })
+      triggerWaDispatchNow()
     },
   })
 }

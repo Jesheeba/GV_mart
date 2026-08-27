@@ -31,17 +31,22 @@ export async function listCatalogProducts(orgId: string) {
 export async function getCatalogProduct(productId: string) {
   const { data, error } = await supabase
     .from("products")
+    // A single template literal, not string concatenation — supabase-js's
+    // compile-time select-string parser needs a literal string type to
+    // infer the result shape; joining pieces with `+` widens the argument
+    // to plain `string` and the parser falls back to a useless GenericStringError.
+    //
+    // product_related has two FKs to products (product_id, related_product_id)
+    // — the outer embed hint (!product_id) picks which one relates THIS
+    // product to its product_related rows; the inner embed's own `products!
+    // related_product_id` hint then disambiguates the second hop the same way.
     .select(
-      "id, name, category, brand_id, model_id, price, warranty_months, custom_attributes, feature_bullets, description, is_active, " +
-        "brands(name), models(name), " +
-        "product_images(id, storage_path, is_primary, sort_order), " +
-        "product_documents(id, storage_path, label, doc_type, sort_order), " +
-        "product_videos(id, url, title, sort_order, is_active), " +
-        // product_related has two FKs to products (product_id, related_product_id)
-        // — the outer embed hint (!product_id) picks which one relates THIS
-        // product to its product_related rows; the inner alias's own column
-        // name (related_product_id) then disambiguates the second hop.
-        "product_related!product_id(id, relation_type, related:related_product_id(id, name, price))"
+      `id, name, category, brand_id, model_id, price, warranty_months, custom_attributes, feature_bullets, description, is_active,
+        brands(name), models(name),
+        product_images(id, storage_path, is_primary, sort_order),
+        product_documents(id, storage_path, label, doc_type, sort_order),
+        product_videos(id, url, title, sort_order, is_active),
+        product_related!product_id(id, relation_type, related:products!related_product_id(id, name, price))`
     )
     .eq("id", productId)
     .eq("is_active", true)

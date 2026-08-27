@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { Json, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 import { db, type OutboxJob } from "./db"
+import { triggerWaDispatchNow } from "@/services/whatsapp"
 
 type AttendanceRow = Tables<"attendance">
 type AttendanceSyncListener = (row: AttendanceRow) => void
@@ -133,6 +134,7 @@ async function runJob(job: OutboxJob): Promise<void> {
     case "service_visit.start": {
       const { error } = await supabase.from("service_visits").upsert(p as unknown as TablesInsert<"service_visits">, { onConflict: "id" })
       if (error) throw error
+      triggerWaDispatchNow()
       return
     }
     case "service_visit.arrive": {
@@ -173,6 +175,7 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_amount_paid: (p.amountPaid as number | undefined) ?? null,
       })
       if (error) throw error
+      triggerWaDispatchNow()
       return
     }
     case "rating.submit": {
@@ -223,6 +226,7 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_payment_description: (p.paymentDescription as string) ?? null,
       })
       if (error) throw error
+      triggerWaDispatchNow()
       return
     }
     default: {

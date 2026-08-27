@@ -388,6 +388,24 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Called by its own 5-minute GitHub Actions schedule (see .github/workflows/
+# wa-milestone-dispatch.yml), same no-Supabase-session reasoning and
+# CRON_SECRET bearer-secret guard as wa-scheduled-tasks above.
+[functions.wa-milestone-dispatch]
+enabled = true
+verify_jwt = false
+
+# Wasi calls this webhook directly (POST deliveries only — no GET
+# verification handshake, confirmed with Wasi) with no Supabase session —
+# same reasoning as whatsapp-webhook above. Authenticity is enforced inside
+# the function via x-wasi-signature-256, verified per-org using the secret
+# stored in whatsapp_provider_credentials (looked up by waba_id for
+# message.received, or by the matching whatsapp_outbox row's org for
+# message.status — see wasi-webhook/index.ts).
+[functions.wasi-webhook]
+enabled = true
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

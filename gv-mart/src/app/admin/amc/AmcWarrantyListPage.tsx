@@ -23,11 +23,13 @@ const TIER_COLORS = ["#8A8A82", "#F5612C", "#1A1A1A"]
 
 // Matches the design's AMC table grid (design-template-decoded.html line 1098):
 // Customer / Product / Tier / Expiry / Next svc / Status.
-const AMC_GRID = "grid-cols-[1.3fr_1.5fr_0.8fr_0.9fr_0.9fr_1fr]"
+const AMC_GRID =
+  "grid-cols-[minmax(140px,1.3fr)_minmax(110px,1.5fr)_minmax(90px,0.8fr)_minmax(90px,0.9fr)_minmax(90px,0.9fr)_minmax(90px,1fr)]"
 // Warranties now get proactive quarterly scheduled visits too (next_service_date
 // on warranties), so the table mirrors the AMC grid's Next svc column —
 // Customer / Product / Serial no / Expiry / Next svc / Status.
-const WARRANTY_GRID = "grid-cols-[1.2fr_1.4fr_0.9fr_0.85fr_0.85fr_0.9fr]"
+const WARRANTY_GRID =
+  "grid-cols-[minmax(130px,1.2fr)_minmax(110px,1.4fr)_minmax(90px,0.9fr)_minmax(90px,0.85fr)_minmax(90px,0.85fr)_minmax(90px,0.9fr)]"
 
 function fmt(date: string | null) {
   return date ? new Date(date).toLocaleDateString("en-IN") : "—"
@@ -351,7 +353,7 @@ function AmcTable({
   ]
 
   return (
-    <div>
+    <div className="overflow-x-auto">
       <div className={cn("grid items-center border-y border-border bg-surface-alt px-[22px] py-[10px]", AMC_GRID)}>
         {headers.map((h) => (
           <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
@@ -437,7 +439,7 @@ function WarrantyTable({
   ]
 
   return (
-    <div>
+    <div className="overflow-x-auto">
       <div className={cn("grid items-center border-y border-border bg-surface-alt px-[22px] py-[10px]", WARRANTY_GRID)}>
         {headers.map((h) => (
           <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">

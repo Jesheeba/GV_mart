@@ -16,7 +16,8 @@ import type { InventoryListItem, ItemType } from "@/services/inventory"
 // widths are fractional grid tracks (design-template-decoded.html line
 // 1179: Item/Brand/Stock/Min/Level/Status), which a real <table> can't
 // express; mirrors the grid-div pattern TicketsListPage/SalesListPage use.
-const TABLE_GRID_COLS = "grid-cols-[2fr_1fr_0.9fr_0.9fr_1.4fr_1fr]"
+const TABLE_GRID_COLS =
+  "grid-cols-[minmax(170px,2fr)_minmax(90px,1fr)_minmax(90px,0.9fr)_minmax(120px,0.9fr)_minmax(120px,1.4fr)_minmax(90px,1fr)]"
 
 type StatusKey = "in" | "low" | "out"
 
@@ -176,6 +177,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
         </div>
       ) : null}
 
+      <div className="overflow-x-auto">
       <div className={cn("grid items-center border-t border-b border-border bg-surface-alt px-5.5 py-2.5", TABLE_GRID_COLS)}>
         {headers.map((h) => (
           <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
@@ -340,6 +342,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
           )
         })
       )}
+      </div>
 
       {complaintsItem ? (
         <ProductComplaintsPanel
