@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import type { DayJobInput, DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
+import { getIstNow } from "@/lib/ist"
 import type { Tables, TablesInsert } from "@/types/database"
 import type { DateRange } from "./reports"
 
@@ -102,7 +103,7 @@ export async function listTechnicians(orgId: string, range?: DateRange): Promise
     rangeEndIso = new Date().toISOString()
   }
 
-  const [visitsRes, ratingsRes] = await Promise.all([
+  const [visitsRes, ratingsRes, attendanceRes] = await Promise.all([
     supabase
       .from("service_visits")
       .select("technician_id, service_charge, timer_end")
@@ -113,9 +114,26 @@ export async function listTechnicians(orgId: string, range?: DateRange): Promise
       .from("ratings")
       .select("stars, service_visits!inner(technician_id, org_id)")
       .eq("service_visits.org_id", orgId),
+    // technicians.is_on_duty is a stored column nothing in the live app
+    // ever sets true (see 20260731200000_fix_create_sale_installation_gate.sql,
+    // which fixed the assignment engine's OWN use of it the same way) — the
+    // real "is this technician on duty right now" answer is "checked in
+    // today, not checked out yet", same gate the assignment engine uses.
+    // date must be IST "today" (see src/lib/ist.ts), not the device's own
+    // UTC date, or this reads as yesterday/tomorrow's attendance near
+    // midnight IST.
+    supabase
+      .from("attendance")
+      .select("technician_id")
+      .eq("org_id", orgId)
+      .eq("date", getIstNow().date)
+      .not("check_in_at", "is", null)
+      .is("check_out_at", null),
   ])
   if (visitsRes.error) throw visitsRes.error
   if (ratingsRes.error) throw ratingsRes.error
+  if (attendanceRes.error) throw attendanceRes.error
+  const onDutyTechIds = new Set((attendanceRes.data ?? []).map((a) => a.technician_id))
 
   const jobCountByTech = new Map<string, number>()
   const revenueByTech = new Map<string, number>()
@@ -136,6 +154,7 @@ export async function listTechnicians(orgId: string, range?: DateRange): Promise
     const count = ratingCountByTech.get(t.id) ?? 0
     return {
       ...t,
+      is_on_duty: onDutyTechIds.has(t.id),
       periodJobCount: jobCountByTech.get(t.id) ?? 0,
       periodRevenue: revenueByTech.get(t.id) ?? 0,
       avgRating: count > 0 ? Math.round(((ratingSumByTech.get(t.id) ?? 0) / count) * 10) / 10 : null,
