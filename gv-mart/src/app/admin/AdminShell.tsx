@@ -17,6 +17,8 @@ import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { UserMenu } from "@/components/shared/UserMenu"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { notifyJobOverrunAlert } from "@/services/techniciansAdmin"
+import { PoApprovalPromptModal } from "./purchase/PoApprovalPromptModal"
+import { PoReceiptPromptModal } from "./purchase/PoReceiptPromptModal"
 
 // Header search bar (ADM shell) — scoped to exactly what's fast + useful to
 // jump to from anywhere: a customer by name/mobile (reusing the same
@@ -191,6 +193,9 @@ export function AdminShell() {
             <UserMenu fullName={profile.full_name} role={profile.role} />
           </div>
         </header>
+
+        <PoApprovalPromptModal orgId={profile.org_id} userId={profile.id} role={profile.role} />
+        <PoReceiptPromptModal orgId={profile.org_id} userId={profile.id} role={profile.role} />
 
         {/* The only scrolling region on the page now — sidebar and header stay put. */}
         <main className="flex-1 overflow-y-auto px-6 pb-8 print:overflow-visible print:p-0">

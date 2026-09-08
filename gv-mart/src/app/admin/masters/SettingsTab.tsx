@@ -73,6 +73,7 @@ export function SettingsTab() {
         po_approval_threshold: Number(settings.po_approval_threshold),
         po_requires_approval: settings.po_requires_approval,
         po_quote_timeout_hours: Number(settings.po_quote_timeout_hours),
+        po_quote_day_of_month: settings.po_quote_day_of_month ?? "",
         review_time_allowance_minutes: settings.review_time_allowance_minutes,
         enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
         emi_enabled: settings.emi_enabled,
@@ -213,6 +214,10 @@ export function SettingsTab() {
           {field("po_quote_timeout_hours", t("settings.poQuoteTimeoutHours"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.poQuoteTimeoutHoursHint")}</p>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("po_quote_day_of_month", t("settings.poQuoteDayOfMonth"), "number", "1")}
+        </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.poQuoteDayOfMonthHint")}</p>
         <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
           <input type="checkbox" className="size-4 accent-accent" {...register("po_requires_approval")} />
           <span>

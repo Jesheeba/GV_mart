@@ -12,11 +12,14 @@ import {
   useResolvePurchaseQuoteRequests,
   useLogPurchaseQuoteReply,
   usePurchaseQuoteReplies,
+  useQuoteDismissals,
+  useMarkQuoteSupplierNoResponse,
+  useGenerateQuoteRequestPdf,
 } from "@/hooks/useAutomation"
 import { useSuppliersForItem } from "@/hooks/useSuppliers"
 import type { PurchaseQuoteRequestListItem } from "@/services/automation"
 
-const RESOLUTION_TONE: Record<string, StatusTone> = { reply: "success", fallback: "warning", no_supplier: "danger" }
+const RESOLUTION_TONE: Record<string, StatusTone> = { reply: "success", fallback: "warning", no_supplier: "danger", no_po_not_low_stock: "neutral" }
 
 /**
  * GV.md Section 3 ("Purchase Order — quotation-first, with safeguard") admin
@@ -99,13 +102,18 @@ function OpenRequestCard({ orgId, req }: { orgId: string | undefined; req: Purch
   const { t } = useTranslation()
   const { data: candidateSuppliers } = useSuppliersForItem(orgId, req.item_type, req.item_id)
   const { data: replies } = usePurchaseQuoteReplies(req.id)
+  const { data: dismissals } = useQuoteDismissals(req.id)
   const logReply = useLogPurchaseQuoteReply()
+  const markNoResponse = useMarkQuoteSupplierNoResponse()
+  const generatePdf = useGenerateQuoteRequestPdf()
 
   const [supplierId, setSupplierId] = useState("")
   const [price, setPrice] = useState("")
 
-  const repliedSupplierIds = new Set((replies ?? []).map((r) => r.supplier_id))
+  const repliesBySupplier = new Map((replies ?? []).map((r) => [r.supplier_id, r]))
+  const dismissedSupplierIds = new Set((dismissals ?? []).map((d) => d.supplier_id))
   const pastTimeout = new Date(req.timeout_at).getTime() <= Date.now()
+  const lowestPrice = (replies ?? []).length ? Math.min(...(replies ?? []).map((r) => Number(r.price))) : null
 
   async function submit() {
     if (!supplierId || !price) return
@@ -127,15 +135,56 @@ function OpenRequestCard({ orgId, req }: { orgId: string | undefined; req: Purch
         </div>
       </div>
 
-      {(replies ?? []).length > 0 ? (
-        <ul className="mt-2 space-y-1 text-xs text-text">
-          {(replies ?? []).map((r) => (
-            <li key={r.id} className="flex justify-between">
-              <span>{r.suppliers?.name ?? "—"}</span>
-              <span className="font-medium">₹{Number(r.price).toLocaleString("en-IN")}</span>
-            </li>
-          ))}
-        </ul>
+      {/* PDF-generation piece of the supplier document-quote-request work
+          (compliance investigation, 2026-09-03) — standalone for now, not
+          wired into any WhatsApp send yet (see generate-quote-pdf/index.ts's
+          header comment for why). Lets an admin generate/regenerate and
+          preview the letterhead document today. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant="outline" disabled={generatePdf.isPending} onClick={() => generatePdf.mutate(req.id)}>
+          {generatePdf.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("purchase.quotes.generatePdf")}
+        </Button>
+        {req.pdf_url ? (
+          <a href={req.pdf_url} target="_blank" rel="noreferrer" className="text-xs text-accent hover:underline">
+            {t("purchase.quotes.viewPdf")}
+          </a>
+        ) : null}
+      </div>
+      {generatePdf.isError ? <p className="mt-1 text-xs text-danger">{(generatePdf.error as Error).message}</p> : null}
+
+      {/* Price comparison — every invited supplier, side by side, lowest reply highlighted */}
+      {(candidateSuppliers ?? []).length > 0 ? (
+        <table className="mt-2 w-full text-xs text-text">
+          <tbody>
+            {(candidateSuppliers ?? []).map((s) => {
+              const reply = repliesBySupplier.get(s.supplier_id)
+              const isLowest = reply != null && lowestPrice != null && Number(reply.price) === lowestPrice
+              const isDismissed = dismissedSupplierIds.has(s.supplier_id)
+              return (
+                <tr key={s.supplier_id} className="border-b border-border/60 last:border-0">
+                  <td className="py-1.5 pr-2">{s.suppliers?.name ?? "—"}</td>
+                  <td className={`py-1.5 pr-2 text-right ${isLowest ? "font-semibold text-success" : ""}`}>
+                    {reply ? `₹${Number(reply.price).toLocaleString("en-IN")}${isLowest ? ` (${t("purchase.quotes.lowest")})` : ""}` : "—"}
+                  </td>
+                  <td className="py-1.5 text-right">
+                    {reply ? null : isDismissed ? (
+                      <span className="text-text-muted">{t("purchase.quotes.noResponse")}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-accent hover:underline disabled:opacity-50"
+                        disabled={markNoResponse.isPending}
+                        onClick={() => markNoResponse.mutate({ requestId: req.id, supplierId: s.supplier_id })}
+                      >
+                        {t("purchase.quotes.markNoResponse")}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       ) : (
         <p className="mt-2 text-xs text-text-muted">{t("purchase.quotes.noRepliesYet")}</p>
       )}
@@ -148,9 +197,9 @@ function OpenRequestCard({ orgId, req }: { orgId: string | undefined; req: Purch
         >
           <option value="">{t("purchase.quotes.selectSupplier")}</option>
           {(candidateSuppliers ?? []).map((s) => (
-            <option key={s.supplier_id} value={s.supplier_id} disabled={repliedSupplierIds.has(s.supplier_id)}>
+            <option key={s.supplier_id} value={s.supplier_id} disabled={repliesBySupplier.has(s.supplier_id)}>
               {s.suppliers?.name ?? "—"}
-              {repliedSupplierIds.has(s.supplier_id) ? ` (${t("purchase.quotes.alreadyLogged")})` : ""}
+              {repliesBySupplier.has(s.supplier_id) ? ` (${t("purchase.quotes.alreadyLogged")})` : ""}
             </option>
           ))}
         </select>

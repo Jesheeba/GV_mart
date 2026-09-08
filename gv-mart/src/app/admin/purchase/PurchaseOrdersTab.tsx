@@ -1,14 +1,16 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, PackageCheck, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
 import { useCreatePurchaseOrder, usePoItems, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
+import { PoReceiptForm } from "./PoReceiptForm"
 import type { PoItemInput } from "@/lib/validation/automation"
 import type { PurchaseOrderListItem } from "@/services/automation"
 
@@ -28,6 +30,7 @@ export function PurchaseOrdersTab() {
   const [items, setItems] = useState<PoItemInput[]>([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const poItems = usePoItems(expandedId ?? undefined)
+  const [receiptPo, setReceiptPo] = useState<PurchaseOrderListItem | null>(null)
 
   async function submit() {
     await createPo.mutateAsync({ orgId: orgId!, supplierId, items: items.filter((i) => i.itemId && i.qty > 0) })
@@ -42,6 +45,25 @@ export function PurchaseOrdersTab() {
     { key: "channel", header: t("purchase.po.channel"), render: (r) => r.sent_channel ?? "—" },
     { key: "status", header: t("purchase.po.status"), render: (r) => <StatusDot tone={STATUS_TONE[r.status] ?? "neutral"} label={t(`purchase.po.statuses.${r.status}`)} /> },
     { key: "created", header: t("purchase.po.created"), render: (r) => new Date(r.created_at).toLocaleDateString("en-IN") },
+    {
+      key: "actions",
+      header: "",
+      className: "text-right",
+      render: (r) =>
+        r.status === "sent" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation()
+              setReceiptPo(r)
+            }}
+          >
+            <PackageCheck className="size-3.5" />
+            {t("purchase.receiptPrompt.confirmReceiptButton")}
+          </Button>
+        ) : null,
+    },
   ]
 
   return (
@@ -100,7 +122,7 @@ export function PurchaseOrdersTab() {
             <ul className="space-y-1 text-sm text-text">
               {(poItems.data ?? []).map((i) => (
                 <li key={i.id} className="flex justify-between border-b border-border py-1.5 last:border-0">
-                  <span>{i.products?.name ?? i.spares?.name ?? "—"}</span>
+                  <span>{i.products?.name ?? i.spares?.name ?? i.gifts?.name ?? "—"}</span>
                   <span className="text-text-muted">
                     {i.qty} × ₹{i.price}
                   </span>
@@ -110,6 +132,18 @@ export function PurchaseOrdersTab() {
           )}
         </Card>
       ) : null}
+
+      <Dialog open={!!receiptPo} onOpenChange={(open) => !open && setReceiptPo(null)}>
+        <DialogContent className="max-w-lg">
+          {receiptPo ? (
+            <>
+              <DialogTitle>{t("purchase.receiptPrompt.title")}</DialogTitle>
+              <DialogDescription>{t("purchase.receiptPrompt.body", { supplier: receiptPo.suppliers?.name ?? "—" })}</DialogDescription>
+              <PoReceiptForm po={receiptPo} onDone={() => setReceiptPo(null)} />
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

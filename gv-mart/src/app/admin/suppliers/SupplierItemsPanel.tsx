@@ -16,10 +16,32 @@ import {
 } from "@/hooks/useSuppliers"
 import type { ItemType, SupplierRow } from "@/services/suppliers"
 
-type LinkedRow = { id: string; item_type: ItemType; item_id: string; itemName: string; price: number; lead_time_days: number | null; is_preferred: boolean }
+type LinkedRow = {
+  id: string
+  item_type: ItemType
+  item_id: string
+  itemName: string
+  price: number
+  price_updated_at: string | null
+  lead_time_days: number | null
+  is_preferred: boolean
+}
+
+/** Same relative-time shape as AutomationJobsTab's timeAgo — duplicated
+ * locally rather than shared since it's a few lines and each caller's
+ * "never" copy differs. */
+function timeAgo(iso: string, locale: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const minutes = Math.max(0, Math.round(ms / 60_000))
+  if (minutes < 1) return locale === "ta" ? "இப்போது தான்" : "just now"
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  return `${Math.round(hours / 24)}d`
+}
 
 export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
@@ -53,6 +75,15 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
   const columns: DataTableColumn<LinkedRow>[] = [
     { key: "item", header: t("suppliers.item"), render: (r) => <span className="font-medium text-text">{r.itemName}</span> },
     { key: "price", header: t("suppliers.price"), render: (r) => `₹${r.price}` },
+    {
+      key: "priceUpdated",
+      header: t("suppliers.priceUpdated"),
+      render: (r) => (
+        <span className="text-xs text-text-muted">
+          {r.price_updated_at ? timeAgo(r.price_updated_at, i18n.language) : t("suppliers.priceNeverUpdated")}
+        </span>
+      ),
+    },
     { key: "leadTime", header: t("suppliers.leadTime"), render: (r) => (r.lead_time_days != null ? t("suppliers.days", { count: r.lead_time_days }) : "—") },
     {
       key: "preferred",

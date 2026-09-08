@@ -37,6 +37,13 @@ export const settingsSchema = z
     po_approval_threshold: z.coerce.number().min(0, "settings.errors.nonNegative"),
     po_requires_approval: z.boolean(),
     po_quote_timeout_hours: z.coerce.number().positive("settings.errors.positive"),
+    // Supplier Monthly RFQ pipeline (2026-09-01). Empty string = feature
+    // off (stored as null) — coerced to null rather than 0, which would be
+    // an invalid day-of-month and read as misconfiguration instead of "off".
+    po_quote_day_of_month: z
+      .union([z.literal(""), z.coerce.number().int().min(1).max(31, "settings.errors.dayOfMonthRange")])
+      .transform((v) => (v === "" ? null : v))
+      .nullable(),
     // GV.md 1.2: "admin also sets a review time and a new-enquiry time allowance."
     review_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     enquiry_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
