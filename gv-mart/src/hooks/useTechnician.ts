@@ -131,6 +131,18 @@ export function useCheckOut() {
   })
 }
 
+/** Shift-end popup's Continue/Check-out answer — a direct (non-offline-queued)
+ * RPC, see tech.respondToShiftEndPrompt's doc comment for why. Invalidates
+ * ["jobs"] on success the same way useCheckOut/NewJobAssignedBanner already
+ * do, so a newly-assigned job (Continue) shows up without waiting on a poll. */
+export function useRespondToShiftEndPrompt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: tech.respondToShiftEndPrompt,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  })
+}
+
 // ── TECH-02 Spare receipt ────────────────────────────────────────────────
 
 export function useTodayHandover(technicianId: string | undefined) {

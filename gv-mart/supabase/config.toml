@@ -406,6 +406,13 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Called by its own daily GitHub Actions schedule (see .github/workflows/
+# technician-shift-reset.yml), same no-Supabase-session reasoning and
+# CRON_SECRET bearer-secret guard as wa-scheduled-tasks above.
+[functions.technician-shift-reset]
+enabled = true
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

@@ -182,7 +182,7 @@ export async function queueLunchToggle(
  * right after this resolves would otherwise race the offline outbox's ~20s
  * sync and read back the stale, not-yet-checked-out server row.
  */
-export type AttendanceRowWithCheckOut = AttendanceRow & { check_out_at: string | null }
+export type AttendanceRowWithCheckOut = AttendanceRow & { check_out_at: string | null; shift_end_prompt_pending: boolean }
 
 export async function queueCheckOut(technicianId: string, date: string): Promise<AttendanceRowWithCheckOut | null> {
   const checkOutAt = new Date().toISOString()
@@ -190,11 +190,44 @@ export async function queueCheckOut(technicianId: string, date: string): Promise
   const cached = await db.attendanceCache.get(cacheId)
   let merged: AttendanceRowWithCheckOut | null = null
   if (cached) {
-    merged = { ...(cached.data as AttendanceRow), check_out_at: checkOutAt }
+    merged = { ...(cached.data as AttendanceRow), check_out_at: checkOutAt, shift_end_prompt_pending: false }
     await db.attendanceCache.put({ ...cached, data: merged, updatedAt: Date.now() })
   }
   await enqueue("attendance.checkout", { technicianId, date, checkOutAt })
   return merged
+}
+
+/** Today's attendance row, read fresh (not the offline cache) — used by
+ * ShiftEndPromptModal's on-load fallback to catch a prompt that landed
+ * while the app was closed (the realtime subscription only catches it if
+ * the app was open at the moment the notification was inserted). */
+export async function getTodayAttendanceFresh(orgId: string, technicianId: string, date: string): Promise<AttendanceRowWithCheckOut | null> {
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("technician_id", technicianId)
+    .eq("date", date)
+    .maybeSingle()
+  if (error) throw error
+  return data as unknown as AttendanceRowWithCheckOut | null
+}
+
+/** technician_respond_shift_end_prompt (20260831140000) — a direct RPC, not
+ * offline-queued: unlike checkout/invoice-create, this needs a live
+ * server-side decision (real assignment logic, real admin notification), so
+ * it can't be meaningfully deferred. Not yet in the generated database.ts
+ * types (same reasoning as techniciansAdmin.ts's `rpc()` helper — a
+ * minimally-scoped cast on just the call, not the whole client). */
+export type ShiftEndPromptResponse =
+  | { ok: false; reason_key: string }
+  | { ok: true; decision: "continue"; assigned: { assigned: boolean; reason_key?: string } }
+  | { ok: true; decision: "check_out"; job_was_waiting: boolean }
+
+export async function respondToShiftEndPrompt(decision: "continue" | "check_out"): Promise<ShiftEndPromptResponse> {
+  const { data, error } = await supabase.rpc("technician_respond_shift_end_prompt" as never, { p_decision: decision } as never)
+  if (error) throw error
+  return data as unknown as ShiftEndPromptResponse
 }
 
 // ── TECH-02 Spare receipt ────────────────────────────────────────────────

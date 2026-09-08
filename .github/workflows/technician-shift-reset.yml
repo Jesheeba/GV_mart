@@ -1,0 +1,27 @@
+name: Technician shift-end prompt reset
+
+# Midnight IST safety net for the shift-end job-assignment prompt (see
+# supabase/functions/technician-shift-reset and migration
+# 20260831140000_technician_shift_end_prompt.sql). Force-closes only
+# attendance rows left with an unanswered shift-end popup once that day has
+# actually ended in IST, so the next check-in starts a clean day.
+#
+# Same reasoning as wa-scheduled-tasks.yml for why this is a GitHub Actions
+# schedule and not pg_cron, and the same CRON_SECRET repo secret (already
+# set for that workflow) rather than a new one.
+#
+# 00:05 IST = 18:35 UTC the previous day (IST is UTC+5:30).
+on:
+  schedule:
+    - cron: "35 18 * * *"
+  workflow_dispatch: {} # manual trigger, for testing without waiting for the schedule
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call technician-shift-reset
+        run: |
+          curl --fail-with-body -sS -X POST \
+            "https://fsunrjithwcjtsutsgea.supabase.co/functions/v1/technician-shift-reset" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
