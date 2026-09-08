@@ -23,6 +23,7 @@ export type Database = {
           gst_no: string | null
           address: string | null
           phone: string | null
+          business_hours: string | null
           created_at: string
           updated_at: string
         }
@@ -32,6 +33,7 @@ export type Database = {
           gst_no?: string | null
           address?: string | null
           phone?: string | null
+          business_hours?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -41,6 +43,7 @@ export type Database = {
           gst_no?: string | null
           address?: string | null
           phone?: string | null
+          business_hours?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -750,6 +753,163 @@ export type Database = {
         ]
       }
       // Product Enquiry rebuild (2026-08-04) — see 20260804092000_product_attribute_keys.sql.
+      wa_custom_trigger_phrases: {
+        Row: {
+          id: string
+          org_id: string
+          category: Database["public"]["Enums"]["wa_trigger_category"]
+          phrase: string
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          category: Database["public"]["Enums"]["wa_trigger_category"]
+          phrase: string
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          category?: Database["public"]["Enums"]["wa_trigger_category"]
+          phrase?: string
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      water_quality_reference: {
+        Row: {
+          id: string
+          org_id: string
+          district: string
+          typical_tds_ppm: number
+          tds_range_low: number
+          tds_range_high: number
+          sample_count: number
+          data_source: string
+          data_year: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          district: string
+          typical_tds_ppm: number
+          tds_range_low: number
+          tds_range_high: number
+          sample_count?: number
+          data_source?: string
+          data_year: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          district?: string
+          typical_tds_ppm?: number
+          tds_range_low?: number
+          tds_range_high?: number
+          sample_count?: number
+          data_source?: string
+          data_year?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "water_quality_reference_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      water_quality_district_aliases: {
+        Row: {
+          id: string
+          org_id: string
+          alias: string
+          canonical_district: string
+          is_proxy: boolean
+          proxy_note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          alias: string
+          canonical_district: string
+          is_proxy?: boolean
+          proxy_note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          alias?: string
+          canonical_district?: string
+          is_proxy?: boolean
+          proxy_note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "water_quality_district_aliases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_tds_recommendations: {
+        Row: {
+          id: string
+          org_id: string
+          band: string
+          product_id: string
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          band: string
+          product_id: string
+          sort_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          band?: string
+          product_id?: string
+          sort_order?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_tds_recommendations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_tds_recommendations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_attribute_keys: {
         Row: {
           id: string
@@ -1434,6 +1594,7 @@ export type Database = {
           item_type: Database["public"]["Enums"]["item_type"]
           item_id: string
           price: number
+          price_updated_at: string | null
           lead_time_days: number | null
           is_preferred: boolean
           created_at: string
@@ -1446,6 +1607,7 @@ export type Database = {
           item_type: Database["public"]["Enums"]["item_type"]
           item_id: string
           price: number
+          price_updated_at?: string | null
           lead_time_days?: number | null
           is_preferred?: boolean
           created_at?: string
@@ -1458,6 +1620,7 @@ export type Database = {
           item_type?: Database["public"]["Enums"]["item_type"]
           item_id?: string
           price?: number
+          price_updated_at?: string | null
           lead_time_days?: number | null
           is_preferred?: boolean
           created_at?: string
@@ -1593,6 +1756,7 @@ export type Database = {
           resolved_at: string | null
           resolved_po_id: string | null
           resolution: string | null
+          pdf_url: string | null
           created_at: string
           updated_at: string
         }
@@ -1609,6 +1773,7 @@ export type Database = {
           resolved_at?: string | null
           resolved_po_id?: string | null
           resolution?: string | null
+          pdf_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1625,6 +1790,7 @@ export type Database = {
           resolved_at?: string | null
           resolved_po_id?: string | null
           resolution?: string | null
+          pdf_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1703,6 +1869,55 @@ export type Database = {
           },
           {
             foreignKeyName: "purchase_quote_replies_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_quote_dismissals: {
+        Row: {
+          id: string
+          org_id: string
+          request_id: string
+          supplier_id: string
+          dismissed_by: string | null
+          dismissed_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          request_id: string
+          supplier_id: string
+          dismissed_by?: string | null
+          dismissed_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          request_id?: string
+          supplier_id?: string
+          dismissed_by?: string | null
+          dismissed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_quote_dismissals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_quote_dismissals_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_quote_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_quote_dismissals_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
@@ -4378,6 +4593,10 @@ export type Database = {
           po_approval_threshold: number
           po_requires_approval: boolean
           po_quote_timeout_hours: number
+          // Supplier Monthly RFQ pipeline (2026-09-01) — see
+          // 20260901100000_supplier_monthly_rfq_phase1.sql.
+          po_quote_day_of_month: number | null
+          po_quote_last_run_month: string | null
           default_duration_paid_minutes: number
           default_duration_warranty_minutes: number
           default_duration_amc_minutes: number
@@ -4394,6 +4613,13 @@ export type Database = {
           // Answer Layer kill switch (2026-08-27), independent of
           // whatsapp_bot_enabled — see 20260827120000_wa_answer_layer_kill_switch.sql.
           wa_answer_layer_enabled: boolean
+          // Phase 5b classify-intent + free-text-relevance kill switch
+          // (2026-08-28) — see 20260828100000_wa_classify_intent_kill_switch.sql.
+          wa_classify_intent_enabled: boolean
+          // Supplier quote-extraction AI kill switch (2026-08-28),
+          // independent of the two above — see
+          // 20260828110000_wa_quote_extraction_kill_switch.sql.
+          wa_quote_extraction_enabled: boolean
           // Admin-configurable cron pacing (2026-08-25) — see
           // 20260825160000_wa_scheduled_job_intervals.sql.
           milestone_dispatch_enabled: boolean
@@ -4432,6 +4658,8 @@ export type Database = {
           po_approval_threshold?: number
           po_requires_approval?: boolean
           po_quote_timeout_hours?: number
+          po_quote_day_of_month?: number | null
+          po_quote_last_run_month?: string | null
           default_duration_paid_minutes?: number
           default_duration_warranty_minutes?: number
           default_duration_amc_minutes?: number
@@ -4444,6 +4672,8 @@ export type Database = {
           emi_disclaimer?: string | null
           whatsapp_bot_enabled?: boolean
           wa_answer_layer_enabled?: boolean
+          wa_classify_intent_enabled?: boolean
+          wa_quote_extraction_enabled?: boolean
           milestone_dispatch_enabled?: boolean
           milestone_dispatch_interval_minutes?: number
           milestone_dispatch_last_run_at?: string | null
@@ -4480,6 +4710,8 @@ export type Database = {
           po_approval_threshold?: number
           po_requires_approval?: boolean
           po_quote_timeout_hours?: number
+          po_quote_day_of_month?: number | null
+          po_quote_last_run_month?: string | null
           default_duration_paid_minutes?: number
           default_duration_warranty_minutes?: number
           default_duration_amc_minutes?: number
@@ -4492,6 +4724,8 @@ export type Database = {
           emi_disclaimer?: string | null
           whatsapp_bot_enabled?: boolean
           wa_answer_layer_enabled?: boolean
+          wa_classify_intent_enabled?: boolean
+          wa_quote_extraction_enabled?: boolean
           milestone_dispatch_enabled?: boolean
           milestone_dispatch_interval_minutes?: number
           milestone_dispatch_last_run_at?: string | null
@@ -5466,12 +5700,20 @@ export type Database = {
         Args: { p_approval_id: string }
         Returns: undefined
       }
+      update_po_items_and_approve: {
+        Args: { p_approval_id: string; p_items?: Json }
+        Returns: undefined
+      }
       resolve_purchase_quote_requests: {
         Args: { p_org_id: string }
         Returns: number
       }
       log_purchase_quote_reply: {
         Args: { p_request_id: string; p_supplier_id: string; p_price: number; p_note?: string | null }
+        Returns: string
+      }
+      mark_quote_supplier_no_response: {
+        Args: { p_request_id: string; p_supplier_id: string }
         Returns: string
       }
       log_lead_activity: {
@@ -5559,6 +5801,21 @@ export type Database = {
       approval_type: "discount" | "po" | "price_override" | "leave"
       approval_status: "pending" | "approved" | "rejected"
       task_status: "open" | "done" | "rolled"
+      // Phrase manager (2026-08-28) — see 20260828140000_wa_custom_trigger_phrases.sql.
+      wa_trigger_category:
+        | "service_ticket"
+        | "purchase_history"
+        | "business_address"
+        | "business_phone"
+        | "business_hours"
+        | "emi"
+        | "product_availability"
+        | "menu_buy"
+        | "menu_service"
+        | "menu_spares"
+        | "menu_amc"
+        | "menu_account"
+        | "menu_expert"
     }
     CompositeTypes: {
       [_ in never]: never
