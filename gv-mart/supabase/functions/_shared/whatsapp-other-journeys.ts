@@ -3,7 +3,7 @@
 // wa_identify_customer already resolved — no new query, no new business
 // logic). Same pure-function/`action`-request shape as the Service journey.
 import { t, type WaLang } from "./i18n.ts"
-import type { ConversationState, InboundIntent, Reply, RouteResult } from "./whatsapp-journeys.ts"
+import { containsWholePhrase, tokenizeWords, type ConversationState, type InboundIntent, type Reply, type RouteResult } from "./whatsapp-journeys.ts"
 import type { Identity } from "./whatsapp-service-journey.ts"
 
 function handoff(lang: WaLang, key: string): RouteResult {
@@ -56,21 +56,72 @@ export function routeSpares(lang: WaLang, conversation: ConversationState, inten
   return { nextState: conversation, reply: { body: t(lang, "whatsapp.spares.askSpare") } }
 }
 
-// ── AMC (read-only — no action, no write) ──────────────────────────────
+// ── AMC (read-only lookup; the "no active plan" case below becomes a
+// one-step offer flow — the only write this journey ever makes is a lead,
+// same "capture interest, staff follows up" pattern as Sales/Spares) ──────
+const AMC_OFFER_YES_PHRASES = ["yes", "yeah", "yep", "sure", "ok", "okay", "interested", "ஆம்", "சரி", "வேண்டும்"]
+function isAmcOfferYes(text: string): boolean {
+  const words = tokenizeWords(text)
+  return AMC_OFFER_YES_PHRASES.some((p) => containsWholePhrase(words, p))
+}
+
 export function enterAmcJourney(lang: WaLang, identity: Identity): RouteResult {
   if (!identity.found) return handoff(lang, "whatsapp.amc.notIdentified")
   const amcProducts = (identity.products ?? []).filter((p) => p.coverage === "amc")
-  const lines = amcProducts.map((p) =>
-    t(lang, "whatsapp.amc.productLine", {
-      name: p.product_name,
-      status: p.amc_status ?? "",
-      expiry: p.expiry_date ? t(lang, "whatsapp.amc.expirySuffix", { date: p.expiry_date }) : "",
-    })
-  )
-  const body = amcProducts.length === 0
-    ? t(lang, "whatsapp.amc.none")
-    : `${t(lang, "whatsapp.amc.header")}\n${lines.join("\n")}\n\n${t(lang, "whatsapp.amc.footer")}`
-  return { nextState: { journey: null, step: null, collected: {}, status: "completed" }, reply: { body } }
+
+  if (amcProducts.length > 0) {
+    const lines = amcProducts.map((p) =>
+      t(lang, "whatsapp.amc.productLine", {
+        name: p.product_name,
+        status: p.amc_status ?? "",
+        expiry: p.expiry_date ? t(lang, "whatsapp.amc.expirySuffix", { date: p.expiry_date }) : "",
+      })
+    )
+    const body = `${t(lang, "whatsapp.amc.header")}\n${lines.join("\n")}\n\n${t(lang, "whatsapp.amc.footer")}`
+    return { nextState: { journey: null, step: null, collected: {}, status: "completed" }, reply: { body } }
+  }
+
+  // No active AMC. If we know of purchased products that aren't under one,
+  // offer to add a plan and list them (2026-08-31, real customer report:
+  // the old blanket decline gave no next step beyond "talk to expert").
+  // No products on file at all -> nothing to offer, same decline as before.
+  const uncovered = identity.productsWithoutAmc ?? []
+  if (uncovered.length === 0) {
+    return { nextState: { journey: null, step: null, collected: {}, status: "completed" }, reply: { body: t(lang, "whatsapp.amc.none") } }
+  }
+
+  const productLines = uncovered.map((p) => t(lang, "whatsapp.amc.offerProductLine", { name: p.product_name })).join("\n")
+  const body = `${t(lang, "whatsapp.amc.offerHeader")} ${t(lang, "whatsapp.amc.offerQuestion")}\n\n${productLines}\n\n${t(lang, "whatsapp.amc.offerFooter")}`
+  return {
+    nextState: {
+      journey: "amc",
+      step: "offer_add",
+      collected: { uncoveredProductNames: uncovered.map((p) => p.product_name) },
+      status: "active",
+    },
+    reply: { body },
+  }
+}
+
+/** Handles the reply to enterAmcJourney's "add an AMC plan?" offer. Only
+ * ever reached with conversation.step === "offer_add" (the sole step this
+ * journey sets). An affirmative reply captures a lead the same way Sales/
+ * Spares do; anything else is a graceful decline, not an error. */
+export function routeAmc(lang: WaLang, conversation: ConversationState, intent: InboundIntent): RouteResult {
+  const text = intent.kind === "text" ? intent.text.trim() : null
+  const productNames = (conversation.collected?.uncoveredProductNames as string[] | undefined) ?? []
+
+  if (text && isAmcOfferYes(text)) {
+    return {
+      nextState: { journey: null, step: null, collected: {}, status: "completed" },
+      reply: { body: t(lang, "whatsapp.amc.offerConfirmed") },
+      action: { type: "create_lead", params: { body: `AMC plan requested for: ${productNames.join(", ")}` } },
+    }
+  }
+  return {
+    nextState: { journey: null, step: null, collected: {}, status: "completed" },
+    reply: { body: t(lang, "whatsapp.amc.offerDeclined") },
+  }
 }
 
 // ── My Account (read-only — no action, no write) ────────────────────────

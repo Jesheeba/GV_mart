@@ -271,12 +271,14 @@ function OrgProfileCard({ orgId }: { orgId: string | undefined }) {
   const [gstNo, setGstNo] = useState("")
   const [address, setAddress] = useState("")
   const [phone, setPhone] = useState("")
+  const [businessHours, setBusinessHours] = useState("")
 
   useEffect(() => {
     if (org) {
       setGstNo(org.gst_no ?? "")
       setAddress(org.address ?? "")
       setPhone(org.phone ?? "")
+      setBusinessHours(org.business_hours ?? "")
     }
   }, [org])
 
@@ -284,7 +286,11 @@ function OrgProfileCard({ orgId }: { orgId: string | undefined }) {
     return <div className="h-32 animate-pulse rounded-card border border-border bg-surface" />
   }
 
-  const dirty = gstNo !== (org.gst_no ?? "") || address !== (org.address ?? "") || phone !== (org.phone ?? "")
+  const dirty =
+    gstNo !== (org.gst_no ?? "") ||
+    address !== (org.address ?? "") ||
+    phone !== (org.phone ?? "") ||
+    businessHours !== (org.business_hours ?? "")
 
   return (
     <Card className="gap-4">
@@ -306,12 +312,19 @@ function OrgProfileCard({ orgId }: { orgId: string | undefined }) {
           <Input id="org-address" value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
       </div>
+      <div className="px-1">
+        <Label htmlFor="org-hours">{t("settings.orgProfile.hours")}</Label>
+        <Input id="org-hours" value={businessHours} onChange={(e) => setBusinessHours(e.target.value)} placeholder={t("settings.orgProfile.hoursPlaceholder")} />
+        <p className="mt-1 text-xs text-text-muted">{t("settings.orgProfile.hoursHint")}</p>
+      </div>
       <div className="flex items-center justify-end gap-2 px-1">
         {updateMut.isSuccess && !dirty ? <span className="text-xs text-success">{t("settings.orgProfile.saved")}</span> : null}
         <Button
           type="button"
           disabled={!dirty || updateMut.isPending}
-          onClick={() => updateMut.mutate({ gst_no: gstNo || null, address: address || null, phone: phone || null })}
+          onClick={() =>
+            updateMut.mutate({ gst_no: gstNo || null, address: address || null, phone: phone || null, business_hours: businessHours || null })
+          }
         >
           {updateMut.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
         </Button>

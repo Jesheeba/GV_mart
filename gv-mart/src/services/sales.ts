@@ -196,12 +196,15 @@ export async function getAmcContractForInvoice(invoiceId: string) {
 }
 
 export async function getOrganization(orgId: string) {
-  const { data, error } = await supabase.from("organizations").select("name,gst_no,address,phone").eq("id", orgId).single()
+  const { data, error } = await supabase.from("organizations").select("name,gst_no,address,phone,business_hours").eq("id", orgId).single()
   if (error) throw error
   return data
 }
 
-export async function updateOrganization(orgId: string, patch: { gst_no: string | null; address: string | null; phone: string | null }) {
+export async function updateOrganization(
+  orgId: string,
+  patch: { gst_no: string | null; address: string | null; phone: string | null; business_hours: string | null }
+) {
   const { error } = await supabase.from("organizations").update(patch).eq("id", orgId)
   if (error) throw error
 }

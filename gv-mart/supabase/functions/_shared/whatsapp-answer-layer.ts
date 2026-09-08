@@ -1,8 +1,9 @@
 // AI/CRM Answer Layer, Phase 2 — the orchestration function itself. Given a
-// customer's free-text question, decides whether one of the 4 read-only
-// wa_get_* RPCs (20260827090000) can answer it, and if so, answers ONLY
-// from that RPC's real data. See GV_MART_AI_CRM_ANSWER_LAYER_SPEC.md and
-// the design reviewed/approved with the user before this was written.
+// customer's free-text question, decides whether one of the read-only
+// wa_get_* RPCs (20260827090000, plus wa_get_business_info from
+// 20260827130000) can answer it, and if so, answers ONLY from that RPC's
+// real data. See GV_MART_AI_CRM_ANSWER_LAYER_SPEC.md and the design
+// reviewed/approved with the user before this was written.
 //
 // STANDALONE PHASE — deliberately NOT called from handleMessage yet (see
 // test-answer-layer/index.ts, same "build it, test it directly, wire it in
@@ -60,10 +61,40 @@ our team", "visit our showroom") — don't put that in the answer at all. Answer
 only the part the tool result actually covers, or don't answer at all; never
 pad a grounded answer with an ungrounded one.
 
-Messages may be in English, Tamil, or Tanglish (Tamil-English code-mixed).
-Reply in the same language/mix the customer used. Keep the answer short —
-2-3 sentences at most, plain text, no markdown, no bullet lists, this is a
-WhatsApp chat message, not a report.`
+Exception — get_business_info only: address, phone, and business hours are
+independent static facts with no risk of one contaminating another (unlike
+an ambiguous price search, where multiple ambiguous matches genuinely could
+be confused for each other). If the customer asks about more than one of
+these fields in the same message and get_business_info's result has AT
+LEAST ONE of the asked-about fields filled in, set can_answer and
+fully_addresses_question BOTH to true, and write an answer that: states
+every asked-about field that IS on file, using its real value — and
+explicitly says any asked-about field that is NOT on file is not available
+yet, in the same reply. Never silently drop a missing field, never guess it.
+If NONE of the asked-about fields are on file, this exception does not
+apply — set can_answer to false as usual, same as any other tool. This
+exception is scoped to get_business_info ONLY. For every other tool
+(get_amc_status, get_product_price, get_service_ticket_status,
+get_purchase_history), the original rule above stands unchanged: if the
+result doesn't cover everything asked, set fully_addresses_question to
+false and leave answer empty.
+
+Messages may be in English, Tamil (Tamil script), or Tanglish (Tamil-English
+code-mixed, written in Latin letters). Your reply's language/script MUST
+match the customer's input — this is a hard requirement, not a style
+preference. Tamil script in -> Tamil script out. Tanglish in -> Tanglish out
+(Latin letters, natural mix), not pure English and not Tamil script. This
+applies even when the underlying data you're reporting (product names,
+prices, dates) is in English: product names and numbers stay as-is, but the
+sentences around them — greetings, connectors, explanations — must be in
+the customer's language. Do not default to English just because the tool
+result came back in English. Keep the answer short — 2-3 sentences at most,
+plain text, no markdown, no bullet lists, this is a WhatsApp chat message,
+not a report.
+
+If a queried field comes back null or empty (e.g. no business address on
+file yet), that means we genuinely don't have it — say so plainly and offer
+to connect them with the team. Never invent or guess a placeholder value.`
 
 const ROUND1_TOOLS = [
   {
@@ -71,22 +102,6 @@ const ROUND1_TOOLS = [
     description:
       "Look up this customer's AMC (annual maintenance contract) and warranty coverage for their products — expiry dates, active/due-soon/expired status, plan name. Use for questions like 'what's my AMC status', 'when does my warranty expire', 'am I still covered'.",
     input_schema: { type: "object", properties: {}, required: [] },
-  },
-  {
-    name: "get_product_price",
-    description:
-      "Look up current pricing for a GV Mart product by name or category (RO purifier, AC, inverter, battery). Use for questions like 'how much is a 25 LPH RO', 'what's the price of an inverter', 'do you have LG ACs'.",
-    input_schema: {
-      type: "object",
-      properties: {
-        search: {
-          type: "string",
-          description:
-            "The product name, model, or category the customer mentioned, extracted from their question — e.g. 'RO', '25 LPH RO purifier', 'LG AC'. Not the full question text.",
-        },
-      },
-      required: ["search"],
-    },
   },
   {
     name: "get_service_ticket_status",
@@ -111,6 +126,12 @@ const ROUND1_TOOLS = [
     input_schema: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "get_business_info",
+    description:
+      "Look up GV Mart's own business address, phone number, and business hours (not the customer's data — GV Mart's). Use for questions like 'where are you located', 'what's your address', 'what's your phone number', 'when are you open', 'how do I reach you'.",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "cannot_answer",
     description:
       "Call this when none of the other tools can resolve the customer's question, the question is too ambiguous to pick a tool confidently, or the customer is asking for an action (book/cancel/change) rather than information.",
@@ -121,8 +142,14 @@ const ROUND1_TOOLS = [
           type: "string",
           description: "One short internal note on why no tool applies — for our own review logs, never shown to the customer.",
         },
+        category: {
+          type: "string",
+          enum: ["off_topic_chitchat", "ambiguous_or_needs_clarification", "action_requested"],
+          description:
+            "off_topic_chitchat: casual conversation, greetings-adjacent small talk, jokes, or anything clearly not about GV Mart's business (e.g. 'saaptiya' / did you eat, 'enna pandra' / what are you doing). ambiguous_or_needs_clarification: genuinely business-relevant but too vague to pick a tool confidently. action_requested: customer wants to DO something (book/cancel/change/buy) rather than ask a question. Pick the one that best explains why no tool applies — the reply shown to the customer differs by category.",
+        },
       },
-      required: ["reason"],
+      required: ["reason", "category"],
     },
   },
 ] as const
@@ -146,7 +173,7 @@ const RESPOND_TOOL = {
       answer: {
         type: "string",
         description:
-          "The reply to send the customer, 2-3 sentences max, plain text. Only meaningful when can_answer AND fully_addresses_question are both true — leave empty otherwise.",
+          "The reply to send the customer, 2-3 sentences max, plain text, written in the SAME language/script as the customer's original message (English / Tamil script / Tanglish) — double-check this before finalizing, it's easy to slip into English when the tool data itself is in English. Only meaningful when can_answer AND fully_addresses_question are both true — leave empty otherwise.",
       },
     },
     required: ["can_answer", "fully_addresses_question", "answer"],
@@ -176,6 +203,11 @@ export type AnswerLayerResult =
       latencyMs: number
       modelCanAnswer?: boolean
       modelFullyAddresses?: boolean
+      /** Only set when toolUsed === "cannot_answer" — lets handleMessage
+       * pick a different customer-facing reply for casual chit-chat vs. a
+       * genuinely ambiguous question vs. an action request, instead of one
+       * generic decline for all three. See cannot_answer's own schema. */
+      category?: "off_topic_chitchat" | "ambiguous_or_needs_clarification" | "action_requested"
     }
 
 async function callAnthropic(
@@ -218,11 +250,16 @@ function findToolUse(res: AnthropicResponse | null): AnthropicToolUseBlock | nul
 
 // Tool name -> the wa_get_* RPC it calls. cannot_answer has no RPC — handled
 // separately in the orchestration loop below, before this map is consulted.
+// 2026-08-28: get_product_price deliberately removed (business decision —
+// never disclose real prices over WhatsApp) — see enterOrAnswerSalesJourney
+// (whatsapp-handle-message.ts) for the deterministic "team will contact
+// you" reply that replaced it. Structural removal, not a prompt-level
+// suppression: the model can't leak a number it was never given.
 const TOOL_TO_RPC: Record<string, string> = {
   get_amc_status: "wa_get_amc_status",
-  get_product_price: "wa_get_product_price",
   get_service_ticket_status: "wa_get_service_ticket_status",
   get_purchase_history: "wa_get_purchase_history",
+  get_business_info: "wa_get_business_info",
 }
 
 async function executeTool(
@@ -246,8 +283,10 @@ async function executeTool(
   // rather than being silently ignored.
   let args: Record<string, unknown>
   switch (toolName) {
-    case "get_product_price":
-      args = { p_org_id: orgId, p_search: typeof toolInput.search === "string" ? toolInput.search : "" }
+    case "get_business_info":
+      // Org-wide static data, same "no phone/identity" reasoning as
+      // get_product_price — wa_get_business_info takes only p_org_id.
+      args = { p_org_id: orgId }
       break
     case "get_service_ticket_status":
       args = { p_org_id: orgId, p_phone: phone }
@@ -360,12 +399,18 @@ export async function answerCustomerQuestion(
   }
 
   if (round1Tool.name === "cannot_answer") {
+    const rawCategory = round1Tool.input.category
+    const category =
+      rawCategory === "off_topic_chitchat" || rawCategory === "ambiguous_or_needs_clarification" || rawCategory === "action_requested"
+        ? rawCategory
+        : undefined
     const result: AnswerLayerResult = {
       outcome: "handoff",
       reason: typeof round1Tool.input.reason === "string" ? round1Tool.input.reason : "cannot_answer",
       toolUsed: "cannot_answer",
       toolInput: round1Tool.input,
       latencyMs: Math.round(performance.now() - start),
+      category,
     }
     await logResult(admin, orgId, phone, question, result)
     return result

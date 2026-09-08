@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import type { Enums, Tables } from "@/types/database"
+import type { Enums, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 import type { DateRange } from "./reports"
 
 // ── Leads (ADM-22) ────────────────────────────────────────────────────────
@@ -272,10 +272,39 @@ export async function listPurchaseOrders(orgId: string): Promise<PurchaseOrderLi
   return (data ?? []) as unknown as PurchaseOrderListItem[]
 }
 
-export async function listPoItems(poId: string): Promise<(PoItemRow & { products: { name: string } | null; spares: { name: string } | null })[]> {
-  const { data, error } = await supabase.from("po_items").select("*, products(name), spares(name)").eq("po_id", poId)
+/** item_type/item_id is polymorphic (product | spare | gift), not a real
+ * foreign key PostgREST can embed-join on — `.select("*, products(name),
+ * spares(name)")` throws PGRST200 ("no relationship found"). Resolved the
+ * same way attachQuoteRequestItemNames (purchase_quote_requests) already
+ * does: separate lookups per item_type, merged client-side. Kept the
+ * `products`/`spares` field shape existing callers (PurchaseOrdersTab,
+ * PoApprovalPromptModal) already read, so this fixes the query without
+ * touching either of them. */
+export async function listPoItems(
+  poId: string
+): Promise<(PoItemRow & { products: { name: string } | null; spares: { name: string } | null; gifts: { name: string } | null })[]> {
+  const { data, error } = await supabase.from("po_items").select("*").eq("po_id", poId)
   if (error) throw error
-  return (data ?? []) as unknown as (PoItemRow & { products: { name: string } | null; spares: { name: string } | null })[]
+  const rows = data ?? []
+
+  const productIds = rows.filter((r) => r.item_type === "product").map((r) => r.item_id)
+  const spareIds = rows.filter((r) => r.item_type === "spare").map((r) => r.item_id)
+  const giftIds = rows.filter((r) => r.item_type === "gift").map((r) => r.item_id)
+  const [{ data: products }, { data: spares }, { data: gifts }] = await Promise.all([
+    productIds.length ? supabase.from("products").select("id,name").in("id", productIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    spareIds.length ? supabase.from("spares").select("id,name").in("id", spareIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    giftIds.length ? supabase.from("gifts").select("id,name").in("id", giftIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ])
+  const productMap = new Map((products ?? []).map((r) => [r.id, r.name]))
+  const spareMap = new Map((spares ?? []).map((r) => [r.id, r.name]))
+  const giftMap = new Map((gifts ?? []).map((r) => [r.id, r.name]))
+
+  return rows.map((r) => ({
+    ...r,
+    products: productMap.has(r.item_id) ? { name: productMap.get(r.item_id)! } : null,
+    spares: spareMap.has(r.item_id) ? { name: spareMap.get(r.item_id)! } : null,
+    gifts: giftMap.has(r.item_id) ? { name: giftMap.get(r.item_id)! } : null,
+  }))
 }
 
 export type PoItemInput = { itemType: "product" | "spare"; itemId: string; qty: number; price: number }
@@ -451,4 +480,124 @@ export async function logPurchaseQuoteReply(input: { requestId: string; supplier
   })
   if (error) throw error
   return data
+}
+
+// ── Supplier Monthly RFQ pipeline (2026-09-01), Phase 2 ──────────────────
+export type PurchaseQuoteDismissalRow = Tables<"purchase_quote_dismissals">
+
+/** Suppliers an admin has settled as "not going to reply" for an open
+ * request — purely a display concern (see the migration's own comment):
+ * resolution already only ever considers logged replies, dismissed or not. */
+export async function listQuoteDismissals(requestId: string): Promise<PurchaseQuoteDismissalRow[]> {
+  const { data, error } = await supabase.from("purchase_quote_dismissals").select("*").eq("request_id", requestId)
+  if (error) throw error
+  return data ?? []
+}
+
+export async function markQuoteSupplierNoResponse(input: { requestId: string; supplierId: string }) {
+  const { data, error } = await supabase.rpc("mark_quote_supplier_no_response", {
+    p_request_id: input.requestId,
+    p_supplier_id: input.supplierId,
+  })
+  if (error) throw error
+  return data
+}
+
+/** PDF-generation piece of the supplier document-quote-request work
+ * (compliance investigation, 2026-09-03) — see generate-quote-pdf/index.ts's
+ * own header comment for why this is standalone rather than wired into the
+ * WhatsApp send path yet. Builds (or regenerates) the letterhead PDF for one
+ * quote request and stores its public URL on the request row. */
+export async function generateQuoteRequestPdf(requestId: string): Promise<{ url: string }> {
+  const { data, error } = await supabase.functions.invoke<{ url: string }>("generate-quote-pdf", { body: { requestId } })
+  if (error) {
+    // supabase-js buries the Edge Function's own JSON error body in
+    // error.context — surface it if present so the admin sees the real
+    // reason (e.g. "Quote request not found") instead of a generic
+    // "non-2xx status code" message.
+    const context = (error as { context?: Response }).context
+    let message: string | null = null
+    if (context) {
+      try {
+        const body = await context.clone().json()
+        if (body?.error) message = body.error
+      } catch {
+        // non-JSON body — fall through to the generic error below
+      }
+    }
+    throw message ? new Error(message) : error
+  }
+  if (!data) throw new Error("No response from generate-quote-pdf")
+  return data
+}
+
+// ── Supplier Monthly RFQ pipeline (2026-09-01), Phase 3 ──────────────────
+/** Superset of approve_purchase_order — applies quantity edits (if any)
+ * before releasing the draft PO. See the RPC's own comment for why the
+ * approval claim happens before the edits, not after. */
+export async function updatePoItemsAndApprove(input: { approvalId: string; items: { id: string; qty: number }[] }) {
+  const { error } = await supabase.rpc("update_po_items_and_approve", {
+    p_approval_id: input.approvalId,
+    p_items: input.items,
+  })
+  if (error) throw error
+}
+
+// ── Supplier Monthly RFQ pipeline (2026-09-01), Phase 4 ──────────────────
+/** Receipt confirmation — calls the SAME create_bill_entry RPC BillEntryTab's
+ * from-scratch form uses, just from a different-shaped entry point: items
+ * come pre-populated from the PO's own po_items (already typed with the
+ * real item_type enum, product|spare|gift), where BillEntryTab's PoItemInput
+ * is deliberately narrower (product|spare only, matching its item-type
+ * picker UI) — reusing it here would mis-type a gift line item were one
+ * ever on a supplier PO. create_bill_entry itself now guards against
+ * double-submission (Phase 4 migration) — see its own comment. */
+export async function confirmPoReceipt(input: {
+  orgId: string
+  supplierId: string
+  poId: string
+  items: { itemType: Enums<"item_type">; itemId: string; qty: number; price: number }[]
+  gst: number
+}) {
+  const { data, error } = await supabase.rpc("create_bill_entry", {
+    p_org_id: input.orgId,
+    p_supplier_id: input.supplierId,
+    p_po_id: input.poId,
+    p_items: input.items.map((i) => ({ item_type: i.itemType, item_id: i.itemId, qty: i.qty, price: i.price })),
+    p_gst: input.gst,
+    p_bill_date: new Date().toISOString().slice(0, 10),
+    p_bill_image_url: null,
+    p_category: "purchase",
+  })
+  if (error) throw error
+  return data
+}
+
+// ── WhatsApp bot phrase manager (2026-08-28) ────────────────────────────
+// Flat org-level list, same shape entityHooks already covers elsewhere —
+// additive staff-added phrases on top of the hardcoded baseline the bot's
+// Edge Functions ship with (see whatsapp-status-answers.ts / whatsapp-
+// journeys.ts). Scoped to the 13-value wa_trigger_category enum only —
+// mechanics/greetings/red-flag phrases have no row shape here at all.
+export type WaCustomTriggerPhraseRow = Tables<"wa_custom_trigger_phrases">
+export type WaTriggerCategory = Enums<"wa_trigger_category">
+
+export async function listWaCustomTriggerPhrases(orgId: string) {
+  const { data, error } = await supabase.from("wa_custom_trigger_phrases").select("*").eq("org_id", orgId).order("created_at", { ascending: false })
+  if (error) throw error
+  return data
+}
+export async function createWaCustomTriggerPhrase(row: TablesInsert<"wa_custom_trigger_phrases">) {
+  const { data, error } = await supabase.from("wa_custom_trigger_phrases").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateWaCustomTriggerPhrase(id: string, patch: TablesUpdate<"wa_custom_trigger_phrases">) {
+  const { data, error } = await supabase.from("wa_custom_trigger_phrases").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteWaCustomTriggerPhrase(id: string) {
+  const { error } = await supabase.from("wa_custom_trigger_phrases").delete().eq("id", id)
+  if (error) throw error
 }

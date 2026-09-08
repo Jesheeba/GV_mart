@@ -19,6 +19,9 @@ export type Identity = {
   customerId?: string
   name?: string
   products?: IdentifiedProduct[]
+  /** Purchased products with NO amc_contracts row for this customer (warranty-only
+   * still counts as "not in an AMC") — used to build the AMC "add a plan?" offer. */
+  productsWithoutAmc?: { product_id: string; product_name: string }[]
   openTicket?: IdentifiedTicketSummary | null
   lastService?: IdentifiedTicketSummary | null
 }
@@ -59,10 +62,9 @@ function slotListReply(lang: WaLang, slots: SlotInfo[]): { reply: Reply; options
     reply: {
       body: `${t(lang, "whatsapp.service.askSlot.body")}\n${rows.map((r) => `- ${r.title}`).join("\n")}`,
       interactive: {
-        type: "list",
-        header: { type: "text", text: t(lang, "whatsapp.service.askSlot.header") },
-        body: { text: t(lang, "whatsapp.service.askSlot.body") },
-        action: { button: t(lang, "whatsapp.menu.buttonText"), sections: [{ rows }] },
+        header: t(lang, "whatsapp.service.askSlot.header"),
+        button: t(lang, "whatsapp.menu.buttonText"),
+        sections: [{ rows }],
       },
     },
     options,
@@ -70,15 +72,19 @@ function slotListReply(lang: WaLang, slots: SlotInfo[]): { reply: Reply; options
 }
 
 function productListReply(lang: WaLang, products: IdentifiedProduct[]): Reply {
-  const rows = products.map((p) => ({ id: `product_${p.product_id}`, title: p.product_name }))
+  // Wasi's 10-row total cap (across all sections) — products is a
+  // customer's real product list with no upper bound of its own, so this
+  // wasn't safe even under Meta's identical 10-row limit; just never
+  // exercised until real dispatch existed to hit it. Cap to 9 so the
+  // always-appended "other" row still fits within 10.
+  const rows = products.slice(0, 9).map((p) => ({ id: `product_${p.product_id}`, title: p.product_name }))
   rows.push({ id: "product_other", title: t(lang, "whatsapp.service.unlistedProductPrompt").slice(0, 24) })
   return {
     body: `${t(lang, "whatsapp.service.askProduct.body")}\n${rows.map((r) => `- ${r.title}`).join("\n")}`,
     interactive: {
-      type: "list",
-      header: { type: "text", text: t(lang, "whatsapp.service.askProduct.header") },
-      body: { text: t(lang, "whatsapp.service.askProduct.body") },
-      action: { button: t(lang, "whatsapp.menu.buttonText"), sections: [{ rows }] },
+      header: t(lang, "whatsapp.service.askProduct.header"),
+      button: t(lang, "whatsapp.menu.buttonText"),
+      sections: [{ rows }],
     },
   }
 }
@@ -92,10 +98,9 @@ function urgencyReply(lang: WaLang): Reply {
   return {
     body: `${t(lang, "whatsapp.service.askUrgency.body")}\n${rows.map((r) => `- ${r.title}`).join("\n")}`,
     interactive: {
-      type: "list",
-      header: { type: "text", text: t(lang, "whatsapp.service.askUrgency.header") },
-      body: { text: t(lang, "whatsapp.service.askUrgency.body") },
-      action: { button: t(lang, "whatsapp.menu.buttonText"), sections: [{ rows }] },
+      header: t(lang, "whatsapp.service.askUrgency.header"),
+      button: t(lang, "whatsapp.menu.buttonText"),
+      sections: [{ rows }],
     },
   }
 }
@@ -108,7 +113,7 @@ function addressConfirmReply(lang: WaLang, address: AddressInfo): Reply {
   const body = t(lang, "whatsapp.service.askAddressConfirm.body", { address: address.summary })
   return {
     body: `${body}\n${rows.map((r) => `- ${r.title}`).join("\n")}`,
-    interactive: { type: "list", body: { text: body }, action: { button: t(lang, "whatsapp.menu.buttonText"), sections: [{ rows }] } },
+    interactive: { button: t(lang, "whatsapp.menu.buttonText"), sections: [{ rows }] },
   }
 }
 

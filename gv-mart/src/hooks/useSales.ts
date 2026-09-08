@@ -88,7 +88,8 @@ export function useOrganization(orgId: string | undefined) {
 export function useUpdateOrganization(orgId: string | undefined) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (patch: { gst_no: string | null; address: string | null; phone: string | null }) => sales.updateOrganization(orgId!, patch),
+    mutationFn: (patch: { gst_no: string | null; address: string | null; phone: string | null; business_hours: string | null }) =>
+      sales.updateOrganization(orgId!, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["organizations", "detail", orgId] }),
   })
 }

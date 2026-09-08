@@ -13,6 +13,7 @@ import { ConversationsTab } from "./ConversationsTab"
 import { TemplatesTab } from "./TemplatesTab"
 import { FailedSendsTab } from "./FailedSendsTab"
 import { AutomationJobsTab } from "./AutomationJobsTab"
+import { PhraseManagerTab } from "./PhraseManagerTab"
 
 /** Prominently placed, not buried in a tab — visible and one click,
  * regardless of which tab is open, per the plan's "bot kill switch,
@@ -72,6 +73,67 @@ function AnswerLayerKillSwitch() {
   )
 }
 
+/** Independent of both switches above — turning this off silences Phase
+ * 5b's classifyWithClaude (free-text -> menu journey routing) and the
+ * free-text-relevance guard on Spares/Sales/Service's capture steps; the
+ * bot falls back to pure keyword/menu-tap matching only, zero AI calls
+ * anywhere in the customer pipeline. Checked once in handleMessage
+ * (_shared/whatsapp-handle-message.ts), no redeploy needed to flip it. */
+function ClassifyIntentKillSwitch() {
+  const { t } = useTranslation()
+  const { data: profile } = useProfile()
+  const orgId = profile?.org_id
+  const { data: settings, isLoading } = useSettings(orgId)
+  const updateMut = useUpdateSettings(orgId)
+
+  if (isLoading || !settings) return <div className="h-9 w-40 animate-pulse rounded-full bg-surface-alt" />
+
+  const enabled = settings.wa_classify_intent_enabled
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className={cn("border-transparent font-bold", enabled ? "bg-success/10 text-success hover:bg-success/20" : "bg-danger/10 text-danger hover:bg-danger/20")}
+      disabled={updateMut.isPending}
+      onClick={() => updateMut.mutate({ wa_classify_intent_enabled: !enabled })}
+    >
+      {updateMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : enabled ? <Sparkles className="size-3.5" /> : <Ban className="size-3.5" />}
+      {enabled ? t("automation.classifyIntentKillSwitch.on") : t("automation.classifyIntentKillSwitch.off")}
+    </Button>
+  )
+}
+
+/** Independent of all three switches above — a genuinely different feature
+ * (supplier RFQ price-quote extraction, not customer conversation),
+ * checked before the customer-bot kill switch even runs by original
+ * design. Off means a supplier's WhatsApp quote reply falls through to a
+ * staff notification ("Log it from Purchase > Quotes") instead of being
+ * auto-extracted. Checked in handleSupplierReply (_shared/whatsapp-handle-
+ * message.ts), no redeploy needed to flip it. */
+function QuoteExtractionKillSwitch() {
+  const { t } = useTranslation()
+  const { data: profile } = useProfile()
+  const orgId = profile?.org_id
+  const { data: settings, isLoading } = useSettings(orgId)
+  const updateMut = useUpdateSettings(orgId)
+
+  if (isLoading || !settings) return <div className="h-9 w-40 animate-pulse rounded-full bg-surface-alt" />
+
+  const enabled = settings.wa_quote_extraction_enabled
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className={cn("border-transparent font-bold", enabled ? "bg-success/10 text-success hover:bg-success/20" : "bg-danger/10 text-danger hover:bg-danger/20")}
+      disabled={updateMut.isPending}
+      onClick={() => updateMut.mutate({ wa_quote_extraction_enabled: !enabled })}
+    >
+      {updateMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : enabled ? <Sparkles className="size-3.5" /> : <Ban className="size-3.5" />}
+      {enabled ? t("automation.quoteExtractionKillSwitch.on") : t("automation.quoteExtractionKillSwitch.off")}
+    </Button>
+  )
+}
+
 export function AutomationPage() {
   const { t } = useTranslation()
 
@@ -85,6 +147,8 @@ export function AutomationPage() {
         <div className="flex flex-wrap items-center gap-2">
           <BotKillSwitch />
           <AnswerLayerKillSwitch />
+          <ClassifyIntentKillSwitch />
+          <QuoteExtractionKillSwitch />
         </div>
       </div>
 
@@ -97,6 +161,7 @@ export function AutomationPage() {
           <TabsTrigger value="templates">{t("automation.tabs.templates")}</TabsTrigger>
           <TabsTrigger value="failedSends">{t("automation.tabs.failedSends")}</TabsTrigger>
           <TabsTrigger value="jobs">{t("automation.tabs.jobs")}</TabsTrigger>
+          <TabsTrigger value="phrases">{t("automation.tabs.phrases")}</TabsTrigger>
         </TabsList>
         <Card size="default" className="mt-3">
           <TabsContent value="flows">
@@ -119,6 +184,9 @@ export function AutomationPage() {
           </TabsContent>
           <TabsContent value="jobs">
             <AutomationJobsTab />
+          </TabsContent>
+          <TabsContent value="phrases">
+            <PhraseManagerTab />
           </TabsContent>
         </Card>
       </Tabs>

@@ -99,3 +99,73 @@ export async function classifyWithClaude(text: string, apiKey: string): Promise<
     return { intent: "unclear", confidence: 0, reasoning: isTimeout ? "timeout" : "request_failed", latencyMs, fallback: true }
   }
 }
+
+// 2026-08-28 — a separate, narrower classifier from classifyWithClaude
+// above: that one answers "which menu category" from a cold start (its
+// prompt is calibrated for that), this one answers "is this free text a
+// genuine attempt to answer THE SPECIFIC QUESTION we just asked" at one of
+// routeSales/routeSpares/routeService's free-text capture steps
+// (ask_interest, ask_spare, ask_unlisted_product, ask_problem) — those used
+// to accept ANY non-empty text verbatim as a real lead/enquiry/ticket
+// field. Deliberately fails OPEN (relevant: true) on every error path —
+// this is a new guardrail added on top of existing behavior; an infra
+// hiccup here must never block a real customer's legitimate answer.
+export type FreeTextRelevanceResult = { relevant: boolean; latencyMs: number; fallback: boolean }
+
+const RELEVANCE_SYSTEM_PROMPT = `You check whether a customer's WhatsApp reply is a genuine,
+on-topic attempt to answer a specific question a water-purifier/AC/inverter/battery
+sales-and-service business in Chennai, India just asked them — not whether it's complete,
+well-worded, or grammatically correct, just whether they're actually trying to answer THIS
+question rather than chit-chatting, joking, or saying something unrelated. Messages may be
+in English, Tamil, or Tanglish (Tamil-English code-mixed).
+
+Be generous: a short, vague, or oddly-phrased answer still counts as relevant if it's a real
+attempt to answer. Only mark irrelevant when the text is clearly NOT trying to answer at
+all — casual chit-chat ("saaptiya" / did you eat), a greeting, a joke, or a plainly unrelated
+topic ("food") when asked what spare part or problem they have.`
+
+export async function checkFreeTextRelevance(question: string, text: string, apiKey: string): Promise<FreeTextRelevanceResult> {
+  const start = performance.now()
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      signal: AbortSignal.timeout(ANTHROPIC_TIMEOUT_MS),
+      body: JSON.stringify({
+        model: CLASSIFY_MODEL,
+        max_tokens: 200,
+        system: RELEVANCE_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: `The business just asked the customer: "${question}"\n\nThe customer replied: "${text}"` }],
+        tools: [
+          {
+            name: "assess_relevance",
+            description: "Report whether the reply is a genuine attempt to answer the question asked.",
+            input_schema: { type: "object", properties: { relevant: { type: "boolean" } }, required: ["relevant"] },
+          },
+        ],
+        tool_choice: { type: "tool", name: "assess_relevance" },
+      }),
+    })
+
+    const latencyMs = Math.round(performance.now() - start)
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "")
+      console.error("whatsapp-classify-intent: relevance check API error", res.status, errText)
+      return { relevant: true, latencyMs, fallback: true }
+    }
+
+    const data = await res.json()
+    const toolUse = data.content?.find((block: { type: string }) => block.type === "tool_use")
+    if (!toolUse?.input || typeof toolUse.input.relevant !== "boolean") {
+      return { relevant: true, latencyMs, fallback: true }
+    }
+
+    return { relevant: toolUse.input.relevant, latencyMs, fallback: false }
+  } catch (e) {
+    const latencyMs = Math.round(performance.now() - start)
+    const isTimeout = e instanceof Error && e.name === "TimeoutError"
+    console.error("whatsapp-classify-intent: relevance check request failed", isTimeout ? "timeout" : e)
+    return { relevant: true, latencyMs, fallback: true }
+  }
+}

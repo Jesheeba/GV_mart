@@ -224,3 +224,84 @@ export function useLogPurchaseQuoteReply() {
     },
   })
 }
+export function useQuoteDismissals(requestId: string | undefined) {
+  return useQuery({
+    queryKey: ["purchaseQuoteDismissals", requestId],
+    queryFn: () => automation.listQuoteDismissals(requestId!),
+    enabled: !!requestId,
+  })
+}
+export function useMarkQuoteSupplierNoResponse() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: automation.markQuoteSupplierNoResponse,
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["purchaseQuoteDismissals", vars.requestId] })
+    },
+  })
+}
+export function useGenerateQuoteRequestPdf() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: automation.generateQuoteRequestPdf,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchaseQuoteRequests"] })
+    },
+  })
+}
+export function useUpdatePoItemsAndApprove() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: automation.updatePoItemsAndApprove,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["approvals"] })
+      qc.invalidateQueries({ queryKey: ["purchaseOrders"] })
+      qc.invalidateQueries({ queryKey: ["poItems"] })
+      qc.invalidateQueries({ queryKey: ["notifications"] })
+    },
+  })
+}
+export function useConfirmPoReceipt() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: automation.confirmPoReceipt,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchaseOrders"] })
+      qc.invalidateQueries({ queryKey: ["poItems"] })
+      qc.invalidateQueries({ queryKey: ["purchaseBills"] })
+      qc.invalidateQueries({ queryKey: ["inventory"] })
+      qc.invalidateQueries({ queryKey: ["notifications"] })
+    },
+  })
+}
+
+// ── WhatsApp bot phrase manager (2026-08-28) ────────────────────────────
+export function useWaCustomTriggerPhrases(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["waCustomTriggerPhrases", orgId],
+    queryFn: () => automation.listWaCustomTriggerPhrases(orgId!),
+    enabled: !!orgId,
+  })
+}
+export function useCreateWaCustomTriggerPhrase(orgId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: automation.createWaCustomTriggerPhrase,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["waCustomTriggerPhrases", orgId] }),
+  })
+}
+export function useUpdateWaCustomTriggerPhrase(orgId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof automation.updateWaCustomTriggerPhrase>[1] }) =>
+      automation.updateWaCustomTriggerPhrase(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["waCustomTriggerPhrases", orgId] }),
+  })
+}
+export function useDeleteWaCustomTriggerPhrase(orgId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: automation.deleteWaCustomTriggerPhrase,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["waCustomTriggerPhrases", orgId] }),
+  })
+}

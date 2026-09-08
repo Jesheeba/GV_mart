@@ -3,21 +3,22 @@
 // sendMessage() below; nothing upstream of it (journeys, handleMessage,
 // wa-scheduled-tasks) knows or cares whether a send is real or stubbed.
 //
-// Real dispatch is gated on THREE things all being true:
+// Real dispatch is gated on TWO things both being true:
 //   1. WASI_API_BASE_URL is set (read directly in sendMessage below) — no
 //      hardcoded guess; unset means "not configured yet", not an error.
 //   2. The org has an active whatsapp_provider_credentials row for 'wasi'.
-//   3. The message has no `interactive` payload. Wasi's confirmed contract
-//      only documents the plain-text send shape ({client_id, to, type:
-//      "text", body}) — whether it accepts Meta's interactive-list JSON
-//      Reply.interactive carries is still an open question (flagged
-//      separately, not resolved here). Until that's answered, any reply
-//      with `interactive` set — which is most menu/list prompts — keeps
-//      going through the log-only stub, same as before this change.
-// Any one of those being false falls back to the original stub behavior:
-// insert-only, dispatched: false, nothing left this server. This keeps
-// local/unconfigured environments working exactly as they did.
+// Either being false falls back to the original stub behavior: insert-only,
+// dispatched: false, nothing left this server. This keeps local/
+// unconfigured environments working exactly as they did.
+//
+// A third gating condition — interactive messages always went through the
+// stub, since Wasi's confirmed contract only documented the plain-text send
+// shape — was resolved 2026-08-27: Wasi's support team supplied real
+// production-verified sample payloads for their own flat interactive shape
+// (NOT Meta's nested interactive object). sendViaWasi below now builds
+// that shape and dispatches interactive messages for real, same as text.
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2"
+import type { Reply } from "./whatsapp-journeys.ts"
 
 // 2026-08-25 incident: sendViaWasi's fetch had no timeout at all, so a single
 // slow/hung Wasi request could block a whole Edge Function invocation past
@@ -47,8 +48,11 @@ export type SendMessageInput = {
   customerId: string | null
   template: string // e.g. "wa.menu", "wa.service.ack" — mirrors whatsapp_outbox.template
   body: string // human-readable text, logged into payload.body for now
-  /** Meta interactive-message shape (list/button), when this reply is more than plain text. Stored in payload.interactive so a real send later has everything it needs without re-deriving it. */
-  interactive?: unknown
+  /** Wasi's flat interactive shape (buttons or button+sections), when this
+   * reply is more than plain text — see Reply's own doc comment. Stored in
+   * payload.interactive either way, so a real send has everything it needs
+   * without re-deriving it even in stub mode. */
+  interactive?: NonNullable<Reply["interactive"]>
   type?: "text" | "template" | "interactive" | "media"
   refType?: string | null
   refId?: string | null
@@ -64,9 +68,47 @@ export type SendMessageResult = {
   dispatched: boolean
 }
 
+export type RenderedTemplate = { found: true; body: string } | { found: false }
+
+/** TS-side entry point into `_wa_render_template` (20260819170000) for
+ * callers that send synchronously through sendMessage() themselves — e.g.
+ * handleSupplierReply's ack messages — rather than the SQL-trigger callers
+ * (_milestone_ticket_notify, _auto_draft_purchase_order, etc.) that call it
+ * from within Postgres and stash the result straight into a raw
+ * whatsapp_outbox insert. Same admin-overridable-via-Automation->Templates
+ * contract either way: found:false (no template row yet) is the normal
+ * "no override configured" case, not an error — callers fall back to
+ * their own default body. */
+export async function renderWaTemplate(admin: SupabaseClient, orgId: string, name: string, vars: Record<string, string>): Promise<RenderedTemplate> {
+  const { data, error } = await admin
+    .rpc("_wa_render_template", { p_org_id: orgId, p_name: name, p_vars: vars })
+    .abortSignal(AbortSignal.timeout(DB_CALL_TIMEOUT_MS))
+  if (error) {
+    console.error("whatsapp: renderWaTemplate failed for", name, error)
+    return { found: false }
+  }
+  const result = data as { found: boolean; body?: string }
+  return result.found && result.body ? { found: true, body: result.body } : { found: false }
+}
+
 type WasiSendResult = { ok: true; waMessageId: string | null } | { ok: false; error: string }
 
+// 2026-08-31 (latency): these credentials change only on a deliberate admin
+// action (rotating/reconfiguring the Wasi integration) — essentially never
+// mid-session — yet were being re-fetched from the DB on every single
+// outbound send, which is every reply the bot ever makes. Cached per orgId
+// for 5 minutes at Edge Function module scope (survives across invocations
+// on the same warm instance, gone on a cold start — same "safe to be
+// briefly stale" tradeoff as any short-TTL cache). Worst case after a real
+// credential rotation: up to 5 minutes of failed sends with a clear
+// unauthorized error in whatsapp_outbox, not a silent or permanent failure.
+const wasiCredentialsCache = new Map<string, { creds: { clientId: string; apiKey: string } | null; expiresAt: number }>()
+const WASI_CREDENTIALS_CACHE_TTL_MS = 5 * 60_000
+
 async function resolveWasiCredentials(admin: SupabaseClient, orgId: string): Promise<{ clientId: string; apiKey: string } | null> {
+  const cached = wasiCredentialsCache.get(orgId)
+  if (cached && cached.expiresAt > Date.now()) return cached.creds
+
   const { data } = await admin
     .from("whatsapp_provider_credentials")
     .select("client_id, api_key")
@@ -74,8 +116,9 @@ async function resolveWasiCredentials(admin: SupabaseClient, orgId: string): Pro
     .eq("provider", "wasi")
     .eq("is_active", true)
     .maybeSingle()
-  if (!data?.client_id || !data?.api_key) return null
-  return { clientId: data.client_id, apiKey: data.api_key }
+  const creds = data?.client_id && data?.api_key ? { clientId: data.client_id, apiKey: data.api_key } : null
+  wasiCredentialsCache.set(orgId, { creds, expiresAt: Date.now() + WASI_CREDENTIALS_CACHE_TTL_MS })
+  return creds
 }
 
 /** Wasi's contract says "201 with created message row" but doesn't name
@@ -121,14 +164,29 @@ function formatWasiError(status: number, body: unknown): string {
 // assumes that), so "91" is a safe constant here, not a guess.
 const INDIA_COUNTRY_CODE = "91"
 
-async function sendViaWasi(baseUrl: string, apiKey: string, clientId: string, to: string, body: string): Promise<WasiSendResult> {
+async function sendViaWasi(
+  baseUrl: string,
+  apiKey: string,
+  clientId: string,
+  to: string,
+  body: string,
+  interactive?: NonNullable<Reply["interactive"]>
+): Promise<WasiSendResult> {
   const intlTo = `${INDIA_COUNTRY_CODE}${to}`
+  // Wasi's real outbound envelope: plain text is {client_id, to, type,
+  // body}; interactive is the exact same envelope with type: "interactive"
+  // and Reply.interactive's fields (header/footer/buttons OR
+  // button+sections) spread in alongside body — confirmed against Wasi
+  // support's own production-verified sample payloads, 2026-08-27.
+  const payload = interactive
+    ? { client_id: clientId, to: intlTo, type: "interactive", body, ...interactive }
+    : { client_id: clientId, to: intlTo, type: "text", body }
   let res: Response
   try {
     res = await fetch(`${baseUrl}/api/v1/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ client_id: clientId, to: intlTo, type: "text", body }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(WASI_REQUEST_TIMEOUT_MS),
     })
   } catch (e) {
@@ -161,9 +219,7 @@ async function sendViaWasi(baseUrl: string, apiKey: string, clientId: string, to
 
 export async function sendMessage(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
   const baseUrl = Deno.env.get("WASI_API_BASE_URL")
-  const isPlainText = !input.interactive
-
-  const creds = baseUrl && isPlainText ? await resolveWasiCredentials(admin, input.orgId) : null
+  const creds = baseUrl ? await resolveWasiCredentials(admin, input.orgId) : null
 
   let status: "sent" | "failed" = "sent"
   let waMessageId: string | null = null
@@ -171,7 +227,7 @@ export async function sendMessage(admin: SupabaseClient, input: SendMessageInput
   let dispatched = false
 
   if (baseUrl && creds) {
-    const result = await sendViaWasi(baseUrl, creds.apiKey, creds.clientId, input.to, input.body)
+    const result = await sendViaWasi(baseUrl, creds.apiKey, creds.clientId, input.to, input.body, input.interactive)
     if (result.ok) {
       status = "sent"
       waMessageId = result.waMessageId
@@ -182,8 +238,7 @@ export async function sendMessage(admin: SupabaseClient, input: SendMessageInput
       dispatched = false
     }
   }
-  // else: stub fallback — no baseUrl/credentials configured, or this is an
-  // interactive (menu/list) message whose Wasi format isn't confirmed yet.
+  // else: stub fallback — no baseUrl/credentials configured for this org.
   // status stays "sent" (matches pre-existing stub behavior: nothing
   // failed, it just never left this server), dispatched stays false.
 
