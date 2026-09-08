@@ -163,6 +163,27 @@ export const giftExclusionProductsHooks = entityHooks("gift_exclusion_products",
   remove: masters.deleteGiftExclusionProduct,
 })
 
+export const waterQualityReferenceHooks = entityHooks("water_quality_reference", {
+  list: masters.listWaterQualityReference,
+  create: masters.createWaterQualityReference,
+  update: masters.updateWaterQualityReference,
+  remove: masters.deleteWaterQualityReference,
+})
+
+export const waterQualityDistrictAliasesHooks = entityHooks("water_quality_district_aliases", {
+  list: masters.listWaterQualityDistrictAliases,
+  create: masters.createWaterQualityDistrictAlias,
+  update: masters.updateWaterQualityDistrictAlias,
+  remove: masters.deleteWaterQualityDistrictAlias,
+})
+
+export const productTdsRecommendationsHooks = entityHooks("product_tds_recommendations", {
+  list: masters.listProductTdsRecommendations,
+  create: masters.createProductTdsRecommendation,
+  update: masters.updateProductTdsRecommendation,
+  remove: masters.deleteProductTdsRecommendation,
+})
+
 export const sopStepTemplatesHooks = entityHooks("sop_step_templates", {
   list: masters.listSopStepTemplates,
   create: masters.createSopStepTemplate,

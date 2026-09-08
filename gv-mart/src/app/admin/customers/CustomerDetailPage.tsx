@@ -1,6 +1,7 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { BatteryCharging, ChevronLeft, Droplet, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, UserPlus, Wind, Wrench, Zap } from "lucide-react"
+import { BatteryCharging, ChevronLeft, Droplet, FlaskConical, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, UserPlus, Wind, Wrench, Zap } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -13,6 +14,7 @@ import {
   useCustomerInvoices,
   useCustomerLifetimeSummary,
   useCustomerProducts,
+  useCustomerTdsSuggestion,
   useCustomerTimeline,
 } from "@/hooks/useCustomers"
 import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
@@ -24,6 +26,7 @@ import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
+import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 
 const AMC_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
 
@@ -90,6 +93,7 @@ export function CustomerDetailPage() {
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
   const { data: customer, isLoading, isError, refetch } = useCustomer(id)
+  const [tdsDialogOpen, setTdsDialogOpen] = useState(false)
 
   const products = useCustomerProducts(orgId, customer?.id)
   const timeline = useCustomerTimeline(orgId, customer?.id)
@@ -99,6 +103,8 @@ export function CustomerDetailPage() {
   const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile)
   const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
   const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
+  const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
+  const tdsSuggestion = useCustomerTdsSuggestion(orgId, primaryDistrict)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !customer) {
@@ -114,13 +120,41 @@ export function CustomerDetailPage() {
   ].filter(Boolean)
 
   const nextAmcAction = lifetime.data?.nextAmcAction ?? null
-  const nextActionLabel = lifetime.isLoading
-    ? "—"
-    : nextAmcAction
-      ? nextAmcAction.daysUntil <= 0
-        ? t("customers.detail.amcRenewsToday")
-        : t("customers.detail.amcRenewsIn", { days: nextAmcAction.daysUntil })
-      : t("customers.detail.noUpcomingRenewals")
+
+  // "Next best action" — a short, priority-ordered list, not a single slot:
+  // AMC renewal (time-sensitive, revenue-at-risk) first, then a water-test
+  // flag (only when the TDS estimate is High-band or a lower-confidence
+  // proxy — see getCustomerTdsSuggestion), then the passive RO/TDS product
+  // nudge. Falls back to the old single "no upcoming renewals" line when
+  // nothing applies.
+  const tds = tdsSuggestion.data
+  const nextActionItems: { icon: typeof Zap; label: string; title?: string }[] = []
+  if (nextAmcAction) {
+    nextActionItems.push({
+      icon: Zap,
+      label: nextAmcAction.daysUntil <= 0 ? t("customers.detail.amcRenewsToday") : t("customers.detail.amcRenewsIn", { days: nextAmcAction.daysUntil }),
+    })
+  }
+  if (tds?.recommendWaterTest) {
+    nextActionItems.push({
+      icon: FlaskConical,
+      label: t("customers.detail.waterTestRecommended"),
+      title: tds.isProxy ? (tds.proxyNote ?? undefined) : undefined,
+    })
+  }
+  if (tds && tds.products.length > 0) {
+    const productLabel =
+      tds.products.length > 1
+        ? t("customers.detail.tdsSuggestionMoreCount", { name: tds.products[0].name, count: tds.products.length - 1 })
+        : tds.products[0].name
+    nextActionItems.push({
+      icon: Droplet,
+      label:
+        t("customers.detail.tdsSuggestion", { product: productLabel, district: tds.matchedDistrict, ppm: Math.round(tds.typicalTdsPpm), year: tds.dataYear }) +
+        (tds.isProxy ? t("customers.detail.tdsSuggestionProxySuffix") : ""),
+      title: `${tds.dataSource}, ${tds.dataYear}`,
+    })
+  }
 
   // Products and Service History are separate tabs (see TabsList below) and
   // must render distinct content — they previously both called the same
@@ -339,17 +373,41 @@ export function CustomerDetailPage() {
             </div>
             <span className="text-xs font-medium text-white/70">{t("customers.detail.acrossInvoices", { count: lifetime.data?.invoiceCount ?? 0 })}</span>
           </div>
-          <div className="relative mt-4.5 flex items-center gap-2.5 rounded-[14px] bg-white/10 p-3.25">
-            <span className="flex size-7.5 shrink-0 items-center justify-center rounded-[9px] bg-accent">
-              <Zap className="size-4 text-white" />
-            </span>
-            <div className="min-w-0 leading-tight">
-              <div className="text-xs font-bold">{t("customers.detail.nextBestAction")}</div>
-              <div className="truncate text-[11px] font-medium text-white/75">{nextActionLabel}</div>
-            </div>
-          </div>
+          {(() => {
+            const hasTdsSuggestion = !!tds && tds.products.length > 0
+            const Wrapper = hasTdsSuggestion ? "button" : "div"
+            return (
+              <Wrapper
+                type={hasTdsSuggestion ? "button" : undefined}
+                onClick={hasTdsSuggestion ? () => setTdsDialogOpen(true) : undefined}
+                className={cn(
+                  "relative mt-4.5 flex flex-col gap-2.25 rounded-[14px] bg-white/10 p-3.25 text-left",
+                  hasTdsSuggestion && "cursor-pointer transition-colors hover:bg-white/15"
+                )}
+              >
+                <div className="text-xs font-bold">{t("customers.detail.nextBestAction")}</div>
+                {nextActionItems.length === 0 ? (
+                  <div className="truncate text-[11px] font-medium text-white/75">{t("customers.detail.noUpcomingRenewals")}</div>
+                ) : (
+                  nextActionItems.slice(0, 3).map((item, i) => {
+                    const Icon = item.icon
+                    return (
+                      <div key={i} className="flex items-center gap-2.5" title={item.title}>
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-accent">
+                          <Icon className="size-3.5 text-white" />
+                        </span>
+                        <div className="min-w-0 truncate text-[11px] font-medium text-white/85">{item.label}</div>
+                      </div>
+                    )
+                  })
+                )}
+              </Wrapper>
+            )
+          })()}
         </div>
       </div>
+
+      {tds ? <TdsSuggestionDialog tds={tds} open={tdsDialogOpen} onClose={() => setTdsDialogOpen(false)} /> : null}
 
       <Tabs defaultValue="products">
         <TabsList className="border border-border bg-surface p-1.25">

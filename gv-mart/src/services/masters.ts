@@ -223,6 +223,83 @@ export async function deleteGiftExclusionProduct(id: string) {
   if (error) throw error
 }
 
+// ── Water quality / TDS-based RO recommendation (standalone feature, see
+// 20260902100000_water_quality_tds_recommendation.sql) ─────────────────────
+// Government CGWB data, imported once (scripts/import-water-quality.ts) —
+// this is a static local table, never queried live. Staff can correct a
+// district's figures here if local knowledge is more accurate than the
+// government dataset for a specific area.
+export async function listWaterQualityReference(orgId: string) {
+  const { data, error } = await supabase.from("water_quality_reference").select("*").eq("org_id", orgId).order("district")
+  if (error) throw error
+  return data
+}
+export async function createWaterQualityReference(row: TablesInsert<"water_quality_reference">) {
+  const { data, error } = await supabase.from("water_quality_reference").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateWaterQualityReference(id: string, patch: TablesUpdate<"water_quality_reference">) {
+  const { data, error } = await supabase.from("water_quality_reference").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteWaterQualityReference(id: string) {
+  const { error } = await supabase.from("water_quality_reference").delete().eq("id", id)
+  if (error) throw error
+}
+
+// District-name resolution for districts that don't match a
+// water_quality_reference row directly (old names, genuinely different
+// spellings — see getCustomerTdsSuggestion in services/waterQuality.ts).
+export async function listWaterQualityDistrictAliases(orgId: string) {
+  const { data, error } = await supabase.from("water_quality_district_aliases").select("*").eq("org_id", orgId).order("alias")
+  if (error) throw error
+  return data
+}
+export async function createWaterQualityDistrictAlias(row: TablesInsert<"water_quality_district_aliases">) {
+  const { data, error } = await supabase.from("water_quality_district_aliases").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateWaterQualityDistrictAlias(id: string, patch: TablesUpdate<"water_quality_district_aliases">) {
+  const { data, error } = await supabase.from("water_quality_district_aliases").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteWaterQualityDistrictAlias(id: string) {
+  const { error } = await supabase.from("water_quality_district_aliases").delete().eq("id", id)
+  if (error) throw error
+}
+
+// Band (low/medium/high, see bandForTds in services/waterQuality.ts) →
+// product picks. No product carries structured capacity/TDS-controller
+// data, so this mapping can't be derived automatically.
+export async function listProductTdsRecommendations(orgId: string) {
+  const { data, error } = await supabase
+    .from("product_tds_recommendations")
+    .select("*, products(id, name)")
+    .eq("org_id", orgId)
+    .order("band")
+    .order("sort_order")
+  if (error) throw error
+  return data
+}
+export async function createProductTdsRecommendation(row: TablesInsert<"product_tds_recommendations">) {
+  const { data, error } = await supabase.from("product_tds_recommendations").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateProductTdsRecommendation(id: string, patch: TablesUpdate<"product_tds_recommendations">) {
+  const { data, error } = await supabase.from("product_tds_recommendations").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteProductTdsRecommendation(id: string) {
+  const { error } = await supabase.from("product_tds_recommendations").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── SOP step templates (Technician Module Audit, Task 5) ───────────────────
 // Read is org-wide (technicians pick from this list on-site), write is
 // master-only — same shape as gifts/spares/products above.
@@ -355,6 +432,9 @@ export type ProductRow = Tables<"products">
 export type SpareRow = Tables<"spares">
 export type GiftRow = Tables<"gifts">
 export type GiftExclusionProductRow = Tables<"gift_exclusion_products"> & { products: Pick<Tables<"products">, "id" | "name"> | null }
+export type WaterQualityReferenceRow = Tables<"water_quality_reference">
+export type WaterQualityDistrictAliasRow = Tables<"water_quality_district_aliases">
+export type ProductTdsRecommendationRow = Tables<"product_tds_recommendations"> & { products: Pick<Tables<"products">, "id" | "name"> | null }
 export type AmcPlanRow = Tables<"amc_plans">
 export type IncentiveRuleRow = Tables<"incentive_rules">
 export type ComplaintTypeRow = Tables<"complaint_types">

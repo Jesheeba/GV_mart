@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "seed": "tsx supabase/seed/seed.ts",
+    "import:water-quality": "tsx scripts/import-water-quality.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "cap:sync": "vite build && cap sync",
