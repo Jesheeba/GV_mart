@@ -349,7 +349,7 @@ export function CustomerFormPage() {
           name: m.name,
           mobile: m.mobile,
           isPrimary: i === peopleValues.primaryIndex,
-          relation: i === peopleValues.primaryIndex ? undefined : m.relation,
+          relation: i === peopleValues.primaryIndex ? undefined : m.relation || undefined,
         })),
         address: {
           doorNo: addressValues.doorNo,

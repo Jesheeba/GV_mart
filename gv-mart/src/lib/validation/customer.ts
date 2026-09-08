@@ -18,16 +18,33 @@ export type FamilyRelation = (typeof FAMILY_RELATIONS)[number]
 export const memberSchema = z.object({
   name: z.string().trim().min(2, "customers.errors.nameRequired"),
   mobile: z.string().regex(MOBILE_REGEX, "customers.errors.mobileInvalid"),
-  relation: z.enum(FAMILY_RELATIONS).optional(),
+  // A native <select> with a placeholder `<option value="">` submits "" for
+  // "nothing chosen", not undefined — z.enum(...).optional() only accepts
+  // undefined, so "" silently failed validation with no rendered error on
+  // this field (relation has no {errors.relation...} block anywhere it's
+  // used), making Save do nothing with zero feedback whenever relation was
+  // left on its placeholder. Accept "" too and normalize it to undefined so
+  // every existing `relation ?? null` call site downstream still works
+  // unchanged.
+  relation: z
+    .union([z.enum(FAMILY_RELATIONS), z.literal("")])
+    .optional()
+    .transform((v) => (v === "" ? undefined : v)),
 })
-export type MemberInput = z.infer<typeof memberSchema>
+// react-hook-form types form state from the schema's *input* shape (what the
+// user can actually type/select, including relation:"" before transform),
+// not z.infer's output shape — using z.infer here caused a resolver/useForm
+// generic mismatch (TS2322/TS2345) because relation's output type drops "".
+export type MemberInput = z.input<typeof memberSchema>
 
 export const peopleStepSchema = z.object({
   members: z.array(memberSchema).min(1, "customers.errors.memberRequired").max(5, "customers.errors.memberMax"),
   primaryIndex: z.number().int().min(0),
   profession: z.string().trim().max(80).optional().or(z.literal("")),
 })
-export type PeopleStepInput = z.infer<typeof peopleStepSchema>
+// Same reasoning as MemberInput above: this schema embeds memberSchema
+// (which transforms relation), so useForm needs the input shape.
+export type PeopleStepInput = z.input<typeof peopleStepSchema>
 
 export const addressStepSchema = z.object({
   doorNo: z.string().trim().min(1, "customers.errors.doorNoRequired"),
