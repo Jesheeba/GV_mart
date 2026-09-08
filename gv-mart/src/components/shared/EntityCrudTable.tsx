@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -104,7 +104,11 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   getId: (row: T) => string
   loading: boolean
   error: string | null
-  onRetry: () => void
+  // Also (re)used as a pre-edit refresh — see openEditForm below. Every
+  // existing caller already passes `() => refetch()`, which already
+  // returns a Promise despite this being typed `void` historically; widened
+  // here rather than adding a second prop every caller would need to wire.
+  onRetry: () => void | Promise<unknown>
   onCreate: (values: Record<string, string>) => Promise<unknown>
   onUpdate: (id: string, values: Record<string, string>) => Promise<unknown>
   onDelete: (id: string) => Promise<unknown>
@@ -116,8 +120,14 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   const { t } = useTranslation()
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editLoadingId, setEditLoadingId] = useState<string | null>(null)
   const [values, setValues] = useState<Record<string, string>>({})
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
+  // Always current, unlike `rows` captured in openEditForm's own closure —
+  // read after awaiting onRetry() below, once the parent's query has
+  // actually re-rendered this component with fresh data.
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
   // Mutations are fire-and-forget from this component's point of view unless
   // we await them — without this, a failed create/update/delete (network,
   // RLS, validation) closed the form / cleared the confirm row exactly as if
@@ -138,9 +148,34 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
     setFormError(null)
     setFormOpen(true)
   }
-  function openEditForm(row: T) {
-    setEditingId(getId(row))
-    setValues(toFormValues(row))
+  // Refetches before seeding the form — a stale client-side cache (e.g. a
+  // long-lived tab with refetchOnWindowFocus off, see queryClient.ts) would
+  // otherwise seed the form with an outdated row, and saving would silently
+  // overwrite any out-of-band change (another admin's device, a service-role
+  // fix, a migration backfill) with that stale snapshot. Blocks briefly
+  // rather than opening-then-reseeding, so it can never clobber in-progress
+  // typing the way a background reseed could.
+  //
+  // Reads the row straight out of onRetry()'s OWN resolved value
+  // (`refetch()`'s QueryObserverResult.data), not out of `rows`/rowsRef —
+  // awaiting the refetch promise only guarantees React Query's cache is
+  // updated, not that this component has already re-rendered with the new
+  // `rows` prop by the next line (that requires a render React hasn't
+  // necessarily flushed yet). The resolved value has no such gap: it's the
+  // fetch result itself, not something waiting on a prop to propagate.
+  async function openEditForm(row: T) {
+    const id = getId(row)
+    setEditLoadingId(id)
+    let refreshed: unknown
+    try {
+      refreshed = await Promise.resolve(onRetry())
+    } finally {
+      setEditLoadingId(null)
+    }
+    const refreshedRows = (refreshed as { data?: T[] } | undefined)?.data
+    const fresh = (refreshedRows ?? rowsRef.current).find((r) => getId(r) === id) ?? row
+    setEditingId(id)
+    setValues(toFormValues(fresh))
     setFormError(null)
     setFormOpen(true)
   }
@@ -215,8 +250,8 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
             </span>
           ) : (
             <>
-              <Button size="icon-xs" variant="ghost" title={t("masters.edit")} onClick={() => openEditForm(row)}>
-                <Pencil className="size-3.5" />
+              <Button size="icon-xs" variant="ghost" title={t("masters.edit")} disabled={editLoadingId === id} onClick={() => openEditForm(row)}>
+                {editLoadingId === id ? <Loader2 className="size-3.5 animate-spin" /> : <Pencil className="size-3.5" />}
               </Button>
               <Button size="icon-xs" variant="ghost" title={t("masters.delete")} onClick={() => setConfirmingDeleteId(id)}>
                 <Trash2 className="size-3.5 text-danger" />
