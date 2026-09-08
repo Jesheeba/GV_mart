@@ -278,12 +278,25 @@
       "amcRenewsIn": "AMC renews in {{days}} day(s) — contact for renewal",
       "amcRenewsToday": "AMC renews today — contact for renewal",
       "noUpcomingRenewals": "No upcoming renewals right now",
+      "waterTestRecommended": "Recommend a free water test",
+      "tdsSuggestion": "Suggest {{product}} — {{district}} groundwater ~{{ppm}} ppm ({{year}})",
+      "tdsSuggestionMoreCount": "{{name}} +{{count}} more",
+      "tdsSuggestionProxySuffix": " · nearby-area estimate",
+      "tdsDialog": {
+        "title": "Water quality & suggestion",
+        "primary": "Primary",
+        "band": "TDS band",
+        "typical": "Typical TDS in {{district}}: ~{{ppm}} ppm",
+        "range": "Observed range: {{low}}–{{high}} ppm",
+        "source": "{{source}}, {{year}} · {{count}} samples"
+      },
       "referredBy": "Referred by {{name}}",
       "membersTitle": "Family Members ({{count}}/5)",
       "addMember": "Add member",
       "setPrimary": "Set primary",
       "primary": "Primary",
       "primaryLocked": "Set another member primary to remove",
+      "editMember": "Edit member",
       "remove": "Remove",
       "moveOut": "Move out to new customer",
       "confirm": "Confirm",
@@ -452,6 +465,7 @@
       "complaintTypesDesc": "{{count}} complaint types",
       "sopStepsDesc": "{{count}} SOP steps",
       "productEnquiryDesc": "{{count}} customer app tabs configured",
+      "waterQualityDesc": "{{count}} districts with TDS data",
       "settingsDesc": "Discount, travel, hours & SLA",
       "paymentSettingsDesc": "UPI merchant details for customer QR payments"
     },
@@ -467,6 +481,7 @@
       "complaintTypes": "Complaint Types",
       "sopSteps": "SOP Steps",
       "productEnquiry": "Product Enquiry",
+      "waterQuality": "Water Quality (TDS)",
       "settings": "Settings",
       "paymentSettings": "Payment Settings"
     },
@@ -554,6 +569,39 @@
       "active": "Exclusion enabled",
       "add": "Exclude a product",
       "empty": "No products excluded — every product currently counts towards the gift threshold."
+    },
+    "waterQuality": {
+      "districtsTitle": "District TDS reference",
+      "aliasesTitle": "District name matching",
+      "productsTitle": "RO suggestion by TDS band",
+      "district": "District",
+      "typicalTds": "Typical TDS (ppm)",
+      "rangeLow": "Range low (ppm)",
+      "rangeHigh": "Range high (ppm)",
+      "range": "Range",
+      "sampleCount": "Sample count",
+      "samples": "samples",
+      "dataYear": "Data year",
+      "addDistrict": "Add district",
+      "emptyDistricts": "No district data yet.",
+      "alias": "Alias",
+      "aliasPlaceholder": "e.g. Trichy, Chengalpattu",
+      "canonicalDistrict": "Resolves to district",
+      "isProxy": "Nearby-area estimate",
+      "proxyNote": "Note shown to staff",
+      "proxyNotePlaceholder": "Why this district has no direct reading",
+      "addAlias": "Add alias",
+      "emptyAliases": "No aliases yet — district names that match a reference row directly (case-insensitively) don't need one.",
+      "product": "Product",
+      "sortOrder": "Order",
+      "addProduct": "Add product",
+      "emptyProducts": "No product picks yet — the customer profile suggestion stays hidden until at least one product is mapped per band.",
+      "band": {
+        "label": "TDS band",
+        "low": "Low (<300 ppm)",
+        "medium": "Medium (300–500 ppm)",
+        "high": "High (>500 ppm)"
+      }
     },
     "amcPlans": {
       "name": "Plan name",
@@ -767,10 +815,13 @@
   "settings": {
     "orgProfile": {
       "title": "Business Details",
-      "hint": "Printed on invoices and quotations.",
+      "hint": "Printed on invoices and quotations. Address, phone, and hours are also what the WhatsApp bot shares when a customer asks — leave a field blank and the bot will offer to connect them with the team instead of guessing.",
       "gstNo": "GSTIN",
       "address": "Business address",
       "phone": "Business phone",
+      "hours": "Business hours",
+      "hoursPlaceholder": "e.g. Mon–Sat, 9:30 AM – 6:30 PM",
+      "hoursHint": "Shown to WhatsApp customers who ask when you're open. Leave blank if you're not ready to publish this yet.",
       "saved": "Saved"
     },
     "groups": {
@@ -827,6 +878,8 @@
     "poRequiresApprovalHint": "Off: purchase orders send automatically when stock hits the minimum. On: every auto-drafted PO waits as a draft until an owner approves it.",
     "poQuoteTimeoutHours": "Supplier quote timeout (hours)",
     "poQuoteTimeoutHoursHint": "On low stock, a quote request goes to every known supplier first. If a reply is logged before this many hours pass, the lowest reply wins; if nobody replies in time, it falls back to the last-known-cheapest supplier automatically so stock is never stranded.",
+    "poQuoteDayOfMonth": "Monthly RFQ day (1-31)",
+    "poQuoteDayOfMonthHint": "On this day every month, a quotation request is sent automatically to every supplier for every item they supply — keeping supplier pricing current. A purchase order is only auto-drafted from the results for items actually low on stock. Leave blank to turn this off.",
     "emiTenureMonths": "EMI tenure options (months)",
     "emiTenureMonthsPlaceholder": "e.g. 6, 12, 24",
     "emiTenureMonthsHint": "Comma-separated list of tenure options shown on a product's detail page. Illustrative only — no lender is involved.",
@@ -875,7 +928,8 @@
       "adminMaxAboveTech": "Admin cap must be at or above the technician cap",
       "latRange": "Must be between -90 and 90",
       "lngRange": "Must be between -180 and 180",
-      "urlInvalid": "Must be a valid URL (e.g. https://...)"
+      "urlInvalid": "Must be a valid URL (e.g. https://...)",
+      "dayOfMonthRange": "Must be between 1 and 31"
     }
   },
   "paymentSettings": {
@@ -942,6 +996,8 @@
     "item": "Item",
     "selectItem": "Select an item",
     "price": "Price",
+    "priceUpdated": "Updated",
+    "priceNeverUpdated": "Never",
     "leadTime": "Lead time",
     "days_one": "{{count}} day",
     "days_other": "{{count}} days",
@@ -2114,6 +2170,13 @@
       "message": "You've been assigned a new job — tap to view",
       "dismiss": "Dismiss"
     },
+    "shiftEndPrompt": {
+      "title": "Shift end reached",
+      "body": "Your shift has ended. Would you like to continue working, or check out?",
+      "noJobWaiting": "No more jobs waiting right now — you're free to go.",
+      "checkOut": "Check out",
+      "continue": "Continue"
+    },
     "attendance": {
       "title": "Mark Attendance",
       "checkingLocation": "Checking location…",
@@ -2747,6 +2810,18 @@
       "on": "Bot: On",
       "off": "Bot: Off"
     },
+    "answerLayerKillSwitch": {
+      "on": "AI Answers: On",
+      "off": "AI Answers: Off"
+    },
+    "classifyIntentKillSwitch": {
+      "on": "AI Routing: On",
+      "off": "AI Routing: Off"
+    },
+    "quoteExtractionKillSwitch": {
+      "on": "Auto Quote Extraction: On",
+      "off": "Auto Quote Extraction: Off"
+    },
     "tabs": {
       "flows": "Flow Builder",
       "videos": "Video Library",
@@ -2754,7 +2829,31 @@
       "conversations": "Conversations",
       "templates": "Templates",
       "failedSends": "Failed Sends",
-      "jobs": "Jobs"
+      "jobs": "Jobs",
+      "phrases": "Bot Phrases"
+    },
+    "phraseManager": {
+      "hint": "Add extra ways customers might phrase a question the bot already answers — these are added ON TOP OF the built-in phrase list, never replacing it. Only these categories can be extended here; menu navigation, greetings, and payment-safety phrases are not editable from this screen.",
+      "phrasePlaceholder": "e.g. \"when will my order arrive\"",
+      "add": "Add",
+      "empty": "No custom phrases added yet.",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "category": {
+        "service_ticket": "Service ticket status",
+        "purchase_history": "Purchase history",
+        "business_address": "Business address",
+        "business_phone": "Business phone",
+        "business_hours": "Business hours",
+        "emi": "EMI info",
+        "product_availability": "Product availability",
+        "menu_buy": "Menu: Buy / Upgrade",
+        "menu_service": "Menu: Book Service",
+        "menu_spares": "Menu: Parts & Accessories",
+        "menu_amc": "Menu: AMC & Maintenance",
+        "menu_account": "Menu: My Account",
+        "menu_expert": "Menu: Talk to an Expert"
+      }
     },
     "jobs": {
       "hint": "GitHub Actions triggers both jobs on a tight, fixed schedule — the interval below is what actually controls how often each one does real work.",
@@ -2888,10 +2987,16 @@
       "logReply": "Log reply",
       "timeoutAt": "Resolves automatically at {{time}}",
       "timedOutWaitingResolve": "Timeout passed — resolving…",
+      "lowest": "lowest",
+      "noResponse": "No response",
+      "markNoResponse": "Mark as no response",
+      "generatePdf": "Generate PDF",
+      "viewPdf": "View PDF",
       "resolutions": {
         "reply": "Lowest supplier reply",
         "fallback": "Fell back to last-known-cheapest",
         "no_supplier": "No supplier available",
+        "no_po_not_low_stock": "Price checked — not ordered (stock OK)",
         "unknown": "—"
       }
     },
@@ -2905,11 +3010,30 @@
       "send": "Send PO",
       "empty": "No purchase orders yet.",
       "items": "Items",
+      "qty": "Qty",
+      "lineTotal": "Line total",
       "statuses": {
         "draft": "Draft",
         "sent": "Sent",
         "received": "Received"
       }
+    },
+    "approvalPrompt": {
+      "title": "Purchase order needs approval",
+      "body": "A draft purchase order for {{supplier}} is ready to send. Review the quantities below before approving.",
+      "waitingOnMaster": "Waiting on a master/owner to approve this before it sends.",
+      "grandTotal": "Grand total",
+      "approve": "Approve & send",
+      "reject": "Reject"
+    },
+    "receiptPrompt": {
+      "title": "Did this order arrive?",
+      "body": "The supplier ({{supplier}}) replied on WhatsApp about a purchase order that's still marked as sent. Confirm what actually arrived, adjusting quantities if needed — this updates your inventory.",
+      "ordered": "Ordered",
+      "received": "Received",
+      "confirm": "Confirm receipt",
+      "notYet": "Not yet",
+      "confirmReceiptButton": "Confirm Receipt"
     },
     "bill": {
       "title": "Bill Entry",
@@ -2923,6 +3047,7 @@
       "clearPrefill": "Clear"
     },
     "items": {
+      "item": "Item",
       "selectItem": "Select…",
       "qty": "Qty",
       "price": "Price",
@@ -3554,12 +3679,14 @@
       }
     },
     "mechanics": {
-      "backNotAvailable": "You're at the first step — nothing to go back to.",
+      "backNotAvailable": "You're already at the start, so there's nothing to go back to — reply \"menu\" to see your options.",
       "returnedToMenu": "Back to the main menu.",
       "cancelled": "No problem, cancelled. Here's the main menu again.",
       "handoff": "Connecting you with our team — someone will reply here shortly.",
       "timeout": "It's been a while, so let's start fresh.",
-      "fallback": "Sorry, I didn't get that. Reply \"menu\" to see your options.",
+      "fallback": "I'm not able to help with that specific question, but I'd be happy to help with anything about our products, services, or your account. Reply \"menu\" to see what I can do.",
+      "businessInfoUnavailable": "I don't have our address or phone number on file to share just yet — reply \"expert\" and our team can help you directly.",
+      "casualChitchat": "I don't know about that one! I can help with our products, service, AMC, or your account, though — tell me what you need:",
       "journeyComingSoon": "This part of the flow isn't ready yet — reply \"back\" or \"menu\" to go elsewhere.",
       "actionFailed": "Something went wrong — connecting you to our team."
     },
@@ -3587,7 +3714,7 @@
       "askAddressConfirm": {
         "body": "We'll send a technician to:\n{{address}}\n\nConfirm this address?",
         "yes": "Yes, confirm",
-        "no": "No, use a different address"
+        "no": "No, different address"
       },
       "differentAddressHandoff": "No problem — connecting you to our team to arrange a different address.",
       "confirmed": "Your service request is booked! Ticket #{{ticketRef}}, scheduled for {{date}} ({{slotName}}). Our team will confirm the technician shortly.",
@@ -3595,7 +3722,9 @@
     },
     "sales": {
       "askInterest": "What are you looking for? (e.g. a new RO purifier, upgrading your AC, a new inverter)",
-      "confirmed": "Thanks! We've noted your interest — our sales team will reach out shortly."
+      "confirmed": "Thanks! We've noted your interest — our sales team will reach out shortly.",
+      "leadNotedSuffix": "\n\nI've also let our sales team know you're interested — they may follow up.",
+      "teamWillContact": "I'll let our sales team know — they'll contact you shortly with pricing details."
     },
     "spares": {
       "notIdentified": "We couldn't find an account for this number, so I can't log a spares enquiry directly — connecting you to our team.",
@@ -3607,8 +3736,14 @@
       "header": "Your AMC status:",
       "productLine": "{{name}} — {{status}}{{expiry}}",
       "expirySuffix": " (expires {{date}})",
-      "none": "You don't have an active AMC plan on file yet. Reply \"expert\" to talk to our team about AMC plans.",
-      "footer": "Reply \"menu\" for other options."
+      "none": "You don't have an active AMC plan yet. We don't see any products registered under your account, so reply \"expert\" and our team can help you get started.",
+      "footer": "Reply \"menu\" for other options.",
+      "offerHeader": "You don't have an active AMC plan yet.",
+      "offerQuestion": "Would you like to add an AMC plan for your product(s) below?",
+      "offerProductLine": "- {{name}}",
+      "offerFooter": "Reply \"yes\" to get started, or \"menu\" for other options.",
+      "offerConfirmed": "Got it! We've noted your interest in an AMC plan — our team will reach out shortly with the options for your product(s).",
+      "offerDeclined": "No problem! Reply \"menu\" anytime if you change your mind or need something else."
     },
     "account": {
       "notIdentified": "We couldn't find an account for this number — connecting you to our team.",
@@ -3622,6 +3757,43 @@
       "lastService": "Last completed service: {{complaint}}",
       "noLastService": "No completed services yet.",
       "footer": "Reply \"menu\" for other options."
+    },
+    "statusAnswers": {
+      "serviceTicket": {
+        "notIdentified": "We couldn't find an account for this number, so I can't look up a ticket — connecting you to our team.",
+        "none": "You don't have any service tickets on file yet. Reply \"service\" to book one, or \"expert\" to talk to our team.",
+        "noTechnician": "Your latest service ticket ({{complaint}}) is currently {{status}} — we haven't assigned a technician yet, but we're on it! Reply \"expert\" if you'd like an update sooner.",
+        "withTechnician": "Good news — your service ticket ({{complaint}}) is {{status}} and {{technician}} is on it.",
+        "scheduleSuffix": " Scheduled for {{date}} ({{slotName}})."
+      },
+      "purchaseHistory": {
+        "notIdentified": "We couldn't find an account for this number, so I can't look up your purchase history — connecting you to our team.",
+        "none": "You don't have any purchases on file yet with this number. Reply \"buy\" to explore our products, or \"expert\" to talk to our team.",
+        "header": "Here's what you've bought from us:",
+        "line": "- {{name}} — ₹{{price}} x{{qty}}, on {{date}}",
+        "footer": "Reply \"menu\" for other options."
+      },
+      "businessAddress": {
+        "present": "Our address is {{value}}.",
+        "unavailable": "I don't have our address on file yet — reply \"expert\" and our team can help you directly."
+      },
+      "businessPhone": {
+        "present": "Our phone number is {{value}}.",
+        "unavailable": "I don't have our phone number on file yet — reply \"expert\" and our team can help you directly."
+      },
+      "businessHours": {
+        "present": "We're open {{value}}.",
+        "unavailable": "I don't have our business hours on file yet — reply \"expert\" and our team can help you directly."
+      },
+      "emi": {
+        "present": "Yes! We offer EMI options ({{tenures}} months).",
+        "disclaimerSuffix": " {{disclaimer}}",
+        "unavailable": "We don't currently offer EMI on purchases. Reply \"buy\" to explore our products, or \"expert\" to talk to our team."
+      },
+      "productAvailability": {
+        "present": "Yes, we have these options: {{names}}. Reply \"buy\" if you'd like to know more!",
+        "none": "We don't currently have any {{category}} products listed. Reply \"expert\" to check with our team."
+      }
     }
   }
 }
