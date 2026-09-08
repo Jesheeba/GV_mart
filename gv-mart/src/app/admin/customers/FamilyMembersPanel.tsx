@@ -57,7 +57,7 @@ export function FamilyMembersPanel({
   const atCap = members.length >= 5
 
   const onAddMember = handleSubmit((values) => {
-    addMember.mutate(values, {
+    addMember.mutate({ ...values, relation: values.relation || undefined }, {
       onSuccess: () => {
         reset()
         setShowAddForm(false)
