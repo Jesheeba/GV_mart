@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { getIstNow } from "@/lib/ist"
 import type { Enums, Tables } from "@/types/database"
 
 // `settings.sla_hours_very_urgent/urgent/normal` were added in migration
@@ -409,12 +410,20 @@ export async function unassignAppointment(id: string) {
 export type TechnicianOption = { id: string; full_name: string; is_on_duty: boolean }
 
 export async function listTechnicians(orgId: string): Promise<TechnicianOption[]> {
-  const { data, error } = await supabase
-    .from("technicians")
-    .select("id, is_on_duty, profiles(full_name)")
-    .eq("org_id", orgId)
-  if (error) throw error
-  return (data ?? []).map((t) => ({ id: t.id, is_on_duty: t.is_on_duty, full_name: t.profiles?.full_name ?? "—" }))
+  // technicians.is_on_duty is a stored column nothing in the live app ever
+  // sets true (see 20260731200000_fix_create_sale_installation_gate.sql,
+  // and techniciansAdmin.ts's listTechnicians, fixed the same way) — real
+  // on-duty means "checked in today, not checked out yet", same gate the
+  // assignment engine uses. Date must be IST "today" (src/lib/ist.ts), not
+  // the device's own UTC date.
+  const [techRes, attendanceRes] = await Promise.all([
+    supabase.from("technicians").select("id, profiles(full_name)").eq("org_id", orgId),
+    supabase.from("attendance").select("technician_id").eq("org_id", orgId).eq("date", getIstNow().date).not("check_in_at", "is", null).is("check_out_at", null),
+  ])
+  if (techRes.error) throw techRes.error
+  if (attendanceRes.error) throw attendanceRes.error
+  const onDutyTechIds = new Set((attendanceRes.data ?? []).map((a) => a.technician_id))
+  return (techRes.data ?? []).map((t) => ({ id: t.id, is_on_duty: onDutyTechIds.has(t.id), full_name: t.profiles?.full_name ?? "—" }))
 }
 
 // ── Owned equipment (ADM-10 "Equipment auto-shown if owned") ─────────────
