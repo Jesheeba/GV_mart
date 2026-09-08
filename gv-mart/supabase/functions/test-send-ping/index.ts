@@ -41,5 +41,17 @@ Deno.serve(async (req) => {
     type: "text",
   })
 
-  return jsonResponse(result)
+  // TEMPORARY diagnostic addition (2026-09-07): dispatched:false came back
+  // even after WASI_API_BASE_URL was confirmed present in the dashboard and
+  // the DB credentials row confirmed valid — narrowing down whether this
+  // specific deployed function actually sees the env var at runtime, without
+  // ever exposing the real secret value (presence + length only).
+  const rawBaseUrl = Deno.env.get("WASI_API_BASE_URL")
+  return jsonResponse({
+    ...result,
+    diagnostic: {
+      hasBaseUrlEnv: !!rawBaseUrl,
+      baseUrlLength: rawBaseUrl?.length ?? 0,
+    },
+  })
 })

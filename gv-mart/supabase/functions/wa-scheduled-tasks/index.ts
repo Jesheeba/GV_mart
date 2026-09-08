@@ -162,6 +162,38 @@ async function runFailedSendRetries(admin: SupabaseClient, orgId: string): Promi
   return { retried }
 }
 
+/** Supplier Monthly RFQ pipeline — Phase 2. `open_monthly_quote_requests`
+ * (service_role-only RPC) does its own IST day-of-month + "already ran this
+ * month" check internally via a single atomic UPDATE...WHERE (same
+ * state-flip-as-lock idiom as approve_purchase_order), so this is safe to
+ * call on every 5-minute tick for every org — it's a no-op except on the
+ * one configured day, once. */
+async function runMonthlyQuoteRequests(admin: SupabaseClient, orgId: string): Promise<{ opened: number }> {
+  const { data, error } = await admin.rpc("open_monthly_quote_requests", { p_org_id: orgId })
+  if (error) {
+    console.error("wa-scheduled-tasks: open_monthly_quote_requests failed", orgId, error)
+    return { opened: 0 }
+  }
+  return { opened: data ?? 0 }
+}
+
+/** Reliable auto-resolve for purchase_quote_requests — previously only ran
+ * "on view" when an admin opened the Quotes tab, which could leave a
+ * monthly batch (nobody may visit that tab for days) unresolved
+ * indefinitely. `wa_resolve_purchase_quote_requests` is the service-role
+ * twin of the staff-gated `resolve_purchase_quote_requests` RPC that tab
+ * still calls on mount — same underlying logic, just callable without a
+ * user session. Safe to call every tick: it only ever touches requests
+ * whose timeout_at has already passed. */
+async function runResolveQuoteRequests(admin: SupabaseClient, orgId: string): Promise<{ resolved: number }> {
+  const { data, error } = await admin.rpc("wa_resolve_purchase_quote_requests", { p_org_id: orgId })
+  if (error) {
+    console.error("wa-scheduled-tasks: wa_resolve_purchase_quote_requests failed", orgId, error)
+    return { resolved: 0 }
+  }
+  return { resolved: data ?? 0 }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405)
 
@@ -189,8 +221,10 @@ Deno.serve(async (req) => {
     const amc = await runAmcReminders(admin, org.id)
     const feedback = await runFeedbackRequests(admin, org.id)
     const retries = await runFailedSendRetries(admin, org.id)
+    const monthlyRfq = await runMonthlyQuoteRequests(admin, org.id)
+    const resolvedQuotes = await runResolveQuoteRequests(admin, org.id)
     await markJobRan(admin, org.id, "scheduled_tasks")
-    results.push({ orgId: org.id, amc, feedback, retries })
+    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes })
   }
 
   return jsonResponse({ ranAt: new Date().toISOString(), results })

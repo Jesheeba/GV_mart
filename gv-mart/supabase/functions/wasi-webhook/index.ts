@@ -18,7 +18,14 @@ import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import { handleMessage, type NormalizedInboundMessage } from "../_shared/whatsapp-handle-message.ts"
 
 type WasiContact = { wa_id: string; name?: string }
-type WasiMessage = { body?: string; sent_at?: string }
+// button_reply is production-verified against a real tap (Wasi support,
+// 2026-08-27); list_reply is spec-derived from their docs but NOT yet
+// confirmed against a real live list-message tap — see the defensive
+// logging in toNormalized below, added specifically because of that gap.
+type WasiInteractiveReply =
+  | { type: "button_reply"; id: string; title: string }
+  | { type: "list_reply"; id: string; title: string; description?: string }
+type WasiMessage = { body?: string; sent_at?: string; interactive?: WasiInteractiveReply }
 type WasiMessageReceivedData = {
   chat_id?: string
   message_id: string
@@ -100,12 +107,28 @@ function toNormalized(data: WasiMessageReceivedData): NormalizedInboundMessage |
     return { phone: data.contact.wa_id, waMessageId: data.message_id, timestamp, intent: { kind: "text", text: data.message?.body ?? "" } }
   }
 
-  // Stopgap (approved): Wasi's contract doesn't document data.message's
-  // shape for interactive/button message_types, so a menu-tap reply can't
-  // be mapped to InboundIntent's list_reply kind yet. Fall back to treating
-  // any present body as free text; otherwise skip routing entirely rather
-  // than guess a field name and silently misroute. Revisit once a real
-  // non-text sample payload is available from Wasi.
+  if (data.message_type === "interactive") {
+    const interactive = data.message?.interactive
+    if (interactive?.type === "list_reply") {
+      // TEMPORARY — remove once a real list-message tap has been confirmed
+      // to actually match this shape (Wasi support flagged list_reply as
+      // spec-derived, not yet verified against a real live tap, unlike
+      // button_reply below which is production-confirmed). Log the whole
+      // raw payload so a spec-vs-reality mismatch is caught immediately —
+      // e.g. a wrong field name — instead of silently mis-parsing and only
+      // noticing once routing looks broken downstream.
+      console.log("wasi-webhook: UNVERIFIED list_reply payload — logging in full until confirmed against a real tap:", JSON.stringify(data))
+    }
+    if ((interactive?.type === "button_reply" || interactive?.type === "list_reply") && typeof interactive.id === "string" && interactive.id) {
+      return { phone: data.contact.wa_id, waMessageId: data.message_id, timestamp, intent: { kind: "list_reply", id: interactive.id } }
+    }
+    console.error("wasi-webhook: interactive message with no usable interactive.id", JSON.stringify(data))
+    return null
+  }
+
+  // Stopgap (approved) for any OTHER non-text, non-interactive message_type
+  // Wasi might send (e.g. media): treat a present body as free text rather
+  // than guess a field name and silently misroute; otherwise skip routing.
   if (data.message?.body) {
     return { phone: data.contact.wa_id, waMessageId: data.message_id, timestamp, intent: { kind: "text", text: data.message.body } }
   }

@@ -11,7 +11,7 @@ import { useRepeatComplaintCustomers, useTechnicians, useTicketsList } from "@/h
 import { isUnassignedRow, type TicketListItem } from "@/services/service"
 import { cn } from "@/lib/utils"
 import { SlaCountdown } from "./SlaCountdown"
-import { PriorityText, TicketTypeBadge } from "./TicketBadges"
+import { ChannelBadge, PriorityText, TicketTypeBadge } from "./TicketBadges"
 import { TicketsKanban } from "./TicketsKanban"
 
 const STATUS_OPTIONS = ["open", "assigned", "in_progress", "completed", "cancelled"] as const
@@ -335,8 +335,9 @@ function TicketsTable({
               </div>
             </div>
             <span className="truncate text-[13px] font-medium text-text">{r.name_of_complaint || "—"}</span>
-            <span>
+            <span className="flex flex-wrap items-center gap-1">
               <TicketTypeBadge type={r.type} />
+              <ChannelBadge channel={r.channel} />
             </span>
             <PriorityText priority={r.priority} />
             <span className="text-[13px] font-medium text-text">
