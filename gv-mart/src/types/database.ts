@@ -367,6 +367,9 @@ export type Database = {
           customer_id: string
           door_no: string | null
           flat_no: string | null
+          building_no: string | null
+          building_name: string | null
+          plot_no: string | null
           street_cross: string | null
           area: string | null
           pincode: string | null
@@ -388,6 +391,9 @@ export type Database = {
           customer_id: string
           door_no?: string | null
           flat_no?: string | null
+          building_no?: string | null
+          building_name?: string | null
+          plot_no?: string | null
           street_cross?: string | null
           area?: string | null
           pincode?: string | null
@@ -409,6 +415,9 @@ export type Database = {
           customer_id?: string
           door_no?: string | null
           flat_no?: string | null
+          building_no?: string | null
+          building_name?: string | null
+          plot_no?: string | null
           street_cross?: string | null
           area?: string | null
           pincode?: string | null

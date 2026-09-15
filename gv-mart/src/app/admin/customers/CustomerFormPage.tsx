@@ -175,7 +175,9 @@ export function CustomerFormPage() {
     mode: "onChange",
     defaultValues: {
       doorNo: "",
-      flatNo: "",
+      buildingNo: "",
+      buildingName: "",
+      plotNo: "",
       streetCross: "",
       area: "",
       pincode: "",
@@ -219,7 +221,7 @@ export function CustomerFormPage() {
   // from under them.
   //
   // Root-cause fix (bug: "technician's map location doesn't match the
-  // customer's actual location"): this used to (a) omit doorNo/flatNo/
+  // customer's actual location"): this used to (a) omit doorNo/
   // pincode from the geocoded string even though pincode gates the effect,
   // so Google had nothing more precise than street+area+landmark to work
   // with — routinely resolving to the street/locality centroid rather than
@@ -232,9 +234,10 @@ export function CustomerFormPage() {
   // staff must explicitly confirm or correct, exactly like every other
   // ambiguous "search anyway" result already behaves.
   //
-  // flatNo (e.g. "8th floor") is deliberately excluded — a floor number
-  // isn't a geocodable component (no premise/street_number token Google can
-  // match), so including it only adds noise to the query, never precision.
+  // buildingNo/buildingName/plotNo (e.g. "8th floor", "Sunrise Apartments")
+  // are deliberately excluded — a floor/building/plot label isn't a
+  // geocodable component (no premise/street_number token Google can match),
+  // so including it only adds noise to the query, never precision.
   const autoLocateQuery = [doorNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
@@ -282,7 +285,9 @@ export function CustomerFormPage() {
       if (primary) {
         addressForm.reset({
           doorNo: primary.door_no ?? "",
-          flatNo: primary.flat_no ?? "",
+          buildingNo: primary.building_no ?? "",
+          buildingName: primary.building_name ?? "",
+          plotNo: primary.plot_no ?? "",
           streetCross: primary.street_cross ?? "",
           area: primary.area ?? "",
           pincode: primary.pincode ?? "",
@@ -297,7 +302,9 @@ export function CustomerFormPage() {
         })
         confirmedLocationTextRef.current = [
           primary.door_no,
-          primary.flat_no,
+          primary.building_no,
+          primary.building_name,
+          primary.plot_no,
           primary.street_cross,
           primary.area,
           primary.landmark,
@@ -353,7 +360,9 @@ export function CustomerFormPage() {
         })),
         address: {
           doorNo: addressValues.doorNo,
-          flatNo: addressValues.flatNo,
+          buildingNo: addressValues.buildingNo,
+          buildingName: addressValues.buildingName,
+          plotNo: addressValues.plotNo,
           streetCross: addressValues.streetCross,
           area: addressValues.area,
           pincode: addressValues.pincode,
@@ -468,8 +477,16 @@ export function CustomerFormPage() {
               ) : null}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="flatNo">{t("customers.form.flatNo")}</Label>
-              <Input id="flatNo" {...addressForm.register("flatNo")} />
+              <Label htmlFor="buildingNo">{t("customers.form.buildingNo")}</Label>
+              <Input id="buildingNo" {...addressForm.register("buildingNo")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="buildingName">{t("customers.form.buildingName")}</Label>
+              <Input id="buildingName" {...addressForm.register("buildingName")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="plotNo">{t("customers.form.plotNo")}</Label>
+              <Input id="plotNo" {...addressForm.register("plotNo")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="streetCross">{t("customers.form.streetCross")}</Label>

@@ -61,7 +61,18 @@ export function InvoicePage() {
 
   const primaryAddress = invoice.customers?.addresses.find((a) => a.is_primary) ?? invoice.customers?.addresses[0]
   const addressLine = primaryAddress
-    ? [primaryAddress.door_no, primaryAddress.flat_no, primaryAddress.street_cross, primaryAddress.area, primaryAddress.pincode].filter(Boolean).join(", ")
+    ? [
+        primaryAddress.door_no,
+        primaryAddress.plot_no,
+        primaryAddress.building_no,
+        primaryAddress.building_name,
+        primaryAddress.flat_no,
+        primaryAddress.street_cross,
+        primaryAddress.area,
+        primaryAddress.pincode,
+      ]
+        .filter(Boolean)
+        .join(", ")
     : ""
   const invoiceNo = invoice.id.slice(0, 8).toUpperCase()
 

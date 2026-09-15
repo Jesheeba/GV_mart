@@ -59,7 +59,9 @@ export async function listMyAddresses(customerId: string) {
 
 export type AddressInput = {
   doorNo: string
-  flatNo?: string
+  buildingNo?: string
+  buildingName?: string
+  plotNo?: string
   streetCross?: string
   area: string
   pincode: string
@@ -77,7 +79,9 @@ export type AddressInput = {
 function addressRow(input: AddressInput) {
   return {
     door_no: input.doorNo,
-    flat_no: input.flatNo || null,
+    building_no: input.buildingNo || null,
+    building_name: input.buildingName || null,
+    plot_no: input.plotNo || null,
     street_cross: input.streetCross || null,
     area: input.area,
     pincode: input.pincode,

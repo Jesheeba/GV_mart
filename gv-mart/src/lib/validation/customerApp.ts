@@ -9,7 +9,9 @@ import { z } from "zod"
 // ── CUST-08 Profile: address form (mirrors ADM-04's address step) ────────
 export const customerAddressSchema = z.object({
   doorNo: z.string().trim().min(1, "customerApp.errors.doorNoRequired"),
-  flatNo: z.string().trim().optional().or(z.literal("")),
+  buildingNo: z.string().trim().optional().or(z.literal("")),
+  buildingName: z.string().trim().optional().or(z.literal("")),
+  plotNo: z.string().trim().optional().or(z.literal("")),
   streetCross: z.string().trim().optional().or(z.literal("")),
   area: z.string().trim().min(1, "customerApp.errors.areaRequired"),
   pincode: z.string().regex(/^\d{6}$/, "customerApp.errors.pincodeInvalid"),

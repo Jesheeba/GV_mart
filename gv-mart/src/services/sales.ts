@@ -133,7 +133,17 @@ export async function itemNameLookup(orgId: string, items: { item_type: Enums<"i
   return names
 }
 
-export type InvoiceAddress = { door_no: string | null; flat_no: string | null; street_cross: string | null; area: string | null; pincode: string | null; is_primary: boolean }
+export type InvoiceAddress = {
+  door_no: string | null
+  flat_no: string | null
+  building_no: string | null
+  building_name: string | null
+  plot_no: string | null
+  street_cross: string | null
+  area: string | null
+  pincode: string | null
+  is_primary: boolean
+}
 
 export type InvoiceDetail = InvoiceRow & {
   customers: { name: string; mobile: string; addresses: InvoiceAddress[] } | null
@@ -144,7 +154,7 @@ export type InvoiceDetail = InvoiceRow & {
 export async function getInvoice(orgId: string, id: string): Promise<InvoiceDetail> {
   const { data, error } = await supabase
     .from("invoices")
-    .select("*, customers(name,mobile,addresses(door_no,flat_no,street_cross,area,pincode,is_primary)), gifts(name), invoice_items(*)")
+    .select("*, customers(name,mobile,addresses(door_no,flat_no,building_no,building_name,plot_no,street_cross,area,pincode,is_primary)), gifts(name), invoice_items(*)")
     .eq("id", id)
     .single()
   if (error) throw error

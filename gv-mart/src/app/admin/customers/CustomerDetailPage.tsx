@@ -321,6 +321,9 @@ export function CustomerDetailPage() {
                         <MapPin className="size-3" />
                         {[
                           primaryAddress.door_no,
+                          primaryAddress.plot_no,
+                          primaryAddress.building_no,
+                          primaryAddress.building_name,
                           primaryAddress.flat_no,
                           primaryAddress.street_cross,
                           primaryAddress.landmark,

@@ -157,7 +157,20 @@ export function JobDetailPage() {
         ) : null}
         <p className="flex items-start gap-1.5 px-1 text-sm text-text-muted">
           <MapPin className="mt-0.5 size-3.5 shrink-0" />
-          <span>{[ticket.addresses?.door_no, ticket.addresses?.flat_no, ticket.addresses?.street_cross, ticket.addresses?.area, ticket.addresses?.pincode].filter(Boolean).join(", ") || "—"}</span>
+          <span>
+            {[
+              ticket.addresses?.door_no,
+              ticket.addresses?.plot_no,
+              ticket.addresses?.building_no,
+              ticket.addresses?.building_name,
+              ticket.addresses?.flat_no,
+              ticket.addresses?.street_cross,
+              ticket.addresses?.area,
+              ticket.addresses?.pincode,
+            ]
+              .filter(Boolean)
+              .join(", ") || "—"}
+          </span>
         </p>
         <p className="flex items-center gap-1.5 px-1 text-sm text-text-muted">
           <CalendarClock className="size-3.5 shrink-0" />

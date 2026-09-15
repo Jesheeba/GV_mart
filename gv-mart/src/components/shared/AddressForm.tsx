@@ -55,7 +55,9 @@ export function AddressForm({
     mode: "onChange",
     defaultValues: {
       doorNo: initial?.door_no ?? "",
-      flatNo: initial?.flat_no ?? "",
+      buildingNo: initial?.building_no ?? "",
+      buildingName: initial?.building_name ?? "",
+      plotNo: initial?.plot_no ?? "",
       streetCross: initial?.street_cross ?? "",
       area: initial?.area ?? "",
       pincode: initial?.pincode ?? "",
@@ -70,9 +72,11 @@ export function AddressForm({
   })
   const lat = watch("lat")
   const lng = watch("lng")
-  const [doorNo, flatNo, streetCross, area, pincode, landmark, district, state] = watch([
+  const [doorNo, buildingNo, buildingName, plotNo, streetCross, area, pincode, landmark, district, state] = watch([
     "doorNo",
-    "flatNo",
+    "buildingNo",
+    "buildingName",
+    "plotNo",
     "streetCross",
     "area",
     "pincode",
@@ -80,7 +84,7 @@ export function AddressForm({
     "district",
     "state",
   ])
-  const locationText = [doorNo, flatNo, streetCross, area, pincode, landmark, district, state].join("|")
+  const locationText = [doorNo, buildingNo, buildingName, plotNo, streetCross, area, pincode, landmark, district, state].join("|")
   // Bug fix: editing an existing address's text (e.g. correcting the door
   // number/area to a real address after it was saved with a placeholder)
   // used to leave the OLD pin's lat/lng untouched — the map picker showed it
@@ -107,9 +111,10 @@ export function AddressForm({
   // them (that's what the confirmedLocationTextRef effect above already
   // guards via clearing lat/lng, which re-opens this effect to suggest again).
   const geocodeAddress = useGeocodeAddress()
-  // flatNo (e.g. "8th floor") is deliberately excluded — a floor number
-  // isn't a geocodable component (no premise/street_number token Google can
-  // match), so including it only adds noise to the query, never precision.
+  // buildingNo/buildingName/plotNo (e.g. "8th floor", "Sunrise Apartments")
+  // are deliberately excluded — a floor/building/plot label isn't a
+  // geocodable component (no premise/street_number token Google can match),
+  // so including it only adds noise to the query, never precision.
   const autoLocateQuery = [doorNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
@@ -143,8 +148,16 @@ export function AddressForm({
           {errors.doorNo ? <p className="text-xs text-danger">{t(errors.doorNo.message!)}</p> : null}
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${uid}-flatNo`} className="sr-only">{t("customerApp.profile.address.flatNo")}</Label>
-          <Input id={`${uid}-flatNo`} placeholder={t("customerApp.profile.address.flatNo")} {...register("flatNo")} />
+          <Label htmlFor={`${uid}-plotNo`} className="sr-only">{t("customerApp.profile.address.plotNo")}</Label>
+          <Input id={`${uid}-plotNo`} placeholder={t("customerApp.profile.address.plotNo")} {...register("plotNo")} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${uid}-buildingNo`} className="sr-only">{t("customerApp.profile.address.buildingNo")}</Label>
+          <Input id={`${uid}-buildingNo`} placeholder={t("customerApp.profile.address.buildingNo")} {...register("buildingNo")} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${uid}-buildingName`} className="sr-only">{t("customerApp.profile.address.buildingName")}</Label>
+          <Input id={`${uid}-buildingName`} placeholder={t("customerApp.profile.address.buildingName")} {...register("buildingName")} />
         </div>
       </div>
       <div className="space-y-1">

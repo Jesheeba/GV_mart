@@ -354,7 +354,9 @@ export type CreateCustomerInput = {
   members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation }[]
   address: {
     doorNo: string
-    flatNo?: string
+    buildingNo?: string
+    buildingName?: string
+    plotNo?: string
     streetCross?: string
     area: string
     pincode: string
@@ -378,7 +380,9 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
     p_members: input.members.map((m) => ({ name: m.name, mobile: m.mobile, is_primary: m.isPrimary, relation: m.relation ?? null })),
     p_address: {
       door_no: input.address.doorNo,
-      flat_no: input.address.flatNo ?? "",
+      building_no: input.address.buildingNo ?? "",
+      building_name: input.address.buildingName ?? "",
+      plot_no: input.address.plotNo ?? "",
       street_cross: input.address.streetCross ?? "",
       area: input.address.area,
       pincode: input.address.pincode,
@@ -491,7 +495,9 @@ export async function upsertPrimaryAddress(
   existingAddressId: string | null,
   patch: {
     doorNo: string
-    flatNo?: string
+    buildingNo?: string
+    buildingName?: string
+    plotNo?: string
     streetCross?: string
     area: string
     pincode: string
@@ -507,7 +513,9 @@ export async function upsertPrimaryAddress(
 ) {
   const row = {
     door_no: patch.doorNo,
-    flat_no: patch.flatNo || null,
+    building_no: patch.buildingNo || null,
+    building_name: patch.buildingName || null,
+    plot_no: patch.plotNo || null,
     street_cross: patch.streetCross || null,
     area: patch.area,
     pincode: patch.pincode,
