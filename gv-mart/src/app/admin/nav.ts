@@ -21,6 +21,7 @@ import {
   Megaphone,
   RotateCcw,
   ScrollText,
+  CalendarClock,
   type LucideIcon,
 } from "lucide-react"
 import type { UserRole } from "@/lib/roles"
@@ -56,6 +57,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { key: "leads", labelKey: "nav.leads", path: "/admin/leads", icon: Target, roles: ["master", "sales_admin"] },
   { key: "service", labelKey: "nav.service", path: "/admin/service", icon: Wrench, roles: ["master", "operation_admin"] },
   { key: "amc", labelKey: "nav.amcWarranty", path: "/admin/amc", icon: ShieldCheck, roles: ["master"] },
+  { key: "rentals", labelKey: "nav.rentals", path: "/admin/rentals", icon: CalendarClock, roles: ["master", "sales_admin"] },
   { key: "technicians", labelKey: "nav.technicians", path: "/admin/technicians", icon: UserCog, roles: ["master", "operation_admin"] },
   { key: "inventory", labelKey: "nav.inventory", path: "/admin/inventory", icon: Boxes, roles: ["master", "operation_admin"] },
   { key: "suppliers", labelKey: "nav.suppliers", path: "/admin/suppliers", icon: Truck, roles: ["master", "operation_admin"] },

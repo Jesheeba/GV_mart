@@ -55,6 +55,7 @@
     "leads": "Leads",
     "service": "Service",
     "amcWarranty": "AMC & Warranty",
+    "rentals": "Rentals",
     "technicians": "Technicians",
     "inventory": "Inventory",
     "suppliers": "Suppliers",
@@ -1672,6 +1673,48 @@
       "yearsPositive": "Years must be greater than zero",
       "priceNonNegative": "Price cannot be negative",
       "visitsPositive": "Visits per year must be greater than zero"
+    }
+  },
+  "rentals": {
+    "subtitle": "Equipment rented out to customers on a fixed monthly fee, with maintenance included.",
+    "tabs": {
+      "active": "Active",
+      "returned": "Returned"
+    },
+    "status": {
+      "active": "Active",
+      "returned": "Returned"
+    },
+    "list": {
+      "search": "Search customer, product...",
+      "customer": "Customer",
+      "product": "Product",
+      "plan": "Plan",
+      "monthlyRate": "Monthly rate",
+      "nextBilling": "Next billing",
+      "nextService": "Next service",
+      "status": "Status",
+      "markReturned": "Mark returned",
+      "confirmReturn": "Mark this rental as returned? Stock is restored and no more visits will be scheduled.",
+      "loadFailed": "Couldn't load rentals. Check your connection and try again.",
+      "empty": "No rentals yet."
+    },
+    "rentOut": {
+      "title": "Rent Out",
+      "customer": "Customer",
+      "address": "Address",
+      "product": "Product",
+      "plan": "Rental plan",
+      "startDate": "Start date",
+      "monthlyTotal": "Monthly rate: {{amount}} (+ GST)",
+      "submit": "Rent out"
+    },
+    "errors": {
+      "customerRequired": "Customer is required",
+      "productRequired": "Product is required",
+      "planRequired": "Rental plan is required",
+      "addressRequired": "Address is required",
+      "startDateRequired": "Start date is required"
     }
   },
   "customerApp": {
