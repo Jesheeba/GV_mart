@@ -2621,6 +2621,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           contract_id: string | null
+          warranty_id: string | null
           required_skill: string | null
           estimated_duration_minutes: number | null
           lead_id: string | null
@@ -2650,6 +2651,7 @@ export type Database = {
           cancelled_at?: string | null
           cancelled_by?: string | null
           contract_id?: string | null
+          warranty_id?: string | null
           required_skill?: string | null
           estimated_duration_minutes?: number | null
           lead_id?: string | null
@@ -2679,6 +2681,7 @@ export type Database = {
           cancelled_at?: string | null
           cancelled_by?: string | null
           contract_id?: string | null
+          warranty_id?: string | null
           required_skill?: string | null
           estimated_duration_minutes?: number | null
           lead_id?: string | null
@@ -2754,6 +2757,13 @@ export type Database = {
             columns: ["contract_id"]
             isOneToOne: false
             referencedRelation: "amc_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_tickets_warranty_id_fkey"
+            columns: ["warranty_id"]
+            isOneToOne: false
+            referencedRelation: "warranties"
             referencedColumns: ["id"]
           },
           {
