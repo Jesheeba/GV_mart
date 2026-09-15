@@ -61,6 +61,7 @@ export function NewSalePage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const quotationId = searchParams.get("fromQuotation")
+  const prefillCustomerId = searchParams.get("customerId")
 
   const { data: profile, isLoading: profileLoading } = useProfile()
   const orgId = profile?.org_id
@@ -126,6 +127,10 @@ export function NewSalePage() {
   const { data: allProducts } = productsHooks.useList(orgId)
   const { data: allSpares } = sparesHooks.useList(orgId)
   const quotationCustomer = useCustomer(quotationData.data?.customer_id ?? undefined)
+  // Launched from Customer Detail's "New Sale" button (?customerId=...) —
+  // same preselect-only behavior as the quotation path above, just without
+  // a cart to prefill.
+  const prefillCustomer = useCustomer(prefillCustomerId ?? undefined)
   // A ref, not state: state set inside an effect isn't guaranteed visible to
   // a StrictMode-driven second invocation of the same effect (dev-only
   // double-invoke), which duplicated every prefilled line the first time
@@ -173,9 +178,20 @@ export function NewSalePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quotationCustomer.data])
 
+  useEffect(() => {
+    if (prefillCustomer.data && !customerId) {
+      setCustomerId(prefillCustomer.data.id)
+      setCustomerLabel(`${prefillCustomer.data.name} — ${prefillCustomer.data.mobile}`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillCustomer.data])
+
   // Local draft persistence — see useLocalDraft's doc comment. Disabled for
-  // the fromQuotation entry point (see NewSaleDraftData).
-  const draftKey = quotationId ? null : DRAFT_KEY
+  // the fromQuotation and customerId (Customer Detail "New Sale") entry
+  // points (see NewSaleDraftData) — same reasoning as fromQuotation:
+  // resurrecting an unrelated older draft would silently overwrite the
+  // fresh preselected customer.
+  const draftKey = quotationId || prefillCustomerId ? null : DRAFT_KEY
   const draftSnapshot: NewSaleDraftData = {
     step,
     customerId,

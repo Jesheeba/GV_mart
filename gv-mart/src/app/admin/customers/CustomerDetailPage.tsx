@@ -365,7 +365,7 @@ export function CustomerDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-2.25 border-t border-border px-1 pt-4">
-            <Button onClick={() => navigate("/admin/sales/new")}>{t("customers.detail.actions.newSale")}</Button>
+            <Button onClick={() => navigate(`/admin/sales/new?customerId=${customer.id}`)}>{t("customers.detail.actions.newSale")}</Button>
             <Button variant="outline" onClick={() => navigate(`/admin/service/new?customerId=${customer.id}`)}>
               {t("customers.detail.actions.newTicket")}
             </Button>
