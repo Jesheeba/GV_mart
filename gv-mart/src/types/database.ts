@@ -2631,6 +2631,7 @@ export type Database = {
           cancelled_by: string | null
           contract_id: string | null
           warranty_id: string | null
+          rental_contract_id: string | null
           required_skill: string | null
           estimated_duration_minutes: number | null
           lead_id: string | null
@@ -2661,6 +2662,7 @@ export type Database = {
           cancelled_by?: string | null
           contract_id?: string | null
           warranty_id?: string | null
+          rental_contract_id?: string | null
           required_skill?: string | null
           estimated_duration_minutes?: number | null
           lead_id?: string | null
@@ -2691,6 +2693,7 @@ export type Database = {
           cancelled_by?: string | null
           contract_id?: string | null
           warranty_id?: string | null
+          rental_contract_id?: string | null
           required_skill?: string | null
           estimated_duration_minutes?: number | null
           lead_id?: string | null
@@ -2773,6 +2776,13 @@ export type Database = {
             columns: ["warranty_id"]
             isOneToOne: false
             referencedRelation: "warranties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_tickets_rental_contract_id_fkey"
+            columns: ["rental_contract_id"]
+            isOneToOne: false
+            referencedRelation: "rental_contracts"
             referencedColumns: ["id"]
           },
           {
@@ -3603,6 +3613,141 @@ export type Database = {
             columns: ["spare_id"]
             isOneToOne: false
             referencedRelation: "spares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rental_plans: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          monthly_rate: number
+          visits_per_year: number
+          inclusions: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          monthly_rate: number
+          visits_per_year?: number
+          inclusions?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string
+          monthly_rate?: number
+          visits_per_year?: number
+          inclusions?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rental_plans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rental_contracts: {
+        Row: {
+          id: string
+          org_id: string
+          customer_id: string
+          product_id: string
+          plan_id: string
+          address_id: string | null
+          start_date: string
+          status: Database["public"]["Enums"]["rental_status"]
+          next_billing_date: string | null
+          next_service_date: string | null
+          returned_at: string | null
+          invoice_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          customer_id: string
+          product_id: string
+          plan_id: string
+          address_id?: string | null
+          start_date: string
+          status?: Database["public"]["Enums"]["rental_status"]
+          next_billing_date?: string | null
+          next_service_date?: string | null
+          returned_at?: string | null
+          invoice_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          customer_id?: string
+          product_id?: string
+          plan_id?: string
+          address_id?: string | null
+          start_date?: string
+          status?: Database["public"]["Enums"]["rental_status"]
+          next_billing_date?: string | null
+          next_service_date?: string | null
+          returned_at?: string | null
+          invoice_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rental_contracts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_contracts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_contracts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_contracts_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "rental_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_contracts_address_id_fkey"
+            columns: ["address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_contracts_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -5793,16 +5938,17 @@ export type Database = {
       ownership_type: "own" | "rental"
       po_status: "draft" | "sent" | "received"
       quotation_status: "open" | "converted" | "lost"
-      invoice_type: "product" | "spare" | "amc"
+      invoice_type: "product" | "spare" | "amc" | "rent"
       payment_method: "cash" | "transfer" | "upi"
       payment_status: "paid" | "partial" | "due"
-      ticket_type: "paid" | "warranty" | "amc" | "installation"
+      ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"
       priority_level: "very_urgent" | "urgent" | "normal"
       ticket_status: "open" | "assigned" | "in_progress" | "completed" | "cancelled"
       ticket_channel: "call" | "whatsapp" | "walk_in" | "customer_app" | "field"
       appointment_mode: "always" | "datetime"
       appointment_status: "scheduled" | "in_progress" | "completed" | "cancelled"
       amc_status: "active" | "due_soon" | "expired"
+      rental_status: "active" | "returned"
       enquiry_type: "online" | "price" | "quality" | "customization" | "water_premium" | "budget"
       // Product Enquiry rebuild (2026-08-04) — see 20260804090000_product_media_and_attributes.sql.
       product_enquiry_cta_type: "quotation" | "callback" | "share"
