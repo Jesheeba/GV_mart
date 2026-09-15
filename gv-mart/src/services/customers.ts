@@ -5,10 +5,11 @@ import type { Enums, Tables } from "@/types/database"
 import type { FamilyRelation } from "@/lib/validation/customer"
 
 export type CustomerRow = Tables<"customers">
-// `relation` (migration 20260703130000_family_member_relation.sql) post-dates
+// `relation` (migration 20260703130000_family_member_relation.sql) and
+// `profession` (20260915100000_family_member_profession.sql) both post-date
 // the last database.ts regen — extended locally, same precedent as
 // SettingsWithSla in services/service.ts.
-export type MemberRow = Tables<"customer_members"> & { relation: FamilyRelation | null; moved_out_at: string | null }
+export type MemberRow = Tables<"customer_members"> & { relation: FamilyRelation | null; moved_out_at: string | null; profession: string | null }
 export type AddressRow = Tables<"addresses">
 
 export type CustomerListItem = CustomerRow & {
@@ -394,10 +395,14 @@ export async function updateCustomerProfession(id: string, profession: string) {
   return data
 }
 
-export async function addMember(orgId: string, customerId: string, member: { name: string; mobile: string; relation?: FamilyRelation }) {
+export async function addMember(
+  orgId: string,
+  customerId: string,
+  member: { name: string; mobile: string; relation?: FamilyRelation; profession?: string | null }
+) {
   const { data, error } = await supabase
     .from("customer_members")
-    // `relation` isn't in the generated Insert type yet (see MemberRow comment) — same
+    // `relation`/`profession` aren't in the generated Insert type yet (see MemberRow comment) — same
     // locally-extended-row precedent, cast narrows back to `never` only on this one call.
     .insert({
       org_id: orgId,
@@ -406,6 +411,7 @@ export async function addMember(orgId: string, customerId: string, member: { nam
       mobile: member.mobile,
       is_primary: false,
       relation: member.relation ?? null,
+      profession: member.profession || null,
     } as never)
     .select()
     .single()
@@ -413,12 +419,15 @@ export async function addMember(orgId: string, customerId: string, member: { nam
   return data as unknown as MemberRow
 }
 
-export async function updateMember(memberId: string, member: { name: string; mobile: string; relation?: FamilyRelation | null }) {
+export async function updateMember(
+  memberId: string,
+  member: { name: string; mobile: string; relation?: FamilyRelation | null; profession?: string | null }
+) {
   const { data, error } = await supabase
     .from("customer_members")
-    // Same locally-extended-row cast as addMember above — relation isn't in
-    // the generated Update type yet either.
-    .update({ name: member.name, mobile: member.mobile, relation: member.relation ?? null } as never)
+    // Same locally-extended-row cast as addMember above — relation/profession
+    // aren't in the generated Update type yet either.
+    .update({ name: member.name, mobile: member.mobile, relation: member.relation ?? null, profession: member.profession || null } as never)
     .eq("id", memberId)
     .select()
     .single()

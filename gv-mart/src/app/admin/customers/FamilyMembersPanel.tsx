@@ -27,12 +27,20 @@ function MemberEditForm({ member, onDone }: { member: MemberRow; onDone: () => v
   } = useForm<MemberInput>({
     resolver: zodResolver(memberSchema),
     mode: "onChange",
-    defaultValues: { name: member.name, mobile: member.mobile, relation: member.relation ?? undefined },
+    defaultValues: { name: member.name, mobile: member.mobile, relation: member.relation ?? undefined, profession: member.profession ?? "" },
   })
 
   const onSave = handleSubmit((values) => {
     updateMember.mutate(
-      { memberId: member.id, member: { name: values.name, mobile: values.mobile, relation: member.is_primary ? null : values.relation || null } },
+      {
+        memberId: member.id,
+        member: {
+          name: values.name,
+          mobile: values.mobile,
+          relation: member.is_primary ? null : values.relation || null,
+          profession: values.profession || null,
+        },
+      },
       { onSuccess: onDone }
     )
   })
@@ -64,6 +72,7 @@ function MemberEditForm({ member, onDone }: { member: MemberRow; onDone: () => v
           ))}
         </select>
       ) : null}
+      <Input placeholder={t("customers.form.memberProfession")} {...register("profession")} />
       {updateMember.isError ? <p className="text-xs text-danger">{(updateMember.error as Error).message}</p> : null}
       <div className="flex justify-end gap-2">
         <Button type="button" size="sm" variant="ghost" onClick={onDone}>
@@ -124,7 +133,7 @@ export function FamilyMembersPanel({
   const atCap = members.length >= 5
 
   const onAddMember = handleSubmit((values) => {
-    addMember.mutate({ ...values, relation: values.relation || undefined }, {
+    addMember.mutate({ ...values, relation: values.relation || undefined, profession: values.profession || null }, {
       onSuccess: () => {
         reset()
         setShowAddForm(false)
@@ -180,6 +189,7 @@ export function FamilyMembersPanel({
                   ) : null}
                 </div>
                 <div className="gv-tnum text-xs text-text-muted">{member.mobile}</div>
+                {member.profession ? <div className="text-xs text-text-muted">{member.profession}</div> : null}
 
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
                   <button
@@ -296,6 +306,7 @@ export function FamilyMembersPanel({
               </option>
             ))}
           </select>
+          <Input placeholder={t("customers.form.memberProfession")} {...register("profession")} />
           {addMember.isError ? <p className="text-xs text-danger">{(addMember.error as Error).message}</p> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>

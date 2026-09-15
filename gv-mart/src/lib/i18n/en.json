@@ -382,6 +382,7 @@
       "memberMobile": "Mobile number",
       "memberRelation": "Relation",
       "memberRelationPlaceholder": "Relation to primary contact",
+      "memberProfession": "Profession (e.g. Teacher, Shop Owner)",
       "relation": {
         "spouse": "Spouse",
         "son": "Son",

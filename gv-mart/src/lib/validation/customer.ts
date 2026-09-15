@@ -30,6 +30,7 @@ export const memberSchema = z.object({
     .union([z.enum(FAMILY_RELATIONS), z.literal("")])
     .optional()
     .transform((v) => (v === "" ? undefined : v)),
+  profession: z.string().trim().max(80).optional().or(z.literal("")),
 })
 // react-hook-form types form state from the schema's *input* shape (what the
 // user can actually type/select, including relation:"" before transform),

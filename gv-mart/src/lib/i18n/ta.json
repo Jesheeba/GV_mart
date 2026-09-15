@@ -382,6 +382,7 @@
       "memberMobile": "மொபைல் எண்",
       "memberRelation": "உறவு முறை",
       "memberRelationPlaceholder": "முதன்மை தொடர்புக்கான உறவு முறை",
+      "memberProfession": "தொழில் (எ.கா. ஆசிரியர், கடை உரிமையாளர்)",
       "relation": {
         "spouse": "வாழ்க்கை துணை",
         "son": "மகன்",
