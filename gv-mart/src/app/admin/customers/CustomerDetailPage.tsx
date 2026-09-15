@@ -432,7 +432,7 @@ export function CustomerDetailPage() {
       <Tabs defaultValue="products">
         <TabsList className="border border-border bg-surface p-1.25">
           <TabsTrigger value="products">
-            {t("customers.detail.tabs.products")} ({products.data?.length ?? 0})
+            {t("customers.detail.tabs.products")}{products.isLoading ? "" : ` (${products.data?.length ?? 0})`}
           </TabsTrigger>
           <TabsTrigger value="service">{t("customers.detail.tabs.service")}</TabsTrigger>
           <TabsTrigger value="invoices">{t("customers.detail.tabs.invoices")}</TabsTrigger>
