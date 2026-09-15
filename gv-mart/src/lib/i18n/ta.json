@@ -291,6 +291,7 @@
         "source": "{{source}}, {{year}} · {{count}} மாதிரிகள்"
       },
       "referredBy": "{{name}} பரிந்துரைத்தார்",
+      "familyChip": "{{count}} குடும்பம்: {{names}}",
       "membersTitle": "குடும்ப உறுப்பினர்கள் ({{count}}/5)",
       "addMember": "உறுப்பினரைச் சேர்",
       "setPrimary": "முதன்மையாக அமை",

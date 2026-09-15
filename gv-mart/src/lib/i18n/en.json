@@ -291,6 +291,7 @@
         "source": "{{source}}, {{year}} · {{count}} samples"
       },
       "referredBy": "Referred by {{name}}",
+      "familyChip": "{{count}} family: {{names}}",
       "membersTitle": "Family Members ({{count}}/5)",
       "addMember": "Add member",
       "setPrimary": "Set primary",

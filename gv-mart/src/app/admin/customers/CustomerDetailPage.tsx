@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { BatteryCharging, ChevronLeft, Droplet, FlaskConical, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, UserPlus, Wind, Wrench, Zap } from "lucide-react"
+import { BatteryCharging, ChevronLeft, Droplet, FlaskConical, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, UserPlus, Users, Wind, Wrench, Zap } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -340,6 +340,15 @@ export function CustomerDetailPage() {
                     <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
                       <UserPlus className="size-3" />
                       {t("customers.detail.referredBy", { name: referredByTechnicianName })}
+                    </span>
+                  ) : null}
+                  {customer.customer_members.length > 0 ? (
+                    <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
+                      <Users className="size-3" />
+                      {t("customers.detail.familyChip", {
+                        count: customer.customer_members.length,
+                        names: customer.customer_members.map((m) => m.name).join(", "),
+                      })}
                     </span>
                   ) : null}
                 </div>
