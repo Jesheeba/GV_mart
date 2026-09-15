@@ -363,7 +363,7 @@
       },
       "actions": {
         "newSale": "New Sale",
-        "newTicket": "New Ticket",
+        "newTicket": "New Service",
         "sellAmc": "Sell AMC",
         "edit": "Edit"
       }
