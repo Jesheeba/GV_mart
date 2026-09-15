@@ -399,20 +399,28 @@ export function CustomerDetailPage() {
             </div>
             <span className="text-xs font-medium text-white/70">{t("customers.detail.acrossInvoices", { count: lifetime.data?.invoiceCount ?? 0 })}</span>
             {!lifetime.isLoading && lifetime.data ? (
-              <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1 text-[11px] font-medium text-white/70">
-                <span>
-                  {t("customers.detail.revenueProduct")} {formatCurrency(lifetime.data.revenueByType.product)}
-                </span>
-                <span>
-                  {t("customers.detail.revenueSpare")} {formatCurrency(lifetime.data.revenueByType.spare)}
-                </span>
-                <span>
-                  {t("customers.detail.revenueAmc")} {formatCurrency(lifetime.data.revenueByType.amc)}
-                </span>
-                <span>
-                  {t("customers.detail.revenueRent")} {formatCurrency(lifetime.data.revenueByType.rent)}
-                </span>
-              </div>
+              <>
+                <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1 text-[11px] font-medium text-white/70">
+                  <span>
+                    {t("customers.detail.revenueSales")} {formatCurrency(lifetime.data.sales)}
+                  </span>
+                  <span>
+                    {t("customers.detail.revenueProduct")} {formatCurrency(lifetime.data.revenueByType.product)}
+                  </span>
+                  <span>
+                    {t("customers.detail.revenueSpare")} {formatCurrency(lifetime.data.revenueByType.spare)}
+                  </span>
+                  <span>
+                    {t("customers.detail.revenueAmc")} {formatCurrency(lifetime.data.revenueByType.amc)}
+                  </span>
+                  <span>
+                    {t("customers.detail.revenueRent")} {formatCurrency(lifetime.data.revenueByType.rent)}
+                  </span>
+                </div>
+                <div className="mt-1.5 text-[11px] font-medium text-white/70">
+                  {t("customers.detail.rewardPoints", { balance: lifetime.data.rewardPoints.balance, earned: lifetime.data.rewardPoints.lifetimeEarned })}
+                </div>
+              </>
             ) : null}
           </div>
           {(() => {

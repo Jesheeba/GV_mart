@@ -895,24 +895,32 @@ export async function getCustomerInvoices(orgId: string, customerId: string, lim
 
 export type CustomerNextAmcAction = { productName: string; planName: string; expiryDate: string; daysUntil: number }
 export type CustomerRevenueByType = Record<Enums<"invoice_type">, number>
+export type CustomerRewardPoints = { balance: number; lifetimeEarned: number }
 export type CustomerLifetimeSummary = {
   total: number
+  /** Same figure as `total` (all four invoice types combined) — a distinct
+   * KPI label rather than a distinct number, by explicit product decision. */
+  sales: number
   invoiceCount: number
   nextAmcAction: CustomerNextAmcAction | null
   revenueByType: CustomerRevenueByType
+  rewardPoints: CustomerRewardPoints
 }
 
 /**
  * Lifetime value = real sum of the customer's own invoices (no fabricated
- * "customer tier" or points system exists in the schema). "Next best
- * action" is likewise derived from a real signal — the soonest AMC contract
- * that's entered the org's renewal window — rather than an AI suggestion.
- * revenueByType (product/spare/amc split, Item D10) reuses this same
+ * "customer tier" system exists in the schema). "Next best action" is
+ * likewise derived from a real signal — the soonest AMC contract that's
+ * entered the org's renewal window — rather than an AI suggestion.
+ * revenueByType (product/spare/amc/rent split, Item D10) reuses this same
  * invoices fetch — no second query needed, invoices.type is already an
- * indexed column on the row.
+ * indexed column on the row. rewardPoints sums the customer's referral_points
+ * ledger (see services/customerApp.ts's "Referral Wallet" for the same
+ * sum-the-ledger pattern) — there is no running-balance column, each row is
+ * a signed delta (positive = earned, negative = redeemed).
  */
 export async function getCustomerLifetimeSummary(orgId: string, customerId: string): Promise<CustomerLifetimeSummary> {
-  const [invoicesRes, amcRes] = await Promise.all([
+  const [invoicesRes, amcRes, pointsRes] = await Promise.all([
     supabase.from("invoices").select("total, type").eq("org_id", orgId).eq("customer_id", customerId),
     supabase
       .from("amc_contracts")
@@ -922,14 +930,22 @@ export async function getCustomerLifetimeSummary(orgId: string, customerId: stri
       .eq("status", "due_soon")
       .order("expiry_date", { ascending: true })
       .limit(1),
+    supabase.from("referral_points").select("points").eq("org_id", orgId).eq("customer_id", customerId),
   ])
   if (invoicesRes.error) throw invoicesRes.error
   if (amcRes.error) throw amcRes.error
+  if (pointsRes.error) throw pointsRes.error
 
   const invoices = invoicesRes.data ?? []
   const total = invoices.reduce((sum, r) => sum + Number(r.total), 0)
   const revenueByType: CustomerRevenueByType = { product: 0, spare: 0, amc: 0, rent: 0 }
   for (const r of invoices) revenueByType[r.type] += Number(r.total)
+
+  const points = pointsRes.data ?? []
+  const rewardPoints: CustomerRewardPoints = {
+    balance: points.reduce((sum, r) => sum + r.points, 0),
+    lifetimeEarned: points.filter((r) => r.points > 0).reduce((sum, r) => sum + r.points, 0),
+  }
 
   const nextContract = amcRes.data?.[0] as unknown as
     | { expiry_date: string; products: { name: string } | null; amc_plans: { name: string } | null }
@@ -943,7 +959,7 @@ export async function getCustomerLifetimeSummary(orgId: string, customerId: stri
       }
     : null
 
-  return { total, invoiceCount: invoices.length, nextAmcAction, revenueByType }
+  return { total, sales: total, invoiceCount: invoices.length, nextAmcAction, revenueByType, rewardPoints }
 }
 
 // ── Exemption windows (B4, Build Order Step 4 / Meeting spec Section B4) ──
