@@ -8,7 +8,7 @@ export type CustomerRow = Tables<"customers">
 // `relation` (migration 20260703130000_family_member_relation.sql) post-dates
 // the last database.ts regen — extended locally, same precedent as
 // SettingsWithSla in services/service.ts.
-export type MemberRow = Tables<"customer_members"> & { relation: FamilyRelation | null }
+export type MemberRow = Tables<"customer_members"> & { relation: FamilyRelation | null; moved_out_at: string | null }
 export type AddressRow = Tables<"addresses">
 
 export type CustomerListItem = CustomerRow & {
@@ -242,6 +242,11 @@ export async function getCustomer(id: string) {
     .from("customers")
     .select("*, addresses(*), customer_members(*)")
     .eq("id", id)
+    // Item D3: a member "moved out" to their own customer record is soft-
+    // detached (moved_out_at set), not deleted — excluded here so every
+    // consumer of customer.customer_members (Family tab count, the family
+    // chip, this panel's own list) only ever sees active members.
+    .is("customer_members.moved_out_at", null)
     .order("is_primary", { referencedTable: "addresses", ascending: false })
     .order("is_primary", { referencedTable: "customer_members", ascending: false })
     .single()
@@ -425,8 +430,11 @@ export async function moveMemberOut(orgId: string, member: MemberRow) {
     .select()
     .single()
   if (createError) throw createError
-  const { error: deleteError } = await supabase.from("customer_members").delete().eq("id", member.id)
-  if (deleteError) throw deleteError
+  // Detached, not deleted (Item D3) — preserves the record instead of
+  // silently erasing it; getCustomer filters moved_out_at is not null so it
+  // no longer shows as an active family member anywhere.
+  const { error: updateError } = await supabase.from("customer_members").update({ moved_out_at: new Date().toISOString() } as never).eq("id", member.id)
+  if (updateError) throw updateError
   return newCustomer
 }
 
