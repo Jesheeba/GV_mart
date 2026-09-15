@@ -152,6 +152,18 @@ export function useAddMember(orgId: string | undefined, customerId: string) {
   })
 }
 
+export function useUpdateMember(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memberId, member }: { memberId: string; member: Parameters<typeof customers.updateMember>[1] }) =>
+      customers.updateMember(memberId, member),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
+  })
+}
+
 export function useRemoveMember(customerId: string) {
   const queryClient = useQueryClient()
   return useMutation({

@@ -3,13 +3,79 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Loader2, Plus, Star, Trash2, UserMinus } from "lucide-react"
+import { Loader2, Pencil, Plus, Star, Trash2, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { memberSchema, FAMILY_RELATIONS, type MemberInput } from "@/lib/validation/customer"
-import { useAddMember, useMoveMemberOut, useRemoveMember, useSetPrimaryMember } from "@/hooks/useCustomers"
+import { useAddMember, useMoveMemberOut, useRemoveMember, useSetPrimaryMember, useUpdateMember } from "@/hooks/useCustomers"
 import { avatarPalette, initials } from "@/lib/avatar"
 import type { MemberRow } from "@/services/customers"
+
+/** Inline edit form for ONE existing member — own useForm instance seeded
+ * from that member's current values, mounted only while editing them.
+ * Primary members can edit name/mobile like anyone else, but never get a
+ * relation field (relation is meaningless for "this customer's relation to
+ * themselves" — matches MemberFieldRow's same isPrimary-gated behavior in
+ * the create-mode form). */
+function MemberEditForm({ member, onDone }: { member: MemberRow; onDone: () => void }) {
+  const { t } = useTranslation()
+  const updateMember = useUpdateMember(member.customer_id)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<MemberInput>({
+    resolver: zodResolver(memberSchema),
+    mode: "onChange",
+    defaultValues: { name: member.name, mobile: member.mobile, relation: member.relation ?? undefined },
+  })
+
+  const onSave = handleSubmit((values) => {
+    updateMember.mutate(
+      { memberId: member.id, member: { name: values.name, mobile: values.mobile, relation: member.is_primary ? null : values.relation || null } },
+      { onSuccess: onDone }
+    )
+  })
+
+  return (
+    <form onSubmit={onSave} className="space-y-2">
+      <div className="flex gap-2">
+        <div className="flex-1 space-y-1">
+          <Input placeholder={t("customers.form.memberName")} aria-invalid={!!errors.name} {...register("name")} />
+          {errors.name ? <p className="text-xs text-danger">{t(errors.name.message!)}</p> : null}
+        </div>
+        <div className="flex-1 space-y-1">
+          <Input placeholder={t("customers.form.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
+          {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
+        </div>
+      </div>
+      {!member.is_primary ? (
+        <select
+          aria-label={t("customers.form.memberRelation")}
+          defaultValue={member.relation ?? ""}
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          {...register("relation")}
+        >
+          <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
+          {FAMILY_RELATIONS.map((r) => (
+            <option key={r} value={r}>
+              {t(`customers.form.relation.${r}`)}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      {updateMember.isError ? <p className="text-xs text-danger">{(updateMember.error as Error).message}</p> : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="sm" variant="ghost" onClick={onDone}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="submit" size="sm" disabled={updateMember.isPending}>
+          {updateMember.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
+        </Button>
+      </div>
+    </form>
+  )
+}
 
 /**
  * Renders bare (no outer Card) so it drops cleanly into a tab panel that
@@ -29,6 +95,7 @@ export function FamilyMembersPanel({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null)
   const [confirmingMoveOut, setConfirmingMoveOut] = useState<string | null>(null)
   const removeConfirmRef = useRef<HTMLButtonElement>(null)
@@ -95,6 +162,10 @@ export function FamilyMembersPanel({
                 {initials(member.name)}
               </span>
               <div className="min-w-0 flex-1">
+                {editingId === member.id ? (
+                  <MemberEditForm member={member} onDone={() => setEditingId(null)} />
+                ) : (
+                <>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="truncate text-sm font-bold text-text">{member.name}</span>
                   {member.is_primary ? (
@@ -111,6 +182,14 @@ export function FamilyMembersPanel({
                 <div className="gv-tnum text-xs text-text-muted">{member.mobile}</div>
 
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 font-semibold text-text-muted hover:text-text"
+                    title={t("customers.detail.editMember")}
+                    onClick={() => setEditingId(member.id)}
+                  >
+                    <Pencil className="size-3" />
+                  </button>
                   {!member.is_primary && (
                     <button
                       type="button"
@@ -184,6 +263,8 @@ export function FamilyMembersPanel({
                   )}
                   {member.is_primary ? <span className="text-text-muted">{t("customers.detail.primaryLocked")}</span> : null}
                 </div>
+                </>
+                )}
               </div>
             </div>
           )

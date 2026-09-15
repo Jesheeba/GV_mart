@@ -413,6 +413,19 @@ export async function addMember(orgId: string, customerId: string, member: { nam
   return data as unknown as MemberRow
 }
 
+export async function updateMember(memberId: string, member: { name: string; mobile: string; relation?: FamilyRelation | null }) {
+  const { data, error } = await supabase
+    .from("customer_members")
+    // Same locally-extended-row cast as addMember above — relation isn't in
+    // the generated Update type yet either.
+    .update({ name: member.name, mobile: member.mobile, relation: member.relation ?? null } as never)
+    .eq("id", memberId)
+    .select()
+    .single()
+  if (error) throw error
+  return data as unknown as MemberRow
+}
+
 export async function removeMember(memberId: string) {
   const { error } = await supabase.from("customer_members").delete().eq("id", memberId)
   if (error) throw error
