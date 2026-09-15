@@ -194,6 +194,20 @@ async function runResolveQuoteRequests(admin: SupabaseClient, orgId: string): Pr
   return { resolved: data ?? 0 }
 }
 
+/** Item D5 (Rent) — the only recurring-charge mechanism in this codebase.
+ * run_rental_billing (service_role-only RPC) does its own "due today or
+ * earlier" filter and advances next_billing_date itself, so — same as
+ * runMonthlyQuoteRequests above — it's safe to call on every tick; a
+ * contract not yet due is a no-op. */
+async function runRentalBilling(admin: SupabaseClient, orgId: string): Promise<{ billed: number }> {
+  const { data, error } = await admin.rpc("run_rental_billing", { p_org_id: orgId })
+  if (error) {
+    console.error("wa-scheduled-tasks: run_rental_billing failed", orgId, error)
+    return { billed: 0 }
+  }
+  return { billed: data ?? 0 }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405)
 
@@ -223,8 +237,9 @@ Deno.serve(async (req) => {
     const retries = await runFailedSendRetries(admin, org.id)
     const monthlyRfq = await runMonthlyQuoteRequests(admin, org.id)
     const resolvedQuotes = await runResolveQuoteRequests(admin, org.id)
+    const rentalBilling = await runRentalBilling(admin, org.id)
     await markJobRan(admin, org.id, "scheduled_tasks")
-    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes })
+    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling })
   }
 
   return jsonResponse({ ranAt: new Date().toISOString(), results })
