@@ -253,15 +253,16 @@ export async function getCustomer(id: string) {
 }
 
 /**
- * Matches on the customer's own name/mobile AND on their address (area,
- * pincode) — a search like "600028" or "Anna Nagar" only exists on the
- * addresses table, so name/mobile alone would always come back empty for
- * those terms.
+ * Matches on the customer's own name/mobile, their address (area, pincode —
+ * a search like "600028" or "Anna Nagar" only exists on the addresses table),
+ * AND a family member's name/mobile (customer_members) — a family member's
+ * number resolves back to their PRIMARY customer record, the same way
+ * checkMobileInUse() already does for duplicate-mobile validation.
  */
 export async function autocompleteCustomers(orgId: string, term: string) {
   const q = term.trim().replace(/[%,]/g, "")
   if (!q) return []
-  const [byNameOrMobile, byAddress] = await Promise.all([
+  const [byNameOrMobile, byAddress, byMember] = await Promise.all([
     supabase.from("customers").select("id,name,mobile").eq("org_id", orgId).or(`name.ilike.%${q}%,mobile.ilike.%${q}%`).limit(6),
     supabase
       .from("addresses")
@@ -269,13 +270,23 @@ export async function autocompleteCustomers(orgId: string, term: string) {
       .eq("org_id", orgId)
       .or(`area.ilike.%${q}%,pincode.ilike.%${q}%`)
       .limit(6),
+    supabase
+      .from("customer_members")
+      .select("customers(id,name,mobile)")
+      .eq("org_id", orgId)
+      .or(`name.ilike.%${q}%,mobile.ilike.%${q}%`)
+      .limit(6),
   ])
   if (byNameOrMobile.error) throw byNameOrMobile.error
   if (byAddress.error) throw byAddress.error
+  if (byMember.error) throw byMember.error
 
   const results = new Map<string, { id: string; name: string; mobile: string }>()
   for (const c of byNameOrMobile.data ?? []) results.set(c.id, c)
   for (const row of (byAddress.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string } | null }[]) {
+    if (row.customers && !results.has(row.customers.id)) results.set(row.customers.id, row.customers)
+  }
+  for (const row of (byMember.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string } | null }[]) {
     if (row.customers && !results.has(row.customers.id)) results.set(row.customers.id, row.customers)
   }
   return [...results.values()].slice(0, 6)
