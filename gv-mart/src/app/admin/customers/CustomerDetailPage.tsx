@@ -319,7 +319,18 @@ export function CustomerDetailPage() {
                       </span>
                       <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
                         <MapPin className="size-3" />
-                        {[primaryAddress.door_no, primaryAddress.flat_no, primaryAddress.street_cross, primaryAddress.area, primaryAddress.pincode].filter(Boolean).join(", ")}
+                        {[
+                          primaryAddress.door_no,
+                          primaryAddress.flat_no,
+                          primaryAddress.street_cross,
+                          primaryAddress.landmark,
+                          primaryAddress.area,
+                          primaryAddress.district,
+                          primaryAddress.state,
+                          primaryAddress.pincode,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
                       </span>
                     </>
                   ) : (
