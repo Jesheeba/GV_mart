@@ -175,6 +175,16 @@ export function useRemoveMember(customerId: string) {
   })
 }
 
+export function useLogMemberGoogleReview(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memberId, stars }: { memberId: string; stars: number }) => customers.logMemberGoogleReview(memberId, stars),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+    },
+  })
+}
+
 export function useSetPrimaryMember(customerId: string) {
   const queryClient = useQueryClient()
   return useMutation({

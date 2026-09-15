@@ -7,7 +7,7 @@ import { Loader2, Pencil, Plus, Star, Trash2, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { memberSchema, FAMILY_RELATIONS, type MemberInput } from "@/lib/validation/customer"
-import { useAddMember, useMoveMemberOut, useRemoveMember, useSetPrimaryMember, useUpdateMember } from "@/hooks/useCustomers"
+import { useAddMember, useLogMemberGoogleReview, useMoveMemberOut, useRemoveMember, useSetPrimaryMember, useUpdateMember } from "@/hooks/useCustomers"
 import { avatarPalette, initials } from "@/lib/avatar"
 import type { MemberRow } from "@/services/customers"
 
@@ -105,6 +105,7 @@ export function FamilyMembersPanel({
   const navigate = useNavigate()
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [loggingReviewId, setLoggingReviewId] = useState<string | null>(null)
   const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null)
   const [confirmingMoveOut, setConfirmingMoveOut] = useState<string | null>(null)
   const removeConfirmRef = useRef<HTMLButtonElement>(null)
@@ -122,6 +123,7 @@ export function FamilyMembersPanel({
   const removeMember = useRemoveMember(customerId)
   const setPrimary = useSetPrimaryMember(customerId)
   const moveOut = useMoveMemberOut(orgId, customerId)
+  const logReview = useLogMemberGoogleReview(customerId)
 
   const {
     register,
@@ -190,6 +192,40 @@ export function FamilyMembersPanel({
                 </div>
                 <div className="gv-tnum text-xs text-text-muted">{member.mobile}</div>
                 {member.profession ? <div className="text-xs text-text-muted">{member.profession}</div> : null}
+
+                {loggingReviewId === member.id ? (
+                  <div className="mt-1 flex items-center gap-1">
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={logReview.isPending}
+                        aria-label={t("customers.detail.rateStars", { count: i + 1 })}
+                        onClick={() => logReview.mutate({ memberId: member.id, stars: i + 1 }, { onSuccess: () => setLoggingReviewId(null) })}
+                      >
+                        <Star className="size-4 text-border hover:fill-warning hover:text-warning" />
+                      </button>
+                    ))}
+                    <button type="button" className="ml-1 text-[11px] font-semibold text-text-muted hover:text-text" onClick={() => setLoggingReviewId(null)}>
+                      {t("common.cancel")}
+                    </button>
+                  </div>
+                ) : member.google_review_stars ? (
+                  <button type="button" className="mt-1 flex items-center gap-0.5" onClick={() => setLoggingReviewId(member.id)}>
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <Star key={i} className={`size-3.5 ${i < member.google_review_stars! ? "fill-warning text-warning" : "text-border"}`} />
+                    ))}
+                    <span className="ml-1 text-[11px] font-semibold text-text-muted">{t("customers.detail.googleReview")}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-1 w-fit text-[11px] font-semibold text-text-muted hover:text-text"
+                    onClick={() => setLoggingReviewId(member.id)}
+                  >
+                    {t("customers.detail.logGoogleReview")}
+                  </button>
+                )}
 
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
                   <button

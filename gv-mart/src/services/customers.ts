@@ -9,7 +9,13 @@ export type CustomerRow = Tables<"customers">
 // `profession` (20260915100000_family_member_profession.sql) both post-date
 // the last database.ts regen — extended locally, same precedent as
 // SettingsWithSla in services/service.ts.
-export type MemberRow = Tables<"customer_members"> & { relation: FamilyRelation | null; moved_out_at: string | null; profession: string | null }
+export type MemberRow = Tables<"customer_members"> & {
+  relation: FamilyRelation | null
+  moved_out_at: string | null
+  profession: string | null
+  google_review_stars: number | null
+  google_review_logged_at: string | null
+}
 export type AddressRow = Tables<"addresses">
 
 export type CustomerListItem = CustomerRow & {
@@ -438,6 +444,25 @@ export async function updateMember(
 export async function removeMember(memberId: string) {
   const { error } = await supabase.from("customer_members").delete().eq("id", memberId)
   if (error) throw error
+}
+
+/**
+ * Item D4: staff-logged Google review (which family member, what star
+ * rating). No real API integration is feasible — Google only ever exposes
+ * a bare public display name for a reviewer (blank if anonymous), never a
+ * phone/email/customer id, so matching a pulled review back to a specific
+ * family member can't be automated; this is manually entered after staff
+ * checks the business's Google listing themselves.
+ */
+export async function logMemberGoogleReview(memberId: string, stars: number) {
+  const { data, error } = await supabase
+    .from("customer_members")
+    .update({ google_review_stars: stars, google_review_logged_at: new Date().toISOString() } as never)
+    .eq("id", memberId)
+    .select()
+    .single()
+  if (error) throw error
+  return data as unknown as MemberRow
 }
 
 export async function setPrimaryMember(customerId: string, memberId: string) {
