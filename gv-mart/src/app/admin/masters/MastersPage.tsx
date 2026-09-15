@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Ban, CheckSquare, ClipboardList, Droplet, Gift, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wrench } from "lucide-react"
+import { Ban, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
@@ -15,6 +15,7 @@ import {
   modelsHooks,
   productEnquiryTabsHooks,
   productsHooks,
+  rentalPlansHooks,
   sopStepTemplatesHooks,
   sparesHooks,
   waterQualityReferenceHooks,
@@ -27,6 +28,7 @@ import { SparesTab } from "./SparesTab"
 import { GiftsTab } from "./GiftsTab"
 import { GiftExclusionsTab } from "./GiftExclusionsTab"
 import { AmcPlansTab } from "./AmcPlansTab"
+import { RentalPlansTab } from "./RentalPlansTab"
 import { IncentiveRulesTab } from "./IncentiveRulesTab"
 import { ComplaintTypesTab } from "./ComplaintTypesTab"
 import { SopStepsTab } from "./SopStepsTab"
@@ -43,6 +45,7 @@ type ModuleId =
   | "gifts"
   | "giftExclusions"
   | "amcPlans"
+  | "rentalPlans"
   | "incentives"
   | "complaintTypes"
   | "sopSteps"
@@ -75,6 +78,7 @@ export function MastersPage() {
   const { data: gifts } = giftsHooks.useList(orgId)
   const { data: giftExclusionProducts } = giftExclusionProductsHooks.useList(orgId)
   const { data: amcPlans } = amcPlansHooks.useList(orgId)
+  const { data: rentalPlans } = rentalPlansHooks.useList(orgId)
   const { data: incentiveRules } = incentiveRulesHooks.useList(orgId)
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
   const { data: sopStepTemplates } = sopStepTemplatesHooks.useList(orgId)
@@ -101,6 +105,7 @@ export function MastersPage() {
       desc: t("masters.overview.giftExclusionsDesc", { count: giftExclusionProducts?.length ?? 0 }),
     },
     { id: "amcPlans", icon: ShieldCheck, swatch: "info", title: t("masters.tabs.amcPlans"), desc: t("masters.overview.amcPlansDesc", { count: amcPlans?.length ?? 0 }) },
+    { id: "rentalPlans", icon: CalendarClock, swatch: "warning", title: t("masters.tabs.rentalPlans"), desc: t("masters.overview.rentalPlansDesc", { count: rentalPlans?.length ?? 0 }) },
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
     { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypeDefaultsCount }) },
     { id: "sopSteps", icon: CheckSquare, swatch: "info", title: t("masters.tabs.sopSteps"), desc: t("masters.overview.sopStepsDesc", { count: sopStepTemplates?.length ?? 0 }) },
@@ -174,6 +179,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="amcPlans">
             <AmcPlansTab />
+          </TabsContent>
+          <TabsContent value="rentalPlans">
+            <RentalPlansTab />
           </TabsContent>
           <TabsContent value="incentives">
             <IncentiveRulesTab />

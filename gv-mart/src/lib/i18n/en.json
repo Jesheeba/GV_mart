@@ -472,6 +472,7 @@
       "giftsDesc": "{{count}} gift tiers",
       "giftExclusionsDesc": "{{count}} products excluded from gifts",
       "amcPlansDesc": "{{count}} AMC plans",
+      "rentalPlansDesc": "{{count}} rental plans",
       "incentivesDesc": "{{count}} incentive rules",
       "complaintTypesDesc": "{{count}} complaint types",
       "sopStepsDesc": "{{count}} SOP steps",
@@ -488,6 +489,7 @@
       "gifts": "Gifts",
       "giftExclusions": "Gift Exclusions",
       "amcPlans": "AMC Plans",
+      "rentalPlans": "Rental Plans",
       "incentives": "Incentives",
       "complaintTypes": "Complaint Types",
       "sopSteps": "SOP Steps",
@@ -635,6 +637,16 @@
       "noSpares": "No spares found",
       "coveredSparesCount_one": "{{count}} spare covered",
       "coveredSparesCount_other": "{{count}} spares covered"
+    },
+    "rentalPlans": {
+      "name": "Plan name",
+      "namePlaceholder": "e.g. RO Rental Standard",
+      "monthlyRate": "Monthly rate",
+      "visitsPerYear": "Visits / year",
+      "inclusions": "Inclusions",
+      "inclusionsPlaceholder": "Comma-separated, e.g. Filter change, Sanitization",
+      "add": "Add plan",
+      "empty": "No rental plans yet — add your first one."
     },
     "incentives": {
       "type": "Type",

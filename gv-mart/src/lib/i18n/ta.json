@@ -472,6 +472,7 @@
       "giftsDesc": "{{count}} பரிசு நிலைகள்",
       "giftExclusionsDesc": "{{count}} பொருட்கள் பரிசுகளில் இருந்து விலக்கப்பட்டுள்ளன",
       "amcPlansDesc": "{{count}} ஏஎம்சி திட்டங்கள்",
+      "rentalPlansDesc": "{{count}} வாடகை திட்டங்கள்",
       "incentivesDesc": "{{count}} ஊக்கத்தொகை விதிகள்",
       "complaintTypesDesc": "{{count}} புகார் வகைகள்",
       "sopStepsDesc": "{{count}} SOP படிகள்",
@@ -488,6 +489,7 @@
       "gifts": "பரிசுகள்",
       "giftExclusions": "பரிசு விலக்குகள்",
       "amcPlans": "ஏஎம்சி திட்டங்கள்",
+      "rentalPlans": "வாடகை திட்டங்கள்",
       "incentives": "ஊக்கத்தொகைகள்",
       "complaintTypes": "புகார் வகைகள்",
       "sopSteps": "SOP படிகள்",
@@ -635,6 +637,16 @@
       "noSpares": "பாகங்கள் எதுவும் கிடைக்கவில்லை",
       "coveredSparesCount_one": "{{count}} பாகம் உள்ளடக்கப்பட்டது",
       "coveredSparesCount_other": "{{count}} பாகங்கள் உள்ளடக்கப்பட்டன"
+    },
+    "rentalPlans": {
+      "name": "திட்டப் பெயர்",
+      "namePlaceholder": "எ.கா. RO வாடகை சாதாரணம்",
+      "monthlyRate": "மாதாந்திர கட்டணம்",
+      "visitsPerYear": "வருடத்திற்கு வருகைகள்",
+      "inclusions": "உள்ளடக்கங்கள்",
+      "inclusionsPlaceholder": "காற்புள்ளியால் பிரிக்கப்பட்டது, எ.கா. பில்டர் மாற்றம், சுத்திகரிப்பு",
+      "add": "திட்டத்தைச் சேர்",
+      "empty": "இன்னும் வாடகை திட்டங்கள் இல்லை — உங்கள் முதலாவதைச் சேர்க்கவும்."
     },
     "incentives": {
       "type": "வகை",
