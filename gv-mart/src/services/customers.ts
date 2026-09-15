@@ -928,7 +928,7 @@ export async function getCustomerLifetimeSummary(orgId: string, customerId: stri
 
   const invoices = invoicesRes.data ?? []
   const total = invoices.reduce((sum, r) => sum + Number(r.total), 0)
-  const revenueByType: CustomerRevenueByType = { product: 0, spare: 0, amc: 0 }
+  const revenueByType: CustomerRevenueByType = { product: 0, spare: 0, amc: 0, rent: 0 }
   for (const r of invoices) revenueByType[r.type] += Number(r.total)
 
   const nextContract = amcRes.data?.[0] as unknown as

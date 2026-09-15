@@ -10,13 +10,17 @@ import type { Enums } from "@/types/database"
  * uses for "warranty" (#16855B/#E2F3EA — distinct from the --success token,
  * kept literal to stay pixel-faithful), Spare is a new literal brown pair
  * from the same source line. The design mocks a 4th type, "Service", but the
- * real invoice_type enum only has product/spare/amc (types/database.ts) so
- * there is no Service badge here.
+ * real invoice_type enum only has product/spare/amc/rent (types/database.ts)
+ * so there is no Service badge here. Rent (Item D5) reuses AMC's color —
+ * both represent recurring/covered service revenue, not a one-off sale.
  */
 const INVOICE_TYPE_BADGE_CLASS: Record<Enums<"invoice_type">, string> = {
   product: "text-[#16855B] bg-[#E2F3EA]",
   spare: "text-[#8A6D3B] bg-[#8A6D3B]/[0.14]",
   amc: "text-info bg-info/10",
+  // Item D5 (Rent) — reuses AMC's tier color, same "recurring coverage
+  // product" family as AMC rather than a new literal pair.
+  rent: "text-info bg-info/10",
 }
 
 export function InvoiceTypeBadge({ type }: { type: Enums<"invoice_type"> }) {

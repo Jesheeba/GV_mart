@@ -8,6 +8,7 @@ const TYPE_VARIANT: Record<Enums<"ticket_type">, "default" | "secondary" | "outl
   warranty: "secondary",
   amc: "outline",
   installation: "default",
+  rental: "outline",
 }
 
 export function JobTypeBadge({ type }: { type: Enums<"ticket_type"> | null }) {

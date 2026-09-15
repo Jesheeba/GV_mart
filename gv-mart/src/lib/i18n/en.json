@@ -278,6 +278,7 @@
       "revenueProduct": "Product:",
       "revenueSpare": "Spare:",
       "revenueAmc": "AMC:",
+      "revenueRent": "Rent:",
       "nextBestAction": "Next best action",
       "amcRenewsIn": "AMC renews in {{days}} day(s) — contact for renewal",
       "amcRenewsToday": "AMC renews today — contact for renewal",
@@ -323,7 +324,13 @@
         "invoices": "Invoices",
         "family": "Family",
         "exemptions": "Exemptions",
+        "rentals": "Rentals",
         "whatsapp": "WhatsApp"
+      },
+      "rentals": {
+        "startDate": "Started {{date}}",
+        "nextBilling": "Next billing {{date}}",
+        "nextService": "Next service {{date}}"
       },
       "exemptionsPanel": {
         "title": "Exemption windows ({{count}})",
@@ -353,6 +360,7 @@
         "products": "No products yet — appears once a sale is made.",
         "service": "No service history yet — appears once a job is completed.",
         "invoices": "No invoices yet — appears once a sale is billed.",
+        "rentals": "No rentals yet.",
         "whatsapp": "No WhatsApp messages with this customer yet."
       },
       "productCard": {
@@ -1178,7 +1186,8 @@
         "all": "All types",
         "product": "Product",
         "spare": "Spare",
-        "amc": "AMC"
+        "amc": "AMC",
+        "rent": "Rent"
       },
       "empty": {
         "title": "No sales yet",
@@ -1360,7 +1369,8 @@
       "paid": "Paid",
       "warranty": "Warranty",
       "amc": "AMC",
-      "installation": "Installation"
+      "installation": "Installation",
+      "rental": "Rental"
     },
     "channel": {
       "call": "Call",
@@ -2384,7 +2394,8 @@
       "paid": "Paid service",
       "warranty": "Warranty",
       "amc": "AMC",
-      "installation": "Installation"
+      "installation": "Installation",
+      "rental": "Rental"
     },
     "priority": {
       "very_urgent": "Very Urgent",

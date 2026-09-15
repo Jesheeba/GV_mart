@@ -5830,6 +5830,28 @@ export type Database = {
         Args: { p_org_id: string; p_product_id: string; p_serial_no: string | null; p_purchase_date: string | null }
         Returns: string
       }
+      create_rental: {
+        Args: {
+          p_org_id: string
+          p_customer_id: string
+          p_product_id: string
+          p_plan_id: string
+          p_address_id: string
+          p_start_date?: string
+          p_payment_method?: Database["public"]["Enums"]["payment_method"]
+          p_txn_id?: string | null
+          p_payment_description?: string | null
+        }
+        Returns: Json
+      }
+      mark_rental_returned: {
+        Args: { p_org_id: string; p_contract_id: string }
+        Returns: undefined
+      }
+      run_rental_billing: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       send_whatsapp_stub: {
         Args: {
           p_org_id: string

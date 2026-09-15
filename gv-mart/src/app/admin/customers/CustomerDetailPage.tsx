@@ -19,6 +19,7 @@ import {
 } from "@/hooks/useCustomers"
 import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
+import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
@@ -100,6 +101,8 @@ export function CustomerDetailPage() {
   const invoices = useCustomerInvoices(orgId, customer?.id)
   const lifetime = useCustomerLifetimeSummary(orgId, customer?.id)
   const exemptionWindows = useCustomerExemptionWindows(customer?.id)
+  const rentals = useCustomerRentalContracts(customer?.id)
+  const markRentalReturned = useMarkRentalReturned()
   const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile)
   const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
   const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
@@ -406,6 +409,9 @@ export function CustomerDetailPage() {
                 <span>
                   {t("customers.detail.revenueAmc")} {formatCurrency(lifetime.data.revenueByType.amc)}
                 </span>
+                <span>
+                  {t("customers.detail.revenueRent")} {formatCurrency(lifetime.data.revenueByType.rent)}
+                </span>
               </div>
             ) : null}
           </div>
@@ -458,6 +464,9 @@ export function CustomerDetailPage() {
           <TabsTrigger value="exemptions">
             {t("customers.detail.tabs.exemptions")} ({(exemptionWindows.data ?? []).length})
           </TabsTrigger>
+          <TabsTrigger value="rentals">
+            {t("customers.detail.tabs.rentals")} ({(rentals.data ?? []).filter((r) => r.status === "active").length})
+          </TabsTrigger>
           <TabsTrigger value="whatsapp">{t("customers.detail.tabs.whatsapp")}</TabsTrigger>
         </TabsList>
 
@@ -507,6 +516,60 @@ export function CustomerDetailPage() {
               <Skeleton className="h-24 w-full" />
             ) : (
               <ExemptionWindowsPanel orgId={orgId} customerId={customer.id} windows={exemptionWindows.data ?? []} />
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="rentals" className="mt-3.5">
+          <Card size="default">
+            {rentals.isLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : (rentals.data ?? []).length === 0 ? (
+              <EmptyTab icon={Package} label={t("customers.detail.emptyTabs.rentals")} />
+            ) : (
+              <div className="space-y-3">
+                {markRentalReturned.error ? (
+                  <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(markRentalReturned.error as Error).message}</p>
+                ) : null}
+                {(rentals.data ?? []).map((r) => (
+                  <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-border p-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-text">{r.products?.name ?? "—"}</span>
+                        <StatusDot tone={r.status === "active" ? "success" : "neutral"} label={t(`rentals.status.${r.status}`)} />
+                      </div>
+                      <div className="text-xs text-text-muted">
+                        {r.rental_plans?.name ?? "—"} · ₹{r.rental_plans?.monthly_rate ?? "—"}/mo
+                      </div>
+                      <div className="text-xs text-text-muted">
+                        {t("customers.detail.rentals.startDate", { date: fmtDate(r.start_date) })}
+                        {r.status === "active" ? (
+                          <>
+                            {" · "}
+                            {t("customers.detail.rentals.nextBilling", { date: fmtDate(r.next_billing_date) })}
+                            {" · "}
+                            {t("customers.detail.rentals.nextService", { date: fmtDate(r.next_service_date) })}
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                    {r.status === "active" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={markRentalReturned.isPending}
+                        onClick={() => {
+                          if (window.confirm(t("rentals.list.confirmReturn"))) {
+                            markRentalReturned.mutate({ orgId: orgId!, contractId: r.id })
+                          }
+                        }}
+                      >
+                        {t("rentals.list.markReturned")}
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             )}
           </Card>
         </TabsContent>

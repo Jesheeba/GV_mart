@@ -18,6 +18,8 @@ export const TYPE_BADGE_CLASS: Record<TicketType, string> = {
   warranty: "text-[#16855B] bg-[#E2F3EA]",
   amc: "text-info bg-info/10",
   installation: "text-accent bg-accent/10",
+  // Item D5 (Rent) — same recurring-coverage family as AMC.
+  rental: "text-info bg-info/10",
 }
 
 /** Only WhatsApp gets its own visual treatment (green, matching this
