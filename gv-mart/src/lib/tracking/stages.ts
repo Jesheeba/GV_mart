@@ -6,7 +6,8 @@
 // 'in_progress' once service_visits.timer_start is set (arrival/visit
 // start), not when a technician departs. So "on the way" vs "nearby" is
 // derived entirely from live GPS distance, same proxy the technician's own
-// arrival-geofence logic already uses (MapPage.tsx's ARRIVAL_GEOFENCE_RADIUS_M).
+// arrival-geofence logic already uses (MapPage.tsx's arrivalRadiusM, from
+// settings.geofence_radius_job_m).
 
 export type TrackingStage = "booking_confirmed" | "technician_assigned" | "heading_to_you" | "nearby" | "arrived_working" | "completed" | "cancelled"
 

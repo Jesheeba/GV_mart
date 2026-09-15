@@ -215,6 +215,21 @@ async function runJob(job: OutboxJob): Promise<void> {
       if (error) throw error
       return
     }
+    case "location.arrival_address_confirm": {
+      const { error } = await supabase.rpc("record_technician_arrival_address", {
+        p_org_id: p.orgId as string,
+        p_ticket_id: p.ticketId as string,
+        p_lat: p.lat as number,
+        p_lng: p.lng as number,
+      })
+      if (error) throw error
+      return
+    }
+    case "location.arrival_block": {
+      const { error } = await supabase.from("technician_arrival_blocks").insert(p as unknown as TablesInsert<"technician_arrival_blocks">)
+      if (error) throw error
+      return
+    }
     case "amc.sell_onsite": {
       const { error } = await supabase.rpc("sell_amc_plan_onsite", {
         p_org_id: p.orgId as string,

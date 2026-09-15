@@ -884,6 +884,7 @@
     },
     "perKmMinutes": "Travel time (minutes per km)",
     "geofenceRadius": "Office geofence radius (m, internal — never shown to staff)",
+    "geofenceRadiusJob": "Job-visit arrival radius (m)",
     "officeLat": "Office latitude",
     "officeLng": "Office longitude",
     "officeLocationHint": "The exact office coordinates — technicians can only mark attendance within the radius above.",

@@ -46,6 +46,7 @@ export function SettingsTab() {
       reset({
         per_km_minutes: Number(settings.per_km_minutes),
         geofence_radius_m: settings.geofence_radius_m,
+        geofence_radius_job_m: settings.geofence_radius_job_m,
         office_lat: Number(settings.office_lat),
         office_lng: Number(settings.office_lng),
         work_start: hhmm(settings.work_start),
@@ -130,6 +131,7 @@ export function SettingsTab() {
         <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
           {field("per_km_minutes", t("settings.perKmMinutes"), "number", "0.5")}
           {field("geofence_radius_m", t("settings.geofenceRadius"), "number", "1")}
+          {field("geofence_radius_job_m", t("settings.geofenceRadiusJob"), "number", "1")}
           {field("office_lat", t("settings.officeLat"), "number", "0.000001")}
           {field("office_lng", t("settings.officeLng"), "number", "0.000001")}
         </div>

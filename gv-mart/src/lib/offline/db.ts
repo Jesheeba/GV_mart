@@ -31,6 +31,12 @@ export type OutboxKind =
   | "lead.generate"
   | "location.ping"
   | "amc.sell_onsite"
+  // Group C (technician arrival geofence, 2026-09-15) — see MapPage.tsx's
+  // handleArrived(). arrival_address_confirm only ever fires from the
+  // already-successful (in-radius) arrival path; arrival_block is a
+  // best-effort visibility log, not a gate.
+  | "location.arrival_address_confirm"
+  | "location.arrival_block"
 
 /**
  * "stuck" = failed `MAX_ATTEMPTS_BEFORE_STUCK` times (see sync.ts) and no

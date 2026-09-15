@@ -10,6 +10,10 @@ export const settingsSchema = z
   .object({
     per_km_minutes: z.coerce.number().positive("settings.errors.positive"),
     geofence_radius_m: z.coerce.number().int().positive("settings.errors.positive"),
+    // Group C (technician arrival geofence, 2026-09-15) — separate from
+    // geofence_radius_m (office check-in): a customer's house is a much
+    // looser real-world target than the office gate.
+    geofence_radius_job_m: z.coerce.number().int().positive("settings.errors.positive"),
     office_lat: z.coerce.number().min(-90, "settings.errors.latRange").max(90, "settings.errors.latRange"),
     office_lng: z.coerce.number().min(-180, "settings.errors.lngRange").max(180, "settings.errors.lngRange"),
     work_start: z.string().min(1, "settings.errors.required"),

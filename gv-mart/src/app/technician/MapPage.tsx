@@ -9,7 +9,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDirectionsDistance } from "@/hooks/useMaps"
 import { useJobDetail, useMyTechnician, useStartVisit, useTechnicianSettings, useTodaysJobs } from "@/hooks/useTechnician"
 import { classifyGeoError, distanceKm, expectedMinutes, getCurrentPosition, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
-import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, selectNextJob } from "@/services/technician"
+import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, queueArrivalAddressConfirm, queueArrivalBlock, selectNextJob } from "@/services/technician"
 import { cn } from "@/lib/utils"
 import { PhotoCapture } from "./components/PhotoCapture"
 
@@ -35,11 +35,17 @@ function googleMapsUrl(dest: GeoPoint, origin?: GeoPoint | null) {
 // This same radius also gates the manual "I've Arrived" button (see
 // `insideArrivalGeofence` below) — tapping it must not start the
 // productivity timer from across town. 250m is the midpoint of tech.md's
-// 200-300m guidance, reconciled here into one shared constant used by both
-// the auto-detect effect and the manual button instead of two diverging
-// thresholds.
-const ARRIVAL_GEOFENCE_RADIUS_M = 250
+// 200-300m guidance; now admin-configurable via settings.geofence_radius_job_m
+// (Group C, 2026-09-15) — this constant only remains as the fallback for
+// before that setting has loaded, matching its original default exactly so
+// behavior is unchanged until the admin edits it.
+const DEFAULT_ARRIVAL_GEOFENCE_RADIUS_M = 250
 const ARRIVAL_CONFIRM_MS = 15_000
+// Group C: how long a technician must be continuously outside the job
+// radius, for the current destination, before it's worth a row in
+// technician_arrival_blocks — long enough that ordinary travel/GPS settling
+// time on approach doesn't get logged as "stuck".
+const ARRIVAL_BLOCK_LOG_MS = 5 * 60_000
 const MAX_USABLE_ACCURACY_M = 75
 
 // The browser Geolocation API only returns real GPS on a device with a GPS
@@ -85,6 +91,13 @@ export function MapPage() {
 
   const withinSinceRef = useRef<number | null>(null)
   const arrivedRef = useRef(false)
+  // Group C: cheap, non-blocking visibility log for admin — not a gate, not
+  // an approval flow (see the migration's header comment). Tracks how long
+  // the technician has been continuously outside the job radius for the
+  // *current* destination, and logs at most once per ticket so a technician
+  // stuck for an hour produces one row, not one every second.
+  const outsideSinceRef = useRef<number | null>(null)
+  const blockLoggedForTicketRef = useRef<string | null>(null)
   // Which ticket the arrival state below was last (re-)derived for — guards
   // the reset effect against re-running on every incidental jobDetail cache
   // update (e.g. a background refetch racing the offline outbox's ~20s sync
@@ -100,6 +113,7 @@ export function MapPage() {
   // against each remaining job's availability window.
   const origin = position ?? OFFICE_LOCATION
   const perKmMinutes = settings.data?.per_km_minutes ?? 5
+  const arrivalRadiusM = settings.data?.geofence_radius_job_m ?? DEFAULT_ARRIVAL_GEOFENCE_RADIUS_M
 
   const ticket = jobDetail.data
   // Build Order STEP 5 / Assignment spec Phase 4 — when no specific ticket
@@ -129,7 +143,7 @@ export function MapPage() {
   // distance to the customer. Same radius and helper as the auto-detect
   // effect below, just evaluated on every render for the button's
   // disabled/guard checks rather than the sustained-proximity state machine.
-  const insideArrivalGeofence = position != null && dest != null && isInsideGeofence(position, dest, ARRIVAL_GEOFENCE_RADIUS_M)
+  const insideArrivalGeofence = position != null && dest != null && isInsideGeofence(position, dest, arrivalRadiusM)
 
   // Deliberately `position` (the raw GPS fix), not `origin` — `origin` falls
   // back to OFFICE_LOCATION so selectNextJob above always has *some* start
@@ -157,6 +171,10 @@ export function MapPage() {
     arrivedRef.current = true
     setArrived(true)
     setArrivedAt(Date.now())
+    // Group C: only reachable once insideArrivalGeofence is true above, i.e.
+    // a genuine in-radius arrival — not a workaround for being out of range.
+    // Fire-and-forget for the same reason as startVisit below.
+    if (position) void queueArrivalAddressConfirm(profile.org_id, destTicketId, position.lat, position.lng)
     const existing = ticket?.service_visits ? findOpenVisit(ticket.service_visits) : null
     if (existing) {
       setArrivedAt(new Date(existing.timer_start!).getTime())
@@ -234,6 +252,14 @@ export function MapPage() {
     }
   }, [destTicketId, ticket, ticketId])
 
+  // Group C: reset the stuck-outside-radius tracking whenever the
+  // destination changes — a block episode is scoped to one ticket, not
+  // carried over from whatever job the technician was travelling to before.
+  useEffect(() => {
+    outsideSinceRef.current = null
+    blockLoggedForTicketRef.current = null
+  }, [destTicketId])
+
   // Arrival state machine: only advances/resets on fixes accurate enough to
   // trust, and requires ARRIVAL_CONFIRM_MS of sustained proximity before
   // triggering — see the constants' doc comment above for why. Also never
@@ -249,15 +275,31 @@ export function MapPage() {
     if (position.accuracy != null && position.accuracy > MAX_USABLE_ACCURACY_M) {
       return
     }
-    const withinRange = isInsideGeofence(position, dest, ARRIVAL_GEOFENCE_RADIUS_M)
+    const withinRange = isInsideGeofence(position, dest, arrivalRadiusM)
     if (!withinRange) {
       withinSinceRef.current = null
       setConfirming(false)
+      // Group C: log at most one "stuck" row per ticket, only once the
+      // technician has been continuously outside the radius for a while
+      // (not on the very first out-of-range fix — that's just normal
+      // approach/travel).
+      if (outsideSinceRef.current == null) outsideSinceRef.current = Date.now()
+      if (
+        Date.now() - outsideSinceRef.current >= ARRIVAL_BLOCK_LOG_MS &&
+        blockLoggedForTicketRef.current !== destTicketId &&
+        profile &&
+        technician.data &&
+        destTicketId
+      ) {
+        blockLoggedForTicketRef.current = destTicketId
+        void queueArrivalBlock(profile.org_id, technician.data.id, destTicketId, position.lat, position.lng, distanceKm(position, dest) * 1000, arrivalRadiusM)
+      }
       return
     }
+    outsideSinceRef.current = null
     if (withinSinceRef.current == null) withinSinceRef.current = Date.now()
     setConfirming(true)
-  }, [position, dest, arrived, destClosed])
+  }, [position, dest, arrived, destClosed, arrivalRadiusM, destTicketId, profile, technician.data])
 
   // Confirms arrival on a timer independent of new position fixes: once a
   // device's GPS stabilizes near a destination it can go quiet for tens of
@@ -463,7 +505,7 @@ export function MapPage() {
                 ) : null}
                 {!insideArrivalGeofence ? (
                   <p className="text-center text-xs text-text-muted">
-                    {position ? t("technician.map.arrivedOutsideGeofence", { radius: ARRIVAL_GEOFENCE_RADIUS_M }) : t("technician.map.arrivedNoLocation")}
+                    {position ? t("technician.map.arrivedOutsideGeofence", { radius: arrivalRadiusM }) : t("technician.map.arrivedNoLocation")}
                   </p>
                 ) : null}
               </>

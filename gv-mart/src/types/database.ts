@@ -4066,6 +4066,71 @@ export type Database = {
           },
         ]
       }
+      // Group C (technician arrival geofence, 2026-09-15) — hand-patched, see
+      // 20260915170000_technician_arrival_geofence_and_blocks.sql; this file
+      // predates that migration (Docker-based `supabase gen types` isn't
+      // available in this environment).
+      technician_arrival_blocks: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          ticket_id: string
+          lat: number
+          lng: number
+          distance_m: number
+          radius_m: number
+          occurred_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          ticket_id: string
+          lat: number
+          lng: number
+          distance_m: number
+          radius_m: number
+          occurred_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          ticket_id?: string
+          lat?: number
+          lng?: number
+          distance_m?: number
+          radius_m?: number
+          occurred_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technician_arrival_blocks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technician_arrival_blocks_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technician_arrival_blocks_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "service_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       technician_locations: {
         Row: {
           id: string
@@ -4735,6 +4800,9 @@ export type Database = {
           org_id: string
           per_km_minutes: number
           geofence_radius_m: number
+          // Group C (technician arrival geofence, 2026-09-15) — see
+          // 20260915170000_technician_arrival_geofence_and_blocks.sql.
+          geofence_radius_job_m: number
           office_lat: number
           office_lng: number
           work_start: string
@@ -4800,6 +4868,7 @@ export type Database = {
           org_id: string
           per_km_minutes?: number
           geofence_radius_m?: number
+          geofence_radius_job_m?: number
           office_lat?: number
           office_lng?: number
           work_start?: string
@@ -4852,6 +4921,7 @@ export type Database = {
           org_id?: string
           per_km_minutes?: number
           geofence_radius_m?: number
+          geofence_radius_job_m?: number
           office_lat?: number
           office_lng?: number
           work_start?: string
@@ -5657,6 +5727,17 @@ export type Database = {
       }
       refresh_amc_statuses: {
         Args: { p_org_id: string }
+        Returns: undefined
+      }
+      // Group C (technician arrival geofence, 2026-09-15) — see
+      // 20260915170000_technician_arrival_geofence_and_blocks.sql.
+      record_technician_arrival_address: {
+        Args: {
+          p_org_id: string
+          p_ticket_id: string
+          p_lat: number
+          p_lng: number
+        }
         Returns: undefined
       }
       create_service_invoice: {

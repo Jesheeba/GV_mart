@@ -509,6 +509,42 @@ export async function queueLocationPing(orgId: string, technicianId: string, lat
   })
 }
 
+// Group C (technician arrival geofence) — called only from MapPage's
+// handleArrived() success path, i.e. only once the technician is already
+// proven inside the job-visit radius. Not a workaround for being out of
+// range: that case can never reach this call at all, since handleArrived's
+// own guard (insideArrivalGeofence) blocks it first.
+export async function queueArrivalAddressConfirm(orgId: string, ticketId: string, lat: number, lng: number) {
+  await enqueue("location.arrival_address_confirm", { orgId, ticketId, lat, lng })
+}
+
+/**
+ * Best-effort visibility log, not a gate — a `technician_arrival_blocks` row
+ * per "stuck outside the job radius for a while" episode, so admin can spot
+ * a technician or address that's a repeat offender. No approval/notification
+ * flow attached (see 20260915170000_technician_arrival_geofence_and_blocks.sql's
+ * header comment for why that idea was dropped).
+ */
+export async function queueArrivalBlock(
+  orgId: string,
+  technicianId: string,
+  ticketId: string,
+  lat: number,
+  lng: number,
+  distanceM: number,
+  radiusM: number
+) {
+  await enqueue("location.arrival_block", {
+    org_id: orgId,
+    technician_id: technicianId,
+    ticket_id: ticketId,
+    lat,
+    lng,
+    distance_m: distanceM,
+    radius_m: radiusM,
+  })
+}
+
 /**
  * Continuous live-tracking stream (v2.2 §6.6) — a direct, best-effort write,
  * unlike queueLocationPing's offline-queued "arrived" event. A stale
