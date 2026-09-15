@@ -978,6 +978,12 @@ export async function queueRoChecklist(input: {
   tankCleaned: boolean | null
   productExplained: boolean | null
   clientName: string
+  waterTds?: number
+  waterPh?: number
+  waterHardness?: number
+  waterSource: "corporation" | "borewater" | "other" | null
+  waterSourceOther?: string
+  extraReadings: { label: string; value: string }[]
 }) {
   await enqueue("ro_checklist.save", {
     org_id: input.orgId,
@@ -987,6 +993,12 @@ export async function queueRoChecklist(input: {
     tank_cleaned: input.tankCleaned,
     product_explained: input.productExplained,
     client_name: input.clientName,
+    water_tds_ppm: input.waterTds ?? null,
+    water_ph: input.waterPh ?? null,
+    water_hardness_ppm: input.waterHardness ?? null,
+    water_source: input.waterSource,
+    water_source_other: input.waterSource === "other" ? (input.waterSourceOther ?? null) : null,
+    water_extra_readings: input.extraReadings,
   })
 }
 

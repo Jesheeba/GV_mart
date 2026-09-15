@@ -41,13 +41,32 @@ export function discountNeedsApproval(percent: number, techMax: number, adminMax
 }
 
 // TECH-07 step 7 — RO checklist
-export const roChecklistSchema = z.object({
-  tdsBefore: z.coerce.number().min(0, "technician.errors.nonNegative").optional(),
-  tdsAfter: z.coerce.number().min(0, "technician.errors.nonNegative").optional(),
-  tankCleaned: z.boolean().nullable(),
-  productExplained: z.boolean().nullable(),
-  clientName: z.string().trim().min(1, "technician.errors.clientNameRequired"),
+export const waterExtraReadingSchema = z.object({
+  label: z.string().trim().min(1),
+  value: z.string().trim(),
 })
+export type WaterExtraReadingInput = z.infer<typeof waterExtraReadingSchema>
+
+export const roChecklistSchema = z
+  .object({
+    tdsBefore: z.coerce.number().min(0, "technician.errors.nonNegative").optional(),
+    tdsAfter: z.coerce.number().min(0, "technician.errors.nonNegative").optional(),
+    tankCleaned: z.boolean().nullable(),
+    productExplained: z.boolean().nullable(),
+    clientName: z.string().trim().min(1, "technician.errors.clientNameRequired"),
+    // On-site water quality reading — distinct from tdsBefore/tdsAfter above
+    // (filter effectiveness), this is the property's general water profile.
+    waterTds: z.coerce.number().min(0, "technician.errors.nonNegative").optional(),
+    waterPh: z.coerce.number().min(0, "technician.errors.nonNegative").max(14, "technician.errors.nonNegative").optional(),
+    waterHardness: z.coerce.number().min(0, "technician.errors.nonNegative").optional(),
+    waterSource: z.enum(["corporation", "borewater", "other"]).nullish(),
+    waterSourceOther: z.string().trim().optional(),
+    extraReadings: z.array(waterExtraReadingSchema).default([]),
+  })
+  .refine((v) => v.waterSource !== "other" || !!v.waterSourceOther, {
+    message: "technician.errors.waterSourceOtherRequired",
+    path: ["waterSourceOther"],
+  })
 export type RoChecklistInput = z.infer<typeof roChecklistSchema>
 
 // TECH-07 step 10 — Payment. Same transfer-requires-txn+description rule as

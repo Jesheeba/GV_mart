@@ -120,6 +120,12 @@ type VisitDraftData = {
   tankCleaned: boolean | null
   productExplained: boolean | null
   roClientName: string
+  waterTds: string
+  waterPh: string
+  waterHardness: string
+  waterSource: "corporation" | "borewater" | "other" | null
+  waterSourceOther: string
+  extraReadings: { label: string; value: string }[]
   techSign: string | null
   customerSign: string | null
   paymentMethod: Enums<"payment_method">
@@ -213,6 +219,12 @@ export function OnSiteVisitPage() {
   const [tankCleaned, setTankCleaned] = useState<boolean | null>(null)
   const [productExplained, setProductExplained] = useState<boolean | null>(null)
   const [roClientName, setRoClientName] = useState("")
+  const [waterTds, setWaterTds] = useState("")
+  const [waterPh, setWaterPh] = useState("")
+  const [waterHardness, setWaterHardness] = useState("")
+  const [waterSource, setWaterSource] = useState<"corporation" | "borewater" | "other" | null>(null)
+  const [waterSourceOther, setWaterSourceOther] = useState("")
+  const [extraReadings, setExtraReadings] = useState<{ label: string; value: string }[]>([])
 
   const [techSign, setTechSign] = useState<string | null>(null)
   const [customerSign, setCustomerSign] = useState<string | null>(null)
@@ -376,6 +388,12 @@ export function OnSiteVisitPage() {
       if (d.tankCleaned !== undefined) setTankCleaned(d.tankCleaned)
       if (d.productExplained !== undefined) setProductExplained(d.productExplained)
       if (d.roClientName) setRoClientName(d.roClientName)
+      if (d.waterTds != null) setWaterTds(d.waterTds)
+      if (d.waterPh != null) setWaterPh(d.waterPh)
+      if (d.waterHardness != null) setWaterHardness(d.waterHardness)
+      if (d.waterSource !== undefined) setWaterSource(d.waterSource)
+      if (d.waterSourceOther) setWaterSourceOther(d.waterSourceOther)
+      if (d.extraReadings?.length) setExtraReadings(d.extraReadings)
       if (d.techSign) setTechSign(d.techSign)
       if (d.customerSign) setCustomerSign(d.customerSign)
       if (d.paymentMethod) setPaymentMethod(d.paymentMethod)
@@ -422,6 +440,12 @@ export function OnSiteVisitPage() {
     tankCleaned,
     productExplained,
     roClientName,
+    waterTds,
+    waterPh,
+    waterHardness,
+    waterSource,
+    waterSourceOther,
+    extraReadings,
     techSign,
     customerSign,
     paymentMethod,
@@ -719,6 +743,12 @@ export function OnSiteVisitPage() {
     tankCleaned,
     productExplained,
     clientName: roClientName,
+    waterTds: waterTds === "" ? undefined : Number(waterTds),
+    waterPh: waterPh === "" ? undefined : Number(waterPh),
+    waterHardness: waterHardness === "" ? undefined : Number(waterHardness),
+    waterSource,
+    waterSourceOther,
+    extraReadings,
   }).success
 
   // Purely visual, NON-AUTHORITATIVE "over expected time" hint for the
@@ -841,6 +871,16 @@ export function OnSiteVisitPage() {
     setInvoiceQueued(true)
   }
 
+  function addExtraReading() {
+    setExtraReadings((prev) => [...prev, { label: "", value: "" }])
+  }
+  function updateExtraReading(index: number, field: "label" | "value", val: string) {
+    setExtraReadings((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: val } : r)))
+  }
+  function removeExtraReading(index: number) {
+    setExtraReadings((prev) => prev.filter((_, i) => i !== index))
+  }
+
   async function handleRoSave() {
     if (!visitId || !profile) return
     await queueRoChecklist.mutateAsync({
@@ -851,6 +891,12 @@ export function OnSiteVisitPage() {
       tankCleaned,
       productExplained,
       clientName: roClientName,
+      waterTds: waterTds === "" ? undefined : Number(waterTds),
+      waterPh: waterPh === "" ? undefined : Number(waterPh),
+      waterHardness: waterHardness === "" ? undefined : Number(waterHardness),
+      waterSource,
+      waterSourceOther,
+      extraReadings,
     })
   }
 
@@ -1278,6 +1324,69 @@ export function OnSiteVisitPage() {
             <Label htmlFor="roClientName">{t("technician.onsite.ro.clientName")}</Label>
             <Input id="roClientName" value={roClientName} onChange={(e) => setRoClientName(e.target.value)} />
           </div>
+
+          <div className="mt-1 border-t border-border pt-3">
+            <p className="px-1 text-sm font-semibold text-text">{t("technician.onsite.ro.waterQualityTitle")}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-3 px-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="waterTds">{t("technician.onsite.ro.waterTds")}</Label>
+              <Input id="waterTds" type="number" min={0} value={waterTds} onChange={(e) => setWaterTds(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="waterPh">{t("technician.onsite.ro.waterPh")}</Label>
+              <Input id="waterPh" type="number" min={0} max={14} value={waterPh} onChange={(e) => setWaterPh(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="waterHardness">{t("technician.onsite.ro.waterHardness")}</Label>
+              <Input id="waterHardness" type="number" min={0} value={waterHardness} onChange={(e) => setWaterHardness(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5 px-1">
+            <Label>{t("technician.onsite.ro.waterSource")}</Label>
+            <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
+              {(["corporation", "borewater", "other"] as const).map((opt) => (
+                <SegButton key={opt} active={waterSource === opt} onClick={() => setWaterSource(opt)}>
+                  {t(`technician.onsite.ro.sourceOptions.${opt}`)}
+                </SegButton>
+              ))}
+            </div>
+            {waterSource === "other" ? (
+              <Input
+                placeholder={t("technician.onsite.ro.sourceOtherPlaceholder")}
+                value={waterSourceOther}
+                onChange={(e) => setWaterSourceOther(e.target.value)}
+              />
+            ) : null}
+          </div>
+
+          <div className="space-y-2 px-1">
+            <Label>{t("technician.onsite.ro.extraFieldsTitle")}</Label>
+            {extraReadings.map((reading, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  placeholder={t("technician.onsite.ro.extraFieldLabelPlaceholder")}
+                  value={reading.label}
+                  onChange={(e) => updateExtraReading(i, "label", e.target.value)}
+                  className="flex-1"
+                />
+                <Input
+                  placeholder={t("technician.onsite.ro.extraFieldValuePlaceholder")}
+                  value={reading.value}
+                  onChange={(e) => updateExtraReading(i, "value", e.target.value)}
+                  className="flex-1"
+                />
+                <Button type="button" variant="ghost" size="icon" title={t("technician.onsite.ro.removeExtraField")} onClick={() => removeExtraReading(i)}>
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={addExtraReading}>
+              {t("technician.onsite.ro.addExtraField")}
+            </Button>
+          </div>
+
           <Button type="button" variant="outline" onClick={handleRoSave} disabled={!roValid || queueRoChecklist.isPending}>
             {queueRoChecklist.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.ro.save")}
           </Button>

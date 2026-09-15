@@ -13,6 +13,7 @@ import {
   useCustomerExemptionWindows,
   useCustomerInvoices,
   useCustomerLifetimeSummary,
+  useCustomerMeasuredWaterReading,
   useCustomerProducts,
   useCustomerTdsSuggestion,
   useCustomerTimeline,
@@ -108,6 +109,7 @@ export function CustomerDetailPage() {
   const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
   const tdsSuggestion = useCustomerTdsSuggestion(orgId, primaryDistrict)
+  const measuredWater = useCustomerMeasuredWaterReading(orgId, customer?.id)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !customer) {
@@ -131,11 +133,18 @@ export function CustomerDetailPage() {
   // nudge. Falls back to the old single "no upcoming renewals" line when
   // nothing applies.
   const tds = tdsSuggestion.data
+  const measured = measuredWater.data ?? null
   const nextActionItems: { icon: typeof Zap; label: string; title?: string }[] = []
   if (nextAmcAction) {
     nextActionItems.push({
       icon: Zap,
       label: nextAmcAction.daysUntil <= 0 ? t("customers.detail.amcRenewsToday") : t("customers.detail.amcRenewsIn", { days: nextAmcAction.daysUntil }),
+    })
+  }
+  if (measured?.tdsPpm != null) {
+    nextActionItems.push({
+      icon: Droplet,
+      label: t("customers.detail.waterMeasured", { ppm: measured.tdsPpm, date: fmtDate(measured.measuredAt, { day: "2-digit", month: "short" }) }),
     })
   }
   if (tds?.recommendWaterTest) {
@@ -424,15 +433,15 @@ export function CustomerDetailPage() {
             ) : null}
           </div>
           {(() => {
-            const hasTdsSuggestion = !!tds && tds.products.length > 0
-            const Wrapper = hasTdsSuggestion ? "button" : "div"
+            const hasWaterDialog = (!!tds && tds.products.length > 0) || !!measured
+            const Wrapper = hasWaterDialog ? "button" : "div"
             return (
               <Wrapper
-                type={hasTdsSuggestion ? "button" : undefined}
-                onClick={hasTdsSuggestion ? () => setTdsDialogOpen(true) : undefined}
+                type={hasWaterDialog ? "button" : undefined}
+                onClick={hasWaterDialog ? () => setTdsDialogOpen(true) : undefined}
                 className={cn(
                   "relative mt-4.5 flex flex-col gap-2.25 rounded-[14px] bg-white/10 p-3.25 text-left",
-                  hasTdsSuggestion && "cursor-pointer transition-colors hover:bg-white/15"
+                  hasWaterDialog && "cursor-pointer transition-colors hover:bg-white/15"
                 )}
               >
                 <div className="text-xs font-bold">{t("customers.detail.nextBestAction")}</div>
@@ -457,7 +466,7 @@ export function CustomerDetailPage() {
         </div>
       </div>
 
-      {tds ? <TdsSuggestionDialog tds={tds} open={tdsDialogOpen} onClose={() => setTdsDialogOpen(false)} /> : null}
+      {tds || measured ? <TdsSuggestionDialog tds={tds ?? null} measured={measured} open={tdsDialogOpen} onClose={() => setTdsDialogOpen(false)} /> : null}
 
       <Tabs defaultValue="products">
         <TabsList className="border border-border bg-surface p-1.25">

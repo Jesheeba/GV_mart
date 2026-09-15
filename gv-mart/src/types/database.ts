@@ -3312,6 +3312,12 @@ export type Database = {
           tank_cleaned: boolean | null
           product_explained: boolean | null
           client_name: string | null
+          water_tds_ppm: number | null
+          water_ph: number | null
+          water_hardness_ppm: number | null
+          water_source: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other: string | null
+          water_extra_readings: { label: string; value: string }[]
           created_at: string
           updated_at: string
         }
@@ -3324,6 +3330,12 @@ export type Database = {
           tank_cleaned?: boolean | null
           product_explained?: boolean | null
           client_name?: string | null
+          water_tds_ppm?: number | null
+          water_ph?: number | null
+          water_hardness_ppm?: number | null
+          water_source?: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other?: string | null
+          water_extra_readings?: { label: string; value: string }[]
           created_at?: string
           updated_at?: string
         }
@@ -3336,6 +3348,12 @@ export type Database = {
           tank_cleaned?: boolean | null
           product_explained?: boolean | null
           client_name?: string | null
+          water_tds_ppm?: number | null
+          water_ph?: number | null
+          water_hardness_ppm?: number | null
+          water_source?: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other?: string | null
+          water_extra_readings?: { label: string; value: string }[]
           created_at?: string
           updated_at?: string
         }
@@ -6042,6 +6060,7 @@ export type Database = {
       po_status: "draft" | "sent" | "received"
       quotation_status: "open" | "converted" | "lost"
       invoice_type: "product" | "spare" | "amc" | "rent"
+      water_source_type: "corporation" | "borewater" | "other"
       payment_method: "cash" | "transfer" | "upi"
       payment_status: "paid" | "partial" | "due"
       ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"

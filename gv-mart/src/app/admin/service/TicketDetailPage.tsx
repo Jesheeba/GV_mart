@@ -1096,7 +1096,30 @@ export function TicketDetailPage() {
                         value={v.ro_checklists.product_explained == null ? "—" : v.ro_checklists.product_explained ? t("common.yes") : t("common.no")}
                       />
                       <Field label={t("service.detail.evidence.clientName")} value={v.ro_checklists.client_name || "—"} />
+                      <Field label={t("service.detail.evidence.waterTds")} value={v.ro_checklists.water_tds_ppm != null ? String(v.ro_checklists.water_tds_ppm) : "—"} />
+                      <Field label={t("service.detail.evidence.waterPh")} value={v.ro_checklists.water_ph != null ? String(v.ro_checklists.water_ph) : "—"} />
+                      <Field label={t("service.detail.evidence.waterHardness")} value={v.ro_checklists.water_hardness_ppm != null ? String(v.ro_checklists.water_hardness_ppm) : "—"} />
+                      <Field
+                        label={t("service.detail.evidence.waterSource")}
+                        value={
+                          v.ro_checklists.water_source == null
+                            ? "—"
+                            : v.ro_checklists.water_source === "other"
+                              ? v.ro_checklists.water_source_other || t("masters.waterQuality.source.other")
+                              : t(`masters.waterQuality.source.${v.ro_checklists.water_source}`)
+                        }
+                      />
                     </div>
+                    {v.ro_checklists.water_extra_readings.length > 0 ? (
+                      <div className="mt-2">
+                        <div className="mb-1 text-xs text-text-muted">{t("service.detail.evidence.extraReadings")}</div>
+                        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                          {v.ro_checklists.water_extra_readings.map((r, i) => (
+                            <Field key={i} label={r.label} value={r.value || "—"} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 

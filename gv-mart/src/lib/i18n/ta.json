@@ -285,6 +285,7 @@
       "amcRenewsIn": "ஏஎம்சி {{days}} நாட்களில் புதுப்பிக்கப்படும் — புதுப்பிப்புக்கு தொடர்பு கொள்ளவும்",
       "amcRenewsToday": "ஏஎம்சி இன்று புதுப்பிக்கப்படும் — புதுப்பிப்புக்கு தொடர்பு கொள்ளவும்",
       "noUpcomingRenewals": "இப்போது புதுப்பிப்புகள் எதுவும் இல்லை",
+      "waterMeasured": "நேரடியாக அளக்கப்பட்டது: ~{{ppm}} ppm TDS ({{date}})",
       "waterTestRecommended": "இலவச நீர் பரிசோதனையை பரிந்துரைக்கவும்",
       "tdsSuggestion": "{{product}} பரிந்துரை — {{district}} நிலத்தடி நீர் தோராயமாக {{ppm}} ppm ({{year}})",
       "tdsSuggestionMoreCount": "{{name}} +{{count}} மேலும்",
@@ -293,6 +294,13 @@
         "title": "நீர் தரம் & பரிந்துரை",
         "primary": "முதன்மை",
         "band": "TDS அளவு",
+        "measuredHeading": "அளக்கப்பட்டது (இந்த வாடிக்கையாளர்)",
+        "measuredTds": "TDS: ~{{ppm}} ppm",
+        "measuredPh": "PH: {{ph}}",
+        "measuredHardness": "கடினத்தன்மை: ~{{ppm}} ppm",
+        "measuredSource": "மூலம்: {{source}}",
+        "measuredOn": "{{date}} அன்று அளக்கப்பட்டது",
+        "estimatedHeading": "மதிப்பீடு (பிராந்தியம்)",
         "typical": "{{district}}-இல் வழக்கமான TDS: ~{{ppm}} ppm",
         "range": "காணப்பட்ட வரம்பு: {{low}}–{{high}} ppm",
         "source": "{{source}}, {{year}} · {{count}} மாதிரிகள்"
@@ -625,6 +633,11 @@
         "low": "குறைவு (<300 ppm)",
         "medium": "நடுத்தரம் (300–500 ppm)",
         "high": "அதிகம் (>500 ppm)"
+      },
+      "source": {
+        "corporation": "கார்ப்பரேஷன்",
+        "borewater": "போர்வெல்",
+        "other": "மற்றவை"
       }
     },
     "amcPlans": {
@@ -1587,6 +1600,11 @@
         "tankCleaned": "தொட்டி சுத்தம் செய்யப்பட்டது",
         "productExplained": "பொருள் விளக்கப்பட்டது",
         "clientName": "வாடிக்கையாளர் பெயர்",
+        "waterTds": "நீர் TDS",
+        "waterPh": "நீர் PH",
+        "waterHardness": "நீர் கடினத்தன்மை",
+        "waterSource": "நீர் மூலம்",
+        "extraReadings": "கூடுதல் அளவீடுகள்",
         "sparesUsed": "பயன்படுத்திய உதிரிபாகங்கள்",
         "noSpares": "உதிரிபாகங்கள் பயன்படுத்தப்படவில்லை.",
         "spareName": "பெயர்",
@@ -2406,6 +2424,7 @@
       "signatureRequired": "ஒரு கையொப்பத்தை வழங்கவும்.",
       "nonNegative": "எதிர்மறையாக இருக்க முடியாது.",
       "clientNameRequired": "வாடிக்கையாளரின் பெயரை உள்ளிடவும்.",
+      "waterSourceOtherRequired": "நீர் மூலத்தைக் குறிப்பிடவும்.",
       "mobileInvalid": "சரியான 10-இலக்க மொபைல் எண்ணை உள்ளிடவும்.",
       "nameRequired": "பெயரை உள்ளிடவும் (குறைந்தது 2 எழுத்துகள்).",
       "txnIdRequired": "வங்கி பரிமாற்றத்திற்கான பரிவர்த்தனை ஐடியை உள்ளிடவும்.",
@@ -2609,6 +2628,22 @@
         "tankCleaned": "தொட்டி சுத்தம் செய்யப்பட்டது",
         "productExplained": "பொருள் வாடிக்கையாளருக்கு விளக்கப்பட்டது",
         "clientName": "வாடிக்கையாளர் பெயர்",
+        "waterQualityTitle": "நீர் தர அளவீடு",
+        "waterTds": "TDS (ppm)",
+        "waterPh": "PH",
+        "waterHardness": "கடினத்தன்மை (ppm)",
+        "waterSource": "நீர் மூலம்",
+        "sourceOptions": {
+          "corporation": "கார்ப்பரேஷன்",
+          "borewater": "போர்வெல்",
+          "other": "மற்றவை"
+        },
+        "sourceOtherPlaceholder": "மூலத்தைக் குறிப்பிடவும்",
+        "extraFieldsTitle": "கூடுதல் அளவீடுகள்",
+        "extraFieldLabelPlaceholder": "புலப் பெயர்",
+        "extraFieldValuePlaceholder": "மதிப்பு",
+        "addExtraField": "+ புலத்தைச் சேர்",
+        "removeExtraField": "புலத்தை அகற்று",
         "save": "சரிபார்ப்பு பட்டியலைச் சேமி"
       },
       "invoice": {

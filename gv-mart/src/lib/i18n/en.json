@@ -285,6 +285,7 @@
       "amcRenewsIn": "AMC renews in {{days}} day(s) — contact for renewal",
       "amcRenewsToday": "AMC renews today — contact for renewal",
       "noUpcomingRenewals": "No upcoming renewals right now",
+      "waterMeasured": "Measured on-site: ~{{ppm}} ppm TDS ({{date}})",
       "waterTestRecommended": "Recommend a free water test",
       "tdsSuggestion": "Suggest {{product}} — {{district}} groundwater ~{{ppm}} ppm ({{year}})",
       "tdsSuggestionMoreCount": "{{name}} +{{count}} more",
@@ -293,6 +294,13 @@
         "title": "Water quality & suggestion",
         "primary": "Primary",
         "band": "TDS band",
+        "measuredHeading": "Measured (this customer)",
+        "measuredTds": "TDS: ~{{ppm}} ppm",
+        "measuredPh": "PH: {{ph}}",
+        "measuredHardness": "Hardness: ~{{ppm}} ppm",
+        "measuredSource": "Source: {{source}}",
+        "measuredOn": "Measured on {{date}}",
+        "estimatedHeading": "Estimated (regional)",
         "typical": "Typical TDS in {{district}}: ~{{ppm}} ppm",
         "range": "Observed range: {{low}}–{{high}} ppm",
         "source": "{{source}}, {{year}} · {{count}} samples"
@@ -625,6 +633,11 @@
         "low": "Low (<300 ppm)",
         "medium": "Medium (300–500 ppm)",
         "high": "High (>500 ppm)"
+      },
+      "source": {
+        "corporation": "Corporation",
+        "borewater": "Borewater",
+        "other": "Other"
       }
     },
     "amcPlans": {
@@ -1587,6 +1600,11 @@
         "tankCleaned": "Tank cleaned",
         "productExplained": "Product explained",
         "clientName": "Client name",
+        "waterTds": "Water TDS",
+        "waterPh": "Water PH",
+        "waterHardness": "Water hardness",
+        "waterSource": "Water source",
+        "extraReadings": "Additional readings",
         "sparesUsed": "Spares used",
         "noSpares": "No spares used.",
         "spareName": "Name",
@@ -2411,6 +2429,7 @@
       "signatureRequired": "Please provide a signature.",
       "nonNegative": "Cannot be negative.",
       "clientNameRequired": "Enter the client's name.",
+      "waterSourceOtherRequired": "Specify the water source.",
       "mobileInvalid": "Enter a valid 10-digit mobile number.",
       "nameRequired": "Enter a name (at least 2 characters).",
       "txnIdRequired": "Enter the transaction ID for a bank transfer.",
@@ -2614,6 +2633,22 @@
         "tankCleaned": "Tank cleaned",
         "productExplained": "Product explained to customer",
         "clientName": "Client name",
+        "waterQualityTitle": "Water quality reading",
+        "waterTds": "TDS (ppm)",
+        "waterPh": "PH",
+        "waterHardness": "Hardness (ppm)",
+        "waterSource": "Water source",
+        "sourceOptions": {
+          "corporation": "Corporation",
+          "borewater": "Borewater",
+          "other": "Other"
+        },
+        "sourceOtherPlaceholder": "Specify source",
+        "extraFieldsTitle": "Additional readings",
+        "extraFieldLabelPlaceholder": "Field name",
+        "extraFieldValuePlaceholder": "Value",
+        "addExtraField": "+ Add field",
+        "removeExtraField": "Remove field",
         "save": "Save checklist"
       },
       "invoice": {

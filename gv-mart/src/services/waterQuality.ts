@@ -1,7 +1,8 @@
 import { supabase } from "@/lib/supabase"
-import type { Tables } from "@/types/database"
+import type { Enums, Tables } from "@/types/database"
 
 export type TdsBand = "low" | "medium" | "high"
+export type WaterSourceType = Enums<"water_source_type">
 
 // BIS IS 10500:2012 desirable/permissible limits (300 / 500 ppm) plus the
 // WHO drinking-water TDS classification — see migration
@@ -102,5 +103,52 @@ export async function getCustomerTdsSuggestion(orgId: string, rawDistrict: strin
     band,
     products,
     recommendWaterTest: band === "high" || isProxy,
+  }
+}
+
+export type CustomerMeasuredWaterReading = {
+  tdsPpm: number | null
+  ph: number | null
+  hardnessPpm: number | null
+  source: WaterSourceType | null
+  sourceOther: string | null
+  measuredAt: string
+}
+
+/**
+ * The customer's most recent real on-site water reading (ro_checklists.water_*,
+ * taken during an RO service visit) — deliberately separate from
+ * getCustomerTdsSuggestion's regional district estimate above. Both are shown
+ * together on Customer Detail rather than one overriding the other: this is a
+ * precise single-property measurement, the district figure is a statistical
+ * estimate that still matters for customers who haven't had a visit yet.
+ */
+export async function getCustomerMeasuredWaterReading(orgId: string, customerId: string): Promise<CustomerMeasuredWaterReading | null> {
+  const { data, error } = await supabase
+    .from("service_visits")
+    .select("created_at, ro_checklists!inner(water_tds_ppm, water_ph, water_hardness_ppm, water_source, water_source_other), service_tickets!inner(customer_id)")
+    .eq("org_id", orgId)
+    .eq("service_tickets.customer_id", customerId)
+    .not("ro_checklists.water_tds_ppm", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+
+  const rc = data.ro_checklists as unknown as {
+    water_tds_ppm: number | null
+    water_ph: number | null
+    water_hardness_ppm: number | null
+    water_source: WaterSourceType | null
+    water_source_other: string | null
+  }
+  return {
+    tdsPpm: rc.water_tds_ppm,
+    ph: rc.water_ph,
+    hardnessPpm: rc.water_hardness_ppm,
+    source: rc.water_source,
+    sourceOther: rc.water_source_other,
+    measuredAt: data.created_at,
   }
 }

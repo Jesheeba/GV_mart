@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as customers from "@/services/customers"
 import type { CreateCustomerInput, CustomerListFilters, MemberRow } from "@/services/customers"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
-import { getCustomerTdsSuggestion } from "@/services/waterQuality"
+import { getCustomerMeasuredWaterReading, getCustomerTdsSuggestion } from "@/services/waterQuality"
 
 const MOBILE_REGEX = /^[6-9]\d{9}$/
 
@@ -248,6 +248,15 @@ export function useCustomerTdsSuggestion(orgId: string | undefined, district: st
     queryKey: ["customers", "tdsSuggestion", orgId, district],
     queryFn: () => getCustomerTdsSuggestion(orgId!, district!),
     enabled: !!orgId && !!district,
+    staleTime: 5 * 60_000,
+  })
+}
+
+export function useCustomerMeasuredWaterReading(orgId: string | undefined, customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "measuredWaterReading", orgId, customerId],
+    queryFn: () => getCustomerMeasuredWaterReading(orgId!, customerId!),
+    enabled: !!orgId && !!customerId,
     staleTime: 5 * 60_000,
   })
 }
