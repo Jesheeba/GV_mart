@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { Inbox, Plus, TriangleAlert } from "lucide-react"
+import { Inbox, Plus, Search, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
@@ -41,6 +41,7 @@ export function SalesListPage() {
   const quotations = useMemo(() => quotationsData ?? [], [quotationsData])
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
+  const [search, setSearch] = useState("")
 
   // All figures below are derived from the real invoices/quotations already
   // fetched for this org — nothing here is mock data. The design's "Today's
@@ -108,9 +109,19 @@ export function SalesListPage() {
     }
   }, [rows, quotations])
 
+  const searchTerm = search.trim().toLowerCase()
   const visibleRows = useMemo(
-    () => (typeFilter === "all" ? rows : rows.filter((inv) => inv.type === typeFilter)),
-    [rows, typeFilter]
+    () =>
+      rows
+        .filter((inv) => typeFilter === "all" || inv.type === typeFilter)
+        .filter(
+          (inv) =>
+            !searchTerm ||
+            (inv.customers?.name ?? "").toLowerCase().includes(searchTerm) ||
+            (inv.customers?.mobile ?? "").includes(searchTerm) ||
+            inv.itemsSummary.toLowerCase().includes(searchTerm)
+        ),
+    [rows, typeFilter, searchTerm]
   )
 
   return (
@@ -218,19 +229,31 @@ export function SalesListPage() {
           <span className="text-xs font-semibold text-text-muted">{t("sales.list.table.countThisMonth", { count: stats.monthCount })}</span>
         </div>
 
-        <div className="flex flex-wrap gap-2 px-5.5 pb-3.5">
-          <FilterChip active={typeFilter === "all"} onClick={() => setTypeFilter("all")}>
-            {t("sales.list.filters.all")}
-          </FilterChip>
-          <FilterChip active={typeFilter === "product"} onClick={() => setTypeFilter(typeFilter === "product" ? "all" : "product")}>
-            {t("sales.list.filters.product")}
-          </FilterChip>
-          <FilterChip active={typeFilter === "spare"} onClick={() => setTypeFilter(typeFilter === "spare" ? "all" : "spare")}>
-            {t("sales.list.filters.spare")}
-          </FilterChip>
-          <FilterChip active={typeFilter === "amc"} onClick={() => setTypeFilter(typeFilter === "amc" ? "all" : "amc")}>
-            {t("sales.list.filters.amc")}
-          </FilterChip>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5.5 pb-3.5">
+          <div className="flex flex-wrap gap-2">
+            <FilterChip active={typeFilter === "all"} onClick={() => setTypeFilter("all")}>
+              {t("sales.list.filters.all")}
+            </FilterChip>
+            <FilterChip active={typeFilter === "product"} onClick={() => setTypeFilter(typeFilter === "product" ? "all" : "product")}>
+              {t("sales.list.filters.product")}
+            </FilterChip>
+            <FilterChip active={typeFilter === "spare"} onClick={() => setTypeFilter(typeFilter === "spare" ? "all" : "spare")}>
+              {t("sales.list.filters.spare")}
+            </FilterChip>
+            <FilterChip active={typeFilter === "amc"} onClick={() => setTypeFilter(typeFilter === "amc" ? "all" : "amc")}>
+              {t("sales.list.filters.amc")}
+            </FilterChip>
+          </div>
+          <div className="flex w-64 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
+            <Search className="size-3.75 shrink-0 text-text-muted" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("sales.list.search")}
+              className="w-full bg-transparent text-xs font-medium text-text outline-none placeholder:text-text-muted"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">

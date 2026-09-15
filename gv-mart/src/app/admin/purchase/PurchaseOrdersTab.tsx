@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, PackageCheck, Plus } from "lucide-react"
+import { Loader2, PackageCheck, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
@@ -31,6 +31,12 @@ export function PurchaseOrdersTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const poItems = usePoItems(expandedId ?? undefined)
   const [receiptPo, setReceiptPo] = useState<PurchaseOrderListItem | null>(null)
+  const [search, setSearch] = useState("")
+  const searchTerm = search.trim().toLowerCase()
+  const filteredPos = useMemo(
+    () => (pos.data ?? []).filter((r) => !searchTerm || (r.suppliers?.name ?? "").toLowerCase().includes(searchTerm)),
+    [pos.data, searchTerm]
+  )
 
   async function submit() {
     await createPo.mutateAsync({ orgId: orgId!, supplierId, items: items.filter((i) => i.itemId && i.qty > 0) })
@@ -68,7 +74,17 @@ export function PurchaseOrdersTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex w-64 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
+          <Search className="size-3.75 shrink-0 text-text-muted" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("purchase.po.search")}
+            className="w-full bg-transparent text-xs font-medium text-text outline-none placeholder:text-text-muted"
+          />
+        </div>
         <Button variant="accent" size="sm" onClick={() => setShowNew((v) => !v)}>
           <Plus className="size-3.5" />
           {t("purchase.po.create")}
@@ -104,7 +120,7 @@ export function PurchaseOrdersTab() {
 
       <DataTable
         columns={columns}
-        rows={pos.data ?? []}
+        rows={filteredPos}
         rowKey={(r) => r.id}
         loading={pos.isLoading}
         error={pos.isError ? t("purchase.loadFailed") : null}

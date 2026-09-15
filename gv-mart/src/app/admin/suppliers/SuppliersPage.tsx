@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ListChecks } from "lucide-react"
+import { ListChecks, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { useCreateSupplier, useDeleteSupplier, useSuppliersList, useUpdateSupplier } from "@/hooks/useSuppliers"
@@ -13,13 +13,19 @@ export function SuppliersPage() {
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
-  const { data: rows, isLoading, isError, refetch } = useSuppliersList(orgId)
+  const { data: allRows, isLoading, isError, refetch } = useSuppliersList(orgId)
   const createMut = useCreateSupplier()
   const updateMut = useUpdateSupplier()
   const deleteMut = useDeleteSupplier()
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selected = (rows ?? []).find((r) => r.id === selectedId) ?? null
+  const [search, setSearch] = useState("")
+  const searchTerm = search.trim().toLowerCase()
+  const rows = useMemo(
+    () => (allRows ?? []).filter((r) => !searchTerm || r.name.toLowerCase().includes(searchTerm) || (r.contact ?? "").includes(searchTerm)),
+    [allRows, searchTerm]
+  )
+  const selected = (allRows ?? []).find((r) => r.id === selectedId) ?? null
 
   const fields: CrudFieldDef[] = [
     { key: "name", label: t("suppliers.name"), type: "text", required: true },
@@ -30,9 +36,21 @@ export function SuppliersPage() {
 
   return (
     <div className="space-y-4 pt-2">
-      <div>
-        <h1 className="text-2xl font-bold text-text">{t("nav.suppliers")}</h1>
-        <p className="text-sm text-text-muted">{t("suppliers.subtitle")}</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-text">{t("nav.suppliers")}</h1>
+          <p className="text-sm text-text-muted">{t("suppliers.subtitle")}</p>
+        </div>
+        <div className="flex w-64 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
+          <Search className="size-3.75 shrink-0 text-text-muted" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("suppliers.search")}
+            className="w-full bg-transparent text-xs font-medium text-text outline-none placeholder:text-text-muted"
+          />
+        </div>
       </div>
 
       <EntityCrudTable<SupplierRow>

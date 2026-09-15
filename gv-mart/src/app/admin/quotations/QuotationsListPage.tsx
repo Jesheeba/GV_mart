@@ -1,7 +1,7 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { FileText, Plus } from "lucide-react"
+import { FileText, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
@@ -21,16 +21,25 @@ export function QuotationsListPage() {
   const orgId = profile?.org_id
 
   const { data, isLoading, isError, refetch } = useQuotationsList(orgId)
-  const rows = useMemo(() => data ?? [], [data])
+  const allRows = useMemo(() => data ?? [], [data])
+  const [search, setSearch] = useState("")
+  const searchTerm = search.trim().toLowerCase()
+  const rows = useMemo(
+    () =>
+      allRows.filter(
+        (r) => !searchTerm || (r.customers?.name ?? "").toLowerCase().includes(searchTerm) || (r.customers?.mobile ?? "").includes(searchTerm)
+      ),
+    [allRows, searchTerm]
+  )
 
   const stats = useMemo(() => {
-    const open = rows.filter((r) => r.status === "open").length
-    const converted = rows.filter((r) => r.status === "converted").length
-    const lost = rows.filter((r) => r.status === "lost").length
+    const open = allRows.filter((r) => r.status === "open").length
+    const converted = allRows.filter((r) => r.status === "converted").length
+    const lost = allRows.filter((r) => r.status === "lost").length
     const decided = converted + lost
     const rate = decided > 0 ? Math.round((converted / decided) * 100) : 0
     return { open, converted, lost, rate }
-  }, [rows])
+  }, [allRows])
 
   const columns: DataTableColumn<QuotationListItem>[] = [
     {
@@ -70,7 +79,17 @@ export function QuotationsListPage() {
       </div>
 
       <Card size="default">
-        {rows.length === 0 && !isLoading ? (
+        <div className="mb-3 flex w-70 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
+          <Search className="size-3.75 shrink-0 text-text-muted" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("quotations.search")}
+            className="w-full bg-transparent text-xs font-medium text-text outline-none placeholder:text-text-muted"
+          />
+        </div>
+        {allRows.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center gap-3 py-12 text-center">
             <span className="flex size-12 items-center justify-center rounded-full bg-surface-alt text-text-muted">
               <FileText className="size-6" />

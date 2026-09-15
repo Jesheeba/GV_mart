@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { Inbox, Plus, TriangleAlert } from "lucide-react"
+import { Inbox, Plus, Search, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot } from "@/components/shared/StatusDot"
@@ -60,6 +60,7 @@ export function AmcWarrantyListPage() {
   const orgId = profile?.org_id
   const [showSellAmc, setShowSellAmc] = useState(false)
   const [segment, setSegment] = useState<"amc" | "warranty">("amc")
+  const [search, setSearch] = useState("")
 
   const { data: settings } = useSettings(orgId)
   const windowDays = settings ? settings.amc_book_window_days : 15
@@ -118,6 +119,30 @@ export function AmcWarrantyListPage() {
     return map
   }, [sortedPlans])
 
+  const searchTerm = search.trim().toLowerCase()
+  const filteredContracts = useMemo(
+    () =>
+      (contracts.data ?? []).filter(
+        (c) =>
+          !searchTerm ||
+          (c.customers?.name ?? "").toLowerCase().includes(searchTerm) ||
+          (c.customers?.mobile ?? "").includes(searchTerm) ||
+          (c.products?.name ?? "").toLowerCase().includes(searchTerm)
+      ),
+    [contracts.data, searchTerm]
+  )
+  const filteredWarrantyRows = useMemo(
+    () =>
+      warrantyRows.filter(
+        (w) =>
+          !searchTerm ||
+          (w.customers?.name ?? "").toLowerCase().includes(searchTerm) ||
+          (w.customers?.mobile ?? "").includes(searchTerm) ||
+          (w.products?.name ?? "").toLowerCase().includes(searchTerm)
+      ),
+    [warrantyRows, searchTerm]
+  )
+
   const activeContractsCount = useMemo(() => (contracts.data ?? []).filter((c) => c.status === "active").length, [contracts.data])
   const dueSoonContracts = useMemo(() => (contracts.data ?? []).filter((c) => c.status === "due_soon"), [contracts.data])
   const renewalAtRisk = useMemo(
@@ -174,14 +199,26 @@ export function AmcWarrantyListPage() {
               {t("amc.tabs.warranty")}
             </SegButton>
           </div>
-          <span className="text-xs font-semibold text-text-muted">
-            {t("amc.list.recordCount", { count: segment === "amc" ? contracts.data?.length ?? 0 : warranties.data?.length ?? 0 })}
-          </span>
+          <div className="flex items-center gap-2.5">
+            <div className="flex w-56 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
+              <Search className="size-3.75 shrink-0 text-text-muted" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("amc.list.search")}
+                className="w-full bg-transparent text-xs font-medium text-text outline-none placeholder:text-text-muted"
+              />
+            </div>
+            <span className="text-xs font-semibold text-text-muted">
+              {t("amc.list.recordCount", { count: segment === "amc" ? filteredContracts.length : filteredWarrantyRows.length })}
+            </span>
+          </div>
         </div>
 
         {segment === "amc" ? (
           <AmcTable
-            rows={contracts.data ?? []}
+            rows={filteredContracts}
             loading={contracts.isLoading}
             error={contracts.isError ? t("amc.list.loadFailed") : null}
             onRetry={() => contracts.refetch()}
@@ -190,7 +227,7 @@ export function AmcWarrantyListPage() {
           />
         ) : (
           <WarrantyTable
-            rows={warrantyRows}
+            rows={filteredWarrantyRows}
             loading={warranties.isLoading}
             error={warranties.isError ? t("amc.list.loadFailed") : null}
             onRetry={() => warranties.refetch()}

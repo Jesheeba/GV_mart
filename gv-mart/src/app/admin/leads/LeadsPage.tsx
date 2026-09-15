@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Inbox, LayoutGrid, Plus, Table2, Target, TrendingUp, TriangleAlert, Trophy } from "lucide-react"
+import { Inbox, LayoutGrid, Plus, Search, Table2, Target, TrendingUp, TriangleAlert, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard } from "@/components/shared/KpiCard"
@@ -31,6 +31,7 @@ export function LeadsPage() {
   const [source, setSource] = useState<Enums<"lead_source"> | "">("")
   const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
   const [kind, setKind] = useState<Enums<"lead_kind"> | "">("")
+  const [search, setSearch] = useState("")
   const leads = useLeads(orgId, { source: source || undefined, enquiryType: enquiryType || undefined, kind: kind || undefined })
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState<LeadListItem | null>(null)
@@ -46,6 +47,18 @@ export function LeadsPage() {
     const topSource = [...bySource.entries()].sort((a, b) => b[1] - a[1])[0]
     return { total: rows.length, won, conversionRate, topSource }
   }, [leads.data])
+
+  const searchTerm = search.trim().toLowerCase()
+  const filteredLeads = useMemo(
+    () =>
+      (leads.data ?? []).filter(
+        (l) =>
+          !searchTerm ||
+          (l.customers?.name ?? l.name ?? "").toLowerCase().includes(searchTerm) ||
+          (l.mobile ?? l.customers?.mobile ?? "").includes(searchTerm)
+      ),
+    [leads.data, searchTerm]
+  )
 
   return (
     <div className="space-y-4 pt-2">
@@ -102,6 +115,16 @@ export function LeadsPage() {
       {showNew ? <NewLeadForm onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); leads.refetch() }} /> : null}
 
       <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex w-56 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
+          <Search className="size-3.75 shrink-0 text-text-muted" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("leads.filters.search")}
+            className="w-full bg-transparent text-xs font-medium text-text outline-none placeholder:text-text-muted"
+          />
+        </div>
         <select
           value={source}
           onChange={(e) => setSource(e.target.value as Enums<"lead_source"> | "")}
@@ -138,13 +161,14 @@ export function LeadsPage() {
             </option>
           ))}
         </select>
-        {source || enquiryType || kind ? (
+        {source || enquiryType || kind || search ? (
           <button
             type="button"
             onClick={() => {
               setSource("")
               setEnquiryType("")
               setKind("")
+              setSearch("")
             }}
             className="text-xs font-semibold text-text-muted hover:text-text"
           >
@@ -162,7 +186,7 @@ export function LeadsPage() {
         <div className="min-w-0 lg:flex-1">
           {view === "table" ? (
             <LeadsTable
-              rows={leads.data ?? []}
+              rows={filteredLeads}
               loading={leads.isLoading}
               error={leads.isError ? t("leads.loadFailed") : null}
               onRetry={() => leads.refetch()}
@@ -170,7 +194,7 @@ export function LeadsPage() {
             />
           ) : (
             <LeadsKanban
-              rows={leads.data ?? []}
+              rows={filteredLeads}
               loading={leads.isLoading}
               error={leads.isError ? t("leads.loadFailed") : null}
               onRetry={() => leads.refetch()}

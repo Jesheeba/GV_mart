@@ -990,6 +990,7 @@
   },
   "suppliers": {
     "subtitle": "Suppliers and which items they provide, with per-item pricing.",
+    "search": "Search suppliers...",
     "loadFailed": "Couldn't load suppliers. Check your connection and try again.",
     "empty": "No suppliers yet — add your first one.",
     "name": "Supplier name",
@@ -1132,6 +1133,7 @@
       "stats": "{{amount}} this month · {{count}} invoices · {{quotationsOpen}} quotations open",
       "newQuotationButton": "New Quotation",
       "newSaleButton": "New Sale",
+      "search": "Search customer, items...",
       "kpi": {
         "todaySales": "Today's Sales",
         "vsYesterday": "vs yesterday",
@@ -1237,6 +1239,7 @@
     "title": "Quotations",
     "subtitle": "Quotes created for customers, and how many convert to sales.",
     "addButton": "New Quotation",
+    "search": "Search customer...",
     "convertButton": "Convert to Sale",
     "markLostButton": "Mark Lost",
     "confirmLost": "Confirm lost",
@@ -1601,6 +1604,7 @@
     "list": {
       "stats": "{{active}} active contracts · {{dueSoon}} due in {{days}} days · {{atRisk}} renewal at risk",
       "recordCount": "{{count}} records",
+      "search": "Search customer, product...",
       "customer": "Customer",
       "product": "Product",
       "tier": "Tier",
@@ -2733,6 +2737,7 @@
       "created": "Created"
     },
     "filters": {
+      "search": "Search name, mobile...",
       "allSources": "All sources",
       "allTopics": "All topics",
       "allKinds": "All kinds",
@@ -3009,6 +3014,7 @@
       }
     },
     "po": {
+      "search": "Search supplier...",
       "supplier": "Supplier",
       "total": "Total",
       "channel": "Sent via",
