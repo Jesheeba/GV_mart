@@ -348,6 +348,27 @@ export async function deleteAmcPlan(id: string) {
   if (error) throw error
 }
 
+// ── Rental plans (Item D5) ───────────────────────────────────────────────
+export async function listRentalPlans(orgId: string): Promise<RentalPlanRow[]> {
+  const { data, error } = await supabase.from("rental_plans").select("*").eq("org_id", orgId).order("name")
+  if (error) throw error
+  return data ?? []
+}
+export async function createRentalPlan(row: TablesInsert<"rental_plans">) {
+  const { data, error } = await supabase.from("rental_plans").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateRentalPlan(id: string, patch: TablesUpdate<"rental_plans">) {
+  const { data, error } = await supabase.from("rental_plans").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteRentalPlan(id: string) {
+  const { error } = await supabase.from("rental_plans").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── AMC plan covered spares (Fix 2: hard-gate uncovered spares on AMC
 // visits) ───────────────────────────────────────────────────────────────
 function fromCoveredSpares() {
@@ -436,6 +457,7 @@ export type WaterQualityReferenceRow = Tables<"water_quality_reference">
 export type WaterQualityDistrictAliasRow = Tables<"water_quality_district_aliases">
 export type ProductTdsRecommendationRow = Tables<"product_tds_recommendations"> & { products: Pick<Tables<"products">, "id" | "name"> | null }
 export type AmcPlanRow = Tables<"amc_plans">
+export type RentalPlanRow = Tables<"rental_plans">
 export type IncentiveRuleRow = Tables<"incentive_rules">
 export type ComplaintTypeRow = Tables<"complaint_types">
 export type ProductSpareRow = Tables<"product_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }

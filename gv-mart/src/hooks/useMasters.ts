@@ -198,6 +198,13 @@ export const amcPlansHooks = entityHooks("amc_plans", {
   remove: masters.deleteAmcPlan,
 })
 
+export const rentalPlansHooks = entityHooks("rental_plans", {
+  list: masters.listRentalPlans,
+  create: masters.createRentalPlan,
+  update: masters.updateRentalPlan,
+  remove: masters.deleteRentalPlan,
+})
+
 // ── AMC plan covered spares (Fix 2) — not a flat CRUD list so it doesn't
 // fit entityHooks' shape; one query per plan + a "replace the whole set"
 // mutation, mirroring the amc_plans query key so both invalidate cleanly. ──
