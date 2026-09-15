@@ -392,6 +392,19 @@ export function CustomerDetailPage() {
               {lifetime.isLoading ? "—" : formatCurrency(lifetime.data?.total ?? 0)}
             </div>
             <span className="text-xs font-medium text-white/70">{t("customers.detail.acrossInvoices", { count: lifetime.data?.invoiceCount ?? 0 })}</span>
+            {!lifetime.isLoading && lifetime.data ? (
+              <div className="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1 text-[11px] font-medium text-white/70">
+                <span>
+                  {t("customers.detail.revenueProduct")} {formatCurrency(lifetime.data.revenueByType.product)}
+                </span>
+                <span>
+                  {t("customers.detail.revenueSpare")} {formatCurrency(lifetime.data.revenueByType.spare)}
+                </span>
+                <span>
+                  {t("customers.detail.revenueAmc")} {formatCurrency(lifetime.data.revenueByType.amc)}
+                </span>
+              </div>
+            ) : null}
           </div>
           {(() => {
             const hasTdsSuggestion = !!tds && tds.products.length > 0

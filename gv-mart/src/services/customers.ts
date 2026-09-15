@@ -831,17 +831,26 @@ export async function getCustomerInvoices(orgId: string, customerId: string, lim
 }
 
 export type CustomerNextAmcAction = { productName: string; planName: string; expiryDate: string; daysUntil: number }
-export type CustomerLifetimeSummary = { total: number; invoiceCount: number; nextAmcAction: CustomerNextAmcAction | null }
+export type CustomerRevenueByType = Record<Enums<"invoice_type">, number>
+export type CustomerLifetimeSummary = {
+  total: number
+  invoiceCount: number
+  nextAmcAction: CustomerNextAmcAction | null
+  revenueByType: CustomerRevenueByType
+}
 
 /**
  * Lifetime value = real sum of the customer's own invoices (no fabricated
  * "customer tier" or points system exists in the schema). "Next best
  * action" is likewise derived from a real signal — the soonest AMC contract
  * that's entered the org's renewal window — rather than an AI suggestion.
+ * revenueByType (product/spare/amc split, Item D10) reuses this same
+ * invoices fetch — no second query needed, invoices.type is already an
+ * indexed column on the row.
  */
 export async function getCustomerLifetimeSummary(orgId: string, customerId: string): Promise<CustomerLifetimeSummary> {
   const [invoicesRes, amcRes] = await Promise.all([
-    supabase.from("invoices").select("total").eq("org_id", orgId).eq("customer_id", customerId),
+    supabase.from("invoices").select("total, type").eq("org_id", orgId).eq("customer_id", customerId),
     supabase
       .from("amc_contracts")
       .select("expiry_date, products(name), amc_plans(name)")
@@ -856,6 +865,8 @@ export async function getCustomerLifetimeSummary(orgId: string, customerId: stri
 
   const invoices = invoicesRes.data ?? []
   const total = invoices.reduce((sum, r) => sum + Number(r.total), 0)
+  const revenueByType: CustomerRevenueByType = { product: 0, spare: 0, amc: 0 }
+  for (const r of invoices) revenueByType[r.type] += Number(r.total)
 
   const nextContract = amcRes.data?.[0] as unknown as
     | { expiry_date: string; products: { name: string } | null; amc_plans: { name: string } | null }
@@ -869,7 +880,7 @@ export async function getCustomerLifetimeSummary(orgId: string, customerId: stri
       }
     : null
 
-  return { total, invoiceCount: invoices.length, nextAmcAction }
+  return { total, invoiceCount: invoices.length, nextAmcAction, revenueByType }
 }
 
 // ── Exemption windows (B4, Build Order Step 4 / Meeting spec Section B4) ──
