@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { Printer } from "lucide-react"
+import { MessageCircle, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,7 @@ import { useMarkQuotationLost, useQuotation, useUpdateQuotationValidUntil } from
 import { useOrganization } from "@/hooks/useSales"
 import { formatCurrency } from "@/lib/sale-calc"
 import { amountInWords } from "@/lib/amount-in-words"
+import { toWhatsappLink } from "@/lib/whatsapp-link"
 import { QuotationOriginBadge } from "./QuotationBadges"
 
 const STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
@@ -46,10 +47,31 @@ export function QuotationDetailPage() {
         <Button type="button" variant="outline" onClick={() => navigate(-1)}>
           {t("sales.newSale.back")}
         </Button>
-        <Button type="button" variant="outline" onClick={() => window.print()}>
-          <Printer className="size-4" />
-          {t("quotations.print")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => window.print()}>
+            <Printer className="size-4" />
+            {t("quotations.print")}
+          </Button>
+          {quotation.customers?.mobile ? (
+            <Button
+              variant="accent"
+              nativeButton={false}
+              render={
+                <a
+                  href={toWhatsappLink(
+                    quotation.customers.mobile,
+                    t("quotations.whatsappMessage", { id: quotationNo, total: formatCurrency(quotation.total) })
+                  )}
+                  target="_blank"
+                  rel="noreferrer"
+                />
+              }
+            >
+              <MessageCircle className="size-4" />
+              {t("quotations.shareWhatsapp")}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Customer-facing printout — mirrors the invoice's letterhead format

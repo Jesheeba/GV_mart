@@ -10,17 +10,12 @@ import { useProfile } from "@/hooks/useProfile"
 import { useInvoice, useInvoiceExtras, useOrganization } from "@/hooks/useSales"
 import { formatCurrency } from "@/lib/sale-calc"
 import { amountInWords } from "@/lib/amount-in-words"
+import { toWhatsappLink } from "@/lib/whatsapp-link"
 import { RecordPaymentDialog } from "./RecordPaymentDialog"
 import type { StatusTone } from "@/components/shared/StatusDot"
 
 const PAYMENT_STATUS_TONE: Record<string, StatusTone> = { paid: "success", partial: "warning", due: "danger" }
 const CELL = "border border-[#444] p-2 align-top"
-
-function toWhatsappLink(mobile: string, message: string) {
-  const digits = mobile.replace(/\D/g, "")
-  const withCountryCode = digits.length === 10 ? `91${digits}` : digits
-  return `https://wa.me/${withCountryCode}?text=${encodeURIComponent(message)}`
-}
 
 function ddmmyyyy(iso: string) {
   const d = new Date(iso)
