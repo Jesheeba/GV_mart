@@ -3,33 +3,33 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { CalendarClock, Inbox, LayoutGrid, Plus, Repeat, Table2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SegButton } from "@/components/shared/SegButton"
 import { useProfile } from "@/hooks/useProfile"
-import { useRepeatComplaintCustomers, useTechnicians, useTicketsList } from "@/hooks/useService"
-import { isUnassignedRow, type TicketListItem } from "@/services/service"
+import { useRepeatComplaintCustomers, useTicketsList } from "@/hooks/useService"
+import { isUnassignedRow, type TicketFiltersInput, type TicketListItem } from "@/services/service"
+import { isTicketOverdue } from "@/lib/ticketOverdue"
 import { cn } from "@/lib/utils"
 import { SlaCountdown } from "./SlaCountdown"
 import { ChannelBadge, PriorityText, TicketTypeBadge } from "./TicketBadges"
 import { TicketsKanban } from "./TicketsKanban"
-
-const STATUS_OPTIONS = ["open", "assigned", "in_progress", "completed", "cancelled"] as const
-const PRIORITY_OPTIONS = ["very_urgent", "urgent", "normal"] as const
-const TYPE_OPTIONS = ["paid", "warranty", "amc", "installation"] as const
 
 // Matches the design's 8-column table grid (design-template-decoded.html line 964):
 // Ticket / Customer / Complaint / Type / Prio / Technician / Appointment / SLA.
 const TABLE_GRID_COLS =
   "grid-cols-[minmax(90px,0.95fr)_minmax(150px,1.5fr)_minmax(140px,1.5fr)_minmax(70px,0.8fr)_minmax(70px,0.6fr)_minmax(110px,1.1fr)_minmax(120px,1.1fr)_minmax(100px,1fr)]"
 
-function isOverdueRow(r: TicketListItem, now: number) {
-  return !!r.sla_due_at && r.status !== "completed" && r.status !== "cancelled" && new Date(r.sla_due_at).getTime() <= now
-}
-
 function isMissingProductRow(r: TicketListItem) {
   return !r.product_id && !r.unlisted_product_name
 }
+
+// Everything this page fetches gets partitioned into Open/Overdue/Completed/
+// Cancelled client-side (see visibleRows below), so the server-side status
+// filter is never used here — that keeps the chip counts accurate no matter
+// which tab is active, instead of only being accurate for whichever status
+// the last request happened to narrow to.
+const NO_SERVER_FILTERS: TicketFiltersInput = {}
+
+type PrimaryFilter = "open" | "overdue" | "completed" | "cancelled"
 
 export function TicketsListPage() {
   const { t } = useTranslation()
@@ -38,60 +38,44 @@ export function TicketsListPage() {
   const orgId = profile?.org_id
 
   const [view, setView] = useState<"table" | "kanban">("table")
-  const [status, setStatus] = useState("")
-  const [priority, setPriority] = useState("")
-  const [type, setType] = useState("")
-  // "" = all, a technician uuid, or the sentinel "unassigned" — shared by
-  // both the Technician select and the "Unassigned" quick chip below, so
-  // the two can never disagree (see services/service.ts#isUnassignedRow).
-  const [technicianId, setTechnicianId] = useState("")
-  const [date, setDate] = useState("")
-  const [area, setArea] = useState("")
-  // Independent toggle (not part of the server filters below) — ANDs with
-  // every other filter instead of being mutually exclusive with them, so
-  // "overdue AMC tickets for technician X" is expressible.
-  const [overdueOnly, setOverdueOnly] = useState(false)
-  // Gate-assignment-on-product (2026-08-04) — same independent-toggle shape
-  // as overdueOnly, for tickets with neither product_id nor unlisted_product_name.
+  const [primaryFilter, setPrimaryFilter] = useState<PrimaryFilter>("open")
+  // Independent toggles — AND with the primary filter instead of being
+  // mutually exclusive with it, so "overdue tickets with no technician" is
+  // still expressible.
+  const [unassignedOnly, setUnassignedOnly] = useState(false)
   const [missingProductOnly, setMissingProductOnly] = useState(false)
 
-  const filters = useMemo(
-    () => ({ status, priority, type, technicianId, date, area }),
-    [status, priority, type, technicianId, date, area]
-  )
-
-  const { data: rows, isLoading, isError, refetch } = useTicketsList(orgId, filters)
-  const { data: technicians } = useTechnicians(orgId)
+  const { data: rows, isLoading, isError, refetch } = useTicketsList(orgId, NO_SERVER_FILTERS)
   const { data: repeatCustomers } = useRepeatComplaintCustomers(orgId)
 
-  const areaOptions = useMemo(() => [...new Set((rows ?? []).map((r) => r.addresses?.area).filter((a): a is string => !!a))], [rows]);
-
-  // Quick-filter chip counts — derived from whatever the advanced filters
-  // above already fetched (same pattern service.ts uses for area/date/
-  // technician, fields that can't be expressed as a single PostgREST
-  // .eq()). No "avg resolution" style stat is shown because there's no
-  // completed-at field to compute it from.
   const allRows = useMemo(() => rows ?? [], [rows])
   const now = Date.now()
+
   const openCount = allRows.filter((r) => r.status !== "completed" && r.status !== "cancelled").length
-  const overdueCount = allRows.filter((r) => isOverdueRow(r, now)).length
+  const overdueCount = allRows.filter((r) => isTicketOverdue(r, now)).length
+  const completedCount = allRows.filter((r) => r.status === "completed").length
+  const cancelledCount = allRows.filter((r) => r.status === "cancelled").length
   const unassignedCount = allRows.filter(isUnassignedRow).length
   const missingProductCount = allRows.filter(isMissingProductRow).length
 
   const visibleRows = useMemo(() => {
     let out = allRows
-    // The default "hide finished/cancelled noise" view — but an explicit
-    // Status filter (e.g. "Completed") is the admin deliberately asking to
-    // see exactly that status, so it must not be silently re-excluded.
-    if (!status) out = out.filter((r) => r.status !== "completed" && r.status !== "cancelled")
-    if (overdueOnly) out = out.filter((r) => isOverdueRow(r, now))
+    if (primaryFilter === "open" || primaryFilter === "overdue") {
+      out = out.filter((r) => r.status !== "completed" && r.status !== "cancelled")
+      if (primaryFilter === "overdue") out = out.filter((r) => isTicketOverdue(r, now))
+    } else {
+      out = out.filter((r) => r.status === primaryFilter)
+    }
+    if (unassignedOnly) out = out.filter(isUnassignedRow)
     if (missingProductOnly) out = out.filter(isMissingProductRow)
     return out
-  }, [allRows, status, overdueOnly, missingProductOnly, now])
+  }, [allRows, primaryFilter, unassignedOnly, missingProductOnly, now])
 
-  const hasActiveFilters = !!(status || priority || type || technicianId || date || area || overdueOnly || missingProductOnly)
+  const hasActiveFilters = primaryFilter !== "open" || unassignedOnly || missingProductOnly
   function clearAllFilters() {
-    setStatus(""); setPriority(""); setType(""); setTechnicianId(""); setDate(""); setArea(""); setOverdueOnly(false); setMissingProductOnly(false)
+    setPrimaryFilter("open")
+    setUnassignedOnly(false)
+    setMissingProductOnly(false)
   }
 
   return (
@@ -146,62 +130,36 @@ export function TicketsListPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
-        <QuickFilterChip active={!status} onClick={() => setStatus("")}>
+        <QuickFilterChip active={primaryFilter === "open"} onClick={() => setPrimaryFilter("open")}>
           {t("service.quickFilters.allOpen")} · {openCount}
         </QuickFilterChip>
         <button
           type="button"
-          onClick={() => setOverdueOnly((v) => !v)}
+          onClick={() => setPrimaryFilter("overdue")}
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full bg-[#FCEAEA] px-[15px] py-2 text-xs font-semibold text-danger",
-            overdueOnly ? "outline outline-2 outline-danger" : ""
+            primaryFilter === "overdue" ? "outline outline-2 outline-danger" : ""
           )}
         >
           <span className="size-1.5 rounded-full bg-danger" />
           {t("service.quickFilters.overdue")} · {overdueCount}
         </button>
-        <QuickFilterChip active={technicianId === "unassigned"} onClick={() => setTechnicianId(technicianId === "unassigned" ? "" : "unassigned")}>
+        <QuickFilterChip active={primaryFilter === "completed"} onClick={() => setPrimaryFilter("completed")}>
+          {t("service.status.completed")} · {completedCount}
+        </QuickFilterChip>
+        <QuickFilterChip active={primaryFilter === "cancelled"} onClick={() => setPrimaryFilter("cancelled")}>
+          {t("service.status.cancelled")} · {cancelledCount}
+        </QuickFilterChip>
+
+        <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
+
+        <QuickFilterChip active={unassignedOnly} onClick={() => setUnassignedOnly((v) => !v)}>
           {t("service.quickFilters.unassigned")} · {unassignedCount}
         </QuickFilterChip>
         <QuickFilterChip active={missingProductOnly} onClick={() => setMissingProductOnly((v) => !v)}>
           {t("service.quickFilters.missingProduct")} · {missingProductCount}
         </QuickFilterChip>
 
-        <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
-
-        <div className="flex gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-          <SegButton active={!type} onClick={() => setType("")}>
-            {t("service.filters.all")}
-          </SegButton>
-          {TYPE_OPTIONS.map((tp) => (
-            <SegButton key={tp} active={type === tp} onClick={() => setType(type === tp ? "" : tp)}>
-              {t(`service.type.${tp}`)}
-            </SegButton>
-          ))}
-        </div>
-        <div className="flex gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-          <SegButton active={!priority} onClick={() => setPriority("")}>
-            {t("service.filters.all")}
-          </SegButton>
-          {PRIORITY_OPTIONS.map((p) => (
-            <SegButton key={p} active={priority === p} onClick={() => setPriority(priority === p ? "" : p)}>
-              {t(`service.priority.${p}`)}
-            </SegButton>
-          ))}
-        </div>
-
-        <FilterSelect label={t("service.filters.status")} value={status} onChange={setStatus} options={STATUS_OPTIONS.map((s) => ({ value: s, label: t(`service.status.${s}`) }))} />
-        <FilterSelect
-          label={t("service.filters.technician")}
-          value={technicianId}
-          onChange={setTechnicianId}
-          options={[{ value: "unassigned", label: t("service.table.unassigned") }, ...(technicians ?? []).map((tc) => ({ value: tc.id, label: tc.full_name }))]}
-        />
-        <FilterSelect label={t("service.filters.area")} value={area} onChange={setArea} options={areaOptions.map((a) => ({ value: a, label: a }))} />
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-text-muted">{t("service.filters.date")}</label>
-          <DatePicker value={date} onChange={setDate} className="h-10 w-36 rounded-full" />
-        </div>
         {hasActiveFilters ? (
           <Button size="sm" variant="ghost" onClick={clearAllFilters}>
             {t("service.filters.clear")}
@@ -354,37 +312,6 @@ function TicketsTable({
           </div>
         ))
       )}
-    </div>
-  )
-}
-
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  options: { value: string; label: string }[]
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className="space-y-1">
-      <label className="block text-xs font-medium text-text-muted">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-10 rounded-full border border-border bg-surface px-3.5 text-sm text-text outline-none"
-      >
-        <option value="">{t("service.filters.all")}</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
     </div>
   )
 }

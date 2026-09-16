@@ -3,6 +3,7 @@ import { db } from "@/lib/offline/db"
 import { enqueue } from "@/lib/offline/outbox"
 import { distanceKm, expectedMinutes, type GeoPoint } from "@/lib/offline/geo"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
+import { isTicketOverdue } from "@/lib/ticketOverdue"
 import type { DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Enums, Tables } from "@/types/database"
 import type { DateRange } from "./reports"
@@ -291,16 +292,12 @@ export async function listTodaysJobs(technicianId: string): Promise<JobCard[]> {
 }
 
 /**
- * Bug 2/3 (technician home overdue highlighting) — ported verbatim from the
- * admin side's isOverdueRow (src/app/admin/service/TicketsListPage.tsx):
- * overdue means the ticket has an SLA deadline that has already passed and
- * the ticket hasn't reached a terminal status. Takes the loosest shape that
- * satisfies both call sites (a live JobCard's service_tickets join and the
- * ticket fields it embeds) so it doesn't force a wider import just for typing.
+ * Bug 2/3 (technician home overdue highlighting) — thin re-export of the
+ * shared isTicketOverdue predicate (src/lib/ticketOverdue.ts, also used by
+ * the admin list/kanban), kept under this name so existing call sites here
+ * don't need to change.
  */
-export function isOverdueJob(ticket: { sla_due_at: string | null; status: Enums<"ticket_status"> }, now: number): boolean {
-  return !!ticket.sla_due_at && ticket.status !== "completed" && ticket.status !== "cancelled" && new Date(ticket.sla_due_at).getTime() <= now
-}
+export const isOverdueJob = isTicketOverdue
 
 export type TodaysJobCounts = {
   total: number

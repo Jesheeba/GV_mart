@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { isTicketOverdue } from "@/lib/ticketOverdue"
 import type { TicketListItem, TicketStatus } from "@/services/service"
 import { TYPE_BADGE_CLASS } from "./TicketBadges"
 
@@ -113,7 +114,7 @@ function TicketKanbanCard({
   repeat?: boolean
 }) {
   const { t } = useTranslation()
-  const overdue = !!row.sla_due_at && row.status !== "completed" && row.status !== "cancelled" && new Date(row.sla_due_at).getTime() <= now
+  const overdue = isTicketOverdue(row, now)
 
   return (
     <button
