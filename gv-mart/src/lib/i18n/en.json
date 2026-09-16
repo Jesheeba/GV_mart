@@ -2866,6 +2866,7 @@
     "kpi": {
       "total": "Total leads",
       "won": "Won",
+      "lost": "Lost",
       "conversionRate": "Conversion rate"
     },
     "kanban": {

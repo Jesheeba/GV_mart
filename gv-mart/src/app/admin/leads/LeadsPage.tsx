@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Inbox, LayoutGrid, Plus, Search, Table2, Target, TrendingUp, TriangleAlert, Trophy } from "lucide-react"
+import { Inbox, LayoutGrid, Plus, Search, Table2, Target, TrendingUp, TriangleAlert, Trophy, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard } from "@/components/shared/KpiCard"
@@ -41,11 +41,12 @@ export function LeadsPage() {
     const won = rows.filter((r) => r.status === "won").length
     const lost = rows.filter((r) => r.status === "lost").length
     const closed = won + lost
-    const conversionRate = closed > 0 ? Math.round((won / closed) * 100) : 0
-    const bySource = new Map<string, number>()
-    for (const r of rows) bySource.set(r.source, (bySource.get(r.source) ?? 0) + 1)
-    const topSource = [...bySource.entries()].sort((a, b) => b[1] - a[1])[0]
-    return { total: rows.length, won, conversionRate, topSource }
+    // Item 5 (2026-09-16): Won%/Lost% both read "of closed leads" — same
+    // denominator conversionRate already used, so a lead still New/Contacted/
+    // Quoted doesn't dilute either percentage.
+    const wonPct = closed > 0 ? Math.round((won / closed) * 100) : 0
+    const lostPct = closed > 0 ? Math.round((lost / closed) * 100) : 0
+    return { total: rows.length, won, wonPct, lost, lostPct, conversionRate: wonPct }
   }, [leads.data])
 
   const searchTerm = search.trim().toLowerCase()
@@ -101,9 +102,28 @@ export function LeadsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label={t("leads.kpi.total")} value={stats.total} icon={<Target className="size-4" />} loading={leads.isLoading} />
-        <KpiCard label={t("leads.kpi.won")} value={stats.won} icon={<Trophy className="size-4" />} loading={leads.isLoading} />
+        <KpiCard
+          label={t("leads.kpi.won")}
+          value={
+            <>
+              {stats.won} <span className="text-base font-medium text-text-muted">({stats.wonPct}%)</span>
+            </>
+          }
+          icon={<Trophy className="size-4" />}
+          loading={leads.isLoading}
+        />
+        <KpiCard
+          label={t("leads.kpi.lost")}
+          value={
+            <>
+              {stats.lost} <span className="text-base font-medium text-text-muted">({stats.lostPct}%)</span>
+            </>
+          }
+          icon={<XCircle className="size-4" />}
+          loading={leads.isLoading}
+        />
         <KpiCard
           label={t("leads.kpi.conversionRate")}
           value={`${stats.conversionRate}%`}
