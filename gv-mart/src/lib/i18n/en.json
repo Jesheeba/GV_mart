@@ -306,6 +306,8 @@
         "source": "{{source}}, {{year}} · {{count}} samples"
       },
       "referredBy": "Referred by {{name}}",
+      "needsSetup": "Needs setup",
+      "needsSetupHint": "Auto-created from a won lead — address/family details are incomplete. Click to dismiss once filled in.",
       "familyChip": "{{count}} family: {{names}}",
       "membersTitle": "Family Members ({{count}}/5)",
       "addMember": "Add member",

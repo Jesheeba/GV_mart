@@ -405,6 +405,14 @@ export async function updateCustomerProfession(id: string, profession: string) {
   return data
 }
 
+/** Clears the needs_setup flag update_lead_status sets when it auto-creates
+ * a customer from a won lead (20260916091000_lead_won_customer_conversion.sql)
+ * — staff dismiss it once address/family details are filled in. */
+export async function clearCustomerNeedsSetup(id: string) {
+  const { error } = await supabase.from("customers").update({ needs_setup: false }).eq("id", id)
+  if (error) throw error
+}
+
 export async function addMember(
   orgId: string,
   customerId: string,

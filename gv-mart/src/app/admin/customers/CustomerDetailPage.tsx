@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import {
+  useClearCustomerNeedsSetup,
   useCustomer,
   useCustomerExemptionWindows,
   useCustomerInvoices,
@@ -107,6 +108,7 @@ export function CustomerDetailPage() {
   const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile)
   const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
   const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
+  const clearNeedsSetup = useClearCustomerNeedsSetup(customer?.id ?? "")
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
   const tdsSuggestion = useCustomerTdsSuggestion(orgId, primaryDistrict)
   const measuredWater = useCustomerMeasuredWaterReading(orgId, customer?.id)
@@ -351,6 +353,17 @@ export function CustomerDetailPage() {
                   ) : (
                     <span className="text-sm text-text-muted">{t("customers.detail.noAddress")}</span>
                   )}
+                  {customer.needs_setup ? (
+                    <button
+                      type="button"
+                      onClick={() => clearNeedsSetup.mutate()}
+                      disabled={clearNeedsSetup.isPending}
+                      title={t("customers.detail.needsSetupHint")}
+                      className="flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/15 px-2.75 py-1 text-[11px] font-semibold text-text"
+                    >
+                      <StatusDot tone="warning" label={t("customers.detail.needsSetup")} />
+                    </button>
+                  ) : null}
                   {referredByTechnicianName ? (
                     <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
                       <UserPlus className="size-3" />

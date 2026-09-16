@@ -141,6 +141,17 @@ export function useUpdateCustomerProfession(customerId: string) {
   })
 }
 
+export function useClearCustomerNeedsSetup(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => customers.clearCustomerNeedsSetup(customerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
+  })
+}
+
 export function useAddMember(orgId: string | undefined, customerId: string) {
   const queryClient = useQueryClient()
   return useMutation({

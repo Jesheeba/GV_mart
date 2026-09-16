@@ -212,6 +212,10 @@ export type Database = {
           source: Database["public"]["Enums"]["lead_source"] | null
           tags: string[]
           notes: string | null
+          // Lead/Quotation enhancement spec (2026-09-16) Item 3 — set true
+          // only when update_lead_status auto-creates this customer from a
+          // won lead; staff clear it once address/family details are filled.
+          needs_setup: boolean
           created_at: string
           updated_at: string
         }
@@ -225,6 +229,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["lead_source"] | null
           tags?: string[]
           notes?: string | null
+          needs_setup?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -238,6 +243,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["lead_source"] | null
           tags?: string[]
           notes?: string | null
+          needs_setup?: boolean
           created_at?: string
           updated_at?: string
         }
