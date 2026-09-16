@@ -355,6 +355,7 @@ export function TicketDetailPage() {
         <div>
           <h1 className="text-2xl font-bold text-text">#{ticket.id.slice(0, 8)}</h1>
           <p className="text-sm text-text-muted">{ticket.customers?.name} · {ticket.customers?.mobile}</p>
+          <p className="text-xs text-text-muted">{t("service.table.raised", { date: new Date(ticket.created_at).toLocaleDateString() })}</p>
         </div>
         <div className="flex items-center gap-2">
           {canCancelOrDelete ? (

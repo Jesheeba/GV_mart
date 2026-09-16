@@ -304,6 +304,9 @@ function BookingRow({ ticket, onClick }: { ticket: FilteredTicketItem; onClick: 
         </div>
         <ChevronRight className="size-4 shrink-0 text-text-muted" />
       </div>
+      <p className="px-1 text-[11px] text-text-muted">
+        {t("customerApp.bookings.raised", { date: new Date(ticket.created_at).toLocaleDateString(undefined, { dateStyle: "medium" }) })}
+      </p>
       <div className="flex items-center justify-between px-1">
         <StatusDot tone={BOOKING_STATUS_TONE[ticket.status] ?? "neutral"} label={t(`customerApp.bookings.status.${ticket.status}`)} />
         <span className="text-xs text-text-muted">

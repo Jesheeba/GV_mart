@@ -280,11 +280,16 @@ function TicketsTable({
             }}
             className={cn("grid cursor-pointer items-center border-b border-border px-[22px] py-[14px] last:border-b-0 hover:bg-surface-alt", TABLE_GRID_COLS)}
           >
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-ink">#{r.id.slice(0, 8)}</span>
-              {repeatCustomers?.has(r.customer_id) ? (
-                <Repeat className="size-3.5 text-warning" aria-label={t("service.table.repeatComplaint")} />
-              ) : null}
+            <div className="leading-tight">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-ink">#{r.id.slice(0, 8)}</span>
+                {repeatCustomers?.has(r.customer_id) ? (
+                  <Repeat className="size-3.5 text-warning" aria-label={t("service.table.repeatComplaint")} />
+                ) : null}
+              </div>
+              <div className="text-[11px] font-medium text-text-muted">
+                {t("service.table.raised", { date: new Date(r.created_at).toLocaleDateString() })}
+              </div>
             </div>
             <div className="leading-tight">
               <div className="text-[13px] font-semibold text-text">{r.customers?.name ?? "—"}</div>

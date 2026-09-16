@@ -208,6 +208,9 @@ export function JobDetailPage() {
         <p className="px-1 text-sm font-semibold text-text">{t("technician.jobDetail.complaintTitle")}</p>
         <p className="px-1 text-sm text-text">{ticket.name_of_complaint ?? "—"}</p>
         {ticket.nature_of_complaint ? <p className="px-1 text-xs text-text-muted">{ticket.nature_of_complaint}</p> : null}
+        <p className="px-1 text-xs text-text-muted">
+          {t("technician.jobDetail.raised", { date: new Date(ticket.created_at).toLocaleDateString() })}
+        </p>
       </Card>
 
       <Card className="gap-2">

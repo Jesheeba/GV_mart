@@ -158,6 +158,7 @@ export function CustomerBookingDetailPage() {
               {ticket.products?.name ?? ticket.unlisted_product_name ?? ticket.name_of_complaint ?? t("customerApp.bookings.generalService")}
             </p>
             <p className="text-xs text-text-muted">{[ticket.brands?.name, ticket.models?.name].filter(Boolean).join(" · ")}</p>
+            <p className="text-xs text-text-muted">{t("customerApp.bookings.raised", { date: new Date(ticket.created_at).toLocaleDateString(undefined, { dateStyle: "medium" }) })}</p>
           </div>
           <StatusDot tone={STATUS_TONE[ticket.status] ?? "neutral"} label={t(`customerApp.bookings.status.${ticket.status}`)} />
         </div>

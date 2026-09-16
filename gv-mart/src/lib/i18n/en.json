@@ -1365,7 +1365,8 @@
       "sla": "SLA",
       "area": "Area",
       "unassigned": "Unassigned",
-      "repeatComplaint": "Repeat complaint (within 90 days)"
+      "repeatComplaint": "Repeat complaint (within 90 days)",
+      "raised": "Raised {{date}}"
     },
     "filters": {
       "all": "All",
@@ -1957,6 +1958,7 @@
         "cancelled": "Cancelled"
       },
       "unassigned": "Unassigned",
+      "raised": "Raised {{date}}",
       "followUpNotice": "Couldn't visit today — priority tomorrow, or our team will call you shortly.",
       "filters": {
         "toggle": "Filters",
@@ -2541,6 +2543,7 @@
       "brand": "Brand",
       "model": "Model",
       "complaintTitle": "Complaint",
+      "raised": "Raised {{date}}",
       "costingRuleTitle": "Costing rule",
       "costingRulePaid": "Paid service — quantity and cost from the master price list.",
       "costingRuleFree": "Warranty/AMC — cost is ₹0, but quantity used is still recorded.",
