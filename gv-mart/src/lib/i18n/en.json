@@ -2871,6 +2871,10 @@
     "kanban": {
       "empty": "No leads here"
     },
+    "chip": {
+      "referredBy": "Referred by {{name}}",
+      "technician": "Technician: {{name}}"
+    },
     "status": {
       "new": "New",
       "contacted": "Contacted",

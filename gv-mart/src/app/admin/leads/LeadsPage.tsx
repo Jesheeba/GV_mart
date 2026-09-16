@@ -10,7 +10,7 @@ import { useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
 import { LeadDetailPanel } from "./LeadDetailPanel"
 import { NewLeadForm } from "./NewLeadForm"
-import { SourceBadge } from "./LeadBadges"
+import { SourceBadge, TechnicianChip } from "./LeadBadges"
 import type { LeadListItem } from "@/services/automation"
 import type { Enums } from "@/types/database"
 import { cn } from "@/lib/utils"
@@ -296,7 +296,7 @@ function LeadsTable({
               tone={r.status === "won" ? "success" : r.status === "lost" ? "danger" : "warning"}
               label={t(`leads.status.${r.status}`)}
             />
-            <span className="truncate text-[13px] font-medium text-text">{r.technicians?.profiles?.full_name ?? "—"}</span>
+            <TechnicianChip source={r.source} name={r.technicians?.profiles?.full_name ?? null} />
             <span className="text-xs font-medium text-text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
           </div>
         ))

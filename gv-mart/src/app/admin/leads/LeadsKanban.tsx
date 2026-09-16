@@ -3,6 +3,7 @@ import { TriangleAlert } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { TechnicianChip } from "./LeadBadges"
 import type { LeadListItem } from "@/services/automation"
 
 const COLUMNS = ["new", "contacted", "quoted", "won", "lost"] as const
@@ -63,6 +64,7 @@ export function LeadsKanban({
                         <span className="rounded-full bg-surface-alt px-2 py-0.5">{t(`leads.source.${r.source}`)}</span>
                         {r.enquiry_type ? <span className="rounded-full bg-surface-alt px-2 py-0.5">{t(`leads.enquiryType.${r.enquiry_type}`)}</span> : null}
                       </div>
+                      {r.technicians?.profiles?.full_name ? <TechnicianChip source={r.source} name={r.technicians.profiles.full_name} /> : null}
                     </Card>
                   </button>
                 ))

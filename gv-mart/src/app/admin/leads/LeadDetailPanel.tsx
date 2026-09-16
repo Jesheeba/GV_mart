@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useAwardReferralPoints, useLeadActivities, useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
+import { TechnicianChip } from "./LeadBadges"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
 import type { Enums } from "@/types/database"
 
@@ -71,9 +72,10 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
   return (
     <Card className="gap-3.5 px-5">
       <div className="flex items-start justify-between">
-        <div>
+        <div className="space-y-1">
           <h2 className="text-sm font-semibold text-text">{lead.customers?.name ?? lead.name}</h2>
           <p className="text-xs text-text-muted">{lead.mobile ?? lead.customers?.mobile ?? "—"}</p>
+          {lead.technicians?.profiles?.full_name ? <TechnicianChip source={lead.source} name={lead.technicians.profiles.full_name} /> : null}
         </div>
         <Button size="icon-xs" variant="ghost" onClick={onClose}>
           <X className="size-4" />
