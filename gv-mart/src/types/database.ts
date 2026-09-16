@@ -4234,6 +4234,10 @@ export type Database = {
           // Spare Enquiry -> Quotation autofill (2026-08-04) — see
           // 20260804140000_spare_enquiry_structured_quotation.sql.
           spare_id: string | null
+          // Lead/Quotation enhancement spec (2026-09-16) Item 1 — set only
+          // when status = 'lost', server-enforced non-blank by
+          // update_lead_status (20260916090000_lead_lost_reason.sql).
+          lost_reason: string | null
           created_at: string
           updated_at: string
         }
@@ -4254,6 +4258,7 @@ export type Database = {
           product_id?: string | null
           qty?: number | null
           spare_id?: string | null
+          lost_reason?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4274,6 +4279,7 @@ export type Database = {
           product_id?: string | null
           qty?: number | null
           spare_id?: string | null
+          lost_reason?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6006,7 +6012,7 @@ export type Database = {
         Returns: string
       }
       update_lead_status: {
-        Args: { p_lead_id: string; p_status: Database["public"]["Enums"]["lead_status"] }
+        Args: { p_lead_id: string; p_status: Database["public"]["Enums"]["lead_status"]; p_reason?: string | null }
         Returns: undefined
       }
       award_referral_points: {

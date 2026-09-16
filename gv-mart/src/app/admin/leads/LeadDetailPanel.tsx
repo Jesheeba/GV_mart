@@ -16,6 +16,7 @@ import type { Enums } from "@/types/database"
 
 const STATUSES: LeadStatus[] = ["new", "contacted", "quoted", "won", "lost"]
 const ACTIVITY_TYPES = ["call", "note", "whatsapp", "meeting"] as const
+const LOST_REASONS = ["price_too_high", "chose_competitor", "no_longer_needs", "unresponsive", "duplicate", "other"] as const
 
 type QuoteItemSeed = { productId: string | null; spareId: string | null; qty: number | null }
 
@@ -47,7 +48,16 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
   const [note, setNote] = useState("")
 
   const [displayStatus, setDisplayStatus] = useState<LeadStatus>(lead.status)
-  useEffect(() => setDisplayStatus(lead.status), [lead.id, lead.status])
+  const [displayLostReason, setDisplayLostReason] = useState<string | null>(lead.lost_reason)
+  useEffect(() => {
+    setDisplayStatus(lead.status)
+    setDisplayLostReason(lead.lost_reason)
+  }, [lead.id, lead.status, lead.lost_reason])
+
+  const [showLostForm, setShowLostForm] = useState(false)
+  const [lostReasonOption, setLostReasonOption] = useState<(typeof LOST_REASONS)[number] | "">("")
+  const [lostReasonOther, setLostReasonOther] = useState("")
+  const lostReasonText = lostReasonOption === "other" ? lostReasonOther.trim() : lostReasonOption ? t(`leads.lostReason.${lostReasonOption}`) : ""
 
   const [showReferral, setShowReferral] = useState(false)
   const [referrerSearch, setReferrerSearch] = useState("")
@@ -117,12 +127,74 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
             size="sm"
             variant={displayStatus === s ? "accent" : "outline"}
             disabled={updateStatus.isPending}
-            onClick={() => updateStatus.mutate({ leadId: lead.id, status: s }, { onSuccess: () => setDisplayStatus(s) })}
+            onClick={() => {
+              if (s === "lost") {
+                setShowLostForm(true)
+                return
+              }
+              setShowLostForm(false)
+              updateStatus.mutate({ leadId: lead.id, status: s }, { onSuccess: () => setDisplayStatus(s) })
+            }}
           >
             {t(`leads.status.${s}`)}
           </Button>
         ))}
       </div>
+
+      {showLostForm ? (
+        <div className="space-y-2 rounded-xl border border-border p-3">
+          <Label>{t("leads.detail.lostReasonLabel")}</Label>
+          <select
+            value={lostReasonOption}
+            onChange={(e) => setLostReasonOption(e.target.value as (typeof LOST_REASONS)[number])}
+            className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+          >
+            <option value="">{t("leads.detail.lostReasonPlaceholder")}</option>
+            {LOST_REASONS.map((r) => (
+              <option key={r} value={r}>
+                {t(`leads.lostReason.${r}`)}
+              </option>
+            ))}
+          </select>
+          {lostReasonOption === "other" ? (
+            <Input
+              placeholder={t("leads.detail.lostReasonOtherPlaceholder")}
+              value={lostReasonOther}
+              onChange={(e) => setLostReasonOther(e.target.value)}
+            />
+          ) : null}
+          <div className="flex justify-end gap-1.5">
+            <Button size="sm" variant="ghost" onClick={() => setShowLostForm(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!lostReasonText || updateStatus.isPending}
+              onClick={() =>
+                updateStatus.mutate(
+                  { leadId: lead.id, status: "lost", reason: lostReasonText },
+                  {
+                    onSuccess: () => {
+                      setDisplayStatus("lost")
+                      setDisplayLostReason(lostReasonText)
+                      setShowLostForm(false)
+                      setLostReasonOption("")
+                      setLostReasonOther("")
+                    },
+                  }
+                )
+              }
+            >
+              {updateStatus.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("leads.detail.confirmLost")}
+            </Button>
+          </div>
+        </div>
+      ) : displayStatus === "lost" && displayLostReason ? (
+        <p className="text-xs text-text-muted">
+          <span className="font-medium text-text">{t("leads.detail.lostReasonLabel")}:</span> {displayLostReason}
+        </p>
+      ) : null}
 
       <div className="space-y-2 rounded-xl border border-border p-3">
         <Label>{t("leads.detail.logActivity")}</Label>

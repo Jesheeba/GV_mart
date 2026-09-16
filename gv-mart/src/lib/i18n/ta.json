@@ -2893,6 +2893,14 @@
       "product": "பொருள்",
       "amc": "AMC"
     },
+    "lostReason": {
+      "price_too_high": "விலை அதிகம்",
+      "chose_competitor": "போட்டியாளரைத் தேர்ந்தெடுத்தார்",
+      "no_longer_needs": "இனி சேவை தேவையில்லை",
+      "unresponsive": "பதில் இல்லை",
+      "duplicate": "நகல் லீட்",
+      "other": "மற்றவை"
+    },
     "activityType": {
       "call": "அழைப்பு",
       "note": "குறிப்பு",
@@ -2918,7 +2926,11 @@
       "referralReason": "பரிந்துரை: {{name}} மாற்றப்பட்டது",
       "referrerSearchLabel": "பரிந்துரையாளர்",
       "referrerSearchPlaceholder": "பெயர் அல்லது மொபைல் மூலம் வாடிக்கையாளரைத் தேடவும்…",
-      "pointsLabel": "புள்ளிகள்"
+      "pointsLabel": "புள்ளிகள்",
+      "lostReasonLabel": "காரணம்",
+      "lostReasonPlaceholder": "ஒரு காரணத்தைத் தேர்ந்தெடுக்கவும்…",
+      "lostReasonOtherPlaceholder": "காரணத்தை விவரிக்கவும்",
+      "confirmLost": "இழப்பை உறுதிசெய்"
     }
   },
   "automation": {

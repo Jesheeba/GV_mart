@@ -2898,6 +2898,14 @@
       "product": "Product",
       "amc": "AMC"
     },
+    "lostReason": {
+      "price_too_high": "Price too high",
+      "chose_competitor": "Chose a competitor",
+      "no_longer_needs": "No longer needs service",
+      "unresponsive": "Unresponsive / no answer",
+      "duplicate": "Duplicate lead",
+      "other": "Other"
+    },
     "activityType": {
       "call": "Call",
       "note": "Note",
@@ -2923,7 +2931,11 @@
       "referralReason": "Referral: {{name}} converted",
       "referrerSearchLabel": "Referrer",
       "referrerSearchPlaceholder": "Search customer by name or mobile…",
-      "pointsLabel": "Points"
+      "pointsLabel": "Points",
+      "lostReasonLabel": "Reason",
+      "lostReasonPlaceholder": "Select a reason…",
+      "lostReasonOtherPlaceholder": "Describe the reason",
+      "confirmLost": "Confirm lost"
     }
   },
   "automation": {

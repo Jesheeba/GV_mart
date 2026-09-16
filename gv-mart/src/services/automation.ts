@@ -91,8 +91,8 @@ export async function logLeadActivity(leadId: string, type: string, note: string
   return data
 }
 
-export async function updateLeadStatus(leadId: string, status: LeadStatus) {
-  const { error } = await supabase.rpc("update_lead_status", { p_lead_id: leadId, p_status: status })
+export async function updateLeadStatus(leadId: string, status: LeadStatus, reason: string | null = null) {
+  const { error } = await supabase.rpc("update_lead_status", { p_lead_id: leadId, p_status: status, p_reason: reason })
   if (error) throw error
 }
 

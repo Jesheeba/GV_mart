@@ -34,7 +34,8 @@ export function useLogLeadActivity() {
 export function useUpdateLeadStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ leadId, status }: { leadId: string; status: LeadStatus }) => automation.updateLeadStatus(leadId, status),
+    mutationFn: ({ leadId, status, reason }: { leadId: string; status: LeadStatus; reason?: string | null }) =>
+      automation.updateLeadStatus(leadId, status, reason ?? null),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
   })
 }
