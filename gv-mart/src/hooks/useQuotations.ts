@@ -39,3 +39,19 @@ export function useMarkQuotationLost() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quotations"] }),
   })
 }
+
+export function useUpdateQuotationValidUntil() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, validUntil }: { id: string; validUntil: string | null }) => quotations.updateQuotationValidUntil(id, validUntil),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["quotations"] }),
+  })
+}
+
+export function useQuotationsForLead(leadId: string | undefined) {
+  return useQuery({
+    queryKey: ["quotations", "forLead", leadId],
+    queryFn: () => quotations.listQuotationsForLead(leadId!),
+    enabled: !!leadId,
+  })
+}

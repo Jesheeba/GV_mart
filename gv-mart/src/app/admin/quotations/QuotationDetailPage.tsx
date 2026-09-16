@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
-import { useMarkQuotationLost, useQuotation } from "@/hooks/useQuotations"
+import { useMarkQuotationLost, useQuotation, useUpdateQuotationValidUntil } from "@/hooks/useQuotations"
 import { useOrganization } from "@/hooks/useSales"
 import { formatCurrency } from "@/lib/sale-calc"
 import { amountInWords } from "@/lib/amount-in-words"
+import { QuotationOriginBadge } from "./QuotationBadges"
 
 const STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
 const CELL = "border border-[#444] p-2 align-top"
@@ -28,6 +29,9 @@ export function QuotationDetailPage() {
   const markLost = useMarkQuotationLost()
   const [lostReason, setLostReason] = useState("")
   const [showLostForm, setShowLostForm] = useState(false)
+  const updateValidUntil = useUpdateQuotationValidUntil()
+  const [showEditForm, setShowEditForm] = useState(false)
+  const [validUntilInput, setValidUntilInput] = useState("")
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !quotation) {
@@ -153,6 +157,9 @@ export function QuotationDetailPage() {
                 {t("quotations.table.validUntil")}: {new Date(quotation.valid_until).toLocaleDateString("en-IN")}
               </p>
             ) : null}
+            <div className="mt-1.5 flex justify-end print:hidden">
+              <QuotationOriginBadge leadName={quotation.leads?.name ?? null} />
+            </div>
           </div>
         </div>
 
@@ -207,7 +214,40 @@ export function QuotationDetailPage() {
             <Button type="button" variant="outline" onClick={() => setShowLostForm((v) => !v)}>
               {t("quotations.markLostButton")}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setValidUntilInput(quotation.valid_until ?? "")
+                setShowEditForm((v) => !v)
+              }}
+            >
+              {t("quotations.editButton")}
+            </Button>
           </div>
+          {showEditForm ? (
+            <Card className="gap-2 px-5">
+              <label className="text-xs font-medium text-text-muted" htmlFor="quotation-valid-until">
+                {t("quotations.table.validUntil")}
+              </label>
+              <Input id="quotation-valid-until" type="date" value={validUntilInput} onChange={(e) => setValidUntilInput(e.target.value)} />
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={updateValidUntil.isPending}
+                  onClick={() =>
+                    updateValidUntil.mutate(
+                      { id: quotation.id, validUntil: validUntilInput || null },
+                      { onSuccess: () => setShowEditForm(false) }
+                    )
+                  }
+                >
+                  {t("common.save")}
+                </Button>
+              </div>
+            </Card>
+          ) : null}
           {showLostForm ? (
             <Card className="gap-2 px-5">
               <Input value={lostReason} onChange={(e) => setLostReason(e.target.value)} placeholder={t("quotations.lostReasonPlaceholder")} />

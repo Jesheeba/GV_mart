@@ -10,6 +10,7 @@ import { KpiCard } from "@/components/shared/KpiCard"
 import { useProfile } from "@/hooks/useProfile"
 import { useQuotationsList } from "@/hooks/useQuotations"
 import { formatCurrency } from "@/lib/sale-calc"
+import { QuotationOriginBadge } from "./QuotationBadges"
 import type { QuotationListItem } from "@/services/quotations"
 
 const STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
@@ -52,6 +53,7 @@ export function QuotationsListPage() {
         </div>
       ),
     },
+    { key: "origin", header: t("quotations.table.origin"), render: (q) => <QuotationOriginBadge leadName={q.leads?.name ?? null} /> },
     { key: "total", header: t("quotations.table.amount"), render: (q) => formatCurrency(q.total) },
     { key: "validUntil", header: t("quotations.table.validUntil"), render: (q) => (q.valid_until ? new Date(q.valid_until).toLocaleDateString("en-IN") : "—") },
     { key: "date", header: t("quotations.table.date"), render: (q) => new Date(q.created_at).toLocaleDateString("en-IN") },

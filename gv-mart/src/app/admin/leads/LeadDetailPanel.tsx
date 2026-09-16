@@ -11,9 +11,14 @@ import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useAwardReferralPoints, useLeadActivities, useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
+import { useQuotationsForLead } from "@/hooks/useQuotations"
+import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
+import { formatCurrency } from "@/lib/sale-calc"
 import { TechnicianChip } from "./LeadBadges"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
 import type { Enums } from "@/types/database"
+
+const QUOTATION_STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
 
 const STATUSES: LeadStatus[] = ["new", "contacted", "quoted", "won", "lost"]
 const ACTIVITY_TYPES = ["call", "note", "whatsapp", "meeting"] as const
@@ -44,6 +49,7 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
   const logActivity = useLogLeadActivity()
   const updateStatus = useUpdateLeadStatus()
   const awardPoints = useAwardReferralPoints()
+  const leadQuotations = useQuotationsForLead(lead.id)
 
   const [activityType, setActivityType] = useState<(typeof ACTIVITY_TYPES)[number]>("call")
   const [note, setNote] = useState("")
@@ -121,6 +127,27 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
         <FileText className="size-3.5" />
         {t("quotations.form.create")}
       </Button>
+
+      {leadQuotations.data && leadQuotations.data.length > 0 ? (
+        <div className="space-y-1.5">
+          <Label>{t("leads.detail.quotations")}</Label>
+          <ul className="space-y-1.5">
+            {leadQuotations.data.map((q) => (
+              <li key={q.id}>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/admin/quotations/${q.id}`)}
+                  className="flex w-full items-center justify-between rounded-lg bg-surface-alt px-2.5 py-2 text-xs hover:bg-surface-alt/70"
+                >
+                  <span className="font-medium text-text">{formatCurrency(q.total)}</span>
+                  <span className="text-text-muted">{new Date(q.created_at).toLocaleDateString("en-IN")}</span>
+                  <StatusDot tone={QUOTATION_STATUS_TONE[q.status] ?? "neutral"} label={t(`quotations.status.${q.status}`)} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-1.5">
         {STATUSES.map((s) => (

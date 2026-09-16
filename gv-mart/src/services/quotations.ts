@@ -5,7 +5,7 @@ import type { DateRange } from "./reports"
 export type QuotationRow = Tables<"quotations">
 export type QuotationItemRow = Tables<"quotation_items">
 
-export type QuotationListItem = QuotationRow & { customers: { name: string; mobile: string } | null }
+export type QuotationListItem = QuotationRow & { customers: { name: string; mobile: string } | null; leads: { name: string } | null }
 
 /** `dateRange` is optional and additive (Owner request 2026-07-29, Sales
  *  Dashboard's period-filtered quotation stats) — every existing caller
@@ -13,7 +13,7 @@ export type QuotationListItem = QuotationRow & { customers: { name: string; mobi
 export async function listQuotations(orgId: string, dateRange?: DateRange): Promise<QuotationListItem[]> {
   let query = supabase
     .from("quotations")
-    .select("*, customers(name,mobile)")
+    .select("*, customers(name,mobile), leads(name)")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
   if (dateRange) {
@@ -26,6 +26,7 @@ export async function listQuotations(orgId: string, dateRange?: DateRange): Prom
 
 export type QuotationDetail = QuotationRow & {
   customers: { name: string; mobile: string } | null
+  leads: { name: string } | null
   quotation_items: (QuotationItemRow & { itemName: string })[]
 }
 
@@ -53,7 +54,7 @@ async function itemNameLookup(orgId: string, items: { item_type: Enums<"item_typ
 export async function getQuotation(orgId: string, id: string): Promise<QuotationDetail> {
   const { data, error } = await supabase
     .from("quotations")
-    .select("*, customers(name,mobile), quotation_items(*)")
+    .select("*, customers(name,mobile), leads(name), quotation_items(*)")
     .eq("id", id)
     .single()
   if (error) throw error
@@ -88,4 +89,27 @@ export async function createQuotation(
 export async function markQuotationLost(id: string, reason: string) {
   const { error } = await supabase.from("quotations").update({ status: "lost", lost_reason: reason }).eq("id", id)
   if (error) throw error
+}
+
+/** Item 6 (2026-09-16), minor-fields-only edit scope — approved narrower
+ * than a full line-item edit, so this is the one field on `quotations`
+ * actually worth changing after creation. */
+export async function updateQuotationValidUntil(id: string, validUntil: string | null) {
+  const { error } = await supabase.from("quotations").update({ valid_until: validUntil }).eq("id", id)
+  if (error) throw error
+}
+
+export type LeadQuotationListItem = Pick<QuotationRow, "id" | "status" | "total" | "created_at">
+
+/** Item 6 (2026-09-16) — the missing linkage LeadDetailPanel never showed:
+ * quotations.lead_id was already set correctly by create_quotation, just
+ * never queried back from the lead side. */
+export async function listQuotationsForLead(leadId: string): Promise<LeadQuotationListItem[]> {
+  const { data, error } = await supabase
+    .from("quotations")
+    .select("id, status, total, created_at")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+  if (error) throw error
+  return data ?? []
 }
