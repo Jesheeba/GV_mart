@@ -21,6 +21,7 @@ import { useLocalDraft } from "@/hooks/useLocalDraft"
 import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
 import { formatCurrency } from "@/lib/sale-calc"
 import { ItemsStep } from "./ItemsStep"
+import { SaleFamilyReviewSection } from "./SaleFamilyReviewSection"
 import { SaleSummaryPanel } from "./SaleSummaryPanel"
 import { cartIsEmpty, combinedSubtotal, payableTotal, type CartProductLine, type CartSpareLine, type SaleCartState } from "./types"
 import type { Enums } from "@/types/database"
@@ -39,6 +40,7 @@ type NewSaleDraftData = {
   customerSearch: string
   cart: SaleCartState
   discountInput: string
+  discountAmountInput: string
   giftId: string | null
   paymentMethod: Enums<"payment_method">
   txnId: string
@@ -78,6 +80,7 @@ export function NewSalePage() {
 
   const [cart, setCart] = useState<SaleCartState>({ productLines: [], spareLines: [], amc: null })
   const [discountInput, setDiscountInput] = useState("0")
+  const [discountAmountInput, setDiscountAmountInput] = useState("0")
   const discountPercent = Math.max(0, Number(discountInput) || 0)
   const [giftId, setGiftId] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method">>("cash")
@@ -199,6 +202,7 @@ export function NewSalePage() {
     customerSearch,
     cart,
     discountInput,
+    discountAmountInput,
     giftId,
     paymentMethod,
     txnId,
@@ -221,6 +225,7 @@ export function NewSalePage() {
     if (restoredDraft.customerSearch) setCustomerSearch(restoredDraft.customerSearch)
     if (restoredDraft.cart) setCart(restoredDraft.cart)
     if (restoredDraft.discountInput != null) setDiscountInput(restoredDraft.discountInput)
+    if (restoredDraft.discountAmountInput != null) setDiscountAmountInput(restoredDraft.discountAmountInput)
     if (restoredDraft.giftId !== undefined) setGiftId(restoredDraft.giftId)
     if (restoredDraft.paymentMethod) setPaymentMethod(restoredDraft.paymentMethod)
     if (restoredDraft.txnId) setTxnId(restoredDraft.txnId)
@@ -324,6 +329,7 @@ export function NewSalePage() {
             setCustomerSearch("")
             setCart({ productLines: [], spareLines: [], amc: null })
             setDiscountInput("0")
+            setDiscountAmountInput("0")
             setGiftId(null)
             setPaymentMethod("cash")
             setTxnId("")
@@ -376,21 +382,55 @@ export function NewSalePage() {
             </Card>
           ) : null}
 
+          {step === 0 && customerId ? <SaleFamilyReviewSection orgId={orgId} customerId={customerId} /> : null}
+
           {step === 1 ? <ItemsStep orgId={orgId} cart={cart} setCart={setCart} /> : null}
 
           {step === 2 ? (
             <Card className="gap-3 px-5">
-              <Label htmlFor="discount">{t("sales.discount.label")}</Label>
-              <Input
-                id="discount"
-                type="number"
-                min={0}
-                max={adminMax}
-                step="0.5"
-                value={discountInput}
-                onChange={(e) => setDiscountInput(e.target.value)}
-                className="w-32"
-              />
+              <Label>{t("sales.discount.label")}</Label>
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="discount" className="text-xs text-text-muted">
+                    {t("sales.discount.percentLabel")}
+                  </Label>
+                  <Input
+                    id="discount"
+                    type="number"
+                    min={0}
+                    max={adminMax}
+                    step="0.5"
+                    value={discountInput}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      setDiscountInput(raw)
+                      const pct = Math.max(0, Number(raw) || 0)
+                      setDiscountAmountInput(((pct / 100) * combined).toFixed(2))
+                    }}
+                    className="w-32"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="discountAmount" className="text-xs text-text-muted">
+                    {t("sales.discount.amountLabel")}
+                  </Label>
+                  <Input
+                    id="discountAmount"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={discountAmountInput}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      setDiscountAmountInput(raw)
+                      const amt = Math.max(0, Number(raw) || 0)
+                      const pct = combined > 0 ? (amt / combined) * 100 : 0
+                      setDiscountInput(pct.toFixed(2))
+                    }}
+                    className="w-32"
+                  />
+                </div>
+              </div>
               <p className="text-xs text-text-muted">{t("sales.discount.freeUpTo", { max: techMax })}</p>
               <p className="text-xs text-warning">{t("sales.discount.approvalBand", { min: techMax, max: adminMax })}</p>
               <p className="text-xs text-danger">{t("sales.discount.blockedAbove", { max: adminMax })}</p>
@@ -398,29 +438,6 @@ export function NewSalePage() {
                 <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{t("sales.discount.blockedMessage", { max: adminMax })}</p>
               ) : discountNeedsApproval(discountPercent, techMax, adminMax) ? (
                 <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{t("sales.discount.needsApprovalMessage")}</p>
-              ) : null}
-
-              {referralBalanceNum > 0 ? (
-                <div className="space-y-1.5 border-t border-border pt-3">
-                  <Label htmlFor="redeemPoints">{t("sales.redeem.label")}</Label>
-                  <p className="text-xs text-text-muted">{t("sales.redeem.balance", { count: referralBalanceNum })}</p>
-                  <Input
-                    id="redeemPoints"
-                    type="number"
-                    min={0}
-                    max={referralBalanceNum}
-                    step="1"
-                    value={redeemPointsInput}
-                    onChange={(e) => setRedeemPointsInput(e.target.value)}
-                    className="w-32"
-                  />
-                  <p className="text-xs text-text-muted">{t("sales.redeem.hint", { value: formatCurrency(referralPointValue) })}</p>
-                  {redeemPointsRaw > referralBalanceNum ? (
-                    <p className="text-xs text-danger">{t("sales.redeem.exceedsBalance")}</p>
-                  ) : redeemPoints > 0 ? (
-                    <p className="text-xs text-success">{t("sales.redeem.discountPreview", { amount: formatCurrency(redeemAmount) })}</p>
-                  ) : null}
-                </div>
               ) : null}
             </Card>
           ) : null}
@@ -493,6 +510,29 @@ export function NewSalePage() {
                 </div>
               ) : null}
               <p className="text-xs text-text-muted">{t("sales.payment.noGatewayNote")}</p>
+
+              {referralBalanceNum > 0 ? (
+                <div className="space-y-1.5 border-t border-border pt-3">
+                  <Label htmlFor="redeemPoints">{t("sales.redeem.label")}</Label>
+                  <p className="text-xs text-text-muted">{t("sales.redeem.balance", { count: referralBalanceNum })}</p>
+                  <Input
+                    id="redeemPoints"
+                    type="number"
+                    min={0}
+                    max={referralBalanceNum}
+                    step="1"
+                    value={redeemPointsInput}
+                    onChange={(e) => setRedeemPointsInput(e.target.value)}
+                    className="w-32"
+                  />
+                  <p className="text-xs text-text-muted">{t("sales.redeem.hint", { value: formatCurrency(referralPointValue) })}</p>
+                  {redeemPointsRaw > referralBalanceNum ? (
+                    <p className="text-xs text-danger">{t("sales.redeem.exceedsBalance")}</p>
+                  ) : redeemPoints > 0 ? (
+                    <p className="text-xs text-success">{t("sales.redeem.discountPreview", { amount: formatCurrency(redeemAmount) })}</p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="space-y-1.5 border-t border-border pt-3">
                 <Label htmlFor="amountPaid">{t("sales.payment.amountCollected")}</Label>
