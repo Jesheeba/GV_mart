@@ -36,7 +36,7 @@ describe("discountNeedsApproval", () => {
 
 describe("paymentDetailsSchema", () => {
   it("accepts cash with no txnId/description", () => {
-    expect(paymentDetailsSchema.safeParse({ method: "cash" }).success).toBe(true)
+    expect(paymentDetailsSchema.safeParse({ method: "cash", amountPaid: 100 }).success).toBe(true)
   })
 
   it("accepts transfer with txnId and description", () => {
@@ -44,6 +44,7 @@ describe("paymentDetailsSchema", () => {
       method: "transfer",
       txnId: "TXN789",
       description: "Bank transfer",
+      amountPaid: 100,
     })
     expect(result.success).toBe(true)
   })
@@ -52,6 +53,7 @@ describe("paymentDetailsSchema", () => {
     const result = paymentDetailsSchema.safeParse({
       method: "transfer",
       description: "Bank transfer",
+      amountPaid: 100,
     })
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -64,6 +66,7 @@ describe("paymentDetailsSchema", () => {
       method: "transfer",
       txnId: "TXN789",
       description: "",
+      amountPaid: 100,
     })
     expect(result.success).toBe(false)
     if (!result.success) {
