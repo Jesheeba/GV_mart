@@ -3271,7 +3271,13 @@
         "email": "Email",
         "photo": "Profile Photo",
         "photoUpload": "Upload photo",
-        "photoChange": "Change photo"
+        "photoChange": "Change photo",
+        "aadhar": "Aadhar Card",
+        "drivingLicence": "Driving Licence",
+        "documentUpload": "Upload photo",
+        "documentReplace": "Replace photo",
+        "documentView": "View",
+        "documentUploaded": "Uploaded — will be saved with this technician"
       },
       "passwordDialogTitle": "Technician login created",
       "passwordDialogHint": "This password is shown once — copy it or share it now. It won't be shown again (you can always generate a new one from Reset Password).",
@@ -3423,7 +3429,28 @@
         "technicianRequired": "Select a technician",
         "dateRequired": "Date is required",
         "itemsRequired": "Add at least one item"
-      }
+      },
+      "tabs": {
+        "handover": "Handover",
+        "return": "Return",
+        "stock": "Stock"
+      },
+      "newReturn": "New Return",
+      "returnHistoryTitle": "Return History",
+      "itemsReturned": "Items Returned",
+      "noHoldings": "This technician isn't currently holding any spares.",
+      "selectTechnicianFirst": "Select a technician to see what they're holding",
+      "held": "held",
+      "returnEmpty": "No returns yet",
+      "returnLoadFailed": "Failed to load returns",
+      "stockTitle": "Who Holds What",
+      "stockSubtitle": "Current van stock, by technician",
+      "stockEmpty": "No technician is currently holding any spares",
+      "stockLoadFailed": "Failed to load technician stock",
+      "lowStockBadge": "Low",
+      "logTitle": "Daily Handover / Return Log",
+      "logKindHandover": "Handover",
+      "logKindReturn": "Return"
     }
   },
   "hr": {

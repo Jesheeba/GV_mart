@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { fileToDataUrl } from "@/lib/offline/capture"
 import { PeriodFilter } from "@/app/admin/reports/PeriodFilter"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
+import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocumentUpload"
 
 // Matches the design's 6-column table grid (design-template-decoded.html
 // line 1139): Technician / Phone / Status / Jobs / Revenue / Rating. The
@@ -245,6 +246,8 @@ function AddTechnicianPanel({
   const [dailyCapacity, setDailyCapacity] = useState("480")
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
+  const [aadharDocumentPath, setAadharDocumentPath] = useState<string | null>(null)
+  const [drivingLicenceDocumentPath, setDrivingLicenceDocumentPath] = useState<string | null>(null)
 
   function toggleSkill(skill: string) {
     setSkills((prev) => (prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]))
@@ -279,6 +282,8 @@ function AddTechnicianPanel({
         zone: zone.trim() || null,
         dailyCapacityMinutes: Number(dailyCapacity),
         photoUrl,
+        aadharDocumentPath,
+        drivingLicenceDocumentPath,
       },
       {
         onSuccess: (result) => {
@@ -360,6 +365,8 @@ function AddTechnicianPanel({
             <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoChange(e.target.files?.[0])} />
           </label>
         </div>
+        <TechnicianDocumentUpload label={t("technicians.list.fields.aadhar")} orgId={orgId} onUploaded={setAadharDocumentPath} />
+        <TechnicianDocumentUpload label={t("technicians.list.fields.drivingLicence")} orgId={orgId} onUploaded={setDrivingLicenceDocumentPath} />
         <div className="space-y-1 sm:col-span-3">
           <Label>{t("technicians.list.skills")}</Label>
           <div className="flex flex-wrap gap-1.5">

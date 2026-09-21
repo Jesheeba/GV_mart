@@ -33,6 +33,10 @@ export type TechnicianRow = Tables<"technicians"> & {
   city: string | null
   state: string | null
   pincode: string | null
+  // Item 1 (2026-09-21) — see 20260921100000_technician_documents.sql; widened
+  // locally the same way as address/city/state/pincode above.
+  aadhar_document_path: string | null
+  driving_licence_document_path: string | null
 }
 // Requirement 2/11 — `check_out_at` (migration 20260716120000_attendance_checkout.sql)
 // post-dates the last database.ts regen too; widened locally the same way
@@ -174,6 +178,8 @@ export async function updateTechnician(
     city?: string | null
     state?: string | null
     pincode?: string | null
+    aadhar_document_path?: string | null
+    driving_licence_document_path?: string | null
   }
 ) {
   const { data, error } = await supabase
@@ -213,6 +219,8 @@ export type CreateTechnicianInput = {
   zone?: string | null
   dailyCapacityMinutes?: number
   photoUrl?: string | null
+  aadharDocumentPath?: string | null
+  drivingLicenceDocumentPath?: string | null
 }
 export type CreateTechnicianResult = { technicianId: string; profileId: string; password: string }
 

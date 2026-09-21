@@ -37,6 +37,8 @@ type CreateBody = {
   zone?: string | null
   dailyCapacityMinutes?: number
   photoUrl?: string | null
+  aadharDocumentPath?: string | null
+  drivingLicenceDocumentPath?: string | null
 }
 type ResetPasswordBody = { action: "reset_password"; technicianId: string }
 type DeleteBody = { action: "delete"; technicianId: string }
@@ -159,6 +161,8 @@ Deno.serve(async (req) => {
           daily_capacity_minutes: body.dailyCapacityMinutes ?? 480,
           is_active: true,
           is_on_duty: false,
+          aadhar_document_path: body.aadharDocumentPath || null,
+          driving_licence_document_path: body.drivingLicenceDocumentPath || null,
         })
         .select()
         .single()

@@ -35,6 +35,7 @@ import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, Tech
 import { formatDurationMinutes, minutesBetween, resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
+import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocumentUpload"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
 
 const SKILL_OPTIONS = TECHNICIAN_SKILL_OPTIONS
@@ -90,6 +91,8 @@ export function TechnicianDetailPage() {
   const [editCity, setEditCity] = useState("")
   const [editState, setEditState] = useState("")
   const [editPincode, setEditPincode] = useState("")
+  const [editAadharDocumentPath, setEditAadharDocumentPath] = useState<string | null>(null)
+  const [editDrivingLicenceDocumentPath, setEditDrivingLicenceDocumentPath] = useState<string | null>(null)
   const [confirmingResetPassword, setConfirmingResetPassword] = useState(false)
   const [confirmingDeactivate, setConfirmingDeactivate] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -114,6 +117,8 @@ export function TechnicianDetailPage() {
     setEditCity(technician!.city ?? "")
     setEditState(technician!.state ?? "")
     setEditPincode(technician!.pincode ?? "")
+    setEditAadharDocumentPath(null)
+    setEditDrivingLicenceDocumentPath(null)
     setEditing(true)
   }
   function toggleSkill(skill: string) {
@@ -139,6 +144,8 @@ export function TechnicianDetailPage() {
           city: editCity || null,
           state: editState || null,
           pincode: editPincode || null,
+          ...(editAadharDocumentPath ? { aadhar_document_path: editAadharDocumentPath } : {}),
+          ...(editDrivingLicenceDocumentPath ? { driving_licence_document_path: editDrivingLicenceDocumentPath } : {}),
         },
       },
       { onSuccess: () => setEditing(false) }
@@ -332,6 +339,18 @@ export function TechnicianDetailPage() {
                 <Label htmlFor="tech-pincode">{t("technicians.detail.fields.pincode")}</Label>
                 <Input id="tech-pincode" value={editPincode} onChange={(e) => setEditPincode(e.target.value)} />
               </div>
+              <TechnicianDocumentUpload
+                label={t("technicians.list.fields.aadhar")}
+                orgId={technician.org_id}
+                existingPath={technician.aadhar_document_path}
+                onUploaded={setEditAadharDocumentPath}
+              />
+              <TechnicianDocumentUpload
+                label={t("technicians.list.fields.drivingLicence")}
+                orgId={technician.org_id}
+                existingPath={technician.driving_licence_document_path}
+                onUploaded={setEditDrivingLicenceDocumentPath}
+              />
               <div className="space-y-1 sm:col-span-3">
                 <Label>{t("technicians.list.skills")}</Label>
                 <div className="flex flex-wrap gap-1.5">
