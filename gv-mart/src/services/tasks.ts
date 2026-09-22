@@ -70,3 +70,43 @@ export async function assignTask(input: AssignTaskInput): Promise<TaskRow> {
   if (error) throw error
   return data
 }
+
+export type UpdateTaskInput = {
+  id: string
+  title: string
+  description: string | null
+  assigneeId: string
+  // Set whenever assigneeId changes, so the tasks_notify_assigned trigger
+  // (UPDATE OF assignee_id) attributes the reassignment to whoever made it
+  // and skips the notification if they reassigned it to themselves.
+  assignedBy: string
+  priority: PriorityLevel
+  dueDate: string | null
+  dueAt: string | null
+}
+
+export async function updateTask(input: UpdateTaskInput): Promise<TaskRow> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({
+      title: input.title,
+      description: input.description,
+      assignee_id: input.assigneeId,
+      assigned_by: input.assignedBy,
+      priority: input.priority,
+      due_date: input.dueDate,
+      due_at: input.dueAt,
+    })
+    .eq("id", input.id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Ops-only under RLS (tasks_delete_ops) — the UI also hides the delete
+// action for anyone else, but the database is the real gate.
+export async function deleteTask(id: string): Promise<void> {
+  const { error } = await supabase.from("tasks").delete().eq("id", id)
+  if (error) throw error
+}

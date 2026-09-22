@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as tasksService from "@/services/tasks"
-import type { AssignTaskInput } from "@/services/tasks"
+import type { AssignTaskInput, UpdateTaskInput } from "@/services/tasks"
 import { setTaskStatus } from "@/services/workspace"
 import type { Enums } from "@/types/database"
 
@@ -27,6 +27,22 @@ export function useAssignTask() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] })
     },
+  })
+}
+
+export function useUpdateTask() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: UpdateTaskInput) => tasksService.updateTask(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  })
+}
+
+export function useDeleteTask() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => tasksService.deleteTask(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   })
 }
 

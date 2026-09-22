@@ -1,0 +1,94 @@
+/*
+ * Maps FullCalendar's own CSS custom properties onto this app's design
+ * tokens (index.css) instead of shipping FullCalendar's default look.
+ * Scoped under .gv-calendar so it can't leak into any other page.
+ */
+.gv-calendar {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--surface-alt);
+  --fc-list-event-hover-bg-color: var(--surface-alt);
+  --fc-today-bg-color: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  --fc-button-bg-color: var(--surface);
+  --fc-button-border-color: var(--border);
+  --fc-button-text-color: var(--text);
+  --fc-button-hover-bg-color: var(--surface-alt);
+  --fc-button-hover-border-color: var(--border);
+  --fc-button-active-bg-color: var(--ink);
+  --fc-button-active-border-color: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.gv-calendar .fc-toolbar-title {
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.gv-calendar .fc-button {
+  border-radius: 999px !important;
+  text-transform: capitalize;
+  box-shadow: none !important;
+  padding: 0.375rem 0.9rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+}
+
+.gv-calendar .fc-button-primary:not(:disabled).fc-button-active,
+.gv-calendar .fc-button-primary:not(:disabled):active {
+  color: #fff !important;
+}
+
+.gv-calendar .fc-daygrid-day-number,
+.gv-calendar .fc-col-header-cell-cushion,
+.gv-calendar .fc-list-day-text,
+.gv-calendar .fc-list-day-side-text,
+.gv-calendar .fc-timegrid-slot-label-cushion {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.gv-calendar .fc-daygrid-day-number {
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.gv-calendar .fc-day-today {
+  background: var(--fc-today-bg-color) !important;
+}
+
+.gv-calendar .fc-event {
+  border: none;
+  border-radius: 6px;
+  padding: 1px 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gv-calendar .fc-event.gv-event-done {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.gv-calendar a {
+  color: inherit;
+}
+
+.gv-calendar .fc-list-event:hover td {
+  background: var(--surface-alt);
+  cursor: pointer;
+}
+
+.gv-calendar .fc-list-empty {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.gv-calendar .fc-scrollgrid,
+.gv-calendar th,
+.gv-calendar td {
+  border-color: var(--border) !important;
+}

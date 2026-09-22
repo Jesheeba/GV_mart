@@ -3684,6 +3684,17 @@
       "done": "Done",
       "all": "All"
     },
+    "view": {
+      "list": "List",
+      "calendar": "Calendar"
+    },
+    "detailDialog": {
+      "title": "Task",
+      "subtitle": "Reassign, reschedule, or update this task.",
+      "statusOpen": "Open",
+      "statusDone": "Done",
+      "confirmDelete": "Delete this task? This cannot be undone."
+    },
     "roleLabel": {
       "master": "Master",
       "operation_admin": "Operation Admin",
