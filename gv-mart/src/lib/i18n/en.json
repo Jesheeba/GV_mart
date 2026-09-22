@@ -64,6 +64,7 @@
     "reports": "Reports",
     "masters": "Masters / Settings",
     "workspace": "My Workspace",
+    "tasks": "Tasks",
     "purchase": "Purchase",
     "notifications": "Notifications",
     "approvals": "Approvals",
@@ -3668,6 +3669,41 @@
     "rolledOverCount_other": "Rolled over {{count}} days",
     "daysOverdue_one": "{{count}} day overdue",
     "daysOverdue_other": "{{count}} days overdue"
+  },
+  "tasks": {
+    "subtitle": "Assign and track tasks across the whole team.",
+    "assignTask": "Assign Task",
+    "loadFailed": "Could not load tasks.",
+    "empty": "No tasks here.",
+    "unknownUser": "Unknown",
+    "assignedBy": "Assigned by {{name}}",
+    "due": "Due {{date}}",
+    "filters": {
+      "open": "Open",
+      "mine": "Assigned to me",
+      "done": "Done",
+      "all": "All"
+    },
+    "roleLabel": {
+      "master": "Master",
+      "operation_admin": "Operation Admin",
+      "sales_admin": "Sales Admin",
+      "technician": "Technician"
+    },
+    "assignDialog": {
+      "title": "Assign a task",
+      "subtitle": "Any staff member or technician can be assigned a task, regardless of role.",
+      "taskTitle": "Task",
+      "taskTitlePlaceholder": "What needs to get done?",
+      "description": "Description (optional)",
+      "descriptionPlaceholder": "Any extra detail",
+      "assignTo": "Assign to",
+      "assignToPlaceholder": "Select a person",
+      "priority": "Priority",
+      "dueDate": "Due date",
+      "dueTime": "Due time (optional)",
+      "submit": "Assign Task"
+    }
   },
   "notifications": {
     "subtitle": "Everything sent to you or your role.",

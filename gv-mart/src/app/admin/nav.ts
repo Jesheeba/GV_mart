@@ -17,6 +17,7 @@ import {
   Receipt,
   Bell,
   CheckSquare,
+  ListChecks,
   AlertTriangle,
   Megaphone,
   RotateCcw,
@@ -71,6 +72,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { key: "masters", labelKey: "nav.masters", path: "/admin/masters", icon: Settings, roles: ["master"] },
   { key: "approvals", labelKey: "nav.approvals", path: "/admin/approvals", icon: CheckSquare, roles: ["master"] },
   { key: "auditLog", labelKey: "nav.auditLog", path: "/admin/audit-log", icon: ScrollText, roles: ["master"] },
+  { key: "tasks", labelKey: "nav.tasks", path: "/admin/tasks", icon: ListChecks, roles: ALL_STAFF },
   { key: "workspace", labelKey: "nav.workspace", path: "/admin/workspace", icon: ClipboardList, roles: ALL_STAFF },
   { key: "notifications", labelKey: "nav.notifications", path: "/admin/notifications", icon: Bell, roles: ALL_STAFF },
 ]

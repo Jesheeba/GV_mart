@@ -57,6 +57,7 @@ const TechniciansSpareHandoverPage = lazyPage(() => import("@/app/admin/technici
 const HrPage = lazyPage(() => import("@/app/admin/hr/HrPage"), "HrPage")
 const ReportsPage = lazyPage(() => import("@/app/admin/reports/ReportsPage"), "ReportsPage")
 const WorkspacePage = lazyPage(() => import("@/app/admin/workspace/WorkspacePage"), "WorkspacePage")
+const TasksPage = lazyPage(() => import("@/app/admin/tasks/TasksPage"), "TasksPage")
 const NotificationsPage = lazyPage(() => import("@/app/admin/notifications/NotificationsPage"), "NotificationsPage")
 const ApprovalsPage = lazyPage(() => import("@/app/admin/approvals/ApprovalsPage"), "ApprovalsPage")
 const ComplaintsPage = lazyPage(() => import("@/app/admin/complaints/ComplaintsPage"), "ComplaintsPage")
@@ -206,6 +207,7 @@ export const router = createBrowserRouter([
                 element: <RequireRole roles={[...STAFF_ROLES]} />,
                 children: [
                   { path: "workspace", element: <WorkspacePage /> },
+                  { path: "tasks", element: <TasksPage /> },
                   { path: "notifications", element: <NotificationsPage /> },
                 ],
               },

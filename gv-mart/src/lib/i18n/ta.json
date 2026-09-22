@@ -64,6 +64,7 @@
     "reports": "அறிக்கைகள்",
     "masters": "மாஸ்டர்ஸ் / அமைப்புகள்",
     "workspace": "எனது பணியிடம்",
+    "tasks": "பணிகள்",
     "purchase": "கொள்முதல்",
     "notifications": "அறிவிப்புகள்",
     "approvals": "ஒப்புதல்கள்",
@@ -3663,6 +3664,41 @@
     "rolledOverCount_other": "{{count}} நாட்கள் தள்ளிவைக்கப்பட்டது",
     "daysOverdue_one": "{{count}} நாள் தாமதம்",
     "daysOverdue_other": "{{count}} நாட்கள் தாமதம்"
+  },
+  "tasks": {
+    "subtitle": "முழு குழுவிலும் பணிகளை ஒதுக்கி கண்காணிக்கவும்.",
+    "assignTask": "பணி ஒதுக்கு",
+    "loadFailed": "பணிகளை ஏற்ற முடியவில்லை.",
+    "empty": "இங்கு பணிகள் இல்லை.",
+    "unknownUser": "தெரியவில்லை",
+    "assignedBy": "{{name}} ஒதுக்கியது",
+    "due": "நிலுவை {{date}}",
+    "filters": {
+      "open": "திறந்தவை",
+      "mine": "எனக்கு ஒதுக்கப்பட்டவை",
+      "done": "முடிந்தவை",
+      "all": "அனைத்தும்"
+    },
+    "roleLabel": {
+      "master": "மாஸ்டர்",
+      "operation_admin": "ஆபரேஷன் அட்மின்",
+      "sales_admin": "சேல்ஸ் அட்மின்",
+      "technician": "டெக்னீஷியன்"
+    },
+    "assignDialog": {
+      "title": "ஒரு பணியை ஒதுக்கு",
+      "subtitle": "பங்கு எதுவாக இருந்தாலும், எந்த ஊழியரையும் அல்லது டெக்னீஷியனையும் பணிக்கு ஒதுக்கலாம்.",
+      "taskTitle": "பணி",
+      "taskTitlePlaceholder": "என்ன செய்ய வேண்டும்?",
+      "description": "விவரம் (விருப்பத்தேர்வு)",
+      "descriptionPlaceholder": "கூடுதல் விவரம்",
+      "assignTo": "இவருக்கு ஒதுக்கு",
+      "assignToPlaceholder": "ஒருவரைத் தேர்ந்தெடுக்கவும்",
+      "priority": "முன்னுரிமை",
+      "dueDate": "நிலுவைத் தேதி",
+      "dueTime": "நிலுவை நேரம் (விருப்பத்தேர்வு)",
+      "submit": "பணி ஒதுக்கு"
+    }
   },
   "notifications": {
     "subtitle": "உங்களுக்கு அல்லது உங்கள் பங்குக்கு அனுப்பப்பட்ட அனைத்தும்.",
