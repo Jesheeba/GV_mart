@@ -91,12 +91,24 @@ export async function listCompletedWorkspaceTasks(orgId: string, assigneeId: str
   return data ?? []
 }
 
-export type CreateTaskInput = { orgId: string; assigneeId: string; title: string; dueDate: string | null; source?: string }
+export type CreateTaskInput = { orgId: string; assigneeId: string; title: string; dueDate: string | null; source?: string; assignedBy?: string }
 
+// assignedBy defaults to assigneeId (self-assigned) — every call site today
+// (Workspace's personal to-do quick-add) is a self-assign, and the
+// tasks_notify_assigned trigger uses assigned_by = assignee_id as its signal
+// to skip the "new task assigned" notification, so leaving this unset would
+// wrongly notify a user about their own to-do entry.
 export async function createTask(input: CreateTaskInput): Promise<TaskRow> {
   const { data, error } = await supabase
     .from("tasks")
-    .insert({ org_id: input.orgId, assignee_id: input.assigneeId, title: input.title, due_date: input.dueDate, source: input.source ?? "manual" })
+    .insert({
+      org_id: input.orgId,
+      assignee_id: input.assigneeId,
+      assigned_by: input.assignedBy ?? input.assigneeId,
+      title: input.title,
+      due_date: input.dueDate,
+      source: input.source ?? "manual",
+    })
     .select()
     .single()
   if (error) throw error

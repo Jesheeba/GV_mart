@@ -5383,12 +5383,18 @@ export type Database = {
           id: string
           org_id: string
           assignee_id: string | null
+          assigned_by: string | null
           title: string
+          description: string | null
+          priority: Database["public"]["Enums"]["priority_level"]
           due_date: string | null
+          due_at: string | null
           original_due_date: string | null
           rolled_count: number
           status: Database["public"]["Enums"]["task_status"]
           source: string | null
+          ref_type: string | null
+          ref_id: string | null
           created_at: string
           updated_at: string
         }
@@ -5396,12 +5402,18 @@ export type Database = {
           id?: string
           org_id: string
           assignee_id?: string | null
+          assigned_by?: string | null
           title: string
+          description?: string | null
+          priority?: Database["public"]["Enums"]["priority_level"]
           due_date?: string | null
+          due_at?: string | null
           original_due_date?: string | null
           rolled_count?: number
           status?: Database["public"]["Enums"]["task_status"]
           source?: string | null
+          ref_type?: string | null
+          ref_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5409,12 +5421,18 @@ export type Database = {
           id?: string
           org_id?: string
           assignee_id?: string | null
+          assigned_by?: string | null
           title?: string
+          description?: string | null
+          priority?: Database["public"]["Enums"]["priority_level"]
           due_date?: string | null
+          due_at?: string | null
           original_due_date?: string | null
           rolled_count?: number
           status?: Database["public"]["Enums"]["task_status"]
           source?: string | null
+          ref_type?: string | null
+          ref_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5429,6 +5447,13 @@ export type Database = {
           {
             foreignKeyName: "tasks_assignee_id_fkey"
             columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_assigned_by_fkey"
+            columns: ["assigned_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
