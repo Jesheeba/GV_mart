@@ -2290,6 +2290,10 @@
       "message": "You've been assigned a new job — tap to view",
       "dismiss": "Dismiss"
     },
+    "newTaskAssignedAlert": {
+      "message": "You've been assigned a new task — tap to view",
+      "dismiss": "Dismiss"
+    },
     "shiftEndPrompt": {
       "title": "Shift end reached",
       "body": "Your shift has ended. Would you like to continue working, or check out?",

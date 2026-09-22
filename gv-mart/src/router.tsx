@@ -81,6 +81,7 @@ const HistoryDetailPage = lazyPage(() => import("@/app/technician/HistoryDetailP
 const TechnicianProfilePage = lazyPage(() => import("@/app/technician/ProfilePage"), "ProfilePage")
 const DaySheetPage = lazyPage(() => import("@/app/technician/DaySheetPage"), "DaySheetPage")
 const TechnicianNotificationsPage = lazyPage(() => import("@/app/technician/NotificationsPage"), "NotificationsPage")
+const TechnicianTasksPage = lazyPage(() => import("@/app/technician/TasksPage"), "TasksPage")
 
 // --- Customer ---
 const CustomerShell = lazyPage(() => import("@/app/customer/CustomerShell"), "CustomerShell")
@@ -243,6 +244,7 @@ export const router = createBrowserRouter([
               { path: "jobs/:ticketId/rating", element: <RatingPage /> },
               { path: "day-sheet", element: <DaySheetPage /> },
               { path: "notifications", element: <TechnicianNotificationsPage /> },
+              { path: "tasks", element: <TechnicianTasksPage /> },
             ],
           },
           // Full-screen on-site stepper — deliberately outside TechnicianShell

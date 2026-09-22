@@ -12,6 +12,7 @@ import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SyncStatusChip } from "./components/SyncStatusChip"
 import { NewJobAssignedBanner } from "./components/NewJobAssignedBanner"
+import { NewTaskAssignedBanner } from "./components/NewTaskAssignedBanner"
 import { ShiftEndPromptModal } from "./components/ShiftEndPromptModal"
 import { startSyncEngine, stopSyncEngine } from "@/lib/offline/sync"
 import { signOut } from "@/services/auth"
@@ -136,6 +137,7 @@ export function TechnicianShell() {
         </div>
       </header>
       <NewJobAssignedBanner userId={profile.id} />
+      <NewTaskAssignedBanner userId={profile.id} />
       <ShiftEndPromptModal orgId={profile.org_id} technicianId={technician.data?.id} userId={profile.id} />
       <main className="px-4">
         <Outlet />

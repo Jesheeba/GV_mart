@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarCheck, ChevronRight, ClipboardList, MapPin, TriangleAlert, Wrench } from "lucide-react"
+import { CalendarCheck, ChevronRight, ClipboardList, ListChecks, MapPin, TriangleAlert, Wrench } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { Card } from "@/components/ui/card"
@@ -192,14 +192,18 @@ export function TechnicianHomePage() {
     <div className="space-y-4 pt-2">
       <h1 className="text-xl font-bold text-text">{t("dashboard.welcomeBack", { name: profile.full_name.split(" ")[0] })}</h1>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Button type="button" variant="outline" className="h-auto flex-col gap-1 px-3 py-2.5" onClick={() => navigate("/technician/spares")}>
+      <div className="grid grid-cols-3 gap-2">
+        <Button type="button" variant="outline" className="h-auto flex-col gap-1 px-2 py-2.5" onClick={() => navigate("/technician/spares")}>
           <Wrench className="size-3.5" />
           {t("technician.home.spareReceipt")}
         </Button>
-        <Button type="button" variant="outline" className="h-auto flex-col gap-1 px-3 py-2.5" onClick={() => navigate("/technician/search")}>
+        <Button type="button" variant="outline" className="h-auto flex-col gap-1 px-2 py-2.5" onClick={() => navigate("/technician/search")}>
           <ClipboardList className="size-3.5" />
           {t("technician.home.searchCustomers")}
+        </Button>
+        <Button type="button" variant="outline" className="h-auto flex-col gap-1 px-2 py-2.5" onClick={() => navigate("/technician/tasks")}>
+          <ListChecks className="size-3.5" />
+          {t("nav.tasks")}
         </Button>
       </div>
 
