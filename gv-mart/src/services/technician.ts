@@ -360,7 +360,21 @@ export async function getTodaysJobCounts(orgId: string, technicianId: string): P
 // ── TECH-06 Job detail / history ─────────────────────────────────────────
 
 export type JobDetail = ServiceTicketRow & {
-  customers: { id: string; name: string; mobile: string; customer_members: { id: string; name: string; mobile: string; is_primary: boolean }[] } | null
+  customers: {
+    id: string
+    name: string
+    mobile: string
+    customer_members: {
+      id: string
+      name: string
+      mobile: string
+      is_primary: boolean
+      // Technician KPI review attribution (2026-09-22) — lets HistoryDetailPage
+      // show a member's existing review claim (if any) before logging a new one.
+      google_review_stars: number | null
+      google_review_photo_url: string | null
+    }[]
+  } | null
   addresses: Tables<"addresses"> | null
   products: { name: string; warranty_months: number; category: Enums<"brand_category"> } | null
   brands: { name: string } | null
@@ -415,7 +429,7 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
     const { data, error } = await supabase
       .from("service_tickets")
       .select(
-        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
+        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
       )
       .eq("id", ticketId)
       .single()
@@ -853,6 +867,21 @@ export async function queueVisitImage(visitId: string, kind: "before" | "after",
 // visit, so queued patches applying in enqueue order never race each other.
 export async function queueVisitEvidencePhotos(visitId: string, urls: string[]) {
   await enqueue("service_visit.arrive", { visitId, patch: { evidence_photo_urls: urls } })
+}
+
+// Technician KPI section (2026-09-22) — logs a Google review claim against a
+// specific closed visit (HistoryDetailPage). Member/ticket/technician are all
+// known from context, so attribution is automatic; the server-side RPC
+// (log_technician_google_review) re-validates that the visit belongs to the
+// calling technician and rejects a missing photo.
+export async function queueGoogleReviewLog(input: { orgId: string; visitId: string; memberId: string; stars: number; photoUrl: string }) {
+  await enqueue("customer_member.google_review", {
+    orgId: input.orgId,
+    visitId: input.visitId,
+    memberId: input.memberId,
+    stars: input.stars,
+    photoUrl: input.photoUrl,
+  })
 }
 
 // ── OTP completion confirmation (GV.md §2) ──────────────────────────────

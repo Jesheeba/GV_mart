@@ -113,6 +113,14 @@ export function useTechnicianRewards(technicianId: string | undefined) {
   })
 }
 
+export function useTechnicianKpiSummary(orgId: string | undefined, technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicians", "kpiSummary", orgId, technicianId],
+    queryFn: () => techniciansAdmin.getTechnicianKpiSummary(orgId!, technicianId!),
+    enabled: !!orgId && !!technicianId,
+  })
+}
+
 /** Requirement 2/11 — History tab's per-job duration + rating enrichment (see getTechnicianTicketHistory doc comment). */
 export function useTechnicianTicketHistory(technicianId: string | undefined) {
   return useQuery({

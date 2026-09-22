@@ -37,6 +37,9 @@ export type OutboxKind =
   // best-effort visibility log, not a gate.
   | "location.arrival_address_confirm"
   | "location.arrival_block"
+  // Technician KPI section (2026-09-22) — see log_technician_google_review in
+  // 20260922120000_technician_kpi_review_attribution.sql.
+  | "customer_member.google_review"
 
 /**
  * "stuck" = failed `MAX_ATTEMPTS_BEFORE_STUCK` times (see sync.ts) and no

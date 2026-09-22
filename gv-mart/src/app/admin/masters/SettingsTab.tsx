@@ -61,6 +61,8 @@ export function SettingsTab() {
         referral_point_value: Number(settings.referral_point_value),
         review_link_min_stars: Number(settings.review_link_min_stars),
         google_review_url: settings.google_review_url ?? "",
+        review_flag_threshold_percent: Number(settings.review_flag_threshold_percent),
+        review_flag_min_visits: settings.review_flag_min_visits,
         default_min_stock: settings.default_min_stock,
         gst_rate: Number(settings.gst_rate),
         sla_hours_very_urgent: Number(settings.sla_hours_very_urgent),
@@ -206,6 +208,11 @@ export function SettingsTab() {
           {field("google_review_url", t("settings.googleReviewUrl"), "text", undefined, t("settings.googleReviewUrlPlaceholder"))}
           <p className="mt-1 text-xs text-text-muted">{t("settings.googleReviewUrlHint")}</p>
         </div>
+        <div className="grid grid-cols-2 gap-3 px-1">
+          {field("review_flag_threshold_percent", t("settings.reviewFlagThresholdPercent"), "number", "1")}
+          {field("review_flag_min_visits", t("settings.reviewFlagMinVisits"), "number", "1")}
+        </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.reviewFlagHint")}</p>
       </Card>
 
       <Card className="gap-4">

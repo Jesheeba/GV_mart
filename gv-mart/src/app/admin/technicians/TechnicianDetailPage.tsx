@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { Briefcase, ChevronLeft, ChevronRight, Gift, History, KeyRound, Loader2, Pencil, Phone, Power, Trash2, UserPlus, X } from "lucide-react"
+import { Briefcase, ChevronLeft, ChevronRight, Gauge, Gift, History, KeyRound, Loader2, Pencil, Phone, Power, Trash2, TriangleAlert, UserPlus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,7 @@ import {
   useTechnicianAttendanceForMonth,
   useTechnicianAvailability,
   useTechnicianCurrentJob,
+  useTechnicianKpiSummary,
   useTechnicianRewards,
   useTechnicianTicketHistory,
   useTechniciansList,
@@ -31,7 +32,7 @@ import { useLeads } from "@/hooks/useAutomation"
 import type { LeadListItem } from "@/services/automation"
 import { PriorityBadge, TicketTypeBadge } from "@/app/admin/service/TicketBadges"
 import { pickHistoryVisit, TECHNICIAN_SKILL_OPTIONS } from "@/services/techniciansAdmin"
-import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
+import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianKpiSummary, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
 import { formatDurationMinutes, minutesBetween, resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
@@ -81,6 +82,7 @@ export function TechnicianDetailPage() {
   const history = useTechnicianTicketHistory(id)
   const rewards = useTechnicianRewards(id)
   const referrals = useLeads(orgId, { source: "referral", ownerId: id })
+  const kpiSummary = useTechnicianKpiSummary(orgId, id)
 
   const [editing, setEditing] = useState(false)
   const [editZone, setEditZone] = useState("")
@@ -400,6 +402,9 @@ export function TechnicianDetailPage() {
           <TabsTrigger value="referrals">
             <UserPlus className="size-3.5" /> {t("technicians.detail.tabs.referrals")}
           </TabsTrigger>
+          <TabsTrigger value="kpis">
+            <Gauge className="size-3.5" /> {t("technicians.detail.tabs.kpis")}
+          </TabsTrigger>
           <TabsTrigger value="availability">{t("technicians.detail.tabs.availability")}</TabsTrigger>
         </TabsList>
 
@@ -421,6 +426,10 @@ export function TechnicianDetailPage() {
 
         <TabsContent value="referrals" className="mt-3.5">
           <ReferralsTab loading={referrals.isLoading} rows={referrals.data ?? []} onOpenCustomer={(customerId) => navigate(`/admin/customers/${customerId}`)} />
+        </TabsContent>
+
+        <TabsContent value="kpis" className="mt-3.5">
+          <KpisTab loading={kpiSummary.isLoading} summary={kpiSummary.data} />
         </TabsContent>
 
         <TabsContent value="availability" className="mt-3.5">
@@ -839,6 +848,52 @@ function ReferralsTab({
           <StatusDot tone={r.status === "won" ? "success" : r.status === "lost" ? "danger" : "warning"} label={t(`leads.status.${r.status}`)} />
         </button>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Technician KPI section (2026-09-22): avg call value (paid invoices only),
+ * lifetime referrals (reuses the same `leads` model as the Referrals tab, via
+ * technician_kpi_summary), and photo-verified Google review claims. The
+ * flagged banner is a signal, not proof — a heuristic for admins to manually
+ * check a technician whose review-claim rate looks implausible, using the
+ * admin-tunable settings.review_flag_threshold_percent/min_visits (Settings →
+ * amcReferral group), never a hardcoded cutoff.
+ */
+function KpisTab({ loading, summary }: { loading: boolean; summary: TechnicianKpiSummary | null | undefined }) {
+  const { t } = useTranslation()
+  if (loading) return <Skeleton className="h-32 w-full" />
+  if (!summary) return <EmptyState label={t("technicians.detail.kpi.unavailable")} />
+  return (
+    <div className="space-y-3">
+      {summary.flagged ? (
+        <div className="flex items-start gap-2 rounded-xl bg-warning/10 px-3 py-2.5 text-sm text-warning">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <p>{t("technicians.detail.kpi.flaggedBanner", { rate: summary.review_claim_rate_percent, visits: summary.completed_visit_count })}</p>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-border bg-surface px-4 py-3">
+          <p className="text-xs text-text-muted">{t("technicians.detail.kpi.avgCallValue")}</p>
+          <p className="text-lg font-bold tabular-nums text-text">
+            {summary.avg_call_value != null ? `₹${Math.round(summary.avg_call_value).toLocaleString("en-IN")}` : "—"}
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface px-4 py-3">
+          <p className="text-xs text-text-muted">{t("technicians.detail.kpi.totalReferrals")}</p>
+          <p className="text-lg font-bold tabular-nums text-text">{summary.total_referrals}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface px-4 py-3">
+          <p className="text-xs text-text-muted">{t("technicians.detail.kpi.totalReviews")}</p>
+          <p className="text-lg font-bold tabular-nums text-text">{summary.total_reviews}</p>
+        </div>
+      </div>
+
+      <p className="px-1 text-xs text-text-muted">
+        {t("technicians.detail.kpi.reviewRateFootnote", { rate: summary.review_claim_rate_percent, visits: summary.completed_visit_count })}
+      </p>
     </div>
   )
 }

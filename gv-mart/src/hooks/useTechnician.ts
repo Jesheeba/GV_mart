@@ -374,6 +374,12 @@ export function useQueueVisitEvidencePhotos() {
   })
 }
 
+export function useQueueGoogleReviewLog() {
+  return useMutation({
+    mutationFn: (input: { orgId: string; visitId: string; memberId: string; stars: number; photoUrl: string }) => tech.queueGoogleReviewLog(input),
+  })
+}
+
 /** Mints/reuses the customer-facing completion code for a visit — see services/technician.ts#generateVisitOtp. Not queued offline; requires a live connection. */
 export function useGenerateVisitOtp() {
   return useMutation({

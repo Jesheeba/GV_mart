@@ -417,6 +417,29 @@ export async function listTechnicianRewards(technicianId: string, limit = 20): P
   return data ?? []
 }
 
+// ── Technician KPI section (2026-09-22) ────────────────────────────────────
+// Lifetime-to-date, same horizon as the Referrals/Rewards tabs above.
+// avg_call_value only counts visits whose ticket's invoice is fully paid
+// (partial/due excluded entirely, per the 2026-09-22 design decision);
+// total_reviews only counts photo-verified claims; flagged uses the
+// admin-tunable settings.review_flag_threshold_percent/min_visits — see
+// 20260922120000_technician_kpi_review_attribution.sql for the full query.
+export type TechnicianKpiSummary = {
+  avg_call_value: number | null
+  total_referrals: number
+  total_reviews: number
+  completed_visit_count: number
+  review_claim_rate_percent: number
+  flagged: boolean
+}
+
+export async function getTechnicianKpiSummary(orgId: string, technicianId: string): Promise<TechnicianKpiSummary | null> {
+  const { data, error } = await rpc("technician_kpi_summary", { p_org_id: orgId, p_technician_id: technicianId })
+  if (error) throw error
+  const rows = data as unknown as TechnicianKpiSummary[]
+  return rows?.[0] ?? null
+}
+
 // ── Requirement 2/11: History tab enrichment (duration + rating) ──────────
 // TechnicianDetailPage's History tab previously reused service.ts's
 // listTickets (customer/complaint/product/date/type/priority/status only,

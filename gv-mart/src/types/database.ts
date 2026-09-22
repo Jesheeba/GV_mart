@@ -4890,6 +4890,12 @@ export type Database = {
           scheduled_tasks_enabled: boolean
           scheduled_tasks_interval_minutes: number
           scheduled_tasks_last_run_at: string | null
+          // Technician KPI review-claim flagging (2026-09-22) — see
+          // 20260922120000_technician_kpi_review_attribution.sql. Admin-tunable
+          // so the threshold can be adjusted once real claim-rate data exists,
+          // without a code change.
+          review_flag_threshold_percent: number
+          review_flag_min_visits: number
           created_at: string
           updated_at: string
         }
@@ -4943,6 +4949,8 @@ export type Database = {
           scheduled_tasks_enabled?: boolean
           scheduled_tasks_interval_minutes?: number
           scheduled_tasks_last_run_at?: string | null
+          review_flag_threshold_percent?: number
+          review_flag_min_visits?: number
           created_at?: string
           updated_at?: string
         }
@@ -4996,6 +5004,8 @@ export type Database = {
           scheduled_tasks_enabled?: boolean
           scheduled_tasks_interval_minutes?: number
           scheduled_tasks_last_run_at?: string | null
+          review_flag_threshold_percent?: number
+          review_flag_min_visits?: number
           created_at?: string
           updated_at?: string
         }

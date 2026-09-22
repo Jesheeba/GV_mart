@@ -230,6 +230,17 @@ async function runJob(job: OutboxJob): Promise<void> {
       if (error) throw error
       return
     }
+    case "customer_member.google_review": {
+      const { error } = await supabase.rpc("log_technician_google_review", {
+        p_org_id: p.orgId as string,
+        p_visit_id: p.visitId as string,
+        p_member_id: p.memberId as string,
+        p_stars: p.stars as number,
+        p_photo_url: p.photoUrl as string,
+      })
+      if (error) throw error
+      return
+    }
     case "amc.sell_onsite": {
       const { error } = await supabase.rpc("sell_amc_plan_onsite", {
         p_org_id: p.orgId as string,

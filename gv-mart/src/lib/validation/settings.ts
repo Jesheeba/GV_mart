@@ -28,6 +28,12 @@ export const settingsSchema = z
     referral_point_value: z.coerce.number().min(50, "settings.errors.referralMin"),
     review_link_min_stars: z.coerce.number().min(1).max(5, "settings.errors.starsRange"),
     google_review_url: z.string().trim().url("settings.errors.urlInvalid").optional().or(z.literal("")),
+    // Technician KPI review-claim flagging (2026-09-22) — a signal for admins
+    // to manually check a technician whose review-claim rate looks
+    // implausible, not a hardcoded cutoff. See technician_kpi_summary in
+    // 20260922120000_technician_kpi_review_attribution.sql.
+    review_flag_threshold_percent: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
+    review_flag_min_visits: z.coerce.number().int().positive("settings.errors.positive"),
     default_min_stock: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     gst_rate: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
     sla_hours_very_urgent: z.coerce.number().positive("settings.errors.positive"),

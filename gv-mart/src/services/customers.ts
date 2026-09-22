@@ -15,6 +15,15 @@ export type MemberRow = Tables<"customer_members"> & {
   profession: string | null
   google_review_stars: number | null
   google_review_logged_at: string | null
+  // Technician KPI review attribution (2026-09-22) — see
+  // 20260922120000_technician_kpi_review_attribution.sql. Only set by
+  // log_technician_google_review (technician-side, photo mandatory); the
+  // admin-side logMemberGoogleReview below never sets these, so an
+  // admin-logged claim has no job/technician attribution and doesn't count
+  // toward any technician's KPI.
+  google_review_ticket_id: string | null
+  google_review_technician_id: string | null
+  google_review_photo_url: string | null
 }
 export type AddressRow = Tables<"addresses">
 

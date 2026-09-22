@@ -924,6 +924,9 @@
     "googleReviewUrl": "Google review link",
     "googleReviewUrlPlaceholder": "https://g.page/r/.../review",
     "googleReviewUrlHint": "Shown to the customer as a \"Leave a Google review\" button once they rate at or above the threshold above. Leave blank to keep the button disabled.",
+    "reviewFlagThresholdPercent": "Review-claim flag threshold (%)",
+    "reviewFlagMinVisits": "Review-claim flag minimum visits",
+    "reviewFlagHint": "On a technician's KPI tab, flags a review-claim rate at or above this percent — but only once they've completed at least this many visits, to avoid flagging low-volume technicians. A signal for admins to check manually, not proof of anything.",
     "defaultMinStock": "Default minimum stock",
     "poApprovalThreshold": "PO amount that flags for review (₹)",
     "poRequiresApproval": "Require approval before sending auto-drafted POs",
@@ -2815,7 +2818,15 @@
       "duration": "Duration",
       "durationMinutes": "{{minutes}} min",
       "charge": "Charge",
-      "photosTitle": "Photos"
+      "photosTitle": "Photos",
+      "googleReview": {
+        "title": "Log Google Review",
+        "selectMember": "Which family member left the review?",
+        "alreadyLogged": "Already logged: {{stars}} ★ — logging again will replace it.",
+        "photoLabel": "Review screenshot",
+        "submit": "Submit Review",
+        "submitted": "Review logged — pending sync."
+      }
     },
     "profile": {
       "title": "Profile",
@@ -3314,6 +3325,7 @@
         "attendance": "Attendance",
         "rewards": "Rewards",
         "referrals": "Referrals",
+        "kpis": "KPIs",
         "availability": "Availability"
       },
       "noCurrentJob": "No active job right now.",
@@ -3321,6 +3333,14 @@
       "noAttendance": "No attendance recorded yet.",
       "noRewards": "No rewards given yet.",
       "noReferrals": "No customers referred yet.",
+      "kpi": {
+        "unavailable": "KPI data unavailable.",
+        "avgCallValue": "Avg. Call Value (Paid)",
+        "totalReferrals": "Total Referrals",
+        "totalReviews": "Total Google Reviews",
+        "reviewRateFootnote": "{{rate}}% review-claim rate over {{visits}} completed visits.",
+        "flaggedBanner": "Review-claim rate ({{rate}}% over {{visits}} visits) looks unusually high — worth a manual check."
+      },
       "viewTicket": "View ticket",
       "outsideGeofence": "Outside office",
       "jobStatus": {
