@@ -23,7 +23,7 @@ function taskToEvent(task: OrgTask): EventInput | null {
   if (!start) return null
   return {
     id: task.id,
-    title: task.title,
+    title: task.is_recurring ? `↻ ${task.title}` : task.title,
     start,
     allDay: !task.due_at,
     backgroundColor: PRIORITY_EVENT_COLOR[task.priority],

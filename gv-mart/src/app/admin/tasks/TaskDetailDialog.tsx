@@ -47,6 +47,7 @@ export function TaskDetailDialog({
   const [priority, setPriority] = useState<PriorityLevel>(task.priority)
   const [dueDate, setDueDate] = useState(task.due_at ? toDateOnly(task.due_at) : (task.due_date ?? ""))
   const [dueTime, setDueTime] = useState(task.due_at ? toTimeOnly(task.due_at) : "")
+  const [isRecurring, setIsRecurring] = useState(task.is_recurring)
 
   const isDone = task.status === "done"
   const canSubmit = title.trim().length > 0 && assigneeId.length > 0 && !updateTask.isPending
@@ -64,6 +65,7 @@ export function TaskDetailDialog({
         priority,
         dueDate: dueDate || null,
         dueAt,
+        isRecurring: isRecurring && !!dueDate,
       },
       { onSuccess: () => onClose(), onError: () => toast.error(t("common.actionFailed")) }
     )
@@ -107,7 +109,12 @@ export function TaskDetailDialog({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="detailAssignee">{t("tasks.assignDialog.assignTo")}</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="detailAssignee">{t("tasks.assignDialog.assignTo")}</Label>
+            <button type="button" onClick={() => setAssigneeId(userId)} className="text-xs font-semibold text-accent hover:underline">
+              {t("tasks.assignDialog.assignToMe")}
+            </button>
+          </div>
           <select
             id="detailAssignee"
             value={assigneeId}
@@ -142,13 +149,32 @@ export function TaskDetailDialog({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="detailDueDate">{t("tasks.assignDialog.dueDate")}</Label>
-            <DatePicker id="detailDueDate" value={dueDate} onChange={setDueDate} />
+            <DatePicker
+              id="detailDueDate"
+              value={dueDate}
+              onChange={(value) => {
+                setDueDate(value)
+                if (!value) setIsRecurring(false)
+              }}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="detailDueTime">{t("tasks.assignDialog.dueTime")}</Label>
             <Input id="detailDueTime" type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} disabled={!dueDate} />
           </div>
         </div>
+
+        <label className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text", !dueDate && "opacity-50")}>
+          <input
+            type="checkbox"
+            className="size-4 accent-accent"
+            checked={isRecurring}
+            disabled={!dueDate}
+            onChange={(e) => setIsRecurring(e.target.checked)}
+          />
+          <span className="font-medium">{t("tasks.assignDialog.repeatMonthly")}</span>
+        </label>
+        {!dueDate ? <p className="text-xs text-text-muted">{t("tasks.assignDialog.repeatMonthlyHint")}</p> : null}
 
         <div className="flex items-center justify-between gap-2 pt-1">
           {canDelete ? (

@@ -3680,6 +3680,7 @@
     "loadFailed": "Could not load tasks.",
     "empty": "No tasks here.",
     "unknownUser": "Unknown",
+    "recurring": "Repeats monthly",
     "assignedBy": "Assigned by {{name}}",
     "due": "Due {{date}}",
     "filters": {
@@ -3714,9 +3715,12 @@
       "descriptionPlaceholder": "Any extra detail",
       "assignTo": "Assign to",
       "assignToPlaceholder": "Select a person",
+      "assignToMe": "Assign to me",
       "priority": "Priority",
       "dueDate": "Due date",
       "dueTime": "Due time (optional)",
+      "repeatMonthly": "Repeat monthly on this day",
+      "repeatMonthlyHint": "Set a due date to enable monthly repeat.",
       "submit": "Assign Task"
     }
   },

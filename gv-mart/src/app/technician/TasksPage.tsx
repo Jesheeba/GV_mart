@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { CheckCircle2, ClipboardList, Loader2, Plus, User } from "lucide-react"
+import { CheckCircle2, ClipboardList, Loader2, Plus, Repeat, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -175,6 +175,7 @@ function TaskCard({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTog
           <div className="flex flex-wrap items-center gap-1.5">
             <p className={cn("text-sm font-semibold text-text", isDone && "text-text-muted line-through")}>{task.title}</p>
             <PriorityBadge priority={task.priority} />
+            {task.is_recurring ? <Repeat className="size-3.5 text-text-muted" aria-label={t("tasks.recurring")} /> : null}
           </div>
           {task.description ? <p className="truncate text-xs text-text-muted">{task.description}</p> : null}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-muted">

@@ -49,6 +49,11 @@ export type AssignTaskInput = {
   priority: PriorityLevel
   dueDate: string | null
   dueAt: string | null
+  // Requires dueDate — advance_recurring_tasks (20260922110000) advances
+  // this same due_date by 1 month each cycle, so there's no base date to
+  // advance from without one. Enforced client-side (dialog disables the
+  // checkbox with no due date) and server-side (tasks_recurring_needs_due_date).
+  isRecurring: boolean
 }
 
 export async function assignTask(input: AssignTaskInput): Promise<TaskRow> {
@@ -63,6 +68,7 @@ export async function assignTask(input: AssignTaskInput): Promise<TaskRow> {
       priority: input.priority,
       due_date: input.dueDate,
       due_at: input.dueAt,
+      is_recurring: input.isRecurring,
       source: "assigned",
     })
     .select()
@@ -83,6 +89,7 @@ export type UpdateTaskInput = {
   priority: PriorityLevel
   dueDate: string | null
   dueAt: string | null
+  isRecurring: boolean
 }
 
 export async function updateTask(input: UpdateTaskInput): Promise<TaskRow> {
@@ -96,6 +103,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskRow> {
       priority: input.priority,
       due_date: input.dueDate,
       due_at: input.dueAt,
+      is_recurring: input.isRecurring,
     })
     .eq("id", input.id)
     .select()

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { CalendarDays, CheckCircle2, ClipboardList, List, Loader2, Plus, User } from "lucide-react"
+import { CalendarDays, CheckCircle2, ClipboardList, List, Loader2, Plus, Repeat, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -195,6 +195,7 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
         <div className="flex flex-wrap items-center gap-2">
           <p className={cn("text-sm font-semibold text-text", isDone && "text-text-muted line-through")}>{task.title}</p>
           <PriorityBadge priority={task.priority} />
+          {task.is_recurring ? <Repeat className="size-3.5 text-text-muted" aria-label={t("tasks.recurring")} /> : null}
         </div>
         {task.description ? <p className="truncate text-xs text-text-muted">{task.description}</p> : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">

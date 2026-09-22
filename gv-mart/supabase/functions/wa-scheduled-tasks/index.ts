@@ -208,6 +208,19 @@ async function runRentalBilling(admin: SupabaseClient, orgId: string): Promise<{
   return { billed: data ?? 0 }
 }
 
+/** Monthly recurring tasks ("repeat monthly on this day") — advance_recurring_tasks
+ * does its own "due today or earlier, no successor yet" filter and inserts
+ * the next instance itself, same idiom as run_rental_billing above, so it's
+ * safe to call every tick. */
+async function runRecurringTaskAdvance(admin: SupabaseClient, orgId: string): Promise<{ advanced: number }> {
+  const { data, error } = await admin.rpc("advance_recurring_tasks", { p_org_id: orgId })
+  if (error) {
+    console.error("wa-scheduled-tasks: advance_recurring_tasks failed", orgId, error)
+    return { advanced: 0 }
+  }
+  return { advanced: data ?? 0 }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405)
 
@@ -238,8 +251,9 @@ Deno.serve(async (req) => {
     const monthlyRfq = await runMonthlyQuoteRequests(admin, org.id)
     const resolvedQuotes = await runResolveQuoteRequests(admin, org.id)
     const rentalBilling = await runRentalBilling(admin, org.id)
+    const recurringTasks = await runRecurringTaskAdvance(admin, org.id)
     await markJobRan(admin, org.id, "scheduled_tasks")
-    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling })
+    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, recurringTasks })
   }
 
   return jsonResponse({ ranAt: new Date().toISOString(), results })
