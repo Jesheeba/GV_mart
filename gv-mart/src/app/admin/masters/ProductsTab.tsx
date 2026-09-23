@@ -2,9 +2,11 @@ import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ClipboardList, Image as ImageIcon, Link2, Sparkles, ToggleLeft, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
 import { useProfile } from "@/hooks/useProfile"
+import { productHasReferences } from "@/services/masters"
 import type { Enums, Json } from "@/types/database"
 import { ProductAttributesPanel } from "./ProductAttributesPanel"
 import { ProductComplaintsPanel } from "./ProductComplaintsPanel"
@@ -42,6 +44,8 @@ type ProductWithRefs = {
   models: { name: string } | null
 }
 
+type StatusFilter = "all" | "active" | "inactive"
+
 export function ProductsTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
@@ -53,6 +57,18 @@ export function ProductsTab() {
   const createMut = productsHooks.useCreate()
   const updateMut = productsHooks.useUpdate()
   const deleteMut = productsHooks.useDelete()
+
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return ((rows ?? []) as ProductWithRefs[]).filter((r) => {
+      if (statusFilter === "active" && !r.is_active) return false
+      if (statusFilter === "inactive" && r.is_active) return false
+      if (term && !r.name.toLowerCase().includes(term)) return false
+      return true
+    })
+  }, [rows, search, statusFilter])
 
   // Admin-side product↔complaints connector (see ProductComplaintsPanel.tsx)
   // — opened per-row via the ClipboardList action column below.
@@ -112,16 +128,29 @@ export function ProductsTab() {
 
   return (
     <>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("masters.spares.searchPlaceholder")} className="max-w-xs" />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+        >
+          <option value="all">{t("masters.spares.filterAll")}</option>
+          <option value="active">{t("masters.spares.filterActive")}</option>
+          <option value="inactive">{t("masters.spares.filterInactive")}</option>
+        </select>
+      </div>
+
       <EntityCrudTable<ProductWithRefs>
         fields={fields}
-        rows={(rows ?? []) as ProductWithRefs[]}
+        rows={filteredRows}
         getId={(r) => r.id}
         loading={isLoading}
         error={isError ? t("masters.loadFailed") : null}
         onRetry={() => refetch()}
         isMutating={createMut.isPending || updateMut.isPending}
         addLabel={t("masters.products.add")}
-        emptyMessage={t("masters.products.empty")}
+        emptyMessage={search || statusFilter !== "all" ? t("masters.spares.noResults") : t("masters.products.empty")}
         toFormValues={(r) => ({
           name: r.name,
           brand_id: r.brand_id,
@@ -261,6 +290,8 @@ export function ProductsTab() {
           })
         }
         onDelete={(id) => deleteMut.mutateAsync(id)}
+        checkCanDelete={async (id) => !(await productHasReferences(id))}
+        cannotDeleteMessage={t("masters.cannotDeleteInUse")}
       />
 
       {complaintsProduct ? (

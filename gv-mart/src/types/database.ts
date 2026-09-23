@@ -2293,6 +2293,7 @@ export type Database = {
           name: string
           threshold_amount: number
           cost_price: number | null
+          is_active: boolean
           created_at: string
           updated_at: string
         }
@@ -2302,6 +2303,7 @@ export type Database = {
           name: string
           threshold_amount: number
           cost_price?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -2311,6 +2313,7 @@ export type Database = {
           name?: string
           threshold_amount?: number
           cost_price?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -5656,6 +5659,30 @@ export type Database = {
       current_org_id: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      delete_product: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      delete_spare: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      delete_gift: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      product_has_references: {
+        Args: { p_id: string }
+        Returns: boolean
+      }
+      spare_has_references: {
+        Args: { p_id: string }
+        Returns: boolean
+      }
+      gift_has_references: {
+        Args: { p_id: string }
+        Returns: boolean
       }
       current_role: {
         Args: Record<PropertyKey, never>

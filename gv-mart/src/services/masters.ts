@@ -1,6 +1,15 @@
 import { supabase } from "@/lib/supabase"
 import type { Tables, TablesInsert, TablesUpdate } from "@/types/database"
 
+// delete_product/delete_spare/delete_gift (20260923100000/100100) raise
+// "ITEM_IN_USE: <message>" when the item is referenced elsewhere — the real
+// guard is the DB function (a pre-check + hidden button is UI-only and can't
+// stop a direct API call), so this just turns its message into something an
+// admin can read without the internal marker.
+function throwDeleteError(error: { message: string }): never {
+  throw new Error(error.message.replace(/^ITEM_IN_USE:\s*/, ""))
+}
+
 // ── Brands ───────────────────────────────────────────────────────────────
 export async function listBrands(orgId: string) {
   const { data, error } = await supabase.from("brands").select("*").eq("org_id", orgId).order("name")
@@ -63,9 +72,20 @@ export async function updateProduct(id: string, patch: TablesUpdate<"products">)
   if (error) throw error
   return data
 }
+// Hard delete goes through delete_product (20260923100000/100100), which
+// re-checks every referencing table server-side and raises "ITEM_IN_USE: ..."
+// if any exist — the products_write_master RLS grant alone isn't a guard,
+// it just says a master *may* delete rows, not that this particular row is
+// safe to delete. Direct DELETE on products is revoked for authenticated,
+// so this RPC is the only path.
 export async function deleteProduct(id: string) {
-  const { error } = await supabase.from("products").delete().eq("id", id)
+  const { error } = await supabase.rpc("delete_product", { p_id: id })
+  if (error) throwDeleteError(error)
+}
+export async function productHasReferences(id: string) {
+  const { data, error } = await supabase.rpc("product_has_references", { p_id: id })
   if (error) throw error
+  return data ?? false
 }
 
 // ── Spares ───────────────────────────────────────────────────────────────
@@ -85,8 +105,13 @@ export async function updateSpare(id: string, patch: TablesUpdate<"spares">) {
   return data
 }
 export async function deleteSpare(id: string) {
-  const { error } = await supabase.from("spares").delete().eq("id", id)
+  const { error } = await supabase.rpc("delete_spare", { p_id: id })
+  if (error) throwDeleteError(error)
+}
+export async function spareHasReferences(id: string) {
+  const { data, error } = await supabase.rpc("spare_has_references", { p_id: id })
   if (error) throw error
+  return data ?? false
 }
 
 // ── Appointment slots (Customer Dashboard Booking Audit, Tasks 2/3) ───────
@@ -190,8 +215,13 @@ export async function updateGift(id: string, patch: TablesUpdate<"gifts">) {
   return data
 }
 export async function deleteGift(id: string) {
-  const { error } = await supabase.from("gifts").delete().eq("id", id)
+  const { error } = await supabase.rpc("delete_gift", { p_id: id })
+  if (error) throwDeleteError(error)
+}
+export async function giftHasReferences(id: string) {
+  const { data, error } = await supabase.rpc("gift_has_references", { p_id: id })
   if (error) throw error
+  return data ?? false
 }
 
 // ── Gift Exclusion Products (Enhancement spec Task 4) ───────────────────────

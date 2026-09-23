@@ -158,8 +158,11 @@ export function TicketDetailPage() {
   const { data: models } = modelsHooks.useList(ticket?.org_id)
   const { data: products } = productsHooks.useList(ticket?.org_id)
   const filteredModels = useMemo(() => (models ?? []).filter((m) => !productBrandId || m.brand_id === productBrandId), [models, productBrandId])
+  // Skip/Revoke (20260923) — this picker only ever assigns a new product to
+  // the ticket, so it's active-only; the ticket's already-set product (if
+  // any) is shown elsewhere, not re-selected from this list.
   const filteredProducts = useMemo(
-    () => (products ?? []).filter((p) => (!productBrandId || p.brand_id === productBrandId) && (!productModelId || p.model_id === productModelId)),
+    () => (products ?? []).filter((p) => p.is_active && (!productBrandId || p.brand_id === productBrandId) && (!productModelId || p.model_id === productModelId)),
     [products, productBrandId, productModelId]
   )
   const photos = useTicketPhotos(ticket?.id)

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { sparesHooks, useBulkSetSparesActive } from "@/hooks/useMasters"
-import type { SpareRow } from "@/services/masters"
+import { spareHasReferences, type SpareRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
 import { SpareBulkImportPanel } from "./SpareBulkImportPanel"
 
@@ -188,6 +188,8 @@ export function SparesTab() {
           })
         }
         onDelete={(id) => deleteMut.mutateAsync(id)}
+        checkCanDelete={async (id) => !(await spareHasReferences(id))}
+        cannotDeleteMessage={t("masters.cannotDeleteInUse")}
       />
 
       {importOpen ? <SpareBulkImportPanel orgId={orgId} onClose={() => setImportOpen(false)} /> : null}

@@ -54,10 +54,14 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
   }, [cart.spareLines.length])
 
   const filteredModels = useMemo(() => (models ?? []).filter((m) => !brandId || m.brand_id === brandId), [models, brandId])
+  // Skip/Revoke (20260923) — a new sale can only pick active products/
+  // spares; this is a create-only picker, so there's no "existing line"
+  // to preserve if it's since been archived.
   const filteredProducts = useMemo(
-    () => (products ?? []).filter((p) => (!brandId || p.brand_id === brandId) && (!modelId || p.model_id === modelId)),
+    () => (products ?? []).filter((p) => p.is_active && (!brandId || p.brand_id === brandId) && (!modelId || p.model_id === modelId)),
     [products, brandId, modelId]
   )
+  const activeSpares = useMemo(() => (spares ?? []).filter((s) => s.is_active), [spares])
   const selectedProduct = (products ?? []).find((p) => p.id === productId)
   const selectedSpare = (spares ?? []).find((s) => s.id === spareId)
   const roProductLine = cart.productLines.find((l) => l.category === "ro")
@@ -202,7 +206,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
             <div className="grid grid-cols-2 gap-2 px-1 pt-3 sm:grid-cols-3">
               <select className={`${selectClass} sm:col-span-2`} value={spareId} onChange={(e) => setSpareId(e.target.value)}>
                 <option value="">{t("sales.items.selectSpare")}</option>
-                {(spares ?? []).map((s) => (
+                {activeSpares.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} — {formatCurrency(Number(s.price))} ({t("sales.items.stockShort", { count: stockFor(s.id, spareStock) ?? 0 })})
                   </option>

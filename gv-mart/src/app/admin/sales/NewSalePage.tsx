@@ -238,7 +238,8 @@ export function NewSalePage() {
   const techMax = settings ? Number(settings.discount_tech_max) : 5
   const adminMax = settings ? Number(settings.discount_admin_max) : 10
   const combined = combinedSubtotal(cart)
-  const eligibleGifts = (gifts ?? []).filter((g) => combined >= Number(g.threshold_amount))
+  // Skip/Revoke (20260923) — a new sale never offers an archived gift.
+  const eligibleGifts = (gifts ?? []).filter((g) => g.is_active && combined >= Number(g.threshold_amount))
   const selectedGift = (gifts ?? []).find((g) => g.id === giftId) ?? null
   const giftStockById = new Map((giftInventory ?? []).map((r) => [r.item_id, r.stock_qty]))
 

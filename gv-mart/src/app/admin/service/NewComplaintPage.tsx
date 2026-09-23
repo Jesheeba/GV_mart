@@ -123,8 +123,9 @@ export function NewComplaintPage() {
   }, [addresses.data])
 
   const filteredModels = useMemo(() => (models ?? []).filter((m) => !newBrandId || m.brand_id === newBrandId), [models, newBrandId])
+  // Skip/Revoke (20260923) — new complaint = new ticket, so active-only.
   const filteredProducts = useMemo(
-    () => (products ?? []).filter((p) => (!newBrandId || p.brand_id === newBrandId) && (!newModelId || p.model_id === newModelId)),
+    () => (products ?? []).filter((p) => p.is_active && (!newBrandId || p.brand_id === newBrandId) && (!newModelId || p.model_id === newModelId)),
     [products, newBrandId, newModelId]
   )
 

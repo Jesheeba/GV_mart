@@ -97,6 +97,8 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   addLabel,
   emptyMessage,
   toFormValues,
+  checkCanDelete,
+  cannotDeleteMessage,
 }: {
   fields: CrudFieldDef[]
   rows: T[]
@@ -116,6 +118,13 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   addLabel: string
   emptyMessage: string
   toFormValues: (row: T) => Record<string, string>
+  // Optional pre-check run when the trash icon is clicked, before the
+  // confirm step — the real guard is always server-side (the delete RPC
+  // itself refuses and this component surfaces that error either way), this
+  // is only so a referenced row shows "can't delete, use Skip" immediately
+  // instead of after a wasted confirm click.
+  checkCanDelete?: (id: string) => Promise<boolean>
+  cannotDeleteMessage?: string
 }) {
   const { t } = useTranslation()
   const [formOpen, setFormOpen] = useState(false)
@@ -123,6 +132,8 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   const [editLoadingId, setEditLoadingId] = useState<string | null>(null)
   const [values, setValues] = useState<Record<string, string>>({})
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
+  const [blockedDeleteId, setBlockedDeleteId] = useState<string | null>(null)
+  const [checkingDeleteId, setCheckingDeleteId] = useState<string | null>(null)
   // Always current, unlike `rows` captured in openEditForm's own closure —
   // read after awaiting onRetry() below, once the parent's query has
   // actually re-rendered this component with fresh data.
@@ -220,6 +231,20 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
       setIsDeleting(false)
     }
   }
+  async function handleDeleteClick(id: string) {
+    if (!checkCanDelete) {
+      setConfirmingDeleteId(id)
+      return
+    }
+    setCheckingDeleteId(id)
+    try {
+      const canDelete = await checkCanDelete(id)
+      if (canDelete) setConfirmingDeleteId(id)
+      else setBlockedDeleteId(id)
+    } finally {
+      setCheckingDeleteId(null)
+    }
+  }
 
   const actionColumn: DataTableColumn<T> = {
     key: "__actions",
@@ -248,13 +273,26 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                 {t("common.cancel")}
               </button>
             </span>
+          ) : blockedDeleteId === id ? (
+            <span className="flex items-center gap-1.5 text-xs text-text-muted">
+              {cannotDeleteMessage ?? t("masters.cannotDeleteInUse")}
+              <button type="button" className="font-medium hover:underline" onClick={() => setBlockedDeleteId(null)}>
+                {t("common.ok")}
+              </button>
+            </span>
           ) : (
             <>
               <Button size="icon-xs" variant="ghost" title={t("masters.edit")} disabled={editLoadingId === id} onClick={() => openEditForm(row)}>
                 {editLoadingId === id ? <Loader2 className="size-3.5 animate-spin" /> : <Pencil className="size-3.5" />}
               </Button>
-              <Button size="icon-xs" variant="ghost" title={t("masters.delete")} onClick={() => setConfirmingDeleteId(id)}>
-                <Trash2 className="size-3.5 text-danger" />
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                title={t("masters.delete")}
+                disabled={checkingDeleteId === id}
+                onClick={() => handleDeleteClick(id)}
+              >
+                {checkingDeleteId === id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5 text-danger" />}
               </Button>
             </>
           )}

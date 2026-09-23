@@ -14,6 +14,7 @@
     "back": "Back",
     "yes": "Yes",
     "no": "No",
+    "ok": "OK",
     "thisMonth": "this month",
     "language": "Language",
     "delete": "Delete",
@@ -476,6 +477,7 @@
     "delete": "Delete",
     "confirmDelete": "Delete?",
     "confirmDiscard": "Discard changes to this edit?",
+    "cannotDeleteInUse": "Can't delete — in use elsewhere. Use the status toggle to skip it instead.",
     "costPriceNotSet": "Cost not set",
     "active": "Active",
     "inactive": "Inactive",
@@ -1019,6 +1021,11 @@
     "empty": "No inventory rows yet.",
     "item": "Item",
     "brand": "Brand",
+    "location": "Location",
+    "locationValues": {
+      "warehouse": "Warehouse",
+      "van": "Van"
+    },
     "stock": "Stock",
     "min": "Min",
     "max": "Max",
@@ -1044,6 +1051,9 @@
     "contact": "Contact",
     "whatsapp": "WhatsApp",
     "rating": "Rating",
+    "creditDays": "Credit terms",
+    "creditImmediate": "Immediate",
+    "creditNetDays": "Net {{days}} days",
     "add": "Add supplier",
     "manageItems": "Manage items",
     "itemsFor": "Items supplied by {{name}}",
@@ -2472,7 +2482,8 @@
       "adminSignPending": "Waiting for admin signature",
       "confirmedTitle": "Handover confirmed",
       "techSignTitle": "Your signature",
-      "confirmButton": "Confirm received"
+      "confirmButton": "Confirm received",
+      "history": "Past handovers"
     },
     "home": {
       "unknownCustomer": "Customer",
@@ -3468,6 +3479,7 @@
       "held": "held",
       "returnEmpty": "No returns yet",
       "returnLoadFailed": "Failed to load returns",
+      "spareColumn": "Spare",
       "stockTitle": "Who Holds What",
       "stockSubtitle": "Current van stock, by technician",
       "stockEmpty": "No technician is currently holding any spares",
@@ -3475,7 +3487,9 @@
       "lowStockBadge": "Low",
       "logTitle": "Daily Handover / Return Log",
       "logKindHandover": "Handover",
-      "logKindReturn": "Return"
+      "logKindReturn": "Return",
+      "print": "Print",
+      "printTitle": "Spare Handover Receipt"
     }
   },
   "hr": {
@@ -3763,7 +3777,8 @@
       "sla_breach": "SLA breach",
       "low_stock": "Low stock",
       "handover_pending": "Handover pending",
-      "job_overrun": "Job overrun"
+      "job_overrun": "Job overrun",
+      "technician_low_stock": "Technician stock low"
     }
   },
   "approvals": {

@@ -59,6 +59,12 @@ export function QuotationFormPage() {
 
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
+  // Skip/Revoke (20260923) — new lines only ever pick an active item; a
+  // seeded/existing reference to an archived one still resolves fine below
+  // since seeding looks it up in the full `products`/`spares` list, not
+  // these filtered ones.
+  const activeProducts = useMemo(() => (products ?? []).filter((p) => p.is_active), [products])
+  const activeSpares = useMemo(() => (spares ?? []).filter((s) => s.is_active), [spares])
   const [productId, setProductId] = useState("")
   const [spareId, setSpareId] = useState("")
   const [productQty, setProductQty] = useState("1")
@@ -182,7 +188,7 @@ export function QuotationFormPage() {
         <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
           <select className={selectClass} value={productId} onChange={(e) => setProductId(e.target.value)}>
             <option value="">{t("sales.items.selectProduct")}</option>
-            {(products ?? []).map((p) => (
+            {activeProducts.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} — {formatCurrency(Number(p.price))}
               </option>
@@ -197,7 +203,7 @@ export function QuotationFormPage() {
         <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
           <select className={selectClass} value={spareId} onChange={(e) => setSpareId(e.target.value)}>
             <option value="">{t("sales.items.selectSpare")}</option>
-            {(spares ?? []).map((s) => (
+            {activeSpares.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} — {formatCurrency(Number(s.price))}
               </option>
