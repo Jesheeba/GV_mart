@@ -14,6 +14,7 @@
 // config.toml) since GitHub Actions has no Supabase session; authenticity
 // is the same CRON_SECRET bearer check as its siblings.
 import { createClient } from "jsr:@supabase/supabase-js@2"
+import { checkAndAlertStaleJobs, recordHeartbeat } from "../_shared/cron-heartbeat.ts"
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -34,11 +35,18 @@ Deno.serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
+  // Unconditional, every invocation — this is a once-daily job, but it's
+  // still a third independent vote on whether the other two GH Actions
+  // schedules are still firing. See _shared/cron-heartbeat.ts.
+  await checkAndAlertStaleJobs(admin)
+
   const { data: resetCount, error } = await admin.rpc("reset_stale_shift_end_prompts")
   if (error) {
     console.error("technician-shift-reset: reset_stale_shift_end_prompts failed", error)
+    await recordHeartbeat(admin, "technician_shift_reset", "error", error.message)
     return jsonResponse({ error: error.message }, 500)
   }
 
+  await recordHeartbeat(admin, "technician_shift_reset", "ok")
   return jsonResponse({ ranAt: new Date().toISOString(), resetCount })
 })

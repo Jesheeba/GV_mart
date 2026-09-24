@@ -33,6 +33,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { runMilestoneDispatch } from "../_shared/wa-milestone-dispatch-core.ts"
 import { markJobRan, shouldRunJob } from "../_shared/wa-job-pacing.ts"
+import { checkAndAlertStaleJobs, recordHeartbeat } from "../_shared/cron-heartbeat.ts"
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -53,9 +54,18 @@ Deno.serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
-  const { data: orgs, error: orgsError } = await admin.from("organizations").select("id")
-  if (orgsError) return jsonResponse({ error: orgsError.message }, 500)
+  // Unconditional, every invocation, before the pacing gate below — this is
+  // the fastest-cadence job (every 5 minutes), so it's the primary heartbeat
+  // monitor for its two daily-cadence siblings. See _shared/cron-heartbeat.ts.
+  await checkAndAlertStaleJobs(admin)
 
+  const { data: orgs, error: orgsError } = await admin.from("organizations").select("id")
+  if (orgsError) {
+    await recordHeartbeat(admin, "wa_milestone_dispatch", "error", orgsError.message)
+    return jsonResponse({ error: orgsError.message }, 500)
+  }
+
+  const errors: string[] = []
   const results = []
   for (const org of orgs ?? []) {
     if (!(await shouldRunJob(admin, org.id, "milestone_dispatch"))) {
@@ -63,9 +73,16 @@ Deno.serve(async (req) => {
       continue
     }
     const result = await runMilestoneDispatch(admin, org.id)
+    if (result.queryError) errors.push(`[${org.id}] ${result.queryError}`)
     await markJobRan(admin, org.id, "milestone_dispatch")
     results.push({ orgId: org.id, ...result })
   }
 
-  return jsonResponse({ ranAt: new Date().toISOString(), results })
+  await recordHeartbeat(admin, "wa_milestone_dispatch", errors.length > 0 ? "error" : "ok", errors.join("; "))
+
+  // Non-2xx on real errors — same reasoning as wa-scheduled-tasks/index.ts:
+  // this workflow's own step explicitly checks the HTTP status is < 300, so
+  // 500 here turns the GitHub Actions run red instead of a silently
+  // swallowed per-org error hiding behind an unconditional 200.
+  return jsonResponse({ ranAt: new Date().toISOString(), results, errors }, errors.length > 0 ? 500 : 200)
 })

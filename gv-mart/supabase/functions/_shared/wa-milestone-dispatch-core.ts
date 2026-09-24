@@ -25,8 +25,20 @@ import { sendMessage } from "./whatsapp.ts"
 
 export const MILESTONE_REF_TYPES = ["service_ticket", "service_visit", "invoice", "purchase_quote_request"] as const
 
+// 2026-09-08 incident: a Wasi-side 409 for one supplier's number retried
+// every 5 minutes forever (each attempt inserting a fresh failed row that
+// itself was eligible for the next pass) — nothing here ever gave up. This
+// caps total send attempts per logical message (tracked via
+// whatsapp_outbox.retry_count, see its migration) rather than looping
+// indefinitely on a permanently-failing recipient. Exported so
+// wa-scheduled-tasks' own, independent failed-send retry pass (a second,
+// previously equally-unbounded loop over status='failed' rows) applies the
+// exact same cap and notification shape.
+export const MAX_SEND_ATTEMPTS = 3
+
 type StuckOutboxRow = {
   id: string
+  org_id: string
   to_mobile: string | null
   customer_id: string | null
   template: string
@@ -34,12 +46,33 @@ type StuckOutboxRow = {
   payload: { body?: string } | null
   ref_type: string | null
   ref_id: string | null
+  retry_count: number
 }
 
-export async function runMilestoneDispatch(admin: SupabaseClient, orgId: string): Promise<{ dispatched: number; skippedNoBody: number }> {
+export async function notifyGaveUpOnSend(
+  admin: SupabaseClient,
+  row: { id: string; org_id: string; to_mobile: string | null; template: string; ref_id: string | null },
+  reason: string
+) {
+  console.error("wa-milestone-dispatch-core: giving up on row after", MAX_SEND_ATTEMPTS, "attempts —", reason, row.id)
+  await admin.from("whatsapp_outbox").update({ retried_at: new Date().toISOString() }).eq("id", row.id)
+  await admin.from("notifications").insert({
+    org_id: row.org_id,
+    role: "operation_admin",
+    type: "wa_send_gave_up",
+    title: "A WhatsApp message stopped retrying",
+    body: `A message to ${row.to_mobile ?? "an unknown number"} (${row.template}) failed ${MAX_SEND_ATTEMPTS} times and will not be retried automatically. ${reason}`,
+    ref_id: row.ref_id,
+  })
+}
+
+export async function runMilestoneDispatch(
+  admin: SupabaseClient,
+  orgId: string
+): Promise<{ dispatched: number; skippedNoBody: number; gaveUp: number; queryError?: string }> {
   const { data: rows, error } = await admin
     .from("whatsapp_outbox")
-    .select("id, to_mobile, customer_id, template, type, payload, ref_type, ref_id")
+    .select("id, org_id, to_mobile, customer_id, template, type, payload, ref_type, ref_id, retry_count")
     .eq("org_id", orgId)
     .eq("direction", "outbound")
     .is("wa_message_id", null)
@@ -48,11 +81,12 @@ export async function runMilestoneDispatch(admin: SupabaseClient, orgId: string)
 
   if (error) {
     console.error("wa-milestone-dispatch-core: whatsapp_outbox query failed", error)
-    return { dispatched: 0, skippedNoBody: 0 }
+    return { dispatched: 0, skippedNoBody: 0, gaveUp: 0, queryError: error.message }
   }
 
   let dispatched = 0
   let skippedNoBody = 0
+  let gaveUp = 0
 
   for (const row of (rows ?? []) as StuckOutboxRow[]) {
     const body = row.payload?.body
@@ -72,6 +106,11 @@ export async function runMilestoneDispatch(admin: SupabaseClient, orgId: string)
       await admin.from("whatsapp_outbox").update({ retried_at: new Date().toISOString() }).eq("id", row.id)
       continue
     }
+    if (row.retry_count >= MAX_SEND_ATTEMPTS) {
+      await notifyGaveUpOnSend(admin, row, "Log it manually from Purchase > Quotes or the relevant record instead.")
+      gaveUp++
+      continue
+    }
 
     await sendMessage(admin, {
       orgId,
@@ -82,6 +121,7 @@ export async function runMilestoneDispatch(admin: SupabaseClient, orgId: string)
       type: (row.type as "text" | "template" | "interactive" | "media" | undefined) ?? "text",
       refType: row.ref_type,
       refId: row.ref_id,
+      retryCount: row.retry_count + 1,
     })
     dispatched++
 
@@ -92,5 +132,5 @@ export async function runMilestoneDispatch(admin: SupabaseClient, orgId: string)
     await admin.from("whatsapp_outbox").update({ retried_at: new Date().toISOString() }).eq("id", row.id)
   }
 
-  return { dispatched, skippedNoBody }
+  return { dispatched, skippedNoBody, gaveUp }
 }
