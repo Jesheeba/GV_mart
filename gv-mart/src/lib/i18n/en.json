@@ -500,7 +500,7 @@
       "rentalPlansDesc": "{{count}} rental plans",
       "incentivesDesc": "{{count}} incentive rules",
       "complaintTypesDesc": "{{count}} complaint types",
-      "sopStepsDesc": "{{count}} SOP steps",
+      "sopStepsDesc": "{{count}} activities",
       "productEnquiryDesc": "{{count}} customer app tabs configured",
       "waterQualityDesc": "{{count}} districts with TDS data",
       "settingsDesc": "Discount, travel, hours & SLA",
@@ -516,8 +516,8 @@
       "amcPlans": "AMC Plans",
       "rentalPlans": "Rental Plans",
       "incentives": "Incentives",
-      "complaintTypes": "Complaint Types",
-      "sopSteps": "SOP Steps",
+      "complaintTypes": "Name of Complaint",
+      "sopSteps": "Activities",
       "productEnquiry": "Product Enquiry",
       "waterQuality": "Water Quality (TDS)",
       "settings": "Settings",
@@ -701,20 +701,20 @@
       "empty": "No category defaults yet — add your first one."
     },
     "sopSteps": {
-      "name": "Step name",
+      "name": "Activity name",
       "product": "Product",
       "genericProduct": "Any product (generic)",
       "expectedMinutes": "Expected minutes",
       "minutesValue": "{{count}} min",
-      "add": "Add SOP step",
-      "empty": "No SOP steps yet — add your first one."
+      "add": "Add activity",
+      "empty": "No activities yet — add your first one."
     },
     "productComplaints": {
       "manage": "Manage complaints",
-      "title": "Complaints",
+      "title": "Name of Complaint",
       "close": "Close",
       "categoryDefaultsTitle": "Category defaults",
-      "categoryDefaultsHint": "Shared with every product in this category — edit these under Settings > Masters > Complaint Types.",
+      "categoryDefaultsHint": "Shared with every product in this category — edit these under Settings > Masters > Name of Complaint.",
       "categoryDefaultBadge": "Category default",
       "categoryDefaultsEmpty": "No category defaults for this category yet.",
       "ownTitle": "Specific to this product",
@@ -1587,7 +1587,7 @@
         "technician": "Technician"
       },
       "lateSopSteps": {
-        "title": "SOP steps completed late",
+        "title": "Activities completed late",
         "lateBy": "{{minutes}} min late"
       },
       "noVisitYet": "No visit yet.",
@@ -2422,7 +2422,7 @@
           "image": "Visit photo upload"
         },
         "sop_step": {
-          "complete": "SOP step completion"
+          "complete": "Activity completion"
         },
         "ro_checklist": {
           "save": "RO checklist save"
@@ -2607,7 +2607,7 @@
         "confirmDiscard": "Yes, discard"
       },
       "steps": {
-        "sop": "SOP",
+        "sop": "Activities",
         "spares": "Spares",
         "charges": "Charges",
         "ro": "RO Checklist",
@@ -2623,13 +2623,13 @@
         "title": "Confirm before uploading",
         "hint": "Tap the circle above to mark it done and unlock the after-photo upload."
       },
-      "sopTitle": "SOP Checklist",
+      "sopTitle": "Activities Checklist",
       "sopHint": "Built from the spares you selected, each with its admin-set standard time. Pick an extra step below for anything not covered by a spare.",
-      "sopEmpty": "Select spares in the previous step to build this checklist, or pick a step below.",
+      "sopEmpty": "Select spares in the previous step to build this checklist, or pick an activity below.",
       "sopExpected": "Expected {{minutes}} min",
       "sopBrandStickerStep": "Pasted the brand sticker on the product after service",
-      "sopStepName": "Add a step",
-      "sopStepPickPlaceholder": "Choose a step…",
+      "sopStepName": "Add an activity",
+      "sopStepPickPlaceholder": "Choose an activity…",
       "evidence": {
         "title": "Additional evidence",
         "hint": "Damaged, replaced, or installed parts — add as many photos as needed.",
