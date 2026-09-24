@@ -37,14 +37,33 @@ export async function listActiveTechnicians(orgId: string): Promise<TechnicianOp
   }))
 }
 
+/** Staff Salary (item 1, 2026-09-24 change request) — the non-technician
+ * roles, which have no `technicians` row and so never go through
+ * compute_salary(). These get a plain manual amount entry instead, per
+ * period, written to `expenses` (category='salary', staff_id=profiles.id)
+ * the exact same way the technician path's "Log to Accounts" action does. */
+export type StaffOption = { id: string; full_name: string; role: "master" | "operation_admin" | "sales_admin" }
+
+export async function listNonTechnicianStaff(orgId: string): Promise<StaffOption[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .in("role", ["master", "operation_admin", "sales_admin"])
+    .order("full_name", { ascending: true })
+  if (error) throw error
+  return (data ?? []) as StaffOption[]
+}
+
 // ── ADM-24: Salary ─────────────────────────────────────────────────────────
 
-export type SalaryListItem = SalaryRow & { technicians: { id: string; profiles: { full_name: string } | null } | null }
+export type SalaryListItem = SalaryRow & { technicians: { id: string; profiles: { id: string; full_name: string } | null } | null }
 
 export async function listSalaries(orgId: string, period: string): Promise<SalaryListItem[]> {
   const { data, error } = await supabase
     .from("salaries")
-    .select("*, technicians(id, profiles(full_name))")
+    .select("*, technicians(id, profiles(id, full_name))")
     .eq("org_id", orgId)
     .eq("period", period)
     .order("net", { ascending: false })

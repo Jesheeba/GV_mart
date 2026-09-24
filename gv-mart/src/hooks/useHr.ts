@@ -10,6 +10,14 @@ export function useActiveTechnicians(orgId: string | undefined) {
   })
 }
 
+export function useNonTechnicianStaff(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["profiles", "nonTechnicianStaff", orgId],
+    queryFn: () => hr.listNonTechnicianStaff(orgId!),
+    enabled: !!orgId,
+  })
+}
+
 // ── Salary ─────────────────────────────────────────────────────────────────
 
 export function useSalaries(orgId: string | undefined, period: string) {

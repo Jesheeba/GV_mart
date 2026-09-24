@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { SalaryTab } from "./SalaryTab"
+import { StaffSalaryTab } from "./StaffSalaryTab"
 import { IncentivesTab } from "./IncentivesTab"
 import { RewardsTab } from "./RewardsTab"
 
@@ -18,6 +19,7 @@ export function HrPage() {
       <Tabs defaultValue="salary">
         <TabsList>
           <TabsTrigger value="salary">{t("hr.tabs.salary")}</TabsTrigger>
+          <TabsTrigger value="staffSalary">{t("hr.tabs.staffSalary")}</TabsTrigger>
           <TabsTrigger value="incentives">{t("hr.tabs.incentives")}</TabsTrigger>
           <TabsTrigger value="rewards">{t("hr.tabs.rewards")}</TabsTrigger>
         </TabsList>
@@ -25,6 +27,9 @@ export function HrPage() {
         <Card size="default" className="mt-3">
           <TabsContent value="salary">
             <SalaryTab />
+          </TabsContent>
+          <TabsContent value="staffSalary">
+            <StaffSalaryTab />
           </TabsContent>
           <TabsContent value="incentives">
             <IncentivesTab />

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, Printer } from "lucide-react"
+import { CheckCircle2, Loader2, Printer, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useActiveTechnicians, useComputeSalary, useSalaries } from "@/hooks/useHr"
+import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { SalaryListItem } from "@/services/hr"
 
@@ -17,6 +18,13 @@ function currentMonthIso() {
 
 function monthToPeriodDate(month: string) {
   return `${month}-01`
+}
+
+function monthToRange(month: string) {
+  const [y, m] = month.split("-").map(Number)
+  const from = `${month}-01`
+  const to = new Date(y, m, 0).toISOString().slice(0, 10)
+  return { from, to }
 }
 
 /**
@@ -41,6 +49,43 @@ export function SalaryTab() {
   const computeMut = useComputeSalary()
   const [computingIds, setComputingIds] = useState<Set<string>>(new Set())
   const [printing, setPrinting] = useState<SalaryListItem | null>(null)
+
+  // "Log to Accounts" (item 1, 2026-09-24 change request) — writes the
+  // computed net salary into `expenses` (category='salary', staff_id = the
+  // technician's profile id) so it joins the same money-out ledger a
+  // manually-entered staff salary uses. Explicit per-row action, not
+  // automatic on compute/recompute — a computed figure is an estimate until
+  // someone confirms it was actually paid.
+  const monthRange = monthToRange(month)
+  const { data: staffSalaryTotals } = useSalarySpendByStaff(orgId, monthRange)
+  const loggedProfileIds = new Set((staffSalaryTotals ?? []).map((s) => s.staffId))
+  const createExpense = useCreateExpense()
+  const [loggingIds, setLoggingIds] = useState<Set<string>>(new Set())
+
+  function logToAccounts(row: SalaryListItem) {
+    const profileId = row.technicians?.profiles?.id
+    if (!orgId || !profileId) return
+    setLoggingIds((prev) => new Set(prev).add(row.id))
+    createExpense.mutate(
+      {
+        orgId,
+        category: "salary",
+        amount: row.net,
+        date: new Date().toISOString().slice(0, 10),
+        note: `Salary — ${month}`,
+        staffId: profileId,
+        loggedBy: profile?.id ?? null,
+      },
+      {
+        onSettled: () =>
+          setLoggingIds((prev) => {
+            const next = new Set(prev)
+            next.delete(row.id)
+            return next
+          }),
+      }
+    )
+  }
 
   function computeFor(technicianId: string) {
     if (!orgId) return
@@ -76,16 +121,36 @@ export function SalaryTab() {
       key: "__actions",
       header: "",
       className: "text-right",
-      render: (r) => (
-        <div className="flex justify-end gap-1.5">
-          <Button size="xs" variant="outline" onClick={() => computeFor(r.technician_id)} disabled={computingIds.has(r.technician_id)}>
-            {computingIds.has(r.technician_id) ? <Loader2 className="size-3 animate-spin" /> : t("hr.salary.recompute")}
-          </Button>
-          <Button size="icon-xs" variant="ghost" onClick={() => setPrinting(r)} title={t("hr.salary.payslip")}>
-            <Printer className="size-3.5" />
-          </Button>
-        </div>
-      ),
+      render: (r) => {
+        const profileId = r.technicians?.profiles?.id
+        const alreadyLogged = !!profileId && loggedProfileIds.has(profileId)
+        return (
+          <div className="flex justify-end gap-1.5">
+            <Button size="xs" variant="outline" onClick={() => computeFor(r.technician_id)} disabled={computingIds.has(r.technician_id)}>
+              {computingIds.has(r.technician_id) ? <Loader2 className="size-3 animate-spin" /> : t("hr.salary.recompute")}
+            </Button>
+            <Button
+              size="xs"
+              variant={alreadyLogged ? "ghost" : "accent"}
+              onClick={() => logToAccounts(r)}
+              disabled={!profileId || alreadyLogged || loggingIds.has(r.id)}
+              title={t("hr.salary.logToAccounts")}
+            >
+              {loggingIds.has(r.id) ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : alreadyLogged ? (
+                <CheckCircle2 className="size-3 text-success" />
+              ) : (
+                <Wallet className="size-3" />
+              )}
+              {alreadyLogged ? t("hr.salary.logged") : t("hr.salary.logToAccounts")}
+            </Button>
+            <Button size="icon-xs" variant="ghost" onClick={() => setPrinting(r)} title={t("hr.salary.payslip")}>
+              <Printer className="size-3.5" />
+            </Button>
+          </div>
+        )
+      },
     },
   ]
 
