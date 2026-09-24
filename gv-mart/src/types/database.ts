@@ -6029,6 +6029,12 @@ export type Database = {
         Args: { p_org_id: string; p_visit_id: string }
         Returns: undefined
       }
+      // Hand-patched, see 20260922120000_technician_kpi_review_attribution.sql
+      // (Docker-based `supabase gen types` isn't available in this environment).
+      log_technician_google_review: {
+        Args: { p_org_id: string; p_visit_id: string; p_member_id: string; p_stars: number; p_photo_url: string }
+        Returns: string
+      }
       set_item_standard_time: {
         Args: {
           p_org_id: string
