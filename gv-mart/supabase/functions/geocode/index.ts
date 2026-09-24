@@ -1,7 +1,18 @@
 // Proxies the Google Maps Platform for the customer address-picker. The
 // Google Maps API key stays a Deno.env secret here — never sent to or held
-// by the browser. JWT verification stays on (the project default), so only
-// signed-in staff can call this, not the open internet.
+// by the browser.
+//
+// verify_jwt stays on (the project default) but that alone does NOT restrict
+// this to signed-in users: the public anon key is itself a valid signed JWT
+// for this project, so verify_jwt only blocks requests with no/garbage
+// Authorization header, not an anonymous caller who copied the anon key out
+// of the shipped frontend bundle. Production-readiness audit 2026-09-23
+// flagged exactly this gap — without an in-code check, anyone can hit this
+// function directly (no app session at all) and run up billed Google Maps
+// API calls. The check below requires the token to resolve to a real
+// Supabase Auth user via admin.auth.getUser — any signed-in role (customer,
+// technician, staff) qualifies, since the address picker is used by
+// customers too, not just staff.
 //
 // Four actions, matching Google's own two-step Autocomplete flow plus a
 // plain-geocode fallback and a driving-distance lookup for live tracking:
@@ -23,6 +34,7 @@
 //     standard and to flag an off-route technician (driving distance far
 //     exceeding the straight-line distance). Requires "Directions API"
 //     enabled on the same Google Cloud project/key as the other three.
+import { createClient } from "jsr:@supabase/supabase-js@2"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
 
 export type GeocodeResult = {
@@ -141,6 +153,18 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return jsonError("Method not allowed", 405)
   }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+  if (!supabaseUrl || !serviceRoleKey) {
+    return jsonError("Server is not configured (missing Supabase service credentials)", 500)
+  }
+  const authHeader = req.headers.get("Authorization")
+  const token = authHeader?.replace(/^Bearer /i, "")
+  if (!token) return jsonError("Missing Authorization header", 401)
+  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  const { data: userRes, error: userErr } = await admin.auth.getUser(token)
+  if (userErr || !userRes?.user) return jsonError("Invalid or expired session", 401)
 
   let body: GeocodeRequest
   try {
