@@ -2,6 +2,38 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as reports from "@/services/reports"
 import type { CreateExpenseInput, DateRange } from "@/services/reports"
 
+export function useExpensesList(orgId: string | undefined, range: DateRange) {
+  return useQuery({
+    queryKey: ["reports", "expensesList", orgId, range],
+    queryFn: () => reports.getExpensesList(orgId!, range),
+    enabled: !!orgId,
+  })
+}
+
+export function useOpenRecurringTasks(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["reports", "openRecurringTasks", orgId],
+    queryFn: () => reports.getOpenRecurringTasks(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useSalarySpendByStaff(orgId: string | undefined, range: DateRange) {
+  return useQuery({
+    queryKey: ["reports", "salaryByStaff", orgId, range],
+    queryFn: () => reports.getSalarySpendByStaff(orgId!, range),
+    enabled: !!orgId,
+  })
+}
+
+export function useExpensesYearOverYear(orgId: string | undefined, yearsBack = 3) {
+  return useQuery({
+    queryKey: ["reports", "expensesYoY", orgId, yearsBack],
+    queryFn: () => reports.getExpensesYearOverYear(orgId!, yearsBack),
+    enabled: !!orgId,
+  })
+}
+
 export function useSalesServiceReport(orgId: string | undefined, range: DateRange) {
   return useQuery({
     queryKey: ["reports", "salesService", orgId, range],
@@ -54,6 +86,12 @@ export function useCreateExpense() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateExpenseInput) => reports.createExpense(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reports", "pnl"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reports", "pnl"] })
+      qc.invalidateQueries({ queryKey: ["reports", "expensesList"] })
+      qc.invalidateQueries({ queryKey: ["reports", "expensesYoY"] })
+      qc.invalidateQueries({ queryKey: ["reports", "openRecurringTasks"] })
+      qc.invalidateQueries({ queryKey: ["reports", "salaryByStaff"] })
+    },
   })
 }

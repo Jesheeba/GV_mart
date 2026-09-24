@@ -23,6 +23,7 @@ import {
   RotateCcw,
   ScrollText,
   CalendarClock,
+  TrendingDown,
   type LucideIcon,
 } from "lucide-react"
 import type { UserRole } from "@/lib/roles"
@@ -68,6 +69,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { key: "complaints", labelKey: "nav.complaints", path: "/admin/complaints", icon: AlertTriangle, roles: ["master", "operation_admin"] },
   { key: "returns", labelKey: "nav.returns", path: "/admin/returns", icon: RotateCcw, roles: ["master", "operation_admin"] },
   { key: "hr", labelKey: "nav.hr", path: "/admin/hr", icon: Wallet, roles: ["master"] },
+  { key: "accounts", labelKey: "nav.accounts", path: "/admin/accounts", icon: TrendingDown, roles: ["master"] },
   { key: "reports", labelKey: "nav.reports", path: "/admin/reports", icon: BarChart3, roles: ["master"] },
   { key: "masters", labelKey: "nav.masters", path: "/admin/masters", icon: Settings, roles: ["master"] },
   { key: "approvals", labelKey: "nav.approvals", path: "/admin/approvals", icon: CheckSquare, roles: ["master"] },

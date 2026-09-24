@@ -62,6 +62,7 @@
     "suppliers": "Suppliers",
     "automation": "Automation",
     "hr": "HR & Payroll",
+    "accounts": "Accounts",
     "reports": "Reports",
     "masters": "Masters / Settings",
     "workspace": "My Workspace",
@@ -3497,6 +3498,7 @@
     "subtitle": "Salary, incentives and rewards for your team",
     "tabs": {
       "salary": "Salary",
+      "staffSalary": "Staff Salary",
       "incentives": "Incentives",
       "rewards": "Rewards"
     },
@@ -3513,7 +3515,24 @@
       "payslip": "Payslip",
       "print": "Print",
       "empty": "No salary records for this month",
-      "loadFailed": "Failed to load salaries"
+      "loadFailed": "Failed to load salaries",
+      "logToAccounts": "Log to Accounts",
+      "logged": "Logged"
+    },
+    "staffSalary": {
+      "subtitle": "Master, Operation Admin and Sales Admin salaries — typed manually each time, no fixed or auto-repeating amount. Technician salaries stay on the Salary tab (calculated automatically).",
+      "month": "Month",
+      "staff": "Staff",
+      "role": "Role",
+      "amount": "Amount",
+      "logSalary": "Log Salary",
+      "logged": "Logged this month: {{amount}}",
+      "notLoggedYet": "Not logged this month",
+      "empty": "No staff found",
+      "setupReminders": "Set up monthly salary reminders",
+      "remindersSetUp_one": "Created {{count}} reminder",
+      "remindersSetUp_other": "Created {{count}} reminders",
+      "remindersAlreadySetUp": "Everyone already has a monthly salary reminder"
     },
     "incentives": {
       "month": "Month",
@@ -3596,6 +3615,10 @@
       "invoiceTypeRatio": "Product vs Spare vs AMC",
       "invoiceCount": "Invoices",
       "totalRevenue": "Total Revenue",
+      "salesRevenue": "Sales Revenue",
+      "serviceRevenue": "Service Revenue",
+      "amcRevenue": "AMC Revenue",
+      "rentalRevenue": "Rental Revenue",
       "technicianServiceCounts": "Technician-wise Service Counts",
       "technician": "Technician",
       "serviceCount": "Services",
@@ -3631,7 +3654,12 @@
         "stationery": "Stationery",
         "salary": "Salary",
         "petrol": "Petrol",
-        "purchase": "Purchase",
+        "purchase": "Purchase (Vendor Payments)",
+        "rent": "Rent",
+        "electricity": "Electricity / EB",
+        "parking": "Parking",
+        "ad_campaign": "Ad Campaign",
+        "video_generation": "Video Generation",
         "other": "Other"
       },
       "gstToggle": "View",
@@ -3679,6 +3707,27 @@
       "expenseAmountPositive": "Amount must be greater than 0",
       "expenseDateRequired": "Date is required"
     }
+  },
+  "accounts": {
+    "title": "Accounts",
+    "subtitle": "What the business spends — salaries, rent, EB, and everything else, tracked and totalled over time.",
+    "masterOnlyNote": "Visible to master role only.",
+    "logExpense": "Log Expense",
+    "thisMonth": "This Month",
+    "thisYearSoFar": "This Year (so far)",
+    "lastYearSamePeriod": "Last Year (same period)",
+    "yoyChange": "Year-over-Year Change",
+    "yearOverYear": "Year over Year",
+    "yearOverYearNote": "Current year is compared to the same number of days in each prior year, so a partial year isn't compared unfairly against a complete one.",
+    "soFar": "so far",
+    "expensesForPeriod": "Expenses",
+    "salaryByStaff": "Salary by Staff",
+    "staff": "Staff",
+    "note": "Note",
+    "notePlaceholder": "e.g. TNEB, Landlord, technician name",
+    "loggedBy": "Logged By",
+    "linkToTask": "Link to Recurring Task",
+    "noTaskLink": "No task — standalone expense"
   },
   "workspace": {
     "subtitle": "Your daily checklist, notifications and follow-ups.",

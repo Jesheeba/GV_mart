@@ -85,6 +85,17 @@ export type SalesServiceReport = {
   invoiceTypeRatio: { type: Enums<"invoice_type">; count: number; total: number; percent: number }[]
   technicianServiceCounts: { technicianId: string; technicianName: string; count: number; revenue: number }[]
   avgValuePerServiceCall: number
+  /** Revenue KPIs, kept separate per the 2026-09-24 Accounts change request
+   * (item 3) rather than folded into one figure — Sales (product+spare
+   * invoices), AMC (amc invoices), Rental (rent invoices), and Service
+   * (service_visits.service_charge, which is NOT an invoice at all — there
+   * is no invoice_type for it). `totalRevenue` is the honest sum of all
+   * four; before this change it silently excluded serviceRevenue since it
+   * only summed invoices. */
+  salesRevenue: number
+  amcRevenue: number
+  rentalRevenue: number
+  serviceRevenue: number
   totalRevenue: number
 }
 
@@ -116,7 +127,6 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
   if (visitsRes.error) throw visitsRes.error
 
   const invoices = invoicesRes.data ?? []
-  const totalRevenue = invoices.reduce((sum, i) => sum + (i.total ?? 0), 0)
 
   const ratioMap = new Map<Enums<"invoice_type">, { count: number; total: number }>()
   for (const inv of invoices) {
@@ -150,11 +160,23 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
   const serviceRevenue = visits.reduce((sum, v) => sum + (v.service_charge ?? 0), 0)
   const avgValuePerServiceCall = visits.length ? Math.round((serviceRevenue / visits.length) * 100) / 100 : 0
 
+  const salesRevenue = (ratioMap.get("product")?.total ?? 0) + (ratioMap.get("spare")?.total ?? 0)
+  const amcRevenue = ratioMap.get("amc")?.total ?? 0
+  const rentalRevenue = ratioMap.get("rent")?.total ?? 0
+  // Honest total — previously only summed invoices, silently excluding
+  // serviceRevenue (service_visits.service_charge has no invoice_type at
+  // all, see the type doc comment above).
+  const totalRevenue = salesRevenue + amcRevenue + rentalRevenue + serviceRevenue
+
   return {
     salesCallsCount: callsRes.count ?? 0,
     invoiceTypeRatio,
     technicianServiceCounts,
     avgValuePerServiceCall,
+    salesRevenue,
+    amcRevenue,
+    rentalRevenue,
+    serviceRevenue,
     totalRevenue,
   }
 }
@@ -598,33 +620,185 @@ export async function getFeedbackReport(orgId: string, range: DateRange): Promis
   return { starsDistribution, averageRating, trend, lowRatingEntries }
 }
 
-// ── Log Expense (ADM-28 gap fix) ─────────────────────────────────────────
+// ── Log Expense (ADM-28 gap fix; extended 2026-09-24 for the Accounts /
+// money-out expense-tracking change request — see
+// 20260924120000_expense_tracking_change_request.sql) ────────────────────
 // The only pre-existing write path into `expenses` was create_bill_entry(),
 // which always hardcodes category='purchase' (20260702170400_bill_entry_fix
-// .sql). This is the missing UI/service entry point for the other 5
-// categories. RLS (expenses_write_ops, 20260701091300_rls.sql) already lets
-// ops staff (master/operation_admin) insert — no schema or policy change
-// needed. `expenses` has no free-text note/description column (only
-// id/org_id/category/amount/ref_id/date/created_at/updated_at — see
-// 20260701091000_hr_finance.sql), so this input intentionally has no note
-// field; ref_id is left unset (nullable, used elsewhere to link an expense
-// back to its originating record, e.g. a purchase bill — there's nothing to
-// link a manually-logged expense to).
+// .sql). This is the missing UI/service entry point for the other
+// categories, now including 'rent'/'electricity' and the optional
+// note/recurring-task-link/logged-by columns added in the change request
+// above. RLS (expenses_write_ops, 20260701091300_rls.sql) already lets ops
+// staff (master/operation_admin) insert — no policy change needed. `note`
+// and `recurringTaskId` are both optional: an unplanned expense (emergency
+// repair, surprise purchase) is logged exactly the same way as a routine
+// one, with no task link required.
 export type CreateExpenseInput = {
   orgId: string
   category: Enums<"expense_category">
   amount: number
   date: string
+  note?: string | null
+  recurringTaskId?: string | null
+  loggedBy?: string | null
+  /** Item 1 of the 2026-09-24 change request — identifies the staff member
+   * (any role, via `profiles.id`) a category='salary' expense belongs to.
+   * Both the technician-payroll path (SalaryTab's "Log to Accounts") and
+   * the manual non-technician staff-salary path write here, so salary
+   * spend is one combined figure with per-person drill-down. Unset for
+   * every other category. */
+  staffId?: string | null
 }
 
 export async function createExpense(input: CreateExpenseInput) {
   const { data, error } = await supabase
     .from("expenses")
-    .insert({ org_id: input.orgId, category: input.category, amount: input.amount, date: input.date })
+    .insert({
+      org_id: input.orgId,
+      category: input.category,
+      amount: input.amount,
+      date: input.date,
+      note: input.note ?? null,
+      recurring_task_id: input.recurringTaskId ?? null,
+      is_recurring: !!input.recurringTaskId,
+      logged_by: input.loggedBy ?? null,
+      staff_id: input.staffId ?? null,
+    })
     .select()
     .single()
   if (error) throw error
   return data
+}
+
+// ── Expenses / Accounts dashboard (2026-09-24 change request) ────────────
+export type ExpenseEntry = {
+  id: string
+  category: Enums<"expense_category">
+  amount: number
+  date: string
+  note: string | null
+  isRecurring: boolean
+  recurringTaskId: string | null
+  loggedByName: string | null
+  staffId: string | null
+  staffName: string | null
+  createdAt: string
+}
+
+export async function getExpensesList(orgId: string, range: DateRange): Promise<ExpenseEntry[]> {
+  const { data, error } = await supabase
+    .from("expenses")
+    .select(
+      "id, category, amount, date, note, is_recurring, recurring_task_id, created_at, staff_id, logged_by_profile:profiles!expenses_logged_by_fkey(full_name), staff:profiles!expenses_staff_id_fkey(full_name)"
+    )
+    .eq("org_id", orgId)
+    .gte("date", range.from)
+    .lte("date", range.to)
+    .order("date", { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((e) => ({
+    id: e.id,
+    category: e.category,
+    amount: e.amount,
+    date: e.date,
+    note: e.note,
+    isRecurring: e.is_recurring,
+    recurringTaskId: e.recurring_task_id,
+    loggedByName: (e.logged_by_profile as { full_name: string } | null)?.full_name ?? null,
+    staffId: e.staff_id,
+    staffName: (e.staff as { full_name: string } | null)?.full_name ?? null,
+    createdAt: e.created_at,
+  }))
+}
+
+/** Open (not-yet-linked) recurring tasks, for the Log Expense form's
+ * "link to task" picker — deliberately optional (see createExpense above),
+ * this just surfaces candidates, it never requires a link. */
+export async function getOpenRecurringTasks(orgId: string) {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, title, due_date")
+    .eq("org_id", orgId)
+    .eq("is_recurring", true)
+    .eq("status", "open")
+    .order("due_date", { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+/** Salary spend grouped by staff member (item 1 drill-down) — sums every
+ * category='salary' expense row for the period regardless of which path
+ * wrote it (technician "Log to Accounts" or manual staff entry). */
+export type StaffSalaryTotal = { staffId: string; staffName: string; total: number }
+
+export async function getSalarySpendByStaff(orgId: string, range: DateRange): Promise<StaffSalaryTotal[]> {
+  const { data, error } = await supabase
+    .from("expenses")
+    .select("amount, staff_id, staff:profiles!expenses_staff_id_fkey(full_name)")
+    .eq("org_id", orgId)
+    .eq("category", "salary")
+    .not("staff_id", "is", null)
+    .gte("date", range.from)
+    .lte("date", range.to)
+  if (error) throw error
+  const byStaff = new Map<string, StaffSalaryTotal>()
+  for (const row of data ?? []) {
+    if (!row.staff_id) continue
+    const name = (row.staff as { full_name: string } | null)?.full_name ?? "—"
+    const existing = byStaff.get(row.staff_id) ?? { staffId: row.staff_id, staffName: name, total: 0 }
+    existing.total += row.amount
+    byStaff.set(row.staff_id, existing)
+  }
+  return [...byStaff.values()].sort((a, b) => b.total - a.total)
+}
+
+export type YearTotals = {
+  year: number
+  fullYearTotal: number
+  /** Sum restricted to Jan 1 → the same calendar day-of-year as "today" in
+   * the current year, so a partial current year compares fairly against
+   * complete past years (see reports.pnl-adjacent Accounts dashboard spec,
+   * 2026-09-24). Equal to fullYearTotal for any fully-elapsed past year. */
+  ytdComparableTotal: number
+  byCategory: { category: Enums<"expense_category">; amount: number }[]
+}
+
+export async function getExpensesYearOverYear(orgId: string, yearsBack = 3): Promise<YearTotals[]> {
+  const now = new Date()
+  const currentYear = now.getUTCFullYear()
+  const dayOfYear = Math.ceil((now.getTime() - Date.UTC(currentYear, 0, 1)) / 86_400_000) + 1
+  const earliestYear = currentYear - yearsBack
+
+  const { data, error } = await supabase
+    .from("expenses")
+    .select("category, amount, date")
+    .eq("org_id", orgId)
+    .gte("date", `${earliestYear}-01-01`)
+  if (error) throw error
+
+  const years = new Map<number, { full: number; ytd: number; byCategory: Map<Enums<"expense_category">, number> }>()
+  for (const row of data ?? []) {
+    const d = new Date(`${row.date}T00:00:00Z`)
+    const year = d.getUTCFullYear()
+    const rowDayOfYear = Math.ceil((d.getTime() - Date.UTC(year, 0, 1)) / 86_400_000) + 1
+    const entry = years.get(year) ?? { full: 0, ytd: 0, byCategory: new Map() }
+    entry.full += row.amount
+    if (rowDayOfYear <= dayOfYear) entry.ytd += row.amount
+    entry.byCategory.set(row.category, (entry.byCategory.get(row.category) ?? 0) + row.amount)
+    years.set(year, entry)
+  }
+
+  const result: YearTotals[] = []
+  for (let year = currentYear; year >= earliestYear; year--) {
+    const entry = years.get(year) ?? { full: 0, ytd: 0, byCategory: new Map() }
+    result.push({
+      year,
+      fullYearTotal: entry.full,
+      ytdComparableTotal: entry.ytd,
+      byCategory: [...entry.byCategory.entries()].map(([category, amount]) => ({ category, amount })),
+    })
+  }
+  return result
 }
 
 // ── CSV export (no xlsx/exceljs dependency exists in package.json — plain

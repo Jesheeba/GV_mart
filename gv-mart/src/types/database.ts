@@ -4939,6 +4939,11 @@ export type Database = {
           amount: number
           ref_id: string | null
           date: string
+          note: string | null
+          is_recurring: boolean
+          recurring_task_id: string | null
+          logged_by: string | null
+          staff_id: string | null
           created_at: string
           updated_at: string
         }
@@ -4949,6 +4954,11 @@ export type Database = {
           amount: number
           ref_id?: string | null
           date?: string
+          note?: string | null
+          is_recurring?: boolean
+          recurring_task_id?: string | null
+          logged_by?: string | null
+          staff_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4959,6 +4969,11 @@ export type Database = {
           amount?: number
           ref_id?: string | null
           date?: string
+          note?: string | null
+          is_recurring?: boolean
+          recurring_task_id?: string | null
+          logged_by?: string | null
+          staff_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4968,6 +4983,27 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_recurring_task_id_fkey"
+            columns: ["recurring_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_logged_by_fkey"
+            columns: ["logged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -6315,7 +6351,18 @@ export type Database = {
       incentive_type: "service_income" | "sales_income" | "review" | "finder_credit"
       // Rewards spec (2026-08-04) — 4th category, see 20260804140000_reward_referral_category.sql.
       reward_category: "attendance" | "highest_review" | "highest_revenue" | "highest_referral"
-      expense_category: "marketing" | "stationery" | "salary" | "petrol" | "purchase" | "other"
+      expense_category:
+        | "marketing"
+        | "stationery"
+        | "salary"
+        | "petrol"
+        | "purchase"
+        | "other"
+        | "rent"
+        | "electricity"
+        | "parking"
+        | "ad_campaign"
+        | "video_generation"
       approval_type: "discount" | "po" | "price_override" | "leave"
       approval_status: "pending" | "approved" | "rejected"
       task_status: "open" | "done" | "rolled"
