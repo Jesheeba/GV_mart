@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { IndianRupee, PhoneCall, ReceiptText, Wrench } from "lucide-react"
+import { IndianRupee, PhoneCall, ReceiptText, ShieldCheck, CalendarClock, Wrench } from "lucide-react"
 import { KpiCard } from "@/components/shared/KpiCard"
 import { HighlightKpiCard } from "@/components/shared/HighlightKpiCard"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
@@ -45,27 +45,41 @@ export function SalesServiceReportTab() {
           </button>
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <HighlightKpiCard
-            label={t("reports.salesService.totalRevenue")}
-            value={data ? formatCurrency(data.totalRevenue) : "—"}
-            icon={<IndianRupee className="size-4" />}
-            loading={isLoading}
-          />
-          <KpiCard label={t("reports.salesService.salesCalls")} value={data?.salesCallsCount ?? "—"} icon={<PhoneCall className="size-4" />} loading={isLoading} />
-          <KpiCard
-            label={t("reports.salesService.avgValuePerCall")}
-            value={data ? formatCurrency(data.avgValuePerServiceCall) : "—"}
-            icon={<Wrench className="size-4" />}
-            loading={isLoading}
-          />
-          <KpiCard
-            label={t("reports.salesService.invoiceCount")}
-            value={data ? data.invoiceTypeRatio.reduce((s, r) => s + r.count, 0) : "—"}
-            icon={<ReceiptText className="size-4" />}
-            loading={isLoading}
-          />
-        </div>
+        <>
+          {/* 2026-09-24 Accounts change request, item 3: Sales/Service/AMC/
+              Rental shown as separate KPIs rather than folded into one
+              figure. Total Revenue below is the honest sum of all four —
+              it used to silently exclude service revenue (service_visits
+              has no invoice_type at all), fixed as part of this change. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard label={t("reports.salesService.salesRevenue")} value={data ? formatCurrency(data.salesRevenue) : "—"} icon={<ReceiptText className="size-4" />} loading={isLoading} />
+            <KpiCard label={t("reports.salesService.serviceRevenue")} value={data ? formatCurrency(data.serviceRevenue) : "—"} icon={<Wrench className="size-4" />} loading={isLoading} />
+            <KpiCard label={t("reports.salesService.amcRevenue")} value={data ? formatCurrency(data.amcRevenue) : "—"} icon={<ShieldCheck className="size-4" />} loading={isLoading} />
+            <KpiCard label={t("reports.salesService.rentalRevenue")} value={data ? formatCurrency(data.rentalRevenue) : "—"} icon={<CalendarClock className="size-4" />} loading={isLoading} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <HighlightKpiCard
+              label={t("reports.salesService.totalRevenue")}
+              value={data ? formatCurrency(data.totalRevenue) : "—"}
+              icon={<IndianRupee className="size-4" />}
+              loading={isLoading}
+            />
+            <KpiCard label={t("reports.salesService.salesCalls")} value={data?.salesCallsCount ?? "—"} icon={<PhoneCall className="size-4" />} loading={isLoading} />
+            <KpiCard
+              label={t("reports.salesService.avgValuePerCall")}
+              value={data ? formatCurrency(data.avgValuePerServiceCall) : "—"}
+              icon={<Wrench className="size-4" />}
+              loading={isLoading}
+            />
+            <KpiCard
+              label={t("reports.salesService.invoiceCount")}
+              value={data ? data.invoiceTypeRatio.reduce((s, r) => s + r.count, 0) : "—"}
+              icon={<ReceiptText className="size-4" />}
+              loading={isLoading}
+            />
+          </div>
+        </>
       )}
 
       <div className="space-y-2">
