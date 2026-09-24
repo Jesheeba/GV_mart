@@ -868,6 +868,150 @@ export async function adminSignSpareHandover(handoverId: string, adminSignUrl: s
 
 export type SpareHandoverItemInsert = TablesInsert<"spare_handover_items">
 
+// ── Group 5 (2026-09-21): technician van stock, returns, manager visibility ──
+// technician_stock_levels/spare_returns/spare_return_items post-date
+// src/types/database.ts's last real codegen (Docker/`supabase gen types` is
+// unavailable on this machine — see 20260921110000_technician_van_stock_
+// schema.sql's header), but were hand-added there as full Row/Insert/Update
+// stubs (same approach 20260915170000's technician_arrival_blocks used),
+// so plain `.from("technician_stock_levels")` etc. below type-check without
+// the `as never` widening technicians.zone/is_active needed at the top of
+// this file for columns added the same way to an *existing* typed table.
+
+export type TechnicianStockLevelRow = Tables<"technician_stock_levels">
+export type SpareReturnRow = Tables<"spare_returns">
+export type SpareReturnItemRow = Tables<"spare_return_items">
+
+export type TechnicianStockLevelItem = TechnicianStockLevelRow & {
+  technicians: { id: string; profiles: { full_name: string } | null } | null
+  spares: { name: string; sku: string | null; min_stock: number | null } | null
+}
+
+/** `technician_stock_levels.item_id` is polymorphic (product | spare, same
+ * as `inventory.item_id` — see catalog_inventory.sql's own comment: "Postgres
+ * has no cross-table FK, so referential integrity for item_id is enforced in
+ * the services/ layer"), so it can't be embedded via PostgREST's `spares(...)`
+ * relationship syntax — confirmed live: that returns a PGRST200 "no
+ * relationship found" 400. Same fix inventory.ts's nameLookup already uses:
+ * fetch spare names separately and join client-side. Every caller here
+ * currently only ever writes item_type='spare' rows (handover/return are
+ * spares-only), so a plain spares-by-id lookup covers it. */
+async function spareNameLookup(orgId: string, itemIds: string[]) {
+  if (itemIds.length === 0) return new Map<string, { name: string; sku: string | null }>()
+  const { data, error } = await supabase.from("spares").select("id,name,sku").eq("org_id", orgId).in("id", itemIds)
+  if (error) throw error
+  return new Map((data ?? []).map((s) => [s.id, { name: s.name, sku: s.sku }]))
+}
+
+/** Every technician's current van balance, org-wide — the "who holds what"
+ * view (Group 5). Also looks up the warehouse `inventory` row for the same
+ * spare for its `min_stock`, reused as the low-stock threshold so a
+ * technician's van balance is flagged "low" by the same yardstick
+ * InventoryPage already uses for warehouse stock (`stock_qty <= min_stock`,
+ * `stock_qty > 0`) — no separate per-technician threshold config invented. */
+export async function listAllTechnicianStock(orgId: string): Promise<TechnicianStockLevelItem[]> {
+  const { data, error } = await supabase
+    .from("technician_stock_levels")
+    .select("*, technicians(id, profiles(full_name))")
+    .eq("org_id", orgId)
+    .gt("stock_qty", 0)
+    .order("stock_qty")
+  if (error) throw error
+  const rows = (data ?? []) as unknown as (TechnicianStockLevelRow & { technicians: TechnicianStockLevelItem["technicians"] })[]
+
+  const itemIds = [...new Set(rows.map((r) => r.item_id))]
+  const [spareNames, { data: warehouseRows, error: whError }] = await Promise.all([
+    spareNameLookup(orgId, itemIds),
+    supabase.from("inventory").select("item_id, min_stock").eq("org_id", orgId).eq("item_type", "spare").eq("location", "warehouse"),
+  ])
+  if (whError) throw whError
+  const minStockByItem = new Map((warehouseRows ?? []).map((r) => [r.item_id, r.min_stock]))
+
+  return rows.map((row) => {
+    const info = spareNames.get(row.item_id)
+    return { ...row, spares: info ? { ...info, min_stock: minStockByItem.get(row.item_id) ?? null } : null }
+  })
+}
+
+/** One technician's current holdings — feeds the Return form's item picker,
+ * constrained to spares they actually hold (per your "technician-item-picker"
+ * spec) rather than handover's any-spare dropdown. */
+export async function listTechnicianStock(orgId: string, technicianId: string): Promise<TechnicianStockLevelItem[]> {
+  const { data, error } = await supabase
+    .from("technician_stock_levels")
+    .select("*, technicians(id, profiles(full_name))")
+    .eq("org_id", orgId)
+    .eq("technician_id", technicianId)
+    .eq("item_type", "spare")
+    .gt("stock_qty", 0)
+    .order("updated_at", { ascending: false })
+  if (error) throw error
+  const rows = (data ?? []) as unknown as (TechnicianStockLevelRow & { technicians: TechnicianStockLevelItem["technicians"] })[]
+  const spareNames = await spareNameLookup(orgId, [...new Set(rows.map((r) => r.item_id))])
+  return rows.map((row) => ({ ...row, spares: spareNames.get(row.item_id) ? { ...spareNames.get(row.item_id)!, min_stock: null } : null }))
+}
+
+export type SpareReturnListItem = SpareReturnRow & {
+  technicians: { id: string; profiles: { full_name: string } | null } | null
+  spare_return_items: (SpareReturnItemRow & { spares: { name: string; sku: string | null } | null })[]
+}
+
+export async function listSpareReturns(orgId: string): Promise<SpareReturnListItem[]> {
+  const { data, error } = await supabase
+    .from("spare_returns")
+    .select("*, technicians(id, profiles(full_name)), spare_return_items(*, spares(name, sku))")
+    .eq("org_id", orgId)
+    .order("date", { ascending: false })
+    .limit(100)
+  if (error) throw error
+  return (data ?? []) as unknown as SpareReturnListItem[]
+}
+
+export type CreateSpareReturnInput = {
+  orgId: string
+  technicianId: string
+  date: string
+  items: { spareId: string; qtyReturned: number }[]
+}
+
+export async function createSpareReturn(input: CreateSpareReturnInput) {
+  const { data, error } = await rpc("create_spare_return", {
+    p_org_id: input.orgId,
+    p_technician_id: input.technicianId,
+    p_date: input.date,
+    p_items: input.items.map((i) => ({ spare_id: i.spareId, qty_returned: i.qtyReturned })),
+  })
+  if (error) throw error
+  return data as string
+}
+
+/** Daily handover/return log (Group 5) — the two flows merged into one
+ * chronological feed, tagged by kind so the UI can render either row shape.
+ * Deliberately combines two already-fetched lists client-side rather than a
+ * new RPC/view: both lists are already capped at 100 most-recent rows and
+ * already fetched for their own tabs, so there's no extra round-trip. */
+export type StockLogEntry =
+  | { kind: "handover"; id: string; date: string; technicianName: string; items: { name: string; qty: number }[] }
+  | { kind: "return"; id: string; date: string; technicianName: string; items: { name: string; qty: number }[] }
+
+export function buildStockLog(handovers: SpareHandoverListItem[], returns: SpareReturnListItem[]): StockLogEntry[] {
+  const handoverEntries: StockLogEntry[] = handovers.map((h) => ({
+    kind: "handover",
+    id: h.id,
+    date: h.date,
+    technicianName: h.technicians?.profiles?.full_name ?? "—",
+    items: h.spare_handover_items.map((i) => ({ name: i.spares?.name ?? "?", qty: i.qty_given })),
+  }))
+  const returnEntries: StockLogEntry[] = returns.map((r) => ({
+    kind: "return",
+    id: r.id,
+    date: r.date,
+    technicianName: r.technicians?.profiles?.full_name ?? "—",
+    items: r.spare_return_items.map((i) => ({ name: i.spares?.name ?? "?", qty: i.qty_returned })),
+  }))
+  return [...handoverEntries, ...returnEntries].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+}
+
 // ── Phase 1 assignment-engine data: technician_availability ───────────────
 // Turns on real per-technician working/leave + shift data for the
 // assignment engine (see GV_Mart_Technician_Assignment_Logic_Change.md

@@ -17,7 +17,7 @@ import type { InventoryListItem, ItemType } from "@/services/inventory"
 // 1179: Item/Brand/Stock/Min/Level/Status), which a real <table> can't
 // express; mirrors the grid-div pattern TicketsListPage/SalesListPage use.
 const TABLE_GRID_COLS =
-  "grid-cols-[minmax(170px,2fr)_minmax(90px,1fr)_minmax(90px,0.9fr)_minmax(120px,0.9fr)_minmax(120px,1.4fr)_minmax(90px,1fr)]"
+  "grid-cols-[minmax(170px,2fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(120px,0.9fr)_minmax(120px,1.4fr)_minmax(90px,1fr)]"
 
 type StatusKey = "in" | "low" | "out"
 
@@ -160,6 +160,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
   const headers = [
     t("inventory.item"),
     t("inventory.brand"),
+    t("inventory.location"),
     t("inventory.stock"),
     t("inventory.thresholds"),
     t("inventory.level"),
@@ -265,6 +266,17 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                 )}
               </div>
               <span className="truncate pr-2 text-[13px] font-medium text-text-muted">{r.itemBrand ?? "—"}</span>
+
+              <span>
+                <span
+                  className={cn(
+                    "w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    r.location === "van" ? "bg-accent/10 text-accent" : "bg-surface-alt text-text-muted"
+                  )}
+                >
+                  {t(`inventory.locationValues.${r.location}`)}
+                </span>
+              </span>
 
               {adjustingId === r.id ? (
                 <div className="flex flex-wrap items-center gap-1">

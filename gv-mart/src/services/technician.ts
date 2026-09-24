@@ -248,6 +248,20 @@ export async function queueConfirmHandover(handoverId: string, techSignUrl: stri
   await enqueue("spare_handover.confirm", { handoverId, techSignUrl, adminSignUrl })
 }
 
+/** Past handovers (any date, not just today) — feeds SpareHandoverHistoryPage's
+ * "find and print a past receipt" list. Plain read, not offline-queued like
+ * confirm above (nothing to sync back). */
+export async function listMyHandovers(technicianId: string) {
+  const { data, error } = await supabase
+    .from("spare_handovers")
+    .select("*, spare_handover_items(*, spares(name, sku))")
+    .eq("technician_id", technicianId)
+    .order("date", { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return data
+}
+
 // ── TECH-03 Home / Today's jobs ──────────────────────────────────────────
 
 export type JobCard = AppointmentRow & {

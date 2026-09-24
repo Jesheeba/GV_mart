@@ -1525,6 +1525,7 @@ export type Database = {
           change_qty: number
           reason: string
           ref_id: string | null
+          technician_id: string | null
           created_at: string
           updated_at: string
         }
@@ -1536,6 +1537,7 @@ export type Database = {
           change_qty: number
           reason: string
           ref_id?: string | null
+          technician_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1547,6 +1549,7 @@ export type Database = {
           change_qty?: number
           reason?: string
           ref_id?: string | null
+          technician_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1556,6 +1559,145 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      technician_stock_levels: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          item_type: Database["public"]["Enums"]["item_type"]
+          item_id: string
+          stock_qty: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          item_type: Database["public"]["Enums"]["item_type"]
+          item_id: string
+          stock_qty?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          item_type?: Database["public"]["Enums"]["item_type"]
+          item_id?: string
+          stock_qty?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technician_stock_levels_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technician_stock_levels_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spare_returns: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          date: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          date?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          date?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spare_returns_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spare_returns_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spare_return_items: {
+        Row: {
+          id: string
+          org_id: string
+          return_id: string
+          spare_id: string
+          qty_returned: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          return_id: string
+          spare_id: string
+          qty_returned: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          return_id?: string
+          spare_id?: string
+          qty_returned?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spare_return_items_return_id_fkey"
+            columns: ["return_id"]
+            isOneToOne: false
+            referencedRelation: "spare_returns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spare_return_items_spare_id_fkey"
+            columns: ["spare_id"]
+            isOneToOne: false
+            referencedRelation: "spares"
             referencedColumns: ["id"]
           },
         ]
@@ -1568,6 +1710,7 @@ export type Database = {
           contact: string | null
           whatsapp: string | null
           rating: number | null
+          credit_days: number
           created_at: string
           updated_at: string
         }
@@ -1578,6 +1721,7 @@ export type Database = {
           contact?: string | null
           whatsapp?: string | null
           rating?: number | null
+          credit_days?: number
           created_at?: string
           updated_at?: string
         }
@@ -1588,6 +1732,7 @@ export type Database = {
           contact?: string | null
           whatsapp?: string | null
           rating?: number | null
+          credit_days?: number
           created_at?: string
           updated_at?: string
         }
@@ -5408,6 +5553,7 @@ export type Database = {
           source: string | null
           ref_type: string | null
           ref_id: string | null
+          escalated_at: string | null
           is_recurring: boolean
           created_at: string
           updated_at: string
@@ -5428,6 +5574,7 @@ export type Database = {
           source?: string | null
           ref_type?: string | null
           ref_id?: string | null
+          escalated_at?: string | null
           is_recurring?: boolean
           created_at?: string
           updated_at?: string
@@ -5448,6 +5595,7 @@ export type Database = {
           source?: string | null
           ref_type?: string | null
           ref_id?: string | null
+          escalated_at?: string | null
           is_recurring?: boolean
           created_at?: string
           updated_at?: string

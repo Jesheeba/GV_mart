@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as techniciansAdmin from "@/services/techniciansAdmin"
-import type { CreateSpareHandoverInput } from "@/services/techniciansAdmin"
+import type { CreateSpareHandoverInput, CreateSpareReturnInput } from "@/services/techniciansAdmin"
 import type { DateRange } from "@/services/reports"
 
 export function useTechniciansList(orgId: string | undefined, range?: DateRange) {
@@ -219,7 +219,10 @@ export function useCreateSpareHandover() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateSpareHandoverInput) => techniciansAdmin.createSpareHandover(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["spare_handovers"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["spare_handovers"] })
+      qc.invalidateQueries({ queryKey: ["technician_stock_levels"] })
+    },
   })
 }
 
@@ -229,6 +232,43 @@ export function useAdminSignSpareHandover() {
     mutationFn: ({ handoverId, adminSignUrl }: { handoverId: string; adminSignUrl: string }) =>
       techniciansAdmin.adminSignSpareHandover(handoverId, adminSignUrl),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["spare_handovers"] }),
+  })
+}
+
+// ── Group 5 (2026-09-21): technician van stock, returns, manager visibility ──
+
+export function useAllTechnicianStock(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["technician_stock_levels", "all", orgId],
+    queryFn: () => techniciansAdmin.listAllTechnicianStock(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useTechnicianStock(orgId: string | undefined, technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technician_stock_levels", "byTechnician", orgId, technicianId],
+    queryFn: () => techniciansAdmin.listTechnicianStock(orgId!, technicianId!),
+    enabled: !!orgId && !!technicianId,
+  })
+}
+
+export function useSpareReturns(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["spare_returns", "list", orgId],
+    queryFn: () => techniciansAdmin.listSpareReturns(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useCreateSpareReturn() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreateSpareReturnInput) => techniciansAdmin.createSpareReturn(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["spare_returns"] })
+      qc.invalidateQueries({ queryKey: ["technician_stock_levels"] })
+    },
   })
 }
 

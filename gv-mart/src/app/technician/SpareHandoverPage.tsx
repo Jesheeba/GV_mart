@@ -1,12 +1,15 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { CheckCircle2, Loader2, PackageOpen } from "lucide-react"
+import { CheckCircle2, History, Loader2, PackageOpen, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { HandoverPrintSheet } from "@/components/shared/HandoverPrintSheet"
 import { SignaturePad } from "./components/SignaturePad"
 import { useToast } from "@/components/ui/toast-context"
+import { useProfile } from "@/hooks/useProfile"
+import { useOrganization } from "@/hooks/useSales"
 import { useConfirmHandover, useMyTechnician, useTodayHandover } from "@/hooks/useTechnician"
 import { spareHandoverSignSchema } from "@/lib/validation/technician"
 
@@ -14,10 +17,19 @@ export function SpareHandoverPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const navigate = useNavigate()
+  const { data: profile } = useProfile()
+  const { data: org } = useOrganization(profile?.org_id)
   const technician = useMyTechnician()
   const handover = useTodayHandover(technician.data?.id)
   const confirmHandover = useConfirmHandover()
   const [techSign, setTechSign] = useState<string | null>(null)
+  const [printing, setPrinting] = useState(false)
+
+  useEffect(() => {
+    if (!printing) return
+    const id = setTimeout(() => window.print(), 50)
+    return () => clearTimeout(id)
+  }, [printing])
 
   if (technician.isLoading || handover.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (technician.isError || !technician.data) {
@@ -44,16 +56,28 @@ export function SpareHandoverPage() {
 
   return (
     <div className="space-y-4 pt-2">
-      <h1 className="text-xl font-bold text-text">{t("technician.spareHandover.title")}</h1>
+      <div className="flex items-center justify-between gap-2 print:hidden">
+        <h1 className="text-xl font-bold text-text">{t("technician.spareHandover.title")}</h1>
+        <div className="flex items-center gap-1.5">
+          {data ? (
+            <Button type="button" size="icon-sm" variant="outline" title={t("technicians.spares.print")} onClick={() => setPrinting(true)}>
+              <Printer className="size-4" />
+            </Button>
+          ) : null}
+          <Button type="button" size="icon-sm" variant="outline" title={t("technician.spareHandover.history")} onClick={() => navigate("/technician/spares/history")}>
+            <History className="size-4" />
+          </Button>
+        </div>
+      </div>
 
       {!data ? (
-        <Card className="items-center gap-2 py-8 text-center">
+        <Card className="items-center gap-2 py-8 text-center print:hidden">
           <PackageOpen className="size-8 text-text-muted" />
           <p className="text-sm font-medium text-text">{t("technician.spareHandover.emptyTitle")}</p>
           <p className="text-xs text-text-muted">{t("technician.spareHandover.emptyBody")}</p>
         </Card>
       ) : (
-        <>
+        <div className="space-y-4 print:hidden">
           <Card className="gap-3">
             <p className="px-1 text-sm font-semibold text-text">{t("technician.spareHandover.itemsTitle")}</p>
             {items.length === 0 ? (
@@ -97,12 +121,31 @@ export function SpareHandoverPage() {
               {!techSign ? <p className="px-1 text-xs text-text-muted">{t("technician.errors.signatureRequired")}</p> : null}
             </Card>
           )}
-        </>
+        </div>
       )}
 
-      <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+      <Button type="button" variant="outline" className="print:hidden" onClick={() => navigate(-1)}>
         {t("common.back")}
       </Button>
+
+      {printing && data ? (
+        <HandoverPrintSheet
+          orgName={org?.name ?? t("common.appName")}
+          orgAddress={org?.address ?? null}
+          orgPhone={org?.phone ?? null}
+          technicianName={profile?.full_name ?? "—"}
+          date={data.date}
+          status={data.status}
+          items={items.map((item) => ({
+            id: item.id,
+            name: item.spares?.name ?? "?",
+            sku: item.spares?.sku ?? null,
+            qty: item.qty_given,
+          }))}
+          adminSignUrl={data.admin_sign_url}
+          techSignUrl={data.tech_sign_url}
+        />
+      ) : null}
     </div>
   )
 }

@@ -1,15 +1,18 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, PackageOpen, Plus, Trash2 } from "lucide-react"
+import { Loader2, PackageOpen, Plus, Printer, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { StatusDot } from "@/components/shared/StatusDot"
+import { HandoverPrintSheet } from "@/components/shared/HandoverPrintSheet"
 import { SignaturePad } from "@/app/technician/components/SignaturePad"
 import { useProfile } from "@/hooks/useProfile"
+import { useOrganization } from "@/hooks/useSales"
 import {
   useAdminSignSpareHandover,
   useCreateSpareHandover,
@@ -18,6 +21,8 @@ import {
 } from "@/hooks/useTechniciansAdmin"
 import { useTechniciansList } from "@/hooks/useTechniciansAdmin"
 import type { SpareHandoverListItem } from "@/services/techniciansAdmin"
+import { TechniciansSpareReturnTab } from "./TechniciansSpareReturnTab"
+import { TechniciansStockLevelsTab } from "./TechniciansStockLevelsTab"
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -34,6 +39,7 @@ export function TechniciansSpareHandoverPage() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
+  const { data: org } = useOrganization(orgId)
 
   const { data: handovers, isLoading, isError, refetch } = useSpareHandovers(orgId)
   const { data: technicians } = useTechniciansList(orgId)
@@ -47,6 +53,18 @@ export function TechniciansSpareHandoverPage() {
   const [lines, setLines] = useState<DraftLine[]>([{ spareId: "", qtyGiven: "" }])
   const [signingId, setSigningId] = useState<string | null>(null)
   const [adminSign, setAdminSign] = useState<string | null>(null)
+  const [printingId, setPrintingId] = useState<string | null>(null)
+  const printingHandover = (handovers ?? []).find((h) => h.id === printingId) ?? null
+
+  // Print sheet only renders once printingHandover is set — wait a tick for
+  // that render to commit before invoking the browser dialog, same reason
+  // InvoicePage/QuotationDetailPage don't need this (their printout is
+  // always already in the DOM, nothing to pick first).
+  useEffect(() => {
+    if (!printingHandover) return
+    const id = setTimeout(() => window.print(), 50)
+    return () => clearTimeout(id)
+  }, [printingHandover])
 
   function addLine() {
     setLines((prev) => [...prev, { spareId: "", qtyGiven: "" }])
@@ -119,22 +137,40 @@ export function TechniciansSpareHandoverPage() {
       header: t("technicians.spares.status"),
       render: (r) => <StatusDot tone={r.status === "confirmed" ? "success" : "warning"} label={t(`technicians.spares.statusValues.${r.status}`)} />,
     },
+    {
+      key: "print",
+      header: "",
+      render: (r) => (
+        <Button size="icon-xs" variant="ghost" title={t("technicians.spares.print")} onClick={() => setPrintingId(r.id)}>
+          <Printer className="size-3.5 text-text-muted" />
+        </Button>
+      ),
+    },
   ]
 
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-text">{t("technicians.spares.title")}</h1>
-          <p className="text-sm text-text-muted">{t("technicians.spares.subtitle")}</p>
-        </div>
-        <Button variant="accent" onClick={() => setFormOpen((v) => !v)}>
-          <Plus className="size-4" />
-          {t("technicians.spares.newHandover")}
-        </Button>
+      <div className="print:hidden">
+        <h1 className="text-2xl font-bold text-text">{t("technicians.spares.title")}</h1>
+        <p className="text-sm text-text-muted">{t("technicians.spares.subtitle")}</p>
       </div>
 
-      {formOpen ? (
+      <Tabs defaultValue="handover" className="print:hidden">
+        <TabsList>
+          <TabsTrigger value="handover">{t("technicians.spares.tabs.handover")}</TabsTrigger>
+          <TabsTrigger value="return">{t("technicians.spares.tabs.return")}</TabsTrigger>
+          <TabsTrigger value="stock">{t("technicians.spares.tabs.stock")}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="handover" className="space-y-4 pt-4">
+          <div className="flex justify-end">
+            <Button variant="accent" onClick={() => setFormOpen((v) => !v)}>
+              <Plus className="size-4" />
+              {t("technicians.spares.newHandover")}
+            </Button>
+          </div>
+
+          {formOpen ? (
         <Card size="default" className="gap-3">
           <p className="text-sm font-semibold text-text">{t("technicians.spares.newHandover")}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -242,6 +278,35 @@ export function TechniciansSpareHandoverPage() {
           emptyMessage={t("technicians.spares.empty")}
         />
       </Card>
+        </TabsContent>
+
+        <TabsContent value="return" className="pt-4">
+          <TechniciansSpareReturnTab orgId={orgId} />
+        </TabsContent>
+
+        <TabsContent value="stock" className="pt-4">
+          <TechniciansStockLevelsTab orgId={orgId} />
+        </TabsContent>
+      </Tabs>
+
+      {printingHandover ? (
+        <HandoverPrintSheet
+          orgName={org?.name ?? t("common.appName")}
+          orgAddress={org?.address ?? null}
+          orgPhone={org?.phone ?? null}
+          technicianName={printingHandover.technicians?.profiles?.full_name ?? "—"}
+          date={printingHandover.date}
+          status={printingHandover.status}
+          items={printingHandover.spare_handover_items.map((i) => ({
+            id: i.id,
+            name: i.spares?.name ?? "?",
+            sku: i.spares?.sku ?? null,
+            qty: i.qty_given,
+          }))}
+          adminSignUrl={printingHandover.admin_sign_url}
+          techSignUrl={printingHandover.tech_sign_url}
+        />
+      ) : null}
     </div>
   )
 }

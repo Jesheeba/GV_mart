@@ -78,8 +78,8 @@ export function TechnicianShell() {
   ]
 
   return (
-    <div className="min-h-screen bg-bg pb-20">
-      <header className="flex items-center justify-between gap-1.5 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+    <div className="min-h-screen bg-bg pb-20 print:pb-0">
+      <header className="flex items-center justify-between gap-1.5 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] print:hidden">
         <div className="flex min-w-0 shrink items-center gap-2">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-white p-1">
             <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
@@ -136,13 +136,17 @@ export function TechnicianShell() {
           <UserMenu fullName={profile.full_name} role={profile.role} />
         </div>
       </header>
-      <NewJobAssignedBanner userId={profile.id} />
-      <NewTaskAssignedBanner userId={profile.id} />
-      <ShiftEndPromptModal orgId={profile.org_id} technicianId={technician.data?.id} userId={profile.id} />
-      <main className="px-4">
+      <div className="print:hidden">
+        <NewJobAssignedBanner userId={profile.id} />
+        <NewTaskAssignedBanner userId={profile.id} />
+        <ShiftEndPromptModal orgId={profile.org_id} technicianId={technician.data?.id} userId={profile.id} />
+      </div>
+      <main className="px-4 print:p-0">
         <Outlet />
       </main>
-      <BottomTabBar tabs={tabs} />
+      <div className="print:hidden">
+        <BottomTabBar tabs={tabs} />
+      </div>
     </div>
   )
 }

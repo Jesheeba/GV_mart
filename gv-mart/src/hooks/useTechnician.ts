@@ -154,6 +154,14 @@ export function useTodayHandover(technicianId: string | undefined) {
   })
 }
 
+export function useMyHandovers(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["spareHandovers", "mine", technicianId],
+    queryFn: () => tech.listMyHandovers(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
 export function useConfirmHandover() {
   const qc = useQueryClient()
   return useMutation({
