@@ -56,6 +56,27 @@ export type SendMessageInput = {
   type?: "text" | "template" | "interactive" | "media"
   refType?: string | null
   refId?: string | null
+  /** A Meta-approved WhatsApp template send with a document header — e.g.
+   * the supplier quote-request PDF flow. UNCONFIRMED FIELD NAMES (2026-09-08):
+   * Wasi's support team has never supplied a real sample payload for this
+   * shape, unlike the plain-text and interactive shapes below (both
+   * confirmed against real production payloads). `templateName`/
+   * `headerMediaUrl`/`params` are this codebase's own best guess at Wasi's
+   * contract, modeled on how other BSPs typically expose a template send —
+   * NOT verified. See sendViaWasi's own comment on this. */
+  templateSend?: {
+    templateName: string
+    headerMediaUrl: string
+    params: Record<string, string>
+  }
+  /** How many send attempts already happened for this logical message
+   * before this one — 0 (the default) for a genuinely first attempt.
+   * Callers that are RESENDING a previous failed/pending row (the
+   * milestone dispatcher, the daily failed-send retry pass) pass the prior
+   * row's own retry_count + 1, so the bounded-retry safeguard in each of
+   * those callers can tell how many attempts a given logical message has
+   * already had, across however many outbox rows that history spans. */
+  retryCount?: number
 }
 
 export type SendMessageResult = {
@@ -66,6 +87,12 @@ export type SendMessageResult = {
    * truth; this is purely the in-memory signal to the caller of whether
    * anything actually left this server just now. */
   dispatched: boolean
+  /** Wasi's full raw response body from the actual send attempt, if one was
+   * made (undefined in stub mode). Not persisted — whatsapp_outbox.error
+   * keeps the existing short formatted summary — exists purely so a caller
+   * debugging an unconfirmed payload shape (see templateSend above) can see
+   * everything the provider said back, not just a summarized string. */
+  rawResponse?: string
 }
 
 export type RenderedTemplate = { found: true; body: string } | { found: false }
@@ -91,7 +118,7 @@ export async function renderWaTemplate(admin: SupabaseClient, orgId: string, nam
   return result.found && result.body ? { found: true, body: result.body } : { found: false }
 }
 
-type WasiSendResult = { ok: true; waMessageId: string | null } | { ok: false; error: string }
+type WasiSendResult = { ok: true; waMessageId: string | null; rawBody: string } | { ok: false; error: string; rawBody: string }
 
 // 2026-08-31 (latency): these credentials change only on a deliberate admin
 // action (rotating/reconfiguring the Wasi integration) — essentially never
@@ -170,7 +197,8 @@ async function sendViaWasi(
   clientId: string,
   to: string,
   body: string,
-  interactive?: NonNullable<Reply["interactive"]>
+  interactive?: NonNullable<Reply["interactive"]>,
+  templateSend?: NonNullable<SendMessageInput["templateSend"]>
 ): Promise<WasiSendResult> {
   const intlTo = `${INDIA_COUNTRY_CODE}${to}`
   // Wasi's real outbound envelope: plain text is {client_id, to, type,
@@ -178,9 +206,19 @@ async function sendViaWasi(
   // and Reply.interactive's fields (header/footer/buttons OR
   // button+sections) spread in alongside body — confirmed against Wasi
   // support's own production-verified sample payloads, 2026-08-27.
-  const payload = interactive
-    ? { client_id: clientId, to: intlTo, type: "interactive", body, ...interactive }
-    : { client_id: clientId, to: intlTo, type: "text", body }
+  //
+  // The `templateSend` branch is NOT confirmed the same way — see its own
+  // doc comment on SendMessageInput. `template`/`headerMediaUrl`/`params`
+  // as top-level fields (no `body`, since an approved template's own text
+  // carries the message content) is this codebase's best guess, not a
+  // verified Wasi contract. Whatever Wasi's real response says back — a
+  // clean 201, or a 4xx naming the actual expected field — is the real
+  // signal here, not this comment.
+  const payload = templateSend
+    ? { client_id: clientId, to: intlTo, type: "template", template: templateSend.templateName, headerMediaUrl: templateSend.headerMediaUrl, params: templateSend.params }
+    : interactive
+      ? { client_id: clientId, to: intlTo, type: "interactive", body, ...interactive }
+      : { client_id: clientId, to: intlTo, type: "text", body }
   let res: Response
   try {
     res = await fetch(`${baseUrl}/api/v1/messages`, {
@@ -196,7 +234,7 @@ async function sendViaWasi(
     const isTimeout = e instanceof Error && e.name === "TimeoutError"
     const message = isTimeout ? "Wasi request timed out" : e instanceof Error ? e.message : String(e)
     console.error("whatsapp.ts: wasi send request threw", message)
-    return { ok: false, error: isTimeout ? message : `network_error: ${message}` }
+    return { ok: false, error: isTimeout ? message : `network_error: ${message}`, rawBody: "" }
   }
 
   const rawText = await res.text()
@@ -210,11 +248,11 @@ async function sendViaWasi(
 
   if (res.status === 201) {
     console.log("whatsapp.ts: wasi send succeeded, raw response:", rawText)
-    return { ok: true, waMessageId: extractWasiMessageId(parsed) }
+    return { ok: true, waMessageId: extractWasiMessageId(parsed), rawBody: rawText }
   }
 
   console.error("whatsapp.ts: wasi send failed", res.status, rawText)
-  return { ok: false, error: formatWasiError(res.status, parsed ?? rawText) }
+  return { ok: false, error: formatWasiError(res.status, parsed ?? rawText), rawBody: rawText }
 }
 
 export async function sendMessage(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
@@ -225,9 +263,11 @@ export async function sendMessage(admin: SupabaseClient, input: SendMessageInput
   let waMessageId: string | null = null
   let sendError: string | null = null
   let dispatched = false
+  let rawResponse: string | undefined
 
   if (baseUrl && creds) {
-    const result = await sendViaWasi(baseUrl, creds.apiKey, creds.clientId, input.to, input.body, input.interactive)
+    const result = await sendViaWasi(baseUrl, creds.apiKey, creds.clientId, input.to, input.body, input.interactive, input.templateSend)
+    rawResponse = result.rawBody
     if (result.ok) {
       status = "sent"
       waMessageId = result.waMessageId
@@ -250,18 +290,23 @@ export async function sendMessage(admin: SupabaseClient, input: SendMessageInput
       to_mobile: input.to,
       customer_id: input.customerId,
       template: input.template,
-      type: input.type ?? (input.interactive ? "interactive" : "text"),
-      payload: input.interactive ? { body: input.body, interactive: input.interactive } : { body: input.body },
+      type: input.type ?? (input.templateSend ? "template" : input.interactive ? "interactive" : "text"),
+      payload: input.templateSend
+        ? { body: input.body, template_send: input.templateSend }
+        : input.interactive
+          ? { body: input.body, interactive: input.interactive }
+          : { body: input.body },
       ref_type: input.refType ?? null,
       ref_id: input.refId ?? null,
       status,
       wa_message_id: waMessageId,
       error: sendError,
+      retry_count: input.retryCount ?? 0,
     })
     .select("id")
     .single()
 
   if (error) throw error
 
-  return { outboxId: data.id, waMessageId, dispatched }
+  return { outboxId: data.id, waMessageId, dispatched, rawResponse }
 }

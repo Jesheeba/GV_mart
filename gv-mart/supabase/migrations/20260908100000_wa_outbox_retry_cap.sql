@@ -1,0 +1,12 @@
+-- Bounded retry safeguard for WhatsApp outbox dispatch (2026-09-08 incident:
+-- a permanent Wasi-side 409 for one supplier number was being retried every
+-- 5 minutes forever by wa-milestone-dispatch/wa-dispatch-now, AND separately
+-- once a day by wa-scheduled-tasks' runFailedSendRetries — two independent
+-- unbounded-retry code paths, neither capped). retry_count tracks "how many
+-- send attempts already happened for this logical message before this row"
+-- — 0 on a freshly trigger-inserted row that's never been attempted yet,
+-- incremented by 1 on each row a dispatcher creates via sendMessage() when
+-- resending a previous attempt. Once a row's retry_count reaches
+-- MAX_SEND_ATTEMPTS (3, in code), the dispatcher gives up instead of
+-- sending again.
+alter table public.whatsapp_outbox add column retry_count integer not null default 0;
