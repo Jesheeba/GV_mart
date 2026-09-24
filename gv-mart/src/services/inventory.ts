@@ -37,15 +37,38 @@ async function nameLookup(orgId: string, itemType: ItemType) {
 }
 
 export async function listInventory(orgId: string, itemType: ItemType): Promise<InventoryListItem[]> {
-  const [{ data, error }, names] = await Promise.all([
+  const [{ data, error }, names, vanTotals] = await Promise.all([
     supabase.from("inventory").select("*").eq("org_id", orgId).eq("item_type", itemType).order("stock_qty"),
     nameLookup(orgId, itemType),
+    vanStockTotals(orgId, itemType),
   ])
   if (error) throw error
   return (data ?? []).map((row) => {
     const info = names.get(row.item_id)
-    return { ...row, itemName: info?.name ?? "—", itemBrand: info?.brand ?? null, standardTimeMinutes: info?.standardTimeMinutes ?? null }
+    // The old pooled `inventory.location = 'van'` row is inert (see
+    // 20260921110000_technician_van_stock_schema.sql — per-technician
+    // `technician_stock_levels` is the real source of truth for van-held
+    // stock now, and nothing writes to this row's own stock_qty anymore).
+    // Left in place for display continuity (so "Van" still shows as a row
+    // here), but its quantity is repointed to a live sum across
+    // technicians instead of the frozen column value.
+    const stock_qty = row.location === "van" ? vanTotals.get(row.item_id) ?? 0 : row.stock_qty
+    return { ...row, stock_qty, itemName: info?.name ?? "—", itemBrand: info?.brand ?? null, standardTimeMinutes: info?.standardTimeMinutes ?? null }
   })
+}
+
+async function vanStockTotals(orgId: string, itemType: ItemType): Promise<Map<string, number>> {
+  const { data, error } = await supabase
+    .from("technician_stock_levels")
+    .select("item_id,stock_qty")
+    .eq("org_id", orgId)
+    .eq("item_type", itemType)
+  if (error) throw error
+  const totals = new Map<string, number>()
+  for (const row of data ?? []) {
+    totals.set(row.item_id, (totals.get(row.item_id) ?? 0) + row.stock_qty)
+  }
+  return totals
 }
 
 /** GV.md 1.1: admin AND operation_admin can set/edit this — see set_item_standard_time RPC (20260725100000_sop_item_times_and_allowances.sql) for why this is a narrow RPC rather than a direct products/spares table write. */

@@ -2478,7 +2478,7 @@
       "emptyBody": "Your admin hasn't created a spare allocation for today.",
       "itemsTitle": "Allocated spares",
       "noItems": "No spares allocated.",
-      "qty": "Qty",
+      "qty": "Qty: {{qty}}",
       "adminSignTitle": "Admin signature",
       "adminSignPending": "Waiting for admin signature",
       "confirmedTitle": "Handover confirmed",
