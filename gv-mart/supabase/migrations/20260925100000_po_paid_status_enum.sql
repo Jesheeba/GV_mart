@@ -1,0 +1,13 @@
+-- Money-flow-audit item 2 — 'paid' state for purchase_orders, step 1 of 2.
+--
+-- po_status was draft/sent/received — 'received' conflates "goods arrived
+-- and a bill was logged" with "the supplier was actually settled". There is
+-- currently no queryable answer to "has this PO been paid" beyond the
+-- purely cosmetic payment-reminder task (20260922100000), which has zero
+-- effect on any real record when completed.
+--
+-- Split into its own migration file because Postgres will not let a new
+-- enum value be referenced in the same transaction that adds it, and
+-- Supabase runs each migration file in its own transaction — the function/
+-- trigger that reference 'paid' live in the next migration.
+alter type po_status add value if not exists 'paid';

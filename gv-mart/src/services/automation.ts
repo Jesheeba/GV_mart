@@ -343,6 +343,17 @@ export async function createBillEntry(input: {
   return data
 }
 
+/** Money-flow-audit item 2 — the one true "I paid this supplier" action.
+ * Master-only server-side; also auto-closes the linked payment-reminder
+ * task (20260925100100_po_paid_functions.sql). The reverse direction
+ * (completing that task marks the PO paid) is a DB trigger, not client
+ * code — see the same migration. */
+export async function markPoPaid(input: { poId: string }) {
+  const { data, error } = await supabase.rpc("mark_po_paid", { p_po_id: input.poId })
+  if (error) throw error
+  return data
+}
+
 export async function listPurchaseBills(orgId: string): Promise<(PurchaseBillRow & { suppliers: { name: string } | null })[]> {
   const { data, error } = await supabase
     .from("purchase_bills")

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, PackageCheck, Plus, Search } from "lucide-react"
+import { Banknote, Loader2, PackageCheck, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
@@ -8,13 +8,16 @@ import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
-import { useCreatePurchaseOrder, usePoItems, usePurchaseOrders } from "@/hooks/useAutomation"
+import { useCreatePurchaseOrder, useMarkPoPaid, usePoItems, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
 import { PoReceiptForm } from "./PoReceiptForm"
 import type { PoItemInput } from "@/lib/validation/automation"
 import type { PurchaseOrderListItem } from "@/services/automation"
 
-const STATUS_TONE: Record<string, StatusTone> = { draft: "neutral", sent: "warning", received: "success" }
+// money-flow-audit item 2 — 'paid' is a real, queryable settlement state
+// now (20260925100000_po_paid_status_enum.sql), not just the cosmetic
+// payment-reminder task.
+const STATUS_TONE: Record<string, StatusTone> = { draft: "neutral", sent: "warning", received: "success", paid: "success" }
 
 export function PurchaseOrdersTab() {
   const { t } = useTranslation()
@@ -24,6 +27,8 @@ export function PurchaseOrdersTab() {
   const pos = usePurchaseOrders(orgId)
   const { data: suppliers } = useSuppliersList(orgId)
   const createPo = useCreatePurchaseOrder()
+  const markPaid = useMarkPoPaid()
+  const isMaster = profile?.role === "master"
 
   const [showNew, setShowNew] = useState(false)
   const [supplierId, setSupplierId] = useState("")
@@ -55,20 +60,37 @@ export function PurchaseOrdersTab() {
       key: "actions",
       header: "",
       className: "text-right",
-      render: (r) =>
-        r.status === "sent" ? (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation()
-              setReceiptPo(r)
-            }}
-          >
-            <PackageCheck className="size-3.5" />
-            {t("purchase.receiptPrompt.confirmReceiptButton")}
-          </Button>
-        ) : null,
+      render: (r) => (
+        <div className="flex justify-end gap-2">
+          {r.status === "sent" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation()
+                setReceiptPo(r)
+              }}
+            >
+              <PackageCheck className="size-3.5" />
+              {t("purchase.receiptPrompt.confirmReceiptButton")}
+            </Button>
+          ) : null}
+          {isMaster && (r.status === "sent" || r.status === "received") ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={markPaid.isPending}
+              onClick={(e) => {
+                e.stopPropagation()
+                markPaid.mutate({ poId: r.id })
+              }}
+            >
+              {markPaid.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Banknote className="size-3.5" />}
+              {t("purchase.po.markPaid")}
+            </Button>
+          ) : null}
+        </div>
+      ),
     },
   ]
 
@@ -117,6 +139,8 @@ export function PurchaseOrdersTab() {
           </div>
         </Card>
       ) : null}
+
+      {markPaid.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(markPaid.error as Error).message}</p> : null}
 
       <DataTable
         columns={columns}

@@ -3199,10 +3199,12 @@
       "items": "Items",
       "qty": "Qty",
       "lineTotal": "Line total",
+      "markPaid": "Mark Paid",
       "statuses": {
         "draft": "Draft",
         "sent": "Sent",
-        "received": "Received"
+        "received": "Received",
+        "paid": "Paid"
       }
     },
     "approvalPrompt": {

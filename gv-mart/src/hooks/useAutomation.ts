@@ -153,6 +153,16 @@ export function useCreatePurchaseOrder() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["purchaseOrders"] }),
   })
 }
+export function useMarkPoPaid() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { poId: string }) => automation.markPoPaid(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchaseOrders"] })
+      qc.invalidateQueries({ queryKey: ["tasks"] })
+    },
+  })
+}
 export function usePurchaseBills(orgId: string | undefined) {
   return useQuery({ queryKey: ["purchaseBills", orgId], queryFn: () => automation.listPurchaseBills(orgId!), enabled: !!orgId })
 }

@@ -6248,6 +6248,14 @@ export type Database = {
         }
         Returns: string
       }
+      // Money-flow-audit item 2 — hand-patched, see
+      // 20260925100100_po_paid_functions.sql; Docker-based `supabase gen
+      // types` isn't available in this environment (see memory: hand-patch
+      // instead).
+      mark_po_paid: {
+        Args: { p_po_id: string }
+        Returns: Database["public"]["Tables"]["purchase_orders"]["Row"]
+      }
       approve_purchase_order: {
         Args: { p_approval_id: string }
         Returns: undefined
@@ -6324,7 +6332,7 @@ export type Database = {
       location_type: "warehouse" | "van"
       address_type: "residential" | "commercial"
       ownership_type: "own" | "rental"
-      po_status: "draft" | "sent" | "received"
+      po_status: "draft" | "sent" | "received" | "paid"
       quotation_status: "open" | "converted" | "lost"
       invoice_type: "product" | "spare" | "amc" | "rent"
       water_source_type: "corporation" | "borewater" | "other"
