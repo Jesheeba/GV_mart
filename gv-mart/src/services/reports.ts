@@ -91,12 +91,33 @@ export type SalesServiceReport = {
    * (service_visits.service_charge, which is NOT an invoice at all — there
    * is no invoice_type for it). `totalRevenue` is the honest sum of all
    * four; before this change it silently excluded serviceRevenue since it
-   * only summed invoices. */
+   * only summed invoices.
+   *
+   * `create_service_invoice` always writes its invoice as type='spare' (the
+   * schema has no separate invoice_type for a service call), and that
+   * invoice's total already includes the service charge. So salesRevenue —
+   * which used to sum every type='spare' invoice — double-counted every
+   * service visit's charge (once here, once in serviceRevenue) until the
+   * 2026-09-25 money-flow-audit item-1 fix below, which excludes
+   * service-visit-originated invoices from the sales bucket via
+   * service_tickets.invoice_id. */
   salesRevenue: number
   amcRevenue: number
   rentalRevenue: number
   serviceRevenue: number
   totalRevenue: number
+  /** "Collected" mirrors of the five figures above — sum of invoices.amount_paid
+   * (money-flow-audit item 1: invoiced totals hide how much is actually
+   * collected vs. still due/partial). serviceCollected is prorated per visit
+   * by its invoice's amount_paid/total ratio, since a service invoice can
+   * bundle the service charge together with chargeable spares under one
+   * amount_paid figure — there's no itemized "this rupee paid off the
+   * service charge" breakdown to read instead. */
+  salesCollected: number
+  amcCollected: number
+  rentalCollected: number
+  serviceCollected: number
+  totalCollected: number
 }
 
 export async function getSalesServiceReport(orgId: string, range: DateRange): Promise<SalesServiceReport> {
@@ -111,13 +132,13 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
       .lte("called_at", toIso),
     supabase
       .from("invoices")
-      .select("id, type, total, created_at")
+      .select("id, type, total, amount_paid, created_at")
       .eq("org_id", orgId)
       .gte("created_at", fromIso)
       .lte("created_at", toIso),
     supabase
       .from("service_visits")
-      .select("id, technician_id, service_charge, timer_start, technicians(id, profiles(full_name))")
+      .select("id, ticket_id, technician_id, service_charge, timer_start, technicians(id, profiles(full_name))")
       .eq("org_id", orgId)
       .gte("timer_start", fromIso)
       .lte("timer_start", toIso),
@@ -145,7 +166,13 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
     percent: invoiceCountTotal > 0 ? Math.round((v.count / invoiceCountTotal) * 100) : 0,
   }))
 
-  type VisitRow = { id: string; technician_id: string; service_charge: number | null; technicians: { id: string; profiles: { full_name: string } | null } | null }
+  type VisitRow = {
+    id: string
+    ticket_id: string
+    technician_id: string
+    service_charge: number | null
+    technicians: { id: string; profiles: { full_name: string } | null } | null
+  }
   const visits = (visitsRes.data ?? []) as unknown as VisitRow[]
   const techMap = new Map<string, { technicianName: string; count: number; revenue: number }>()
   for (const v of visits) {
@@ -157,16 +184,64 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
   }
   const technicianServiceCounts = [...techMap.entries()].map(([technicianId, v]) => ({ technicianId, ...v }))
 
-  const serviceRevenue = visits.reduce((sum, v) => sum + (v.service_charge ?? 0), 0)
-  const avgValuePerServiceCall = visits.length ? Math.round((serviceRevenue / visits.length) * 100) / 100 : 0
+  const avgValuePerServiceCall = visits.length
+    ? Math.round((visits.reduce((sum, v) => sum + (v.service_charge ?? 0), 0) / visits.length) * 100) / 100
+    : 0
 
-  const salesRevenue = (ratioMap.get("product")?.total ?? 0) + (ratioMap.get("spare")?.total ?? 0)
+  // Which invoices belong to a service visit (type='spare' always, per
+  // create_service_invoice) — looked up via service_tickets.invoice_id so
+  // they can be excluded from the sales bucket below instead of
+  // double-counted, and so their amount_paid/total can be read for
+  // serviceCollected's proration.
+  const visitTicketIds = [...new Set(visits.map((v) => v.ticket_id))]
+  const ticketInvoiceMap = new Map<string, string>()
+  if (visitTicketIds.length) {
+    const { data: ticketRows, error: ticketErr } = await supabase
+      .from("service_tickets")
+      .select("id, invoice_id")
+      .eq("org_id", orgId)
+      .in("id", visitTicketIds)
+    if (ticketErr) throw ticketErr
+    for (const t of ticketRows ?? []) {
+      if (t.invoice_id) ticketInvoiceMap.set(t.id, t.invoice_id)
+    }
+  }
+  const serviceInvoiceIds = new Set(ticketInvoiceMap.values())
+  const invoiceById = new Map(invoices.map((inv) => [inv.id, inv]))
+
+  let salesRevenue = 0
+  let salesCollected = 0
+  for (const inv of invoices) {
+    if (inv.type === "product" || (inv.type === "spare" && !serviceInvoiceIds.has(inv.id))) {
+      salesRevenue += inv.total ?? 0
+      salesCollected += inv.amount_paid ?? 0
+    }
+  }
   const amcRevenue = ratioMap.get("amc")?.total ?? 0
+  const amcCollected = invoices.filter((i) => i.type === "amc").reduce((sum, i) => sum + (i.amount_paid ?? 0), 0)
   const rentalRevenue = ratioMap.get("rent")?.total ?? 0
+  const rentalCollected = invoices.filter((i) => i.type === "rent").reduce((sum, i) => sum + (i.amount_paid ?? 0), 0)
+
+  let serviceRevenue = 0
+  let serviceCollected = 0
+  for (const v of visits) {
+    const charge = v.service_charge ?? 0
+    serviceRevenue += charge
+    const invoiceId = ticketInvoiceMap.get(v.ticket_id)
+    const inv = invoiceId ? invoiceById.get(invoiceId) : undefined
+    // Some service-visit invoices may fall outside this range's created_at
+    // window even though the visit's timer_start is inside it (rare — same
+    // transaction sets both — but not guaranteed if a shift crosses
+    // midnight right at a range boundary). Treat those as fully collected
+    // rather than silently dropping them, same as an invoice with total<=0.
+    serviceCollected += !inv || inv.total <= 0 ? charge : charge * ((inv.amount_paid ?? 0) / inv.total)
+  }
+
   // Honest total — previously only summed invoices, silently excluding
   // serviceRevenue (service_visits.service_charge has no invoice_type at
   // all, see the type doc comment above).
   const totalRevenue = salesRevenue + amcRevenue + rentalRevenue + serviceRevenue
+  const totalCollected = salesCollected + amcCollected + rentalCollected + serviceCollected
 
   return {
     salesCallsCount: callsRes.count ?? 0,
@@ -178,6 +253,11 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
     rentalRevenue,
     serviceRevenue,
     totalRevenue,
+    salesCollected,
+    amcCollected,
+    rentalCollected,
+    serviceCollected,
+    totalCollected,
   }
 }
 
@@ -190,6 +270,17 @@ export type PnlReport = {
   totalExpenses: number
   netProfitWithGst: number
   netProfitWithoutGst: number
+  /** money-flow-audit item 1 — revenueWithGst/WithoutGst above are invoiced
+   * totals regardless of payment_status; these are the "actually collected"
+   * counterparts (sum of invoices.amount_paid, GST portion prorated by each
+   * invoice's own gst/total ratio) and the cash-basis profit built from
+   * them. netProfitCollected is the more accurate real cash position —
+   * netProfitWithGst/WithoutGst above still count invoiced-but-unpaid
+   * revenue as profit. */
+  revenueCollectedWithGst: number
+  revenueCollectedWithoutGst: number
+  netProfitCollectedWithGst: number
+  netProfitCollectedWithoutGst: number
   /** Cost/margin tracking (stage 1) — real profit matched to what was
    *  actually sold/consumed, distinct from the cash-basis costOfGoods above
    *  (which just reads the 'purchase' expense category). Sourced from
@@ -215,7 +306,7 @@ export async function getPnlReport(orgId: string, range: DateRange): Promise<Pnl
   const [invoicesRes, expensesRes, invoiceItemsRes, giftLogsRes] = await Promise.all([
     supabase
       .from("invoices")
-      .select("total, subtotal, discount, gst, created_at")
+      .select("total, subtotal, discount, gst, amount_paid, created_at")
       .eq("org_id", orgId)
       .gte("created_at", fromIso)
       .lte("created_at", toIso),
@@ -251,6 +342,16 @@ export async function getPnlReport(orgId: string, range: DateRange): Promise<Pnl
   const gstCollected = invoices.reduce((sum, i) => sum + (i.gst ?? 0), 0)
   const revenueWithoutGst = revenueWithGst - gstCollected
 
+  // Collected (cash-basis) counterparts — amount_paid summed directly, GST
+  // portion of it prorated per invoice by that invoice's own gst/total
+  // ratio (an invoice with total<=0 has nothing to prorate).
+  const revenueCollectedWithGst = invoices.reduce((sum, i) => sum + (i.amount_paid ?? 0), 0)
+  const gstCollectedOfPayments = invoices.reduce(
+    (sum, i) => sum + (i.total > 0 ? (i.amount_paid ?? 0) * ((i.gst ?? 0) / i.total) : 0),
+    0
+  )
+  const revenueCollectedWithoutGst = revenueCollectedWithGst - gstCollectedOfPayments
+
   const expenseMap = new Map<Enums<"expense_category">, number>()
   for (const e of expensesRes.data ?? []) {
     expenseMap.set(e.category, (expenseMap.get(e.category) ?? 0) + (e.amount ?? 0))
@@ -276,6 +377,10 @@ export async function getPnlReport(orgId: string, range: DateRange): Promise<Pnl
     totalExpenses,
     netProfitWithGst: revenueWithGst - totalExpenses,
     netProfitWithoutGst: revenueWithoutGst - totalExpenses,
+    revenueCollectedWithGst,
+    revenueCollectedWithoutGst,
+    netProfitCollectedWithGst: revenueCollectedWithGst - totalExpenses,
+    netProfitCollectedWithoutGst: revenueCollectedWithoutGst - totalExpenses,
     itemProfit: {
       revenue: itemRevenue,
       cost: itemCost,

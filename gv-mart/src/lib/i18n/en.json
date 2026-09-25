@@ -3581,6 +3581,8 @@
     "subtitle": "Sales, service, P&L and performance — all in one place.",
     "empty": "No data for this range yet.",
     "loadFailed": "Could not load report data.",
+    "invoicedLabel": "Invoiced",
+    "collectedLabel": "Collected",
     "tabs": {
       "salesService": "Sales & Service",
       "pnl": "P&L",
@@ -3647,6 +3649,8 @@
       "giftsCost": "Gifts Given (cost)",
       "realProfit": "Real Profit",
       "itemProfitNote": "Matched to what was actually sold or consumed — includes free AMC/warranty spares and gifts as pure cost. Distinct from Cost of Goods above, which is a cash-basis estimate.",
+      "cashProfit": "Cash Profit (Collected)",
+      "cashProfitNote": "Revenue actually collected to date, minus expenses — the real cash position. Net Profit above counts invoiced revenue even if it's still due or only partially paid.",
       "itemProfitMissingCostNote_one": "{{count}} line has no cost set yet — profit is undercounted.",
       "itemProfitMissingCostNote_other": "{{count}} lines have no cost set yet — profit is undercounted.",
       "expenseCategory": {

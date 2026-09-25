@@ -151,6 +151,11 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
           </div>
           <div className="relative flex items-center gap-2 text-xs">
             <span className="rounded-full bg-white/25 px-2.5 py-1 font-bold">{periodLabel}</span>
+            {!pnlLoading && pnl ? (
+              <span className="font-semibold text-white/90">
+                {t("reports.collectedLabel")}: {formatCurrency(pnl.revenueCollectedWithGst)}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -170,11 +175,18 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
           icon={<ReceiptText className="size-4.5" />}
           dimmed={!periodIncludesToday}
           note={
-            periodIncludesToday ? (
-              <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-bold text-success">{t("common.today")}</span>
-            ) : (
-              <span className="text-xs font-medium text-text-muted">{t("dashboard.todaysSalesOutOfPeriod")}</span>
-            )
+            <div className="flex flex-wrap items-center gap-2">
+              {periodIncludesToday ? (
+                <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-bold text-success">{t("common.today")}</span>
+              ) : (
+                <span className="text-xs font-medium text-text-muted">{t("dashboard.todaysSalesOutOfPeriod")}</span>
+              )}
+              {todaySales ? (
+                <span className="text-xs font-semibold text-text-muted">
+                  {t("reports.collectedLabel")}: {formatCurrency(todaySales.totalCollected)}
+                </span>
+              ) : null}
+            </div>
           }
         />
         <DashCard

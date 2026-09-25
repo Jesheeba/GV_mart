@@ -52,16 +52,41 @@ export function SalesServiceReportTab() {
               it used to silently exclude service revenue (service_visits
               has no invoice_type at all), fixed as part of this change. */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label={t("reports.salesService.salesRevenue")} value={data ? formatCurrency(data.salesRevenue) : "—"} icon={<ReceiptText className="size-4" />} loading={isLoading} />
-            <KpiCard label={t("reports.salesService.serviceRevenue")} value={data ? formatCurrency(data.serviceRevenue) : "—"} icon={<Wrench className="size-4" />} loading={isLoading} />
-            <KpiCard label={t("reports.salesService.amcRevenue")} value={data ? formatCurrency(data.amcRevenue) : "—"} icon={<ShieldCheck className="size-4" />} loading={isLoading} />
-            <KpiCard label={t("reports.salesService.rentalRevenue")} value={data ? formatCurrency(data.rentalRevenue) : "—"} icon={<CalendarClock className="size-4" />} loading={isLoading} />
+            <KpiCard
+              label={t("reports.salesService.salesRevenue")}
+              value={data ? formatCurrency(data.salesRevenue) : "—"}
+              subValue={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.salesCollected)}` : undefined}
+              icon={<ReceiptText className="size-4" />}
+              loading={isLoading}
+            />
+            <KpiCard
+              label={t("reports.salesService.serviceRevenue")}
+              value={data ? formatCurrency(data.serviceRevenue) : "—"}
+              subValue={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.serviceCollected)}` : undefined}
+              icon={<Wrench className="size-4" />}
+              loading={isLoading}
+            />
+            <KpiCard
+              label={t("reports.salesService.amcRevenue")}
+              value={data ? formatCurrency(data.amcRevenue) : "—"}
+              subValue={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.amcCollected)}` : undefined}
+              icon={<ShieldCheck className="size-4" />}
+              loading={isLoading}
+            />
+            <KpiCard
+              label={t("reports.salesService.rentalRevenue")}
+              value={data ? formatCurrency(data.rentalRevenue) : "—"}
+              subValue={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.rentalCollected)}` : undefined}
+              icon={<CalendarClock className="size-4" />}
+              loading={isLoading}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <HighlightKpiCard
               label={t("reports.salesService.totalRevenue")}
               value={data ? formatCurrency(data.totalRevenue) : "—"}
+              caption={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.totalCollected)}` : undefined}
               icon={<IndianRupee className="size-4" />}
               loading={isLoading}
             />

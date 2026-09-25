@@ -105,7 +105,14 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
           <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
           <span className="relative text-[13px] font-semibold text-white/90">{t("dashboard.totalRevenue")}</span>
           <div className="relative text-[31px] font-extrabold leading-none tracking-tight tabular-nums">{ssLoading ? "—" : formatCurrency(salesService?.totalRevenue ?? 0)}</div>
-          <span className="relative w-fit rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">{periodLabel}</span>
+          <div className="relative flex flex-wrap items-center gap-2">
+            <span className="w-fit rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">{periodLabel}</span>
+            {!ssLoading && salesService ? (
+              <span className="text-xs font-semibold text-white/90">
+                {t("reports.collectedLabel")}: {formatCurrency(salesService.totalCollected)}
+              </span>
+            ) : null}
+          </div>
         </div>
         <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
           <span className="text-[13px] font-semibold text-text-muted">{t("dashboard.openLeads")}</span>

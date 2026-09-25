@@ -48,6 +48,9 @@ export function PnlReportTab() {
 
   const revenue = withGst ? data?.revenueWithGst : data?.revenueWithoutGst
   const netProfit = withGst ? data?.netProfitWithGst : data?.netProfitWithoutGst
+  // money-flow-audit item 1 — "collected" counterparts, cash-basis.
+  const revenueCollected = withGst ? data?.revenueCollectedWithGst : data?.revenueCollectedWithoutGst
+  const cashProfit = withGst ? data?.netProfitCollectedWithGst : data?.netProfitCollectedWithoutGst
 
   // "purchase" is the expense category used for stock/inventory buy-ins
   // (supabase expense_category enum: marketing/stationery/salary/petrol/
@@ -68,8 +71,10 @@ export function PnlReportTab() {
       [t("reports.pnl.category"), t("reports.pnl.amount")],
       [
         [t("reports.pnl.revenue"), revenue ?? 0],
+        [`${t("reports.pnl.revenue")} (${t("reports.collectedLabel")})`, revenueCollected ?? 0],
         [t("reports.pnl.totalExpenses"), data.totalExpenses],
         [t("reports.pnl.netProfit"), netProfit ?? 0],
+        [t("reports.pnl.cashProfit"), cashProfit ?? 0],
         ...categoryFilteredExpenses.map((e) => [t(`reports.pnl.expenseCategory.${e.category}`), e.amount]),
       ]
     )
@@ -116,7 +121,11 @@ export function PnlReportTab() {
               </div>
             ) : (
               <>
-                <PnlRow label={t("reports.pnl.revenue")} value={revenue !== undefined ? formatCurrency(revenue) : "—"} />
+                <PnlRow
+                  label={t("reports.pnl.revenue")}
+                  value={revenue !== undefined ? formatCurrency(revenue) : "—"}
+                  sub={revenueCollected !== undefined ? `${t("reports.collectedLabel")}: ${formatCurrency(revenueCollected)}` : undefined}
+                />
                 <PnlRow label={t("reports.pnl.costOfGoods")} value={`− ${formatCurrency(costOfGoods)}`} tone="danger" />
                 <PnlRow label={t("reports.pnl.operatingExpenses")} value={`− ${formatCurrency(operatingExpenses)}`} tone="danger" />
                 {withGst && data ? <PnlRow label={t("reports.pnl.gstCollected")} value={formatCurrency(data.gstCollected)} /> : null}
@@ -140,6 +149,29 @@ export function PnlReportTab() {
                   </span>
                 </div>
                 {withGst ? <p className="mt-2 text-[11px] text-text-muted">{t("reports.pnl.gstCollectedNote")}</p> : null}
+
+                {/* money-flow-audit item 1 — Net Profit above is invoiced-basis
+                    (counts due/partial invoices as profit already); Cash Profit
+                    is the collected-basis counterpart, the real cash position. */}
+                <div
+                  className={cn(
+                    "mt-2.5 flex items-center justify-between rounded-[14px] border border-dashed px-4 py-3.5",
+                    cashProfit !== undefined && cashProfit < 0 ? "border-danger/40 bg-danger/5" : "border-success/40 bg-success/5"
+                  )}
+                >
+                  <span className={cn("text-sm font-bold", cashProfit !== undefined && cashProfit < 0 ? "text-danger" : "text-success")}>
+                    {t("reports.pnl.cashProfit")}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[22px] font-extrabold tracking-tight tabular-nums",
+                      cashProfit !== undefined && cashProfit < 0 ? "text-danger" : "text-success"
+                    )}
+                  >
+                    {cashProfit !== undefined ? formatCurrency(cashProfit) : "—"}
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] text-text-muted">{t("reports.pnl.cashProfitNote")}</p>
               </>
             )}
           </div>
@@ -251,11 +283,14 @@ export function PnlReportTab() {
   )
 }
 
-function PnlRow({ label, value, tone }: { label: string; value: string; tone?: "danger" }) {
+function PnlRow({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "danger" }) {
   return (
     <div className="flex items-center justify-between border-b border-[#F1EDE6] py-[11px]">
       <span className="text-[13px] font-medium text-text-muted">{label}</span>
-      <span className={cn("text-[15px] font-bold tabular-nums", tone === "danger" ? "text-danger" : "text-text")}>{value}</span>
+      <div className="text-right">
+        <span className={cn("text-[15px] font-bold tabular-nums", tone === "danger" ? "text-danger" : "text-text")}>{value}</span>
+        {sub ? <p className="text-[11px] font-medium text-text-muted">{sub}</p> : null}
+      </div>
     </div>
   )
 }

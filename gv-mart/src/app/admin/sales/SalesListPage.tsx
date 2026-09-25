@@ -59,8 +59,10 @@ export function SalesListPage() {
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
 
     let todayTotal = 0
+    let todayCollected = 0
     let yesterdayTotal = 0
     let monthTotal = 0
+    let monthCollected = 0
     let monthCount = 0
     let monthProductTotal = 0
     let lastMonthTotal = 0
@@ -68,11 +70,14 @@ export function SalesListPage() {
 
     for (const inv of rows) {
       const created = new Date(inv.created_at)
-      if (created >= todayStart) todayTotal += inv.total
-      else if (created >= yesterdayStart) yesterdayTotal += inv.total
+      if (created >= todayStart) {
+        todayTotal += inv.total
+        todayCollected += inv.amount_paid
+      } else if (created >= yesterdayStart) yesterdayTotal += inv.total
 
       if (created >= monthStart) {
         monthTotal += inv.total
+        monthCollected += inv.amount_paid
         monthCount += 1
         if (inv.type === "product") monthProductTotal += inv.total
       } else if (created >= lastMonthStart) {
@@ -95,8 +100,10 @@ export function SalesListPage() {
 
     return {
       todayTotal,
+      todayCollected,
       vsYesterdayPct,
       monthTotal,
+      monthCollected,
       monthCount,
       monthProductTotal,
       productPct,
@@ -160,15 +167,22 @@ export function SalesListPage() {
           {isLoading ? (
             <Skeleton className="relative h-5 w-32 bg-white/25" />
           ) : (
-            <span className="relative inline-flex w-fit items-center gap-1 rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">
-              {isError
-                ? t("sales.list.error.loadFailed")
-                : stats.vsYesterdayPct === null
-                ? stats.todayTotal > 0
-                  ? t("sales.list.kpi.firstSaleToday")
-                  : t("sales.list.kpi.noSalesToday")
-                : `${stats.vsYesterdayPct >= 0 ? "▲" : "▼"} ${Math.abs(stats.vsYesterdayPct)}% ${t("sales.list.kpi.vsYesterday")}`}
-            </span>
+            <div className="relative flex flex-wrap items-center gap-2">
+              <span className="inline-flex w-fit items-center gap-1 rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">
+                {isError
+                  ? t("sales.list.error.loadFailed")
+                  : stats.vsYesterdayPct === null
+                  ? stats.todayTotal > 0
+                    ? t("sales.list.kpi.firstSaleToday")
+                    : t("sales.list.kpi.noSalesToday")
+                  : `${stats.vsYesterdayPct >= 0 ? "▲" : "▼"} ${Math.abs(stats.vsYesterdayPct)}% ${t("sales.list.kpi.vsYesterday")}`}
+              </span>
+              {!isError ? (
+                <span className="text-xs font-semibold text-white/90">
+                  {t("reports.collectedLabel")}: {formatCurrency(stats.todayCollected)}
+                </span>
+              ) : null}
+            </div>
           )}
         </div>
 

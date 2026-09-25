@@ -14,6 +14,7 @@ type KpiDelta = {
 export function KpiCard({
   label,
   value,
+  subValue,
   icon,
   delta,
   loading = false,
@@ -21,6 +22,9 @@ export function KpiCard({
 }: {
   label: string
   value: ReactNode
+  /** Secondary line under the main value — e.g. "Collected ₹X" next to an
+   *  invoiced main figure (money-flow-audit item 1). */
+  subValue?: ReactNode
   icon?: ReactNode
   delta?: KpiDelta
   loading?: boolean
@@ -52,6 +56,7 @@ export function KpiCard({
         ) : null}
       </div>
       <div className="px-1 text-3xl font-bold tabular-nums text-text">{value}</div>
+      {subValue ? <div className="px-1 text-xs font-semibold text-text-muted">{subValue}</div> : null}
       {delta ? (
         <div className="flex items-center gap-1.5 px-1 text-xs">
           <span
