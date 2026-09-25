@@ -673,7 +673,9 @@
     "rentalPlans": {
       "name": "திட்டப் பெயர்",
       "namePlaceholder": "எ.கா. RO வாடகை சாதாரணம்",
-      "monthlyRate": "மாதாந்திர கட்டணம்",
+      "durationYears": "காலம் (ஆண்டுகள்)",
+      "yearlyRate": "வருடாந்திர கட்டணம்",
+      "monthlyRate": "மாதாந்திர கட்டணம் (தானியங்கி)",
       "visitsPerYear": "வருடத்திற்கு வருகைகள்",
       "inclusions": "உள்ளடக்கங்கள்",
       "inclusionsPlaceholder": "காற்புள்ளியால் பிரிக்கப்பட்டது, எ.கா. பில்டர் மாற்றம், சுத்திகரிப்பு",

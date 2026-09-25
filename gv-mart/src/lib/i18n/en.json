@@ -673,7 +673,9 @@
     "rentalPlans": {
       "name": "Plan name",
       "namePlaceholder": "e.g. RO Rental Standard",
-      "monthlyRate": "Monthly rate",
+      "durationYears": "Duration (years)",
+      "yearlyRate": "Yearly rate",
+      "monthlyRate": "Monthly rate (auto)",
       "visitsPerYear": "Visits / year",
       "inclusions": "Inclusions",
       "inclusionsPlaceholder": "Comma-separated, e.g. Filter change, Sanitization",

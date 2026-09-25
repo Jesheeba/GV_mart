@@ -3794,6 +3794,8 @@ export type Database = {
           id: string
           org_id: string
           name: string
+          duration_years: number
+          yearly_rate: number
           monthly_rate: number
           visits_per_year: number
           inclusions: Json
@@ -3804,7 +3806,9 @@ export type Database = {
           id?: string
           org_id: string
           name: string
-          monthly_rate: number
+          duration_years?: number
+          yearly_rate: number
+          monthly_rate?: never
           visits_per_year?: number
           inclusions?: Json
           created_at?: string
@@ -3814,7 +3818,9 @@ export type Database = {
           id?: string
           org_id?: string
           name?: string
-          monthly_rate?: number
+          duration_years?: number
+          yearly_rate?: number
+          monthly_rate?: never
           visits_per_year?: number
           inclusions?: Json
           created_at?: string

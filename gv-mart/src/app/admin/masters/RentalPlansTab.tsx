@@ -4,6 +4,12 @@ import { rentalPlansHooks } from "@/hooks/useMasters"
 import type { RentalPlanRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
 
+function deriveMonthly(yearlyRate: string): string {
+  const yearly = Number(yearlyRate)
+  if (!Number.isFinite(yearly) || yearly <= 0) return "0.00"
+  return (Math.round((yearly / 12) * 100) / 100).toFixed(2)
+}
+
 /** inclusions is jsonb — represented in the form as a comma-separated list,
  * same convention AmcPlansTab already uses. */
 function inclusionsToText(inclusions: unknown): string {
@@ -28,7 +34,15 @@ export function RentalPlansTab() {
 
   const fields: CrudFieldDef[] = [
     { key: "name", label: t("masters.rentalPlans.name"), type: "text", placeholder: t("masters.rentalPlans.namePlaceholder"), required: true },
-    { key: "monthly_rate", label: t("masters.rentalPlans.monthlyRate"), type: "number", step: "0.01", min: 0, required: true },
+    { key: "duration_years", label: t("masters.rentalPlans.durationYears"), type: "number", step: "1", min: 1, required: true },
+    { key: "yearly_rate", label: t("masters.rentalPlans.yearlyRate"), type: "number", step: "0.01", min: 0, required: true },
+    {
+      key: "monthly_rate",
+      label: t("masters.rentalPlans.monthlyRate"),
+      type: "number",
+      readOnly: true,
+      deriveValue: (v) => deriveMonthly(v.yearly_rate),
+    },
     { key: "visits_per_year", label: t("masters.rentalPlans.visitsPerYear"), type: "number", step: "1", required: true, min: 1 },
     { key: "inclusions", label: t("masters.rentalPlans.inclusions"), type: "text", placeholder: t("masters.rentalPlans.inclusionsPlaceholder") },
   ]
@@ -46,11 +60,12 @@ export function RentalPlansTab() {
             >
               <span className="text-base font-semibold">{r.name}</span>
               <div>
-                <div className="text-xs text-white/70">{t("masters.rentalPlans.monthlyRate")}</div>
-                <div className="text-2xl font-bold tabular-nums">₹{r.monthly_rate}/mo</div>
+                <div className="text-xs text-white/70">{t("masters.rentalPlans.yearlyRate")}</div>
+                <div className="text-2xl font-bold tabular-nums">₹{r.yearly_rate}/yr</div>
+                <div className="text-xs text-white/70">₹{r.monthly_rate}/mo</div>
               </div>
               <div className="text-xs text-white/70">
-                {t("masters.rentalPlans.visitsPerYear")}: {r.visits_per_year}
+                {t("masters.rentalPlans.visitsPerYear")}: {r.visits_per_year} · {t("masters.rentalPlans.durationYears")}: {r.duration_years}
               </div>
             </div>
           ))}
@@ -69,20 +84,25 @@ export function RentalPlansTab() {
         emptyMessage={t("masters.rentalPlans.empty")}
         toFormValues={(r) => ({
           name: r.name,
+          duration_years: String(r.duration_years),
+          yearly_rate: String(r.yearly_rate),
           monthly_rate: String(r.monthly_rate),
           visits_per_year: String(r.visits_per_year),
           inclusions: inclusionsToText(r.inclusions),
         })}
         columns={[
           { key: "name", header: t("masters.rentalPlans.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
+          { key: "yearlyRate", header: t("masters.rentalPlans.yearlyRate"), render: (r) => `₹${r.yearly_rate}/yr` },
           { key: "monthlyRate", header: t("masters.rentalPlans.monthlyRate"), render: (r) => `₹${r.monthly_rate}/mo` },
+          { key: "duration", header: t("masters.rentalPlans.durationYears"), render: (r) => r.duration_years },
           { key: "visits", header: t("masters.rentalPlans.visitsPerYear"), render: (r) => r.visits_per_year },
         ]}
         onCreate={(v) =>
           createMut.mutateAsync({
             org_id: orgId!,
             name: v.name,
-            monthly_rate: Number(v.monthly_rate) || 0,
+            duration_years: Number(v.duration_years) || 1,
+            yearly_rate: Number(v.yearly_rate) || 0,
             visits_per_year: Number(v.visits_per_year) || 4,
             inclusions: textToInclusions(v.inclusions),
           })
@@ -92,7 +112,8 @@ export function RentalPlansTab() {
             id,
             patch: {
               name: v.name,
-              monthly_rate: Number(v.monthly_rate) || 0,
+              duration_years: Number(v.duration_years) || 1,
+              yearly_rate: Number(v.yearly_rate) || 0,
               visits_per_year: Number(v.visits_per_year) || 4,
               inclusions: textToInclusions(v.inclusions),
             },

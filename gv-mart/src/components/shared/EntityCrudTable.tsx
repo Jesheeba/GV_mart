@@ -39,6 +39,14 @@ export type CrudFieldDef = {
   max?: number
   pattern?: string
   patternMessage?: string
+  // A disabled, non-editable field whose displayed value is recomputed from
+  // the form's other in-progress values on every render (e.g. a monthly rate
+  // shown live as the user types a yearly rate). Never validated and never
+  // part of the submitted values — the caller derives the real persisted
+  // value the same way server-side, so nothing here needs to reach onCreate/
+  // onUpdate.
+  readOnly?: boolean
+  deriveValue?: (values: Record<string, string>) => string
 }
 
 function resolveOptions(field: CrudFieldDef, values: Record<string, string>): CrudFieldOption[] {
@@ -48,6 +56,7 @@ function resolveOptions(field: CrudFieldDef, values: Record<string, string>): Cr
 
 function validateFields(fields: CrudFieldDef[], values: Record<string, string>, t: (key: string, opts?: Record<string, unknown>) => string): string | null {
   for (const f of fields) {
+    if (f.readOnly) continue
     const raw = values[f.key] ?? ""
     const value = raw.trim()
     if (f.required && value === "") {
@@ -352,6 +361,8 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
                     className="w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
                   />
+                ) : f.readOnly ? (
+                  <Input id={`f-${f.key}`} type={f.type} disabled value={f.deriveValue ? f.deriveValue(values) : (values[f.key] ?? "")} />
                 ) : (
                   <Input
                     id={`f-${f.key}`}
