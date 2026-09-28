@@ -688,7 +688,8 @@
         "service_income": "Extra service income",
         "sales_income": "Sales income",
         "review": "Google review",
-        "finder_credit": "Finder credit (enquiry conversions)"
+        "finder_credit": "Finder credit (enquiry conversions)",
+        "installation": "Installations"
       },
       "threshold": "Threshold",
       "amount": "Amount",
@@ -2647,6 +2648,12 @@
         "standardTime": "{{minutes}} min standard time",
         "suggestedTitle": "Suggested for this issue"
       },
+      "installations": {
+        "title": "Products Installed",
+        "searchPlaceholder": "Search products…",
+        "empty": "No products found.",
+        "noneSelected": "No installations logged."
+      },
       "charges": {
         "serviceCharge": "Service charge",
         "notChargeableNote": "This is a warranty/AMC visit — the charge is ₹0, but any spares used are still recorded.",
@@ -3355,6 +3362,7 @@
         "avgCallValue": "Avg. Call Value (Paid)",
         "totalReferrals": "Total Referrals",
         "totalReviews": "Total Google Reviews",
+        "totalInstallations": "Total Installations",
         "reviewRateFootnote": "{{rate}}% review-claim rate over {{visits}} completed visits.",
         "flaggedBanner": "Review-claim rate ({{rate}}% over {{visits}} visits) looks unusually high — worth a manual check."
       },

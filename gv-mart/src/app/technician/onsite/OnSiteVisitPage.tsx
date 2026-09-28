@@ -17,6 +17,7 @@ import { PaymentProofUpload } from "../components/PaymentProofUpload"
 import { SignaturePad } from "../components/SignaturePad"
 import { VoiceNoteRecorder } from "../components/VoiceNoteRecorder"
 import { SpareSelectStep, type SelectedSpare } from "./SpareSelectStep"
+import { InstallationSelectStep, type SelectedInstallation } from "./InstallationSelectStep"
 import { SellAmcSection } from "./SellAmcSection"
 import { PaymentQRCode } from "@/app/customer/components/PaymentQRCode"
 import { OverrunBadge } from "../components/JobBadges"
@@ -111,6 +112,7 @@ type VisitDraftData = {
   sopSteps: SopStep[]
   evidenceImages: string[]
   selectedSpares: SelectedSpare[]
+  selectedInstallations: SelectedInstallation[]
   discountInput: string
   discountMode: "percent" | "amount"
   discountAmountInput: string
@@ -204,6 +206,10 @@ export function OnSiteVisitPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
 
   const [selectedSpares, setSelectedSpares] = useState<SelectedSpare[]>([])
+  // Installation Tracking + Incentive (2026-09-25) — separate from
+  // selectedSpares: logs which products were newly installed, for incentive
+  // counting, not parts consumed as a repair.
+  const [selectedInstallations, setSelectedInstallations] = useState<SelectedInstallation[]>([])
   const [discountInput, setDiscountInput] = useState("0")
   // Task 1 — technician can enter the discount as a ₹ amount instead of a
   // %; the underlying `discountPercent` (derived below, right after
@@ -379,6 +385,7 @@ export function OnSiteVisitPage() {
       }
       if (d.evidenceImages?.length) setEvidenceImages(d.evidenceImages)
       if (d.selectedSpares?.length) setSelectedSpares(d.selectedSpares)
+      if (d.selectedInstallations?.length) setSelectedInstallations(d.selectedInstallations)
       if (d.discountInput != null) setDiscountInput(d.discountInput)
       if (d.discountMode) setDiscountMode(d.discountMode)
       if (d.discountAmountInput != null) setDiscountAmountInput(d.discountAmountInput)
@@ -431,6 +438,7 @@ export function OnSiteVisitPage() {
     sopSteps,
     evidenceImages,
     selectedSpares,
+    selectedInstallations,
     discountInput,
     discountMode,
     discountAmountInput,
@@ -862,6 +870,7 @@ export function OnSiteVisitPage() {
       serviceCharge,
       discountPercent,
       spares: selectedSpares.map((s) => ({ spareId: s.spareId, qty: s.qty })),
+      installations: selectedInstallations.map((s) => ({ productId: s.productId, qty: s.qty })),
       paymentMethod,
       txnId: paymentMethod === "transfer" ? txnId : undefined,
       paymentDescription: paymentMethod === "transfer" ? paymentDescription : undefined,
@@ -1231,6 +1240,7 @@ export function OnSiteVisitPage() {
         <div className="space-y-4">
           <PhotoCapture label={t("technician.onsite.beforeImage")} dataUrl={beforeImage} onCaptured={handleBeforeImage} />
           <SpareSelectStep orgId={profile?.org_id} complaintTypeId={ticket.complaint_type_id} selected={selectedSpares} onChange={setSelectedSpares} />
+          <InstallationSelectStep orgId={profile?.org_id} selected={selectedInstallations} onChange={setSelectedInstallations} />
         </div>
       ) : null}
 

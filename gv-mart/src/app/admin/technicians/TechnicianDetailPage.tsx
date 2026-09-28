@@ -874,7 +874,7 @@ function KpisTab({ loading, summary }: { loading: boolean; summary: TechnicianKp
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-surface px-4 py-3">
           <p className="text-xs text-text-muted">{t("technicians.detail.kpi.avgCallValue")}</p>
           <p className="text-lg font-bold tabular-nums text-text">
@@ -888,6 +888,10 @@ function KpisTab({ loading, summary }: { loading: boolean; summary: TechnicianKp
         <div className="rounded-xl border border-border bg-surface px-4 py-3">
           <p className="text-xs text-text-muted">{t("technicians.detail.kpi.totalReviews")}</p>
           <p className="text-lg font-bold tabular-nums text-text">{summary.total_reviews}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface px-4 py-3">
+          <p className="text-xs text-text-muted">{t("technicians.detail.kpi.totalInstallations")}</p>
+          <p className="text-lg font-bold tabular-nums text-text">{summary.total_installations}</p>
         </div>
       </div>
 

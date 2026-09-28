@@ -482,6 +482,16 @@ export function useSparesForComplaintType(complaintTypeId: string | undefined) {
   })
 }
 
+/** Installation Tracking + Incentive (2026-09-25) — product search for InstallationSelectStep. */
+export function useProductSearch(orgId: string | undefined, term: string) {
+  const debounced = useDebouncedValue(term, 250)
+  return useQuery({
+    queryKey: ["products", "techSearch", orgId, debounced],
+    queryFn: () => tech.searchProducts(orgId!, debounced),
+    enabled: !!orgId,
+  })
+}
+
 export function useCreateServiceInvoice() {
   const qc = useQueryClient()
   return useMutation({

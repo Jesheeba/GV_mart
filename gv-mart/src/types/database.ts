@@ -3401,6 +3401,70 @@ export type Database = {
           },
         ]
       }
+      // Installation tracking + incentive (2026-09-25), see
+      // 20260925110000_installation_tracking_schema.sql.
+      installations_logged: {
+        Row: {
+          id: string
+          org_id: string
+          visit_id: string
+          technician_id: string
+          product_id: string
+          qty: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          visit_id: string
+          technician_id: string
+          product_id: string
+          qty?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          visit_id?: string
+          technician_id?: string
+          product_id?: string
+          qty?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installations_logged_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installations_logged_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "service_visits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installations_logged_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installations_logged_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_spares_used: {
         Row: {
           id: string
@@ -6036,6 +6100,10 @@ export type Database = {
           p_txn_id: string | null
           p_payment_description: string | null
           p_is_chargeable: boolean
+          // Hand-patched (2026-09-25) — see 20260925111000_installation_
+          // tracking_functions.sql; this file predates p_amount_paid too
+          // (Docker-based `supabase gen types` isn't available here).
+          p_installations?: Json
         }
         Returns: Json
       }
@@ -6270,6 +6338,12 @@ export type Database = {
         Args: { p_approval_id: string; p_items?: Json }
         Returns: undefined
       }
+      // Installation tracking + incentive (2026-09-25) — hand-patched, see
+      // 20260925111000_installation_tracking_functions.sql.
+      technician_installation_count: {
+        Args: { p_org_id: string; p_technician_id: string; p_period: string }
+        Returns: number
+      }
       resolve_purchase_quote_requests: {
         Args: { p_org_id: string }
         Returns: number
@@ -6362,7 +6436,9 @@ export type Database = {
       lead_source: "field" | "customer_app" | "whatsapp" | "walk_in" | "referral" | "other"
       lead_kind: "service" | "spare" | "product" | "amc"
       automation_action: "send_video" | "quotation" | "link"
-      incentive_type: "service_income" | "sales_income" | "review" | "finder_credit"
+      // Installation tracking + incentive (2026-09-25), see
+      // 20260925110000_installation_tracking_schema.sql.
+      incentive_type: "service_income" | "sales_income" | "review" | "finder_credit" | "installation"
       // Rewards spec (2026-08-04) — 4th category, see 20260804140000_reward_referral_category.sql.
       reward_category: "attendance" | "highest_review" | "highest_revenue" | "highest_referral"
       expense_category:

@@ -1054,6 +1054,8 @@ export type CreateServiceInvoiceInput = {
   isChargeable: boolean
   /** QR Payment (2026-08-06): pass 0 for `paymentMethod: "upi"` so the invoice starts unpaid instead of defaulting to "fully paid" — see create_service_invoice's p_amount_paid. Omitted for cash/transfer, unchanged existing behavior. */
   amountPaid?: number
+  /** Installation Tracking + Incentive (2026-09-25): products newly installed on this visit — logged for incentive counting only, no invoice line. */
+  installations?: { productId: string; qty: number }[]
 }
 
 export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput) {
@@ -1068,6 +1070,7 @@ export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput
     paymentDescription: input.paymentDescription,
     isChargeable: input.isChargeable,
     amountPaid: input.amountPaid,
+    installations: (input.installations ?? []).map((i) => ({ product_id: i.productId, qty: i.qty })),
   })
 }
 
@@ -1098,6 +1101,19 @@ export async function searchSpares(orgId: string, term: string) {
   // mapping_and_active_flags.sql.
   let query = supabase.from("spares").select("id, name, sku, price, standard_time_minutes").eq("org_id", orgId).eq("is_active", true).limit(15)
   if (q) query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
+// Installation Tracking + Incentive (2026-09-25) — product search for
+// InstallationSelectStep, sourcing the products catalog (what gets
+// installed) rather than spares (what gets consumed as repair parts). Same
+// org-scoped, debounced free-search shape as searchSpares.
+export async function searchProducts(orgId: string, term: string) {
+  const q = term.trim().replace(/[%,]/g, "")
+  let query = supabase.from("products").select("id, name").eq("org_id", orgId).limit(15)
+  if (q) query = query.ilike("name", `%${q}%`)
   const { data, error } = await query
   if (error) throw error
   return data ?? []

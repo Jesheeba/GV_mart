@@ -173,6 +173,7 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_payment_description: (p.paymentDescription as string) ?? null,
         p_is_chargeable: p.isChargeable as boolean,
         p_amount_paid: (p.amountPaid as number | undefined) ?? null,
+        p_installations: (p.installations as Json | undefined) ?? [],
       })
       if (error) throw error
       triggerWaDispatchNow()

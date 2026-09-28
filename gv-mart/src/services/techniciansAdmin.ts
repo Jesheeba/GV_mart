@@ -428,6 +428,10 @@ export type TechnicianKpiSummary = {
   avg_call_value: number | null
   total_referrals: number
   total_reviews: number
+  // Installation Tracking + Incentive (2026-09-25) — lifetime count, same
+  // horizon as total_referrals/total_reviews. See technician_kpi_summary in
+  // 20260925112000_technician_kpi_installations.sql.
+  total_installations: number
   completed_visit_count: number
   review_claim_rate_percent: number
   flagged: boolean
