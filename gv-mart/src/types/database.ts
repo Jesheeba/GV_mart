@@ -107,6 +107,7 @@ export type Database = {
           is_active: boolean
           daily_capacity_minutes: number
           tier_id: string | null
+          tier_changed_at: string | null
           created_at: string
           updated_at: string
         }
@@ -120,6 +121,7 @@ export type Database = {
           is_active?: boolean
           daily_capacity_minutes?: number
           tier_id?: string | null
+          tier_changed_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -133,6 +135,7 @@ export type Database = {
           is_active?: boolean
           daily_capacity_minutes?: number
           tier_id?: string | null
+          tier_changed_at?: string | null
           created_at?: string
           updated_at?: string
         }
