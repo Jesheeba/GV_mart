@@ -106,6 +106,7 @@ export type Database = {
           zone: string | null
           is_active: boolean
           daily_capacity_minutes: number
+          tier_id: string | null
           created_at: string
           updated_at: string
         }
@@ -118,6 +119,7 @@ export type Database = {
           zone?: string | null
           is_active?: boolean
           daily_capacity_minutes?: number
+          tier_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -130,6 +132,7 @@ export type Database = {
           zone?: string | null
           is_active?: boolean
           daily_capacity_minutes?: number
+          tier_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3853,6 +3856,155 @@ export type Database = {
           },
         ]
       }
+      technician_tiers: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          rank: number
+          monthly_salary: number
+          required_earning: number | null
+          required_months: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          rank: number
+          monthly_salary?: number
+          required_earning?: number | null
+          required_months?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string
+          rank?: number
+          monthly_salary?: number
+          required_earning?: number | null
+          required_months?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technician_tiers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tier_promotion_eligibility: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          target_tier_id: string
+          earning_snapshot: number
+          window_months: number
+          status: string
+          detected_at: string
+          decided_by: string | null
+          decided_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          target_tier_id: string
+          earning_snapshot: number
+          window_months: number
+          status?: string
+          detected_at?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          target_tier_id?: string
+          earning_snapshot?: number
+          window_months?: number
+          status?: string
+          detected_at?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tier_promotion_eligibility_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tier_promotion_eligibility_target_tier_id_fkey"
+            columns: ["target_tier_id"]
+            isOneToOne: false
+            referencedRelation: "technician_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tier_promotion_history: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          old_tier_id: string | null
+          new_tier_id: string
+          approved_by: string
+          promoted_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          old_tier_id?: string | null
+          new_tier_id: string
+          approved_by: string
+          promoted_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          old_tier_id?: string | null
+          new_tier_id?: string
+          approved_by?: string
+          promoted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tier_promotion_history_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tier_promotion_history_new_tier_id_fkey"
+            columns: ["new_tier_id"]
+            isOneToOne: false
+            referencedRelation: "technician_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rental_plans: {
         Row: {
           id: string
@@ -6479,6 +6631,26 @@ export type Database = {
       compute_salary: {
         Args: { p_org_id: string; p_technician_id: string; p_period: string }
         Returns: Database["public"]["Tables"]["salaries"]["Row"]
+      }
+      approve_tier_promotion: {
+        Args: { p_eligibility_id: string }
+        Returns: undefined
+      }
+      dismiss_tier_promotion: {
+        Args: { p_eligibility_id: string }
+        Returns: undefined
+      }
+      technician_tier_progress: {
+        Args: { p_technician_id: string }
+        Returns: {
+          current_tier_id: string | null
+          current_tier_name: string | null
+          next_tier_id: string | null
+          next_tier_name: string | null
+          required_earning: number | null
+          required_months: number | null
+          earning: number | null
+        }[]
       }
       compute_incentives: {
         Args: { p_org_id: string; p_period: string }
