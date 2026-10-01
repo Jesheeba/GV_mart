@@ -174,6 +174,7 @@ export async function updateTechnician(
     is_active?: boolean
     is_on_duty?: boolean
     daily_capacity_minutes?: number
+    tier_id?: string | null
     address?: string | null
     city?: string | null
     state?: string | null

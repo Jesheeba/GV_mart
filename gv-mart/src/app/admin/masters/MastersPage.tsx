@@ -29,6 +29,8 @@ import { GiftsTab } from "./GiftsTab"
 import { GiftExclusionsTab } from "./GiftExclusionsTab"
 import { AmcPlansTab } from "./AmcPlansTab"
 import { RentalPlansTab } from "./RentalPlansTab"
+import { useTechnicianTiers } from "@/hooks/useTechnicianTiers"
+import { TechnicianTiersTab } from "./TechnicianTiersTab"
 import { IncentiveRulesTab } from "./IncentiveRulesTab"
 import { ComplaintTypesTab } from "./ComplaintTypesTab"
 import { SopStepsTab } from "./SopStepsTab"
@@ -46,6 +48,7 @@ type ModuleId =
   | "giftExclusions"
   | "amcPlans"
   | "rentalPlans"
+  | "technicianTiers"
   | "incentives"
   | "complaintTypes"
   | "sopSteps"
@@ -79,6 +82,7 @@ export function MastersPage() {
   const { data: giftExclusionProducts } = giftExclusionProductsHooks.useList(orgId)
   const { data: amcPlans } = amcPlansHooks.useList(orgId)
   const { data: rentalPlans } = rentalPlansHooks.useList(orgId)
+  const { data: technicianTiers } = useTechnicianTiers(orgId)
   const { data: incentiveRules } = incentiveRulesHooks.useList(orgId)
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
   const { data: sopStepTemplates } = sopStepTemplatesHooks.useList(orgId)
@@ -106,6 +110,7 @@ export function MastersPage() {
     },
     { id: "amcPlans", icon: ShieldCheck, swatch: "info", title: t("masters.tabs.amcPlans"), desc: t("masters.overview.amcPlansDesc", { count: amcPlans?.length ?? 0 }) },
     { id: "rentalPlans", icon: CalendarClock, swatch: "warning", title: t("masters.tabs.rentalPlans"), desc: t("masters.overview.rentalPlansDesc", { count: rentalPlans?.length ?? 0 }) },
+    { id: "technicianTiers", icon: TrendingUp, swatch: "accent", title: t("masters.tabs.technicianTiers"), desc: t("masters.overview.technicianTiersDesc", { count: technicianTiers?.length ?? 0 }) },
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
     { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypeDefaultsCount }) },
     { id: "sopSteps", icon: CheckSquare, swatch: "info", title: t("masters.tabs.sopSteps"), desc: t("masters.overview.sopStepsDesc", { count: sopStepTemplates?.length ?? 0 }) },
@@ -182,6 +187,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="rentalPlans">
             <RentalPlansTab />
+          </TabsContent>
+          <TabsContent value="technicianTiers">
+            <TechnicianTiersTab />
           </TabsContent>
           <TabsContent value="incentives">
             <IncentiveRulesTab />

@@ -29,13 +29,10 @@ function monthToRange(month: string) {
 
 /**
  * ADM-24. `net = base + revenue_component - late_deduction + incentives`;
- * `base` is the technician's attributed service revenue for the period,
- * `late_deduction = late_hours x 2` (v2.2's only concrete rule) — see the
- * compute_salary() header comment in
- * supabase/migrations/20260702200200_hr_functions.sql for the full
- * reasoning and the judgment call this makes (no fixed salary slab table
- * exists in-scope, so `revenue_component` computes to 0 rather than
- * inventing unstated slab boundaries).
+ * `base` is the technician's tier monthly_salary (fixed, from Masters >
+ * Technician Tiers) and `revenue_component` is their attributed service
+ * revenue for the period; `late_deduction = late_hours x 2` — see
+ * compute_salary() in supabase/migrations/20261001110000_compute_salary_tier_base.sql.
  */
 export function SalaryTab() {
   const { t } = useTranslation()

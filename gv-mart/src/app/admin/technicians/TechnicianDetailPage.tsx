@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { DOT_TONE_CLASS, StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
+import { useTechnicianTierProgress, useTechnicianTiers } from "@/hooks/useTechnicianTiers"
+import { formatCurrency } from "@/lib/sale-calc"
 import {
   useDeleteTechnicianAccount,
   useDeleteTechnicianAvailability,
@@ -64,6 +66,31 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
+function TierProgressLine({ progress }: { progress: NonNullable<ReturnType<typeof useTechnicianTierProgress>["data"]> }) {
+  const { t } = useTranslation()
+  if (!progress.next_tier_id) return <p className="mt-2 text-xs text-text-muted">{t("technicians.detail.tier.top")}</p>
+  if (progress.required_earning == null || progress.required_months == null) {
+    return <p className="mt-2 text-xs text-text-muted">{t("technicians.detail.tier.noRequirement")}</p>
+  }
+  const earned = Number(progress.earning ?? 0)
+  const pct = Math.min(100, Math.round((earned / (progress.required_earning || 1)) * 100))
+  return (
+    <div className="mt-2.5 max-w-sm">
+      <div className="h-1.5 overflow-hidden rounded-full bg-surface-alt" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-xs text-text-muted">
+        {t("technicians.detail.tier.progress", {
+          earned: formatCurrency(earned),
+          required: formatCurrency(progress.required_earning),
+          next: progress.next_tier_name,
+          months: progress.required_months,
+        })}
+      </p>
+    </div>
+  )
+}
+
 export function TechnicianDetailPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -83,9 +110,13 @@ export function TechnicianDetailPage() {
   const rewards = useTechnicianRewards(id)
   const referrals = useLeads(orgId, { source: "referral", ownerId: id })
   const kpiSummary = useTechnicianKpiSummary(orgId, id)
+  const { data: tiers } = useTechnicianTiers(orgId)
+  const tierProgress = useTechnicianTierProgress(id)
+  const isMaster = profile?.role === "master"
 
   const [editing, setEditing] = useState(false)
   const [editZone, setEditZone] = useState("")
+  const [editTierId, setEditTierId] = useState("")
   const [editSkills, setEditSkills] = useState<string[]>([])
   const [editCapacity, setEditCapacity] = useState("")
   const [editPhone, setEditPhone] = useState("")
@@ -112,6 +143,7 @@ export function TechnicianDetailPage() {
 
   function startEdit() {
     setEditZone(technician!.zone ?? "")
+    setEditTierId(technician!.tier_id ?? "")
     setEditSkills(technician!.skills ?? [])
     setEditCapacity(String(technician!.daily_capacity_minutes ?? 480))
     setEditPhone(technician!.profiles?.phone ?? "")
@@ -140,6 +172,7 @@ export function TechnicianDetailPage() {
         id: technician!.id,
         patch: {
           zone: editZone || null,
+          ...(isMaster && editTierId && editTierId !== technician!.tier_id ? { tier_id: editTierId } : {}),
           skills: editSkills,
           daily_capacity_minutes: Number(editCapacity),
           address: editAddress || null,
@@ -201,6 +234,9 @@ export function TechnicianDetailPage() {
                   tone={!technician.is_active ? "danger" : technician.is_on_duty ? "success" : "neutral"}
                   label={!technician.is_active ? t("technicians.list.statusInactive") : technician.is_on_duty ? t("technicians.list.onDuty") : t("technicians.list.offDuty")}
                 />
+                {tierProgress.data?.current_tier_name ? (
+                  <span className="rounded-full bg-accent-soft px-2.75 py-1 text-[11px] font-bold text-accent">{tierProgress.data.current_tier_name}</span>
+                ) : null}
                 {technician.zone ? (
                   <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">{technician.zone}</span>
                 ) : null}
@@ -210,6 +246,7 @@ export function TechnicianDetailPage() {
                   </span>
                 ))}
               </div>
+              {tierProgress.data ? <TierProgressLine progress={tierProgress.data} /> : null}
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -325,6 +362,23 @@ export function TechnicianDetailPage() {
                   aria-invalid={!capacityValid}
                 />
               </div>
+              {isMaster && (tiers ?? []).length > 0 ? (
+                <div className="space-y-1">
+                  <Label htmlFor="tech-tier">{t("technicians.detail.tier.override")}</Label>
+                  <select
+                    id="tech-tier"
+                    className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-text"
+                    value={editTierId}
+                    onChange={(e) => setEditTierId(e.target.value)}
+                  >
+                    {(tiers ?? []).map((tr) => (
+                      <option key={tr.id} value={tr.id}>
+                        #{tr.rank} {tr.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div className="space-y-1 sm:col-span-3">
                 <Label htmlFor="tech-address">{t("technicians.detail.fields.address")}</Label>
                 <Input id="tech-address" value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />

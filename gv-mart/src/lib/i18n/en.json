@@ -500,6 +500,7 @@
       "giftExclusionsDesc": "{{count}} products excluded from gifts",
       "amcPlansDesc": "{{count}} AMC plans",
       "rentalPlansDesc": "{{count}} rental plans",
+      "technicianTiersDesc": "{{count}} tiers",
       "incentivesDesc": "{{count}} incentive rules",
       "complaintTypesDesc": "{{count}} complaint types",
       "sopStepsDesc": "{{count}} activities",
@@ -517,6 +518,7 @@
       "giftExclusions": "Gift Exclusions",
       "amcPlans": "AMC Plans",
       "rentalPlans": "Rental Plans",
+      "technicianTiers": "Technician Tiers",
       "incentives": "Incentives",
       "complaintTypes": "Name of Complaint",
       "sopSteps": "Activities",
@@ -670,6 +672,23 @@
       "noSpares": "No spares found",
       "coveredSparesCount_one": "{{count}} spare covered",
       "coveredSparesCount_other": "{{count}} spares covered"
+    },
+    "technicianTiers": {
+      "name": "Tier name",
+      "namePlaceholder": "e.g. Senior",
+      "rank": "Rank",
+      "monthlySalary": "Monthly salary",
+      "requiredEarning": "Required paid earning",
+      "requiredMonths": "Within (months)",
+      "add": "Add tier",
+      "empty": "No tiers yet — add your first one.",
+      "hint": "Rank 1 is the entry tier. Required earning / months describe what a technician must earn in paid revenue to be promoted INTO that tier; leave blank on the entry tier. Promotions are never automatic — you approve each one.",
+      "requirement": "Promotion: {{amount}} paid within {{months}} months",
+      "noRequirement": "Entry tier — no promotion requirement",
+      "pendingTitle": "Pending promotions",
+      "pendingDetail": "{{amount}} paid in the last {{months}} months",
+      "approve": "Approve",
+      "dismiss": "Dismiss"
     },
     "rentalPlans": {
       "name": "Plan name",
@@ -3326,6 +3345,13 @@
       "whatsappShareText": "Your GV Mart technician login password: {{password}}. Please keep it safe."
     },
     "detail": {
+      "tier": {
+        "label": "Tier",
+        "override": "Tier (manual override)",
+        "progress": "{{earned}} of {{required}} earned toward {{next}}, {{months}} month window",
+        "top": "Top tier reached",
+        "noRequirement": "No promotion requirement set for the next tier"
+      },
       "backToList": "Technicians",
       "notFound": "Technician not found",
       "edit": "Edit",
@@ -3910,6 +3936,7 @@
       "type": "Type"
     },
     "types": {
+      "tier_promotion_eligible": "Technician eligible for promotion",
       "confirmation_call_stub": "Confirmation call",
       "sla_breach": "SLA breach",
       "low_stock": "Low stock",

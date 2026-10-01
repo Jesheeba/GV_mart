@@ -272,6 +272,19 @@ async function runHuddleReminder(admin: SupabaseClient, orgId: string, errors: s
   return { reminded: data ?? 0 }
 }
 
+/** Technician tier promotions — check_tier_promotion_eligibility (service_role-only
+ * RPC) raises at most one pending eligibility row + one master notification
+ * per technician/target tier, so it is safe to call on every tick. */
+async function runTierPromotionCheck(admin: SupabaseClient, orgId: string, errors: string[]): Promise<{ flagged: number }> {
+  const { data, error } = await admin.rpc("check_tier_promotion_eligibility", { p_org_id: orgId })
+  if (error) {
+    console.error("wa-scheduled-tasks: check_tier_promotion_eligibility failed", orgId, error)
+    errors.push(`[${orgId}] check_tier_promotion_eligibility failed: ${error.message}`)
+    return { flagged: 0 }
+  }
+  return { flagged: data ?? 0 }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405)
 
@@ -315,8 +328,9 @@ Deno.serve(async (req) => {
     const overdueReminders = await runOverduePoPaymentReminderEscalation(admin, org.id, errors)
     const recurringTasks = await runRecurringTaskAdvance(admin, org.id, errors)
     const huddleReminder = await runHuddleReminder(admin, org.id, errors)
+    const tierPromotions = await runTierPromotionCheck(admin, org.id, errors)
     await markJobRan(admin, org.id, "scheduled_tasks")
-    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, overdueReminders, recurringTasks, huddleReminder })
+    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, overdueReminders, recurringTasks, huddleReminder, tierPromotions })
   }
 
   await recordHeartbeat(admin, "wa_scheduled_tasks", errors.length > 0 ? "error" : "ok", errors.join("; "))
