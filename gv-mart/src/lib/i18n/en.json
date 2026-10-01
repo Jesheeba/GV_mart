@@ -67,6 +67,7 @@
     "masters": "Masters / Settings",
     "workspace": "My Workspace",
     "tasks": "Tasks",
+    "huddle": "Daily Huddle",
     "purchase": "Purchase",
     "notifications": "Notifications",
     "approvals": "Approvals",
@@ -3796,6 +3797,76 @@
     "detailDialog": {
       "title": "Task",
       "subtitle": "Reassign, reschedule, or update this task.",
+  "huddle": {
+    "subtitle": "Record the daily meeting: problems, root causes, solutions and action items. Open problems carry forward until solved.",
+    "technicianSubtitle": "Read-only view of the daily meeting notes and open problems.",
+    "view": {
+      "today": "Meeting",
+      "history": "History"
+    },
+    "status": {
+      "open": "Open",
+      "solved": "Solved"
+    },
+    "meetingDate": "Meeting date",
+    "recordedBy": "Recorded by {{name}}",
+    "notLoggedYet": "No huddle logged for this day yet.",
+    "generalNotes": "General notes",
+    "generalNotesPlaceholder": "What was discussed today?",
+    "saveNotes": "Save notes",
+    "saved": "Saved",
+    "agenda": "Agenda — problems",
+    "addIssue": "Add problem",
+    "editIssue": "Edit problem",
+    "issueDialogHint": "Open problems stay on the agenda every day until marked solved.",
+    "problem": "Problem",
+    "rootCause": "Root cause",
+    "solution": "Solution",
+    "owner": "Owner",
+    "noOwner": "No owner",
+    "descriptionRequired": "Describe the problem first.",
+    "edit": "Edit",
+    "createTask": "Create task",
+    "markSolved": "Mark solved",
+    "reopen": "Reopen",
+    "raisedOn": "Raised {{date}}",
+    "raisedBy": "by {{name}}",
+    "ownerLabel": "Owner: {{name}}",
+    "solvedOn": "Solved {{date}}",
+    "dueOn": "due {{date}}",
+    "taskDone": "done",
+    "taskOpen": "open",
+    "noIssues": "No problems on the agenda.",
+    "loadFailed": "Could not load problems.",
+    "sections": {
+      "carried": "Carried forward ({{count}})",
+      "raised": "Raised in this meeting ({{count}})",
+      "solved": "Solved ({{count}})",
+      "open": "Open problems ({{count}})"
+    },
+    "performance": {
+      "title": "Performance — {{date}}",
+      "collected": "Collected",
+      "completedVisits": "Completed tickets",
+      "within24h": "Resolved within 24h",
+      "openTickets": "Open tickets now",
+      "unavailable": "Performance numbers unavailable."
+    },
+    "reminder": {
+      "title": "Reminder time",
+      "hint": "If no huddle is logged by this time (IST), staff get a notification. Leave empty to turn the reminder off."
+    },
+    "history": {
+      "searchPlaceholder": "Search problem, root cause or solution",
+      "all": "All",
+      "from": "From date",
+      "to": "To date",
+      "empty": "No matching problems."
+    },
+    "todayNotes": "Today's notes ({{date}})",
+    "noNotes": "No notes recorded.",
+    "recentMeetings": "Recent meetings"
+  },
       "statusOpen": "Open",
       "statusDone": "Done",
       "confirmDelete": "Delete this task? This cannot be undone."

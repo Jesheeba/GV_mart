@@ -259,6 +259,19 @@ async function runRecurringTaskAdvance(admin: SupabaseClient, orgId: string, err
   return { advanced: data ?? 0 }
 }
 
+/** Daily huddle reminder — wa_send_huddle_reminder claims the day atomically
+ * (IST date + settings.huddle_reminder_time cutoff + no meeting_logs row
+ * yet), so it's safe to call every tick like the other jobs here. */
+async function runHuddleReminder(admin: SupabaseClient, orgId: string, errors: string[]): Promise<{ reminded: number }> {
+  const { data, error } = await admin.rpc("wa_send_huddle_reminder", { p_org_id: orgId })
+  if (error) {
+    console.error("wa-scheduled-tasks: wa_send_huddle_reminder failed", orgId, error)
+    errors.push(`[${orgId}] wa_send_huddle_reminder failed: ${error.message}`)
+    return { reminded: 0 }
+  }
+  return { reminded: data ?? 0 }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405)
 
@@ -301,8 +314,9 @@ Deno.serve(async (req) => {
     const rentalBilling = await runRentalBilling(admin, org.id, errors)
     const overdueReminders = await runOverduePoPaymentReminderEscalation(admin, org.id, errors)
     const recurringTasks = await runRecurringTaskAdvance(admin, org.id, errors)
+    const huddleReminder = await runHuddleReminder(admin, org.id, errors)
     await markJobRan(admin, org.id, "scheduled_tasks")
-    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, overdueReminders, recurringTasks })
+    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, overdueReminders, recurringTasks, huddleReminder })
   }
 
   await recordHeartbeat(admin, "wa_scheduled_tasks", errors.length > 0 ? "error" : "ok", errors.join("; "))

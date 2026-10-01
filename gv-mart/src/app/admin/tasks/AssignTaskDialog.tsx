@@ -17,14 +17,31 @@ const PRIORITIES: PriorityLevel[] = ["normal", "urgent", "very_urgent"]
  * every staff role + technician in the org, with no hierarchy restriction —
  * a technician can assign to the master here just as validly as the reverse.
  */
-export function AssignTaskDialog({ orgId, userId, onClose }: { orgId: string; userId: string; onClose: () => void }) {
+export function AssignTaskDialog({
+  orgId,
+  userId,
+  onClose,
+  initialTitle = "",
+  initialDescription = "",
+  refType,
+  refId,
+}: {
+  orgId: string
+  userId: string
+  onClose: () => void
+  /** Prefill + back-link when the task is spun out of another record (daily-huddle issue). */
+  initialTitle?: string
+  initialDescription?: string
+  refType?: string
+  refId?: string
+}) {
   const { t } = useTranslation()
   const { toast } = useToast()
   const { data: assignableProfiles, isLoading: profilesLoading } = useAssignableProfiles(orgId)
   const assignTask = useAssignTask()
 
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
+  const [title, setTitle] = useState(initialTitle)
+  const [description, setDescription] = useState(initialDescription)
   const [assigneeId, setAssigneeId] = useState("")
   const [priority, setPriority] = useState<PriorityLevel>("normal")
   const [dueDate, setDueDate] = useState("")
@@ -47,6 +64,8 @@ export function AssignTaskDialog({ orgId, userId, onClose }: { orgId: string; us
         dueDate: dueDate || null,
         dueAt,
         isRecurring: isRecurring && !!dueDate,
+        refType: refType ?? null,
+        refId: refId ?? null,
       },
       {
         onSuccess: () => onClose(),

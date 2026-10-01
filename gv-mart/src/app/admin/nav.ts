@@ -24,6 +24,7 @@ import {
   ScrollText,
   CalendarClock,
   TrendingDown,
+  Users2,
   type LucideIcon,
 } from "lucide-react"
 import type { UserRole } from "@/lib/roles"
@@ -75,6 +76,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { key: "approvals", labelKey: "nav.approvals", path: "/admin/approvals", icon: CheckSquare, roles: ["master"] },
   { key: "auditLog", labelKey: "nav.auditLog", path: "/admin/audit-log", icon: ScrollText, roles: ["master"] },
   { key: "tasks", labelKey: "nav.tasks", path: "/admin/tasks", icon: ListChecks, roles: ALL_STAFF },
+  { key: "huddle", labelKey: "nav.huddle", path: "/admin/huddle", icon: Users2, roles: ALL_STAFF },
   { key: "workspace", labelKey: "nav.workspace", path: "/admin/workspace", icon: ClipboardList, roles: ALL_STAFF },
   { key: "notifications", labelKey: "nav.notifications", path: "/admin/notifications", icon: Bell, roles: ALL_STAFF },
 ]

@@ -59,6 +59,7 @@ const AccountsPage = lazyPage(() => import("@/app/admin/accounts/AccountsPage"),
 const ReportsPage = lazyPage(() => import("@/app/admin/reports/ReportsPage"), "ReportsPage")
 const WorkspacePage = lazyPage(() => import("@/app/admin/workspace/WorkspacePage"), "WorkspacePage")
 const TasksPage = lazyPage(() => import("@/app/admin/tasks/TasksPage"), "TasksPage")
+const HuddlePage = lazyPage(() => import("@/app/admin/huddle/HuddlePage"), "HuddlePage")
 const NotificationsPage = lazyPage(() => import("@/app/admin/notifications/NotificationsPage"), "NotificationsPage")
 const ApprovalsPage = lazyPage(() => import("@/app/admin/approvals/ApprovalsPage"), "ApprovalsPage")
 const ComplaintsPage = lazyPage(() => import("@/app/admin/complaints/ComplaintsPage"), "ComplaintsPage")
@@ -84,6 +85,7 @@ const TechnicianProfilePage = lazyPage(() => import("@/app/technician/ProfilePag
 const DaySheetPage = lazyPage(() => import("@/app/technician/DaySheetPage"), "DaySheetPage")
 const TechnicianNotificationsPage = lazyPage(() => import("@/app/technician/NotificationsPage"), "NotificationsPage")
 const TechnicianTasksPage = lazyPage(() => import("@/app/technician/TasksPage"), "TasksPage")
+const TechnicianHuddlePage = lazyPage(() => import("@/app/technician/HuddlePage"), "HuddlePage")
 
 // --- Customer ---
 const CustomerShell = lazyPage(() => import("@/app/customer/CustomerShell"), "CustomerShell")
@@ -212,6 +214,7 @@ export const router = createBrowserRouter([
                 children: [
                   { path: "workspace", element: <WorkspacePage /> },
                   { path: "tasks", element: <TasksPage /> },
+                  { path: "huddle", element: <HuddlePage /> },
                   { path: "notifications", element: <NotificationsPage /> },
                 ],
               },
@@ -249,6 +252,7 @@ export const router = createBrowserRouter([
               { path: "day-sheet", element: <DaySheetPage /> },
               { path: "notifications", element: <TechnicianNotificationsPage /> },
               { path: "tasks", element: <TechnicianTasksPage /> },
+              { path: "huddle", element: <TechnicianHuddlePage /> },
             ],
           },
           // Full-screen on-site stepper — deliberately outside TechnicianShell

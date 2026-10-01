@@ -54,6 +54,10 @@ export type AssignTaskInput = {
   // advance from without one. Enforced client-side (dialog disables the
   // checkbox with no due date) and server-side (tasks_recurring_needs_due_date).
   isRecurring: boolean
+  // Optional back-link to the thing this task came from (e.g. a daily-huddle
+  // issue: refType 'meeting_issue').
+  refType?: string | null
+  refId?: string | null
 }
 
 export async function assignTask(input: AssignTaskInput): Promise<TaskRow> {
@@ -69,6 +73,8 @@ export async function assignTask(input: AssignTaskInput): Promise<TaskRow> {
       due_date: input.dueDate,
       due_at: input.dueAt,
       is_recurring: input.isRecurring,
+      ref_type: input.refType ?? null,
+      ref_id: input.refId ?? null,
       source: "assigned",
     })
     .select()

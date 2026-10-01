@@ -5078,6 +5078,84 @@ export type Database = {
           },
         ]
       }
+      meeting_logs: {
+        Row: {
+          id: string
+          org_id: string
+          meeting_date: string
+          recorded_by: string | null
+          general_notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          meeting_date: string
+          recorded_by?: string | null
+          general_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          meeting_date?: string
+          recorded_by?: string | null
+          general_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meeting_issues: {
+        Row: {
+          id: string
+          org_id: string
+          meeting_id: string
+          description: string
+          raised_by: string | null
+          root_cause: string | null
+          solution: string | null
+          status: string
+          owner_id: string | null
+          date_raised: string
+          date_solved: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          meeting_id: string
+          description: string
+          raised_by?: string | null
+          root_cause?: string | null
+          solution?: string | null
+          status?: string
+          owner_id?: string | null
+          date_raised: string
+          date_solved?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          meeting_id?: string
+          description?: string
+          raised_by?: string | null
+          root_cause?: string | null
+          solution?: string | null
+          status?: string
+          owner_id?: string | null
+          date_raised?: string
+          date_solved?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           id: string
@@ -5150,6 +5228,8 @@ export type Database = {
           // without a code change.
           review_flag_threshold_percent: number
           review_flag_min_visits: number
+          huddle_reminder_time: string | null
+          huddle_reminder_last_date: string | null
           created_at: string
           updated_at: string
         }
@@ -5205,6 +5285,8 @@ export type Database = {
           scheduled_tasks_last_run_at?: string | null
           review_flag_threshold_percent?: number
           review_flag_min_visits?: number
+          huddle_reminder_time?: string | null
+          huddle_reminder_last_date?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5260,6 +5342,8 @@ export type Database = {
           scheduled_tasks_last_run_at?: string | null
           review_flag_threshold_percent?: number
           review_flag_min_visits?: number
+          huddle_reminder_time?: string | null
+          huddle_reminder_last_date?: string | null
           created_at?: string
           updated_at?: string
         }
