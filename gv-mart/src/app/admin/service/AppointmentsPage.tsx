@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { istDayStartIso, istDayEndIso } from "@/lib/ist"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -25,8 +26,8 @@ export function AppointmentsPage() {
 
   const [day, setDay] = useState(() => new Date())
   const dayStr = toDateInput(day)
-  const fromIso = `${dayStr}T00:00:00`
-  const toIso = `${dayStr}T23:59:59`
+  const fromIso = istDayStartIso(dayStr)
+  const toIso = istDayEndIso(dayStr)
 
   const { data: appointments, isLoading, isError, refetch } = useAppointmentsRange(orgId, fromIso, toIso)
   const { data: technicians } = useTechnicians(orgId)

@@ -1,5 +1,6 @@
 import type { DateRange } from "@/services/reports"
 import { toLocalDateString } from "@/lib/local-date"
+import { getIstNow } from "@/lib/ist"
 
 /** Last `n` calendar months (oldest first) ending at the given anchor month, each as a full-month DateRange. */
 export function lastNMonthsEnding(year: number, month: number, n: number): { label: string; range: DateRange }[] {
@@ -33,7 +34,7 @@ export function thisMonthRange(): DateRange {
 }
 
 export function todayRange(): DateRange {
-  const today = toLocalDateString(new Date())
+  const today = getIstNow().date
   return { from: today, to: today }
 }
 

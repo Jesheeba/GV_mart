@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { istDayStartIso, istDayEndIso } from "@/lib/ist"
 import { useNavigate } from "react-router-dom"
 import { MapPin, Plus, TriangleAlert } from "lucide-react"
 import { useTicketsList, useAppointmentsRange, useTechnicians } from "@/hooks/useService"
@@ -25,7 +26,7 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
 
   const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, {})
   const { data: technicians } = useTechnicians(orgId)
-  const { data: appointments, isLoading: apptLoading } = useAppointmentsRange(orgId, `${today}T00:00:00`, `${today}T23:59:59`)
+  const { data: appointments, isLoading: apptLoading } = useAppointmentsRange(orgId, istDayStartIso(today), istDayEndIso(today))
   const { data: attendance, isLoading: attendanceLoading } = useAttendanceForDate(orgId, today)
   const { data: overdueSla, isLoading: overdueSlaLoading } = useOverdueSlaTickets(orgId)
 
