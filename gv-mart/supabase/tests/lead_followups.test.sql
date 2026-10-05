@@ -8,6 +8,15 @@ grant all on res to public;
 grant usage on sequence res_n_seq to public;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
+create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
+declare v uuid := gen_random_uuid();
+begin
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+  values (v, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '__t_' || p_role || '_' || v || '@test.invalid', 'x', now(), now(), now(), '{}', '{}');
+  insert into public.profiles (id, org_id, full_name, role, is_active) values (v, p_org, '__T ' || p_role, p_role::public.user_role, true)
+    on conflict (id) do update set role = excluded.role, is_active = true, org_id = excluded.org_id;
+  return v;
+end $f$;
 create function pg_temp.as_user(p_uid uuid) returns void language plpgsql as $f$
 begin perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true); execute 'set local role authenticated'; end $f$;
 create function pg_temp.as_pg() returns void language plpgsql as $f$
@@ -21,11 +30,13 @@ declare
   n int; n2 int; r jsonb; fa uuid; fb uuid; fc uuid; fd uuid; v_today date; txt text; b boolean;
   cnt_before int; rec record; v_custlead uuid; v_custid uuid;
 begin
-  select org_id, id into v_org, v_master from profiles where role='master' limit 1;
-  select id into v_sales from profiles where role='sales_admin' limit 1;
-  select id into v_ops from profiles where role='operation_admin' limit 1;
-  select t.profile_id into v_tech from technicians t limit 1;
-  select c.primary_profile_id, c.id into v_cust, v_custid from customers c where primary_profile_id is not null limit 1;
+  select org_id into v_org from profiles where role='master' limit 1;
+  -- temporary users, created inside this (rolled-back) transaction so the test never depends on the demo accounts
+  v_master := pg_temp.mkuser('master', v_org);
+  v_sales := pg_temp.mkuser('sales_admin', v_org);
+  v_ops := pg_temp.mkuser('operation_admin', v_org);
+  v_tech := pg_temp.mkuser('technician', v_org);
+  v_cust := pg_temp.mkuser('customer', v_org);
   select id into o_asked from lead_outcomes where org_id=v_org and code='asked_price';
   select id into o_later from lead_outcomes where org_id=v_org and code='will_buy_later';
   select id into o_interested from lead_outcomes where org_id=v_org and code='interested_send_details';
@@ -169,7 +180,7 @@ begin
 
   -- ===== 8. RLS / role gates =====
   insert into leads(org_id,name,mobile) values (v_org,'__T_rls','9333333301') returning id into l1;
-  insert into leads(org_id,customer_id,name,mobile) values (v_org,v_custid,'__T_rls_cust','9333333302') returning id into v_custlead;
+  insert into leads(org_id,name,mobile) values (v_org,'__T_rls_cust','9333333302') returning id into v_custlead;
   for rec in select * from (values ('master',v_master),('sales_admin',v_sales),('operation_admin',v_ops),('technician',v_tech),('customer',v_cust)) x(role, uid) loop
     perform pg_temp.as_user(rec.uid);
     select count(*) into n from lead_followups;

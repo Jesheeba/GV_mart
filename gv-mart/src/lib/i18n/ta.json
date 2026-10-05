@@ -4350,7 +4350,13 @@
       "low_stock": "குறைந்த சரக்கு",
       "handover_pending": "ஒப்படைப்பு நிலுவையில்",
       "job_overrun": "பணி நேரம் மீறல்",
-      "technician_low_stock": "தொழில்நுட்ப சரக்கு குறைவு"
+      "technician_low_stock": "தொழில்நுட்ப சரக்கு குறைவு",
+      "lead_followup_digest": "இன்றைய பின்தொடர்தல்கள்",
+      "lead_followup_overdue": "24 மணி நேரத்திற்கு மேல் தாமதமானவை",
+      "lead_callback_reminder": "அழைப்பு நினைவூட்டல்",
+      "enquiry_lead": "புதிய விசாரணை",
+      "callback_requested": "அழைப்பு கோரிக்கை",
+      "wa_lead_captured": "புதிய வாட்ஸ்அப் லீட்"
     }
   },
   "approvals": {

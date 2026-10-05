@@ -4355,7 +4355,13 @@
       "low_stock": "Low stock",
       "handover_pending": "Handover pending",
       "job_overrun": "Job overrun",
-      "technician_low_stock": "Technician stock low"
+      "technician_low_stock": "Technician stock low",
+      "lead_followup_digest": "Follow-ups for today",
+      "lead_followup_overdue": "Follow-ups overdue 24h+",
+      "lead_callback_reminder": "Callback reminder",
+      "enquiry_lead": "New enquiry",
+      "callback_requested": "Callback requested",
+      "wa_lead_captured": "New WhatsApp lead"
     }
   },
   "approvals": {
