@@ -10,7 +10,9 @@
  * admin-set via the Masters UI (v2.2: "no fixed ₹ figures").
  */
 
-export const SEED_PASSWORD = "GvMart@2026"
+/** Never hard-code: set SEED_PASSWORD in the environment before `npm run seed`. */
+export const SEED_PASSWORD = process.env.SEED_PASSWORD ?? ""
+if (!SEED_PASSWORD) throw new Error("SEED_PASSWORD env var is required to run the seed (no default password).")
 
 export const ORG = { name: "GV Mart", gst_no: "33AAAAA0000A1Z5" }
 
