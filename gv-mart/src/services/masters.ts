@@ -442,6 +442,29 @@ export async function deleteIncentiveRule(id: string) {
   if (error) throw error
 }
 
+// ── Role base salaries (Salary/Incentive Phase 1, Part A) ───────────────
+// Master-only (RLS). Non-technician staff only — technician_tiers stays the
+// sole source of technician base pay.
+export async function listRoleBaseSalaries(orgId: string) {
+  const { data, error } = await supabase.from("role_base_salaries").select("*").eq("org_id", orgId).order("label")
+  if (error) throw error
+  return data
+}
+export async function createRoleBaseSalary(row: TablesInsert<"role_base_salaries">) {
+  const { data, error } = await supabase.from("role_base_salaries").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateRoleBaseSalary(id: string, patch: TablesUpdate<"role_base_salaries">) {
+  const { data, error } = await supabase.from("role_base_salaries").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteRoleBaseSalary(id: string) {
+  const { error } = await supabase.from("role_base_salaries").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── Complaint types (Meeting spec E1) ───────────────────────────────────
 // Product-category-tagged, admin-editable — feeds the filtered auto-suggest
 // on the customer booking screen and the admin new-complaint screen.
@@ -489,6 +512,7 @@ export type ProductTdsRecommendationRow = Tables<"product_tds_recommendations"> 
 export type AmcPlanRow = Tables<"amc_plans">
 export type RentalPlanRow = Tables<"rental_plans">
 export type IncentiveRuleRow = Tables<"incentive_rules">
+export type RoleBaseSalaryRow = Tables<"role_base_salaries">
 export type ComplaintTypeRow = Tables<"complaint_types">
 export type ProductSpareRow = Tables<"product_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
 export type ComplaintTypeSpareRow = Tables<"complaint_type_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }

@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
-import { useNonTechnicianStaff } from "@/hooks/useHr"
+import { useNonTechnicianStaff, useSetStaffRoleKey } from "@/hooks/useHr"
+import { roleBaseSalariesHooks } from "@/hooks/useMasters"
 import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
 import { useAssignableProfiles, useAssignTask, useOrgTasks } from "@/hooks/useTasks"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -43,11 +44,24 @@ export function StaffSalaryTab() {
   const { data: staffSalaryTotals } = useSalarySpendByStaff(orgId, range)
   const totalsByStaffId = new Map((staffSalaryTotals ?? []).map((s) => [s.staffId, s.total]))
   const createExpense = useCreateExpense()
+  // Role base salaries (Masters > Role Salaries). Pre-fills the amount for a
+  // staff member linked via profiles.staff_role_key; master can still override.
+  const { data: roleSalaries } = roleBaseSalariesHooks.useList(orgId)
+  const setRoleKey = useSetStaffRoleKey()
+  const baseByRoleKey = new Map((roleSalaries ?? []).filter((r) => r.is_active).map((r) => [r.role_key, r.monthly_base]))
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [loggingId, setLoggingId] = useState<string | null>(null)
 
+  /** What the input shows/logs: the typed value if any, else the mapped role base (when > 0). */
+  function effectiveAmount(person: StaffOption): string {
+    const typed = amounts[person.id]
+    if (typed !== undefined) return typed
+    const base = person.staff_role_key ? baseByRoleKey.get(person.staff_role_key) : undefined
+    return base && base > 0 ? String(base) : ""
+  }
+
   function logSalary(person: StaffOption) {
-    const raw = amounts[person.id]
+    const raw = effectiveAmount(person)
     const amount = Number(raw)
     if (!orgId || !raw || !(amount > 0)) return
     setLoggingId(person.id)
@@ -114,6 +128,26 @@ export function StaffSalaryTab() {
     { key: "name", header: t("hr.staffSalary.staff"), render: (r) => r.full_name },
     { key: "role", header: t("hr.staffSalary.role"), render: (r) => t(`roles.${r.role}`, r.role) },
     {
+      key: "salaryRole",
+      header: t("hr.staffSalary.salaryRole"),
+      render: (r) => (
+        <select
+          aria-label={t("hr.staffSalary.salaryRole")}
+          value={r.staff_role_key ?? ""}
+          onChange={(e) => setRoleKey.mutate({ profileId: r.id, staffRoleKey: e.target.value || null })}
+          disabled={setRoleKey.isPending}
+          className="h-9 rounded-md border border-border bg-surface px-2 text-sm"
+        >
+          <option value="">{t("hr.staffSalary.noRole")}</option>
+          {(roleSalaries ?? []).map((rs) => (
+            <option key={rs.id} value={rs.role_key}>
+              {rs.label}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
       key: "status",
       header: "",
       render: (r) => {
@@ -136,11 +170,11 @@ export function StaffSalaryTab() {
             min={0}
             step="0.01"
             placeholder={t("hr.staffSalary.amount")}
-            value={amounts[r.id] ?? ""}
+            value={effectiveAmount(r)}
             onChange={(e) => setAmounts((prev) => ({ ...prev, [r.id]: e.target.value }))}
             className="h-9 w-32"
           />
-          <Button size="xs" variant="accent" onClick={() => logSalary(r)} disabled={!amounts[r.id] || Number(amounts[r.id]) <= 0 || loggingId === r.id}>
+          <Button size="xs" variant="accent" onClick={() => logSalary(r)} disabled={!(Number(effectiveAmount(r)) > 0) || loggingId === r.id}>
             {loggingId === r.id ? <Loader2 className="size-3 animate-spin" /> : <Wallet className="size-3" />}
             {t("hr.staffSalary.logSalary")}
           </Button>

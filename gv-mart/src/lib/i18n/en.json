@@ -523,6 +523,7 @@
       "rentalPlansDesc": "{{count}} rental plans",
       "technicianTiersDesc": "{{count}} tiers",
       "incentivesDesc": "{{count}} incentive rules",
+      "roleSalariesDesc": "{{count}} staff roles",
       "complaintTypesDesc": "{{count}} complaint types",
       "sopStepsDesc": "{{count}} activities",
       "productEnquiryDesc": "{{count}} customer app tabs configured",
@@ -542,6 +543,7 @@
       "rentalPlans": "Rental Plans",
       "technicianTiers": "Technician Tiers",
       "incentives": "Incentives",
+      "roleSalaries": "Role Salaries",
       "complaintTypes": "Name of Complaint",
       "sopSteps": "Activities",
       "productEnquiry": "Product Enquiry",
@@ -740,6 +742,14 @@
       "inclusionsPlaceholder": "Comma-separated, e.g. Filter change, Sanitization",
       "add": "Add plan",
       "empty": "No rental plans yet — add your first one."
+    },
+    "roleSalaries": {
+      "subtitle": "Monthly base salary per non-technician staff role. Technicians are not listed here — their base comes from Technician Tiers. Link each person to a role on HR > Staff Salary; the amount pre-fills there and you can still override it each month.",
+      "label": "Role name",
+      "roleKey": "Role key",
+      "monthlyBase": "Monthly base salary",
+      "add": "Add role",
+      "empty": "No roles yet — add one."
     },
     "incentives": {
       "type": "Type",
@@ -3612,6 +3622,8 @@
       "logged": "Logged"
     },
     "staffSalary": {
+      "salaryRole": "Salary role",
+      "noRole": "— none —",
       "subtitle": "Master, Operation Admin and Sales Admin salaries — typed manually each time, no fixed or auto-repeating amount. Technician salaries stay on the Salary tab (calculated automatically).",
       "month": "Month",
       "staff": "Staff",
@@ -3718,7 +3730,23 @@
       "technician": "Technician",
       "serviceCount": "Services",
       "avgValuePerCall": "Avg Value per Call",
-      "revenue": "Revenue"
+      "revenue": "Revenue",
+      "revenueByType": "Revenue by type",
+      "revenueByTypeNote": "Count = invoices (visits for Service). Qty = units sold for Sales; equals count for the others. Average = revenue ÷ count.",
+      "revenueByTypeCols": {
+        "type": "Type",
+        "revenue": "Invoiced",
+        "share": "Share %",
+        "count": "Count",
+        "qty": "Qty",
+        "avgValue": "Avg value"
+      },
+      "revenueTypeLabel": {
+        "sales": "Sales",
+        "service": "Service",
+        "amc": "AMC",
+        "rental": "Rental"
+      }
     },
     "pnl": {
       "title": "Profit & Loss",
@@ -3761,7 +3789,19 @@
       },
       "gstToggle": "View",
       "logExpense": "Log Expense",
-      "date": "Date"
+      "date": "Date",
+      "marginPercent": "Net margin %",
+      "grossMarginPercent": "Gross margin %",
+      "rows": {
+        "gstCollected": "GST collected",
+        "margin": "Margin %",
+        "cashProfit": "Cash profit"
+      },
+      "expenseCols": {
+        "amount": "Amount",
+        "share": "Share %",
+        "bar": "Bar"
+      }
     },
     "performance": {
       "scoreboardTitle": "Performance Scoreboard",
@@ -3784,7 +3824,8 @@
       "legendCaption": "1st-fix rate, technician-wise",
       "legendStrong": "≥ 90% strong",
       "legendWatch": "80–89% watch",
-      "legendCoach": "< 80% coach"
+      "legendCoach": "< 80% coach",
+      "installations": "Installations"
     },
     "feedback": {
       "starsDistribution": "Star Rating Distribution",
@@ -3824,6 +3865,11 @@
       "expenseCategoryRequired": "Category is required",
       "expenseAmountPositive": "Amount must be greater than 0",
       "expenseDateRequired": "Date is required"
+    },
+    "columns": {
+      "button": "Columns",
+      "title": "Show columns",
+      "reset": "Reset to default"
     }
   },
   "accounts": {
@@ -4184,12 +4230,30 @@
       "footer": "Reply \"menu\" anytime to come back here",
       "buttonText": "View options",
       "items": {
-        "buy": { "title": "Buy / Upgrade", "description": "Explore our products" },
-        "service": { "title": "Book Service", "description": "Raise a service request" },
-        "spares": { "title": "Parts & Accessories", "description": "Order spares" },
-        "amc": { "title": "AMC & Maintenance", "description": "Check AMC status, renew" },
-        "account": { "title": "My GV Mart Account", "description": "Products, tickets, AMC" },
-        "expert": { "title": "Talk to an Expert", "description": "Connect with our team" }
+        "buy": {
+          "title": "Buy / Upgrade",
+          "description": "Explore our products"
+        },
+        "service": {
+          "title": "Book Service",
+          "description": "Raise a service request"
+        },
+        "spares": {
+          "title": "Parts & Accessories",
+          "description": "Order spares"
+        },
+        "amc": {
+          "title": "AMC & Maintenance",
+          "description": "Check AMC status, renew"
+        },
+        "account": {
+          "title": "My GV Mart Account",
+          "description": "Products, tickets, AMC"
+        },
+        "expert": {
+          "title": "Talk to an Expert",
+          "description": "Connect with our team"
+        }
       }
     },
     "mechanics": {

@@ -5,26 +5,28 @@ import { SalesServiceReportTab } from "./SalesServiceReportTab"
 import { PnlReportTab } from "./PnlReportTab"
 import { PerformanceReportTab } from "./PerformanceReportTab"
 import { FeedbackReportTab } from "./FeedbackReportTab"
+import { TopCustomersReportTab } from "./TopCustomersReportTab"
 
 export function ReportsPage() {
   const { t } = useTranslation()
 
   return (
     <div className="space-y-4 pt-2">
-      <div>
+      <div className="print:hidden">
         <h1 className="text-2xl font-bold text-text">{t("nav.reports")}</h1>
         <p className="text-sm text-text-muted">{t("reports.subtitle")}</p>
       </div>
 
       <Tabs defaultValue="salesService">
-        <TabsList className="flex-wrap">
+        <TabsList className="flex-wrap print:hidden">
           <TabsTrigger value="salesService">{t("reports.tabs.salesService")}</TabsTrigger>
           <TabsTrigger value="pnl">{t("reports.tabs.pnl")}</TabsTrigger>
           <TabsTrigger value="performance">{t("reports.tabs.performance")}</TabsTrigger>
           <TabsTrigger value="feedback">{t("reports.tabs.feedback")}</TabsTrigger>
+          <TabsTrigger value="topCustomers">{t("reports.tabs.topCustomers")}</TabsTrigger>
         </TabsList>
 
-        <Card size="default" className="mt-3">
+        <Card size="default" className="mt-3 print:m-0 print:border-0 print:p-0 print:shadow-none">
           <TabsContent value="salesService">
             <SalesServiceReportTab />
           </TabsContent>
@@ -36,6 +38,9 @@ export function ReportsPage() {
           </TabsContent>
           <TabsContent value="feedback">
             <FeedbackReportTab />
+          </TabsContent>
+          <TabsContent value="topCustomers">
+            <TopCustomersReportTab />
           </TabsContent>
         </Card>
       </Tabs>

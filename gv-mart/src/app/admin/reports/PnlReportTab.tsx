@@ -17,7 +17,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { SegButton } from "@/components/shared/SegButton"
+import { ColumnPicker } from "@/components/shared/ColumnPicker"
+import { useColumnPrefs } from "@/hooks/useColumnPrefs"
 import { PeriodFilter } from "./PeriodFilter"
+
+// Optional P&L summary rows (revenue / COGS / OpEx / Net Profit always show)
+// and optional expense-breakdown columns — fixed catalogs, toggled per admin.
+const PNL_ROWS = ["gstCollected", "margin", "cashProfit"] as const
+type PnlRowKey = (typeof PNL_ROWS)[number]
+const EXPENSE_COLS = ["amount", "share", "bar"] as const
+type ExpenseCol = (typeof EXPENSE_COLS)[number]
+const EXPENSE_DEFAULT_COLS: ExpenseCol[] = ["amount", "bar"]
 
 // Expense bar color rank: biggest category = ink, smallest = the muted
 // tan-grey swatch already established in AmcWarrantyListPage.tsx (tier-0
@@ -45,6 +55,8 @@ export function PnlReportTab() {
 
   const { data, isLoading, isError, refetch } = usePnlReport(profile?.org_id, range)
   const isMaster = profile?.role === "master"
+  const rowPrefs = useColumnPrefs<PnlRowKey>("pnlRows", PNL_ROWS, PNL_ROWS)
+  const expensePrefs = useColumnPrefs<ExpenseCol>("expenseCategoryCols", EXPENSE_COLS, EXPENSE_DEFAULT_COLS)
 
   const revenue = withGst ? data?.revenueWithGst : data?.revenueWithoutGst
   const netProfit = withGst ? data?.netProfitWithGst : data?.netProfitWithoutGst
@@ -64,6 +76,11 @@ export function PnlReportTab() {
   const categoryFilteredExpenses = category === "all" ? (data?.expensesByCategory ?? []) : (data?.expensesByCategory ?? []).filter((e) => e.category === category)
   const sortedExpenses = [...categoryFilteredExpenses].sort((a, b) => b.amount - a.amount)
   const maxExpense = Math.max(1, ...sortedExpenses.map((e) => e.amount))
+  const filteredExpenseTotal = sortedExpenses.reduce((sum, e) => sum + e.amount, 0)
+  // Margin % = net profit ÷ revenue (same GST basis as the figures beside it).
+  const marginPercent = revenue && revenue > 0 && netProfit !== undefined ? Math.round((netProfit / revenue) * 1000) / 10 : null
+  const grossMarginPercent =
+    data && data.itemProfit.revenue > 0 ? Math.round((data.itemProfit.profit / data.itemProfit.revenue) * 1000) / 10 : null
 
   function handleExport() {
     if (!data) return
@@ -111,7 +128,15 @@ export function PnlReportTab() {
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="rounded-card border border-border bg-surface p-6 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
-            <h3 className="mb-[18px] text-[17px] font-bold tracking-tight text-text">{t("reports.pnl.title")}</h3>
+            <div className="mb-[18px] flex items-center justify-between gap-2">
+              <h3 className="text-[17px] font-bold tracking-tight text-text">{t("reports.pnl.title")}</h3>
+              <ColumnPicker
+                options={PNL_ROWS.map((k) => ({ key: k, label: t(`reports.pnl.rows.${k}`) }))}
+                visible={rowPrefs.visible}
+                onToggle={rowPrefs.toggle}
+                onReset={rowPrefs.reset}
+              />
+            </div>
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 4 }).map((_, i) => (
@@ -128,7 +153,12 @@ export function PnlReportTab() {
                 />
                 <PnlRow label={t("reports.pnl.costOfGoods")} value={`− ${formatCurrency(costOfGoods)}`} tone="danger" />
                 <PnlRow label={t("reports.pnl.operatingExpenses")} value={`− ${formatCurrency(operatingExpenses)}`} tone="danger" />
-                {withGst && data ? <PnlRow label={t("reports.pnl.gstCollected")} value={formatCurrency(data.gstCollected)} /> : null}
+                {withGst && data && rowPrefs.isVisible("gstCollected") ? (
+                  <PnlRow label={t("reports.pnl.gstCollected")} value={formatCurrency(data.gstCollected)} />
+                ) : null}
+                {rowPrefs.isVisible("margin") ? (
+                  <PnlRow label={t("reports.pnl.marginPercent")} value={marginPercent != null ? `${marginPercent}%` : "—"} />
+                ) : null}
 
                 <div
                   className={cn(
@@ -150,6 +180,8 @@ export function PnlReportTab() {
                 </div>
                 {withGst ? <p className="mt-2 text-[11px] text-text-muted">{t("reports.pnl.gstCollectedNote")}</p> : null}
 
+                {rowPrefs.isVisible("cashProfit") ? (
+                  <>
                 {/* money-flow-audit item 1 — Net Profit above is invoiced-basis
                     (counts due/partial invoices as profit already); Cash Profit
                     is the collected-basis counterpart, the real cash position. */}
@@ -172,6 +204,8 @@ export function PnlReportTab() {
                   </span>
                 </div>
                 <p className="mt-2 text-[11px] text-text-muted">{t("reports.pnl.cashProfitNote")}</p>
+                  </>
+                ) : null}
               </>
             )}
           </div>
@@ -193,6 +227,12 @@ export function PnlReportTab() {
                     </option>
                   ))}
                 </select>
+                <ColumnPicker
+                  options={EXPENSE_COLS.map((k) => ({ key: k, label: t(`reports.pnl.expenseCols.${k}`) }))}
+                  visible={expensePrefs.visible}
+                  onToggle={expensePrefs.toggle}
+                  onReset={expensePrefs.reset}
+                />
                 <Button size="sm" variant="outline" onClick={() => setShowLogExpense((v) => !v)}>
                   <Plus className="size-4" />
                   {t("reports.pnl.logExpense")}
@@ -222,14 +262,23 @@ export function PnlReportTab() {
                   <div key={e.category}>
                     <div className="mb-[7px] flex items-center justify-between">
                       <span className="text-[13px] font-semibold text-text">{t(`reports.pnl.expenseCategory.${e.category}`)}</span>
-                      <span className="text-[13px] font-bold tabular-nums text-text">{formatCurrency(e.amount)}</span>
+                      <span className="flex items-center gap-3 text-[13px] font-bold tabular-nums text-text">
+                        {expensePrefs.isVisible("amount") ? formatCurrency(e.amount) : null}
+                        {expensePrefs.isVisible("share") ? (
+                          <span className="font-semibold text-text-muted">
+                            {filteredExpenseTotal > 0 ? `${Math.round((e.amount / filteredExpenseTotal) * 1000) / 10}%` : "—"}
+                          </span>
+                        ) : null}
+                      </span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-border">
-                      <div
-                        className={cn("h-full rounded-full", barColor(i, sortedExpenses.length))}
-                        style={{ width: `${Math.max(4, Math.round((e.amount / maxExpense) * 100))}%` }}
-                      />
-                    </div>
+                    {expensePrefs.isVisible("bar") ? (
+                      <div className="h-2 overflow-hidden rounded-full bg-border">
+                        <div
+                          className={cn("h-full rounded-full", barColor(i, sortedExpenses.length))}
+                          style={{ width: `${Math.max(4, Math.round((e.amount / maxExpense) * 100))}%` }}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -267,6 +316,11 @@ export function PnlReportTab() {
                   {formatCurrency(data.itemProfit.profit)}
                 </span>
               </div>
+              {rowPrefs.isVisible("margin") ? (
+                <div className="mt-2">
+                  <PnlRow label={t("reports.pnl.grossMarginPercent")} value={grossMarginPercent != null ? `${grossMarginPercent}%` : "—"} />
+                </div>
+              ) : null}
               <p className="mt-2 text-[11px] text-text-muted">{t("reports.pnl.itemProfitNote")}</p>
               {data.itemProfit.missingCostCount > 0 ? (
                 <p className="mt-1 text-[11px] text-danger">

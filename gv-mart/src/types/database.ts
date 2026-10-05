@@ -59,6 +59,7 @@ export type Database = {
           photo_url: string | null
           language: string
           is_active: boolean
+          staff_role_key: string | null
           created_at: string
           updated_at: string
         }
@@ -71,6 +72,7 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          staff_role_key?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -83,6 +85,7 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          staff_role_key?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3855,6 +3858,47 @@ export type Database = {
             columns: ["spare_id"]
             isOneToOne: false
             referencedRelation: "spares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_base_salaries: {
+        Row: {
+          id: string
+          org_id: string
+          role_key: string
+          label: string
+          monthly_base: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          role_key: string
+          label: string
+          monthly_base?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          role_key?: string
+          label?: string
+          monthly_base?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_base_salaries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]

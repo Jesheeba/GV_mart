@@ -42,6 +42,14 @@ export function useSalesServiceReport(orgId: string | undefined, range: DateRang
   })
 }
 
+export function useTopCustomersReport(orgId: string | undefined, range: DateRange, limit: number) {
+  return useQuery({
+    queryKey: ["reports", "topCustomers", orgId, range, limit],
+    queryFn: () => reports.getTopCustomersBySales(orgId!, range, limit),
+    enabled: !!orgId && limit > 0,
+  })
+}
+
 export function usePnlReport(orgId: string | undefined, range: DateRange) {
   return useQuery({
     queryKey: ["reports", "pnl", orgId, range],

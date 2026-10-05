@@ -118,6 +118,21 @@ export type SalesServiceReport = {
   rentalCollected: number
   serviceCollected: number
   totalCollected: number
+  /** Revenue-by-type table (Phase 1 / Part G-lite). `count` = invoices (sales,
+   * AMC, rental) or visits (service); `qty` = units sold from invoice_items
+   * for sales, equal to `count` for the other three (no unit concept);
+   * `avgValue` = revenue ÷ count; `percent` = share of totalRevenue.
+   * Expense-per-type is intentionally absent — expenses carry a category, not
+   * a revenue type, so that needs a mapping decision (later phase). */
+  revenueByType: {
+    type: "sales" | "service" | "amc" | "rental"
+    revenue: number
+    collected: number
+    count: number
+    qty: number
+    avgValue: number
+    percent: number
+  }[]
 }
 
 export async function getSalesServiceReport(orgId: string, range: DateRange): Promise<SalesServiceReport> {
@@ -132,7 +147,7 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
       .lte("called_at", toIso),
     supabase
       .from("invoices")
-      .select("id, type, total, amount_paid, created_at")
+      .select("id, type, total, amount_paid, created_at, invoice_items(qty)")
       .eq("org_id", orgId)
       .gte("created_at", fromIso)
       .lte("created_at", toIso),
@@ -243,6 +258,32 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
   const totalRevenue = salesRevenue + amcRevenue + rentalRevenue + serviceRevenue
   const totalCollected = salesCollected + amcCollected + rentalCollected + serviceCollected
 
+  let salesCount = 0
+  let salesQty = 0
+  for (const inv of invoices) {
+    if (inv.type === "product" || (inv.type === "spare" && !serviceInvoiceIds.has(inv.id))) {
+      salesCount += 1
+      salesQty += ((inv as unknown as { invoice_items: { qty: number }[] | null }).invoice_items ?? []).reduce((s, i) => s + (i.qty ?? 0), 0)
+    }
+  }
+  const amcCount = ratioMap.get("amc")?.count ?? 0
+  const rentalCount = ratioMap.get("rent")?.count ?? 0
+  const typeRow = (type: "sales" | "service" | "amc" | "rental", revenue: number, collected: number, count: number, qty: number) => ({
+    type,
+    revenue,
+    collected,
+    count,
+    qty,
+    avgValue: count > 0 ? Math.round((revenue / count) * 100) / 100 : 0,
+    percent: totalRevenue > 0 ? Math.round((revenue / totalRevenue) * 1000) / 10 : 0,
+  })
+  const revenueByType = [
+    typeRow("sales", salesRevenue, salesCollected, salesCount, salesQty),
+    typeRow("service", serviceRevenue, serviceCollected, visits.length, visits.length),
+    typeRow("amc", amcRevenue, amcCollected, amcCount, amcCount),
+    typeRow("rental", rentalRevenue, rentalCollected, rentalCount, rentalCount),
+  ]
+
   return {
     salesCallsCount: callsRes.count ?? 0,
     invoiceTypeRatio,
@@ -258,6 +299,7 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
     rentalCollected,
     serviceCollected,
     totalCollected,
+    revenueByType,
   }
 }
 
@@ -418,12 +460,14 @@ export type PerformanceRow = {
    *  `check_out_at - check_in_at`, days missing either timestamp skipped).
    *  Null if there's no on-duty time to divide by. */
   productivityJobsPerHour: number | null
+  /** Units logged in installations_logged in range (sum of qty). */
+  installations: number
 }
 
 export async function getPerformanceReport(orgId: string, range: DateRange): Promise<PerformanceRow[]> {
   const { fromIso, toIso } = rangeToTimestamps(range)
 
-  const [visitsRes, ticketsRes, ratingsRes, leadsRes, attendanceRes] = await Promise.all([
+  const [visitsRes, ticketsRes, ratingsRes, leadsRes, attendanceRes, installsRes] = await Promise.all([
     supabase
       .from("service_visits")
       .select("id, technician_id, service_charge, timer_start, timer_end, needs_revisit, technicians(id, profiles(full_name))")
@@ -457,7 +501,14 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
       .eq("org_id", orgId)
       .gte("date", range.from)
       .lte("date", range.to),
+    supabase
+      .from("installations_logged")
+      .select("technician_id, qty")
+      .eq("org_id", orgId)
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso),
   ])
+  if (installsRes.error) throw installsRes.error
   if (visitsRes.error) throw visitsRes.error
   if (ticketsRes.error) throw ticketsRes.error
   if (ratingsRes.error) throw ratingsRes.error
@@ -490,6 +541,7 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
       conversionPercent: null,
       avgCompletionMinutes: null,
       productivityJobsPerHour: null,
+      installations: 0,
     }
     row.jobsDone += 1
     row.revenue += v.service_charge ?? 0
@@ -562,6 +614,7 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
         conversionPercent: a.total ? Math.round((a.won / a.total) * 1000) / 10 : null,
         avgCompletionMinutes: null,
         productivityJobsPerHour: null,
+        installations: 0,
       })
     }
   }
@@ -598,6 +651,11 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
   for (const [techId, hours] of dutyHours) {
     const row = byTech.get(techId)
     if (row) row.productivityJobsPerHour = hours > 0 ? Math.round((row.jobsDone / hours) * 100) / 100 : null
+  }
+
+  for (const i of installsRes.data ?? []) {
+    const row = byTech.get(i.technician_id)
+    if (row) row.installations += i.qty ?? 0
   }
 
   void ticketsRes // ticket-level 24h-resolution KPI surfaced via getOpsResolutionKpi below
@@ -904,6 +962,94 @@ export async function getExpensesYearOverYear(orgId: string, yearsBack = 3): Pro
     })
   }
   return result
+}
+
+// ── Top Customers by Sales (printable ranking sheet) ────────────────────
+// Ranked by invoiced total in-range (matches the ranking every other report
+// tab treats as "the" revenue figure), with the collected total alongside
+// for the same invoiced-vs-collected reason as getSalesServiceReport above.
+// Customer/address rows are fetched only for the already-ranked, sliced-to-
+// `limit` set — never for the whole customer base — so this stays cheap
+// even for orgs with a large customer list.
+export type TopCustomerRow = {
+  rank: number
+  customerId: string
+  name: string
+  mobile: string
+  profession: string | null
+  area: string | null
+  pincode: string | null
+  invoicedTotal: number
+  collectedTotal: number
+  invoiceCount: number
+  firstPurchaseAt: string
+  lastPurchaseAt: string
+}
+
+export async function getTopCustomersBySales(orgId: string, range: DateRange, limit: number): Promise<TopCustomerRow[]> {
+  const { fromIso, toIso } = rangeToTimestamps(range)
+
+  const { data: invoices, error: invErr } = await supabase
+    .from("invoices")
+    .select("customer_id, total, amount_paid, created_at")
+    .eq("org_id", orgId)
+    .gte("created_at", fromIso)
+    .lte("created_at", toIso)
+  if (invErr) throw invErr
+
+  const byCustomer = new Map<
+    string,
+    { invoicedTotal: number; collectedTotal: number; invoiceCount: number; firstPurchaseAt: string; lastPurchaseAt: string }
+  >()
+  for (const inv of invoices ?? []) {
+    const existing = byCustomer.get(inv.customer_id) ?? {
+      invoicedTotal: 0,
+      collectedTotal: 0,
+      invoiceCount: 0,
+      firstPurchaseAt: inv.created_at,
+      lastPurchaseAt: inv.created_at,
+    }
+    existing.invoicedTotal += inv.total ?? 0
+    existing.collectedTotal += inv.amount_paid ?? 0
+    existing.invoiceCount += 1
+    if (inv.created_at < existing.firstPurchaseAt) existing.firstPurchaseAt = inv.created_at
+    if (inv.created_at > existing.lastPurchaseAt) existing.lastPurchaseAt = inv.created_at
+    byCustomer.set(inv.customer_id, existing)
+  }
+
+  const ranked = [...byCustomer.entries()].sort((a, b) => b[1].invoicedTotal - a[1].invoicedTotal).slice(0, limit)
+  if (ranked.length === 0) return []
+
+  const customerIds = ranked.map(([id]) => id)
+  const [{ data: customers, error: custErr }, { data: addresses, error: addrErr }] = await Promise.all([
+    supabase.from("customers").select("id, name, mobile, profession").in("id", customerIds),
+    supabase.from("addresses").select("customer_id, area, pincode, is_primary").in("customer_id", customerIds),
+  ])
+  if (custErr) throw custErr
+  if (addrErr) throw addrErr
+
+  const customerById = new Map((customers ?? []).map((c) => [c.id, c]))
+  const addressByCustomer = new Map<string, { area: string | null; pincode: string | null }>()
+  for (const a of addresses ?? []) {
+    if (a.is_primary || !addressByCustomer.has(a.customer_id)) {
+      addressByCustomer.set(a.customer_id, { area: a.area, pincode: a.pincode })
+    }
+  }
+
+  return ranked.map(([customerId, v], i) => {
+    const c = customerById.get(customerId)
+    const addr = addressByCustomer.get(customerId)
+    return {
+      rank: i + 1,
+      customerId,
+      name: c?.name ?? "—",
+      mobile: c?.mobile ?? "—",
+      profession: c?.profession ?? null,
+      area: addr?.area ?? null,
+      pincode: addr?.pincode ?? null,
+      ...v,
+    }
+  })
 }
 
 // ── CSV export (no xlsx/exceljs dependency exists in package.json — plain

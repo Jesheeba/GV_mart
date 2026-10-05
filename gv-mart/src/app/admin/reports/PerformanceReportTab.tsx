@@ -9,15 +9,32 @@ import { useOpsResolutionKpi, usePerformanceReport } from "@/hooks/useReports"
 import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
+import { ColumnPicker } from "@/components/shared/ColumnPicker"
+import { useColumnPrefs } from "@/hooks/useColumnPrefs"
+import type { PerformanceRow } from "@/services/reports"
 import { PeriodFilter } from "./PeriodFilter"
 
-// Design's scoreboard grid track widths (design-template-decoded.html line
-// 1242: "0.5fr 1.6fr 1fr 1fr 1fr 1fr 0.9fr") — fractional tracks a <table>
-// can't express, same rationale AmcWarrantyListPage.tsx uses for its
-// bespoke CSS-grid rows instead of the shared <table>-based DataTable.
-// Extended from 7 to 9 tracks for Requirement 8's avg-completion-time and
-// productivity columns, inserted between "1st-fix" and "Reviews".
-const SCOREBOARD_GRID = "grid-cols-[0.5fr_1.6fr_1fr_1fr_1fr_1fr_1fr_1fr_0.9fr]"
+// Scoreboard columns. Rank and Person are always shown; everything else is
+// a toggleable column from this fixed catalog (useColumnPrefs). The design's
+// grid used fractional tracks (0.5fr 1.6fr then 1fr per metric) that a
+// <table> can't express — same rationale AmcWarrantyListPage.tsx uses for
+// its bespoke CSS-grid rows — so the template is now built from whichever
+// metric columns are visible.
+const PERF_COLUMNS = ["jobs", "avgPerCall", "firstFix", "avgCompletion", "productivity", "reviews", "conversion", "installations", "revenue"] as const
+type PerfColumn = (typeof PERF_COLUMNS)[number]
+// installations + revenue are new/optional, off until the admin ticks them.
+const PERF_DEFAULT_COLUMNS: PerfColumn[] = ["jobs", "avgPerCall", "firstFix", "avgCompletion", "productivity", "reviews", "conversion"]
+const PERF_HEADER_KEY: Record<PerfColumn, string> = {
+  jobs: "jobsShort",
+  avgPerCall: "avgPerCall",
+  firstFix: "firstFix",
+  avgCompletion: "avgCompletionTime",
+  productivity: "productivity",
+  reviews: "reviewsShort",
+  conversion: "conversion",
+  installations: "installations",
+  revenue: "revenue",
+}
 
 // "Xh Ym" once we cross an hour, plain minutes below that — kept simple per
 // spec, no need for day-level rollover on a single service visit's duration.
@@ -63,6 +80,9 @@ export function PerformanceReportTab() {
 
   const { data, isLoading, isError, refetch } = usePerformanceReport(profile?.org_id, range)
   const opsKpi = useOpsResolutionKpi(profile?.org_id, range)
+  const cols = useColumnPrefs<PerfColumn>("performance", PERF_COLUMNS, PERF_DEFAULT_COLUMNS)
+  const shownCols = PERF_COLUMNS.filter((c) => cols.isVisible(c))
+  const gridStyle = { gridTemplateColumns: ["0.5fr", "1.6fr", ...shownCols.map(() => "1fr")].join(" ") }
 
   const topPerformerId = data && data.length > 0 && data[0].revenue > 0 ? data[0].id : null
 
@@ -78,6 +98,7 @@ export function PerformanceReportTab() {
         t("reports.performance.avgRating"),
         t("reports.performance.productivity"),
         t("reports.performance.conversion"),
+        t("reports.performance.installations"),
       ],
       data.map((r) => [
         r.name,
@@ -88,6 +109,7 @@ export function PerformanceReportTab() {
         r.avgRating,
         r.productivityJobsPerHour,
         r.conversionPercent,
+        r.installations,
       ])
     )
     downloadCsv(`performance-report_${range.from}_${range.to}.csv`, csv)
@@ -110,7 +132,15 @@ export function PerformanceReportTab() {
       <div className="rounded-card border border-border bg-surface p-[22px] shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-[17px] font-bold tracking-tight text-text">{t("reports.performance.scoreboardTitle")}</h3>
-          <span className="text-[11px] font-semibold text-text-muted">{t("reports.performance.scoreboardCaption")}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-semibold text-text-muted">{t("reports.performance.scoreboardCaption")}</span>
+            <ColumnPicker
+              options={PERF_COLUMNS.map((k) => ({ key: k, label: t(`reports.performance.${PERF_HEADER_KEY[k]}`) }))}
+              visible={cols.visible}
+              onToggle={cols.toggle}
+              onReset={cols.reset}
+            />
+          </div>
         </div>
 
         {isError ? (
@@ -123,22 +153,23 @@ export function PerformanceReportTab() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-[10px] border border-border">
-            <div className={cn("grid items-center bg-surface-alt px-3.5 py-2.5", SCOREBOARD_GRID)}>
+            <div className="grid items-center bg-surface-alt px-3.5 py-2.5" style={gridStyle}>
               <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.rank")}</span>
               <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.person")}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.jobsShort")}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.avgPerCall")}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.firstFix")}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.avgCompletionTime")}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.productivity")}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.reviewsShort")}</span>
-              <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-text-muted">{t("reports.performance.conversion")}</span>
+              {shownCols.map((c, idx) => (
+                <span
+                  key={c}
+                  className={cn("text-[10px] font-semibold uppercase tracking-wide text-text-muted", idx === shownCols.length - 1 && "text-right")}
+                >
+                  {t(`reports.performance.${PERF_HEADER_KEY[c]}`)}
+                </span>
+              ))}
             </div>
 
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className={cn("grid items-center border-t border-[#F1EDE6] px-3.5 py-3", SCOREBOARD_GRID)}>
-                  {Array.from({ length: 9 }).map((_, j) => (
+                <div key={i} className="grid items-center border-t border-[#F1EDE6] px-3.5 py-3" style={gridStyle}>
+                  {Array.from({ length: shownCols.length + 2 }).map((_, j) => (
                     <Skeleton key={j} className="h-4 w-3/4 max-w-24" />
                   ))}
                 </div>
@@ -152,7 +183,7 @@ export function PerformanceReportTab() {
               (data ?? []).map((r, i) => {
                 const avgPerCall = r.jobsDone > 0 ? r.revenue / r.jobsDone : null
                 return (
-                  <div key={r.id} className={cn("grid items-center border-t border-[#F1EDE6] px-3.5 py-3", SCOREBOARD_GRID)}>
+                  <div key={r.id} className="grid items-center border-t border-[#F1EDE6] px-3.5 py-3" style={gridStyle}>
                     <span className={cn("text-xs font-extrabold", i === 0 ? "text-accent" : "text-text-muted")}>{i + 1}</span>
                     <div className="flex items-center gap-2">
                       <span
@@ -168,20 +199,18 @@ export function PerformanceReportTab() {
                         {r.id === topPerformerId ? <Award className="size-3.5 text-warning" /> : null}
                       </span>
                     </div>
-                    <span className="text-xs font-semibold tabular-nums text-text">{r.jobsDone}</span>
-                    <span className="text-xs font-semibold tabular-nums text-text">{avgPerCall != null ? formatCurrency(avgPerCall) : "—"}</span>
-                    <span className={cn("text-xs font-semibold tabular-nums", firstFixTone(r.onTimePercent))}>
-                      {r.onTimePercent != null ? `${r.onTimePercent}%` : "—"}
-                    </span>
-                    <span className="text-xs font-semibold tabular-nums text-text">{formatCompletionMinutes(r.avgCompletionMinutes)}</span>
-                    <span className="text-xs font-semibold tabular-nums text-text">{formatProductivity(r.productivityJobsPerHour)}</span>
-                    <span className="text-xs font-semibold tabular-nums text-text">
-                      {r.reviewCount}
-                      {r.avgRating != null ? <span className="ml-1 font-medium text-text-muted">({r.avgRating}★)</span> : null}
-                    </span>
-                    <span className="text-right text-xs font-semibold tabular-nums text-text">
-                      {r.conversionPercent != null ? `${r.conversionPercent}%` : "—"}
-                    </span>
+                    {shownCols.map((c, idx) => (
+                      <span
+                        key={c}
+                        className={cn(
+                          "text-xs font-semibold tabular-nums",
+                          c === "firstFix" ? firstFixTone(r.onTimePercent) : "text-text",
+                          idx === shownCols.length - 1 && "text-right"
+                        )}
+                      >
+                        {renderPerfCell(c, r, avgPerCall)}
+                      </span>
+                    ))}
                   </div>
                 )
               })
@@ -198,6 +227,34 @@ export function PerformanceReportTab() {
       </div>
     </div>
   )
+}
+
+function renderPerfCell(col: PerfColumn, r: PerformanceRow, avgPerCall: number | null) {
+  switch (col) {
+    case "jobs":
+      return r.jobsDone
+    case "avgPerCall":
+      return avgPerCall != null ? formatCurrency(avgPerCall) : "—"
+    case "firstFix":
+      return r.onTimePercent != null ? `${r.onTimePercent}%` : "—"
+    case "avgCompletion":
+      return formatCompletionMinutes(r.avgCompletionMinutes)
+    case "productivity":
+      return formatProductivity(r.productivityJobsPerHour)
+    case "reviews":
+      return (
+        <>
+          {r.reviewCount}
+          {r.avgRating != null ? <span className="ml-1 font-medium text-text-muted">({r.avgRating}★)</span> : null}
+        </>
+      )
+    case "conversion":
+      return r.conversionPercent != null ? `${r.conversionPercent}%` : "—"
+    case "installations":
+      return r.installations
+    case "revenue":
+      return formatCurrency(r.revenue)
+  }
 }
 
 function LegendDot({ toneClass, dotClass, label }: { toneClass: string; dotClass: string; label: string }) {

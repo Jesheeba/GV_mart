@@ -18,6 +18,14 @@ export function useNonTechnicianStaff(orgId: string | undefined) {
   })
 }
 
+export function useSetStaffRoleKey() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ profileId, staffRoleKey }: { profileId: string; staffRoleKey: string | null }) => hr.setStaffRoleKey(profileId, staffRoleKey),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["profiles", "nonTechnicianStaff"] }),
+  })
+}
+
 // ── Salary ─────────────────────────────────────────────────────────────────
 
 export function useSalaries(orgId: string | undefined, period: string) {

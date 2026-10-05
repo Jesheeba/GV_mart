@@ -8,7 +8,12 @@ import { useProfile } from "@/hooks/useProfile"
 import { useSalesServiceReport } from "@/hooks/useReports"
 import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
+import { ColumnPicker } from "@/components/shared/ColumnPicker"
+import { useColumnPrefs } from "@/hooks/useColumnPrefs"
 import { PeriodFilter } from "./PeriodFilter"
+
+const REVENUE_TYPE_COLUMNS = ["revenue", "collected", "share", "count", "qty", "avgValue"] as const
+type RevenueTypeColumn = (typeof REVENUE_TYPE_COLUMNS)[number]
 
 export function SalesServiceReportTab() {
   const { t } = useTranslation()
@@ -17,6 +22,21 @@ export function SalesServiceReportTab() {
   const range = periodToRange(period)
 
   const { data, isLoading, isError, refetch } = useSalesServiceReport(profile?.org_id, range)
+  const typeCols = useColumnPrefs<RevenueTypeColumn>("revenueByType", REVENUE_TYPE_COLUMNS, REVENUE_TYPE_COLUMNS)
+
+  type RevenueTypeRow = NonNullable<typeof data>["revenueByType"][number]
+  const typeColumnDefs: Record<RevenueTypeColumn, DataTableColumn<RevenueTypeRow>> = {
+    revenue: { key: "revenue", header: t("reports.salesService.revenueByTypeCols.revenue"), render: (r) => formatCurrency(r.revenue) },
+    collected: { key: "collected", header: t("reports.collectedLabel"), render: (r) => formatCurrency(r.collected) },
+    share: { key: "share", header: t("reports.salesService.revenueByTypeCols.share"), render: (r) => `${r.percent}%` },
+    count: { key: "count", header: t("reports.salesService.revenueByTypeCols.count"), render: (r) => r.count },
+    qty: { key: "qty", header: t("reports.salesService.revenueByTypeCols.qty"), render: (r) => r.qty },
+    avgValue: { key: "avgValue", header: t("reports.salesService.revenueByTypeCols.avgValue"), render: (r) => formatCurrency(r.avgValue) },
+  }
+  const typeColumns: DataTableColumn<RevenueTypeRow>[] = [
+    { key: "type", header: t("reports.salesService.revenueByTypeCols.type"), render: (r) => t(`reports.salesService.revenueTypeLabel.${r.type}`) },
+    ...REVENUE_TYPE_COLUMNS.filter((k) => typeCols.isVisible(k)).map((k) => typeColumnDefs[k]),
+  ]
 
   const techColumns: DataTableColumn<NonNullable<typeof data>["technicianServiceCounts"][number]>[] = [
     { key: "name", header: t("reports.salesService.technician"), render: (r) => r.technicianName },
@@ -106,6 +126,20 @@ export function SalesServiceReportTab() {
           </div>
         </>
       )}
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="text-sm font-semibold text-text">{t("reports.salesService.revenueByType")}</p>
+          <ColumnPicker
+            options={REVENUE_TYPE_COLUMNS.map((k) => ({ key: k, label: k === "collected" ? t("reports.collectedLabel") : t(`reports.salesService.revenueByTypeCols.${k}`) }))}
+            visible={typeCols.visible}
+            onToggle={typeCols.toggle}
+            onReset={typeCols.reset}
+          />
+        </div>
+        <DataTable columns={typeColumns} rows={data?.revenueByType ?? []} rowKey={(r) => r.type} loading={isLoading} emptyMessage={t("reports.empty")} />
+        <p className="px-1 text-[11px] text-text-muted">{t("reports.salesService.revenueByTypeNote")}</p>
+      </div>
 
       <div className="space-y-2">
         <p className="px-1 text-sm font-semibold text-text">{t("reports.salesService.invoiceTypeRatio")}</p>
