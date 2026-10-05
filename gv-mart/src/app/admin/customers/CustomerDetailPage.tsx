@@ -361,9 +361,10 @@ export function CustomerDetailPage() {
                       onClick={() => clearNeedsSetup.mutate()}
                       disabled={clearNeedsSetup.isPending}
                       title={t("customers.detail.needsSetupHint")}
-                      className="flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/15 px-2.75 py-1 text-[11px] font-semibold text-text"
+                      className="flex items-center gap-1.5 rounded-full border border-[#F97316]/40 bg-[#F97316]/15 px-2.75 py-1 text-[11px] font-semibold text-text"
                     >
-                      <StatusDot tone="warning" label={t("customers.detail.needsSetup")} />
+                      <span className="size-2 shrink-0 rounded-full bg-[#F97316]" aria-hidden="true" />
+                      <span className="text-sm text-text">{t("customers.detail.needsSetup")}</span>
                     </button>
                   ) : null}
                   {referredByTechnicianName ? (

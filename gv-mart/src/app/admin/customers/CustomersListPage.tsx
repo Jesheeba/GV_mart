@@ -174,7 +174,17 @@ export function CustomersListPage() {
               {initials(c.name)}
             </span>
             <div className="leading-tight">
-              <div className="font-semibold text-text">{c.name}</div>
+              <div className="flex items-center gap-1.5 font-semibold text-text">
+                {c.name}
+                {c.needs_setup ? (
+                  <span
+                    role="img"
+                    title={t("customers.detail.needsSetup")}
+                    aria-label={t("customers.detail.needsSetup")}
+                    className="size-2 shrink-0 rounded-full bg-[#F97316]"
+                  />
+                ) : null}
+              </div>
               <div className="gv-tnum text-xs text-text-muted">{c.mobile}</div>
             </div>
           </div>
