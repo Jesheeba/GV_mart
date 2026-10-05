@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { Package, ShieldCheck } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -34,7 +35,7 @@ export function OwnedProductStatusCard({
   actionSlot?: ReactNode
 }) {
   const { t } = useTranslation()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getIstNow().date
   const brandModel = [product.brands?.name, product.models?.name].filter(Boolean).join(" · ")
 
   const header = (

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { Loader2, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -31,7 +32,7 @@ export function BillEntryTab() {
   const [poId, setPoId] = useState("")
   const [items, setItems] = useState<PoItemInput[]>([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
   const [gst, setGst] = useState("0")
-  const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10))
+  const [billDate, setBillDate] = useState(getIstNow().date)
   // Build Order Step 1.3: was hardcoded to 'purchase' server-side regardless
   // of what was actually bought — defaults to 'purchase' (the common case
   // for a supplier bill) but staff can now pick any real category so the

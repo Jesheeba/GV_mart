@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { istDayStartIso, istDayEndIso } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { ChevronRight, History as HistoryIcon } from "lucide-react"
@@ -23,8 +24,8 @@ export function HistoryPage() {
   const [type, setType] = useState<Enums<"ticket_type"> | "all">("all")
 
   const history = useMyHistory(technician.data?.id, {
-    from: from ? new Date(from).toISOString() : undefined,
-    to: to ? new Date(to + "T23:59:59").toISOString() : undefined,
+    from: from ? istDayStartIso(from) : undefined,
+    to: to ? istDayEndIso(to) : undefined,
     type: type === "all" ? undefined : type,
   })
 

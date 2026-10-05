@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as tech from "@/services/technician"
 import { uploadPaymentProof } from "@/services/paymentProofs"
@@ -11,7 +12,7 @@ import { distanceKm, watchPosition } from "@/lib/offline/geo"
 import type { Enums } from "@/types/database"
 import type { OutboxJob } from "@/lib/offline/db"
 
-const todayIso = () => new Date().toISOString().slice(0, 10)
+const todayIso = () => getIstNow().date
 
 export function useMyTechnician() {
   const { data: profile } = useProfile()

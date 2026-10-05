@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -45,7 +46,7 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
       productId: "",
       planId: "",
       addressId: "",
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: getIstNow().date,
       paymentMethod: "cash",
       txnId: "",
       paymentDescription: "",

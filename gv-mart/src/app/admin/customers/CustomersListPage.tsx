@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Download, Plus, Search, SlidersHorizontal, UserPlus, X } from "lucide-react"
@@ -151,7 +152,7 @@ export function CustomersListPage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `gv-mart-customers-${new Date().toISOString().slice(0, 10)}.csv`
+      a.download = `gv-mart-customers-${getIstNow().date}.csv`
       a.click()
       URL.revokeObjectURL(url)
     } finally {

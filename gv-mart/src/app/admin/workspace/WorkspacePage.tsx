@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { Bell, CheckCircle2, Loader2, Plus, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,7 +22,7 @@ import { createTaskSchema } from "@/lib/validation/systemPages"
 import { cn } from "@/lib/utils"
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  return getIstNow().date
 }
 
 // The rollover fields (original_due_date/rolled_count) only ever come back

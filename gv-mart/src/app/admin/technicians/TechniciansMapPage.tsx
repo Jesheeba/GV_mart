@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { istDayStartIso } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { MapPin, Route } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -192,7 +193,7 @@ export function TechniciansMapPage() {
 
   const dayRoute = useMemo(() => {
     if (!trackingTechId || !trackedAppointments.data || !trackedVisits.data || !trackedTrail.data) return null
-    const dayStartIso = new Date(`${dateStr}T00:00:00`).toISOString()
+    const dayStartIso = istDayStartIso(dateStr)
     const nowIso = new Date().toISOString()
     const legs = mergeDayLegs(trackedAppointments.data, trackedVisits.data)
     const windows = buildDayLegs(legs, dayStartIso, nowIso)

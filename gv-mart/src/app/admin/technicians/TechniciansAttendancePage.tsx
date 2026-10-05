@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { Check, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -13,7 +14,7 @@ import type { AttendanceListItem } from "@/services/techniciansAdmin"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  return getIstNow().date
 }
 
 function lunchMinutes(r: AttendanceListItem, now: number) {

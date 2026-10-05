@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { getIstNow } from "@/lib/ist"
 import { useNavigate, useParams } from "react-router-dom"
 import { CalendarCheck2, ChevronLeft } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -27,7 +28,7 @@ export function AmcContractDetailPage() {
     return <FullPageError message={t("amc.detail.notFound")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getIstNow().date
 
   return (
     <div className="space-y-4 pt-2">

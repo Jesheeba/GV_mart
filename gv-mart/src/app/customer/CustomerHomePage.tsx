@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { getIstNow } from "@/lib/ist"
 import { useNavigate } from "react-router-dom"
 import { Bell, ChevronRight, MapPin, ShieldCheck, Sparkles, Wrench } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -130,7 +131,7 @@ function StatusCards() {
   return (
     <div className="grid grid-cols-2 gap-3">
       {amcContracts?.slice(0, 2).map((c) => {
-        const today = new Date().toISOString().slice(0, 10)
+        const today = getIstNow().date
         const tone = c.status === "active" ? "success" : c.status === "due_soon" ? "warning" : "danger"
         return (
           <Card key={c.id} size="sm" className="gap-1.5 lg:px-5" onClick={() => navigate("/customer/amc")}>
@@ -143,7 +144,7 @@ function StatusCards() {
         )
       })}
       {warranties?.slice(0, 2 - Math.min(2, amcContracts?.length ?? 0)).map((w) => {
-        const today = new Date().toISOString().slice(0, 10)
+        const today = getIstNow().date
         const active = w.expiry_date >= today
         return (
           <Card key={w.id} size="sm" className="gap-1.5 lg:px-5" onClick={() => navigate("/customer/products")}>

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { Loader2, Repeat, Wallet } from "lucide-react"
@@ -16,7 +17,7 @@ import { useToast } from "@/components/ui/toast-context"
 import type { StaffOption } from "@/services/hr"
 
 function currentMonthIso() {
-  return new Date().toISOString().slice(0, 7)
+  return getIstNow().date.slice(0, 7)
 }
 
 function monthToRange(month: string) {
@@ -71,7 +72,7 @@ export function StaffSalaryTab() {
         orgId,
         category: "salary",
         amount,
-        date: new Date().toISOString().slice(0, 10),
+        date: getIstNow().date,
         note: `Salary — ${month}`,
         staffId: person.id,
         loggedBy: profile?.id ?? null,
