@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import { minutesBetween } from "@/lib/visit-duration"
+import { toLocalDateString, toLocalMonthString } from "@/lib/local-date"
 import type { Enums } from "@/types/database"
 
 export type DateRange = { from: string; to: string }
@@ -15,7 +16,7 @@ export function defaultDateRange(days = 30): DateRange {
   const to = new Date()
   const from = new Date()
   from.setDate(from.getDate() - days)
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) }
+  return { from: toLocalDateString(from), to: toLocalDateString(to) }
 }
 
 // ── F2 quick-select date presets ─────────────────────────────────────────
@@ -29,7 +30,7 @@ export type DateRangePreset = (typeof dateRangePresets)[number]
  * to, so it just uses a date well before this app could have any data. */
 export function dateRangeForPreset(preset: DateRangePreset): DateRange {
   const now = new Date()
-  const toStr = (d: Date) => d.toISOString().slice(0, 10)
+  const toStr = toLocalDateString
   if (preset === "thisMonth") {
     return { from: toStr(new Date(now.getFullYear(), now.getMonth(), 1)), to: toStr(now) }
   }
@@ -67,16 +68,12 @@ export function periodToRange(value: PeriodValue): DateRange {
   const [y, m] = value.month.split("-").map(Number)
   const from = new Date(y, m - 1, 1)
   const to = new Date(y, m, 0)
-  // Local calendar parts, NOT toISOString(): these are local-midnight Dates, and
-  // in a UTC+ zone (IST) toISOString() shifts them back a day — month ranges
-  // came out as e.g. Sep 30 – Oct 30 instead of Oct 1 – Oct 31.
-  const toStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-  return { from: toStr(from), to: toStr(to) }
+  return { from: toLocalDateString(from), to: toLocalDateString(to) }
 }
 
 export function defaultPeriodValue(): PeriodValue {
   const now = new Date()
-  return { mode: "month", month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}` }
+  return { mode: "month", month: toLocalMonthString(now) }
 }
 
 // ── ADM-27 Sales & Service report ───────────────────────────────────────
