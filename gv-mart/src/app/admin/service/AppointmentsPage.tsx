@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { istDayStartIso, istDayEndIso } from "@/lib/ist"
+import { getIstNow, istDayStartIso, istDayEndIso } from "@/lib/ist"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -24,7 +24,9 @@ export function AppointmentsPage() {
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
-  const [day, setDay] = useState(() => new Date())
+  // Default to today in IST (not the device's date): local midnight of the IST date, so
+  // toDateInput(day) round-trips to that IST date on any device timezone.
+  const [day, setDay] = useState(() => new Date(`${getIstNow().date}T00:00:00`))
   const dayStr = toDateInput(day)
   const fromIso = istDayStartIso(dayStr)
   const toIso = istDayEndIso(dayStr)
