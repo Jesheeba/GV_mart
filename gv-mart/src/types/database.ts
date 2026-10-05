@@ -4661,6 +4661,11 @@ export type Database = {
           // when status = 'lost', server-enforced non-blank by
           // update_lead_status (20260916090000_lead_lost_reason.sql).
           lost_reason: string | null
+          // Lead follow-ups Phase 1 (20261006200000): consecutive postpones
+          // since the last progress outcome, and the due time of the single
+          // open follow-up (kept in sync by a trigger on lead_followups).
+          postpone_count: number
+          next_followup_at: string | null
           created_at: string
           updated_at: string
         }
@@ -4682,6 +4687,8 @@ export type Database = {
           qty?: number | null
           spare_id?: string | null
           lost_reason?: string | null
+          postpone_count?: number
+          next_followup_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4703,6 +4710,8 @@ export type Database = {
           qty?: number | null
           spare_id?: string | null
           lost_reason?: string | null
+          postpone_count?: number
+          next_followup_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4766,6 +4775,13 @@ export type Database = {
           type: string
           note: string | null
           at: string
+          // 20261006200000: WHO did it. null + is_system=false = a row from
+          // before the upgrade; null + is_system=true = automatic/system.
+          created_by: string | null
+          is_system: boolean
+          outcome_id: string | null
+          from_status: Database["public"]["Enums"]["lead_status"] | null
+          to_status: Database["public"]["Enums"]["lead_status"] | null
           created_at: string
           updated_at: string
         }
@@ -4776,6 +4792,11 @@ export type Database = {
           type: string
           note?: string | null
           at?: string
+          created_by?: string | null
+          is_system?: boolean
+          outcome_id?: string | null
+          from_status?: Database["public"]["Enums"]["lead_status"] | null
+          to_status?: Database["public"]["Enums"]["lead_status"] | null
           created_at?: string
           updated_at?: string
         }
@@ -4786,6 +4807,11 @@ export type Database = {
           type?: string
           note?: string | null
           at?: string
+          created_by?: string | null
+          is_system?: boolean
+          outcome_id?: string | null
+          from_status?: Database["public"]["Enums"]["lead_status"] | null
+          to_status?: Database["public"]["Enums"]["lead_status"] | null
           created_at?: string
           updated_at?: string
         }
@@ -4799,6 +4825,126 @@ export type Database = {
           },
           {
             foreignKeyName: "lead_activities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_activities_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_activities_outcome_id_fkey"
+            columns: ["outcome_id"]
+            isOneToOne: false
+            referencedRelation: "lead_outcomes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_outcomes: {
+        Row: {
+          id: string
+          org_id: string
+          code: string
+          label_en: string
+          label_ta: string
+          followup_mode: "none" | "offset" | "ask_date" | "exact_time"
+          default_offset_days: number | null
+          default_followup_type: Database["public"]["Enums"]["lead_followup_type"]
+          requires_followup: boolean
+          stage_effect: Database["public"]["Enums"]["lead_status"] | null
+          lost_reason_hint: string | null
+          counts_as_postpone: boolean
+          is_active: boolean
+          is_system: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          code: string
+          label_en: string
+          label_ta: string
+          followup_mode?: "none" | "offset" | "ask_date" | "exact_time"
+          default_offset_days?: number | null
+          default_followup_type?: Database["public"]["Enums"]["lead_followup_type"]
+          requires_followup?: boolean
+          stage_effect?: Database["public"]["Enums"]["lead_status"] | null
+          lost_reason_hint?: string | null
+          counts_as_postpone?: boolean
+          is_active?: boolean
+          is_system?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          code?: string
+          label_en?: string
+          label_ta?: string
+          followup_mode?: "none" | "offset" | "ask_date" | "exact_time"
+          default_offset_days?: number | null
+          default_followup_type?: Database["public"]["Enums"]["lead_followup_type"]
+          requires_followup?: boolean
+          stage_effect?: Database["public"]["Enums"]["lead_status"] | null
+          lost_reason_hint?: string | null
+          counts_as_postpone?: boolean
+          is_active?: boolean
+          is_system?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_outcomes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_followups: {
+        Row: {
+          id: string
+          org_id: string
+          lead_id: string
+          due_at: string
+          type: Database["public"]["Enums"]["lead_followup_type"]
+          is_exact_time: boolean
+          note: string | null
+          status: Database["public"]["Enums"]["lead_followup_status"]
+          source: string
+          created_by: string | null
+          created_at: string
+          completed_by: string | null
+          completed_at: string | null
+          completing_activity_id: string | null
+          cancelled_by: string | null
+          cancelled_at: string | null
+          cancel_reason: string | null
+          reschedule_reason: string | null
+          replaces_followup_id: string | null
+          updated_at: string
+        }
+        // Read-only from the client: every write goes through the
+        // log_lead_outcome / reschedule_followup / set_lead_followup /
+        // reopen_lead RPCs (no insert/update policies exist).
+        Insert: never
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "lead_followups_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
@@ -5458,6 +5604,11 @@ export type Database = {
           office_lng: number
           work_start: string
           work_end: string
+          lead_work_days: number[]
+          lead_work_start: string
+          lead_work_end: string
+          lead_stuck_postpones: number
+          lead_reminder_minutes: number
           late_cutoff: string
           very_late_threshold_minutes: number
           lunch_minutes_allowed: number
@@ -5532,6 +5683,11 @@ export type Database = {
           office_lng?: number
           work_start?: string
           work_end?: string
+          lead_work_days?: number[]
+          lead_work_start?: string
+          lead_work_end?: string
+          lead_stuck_postpones?: number
+          lead_reminder_minutes?: number
           late_cutoff?: string
           very_late_threshold_minutes?: number
           lunch_minutes_allowed?: number
@@ -5589,6 +5745,11 @@ export type Database = {
           office_lng?: number
           work_start?: string
           work_end?: string
+          lead_work_days?: number[]
+          lead_work_start?: string
+          lead_work_end?: string
+          lead_stuck_postpones?: number
+          lead_reminder_minutes?: number
           late_cutoff?: string
           very_late_threshold_minutes?: number
           lunch_minutes_allowed?: number
@@ -6743,8 +6904,105 @@ export type Database = {
         Args: { p_customer_id: string; p_confirm_name: string }
         Returns: undefined
       }
-      log_lead_activity: {
-        Args: { p_lead_id: string; p_type: string; p_note: string | null }
+      log_lead_outcome: {
+        Args: {
+          p_lead_id: string
+          p_outcome_id: string
+          p_note?: string | null
+          p_channel?: string
+          p_next_due_at?: string | null
+          p_next_type?: Database["public"]["Enums"]["lead_followup_type"] | null
+          p_next_note?: string | null
+          p_next_is_exact?: boolean
+          p_lost_reason?: string | null
+        }
+        Returns: Json
+      }
+      reschedule_followup: {
+        Args: {
+          p_lead_id: string
+          p_new_due_at: string
+          p_reason: string
+          p_type?: Database["public"]["Enums"]["lead_followup_type"] | null
+          p_note?: string | null
+          p_is_exact?: boolean
+        }
+        Returns: Json
+      }
+      set_lead_followup: {
+        Args: {
+          p_lead_id: string
+          p_due_at: string
+          p_type?: Database["public"]["Enums"]["lead_followup_type"]
+          p_note?: string | null
+          p_is_exact?: boolean
+        }
+        Returns: string
+      }
+      reopen_lead: {
+        Args: {
+          p_lead_id: string
+          p_next_due_at: string
+          p_type?: Database["public"]["Enums"]["lead_followup_type"]
+          p_note?: string | null
+          p_is_exact?: boolean
+        }
+        Returns: Json
+      }
+      add_lead_note: {
+        Args: { p_lead_id: string; p_note: string | null; p_type?: string }
+        Returns: string
+      }
+      list_followups: {
+        Args: {
+          p_bucket?: string
+          p_stage?: Database["public"]["Enums"]["lead_status"] | null
+          p_source?: string | null
+          p_kind?: Database["public"]["Enums"]["lead_kind"] | null
+          p_stuck_only?: boolean
+        }
+        Returns: {
+          followup_id: string
+          lead_id: string
+          lead_name: string
+          mobile: string | null
+          source: string
+          kind: Database["public"]["Enums"]["lead_kind"] | null
+          enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
+          lead_status: Database["public"]["Enums"]["lead_status"]
+          product_name: string | null
+          due_at: string
+          followup_type: Database["public"]["Enums"]["lead_followup_type"]
+          followup_note: string | null
+          is_exact_time: boolean
+          postpone_count: number
+          is_stuck: boolean
+          bucket: string
+          last_outcome_code: string | null
+          last_outcome_label_en: string | null
+          last_outcome_label_ta: string | null
+          last_outcome_note: string | null
+          last_outcome_at: string | null
+        }[]
+      }
+      followup_counts: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      lead_timeline: {
+        Args: { p_lead_id: string }
+        Returns: {
+          event_at: string
+          kind: string
+          author_id: string | null
+          author_name: string | null
+          author_kind: "user" | "system" | "before_upgrade"
+          title: string
+          detail: Json
+        }[]
+      }
+      lead_next_working_day: {
+        Args: { p_org_id: string; p_date: string }
         Returns: string
       }
       delete_lead: {
@@ -6849,6 +7107,8 @@ export type Database = {
       product_enquiry_field: "category" | "brand" | "price_range"
       lead_status: "new" | "contacted" | "quoted" | "won" | "lost"
       lead_kind: "service" | "spare" | "product" | "amc"
+      lead_followup_type: "call" | "whatsapp" | "visit" | "send_quote"
+      lead_followup_status: "open" | "done" | "cancelled"
       automation_action: "send_video" | "quotation" | "link"
       // Installation tracking + incentive (2026-09-25), see
       // 20260925110000_installation_tracking_schema.sql.

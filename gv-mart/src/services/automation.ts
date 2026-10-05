@@ -99,8 +99,13 @@ export async function listLeadActivities(leadId: string): Promise<LeadActivityRo
   return data ?? []
 }
 
+/** A plain note (or the quotation_created timeline marker) on an open or closed lead. Contact outcomes go through logLeadOutcome. */
 export async function logLeadActivity(leadId: string, type: string, note: string | null) {
-  const { data, error } = await supabase.rpc("log_lead_activity", { p_lead_id: leadId, p_type: type, p_note: note })
+  const { data, error } = await supabase.rpc("add_lead_note", {
+    p_lead_id: leadId,
+    p_note: note,
+    p_type: type === "quotation_created" ? type : "note",
+  })
   if (error) throw error
   return data
 }
