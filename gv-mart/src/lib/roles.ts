@@ -7,7 +7,8 @@ export const STAFF_ROLES: UserRole[] = ["master", "operation_admin", "sales_admi
 const ROLE_HOME_PATH: Record<UserRole, string> = {
   master: "/admin",
   operation_admin: "/admin",
-  sales_admin: "/admin",
+  // Sales works from the shared follow-up list (My Day), not the dashboard.
+  sales_admin: "/admin/my-day",
   technician: "/technician",
   customer: "/customer",
 }

@@ -10,6 +10,13 @@ export function useLeads(orgId: string | undefined, filters: LeadFilters = {}) {
     enabled: !!orgId,
   })
 }
+export function useLead(leadId: string | undefined) {
+  return useQuery({
+    queryKey: ["leads", "detail", leadId],
+    queryFn: () => automation.getLead(leadId!),
+    enabled: !!leadId,
+  })
+}
 export function useCreateLead() {
   const qc = useQueryClient()
   return useMutation({

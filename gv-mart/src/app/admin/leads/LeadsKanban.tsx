@@ -5,11 +5,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { TechnicianChip } from "./LeadBadges"
+import { FollowupCell } from "./FollowupBadges"
 import type { LeadListItem } from "@/services/automation"
 
 const COLUMNS = ["new", "contacted", "quoted", "won", "lost"] as const
 
-/** Click-to-advance board (no drag-and-drop primitive in this codebase —
+/** Click-to-open board (no drag-and-drop primitive in this codebase —
  * same simplification TicketsKanban.tsx uses for ticket status). */
 export function LeadsKanban({
   rows,
@@ -17,12 +18,14 @@ export function LeadsKanban({
   error,
   onRetry,
   onCardClick,
+  stuckAt = 3,
 }: {
   rows: LeadListItem[]
   loading: boolean
   error: string | null
   onRetry: () => void
   onCardClick: (row: LeadListItem) => void
+  stuckAt?: number
 }) {
   const { t } = useTranslation()
   const { label: sourceLabel } = useLeadSourceOptions()
@@ -66,6 +69,7 @@ export function LeadsKanban({
                         <span className="rounded-full bg-surface-alt px-2 py-0.5">{sourceLabel(r.source)}</span>
                         {r.enquiry_type ? <span className="rounded-full bg-surface-alt px-2 py-0.5">{t(`leads.enquiryType.${r.enquiry_type}`)}</span> : null}
                       </div>
+                      <FollowupCell lead={r} stuckAt={stuckAt} />
                       {r.technicians?.profiles?.full_name ? <TechnicianChip source={r.source} name={r.technicians.profiles.full_name} /> : null}
                     </Card>
                   </button>
