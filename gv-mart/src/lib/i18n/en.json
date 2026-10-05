@@ -331,7 +331,7 @@
       },
       "referredBy": "Referred by {{name}}",
       "needsSetup": "Needs setup",
-      "needsSetupHint": "Auto-created from a won lead — address/family details are incomplete. Click to dismiss once filled in.",
+      "needsSetupHint": "Auto-created from a won lead — address/family details are incomplete.",
       "familyChip": "{{count}} family: {{names}}",
       "noMembersYet": "No family members added yet.",
       "membersTitle": "Family Members ({{count}}/5)",
@@ -530,7 +530,8 @@
       "waterQualityDesc": "{{count}} districts with TDS data",
       "leadSourcesDesc": "{{count}} sources",
       "settingsDesc": "Discount, travel, hours & SLA",
-      "paymentSettingsDesc": "UPI merchant details for customer QR payments"
+      "paymentSettingsDesc": "UPI merchant details for customer QR payments",
+      "installationRatesDesc": "{{count}} per-unit rates"
     },
     "tabs": {
       "brands": "Brands",
@@ -550,7 +551,8 @@
       "waterQuality": "Water Quality (TDS)",
       "leadSources": "Lead Sources",
       "settings": "Settings",
-      "paymentSettings": "Payment Settings"
+      "paymentSettings": "Payment Settings",
+      "installationRates": "Installation Rates"
     },
     "categories": {
       "ro": "RO / Water Purifier",
@@ -937,6 +939,23 @@
       "dataType": "Data type",
       "addAttributeKey": "Add attribute key",
       "attributeKeysEmpty": "No attribute keys yet — add your first one."
+    },
+    "installationRates": {
+      "subtitle": "Flat ₹ paid per installed unit, on top of the threshold rule under Incentives (set that rule to ₹0 if you want only per-unit pay). The most specific matching rate applies to each installed unit: product, then capacity / configuration, then category. Rates start at ₹0 and nothing pays until you add them and press Compute on HR > Incentives.",
+      "matchHint": "Capacity and configuration are matched against product attributes named \"capacity\" and \"configuration\" (add them under Products > Attributes). A rate that names one a product doesn't have never matches.",
+      "product": "Specific product",
+      "anyProduct": "— any product —",
+      "category": "Category",
+      "anyCategory": "— any category —",
+      "capacity": "Capacity (optional)",
+      "configuration": "Configuration (optional)",
+      "flatAmount": "Amount per unit",
+      "status": "Status",
+      "active": "Active",
+      "inactive": "Inactive",
+      "add": "Add rate",
+      "empty": "No per-unit rates yet — add your first one.",
+      "needScope": "Pick a product or a category."
     }
   },
   "settings": {
@@ -3647,7 +3666,9 @@
       "amountEarned": "Amount Earned",
       "totalEarned": "Total earned: {{amount}}",
       "empty": "No incentives earned for this month yet",
-      "loadFailed": "Failed to load incentives"
+      "loadFailed": "Failed to load incentives",
+      "perUnitInstall": "Installations (per unit)",
+      "perUnit": "per unit"
     },
     "rewards": {
       "month": "Month",

@@ -237,6 +237,13 @@ export const roleBaseSalariesHooks = entityHooks("role_base_salaries", {
   remove: masters.deleteRoleBaseSalary,
 })
 
+export const installationRatesHooks = entityHooks("installation_incentive_rates", {
+  list: masters.listInstallationRates,
+  create: masters.createInstallationRate,
+  update: masters.updateInstallationRate,
+  remove: masters.deleteInstallationRate,
+})
+
 export const complaintTypesHooks = entityHooks("complaint_types", {
   list: masters.listComplaintTypes,
   create: masters.createComplaintType,

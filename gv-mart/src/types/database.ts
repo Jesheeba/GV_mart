@@ -5060,12 +5060,67 @@ export type Database = {
           },
         ]
       }
+      installation_incentive_rates: {
+        Row: {
+          id: string
+          org_id: string
+          product_id: string | null
+          category: Database["public"]["Enums"]["brand_category"] | null
+          capacity: string | null
+          configuration: string | null
+          flat_amount: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          product_id?: string | null
+          category?: Database["public"]["Enums"]["brand_category"] | null
+          capacity?: string | null
+          configuration?: string | null
+          flat_amount?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          product_id?: string | null
+          category?: Database["public"]["Enums"]["brand_category"] | null
+          capacity?: string | null
+          configuration?: string | null
+          flat_amount?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installation_incentive_rates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installation_incentive_rates_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incentives_earned: {
         Row: {
           id: string
           org_id: string
           technician_id: string
-          rule_id: string
+          rule_id: string | null
+          installation_rate_id: string | null
           amount: number
           period: string
           created_at: string
@@ -5075,7 +5130,8 @@ export type Database = {
           id?: string
           org_id: string
           technician_id: string
-          rule_id: string
+          rule_id?: string | null
+          installation_rate_id?: string | null
           amount?: number
           period: string
           created_at?: string
@@ -5085,7 +5141,8 @@ export type Database = {
           id?: string
           org_id?: string
           technician_id?: string
-          rule_id?: string
+          rule_id?: string | null
+          installation_rate_id?: string | null
           amount?: number
           period?: string
           created_at?: string

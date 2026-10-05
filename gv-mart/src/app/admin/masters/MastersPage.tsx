@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Ban, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wallet, Wrench } from "lucide-react"
+import { Ban, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Hammer, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wallet, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
@@ -13,6 +13,7 @@ import {
   giftsHooks,
   incentiveRulesHooks,
   roleBaseSalariesHooks,
+  installationRatesHooks,
   leadSourcesHooks,
   modelsHooks,
   productEnquiryTabsHooks,
@@ -35,6 +36,7 @@ import { useTechnicianTiers } from "@/hooks/useTechnicianTiers"
 import { TechnicianTiersTab } from "./TechnicianTiersTab"
 import { IncentiveRulesTab } from "./IncentiveRulesTab"
 import { RoleSalariesTab } from "./RoleSalariesTab"
+import { InstallationRatesTab } from "./InstallationRatesTab"
 import { ComplaintTypesTab } from "./ComplaintTypesTab"
 import { SopStepsTab } from "./SopStepsTab"
 import { ProductEnquiryConfigTab } from "./ProductEnquiryConfigTab"
@@ -55,6 +57,7 @@ type ModuleId =
   | "technicianTiers"
   | "incentives"
   | "roleSalaries"
+  | "installationRates"
   | "complaintTypes"
   | "sopSteps"
   | "productEnquiry"
@@ -91,6 +94,7 @@ export function MastersPage() {
   const { data: technicianTiers } = useTechnicianTiers(orgId)
   const { data: incentiveRules } = incentiveRulesHooks.useList(orgId)
   const { data: roleSalaries } = roleBaseSalariesHooks.useList(orgId)
+  const { data: installationRates } = installationRatesHooks.useList(orgId)
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
   const { data: sopStepTemplates } = sopStepTemplatesHooks.useList(orgId)
   const { data: productEnquiryTabs } = productEnquiryTabsHooks.useList(orgId)
@@ -120,6 +124,7 @@ export function MastersPage() {
     { id: "rentalPlans", icon: CalendarClock, swatch: "warning", title: t("masters.tabs.rentalPlans"), desc: t("masters.overview.rentalPlansDesc", { count: rentalPlans?.length ?? 0 }) },
     { id: "technicianTiers", icon: TrendingUp, swatch: "accent", title: t("masters.tabs.technicianTiers"), desc: t("masters.overview.technicianTiersDesc", { count: technicianTiers?.length ?? 0 }) },
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
+    { id: "installationRates", icon: Hammer, swatch: "green", title: t("masters.tabs.installationRates"), desc: t("masters.overview.installationRatesDesc", { count: installationRates?.length ?? 0 }) },
     { id: "roleSalaries", icon: Wallet, swatch: "info", title: t("masters.tabs.roleSalaries"), desc: t("masters.overview.roleSalariesDesc", { count: roleSalaries?.length ?? 0 }) },
     { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypeDefaultsCount }) },
     { id: "sopSteps", icon: CheckSquare, swatch: "info", title: t("masters.tabs.sopSteps"), desc: t("masters.overview.sopStepsDesc", { count: sopStepTemplates?.length ?? 0 }) },
@@ -203,6 +208,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="incentives">
             <IncentiveRulesTab />
+          </TabsContent>
+          <TabsContent value="installationRates">
+            <InstallationRatesTab />
           </TabsContent>
           <TabsContent value="roleSalaries">
             <RoleSalariesTab />

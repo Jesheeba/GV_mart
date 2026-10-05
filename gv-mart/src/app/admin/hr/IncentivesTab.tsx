@@ -40,8 +40,18 @@ export function IncentivesTab() {
 
   const columns: DataTableColumn<IncentiveEarnedListItem>[] = [
     { key: "technician", header: t("hr.incentives.technician"), render: (r) => r.technicians?.profiles?.full_name ?? "—" },
-    { key: "type", header: t("hr.incentives.ruleType"), render: (r) => (r.incentive_rules ? t(`masters.incentives.types.${r.incentive_rules.type}`) : "—") },
-    { key: "threshold", header: t("hr.incentives.threshold"), render: (r) => (r.incentive_rules ? money(r.incentive_rules.threshold) : "—") },
+    { key: "type", header: t("hr.incentives.ruleType"), render: (r) =>
+        r.incentive_rules
+          ? t(`masters.incentives.types.${r.incentive_rules.type}`)
+          : r.installation_incentive_rates
+            ? `${t("hr.incentives.perUnitInstall")}${[r.installation_incentive_rates.category, r.installation_incentive_rates.capacity, r.installation_incentive_rates.configuration].filter(Boolean).length ? ` (${[r.installation_incentive_rates.category, r.installation_incentive_rates.capacity, r.installation_incentive_rates.configuration].filter(Boolean).join(" · ")})` : ""}`
+            : "—",
+    },
+    {
+      key: "threshold",
+      header: t("hr.incentives.threshold"),
+      render: (r) => (r.incentive_rules ? money(r.incentive_rules.threshold) : r.installation_incentive_rates ? `${money(r.installation_incentive_rates.flat_amount)} ${t("hr.incentives.perUnit")}` : "—"),
+    },
     { key: "amount", header: t("hr.incentives.amountEarned"), render: (r) => <span className="font-semibold text-success">{money(r.amount)}</span> },
   ]
 

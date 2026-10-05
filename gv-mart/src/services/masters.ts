@@ -465,6 +465,29 @@ export async function deleteRoleBaseSalary(id: string) {
   if (error) throw error
 }
 
+// ── Installation incentive rates (Salary/Incentive Phase 3, Part E) ─────
+// Per-unit payout, additive to the flat-threshold 'installation' rule above.
+// Master-only (RLS); every amount is admin-set, nothing seeded.
+export async function listInstallationRates(orgId: string) {
+  const { data, error } = await supabase.from("installation_incentive_rates").select("*").eq("org_id", orgId).order("created_at")
+  if (error) throw error
+  return data
+}
+export async function createInstallationRate(row: TablesInsert<"installation_incentive_rates">) {
+  const { data, error } = await supabase.from("installation_incentive_rates").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateInstallationRate(id: string, patch: TablesUpdate<"installation_incentive_rates">) {
+  const { data, error } = await supabase.from("installation_incentive_rates").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteInstallationRate(id: string) {
+  const { error } = await supabase.from("installation_incentive_rates").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── Complaint types (Meeting spec E1) ───────────────────────────────────
 // Product-category-tagged, admin-editable — feeds the filtered auto-suggest
 // on the customer booking screen and the admin new-complaint screen.
@@ -513,6 +536,7 @@ export type AmcPlanRow = Tables<"amc_plans">
 export type RentalPlanRow = Tables<"rental_plans">
 export type IncentiveRuleRow = Tables<"incentive_rules">
 export type RoleBaseSalaryRow = Tables<"role_base_salaries">
+export type InstallationRateRow = Tables<"installation_incentive_rates">
 export type ComplaintTypeRow = Tables<"complaint_types">
 export type ProductSpareRow = Tables<"product_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
 export type ComplaintTypeSpareRow = Tables<"complaint_type_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }

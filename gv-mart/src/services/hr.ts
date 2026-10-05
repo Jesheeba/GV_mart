@@ -93,12 +93,13 @@ export async function computeSalary(orgId: string, technicianId: string, period:
 export type IncentiveEarnedListItem = IncentiveEarnedRow & {
   technicians: { id: string; profiles: { full_name: string } | null } | null
   incentive_rules: { type: string; threshold: number; amount: number } | null
+  installation_incentive_rates: { category: string | null; capacity: string | null; configuration: string | null; flat_amount: number } | null
 }
 
 export async function listIncentivesEarned(orgId: string, period: string): Promise<IncentiveEarnedListItem[]> {
   const { data, error } = await supabase
     .from("incentives_earned")
-    .select("*, technicians(id, profiles(full_name)), incentive_rules(type, threshold, amount)")
+    .select("*, technicians(id, profiles(full_name)), incentive_rules(type, threshold, amount), installation_incentive_rates(category, capacity, configuration, flat_amount)")
     .eq("org_id", orgId)
     .eq("period", period)
     .order("amount", { ascending: false })
