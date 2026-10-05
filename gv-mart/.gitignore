@@ -38,3 +38,6 @@ graphify-out/
 *.njsproj
 *.sln
 *.sw?
+
+# test-only credentials for e2e/Playwright scripts (never commit)
+.env.test
