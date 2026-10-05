@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils"
 import { ADMIN_NAV } from "./nav"
 import { useProfile } from "@/hooks/useProfile"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
+import { canWorkFollowups, useFollowupCounts } from "@/hooks/useLeadFollowups"
+import { CallReturnPrompt } from "./leads/CallReturnPrompt"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useTicketSearch, useServiceTicketsRealtimeInvalidate } from "@/hooks/useService"
 import { useTechniciansOpenVisits, useTechniciansWithLocation } from "@/hooks/useTechniciansAdmin"
@@ -87,6 +89,7 @@ export function AdminShell() {
   const navigate = useNavigate()
   const { data: profile, isLoading, isError, refetch } = useProfile()
   const { data: unreadCount } = useUnreadNotificationCount(profile?.org_id, profile?.id, profile?.role)
+  const { data: followupCounts } = useFollowupCounts(profile?.role)
   useServiceTicketsRealtimeInvalidate(profile?.org_id)
 
   // Job-overrun popup: this used to run only inside TechniciansMapPage, so an
@@ -165,7 +168,21 @@ export function AdminShell() {
                   )
                 }
               >
-                <Icon className="size-5" />
+                <span className="relative flex">
+                  <Icon className="size-5" />
+                  {item.key === "myDay" && followupCounts?.total ? (
+                    <span
+                      data-testid="myday-badge"
+                      className={cn(
+                        "absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-4 text-white",
+                        followupCounts.overdue > 0 ? "bg-danger" : "bg-accent"
+                      )}
+                      title={t("leads.myDay.badgeTitle", { overdue: followupCounts.overdue, today: followupCounts.today })}
+                    >
+                      {followupCounts.total > 99 ? "99+" : followupCounts.total}
+                    </span>
+                  ) : null}
+                </span>
               </NavLink>
             )
           })}
@@ -194,6 +211,7 @@ export function AdminShell() {
           </div>
         </header>
 
+        {canWorkFollowups(profile.role) ? <CallReturnPrompt /> : null}
         <PoApprovalPromptModal orgId={profile.org_id} userId={profile.id} role={profile.role} />
         <PoReceiptPromptModal orgId={profile.org_id} userId={profile.id} role={profile.role} />
 

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Ban, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Hammer, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wallet, Wrench } from "lucide-react"
+import { Ban, PhoneCall, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Hammer, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wallet, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
@@ -44,6 +44,8 @@ import { SettingsTab } from "./SettingsTab"
 import { PaymentSettingsTab } from "./PaymentSettingsTab"
 import { WaterQualityTab } from "./WaterQualityTab"
 import { LeadSourcesTab } from "./LeadSourcesTab"
+import { LeadOutcomesTab } from "./LeadOutcomesTab"
+import { useLeadOutcomes } from "@/hooks/useLeadFollowups"
 
 type ModuleId =
   | "brands"
@@ -63,6 +65,7 @@ type ModuleId =
   | "productEnquiry"
   | "waterQuality"
   | "leadSources"
+  | "leadOutcomes"
   | "settings"
   | "paymentSettings"
 
@@ -99,6 +102,7 @@ export function MastersPage() {
   const { data: sopStepTemplates } = sopStepTemplatesHooks.useList(orgId)
   const { data: productEnquiryTabs } = productEnquiryTabsHooks.useList(orgId)
   const { data: leadSources } = leadSourcesHooks.useList(orgId)
+  const { data: leadOutcomes } = useLeadOutcomes(orgId)
   const { data: waterQualityDistricts } = waterQualityReferenceHooks.useList(orgId)
   // complaintTypes now also holds product-specific rows (product_id set),
   // managed from Inventory / Masters > Products, not from this tab. The
@@ -143,6 +147,7 @@ export function MastersPage() {
       desc: t("masters.overview.waterQualityDesc", { count: waterQualityDistricts?.length ?? 0 }),
     },
     { id: "leadSources", icon: Megaphone, swatch: "accent", title: t("masters.tabs.leadSources"), desc: t("masters.overview.leadSourcesDesc", { count: leadSources?.length ?? 0 }) },
+    { id: "leadOutcomes", icon: PhoneCall, swatch: "green", title: t("masters.tabs.leadOutcomes"), desc: t("masters.overview.leadOutcomesDesc", { count: leadOutcomes?.length ?? 0 }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
     { id: "paymentSettings", icon: QrCode, swatch: "green", title: t("masters.tabs.paymentSettings"), desc: t("masters.overview.paymentSettingsDesc") },
   ]
@@ -229,6 +234,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="leadSources">
             <LeadSourcesTab />
+          </TabsContent>
+          <TabsContent value="leadOutcomes">
+            <LeadOutcomesTab />
           </TabsContent>
           <TabsContent value="settings">
             <SettingsTab />

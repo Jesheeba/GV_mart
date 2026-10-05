@@ -66,6 +66,17 @@ export async function listLeads(orgId: string, filters: LeadFilters = {}): Promi
   return (data ?? []) as unknown as LeadListItem[]
 }
 
+/** One lead with the same joins as the list (detail page). Null when it no longer exists (e.g. moved to customer / deleted). */
+export async function getLead(leadId: string): Promise<LeadListItem | null> {
+  const { data, error } = await supabase
+    .from("leads")
+    .select("*, customers(name, mobile), technicians(profiles(full_name)), lead_items(id, product_id, spare_id, qty, products(name, price), spares(name, price))")
+    .eq("id", leadId)
+    .maybeSingle()
+  if (error) throw error
+  return (data ?? null) as unknown as LeadListItem | null
+}
+
 export async function createLead(row: {
   org_id: string
   name: string

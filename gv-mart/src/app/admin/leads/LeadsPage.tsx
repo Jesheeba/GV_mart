@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Inbox, LayoutGrid, Plus, Search, Table2, Target, TrendingUp, TriangleAlert, Trophy, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,16 +9,22 @@ import { StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
-import { LeadDetailPanel } from "./LeadDetailPanel"
 import { NewLeadForm } from "./NewLeadForm"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { SourceBadge, TechnicianChip } from "./LeadBadges"
+import { FollowupCell } from "./FollowupBadges"
+import { useLeadSchedule } from "@/hooks/useLeadFollowups"
+import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
+import { isOverdueNow } from "@/lib/lead-followups"
 import type { LeadListItem } from "@/services/automation"
 import type { Enums } from "@/types/database"
 import { cn } from "@/lib/utils"
 
 const TABLE_GRID_COLS =
-  "grid-cols-[minmax(140px,1.4fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.8fr)_minmax(90px,1fr)_minmax(110px,0.9fr)_minmax(110px,1.2fr)_minmax(90px,1fr)]"
+  "grid-cols-[minmax(140px,1.3fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(100px,0.8fr)_minmax(170px,1.4fr)_minmax(110px,1fr)_minmax(80px,0.8fr)]"
+
+type QuickFilter = "" | "overdue" | "noFollowup" | "stuck"
+const QUICK_FILTERS: Exclude<QuickFilter, "">[] = ["overdue", "noFollowup", "stuck"]
 
 const TOPIC_OPTIONS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
 const KIND_OPTIONS: Enums<"lead_kind">[] = ["service", "spare", "product", "amc"]
@@ -35,7 +42,10 @@ export function LeadsPage() {
   const [search, setSearch] = useState("")
   const leads = useLeads(orgId, { source: source || undefined, enquiryType: enquiryType || undefined, kind: kind || undefined })
   const [showNew, setShowNew] = useState(false)
-  const [selected, setSelected] = useState<LeadListItem | null>(null)
+  const navigate = useNavigate()
+  const schedule = useLeadSchedule(orgId).data ?? DEFAULT_LEAD_SCHEDULE
+  const [quick, setQuick] = useState<QuickFilter>("")
+  const openLead = (l: LeadListItem) => navigate("/admin/leads/" + l.id)
 
   const stats = useMemo(() => {
     const rows = leads.data ?? []
@@ -51,15 +61,18 @@ export function LeadsPage() {
   }, [leads.data])
 
   const searchTerm = search.trim().toLowerCase()
+  const stuckAt = schedule.lead_stuck_postpones
   const filteredLeads = useMemo(
     () =>
-      (leads.data ?? []).filter(
-        (l) =>
-          !searchTerm ||
-          (l.customers?.name ?? l.name ?? "").toLowerCase().includes(searchTerm) ||
-          (l.mobile ?? l.customers?.mobile ?? "").includes(searchTerm)
-      ),
-    [leads.data, searchTerm]
+      (leads.data ?? []).filter((l) => {
+        if (searchTerm && !((l.customers?.name ?? l.name ?? "").toLowerCase().includes(searchTerm) || (l.mobile ?? l.customers?.mobile ?? "").includes(searchTerm))) return false
+        const open = l.status !== "won" && l.status !== "lost"
+        if (quick === "overdue") return open && !!l.next_followup_at && isOverdueNow(l.next_followup_at)
+        if (quick === "noFollowup") return open && !l.next_followup_at
+        if (quick === "stuck") return open && l.postpone_count >= stuckAt
+        return true
+      }),
+    [leads.data, searchTerm, quick, stuckAt]
   )
 
   return (
@@ -182,7 +195,23 @@ export function LeadsPage() {
             </option>
           ))}
         </select>
-        {source || enquiryType || kind || search ? (
+        <div className="flex gap-1.5" role="group" aria-label={t("leads.quick.label")}>
+          {QUICK_FILTERS.map((q) => (
+            <button
+              key={q}
+              type="button"
+              aria-pressed={quick === q}
+              onClick={() => setQuick((cur) => (cur === q ? "" : q))}
+              className={cn(
+                "rounded-full border px-3.5 py-2 text-xs font-semibold",
+                quick === q ? (q === "noFollowup" ? "border-ink bg-ink text-white" : "border-danger bg-danger text-white") : "border-border bg-surface text-text-muted"
+              )}
+            >
+              {t("leads.quick." + q)}
+            </button>
+          ))}
+        </div>
+        {source || enquiryType || kind || search || quick ? (
           <button
             type="button"
             onClick={() => {
@@ -190,6 +219,7 @@ export function LeadsPage() {
               setEnquiryType("")
               setKind("")
               setSearch("")
+              setQuick("")
             }}
             className="text-xs font-semibold text-text-muted hover:text-text"
           >
@@ -198,40 +228,26 @@ export function LeadsPage() {
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* The board needs room for 5 status columns — a fixed-width detail
-            sidebar (rather than a 2:1 grid fraction) keeps the columns from
-            getting cramped while the panel stays a comfortable reading width
-            instead of stretching to a third of the page when nothing (or a
-            single lead) is shown there. */}
-        <div className="min-w-0 lg:flex-1">
-          {view === "table" ? (
-            <LeadsTable
-              rows={filteredLeads}
-              loading={leads.isLoading}
-              error={leads.isError ? t("leads.loadFailed") : null}
-              onRetry={() => leads.refetch()}
-              onRowClick={setSelected}
-            />
-          ) : (
-            <LeadsKanban
-              rows={filteredLeads}
-              loading={leads.isLoading}
-              error={leads.isError ? t("leads.loadFailed") : null}
-              onRetry={() => leads.refetch()}
-              onCardClick={setSelected}
-            />
-          )}
-        </div>
-        <div className="lg:w-80 lg:shrink-0">
-          {selected ? (
-            <LeadDetailPanel lead={selected} onClose={() => setSelected(null)} />
-          ) : (
-            <div className="rounded-subcard border border-dashed border-border p-6 text-center text-sm text-text-muted">
-              {t("leads.detail.selectHint")}
-            </div>
-          )}
-        </div>
+      <div className="min-w-0">
+        {view === "table" ? (
+          <LeadsTable
+            rows={filteredLeads}
+            loading={leads.isLoading}
+            error={leads.isError ? t("leads.loadFailed") : null}
+            onRetry={() => leads.refetch()}
+            onRowClick={openLead}
+            stuckAt={stuckAt}
+          />
+        ) : (
+          <LeadsKanban
+            rows={filteredLeads}
+            loading={leads.isLoading}
+            error={leads.isError ? t("leads.loadFailed") : null}
+            onRetry={() => leads.refetch()}
+            onCardClick={openLead}
+            stuckAt={stuckAt}
+          />
+        )}
       </div>
     </div>
   )
@@ -245,12 +261,14 @@ function LeadsTable({
   error,
   onRetry,
   onRowClick,
+  stuckAt,
 }: {
   rows: LeadListItem[]
   loading: boolean
   error: string | null
   onRetry: () => void
   onRowClick: (row: LeadListItem) => void
+  stuckAt: number
 }) {
   const { t } = useTranslation()
 
@@ -261,6 +279,7 @@ function LeadsTable({
     t("leads.table.kind"),
     t("leads.table.topic"),
     t("leads.table.status"),
+    t("leads.table.nextFollowup"),
     t("leads.table.technician"),
     t("leads.table.created"),
   ]
@@ -317,6 +336,7 @@ function LeadsTable({
               tone={r.status === "won" ? "success" : r.status === "lost" ? "danger" : "warning"}
               label={t(`leads.status.${r.status}`)}
             />
+            <FollowupCell lead={r} stuckAt={stuckAt} />
             <TechnicianChip source={r.source} name={r.technicians?.profiles?.full_name ?? null} />
             <span className="text-xs font-medium text-text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
           </div>
@@ -325,3 +345,4 @@ function LeadsTable({
     </div>
   )
 }
+

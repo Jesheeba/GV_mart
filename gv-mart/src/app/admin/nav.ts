@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  CalendarCheck,
   Users,
   ShoppingCart,
   FileText,
@@ -54,6 +55,8 @@ const ALL_STAFF: UserRole[] = ["master", "operation_admin", "sales_admin"]
 // master-only, matching master-only RLS write policies for those tables.
 export const ADMIN_NAV: AdminNavItem[] = [
   { key: "dashboard", labelKey: "nav.dashboard", path: "/admin", icon: LayoutDashboard, roles: ALL_STAFF, end: true },
+  // Shared follow-up list for master + sales_admin (default landing page for sales_admin); the shell badges it with today + overdue.
+  { key: "myDay", labelKey: "nav.myDay", path: "/admin/my-day", icon: CalendarCheck, roles: ["master", "sales_admin"] },
   { key: "customers", labelKey: "nav.customers", path: "/admin/customers", icon: Users, roles: ["master", "sales_admin"] },
   { key: "sales", labelKey: "nav.sales", path: "/admin/sales", icon: ShoppingCart, roles: ["master", "sales_admin"] },
   { key: "quotations", labelKey: "nav.quotations", path: "/admin/quotations", icon: FileText, roles: ["master", "sales_admin"] },

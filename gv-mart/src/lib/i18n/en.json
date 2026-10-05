@@ -74,7 +74,8 @@
     "campaigns": "Campaigns",
     "complaints": "Complaints",
     "returns": "Returns",
-    "auditLog": "Audit Log"
+    "auditLog": "Audit Log",
+    "myDay": "My Day"
   },
   "auth": {
     "heroTitle": "Sign in to your workspace",
@@ -531,7 +532,8 @@
       "leadSourcesDesc": "{{count}} sources",
       "settingsDesc": "Discount, travel, hours & SLA",
       "paymentSettingsDesc": "UPI merchant details for customer QR payments",
-      "installationRatesDesc": "{{count}} per-unit rates"
+      "installationRatesDesc": "{{count}} per-unit rates",
+      "leadOutcomesDesc": "{{count}} outcomes + working schedule"
     },
     "tabs": {
       "brands": "Brands",
@@ -552,7 +554,8 @@
       "leadSources": "Lead Sources",
       "settings": "Settings",
       "paymentSettings": "Payment Settings",
-      "installationRates": "Installation Rates"
+      "installationRates": "Installation Rates",
+      "leadOutcomes": "Lead Outcomes"
     },
     "categories": {
       "ro": "RO / Water Purifier",
@@ -956,6 +959,47 @@
       "add": "Add rate",
       "empty": "No per-unit rates yet — add your first one.",
       "needScope": "Pick a product or a category."
+    },
+    "leadOutcomes": {
+      "hint": "Outcomes staff pick after contacting a lead. Each sets the default next follow-up and can move the lead (Won / Lost close it). \"Postpone\" outcomes (call me later) add to a lead's postpone count; \"Progress\" outcomes reset it.",
+      "add": "Add outcome",
+      "empty": "No outcomes yet.",
+      "labelEn": "Label (English)",
+      "labelTa": "Label (Tamil)",
+      "mode": "Next follow-up",
+      "modes": {
+        "offset": "Days from today",
+        "ask_date": "Ask for a date",
+        "exact_time": "Exact time",
+        "none": "None (closes the lead)"
+      },
+      "offsetDays": "Days from today",
+      "offsetShort": "+{{count}} d",
+      "nextFollowup": "Default next follow-up",
+      "followupType": "Follow-up type",
+      "stageEffect": "Stage effect",
+      "noStageEffect": "No change",
+      "lostReasonHint": "Pre-filled lost reason",
+      "countsAsPostpone": "Counts as",
+      "progress": "Progress (resets postpone count)",
+      "postpone": "Postpone (adds to postpone count)",
+      "sortOrder": "Order",
+      "status": "Status",
+      "duplicate": "An outcome with this name already exists.",
+      "cannotDelete": "Outcomes are never deleted (history depends on them). Set Status to Inactive instead.",
+      "closingNeedsNoFollowup": "Won / Lost outcomes close the lead, so Next follow-up must be \"None\".",
+      "noneNeedsClosing": "\"None\" is only for outcomes that set the stage to Won or Lost.",
+      "lostNeedsHint": "Pick the lost reason to pre-fill for a Lost outcome.",
+      "schedule": {
+        "title": "Working schedule (IST)",
+        "hint": "Used to suggest working days for follow-ups, for the 9:30 digest and for reminders. A follow-up can still be set on a non-working day.",
+        "days": "Working days",
+        "start": "Opens",
+        "end": "Closes",
+        "stuck": "Stuck after N postpones",
+        "reminder": "Callback reminder (minutes before)",
+        "saved": "Schedule saved"
+      }
     }
   },
   "settings": {
@@ -2986,7 +3030,8 @@
       "topic": "Topic",
       "status": "Status",
       "technician": "Technician",
-      "created": "Created"
+      "created": "Created",
+      "nextFollowup": "Next follow-up"
     },
     "filters": {
       "search": "Search name, mobile...",
@@ -3058,7 +3103,8 @@
       "no_longer_needs": "No longer needs service",
       "unresponsive": "Unresponsive / no answer",
       "duplicate": "Duplicate lead",
-      "other": "Other"
+      "other": "Other",
+      "wrong_number": "Wrong number"
     },
     "activityType": {
       "call": "Call",
@@ -3097,7 +3143,167 @@
       "moveConfirm": "This creates the customer (or links to the existing one with the same mobile) and removes the lead from this list.",
       "deleteConfirm": "This permanently deletes the lead and its activity history. Quotations or tickets raised from it are kept.",
       "movedToast": "Moved to Customers",
-      "deletedToast": "Lead deleted"
+      "deletedToast": "Lead deleted",
+      "changeStage": "Change stage",
+      "backToLeads": "Back to Leads",
+      "backToMyDay": "Back to My Day",
+      "notFound": "This lead no longer exists (it may have been moved to Customers or deleted).",
+      "reopen": "Reopen lead",
+      "addNote": "Add note",
+      "noteSaved": "Note added"
+    },
+    "quick": {
+      "label": "Follow-up filters",
+      "overdue": "Overdue",
+      "noFollowup": "No follow-up",
+      "stuck": "Stuck"
+    },
+    "myDay": {
+      "title": "My Day",
+      "subtitle": "Follow-ups for {{date}} (IST)",
+      "tab": {
+        "overdue": "Overdue",
+        "today": "Today",
+        "upcoming": "Upcoming"
+      },
+      "filters": {
+        "stage": "Stage",
+        "allStages": "All stages",
+        "source": "Source",
+        "kind": "Kind",
+        "stuckOnly": "Stuck only"
+      },
+      "empty": {
+        "overdue": "Nothing overdue — you're on top of it.",
+        "today": "No follow-ups due today.",
+        "upcoming": "No follow-ups in the next 7 days."
+      },
+      "loadFailed": "Couldn't load follow-ups.",
+      "badgeTitle": "{{overdue}} overdue, {{today}} due today"
+    },
+    "followup": {
+      "none": "No follow-up",
+      "overdue": "Overdue",
+      "postponed": "Postponed ×{{count}}",
+      "stuck": "Stuck",
+      "call": "Call",
+      "whatsapp": "WhatsApp",
+      "logOutcome": "Log outcome",
+      "reschedule": "Reschedule",
+      "type": {
+        "call": "Call",
+        "whatsapp": "WhatsApp",
+        "visit": "Visit",
+        "send_quote": "Send quote"
+      },
+      "chip": {
+        "laterToday": "Later today",
+        "tomorrow": "Tomorrow",
+        "days3": "3 days",
+        "week1": "1 week",
+        "weeks2": "2 weeks",
+        "month1": "1 month",
+        "months3": "3 months",
+        "custom": "Custom"
+      },
+      "time": {
+        "morning": "Morning (10 AM)",
+        "afternoon": "Afternoon (2 PM)",
+        "evening": "Evening (5 PM)",
+        "exact": "Exact time"
+      },
+      "pickDate": "Pick a date",
+      "nonWorkingDay": "{{day}} is not a working day. Use {{suggested}} instead?",
+      "useSuggested": "Use suggestion",
+      "keepDay": "Keep it",
+      "inPast": "That time has already passed.",
+      "willBeSetFor": "Next follow-up: {{when}}",
+      "pickWhen": "Pick a date and time for the next follow-up.",
+      "weekday": {
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday",
+        "7": "Sunday"
+      },
+      "weekdayShort": {
+        "1": "Mon",
+        "2": "Tue",
+        "3": "Wed",
+        "4": "Thu",
+        "5": "Fri",
+        "6": "Sat",
+        "7": "Sun"
+      }
+    },
+    "outcomeSheet": {
+      "title": "Log outcome",
+      "reopenTitle": "Reopen lead",
+      "step1": "What happened?",
+      "step2": "Note (optional)",
+      "step3": "Next follow-up",
+      "notePlaceholder": "Anything to remember…",
+      "how": "How",
+      "nextType": "Follow-up type",
+      "wonHint": "This marks the lead Won and creates the customer if there isn't one yet.",
+      "reopenSave": "Reopen",
+      "reopened": "Lead reopened. Next follow-up: {{when}}",
+      "savedNext": "Saved. Next follow-up: {{when}}",
+      "savedWon": "Saved. Lead marked Won.",
+      "savedLost": "Saved. Lead marked Lost.",
+      "phrases": {
+        "sendWhatsapp": "Asked to WhatsApp details",
+        "wantsDiscount": "Wants a discount",
+        "comparing": "Comparing models",
+        "withFamily": "Deciding with family",
+        "outOfStation": "Out of station",
+        "budget": "Budget concern"
+      }
+    },
+    "reschedule": {
+      "title": "Reschedule follow-up",
+      "reason": "Why are you postponing? (required)",
+      "reasonPlaceholder": "e.g. customer asked to call later",
+      "reasons": {
+        "customerAsked": "Customer asked to postpone",
+        "unreachable": "Couldn't reach — trying later",
+        "busy": "Busy today",
+        "waitingStock": "Waiting for stock / price"
+      },
+      "newTime": "New follow-up time",
+      "hint": "The old follow-up is kept in the history. If this pushes it later it counts as a postpone — 3 in a row marks the lead Stuck.",
+      "saved": "Rescheduled. Next follow-up: {{when}}",
+      "save": "Reschedule"
+    },
+    "timeline": {
+      "loadFailed": "Couldn't load the history.",
+      "empty": "No history yet.",
+      "system": "System",
+      "beforeUpgrade": "Before upgrade",
+      "unknownUser": "Unknown user",
+      "note": "Note",
+      "stageChange": "Stage: {{from}} → {{to}}",
+      "stageSet": "Stage: {{to}}",
+      "followupSet": "Follow-up set for {{when}} ({{type}})",
+      "followupDone": "Follow-up completed (was due {{when}})",
+      "followupDoneEarly": "Follow-up completed early (was due {{when}})",
+      "followupRescheduled": "Follow-up rescheduled (was due {{when}})",
+      "followupCancelled": "Follow-up cancelled — {{why}} (was due {{when}})",
+      "reason": "Reason",
+      "quotation": "Quotation {{total}} — {{status}}",
+      "open": "Open",
+      "source": {
+        "initial_call": "Initial call (automatic)",
+        "reschedule": "Rescheduled",
+        "reopen": "Lead reopened"
+      },
+      "cancelReason": {
+        "lead_won": "lead won",
+        "lead_lost": "lead lost",
+        "rescheduled": "rescheduled"
+      }
     }
   },
   "automation": {

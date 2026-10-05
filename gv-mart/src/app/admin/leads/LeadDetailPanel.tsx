@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { FileText, Loader2, Search, Trash2, UserCheck, X } from "lucide-react"
+import { FileText, Loader2, Search, Trash2, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,26 +10,17 @@ import { Autocomplete } from "@/components/shared/Autocomplete"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
-import {
-  useAwardReferralPoints,
-  useDeleteLead,
-  useLeadActivities,
-  useLogLeadActivity,
-  useMoveLeadToCustomer,
-  useUpdateLeadStatus,
-} from "@/hooks/useAutomation"
+import { useAwardReferralPoints, useDeleteLead, useMoveLeadToCustomer, useUpdateLeadStatus } from "@/hooks/useAutomation"
 import { useQuotationsForLead } from "@/hooks/useQuotations"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { formatCurrency } from "@/lib/sale-calc"
-import { TechnicianChip } from "./LeadBadges"
+import { LOST_REASON_PRESETS, lostReasonLabel, type LostReasonPreset } from "@/lib/lead-lost-reasons"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
 import type { Enums } from "@/types/database"
 
 const QUOTATION_STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
 
-const STATUSES: LeadStatus[] = ["new", "contacted", "quoted", "won", "lost"]
-const ACTIVITY_TYPES = ["call", "note", "whatsapp", "meeting"] as const
-const LOST_REASONS = ["price_too_high", "chose_competitor", "no_longer_needs", "unresponsive", "duplicate", "other"] as const
+const STAGE_BUTTONS: LeadStatus[] = ["new", "contacted", "quoted", "won", "lost"]
 
 type QuoteItemSeed = { productId: string | null; spareId: string | null; qty: number | null }
 
@@ -45,39 +36,33 @@ function toQuoteItems(kind: Enums<"lead_kind"> | null, rows: QuoteItemSeed[]) {
     .filter((r) => r.productId || r.spareId)
 }
 
-export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose: () => void }) {
+/**
+ * Lead actions card on the lead page: items, quotation, manual stage buttons,
+ * referral points, move-to-customer / delete. Contact history, follow-ups and
+ * outcomes live in the header / timeline / Log Outcome sheet.
+ */
+export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
   const { t } = useTranslation()
   const { toast } = useToast()
   const navigate = useNavigate()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
 
-  const activities = useLeadActivities(lead.id)
-  const logActivity = useLogLeadActivity()
   const updateStatus = useUpdateLeadStatus()
   const deleteLead = useDeleteLead()
   const moveToCustomer = useMoveLeadToCustomer()
   const isMaster = profile?.role === "master"
+  const closed = lead.status === "won" || lead.status === "lost"
   const [pendingRemoval, setPendingRemoval] = useState<"move" | "delete" | null>(null)
   const removalBusy = deleteLead.isPending || moveToCustomer.isPending
-  const removalFailed = (err: unknown) => toast.error(err instanceof Error && err.message ? err.message : t("common.actionFailed"))
+  const failed = (err: unknown) => toast.error(err instanceof Error && err.message ? err.message : t("common.actionFailed"))
   const awardPoints = useAwardReferralPoints()
   const leadQuotations = useQuotationsForLead(lead.id)
 
-  const [activityType, setActivityType] = useState<(typeof ACTIVITY_TYPES)[number]>("call")
-  const [note, setNote] = useState("")
-
-  const [displayStatus, setDisplayStatus] = useState<LeadStatus>(lead.status)
-  const [displayLostReason, setDisplayLostReason] = useState<string | null>(lead.lost_reason)
-  useEffect(() => {
-    setDisplayStatus(lead.status)
-    setDisplayLostReason(lead.lost_reason)
-  }, [lead.id, lead.status, lead.lost_reason])
-
   const [showLostForm, setShowLostForm] = useState(false)
-  const [lostReasonOption, setLostReasonOption] = useState<(typeof LOST_REASONS)[number] | "">("")
-  const [lostReasonOther, setLostReasonOther] = useState("")
-  const lostReasonText = lostReasonOption === "other" ? lostReasonOther.trim() : lostReasonOption ? t(`leads.lostReason.${lostReasonOption}`) : ""
+  const [lostPreset, setLostPreset] = useState<LostReasonPreset | "">("")
+  const [lostOther, setLostOther] = useState("")
+  const lostReasonValue = lostPreset === "other" ? lostOther.trim() : lostPreset
 
   const [showReferral, setShowReferral] = useState(false)
   const [referrerSearch, setReferrerSearch] = useState("")
@@ -90,17 +75,6 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
 
   return (
     <Card className="gap-3.5 px-5">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <h2 className="text-sm font-semibold text-text">{lead.customers?.name ?? lead.name}</h2>
-          <p className="text-xs text-text-muted">{lead.mobile ?? lead.customers?.mobile ?? "—"}</p>
-          {lead.technicians?.profiles?.full_name ? <TechnicianChip source={lead.source} name={lead.technicians.profiles.full_name} /> : null}
-        </div>
-        <Button size="icon-xs" variant="ghost" onClick={onClose}>
-          <X className="size-4" />
-        </Button>
-      </div>
-
       {(lead.lead_items ?? []).length > 0 ? (
         <p className="text-xs text-text-muted">
           {t("leads.detail.items")}: {(lead.lead_items ?? []).map((li) => li.spares?.name ?? li.products?.name).filter(Boolean).join(", ")}
@@ -118,15 +92,9 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
               name: lead.customers?.name ?? lead.name,
               mobile: lead.mobile ?? lead.customers?.mobile ?? null,
               status: lead.status,
-              // Spare Enquiry multi-product line items (2026-08-05) — every
-              // product/spare the enquiry asked for, prefilling the
-              // quotation's item cart instead of making the admin reselect.
-              // Falls back to the lead's own scalar product_id/spare_id/qty
-              // (kept for backward compatibility, see
-              // 20260805141000_spare_enquiry_line_items.sql) for leads
-              // created before the lead_items table existed, so pre-2026-08-05
-              // leads that did capture a single structured item still autofill
-              // instead of forcing a manual reselect.
+              // Every product/spare the enquiry asked for prefills the
+              // quotation cart; falls back to the lead's own scalar columns
+              // for leads created before lead_items existed.
               items: toQuoteItems(
                 lead.kind,
                 (lead.lead_items ?? []).length > 0
@@ -153,7 +121,7 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
                   className="flex w-full items-center justify-between rounded-lg bg-surface-alt px-2.5 py-2 text-xs hover:bg-surface-alt/70"
                 >
                   <span className="font-medium text-text">{formatCurrency(q.total)}</span>
-                  <span className="text-text-muted">{new Date(q.created_at).toLocaleDateString("en-IN")}</span>
+                  <span className="text-text-muted">{new Date(q.created_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })}</span>
                   <StatusDot tone={QUOTATION_STATUS_TONE[q.status] ?? "neutral"} label={t(`quotations.status.${q.status}`)} />
                 </button>
               </li>
@@ -162,49 +130,52 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-1.5">
-        {STATUSES.map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={displayStatus === s ? "accent" : "outline"}
-            disabled={updateStatus.isPending}
-            onClick={() => {
-              if (s === "lost") {
-                setShowLostForm(true)
-                return
-              }
-              setShowLostForm(false)
-              updateStatus.mutate({ leadId: lead.id, status: s }, { onSuccess: () => setDisplayStatus(s) })
-            }}
-          >
-            {t(`leads.status.${s}`)}
-          </Button>
-        ))}
-      </div>
+      {!closed ? (
+        <div className="space-y-1.5">
+          <Label>{t("leads.detail.changeStage")}</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {STAGE_BUTTONS.map((s) => (
+              <Button
+                key={s}
+                size="sm"
+                variant={lead.status === s ? "accent" : "outline"}
+                disabled={updateStatus.isPending}
+                onClick={() => {
+                  if (s === "lost") {
+                    setShowLostForm(true)
+                    return
+                  }
+                  setShowLostForm(false)
+                  updateStatus.mutate({ leadId: lead.id, status: s }, { onError: failed })
+                }}
+              >
+                {t(`leads.status.${s}`)}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : lead.status === "lost" && lead.lost_reason ? (
+        <p className="text-xs text-text-muted">
+          <span className="font-medium text-text">{t("leads.detail.lostReasonLabel")}:</span> {lostReasonLabel(lead.lost_reason, t)}
+        </p>
+      ) : null}
 
-      {showLostForm ? (
+      {showLostForm && !closed ? (
         <div className="space-y-2 rounded-xl border border-border p-3">
           <Label>{t("leads.detail.lostReasonLabel")}</Label>
           <select
-            value={lostReasonOption}
-            onChange={(e) => setLostReasonOption(e.target.value as (typeof LOST_REASONS)[number])}
+            value={lostPreset}
+            onChange={(e) => setLostPreset(e.target.value as LostReasonPreset | "")}
             className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           >
             <option value="">{t("leads.detail.lostReasonPlaceholder")}</option>
-            {LOST_REASONS.map((r) => (
+            {LOST_REASON_PRESETS.map((r) => (
               <option key={r} value={r}>
                 {t(`leads.lostReason.${r}`)}
               </option>
             ))}
           </select>
-          {lostReasonOption === "other" ? (
-            <Input
-              placeholder={t("leads.detail.lostReasonOtherPlaceholder")}
-              value={lostReasonOther}
-              onChange={(e) => setLostReasonOther(e.target.value)}
-            />
-          ) : null}
+          {lostPreset === "other" ? <Input placeholder={t("leads.detail.lostReasonOtherPlaceholder")} value={lostOther} onChange={(e) => setLostOther(e.target.value)} /> : null}
           <div className="flex justify-end gap-1.5">
             <Button size="sm" variant="ghost" onClick={() => setShowLostForm(false)}>
               {t("common.cancel")}
@@ -212,18 +183,17 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
             <Button
               size="sm"
               variant="destructive"
-              disabled={!lostReasonText || updateStatus.isPending}
+              disabled={!lostReasonValue || updateStatus.isPending}
               onClick={() =>
                 updateStatus.mutate(
-                  { leadId: lead.id, status: "lost", reason: lostReasonText },
+                  { leadId: lead.id, status: "lost", reason: lostReasonValue },
                   {
                     onSuccess: () => {
-                      setDisplayStatus("lost")
-                      setDisplayLostReason(lostReasonText)
                       setShowLostForm(false)
-                      setLostReasonOption("")
-                      setLostReasonOther("")
+                      setLostPreset("")
+                      setLostOther("")
                     },
+                    onError: failed,
                   }
                 )
               }
@@ -232,59 +202,7 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
             </Button>
           </div>
         </div>
-      ) : displayStatus === "lost" && displayLostReason ? (
-        <p className="text-xs text-text-muted">
-          <span className="font-medium text-text">{t("leads.detail.lostReasonLabel")}:</span> {displayLostReason}
-        </p>
       ) : null}
-
-      <div className="space-y-2 rounded-xl border border-border p-3">
-        <Label>{t("leads.detail.logActivity")}</Label>
-        <div className="flex flex-wrap gap-1.5">
-          {ACTIVITY_TYPES.map((ty) => (
-            <button
-              key={ty}
-              type="button"
-              onClick={() => setActivityType(ty)}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${activityType === ty ? "bg-ink text-white" : "bg-surface-alt text-text-muted"}`}
-            >
-              {t(`leads.activityType.${ty}`)}
-            </button>
-          ))}
-        </div>
-        <Input placeholder={t("leads.detail.notePlaceholder")} value={note} onChange={(e) => setNote(e.target.value)} />
-        <div className="flex justify-end">
-          <Button
-            size="sm"
-            disabled={logActivity.isPending}
-            onClick={() => {
-              logActivity.mutate({ leadId: lead.id, type: activityType, note: note || null })
-              setNote("")
-            }}
-          >
-            {logActivity.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("leads.detail.addActivity")}
-          </Button>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>{t("leads.detail.history")}</Label>
-        {activities.isLoading ? (
-          <p className="text-xs text-text-muted">{t("common.loading")}</p>
-        ) : !activities.data || activities.data.length === 0 ? (
-          <p className="text-xs text-text-muted">{t("leads.detail.noActivity")}</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {activities.data.map((a) => (
-              <li key={a.id} className="rounded-lg bg-surface-alt px-2.5 py-2 text-xs">
-                <span className="font-medium text-text">{t(`leads.activityType.${a.type}`, a.type)}</span>{" "}
-                <span className="text-text-muted">{new Date(a.at).toLocaleString("en-IN")}</span>
-                {a.note ? <p className="mt-0.5 text-text-muted">{a.note}</p> : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
 
       {lead.customer_id && lead.status === "won" ? (
         <div className="space-y-2 rounded-xl border border-border p-3">
@@ -360,9 +278,7 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
         <Label>{t("leads.detail.addedByMistake")}</Label>
         {pendingRemoval ? (
           <div className="space-y-2">
-            <p className="text-xs text-text-muted">
-              {pendingRemoval === "move" ? t("leads.detail.moveConfirm") : t("leads.detail.deleteConfirm")}
-            </p>
+            <p className="text-xs text-text-muted">{pendingRemoval === "move" ? t("leads.detail.moveConfirm") : t("leads.detail.deleteConfirm")}</p>
             <div className="flex justify-end gap-1.5">
               <Button size="sm" variant="ghost" disabled={removalBusy} onClick={() => setPendingRemoval(null)}>
                 {t("common.cancel")}
@@ -376,29 +292,22 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
                     moveToCustomer.mutate(lead.id, {
                       onSuccess: (customerId) => {
                         toast.success(t("leads.detail.movedToast"))
-                        onClose()
                         navigate(`/admin/customers/${customerId}`)
                       },
-                      onError: removalFailed,
+                      onError: failed,
                     })
                   } else {
                     deleteLead.mutate(lead.id, {
                       onSuccess: () => {
                         toast.success(t("leads.detail.deletedToast"))
-                        onClose()
+                        navigate("/admin/leads")
                       },
-                      onError: removalFailed,
+                      onError: failed,
                     })
                   }
                 }}
               >
-                {removalBusy ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : pendingRemoval === "move" ? (
-                  t("leads.detail.moveToCustomer")
-                ) : (
-                  t("leads.detail.deleteLead")
-                )}
+                {removalBusy ? <Loader2 className="size-3.5 animate-spin" /> : pendingRemoval === "move" ? t("leads.detail.moveToCustomer") : t("leads.detail.deleteLead")}
               </Button>
             </div>
           </div>
