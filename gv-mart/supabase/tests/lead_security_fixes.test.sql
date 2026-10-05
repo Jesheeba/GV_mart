@@ -1,4 +1,4 @@
--- Rolled-back RLS check for 20261006140000_lead_security_fixes.sql. Run through the Management API
+-- Rolled-back RLS check for 20261006171000_lead_security_fixes.sql. Run through the Management API
 -- (database/query); it always ends in a RAISE so nothing persists. Read the RESULTS in the error.
 do $t$
 declare
