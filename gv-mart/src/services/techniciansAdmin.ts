@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import type { DayJobInput, DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
-import { getIstNow } from "@/lib/ist"
+import { getIstNow, istDayStartIso, istDayEndIso } from "@/lib/ist"
 import type { Tables, TablesInsert } from "@/types/database"
 import type { DateRange } from "./reports"
 
@@ -101,8 +101,8 @@ export async function listTechnicians(orgId: string, range?: DateRange): Promise
     // new Date("…T00:00:00") (no zone) is LOCAL time; toISOString() makes it an
     // absolute instant. Sending the bare string instead lets Postgres read it as
     // UTC, shifting the window 5.5h late in IST.
-    rangeStartIso = new Date(`${range.from}T00:00:00`).toISOString()
-    rangeEndIso = new Date(`${range.to}T23:59:59.999`).toISOString()
+    rangeStartIso = istDayStartIso(range.from)
+    rangeEndIso = istDayEndIso(range.to)
   } else {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
@@ -394,8 +394,8 @@ export type TechnicianVisitForDate = {
 }
 
 export async function getTechnicianVisitsForDate(technicianId: string, dateStr: string): Promise<TechnicianVisitForDate[]> {
-  const dayStart = new Date(`${dateStr}T00:00:00`)
-  const dayEnd = new Date(`${dateStr}T23:59:59.999`)
+  const dayStart = new Date(istDayStartIso(dateStr))
+  const dayEnd = new Date(istDayEndIso(dateStr))
 
   const { data, error } = await supabase
     .from("service_visits")
@@ -560,8 +560,8 @@ export async function listRecentTechnicianLocations(orgId: string, sinceIso: str
 
 /** A technician's full-day location trail, ordered ascending. */
 export async function getTechnicianTrailForDate(technicianId: string, dateStr: string): Promise<RouteTrailPoint[]> {
-  const dayStart = new Date(`${dateStr}T00:00:00`)
-  const dayEnd = new Date(`${dateStr}T23:59:59.999`)
+  const dayStart = new Date(istDayStartIso(dateStr))
+  const dayEnd = new Date(istDayEndIso(dateStr))
   const { data, error } = await supabase
     .from("technician_locations")
     .select("lat, lng, recorded_at")
@@ -602,8 +602,8 @@ export async function listTechnicianActiveAppointments(technicianId: string): Pr
 /** This technician's actual visit timing (timer_start/timer_end) for one
  * calendar date — the completed/in-progress half of the day's legs. */
 export async function listTechnicianVisitsForDate(technicianId: string, dateStr: string): Promise<DayVisitInput[]> {
-  const dayStart = new Date(`${dateStr}T00:00:00`)
-  const dayEnd = new Date(`${dateStr}T23:59:59.999`)
+  const dayStart = new Date(istDayStartIso(dateStr))
+  const dayEnd = new Date(istDayEndIso(dateStr))
   const { data, error } = await supabase
     .from("service_visits")
     .select("ticket_id, timer_start, timer_end")

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { getIstNow, istDayStartIso, istDayEndIso } from "@/lib/ist"
 import type { Enums, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 import type { DateRange } from "./reports"
 
@@ -59,7 +60,7 @@ export async function listLeads(orgId: string, filters: LeadFilters = {}): Promi
   if (filters.ownerId) query = query.eq("owner_id", filters.ownerId)
   if (filters.customerId) query = query.eq("customer_id", filters.customerId)
   if (filters.dateRange) {
-    query = query.gte("created_at", `${filters.dateRange.from}T00:00:00`).lte("created_at", `${filters.dateRange.to}T23:59:59.999`)
+    query = query.gte("created_at", istDayStartIso(filters.dateRange.from)).lte("created_at", istDayEndIso(filters.dateRange.to))
   }
   const { data, error } = await query
   if (error) throw error
@@ -619,7 +620,7 @@ export async function confirmPoReceipt(input: {
     p_po_id: input.poId,
     p_items: input.items.map((i) => ({ item_type: i.itemType, item_id: i.itemId, qty: i.qty, price: i.price })),
     p_gst: input.gst,
-    p_bill_date: new Date().toISOString().slice(0, 10),
+    p_bill_date: getIstNow().date,
     p_bill_image_url: null,
     p_category: "purchase",
   })

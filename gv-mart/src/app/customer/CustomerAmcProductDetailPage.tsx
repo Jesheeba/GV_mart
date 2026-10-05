@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Package, ShieldCheck } from "lucide-react"
@@ -78,7 +79,7 @@ export function CustomerAmcProductDetailPage() {
   const bookWindowDays = settings?.amc_book_window_days ?? 30
   const dueDateStr = amc?.expiry_date ?? warranty?.expiry_date ?? null
   const brandModel = [product.brands?.name, product.models?.name].filter(Boolean).join(" · ")
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getIstNow().date
 
   const amcHistory = (history ?? []).filter((h) => h.type === "amc")
   const warrantyHistory = (history ?? []).filter((h) => h.type === "warranty")

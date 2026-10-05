@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { istDayStartIso, istDayEndIso } from "@/lib/ist"
 import type { Enums, Tables } from "@/types/database"
 
 // ══════════════════════════════════════════════════════════════════════
@@ -325,8 +326,8 @@ export async function listAuditLog(orgId: string, filters: AuditLogFilters): Pro
   let query = supabase.from("audit_log").select("*, actor:actor_id(full_name)").eq("org_id", orgId)
   if (filters.tableName) query = query.eq("table_name", filters.tableName)
   if (filters.actorId) query = query.eq("actor_id", filters.actorId)
-  if (filters.from) query = query.gte("created_at", new Date(`${filters.from}T00:00:00`).toISOString())
-  if (filters.to) query = query.lte("created_at", new Date(`${filters.to}T23:59:59.999`).toISOString())
+  if (filters.from) query = query.gte("created_at", istDayStartIso(filters.from))
+  if (filters.to) query = query.lte("created_at", istDayEndIso(filters.to))
 
   const { data, error } = await query.order("created_at", { ascending: false }).limit(300)
   if (error) throw error

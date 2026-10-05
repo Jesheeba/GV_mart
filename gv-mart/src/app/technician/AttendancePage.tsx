@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { CheckCircle2, Coffee, Lock, LogOut, MapPin, Loader2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -121,7 +122,7 @@ export function AttendancePage() {
       await markAttendance.mutateAsync({
         orgId: profile.org_id,
         technicianId: technician.data.id,
-        date: new Date().toISOString().slice(0, 10),
+        date: getIstNow().date,
         checkInAt,
         insideGeofence: true,
         selfieUrl: selfie,

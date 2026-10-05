@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { istDayStartIso, istDayEndIso } from "@/lib/ist"
 import type { Enums, Tables } from "@/types/database"
 import type { DateRange } from "./reports"
 
@@ -17,7 +18,7 @@ export async function listQuotations(orgId: string, dateRange?: DateRange): Prom
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
   if (dateRange) {
-    query = query.gte("created_at", `${dateRange.from}T00:00:00`).lte("created_at", `${dateRange.to}T23:59:59.999`)
+    query = query.gte("created_at", istDayStartIso(dateRange.from)).lte("created_at", istDayEndIso(dateRange.to))
   }
   const { data, error } = await query
   if (error) throw error

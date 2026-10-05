@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import { getIstNow } from "@/lib/ist"
+import { getIstNow, istDateOf } from "@/lib/ist"
 import type { Enums, Tables } from "@/types/database"
 
 // `settings.sla_hours_very_urgent/urgent/normal` were added in migration
@@ -645,7 +645,7 @@ export async function getTicketEvidence(ticketId: string): Promise<TicketEvidenc
     visitRows.map(async (v) => {
       const windowStart = v.timer_start ?? v.created_at
       const windowEnd = v.timer_end ?? new Date().toISOString()
-      const attendanceDate = windowStart.slice(0, 10)
+      const attendanceDate = istDateOf(windowStart)
 
       const [locationsRes, attendanceRes] = await Promise.all([
         supabase

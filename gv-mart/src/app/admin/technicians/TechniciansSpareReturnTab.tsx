@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { Loader2, PackageCheck, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,7 @@ import {
 import type { SpareReturnListItem } from "@/services/techniciansAdmin"
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  return getIstNow().date
 }
 
 type DraftLine = { spareId: string; qtyReturned: string }

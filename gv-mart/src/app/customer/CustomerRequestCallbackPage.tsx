@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowLeft, Check, CheckCircle2, Loader2 } from "lucide-react"
@@ -27,7 +28,7 @@ export function CustomerRequestCallbackPage() {
   const { data: slots, isLoading, isError, refetch } = useAppointmentSlots(orgId)
   const requestCallbackMut = useRequestCallback()
 
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = getIstNow().date
   const [scheduledDate, setScheduledDate] = useState(todayStr)
   const [slotId, setSlotId] = useState<string | null>(null)
   const [note, setNote] = useState("")

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
@@ -42,7 +43,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   const form = useForm<SellAmcFormInput, unknown, SellAmcInput>({
     resolver: zodResolver(sellAmcSchema),
     mode: "onChange",
-    defaultValues: { customerId: "", productId: "", planId: "", startDate: new Date().toISOString().slice(0, 10), years: 1 },
+    defaultValues: { customerId: "", productId: "", planId: "", startDate: getIstNow().date, years: 1 },
   })
 
   const selectedPlan = (plans ?? []).find((p) => p.id === form.watch("planId"))

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { getIstNow, istDayStartIso, istDayEndIso } from "@/lib/ist"
 import { db } from "@/lib/offline/db"
 import { enqueue } from "@/lib/offline/outbox"
 import { distanceKm, expectedMinutes, type GeoPoint } from "@/lib/offline/geo"
@@ -336,9 +337,9 @@ export type TodaysJobCounts = {
  * timestamp proxy (appointments has no dedicated "closed_at" column).
  */
 export async function getTodaysJobCounts(orgId: string, technicianId: string): Promise<TodaysJobCounts> {
-  const date = new Date().toISOString().slice(0, 10)
-  const dayStartIso = new Date(`${date}T00:00:00`).toISOString()
-  const dayEndIso = new Date(`${date}T23:59:59.999`).toISOString()
+  const date = getIstNow().date
+  const dayStartIso = istDayStartIso(date)
+  const dayEndIso = istDayEndIso(date)
   const now = Date.now()
 
   const [openJobs, completedRes, cancelledRes] = await Promise.all([
@@ -1239,8 +1240,8 @@ export async function getTechnicianStats(technicianId: string, orgId: string, ra
   // Same yyyy-mm-dd → inclusive-ISO-timestamp conversion as reports.ts's
   // (unexported) rangeToTimestamps — duplicated per this codebase's
   // convention of not centralizing small date-math helpers into a shared util.
-  const fromIso = new Date(`${range.from}T00:00:00`).toISOString()
-  const toIso = new Date(`${range.to}T23:59:59.999`).toISOString()
+  const fromIso = istDayStartIso(range.from)
+  const toIso = istDayEndIso(range.to)
 
   const [visitsRes, ratingsRes] = await Promise.all([
     supabase

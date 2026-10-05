@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { getIstNow, istDayStartIso, istDayEndIso } from "@/lib/ist"
 import type { Enums, Tables } from "@/types/database"
 
 export type TaskRow = Tables<"tasks">
@@ -7,7 +8,7 @@ export type NotificationRow = Tables<"notifications">
 export type TaskRowWithRollover = TaskRow
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  return getIstNow().date
 }
 
 // ── ADM-31 Workspace: to-do checklist over `tasks` ───────────────────────
@@ -159,9 +160,9 @@ export type UpcomingAppointmentForConfirmation = AppointmentRow & {
 // is applied client-side after casting the response.
 export async function listUpcomingAppointmentsForConfirmation(orgId: string): Promise<UpcomingAppointmentForConfirmation[]> {
   const today = todayIso()
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const fromIso = new Date(`${today}T00:00:00`).toISOString()
-  const toIso = new Date(`${tomorrow}T23:59:59.999`).toISOString()
+  const tomorrow = new Date(Date.parse(today) + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const fromIso = istDayStartIso(today)
+  const toIso = istDayEndIso(tomorrow)
 
   const { data, error } = await supabase
     .from("appointments")
@@ -213,8 +214,8 @@ export type DaySheetSummary = {
 
 export async function getDaySheetSummary(orgId: string, technicianId: string): Promise<DaySheetSummary> {
   const date = todayIso()
-  const dayStartIso = new Date(`${date}T00:00:00`).toISOString()
-  const dayEndIso = new Date(`${date}T23:59:59.999`).toISOString()
+  const dayStartIso = istDayStartIso(date)
+  const dayEndIso = istDayEndIso(date)
 
   const [doneRes, pendingRes, attendanceRes] = await Promise.all([
     supabase

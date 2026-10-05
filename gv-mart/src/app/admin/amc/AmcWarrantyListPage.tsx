@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Inbox, Plus, Search, TriangleAlert } from "lucide-react"
@@ -36,9 +37,9 @@ function fmt(date: string | null) {
 }
 
 function warrantyStatus(expiryDate: string, windowDays: number): "active" | "due_soon" | "expired" {
-  const today = new Date()
-  const expiry = new Date(expiryDate)
-  const diffDays = (expiry.getTime() - today.getTime()) / 86_400_000
+  // Both sides as date-only UTC midnights: expiryDate is a plain date, and
+  // "today" must be the IST date (the server compares expiry_date to the IST date).
+  const diffDays = (Date.parse(expiryDate) - Date.parse(getIstNow().date)) / 86_400_000
   if (diffDays < 0) return "expired"
   if (diffDays <= windowDays) return "due_soon"
   return "active"

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { getIstNow } from "@/lib/ist"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { CheckCircle2, Loader2, Printer, Wallet } from "lucide-react"
@@ -14,7 +15,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 import type { SalaryListItem } from "@/services/hr"
 
 function currentMonthIso() {
-  return new Date().toISOString().slice(0, 7)
+  return getIstNow().date.slice(0, 7)
 }
 
 function monthToPeriodDate(month: string) {
@@ -69,7 +70,7 @@ export function SalaryTab() {
         orgId,
         category: "salary",
         amount: row.net,
-        date: new Date().toISOString().slice(0, 10),
+        date: getIstNow().date,
         note: `Salary — ${month}`,
         staffId: profileId,
         loggedBy: profile?.id ?? null,

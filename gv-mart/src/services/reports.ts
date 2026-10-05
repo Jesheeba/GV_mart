@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { istDayStartIso, istDayEndIso } from "@/lib/ist"
 import { minutesBetween } from "@/lib/visit-duration"
 import { toLocalDateString, toLocalMonthString } from "@/lib/local-date"
 import type { Enums } from "@/types/database"
@@ -7,8 +8,8 @@ export type DateRange = { from: string; to: string }
 
 export function rangeToTimestamps(range: DateRange) {
   // `to` is a date input (yyyy-mm-dd); make it inclusive of the whole day.
-  const fromIso = new Date(`${range.from}T00:00:00`).toISOString()
-  const toIso = new Date(`${range.to}T23:59:59.999`).toISOString()
+  const fromIso = istDayStartIso(range.from)
+  const toIso = istDayEndIso(range.to)
   return { fromIso, toIso }
 }
 
