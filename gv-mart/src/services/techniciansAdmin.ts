@@ -98,8 +98,11 @@ export async function listTechnicians(orgId: string, range?: DateRange): Promise
   let rangeStartIso: string
   let rangeEndIso: string
   if (range) {
-    rangeStartIso = `${range.from}T00:00:00`
-    rangeEndIso = `${range.to}T23:59:59.999`
+    // new Date("…T00:00:00") (no zone) is LOCAL time; toISOString() makes it an
+    // absolute instant. Sending the bare string instead lets Postgres read it as
+    // UTC, shifting the window 5.5h late in IST.
+    rangeStartIso = new Date(`${range.from}T00:00:00`).toISOString()
+    rangeEndIso = new Date(`${range.to}T23:59:59.999`).toISOString()
   } else {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
