@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as reports from "@/services/reports"
+import * as insights from "@/services/reportsInsights"
 import type { CreateExpenseInput, DateRange } from "@/services/reports"
 
 export function useExpensesList(orgId: string | undefined, range: DateRange) {
@@ -101,5 +102,39 @@ export function useCreateExpense() {
       qc.invalidateQueries({ queryKey: ["reports", "openRecurringTasks"] })
       qc.invalidateQueries({ queryKey: ["reports", "salaryByStaff"] })
     },
+  })
+}
+
+// ── Phase 2 (coverage, installation rates, product sales, funnel, customers) ──
+
+export function useCoverageReport(orgId: string | undefined, range: DateRange) {
+  return useQuery({
+    queryKey: ["reports", "coverage", orgId, range],
+    queryFn: () => insights.getCoverageReport(orgId!, range),
+    enabled: !!orgId,
+  })
+}
+
+export function useProductSalesReport(orgId: string | undefined, range: DateRange) {
+  return useQuery({
+    queryKey: ["reports", "productSales", orgId, range],
+    queryFn: () => insights.getProductSalesReport(orgId!, range),
+    enabled: !!orgId,
+  })
+}
+
+export function useLeadFunnel(orgId: string | undefined, range: DateRange) {
+  return useQuery({
+    queryKey: ["reports", "leadFunnel", orgId, range],
+    queryFn: () => insights.getLeadFunnel(orgId!, range),
+    enabled: !!orgId,
+  })
+}
+
+export function useCustomerTotals(orgId: string | undefined, range: DateRange) {
+  return useQuery({
+    queryKey: ["reports", "customerTotals", orgId, range],
+    queryFn: () => insights.getCustomerTotals(orgId!, range),
+    enabled: !!orgId,
   })
 }

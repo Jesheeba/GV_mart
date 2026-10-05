@@ -4,7 +4,7 @@ import type { Enums } from "@/types/database"
 
 export type DateRange = { from: string; to: string }
 
-function rangeToTimestamps(range: DateRange) {
+export function rangeToTimestamps(range: DateRange) {
   // `to` is a date input (yyyy-mm-dd); make it inclusive of the whole day.
   const fromIso = new Date(`${range.from}T00:00:00`).toISOString()
   const toIso = new Date(`${range.to}T23:59:59.999`).toISOString()
@@ -67,13 +67,16 @@ export function periodToRange(value: PeriodValue): DateRange {
   const [y, m] = value.month.split("-").map(Number)
   const from = new Date(y, m - 1, 1)
   const to = new Date(y, m, 0)
-  const toStr = (d: Date) => d.toISOString().slice(0, 10)
+  // Local calendar parts, NOT toISOString(): these are local-midnight Dates, and
+  // in a UTC+ zone (IST) toISOString() shifts them back a day — month ranges
+  // came out as e.g. Sep 30 – Oct 30 instead of Oct 1 – Oct 31.
+  const toStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
   return { from: toStr(from), to: toStr(to) }
 }
 
 export function defaultPeriodValue(): PeriodValue {
   const now = new Date()
-  return { mode: "month", month: now.toISOString().slice(0, 7) }
+  return { mode: "month", month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}` }
 }
 
 // ── ADM-27 Sales & Service report ───────────────────────────────────────
