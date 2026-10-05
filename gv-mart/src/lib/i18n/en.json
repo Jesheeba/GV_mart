@@ -766,7 +766,10 @@
       "threshold": "Threshold",
       "amount": "Amount",
       "add": "Add rule",
-      "empty": "No incentive rules yet — set your first one."
+      "empty": "No incentive rules yet — set your first one.",
+      "status": "Status",
+      "active": "Active",
+      "inactive": "Inactive"
     },
     "complaintTypes": {
       "hint": "These are the default complaint types for every product in a category. A product only gets its own list when someone adds product-specific complaints for it from Inventory or Masters > Products — otherwise it uses these defaults.",
@@ -956,7 +959,17 @@
       "inactive": "Inactive",
       "add": "Add rate",
       "empty": "No per-unit rates yet — add your first one.",
-      "needScope": "Pick a product or a category."
+      "needScope": "Pick a product or a category.",
+      "flat": {
+        "title": "Flat monthly installation bonus",
+        "note": "Paid once per month when a technician reaches the threshold. Paid in addition to per-unit rates below.",
+        "amount": "Bonus amount (₹)",
+        "threshold": "Threshold (installs per month)",
+        "active": "Active",
+        "saved": "Saved — applies from the next incentive computation.",
+        "amountInvalid": "Amount can't be negative.",
+        "thresholdInvalid": "Threshold must be a whole number, at least 1."
+      }
     },
     "leadOutcomes": {
       "hint": "Outcomes staff pick after contacting a lead. Each sets the default next follow-up and can move the lead (Won / Lost close it). \"Postpone\" outcomes (call me later) add to a lead's postpone count; \"Progress\" outcomes reset it.",

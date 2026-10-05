@@ -4,6 +4,7 @@ import { installationRatesHooks, productsHooks } from "@/hooks/useMasters"
 import type { InstallationRateRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
 import { formatCurrency } from "@/lib/sale-calc"
+import { FlatInstallationBonusCard } from "./FlatInstallationBonusCard"
 
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
 
@@ -66,6 +67,7 @@ export function InstallationRatesTab() {
 
   return (
     <div className="space-y-3">
+      <FlatInstallationBonusCard orgId={orgId} />
       <p className="text-xs text-text-muted">{t("masters.installationRates.subtitle")}</p>
       <p className="text-xs text-text-muted">{t("masters.installationRates.matchHint")}</p>
       <EntityCrudTable<InstallationRateRow>
