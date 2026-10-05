@@ -95,8 +95,6 @@
     "genericSignInError": "Couldn't sign in. Please try again.",
     "profileLoadError": "Couldn't load your account. Please retry, or sign out and sign in again.",
     "trustNote": "Role is read from your account on sign-in. Permissions are enforced server-side (RLS), never in the UI alone.",
-    "demoCredentialsToggle": "Demo credentials (dev only)",
-    "demoCredentialsPassword": "Password (all)",
     "passwordResetSent": "If an account exists for that email, a reset link has been sent.",
     "orDivider": "or",
     "signInWithGoogle": "Sign in with Google",

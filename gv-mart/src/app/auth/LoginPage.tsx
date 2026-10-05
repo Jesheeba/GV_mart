@@ -51,26 +51,16 @@ function GoogleLogo({ className }: { className?: string }) {
   )
 }
 
-const DEMO_LOGINS = [
-  { role: "master", email: "master@gvmart.test" },
-  { role: "operation_admin", email: "operation_admin@gvmart.test" },
-  { role: "sales_admin", email: "sales_admin@gvmart.test" },
-  { role: "technician", email: "technician@gvmart.test" },
-  { role: "customer", email: "customer@gvmart.test" },
-] as const
-
 export function LoginPage() {
   const { t } = useTranslation()
   const { session, loading: sessionLoading } = useAuth()
   const { data: profile, isLoading: profileLoading, error: profileError } = useProfile()
   const [showPassword, setShowPassword] = useState(false)
-  const [showDemoCreds, setShowDemoCreds] = useState(false)
   const [resetNotice, setResetNotice] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema), mode: "onChange" })
 
@@ -246,37 +236,6 @@ export function LoginPage() {
             <p role="alert" className="mt-2 rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">
               {t("auth.genericSignInError")}
             </p>
-          ) : null}
-
-          {import.meta.env.DEV ? (
-            <div className="mt-4">
-              <button
-                type="button"
-                className="w-full rounded-xl bg-surface-alt px-3.5 py-2.5 text-left text-sm font-medium text-text hover:bg-surface-alt/70"
-                onClick={() => setShowDemoCreds((v) => !v)}
-              >
-                {t("auth.demoCredentialsToggle")}
-              </button>
-              {showDemoCreds ? (
-                <div className="mt-2 space-y-1.5 rounded-xl border border-border p-3.5 text-sm">
-                  {DEMO_LOGINS.map((d) => (
-                    <button
-                      key={d.role}
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left hover:bg-surface-alt"
-                      onClick={() => {
-                        setValue("email", d.email)
-                        setValue("password", "GvMart@2026")
-                      }}
-                    >
-                      <span className="font-medium text-text">{t(`roles.${d.role}`)}</span>
-                      <span className="text-text-muted">{d.email}</span>
-                    </button>
-                  ))}
-                  <p className="pt-1 text-xs text-text-muted">{t("auth.demoCredentialsPassword")}: GvMart@2026</p>
-                </div>
-              ) : null}
-            </div>
           ) : null}
 
           <p className="mt-6 flex items-start gap-2 text-xs text-text-muted">

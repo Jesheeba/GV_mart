@@ -52,7 +52,7 @@ npx supabase gen types typescript --local > src/types/database.ts   # or --proje
 
 ## Seed logins
 
-All seeded users share the password `GvMart@2026` (test/dev credentials only — rotate before any real deployment):
+All seeded users share the password you supply via the `SEED_PASSWORD` env var (there is no default; never reuse it in production):
 
 | Role | Email |
 |---|---|

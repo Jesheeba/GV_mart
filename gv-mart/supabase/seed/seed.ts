@@ -285,7 +285,7 @@ async function main() {
   console.log(`customers: ${CUSTOMERS.length} (with primary addresses)`)
 
   console.log("\nSeed complete.\n")
-  console.log(`Test logins (password: ${SEED_PASSWORD}):`)
+  console.log("Test logins (password: the SEED_PASSWORD you supplied):")
   for (const u of ROLE_USERS) console.log(`  ${u.role.padEnd(16)} ${u.email}`)
 }
 
