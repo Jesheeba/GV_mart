@@ -24,7 +24,7 @@ export type LeadListItem = LeadRow & {
 }
 
 export type LeadFilters = {
-  source?: Enums<"lead_source">
+  source?: string
   enquiryType?: Enums<"enquiry_type">
   kind?: Enums<"lead_kind">
   /** Owner request 2026-07-29: scopes to leads created within this range,
@@ -70,12 +70,26 @@ export async function createLead(row: {
   org_id: string
   name: string
   mobile: string | null
-  source: Enums<"lead_source">
+  source: string
   enquiry_type: Enums<"enquiry_type"> | null
   kind?: Enums<"lead_kind"> | null
+  /** Products/spares picked from inventory; first one also fills the lead's scalar columns (back-compat, see lead_items migration). */
+  items?: { product_id?: string; spare_id?: string; qty: number }[]
 }) {
-  const { data, error } = await supabase.from("leads").insert(row).select().single()
+  const { items = [], ...leadRow } = row
+  const first = items[0]
+  const { data, error } = await supabase
+    .from("leads")
+    .insert({ ...leadRow, product_id: first?.product_id ?? null, spare_id: first?.spare_id ?? null, qty: first?.qty ?? null })
+    .select()
+    .single()
   if (error) throw error
+  if (items.length > 0) {
+    const { error: itemsError } = await supabase
+      .from("lead_items")
+      .insert(items.map((i) => ({ org_id: row.org_id, lead_id: data.id, product_id: i.product_id ?? null, spare_id: i.spare_id ?? null, qty: i.qty })))
+    if (itemsError) throw itemsError
+  }
   return data
 }
 

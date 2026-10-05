@@ -439,3 +439,10 @@ export function useClearProductCtaOverride(productId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["product_cta_overrides", "list", productId] }),
   })
 }
+
+export const leadSourcesHooks = entityHooks("lead_sources", {
+  list: masters.listLeadSources,
+  create: masters.createLeadSource,
+  update: masters.updateLeadSource,
+  remove: masters.deleteLeadSource,
+})

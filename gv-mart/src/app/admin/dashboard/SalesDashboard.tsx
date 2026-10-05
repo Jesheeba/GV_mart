@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Plus } from "lucide-react"
 import { useSalesServiceReport } from "@/hooks/useReports"
+import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeads } from "@/hooks/useAutomation"
 import { useQuotationsList } from "@/hooks/useQuotations"
 import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
@@ -26,6 +27,7 @@ function leadName(l: { customers: { name: string } | null; name: string }) {
 
 export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName: string }) {
   const { t } = useTranslation()
+  const { label: sourceLabel } = useLeadSourceOptions()
   const navigate = useNavigate()
   const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
   const range = periodToRange(period)
@@ -177,7 +179,7 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
             recentLeads.map((l, i) => (
               <div key={l.id} className={cn("grid grid-cols-[1.5fr_1.1fr_1.1fr_1fr] items-center px-5.5 py-3.25", i < recentLeads.length - 1 && "border-b border-[#F1EDE6]")}>
                 <span className="text-[13px] font-semibold text-text">{leadName(l)}</span>
-                <span className="text-[13px] font-medium text-[#3A3A36]">{t(`leads.source.${l.source}`)}</span>
+                <span className="text-[13px] font-medium text-[#3A3A36]">{sourceLabel(l.source)}</span>
                 <span className="text-[13px] font-medium text-[#3A3A36]">{l.enquiry_type ? t(`leads.enquiryType.${l.enquiry_type}`) : "—"}</span>
                 <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: LEAD_STAGE_TONE[l.status] }}>
                   <span className="size-1.75 rounded-full" style={{ background: LEAD_STAGE_TONE[l.status] }} />
@@ -197,7 +199,7 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
               {sourceRows.map((row) => (
                 <div key={row.source}>
                   <div className="mb-1.5 flex justify-between">
-                    <span className="text-xs font-semibold text-text">{t(`leads.source.${row.source}`)}</span>
+                    <span className="text-xs font-semibold text-text">{sourceLabel(row.source)}</span>
                     <span className="text-xs font-bold tabular-nums text-text">{row.pct}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[#F0EBE3]">

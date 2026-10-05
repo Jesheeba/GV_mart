@@ -506,6 +506,7 @@
       "sopStepsDesc": "{{count}} activities",
       "productEnquiryDesc": "{{count}} customer app tabs configured",
       "waterQualityDesc": "{{count}} districts with TDS data",
+      "leadSourcesDesc": "{{count}} sources",
       "settingsDesc": "Discount, travel, hours & SLA",
       "paymentSettingsDesc": "UPI merchant details for customer QR payments"
     },
@@ -524,6 +525,7 @@
       "sopSteps": "Activities",
       "productEnquiry": "Product Enquiry",
       "waterQuality": "Water Quality (TDS)",
+      "leadSources": "Lead Sources",
       "settings": "Settings",
       "paymentSettings": "Payment Settings"
     },
@@ -611,6 +613,22 @@
       "active": "Exclusion enabled",
       "add": "Exclude a product",
       "empty": "No products excluded — every product currently counts towards the gift threshold."
+    },
+    "leadSources": {
+      "label": "Source name",
+      "labelPlaceholder": "e.g. Facebook ad, Exhibition",
+      "status": "Status",
+      "active": "Active",
+      "inactive": "Inactive",
+      "type": "Type",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "add": "Add source",
+      "empty": "No lead sources yet.",
+      "hint": "Options for the Source field on leads. Built-in sources can be turned off but not deleted; custom sources can be deleted only while no lead or customer uses them.",
+      "invalidLabel": "Enter a source name using letters or numbers.",
+      "duplicate": "A source with this name already exists.",
+      "cannotDelete": "This source can't be deleted — it's built-in or already used by leads/customers. Mark it Inactive instead."
     },
     "waterQuality": {
       "districtsTitle": "District TDS reference",
@@ -2928,6 +2946,13 @@
       "clear": "Clear filters"
     },
     "new": {
+      "pickProducts": "Select products from inventory",
+      "pickSpares": "Select spares from inventory",
+      "selectedCount": "{{count}} selected",
+      "searchInventory": "Search inventory…",
+      "noInventoryMatch": "No items match.",
+      "inStock": "{{count}} in stock",
+      "qty": "Quantity",
       "title": "New Lead",
       "name": "Name",
       "mobile": "Mobile",
@@ -3633,7 +3658,8 @@
       "salesService": "Sales & Service",
       "pnl": "P&L",
       "performance": "Performance",
-      "feedback": "Feedback"
+      "feedback": "Feedback",
+      "topCustomers": "Top Customers"
     },
     "filters": {
       "from": "From",
@@ -3752,6 +3778,27 @@
       "noReason": "No reason captured",
       "noLowRatings": "No low ratings in this range — great work."
     },
+    "topCustomers": {
+      "topXLabel": "Top",
+      "title": "Top {{count}} Customers by Sales",
+      "printTitle": "Top {{count}} Customers by Sales",
+      "print": "Print",
+      "printFieldsTitle": "Details to include in the print",
+      "printFieldsHint": "Pick what goes on the printed sheet — the sheet updates as you tick or untick.",
+      "fields": {
+        "rank": "Rank",
+        "name": "Name",
+        "mobile": "Mobile",
+        "profession": "Profession",
+        "area": "Area",
+        "pincode": "Pincode",
+        "invoicedTotal": "Invoiced",
+        "collectedTotal": "Collected",
+        "invoiceCount": "Invoices",
+        "firstPurchaseAt": "First Purchase",
+        "lastPurchaseAt": "Last Purchase"
+      }
+    },
     "errors": {
       "expenseCategoryRequired": "Category is required",
       "expenseAmountPositive": "Amount must be greater than 0",
@@ -3808,28 +3855,6 @@
     "daysOverdue_one": "{{count}} day overdue",
     "daysOverdue_other": "{{count}} days overdue"
   },
-  "tasks": {
-    "subtitle": "Assign and track tasks across the whole team.",
-    "assignTask": "Assign Task",
-    "loadFailed": "Could not load tasks.",
-    "empty": "No tasks here.",
-    "unknownUser": "Unknown",
-    "recurring": "Repeats monthly",
-    "assignedBy": "Assigned by {{name}}",
-    "due": "Due {{date}}",
-    "filters": {
-      "open": "Open",
-      "mine": "Assigned to me",
-      "done": "Done",
-      "all": "All"
-    },
-    "view": {
-      "list": "List",
-      "calendar": "Calendar"
-    },
-    "detailDialog": {
-      "title": "Task",
-      "subtitle": "Reassign, reschedule, or update this task.",
   "huddle": {
     "subtitle": "Record the daily meeting: problems, root causes, solutions and action items. Open problems carry forward until solved.",
     "technicianSubtitle": "Read-only view of the daily meeting notes and open problems.",
@@ -3900,6 +3925,28 @@
     "noNotes": "No notes recorded.",
     "recentMeetings": "Recent meetings"
   },
+  "tasks": {
+    "subtitle": "Assign and track tasks across the whole team.",
+    "assignTask": "Assign Task",
+    "loadFailed": "Could not load tasks.",
+    "empty": "No tasks here.",
+    "unknownUser": "Unknown",
+    "recurring": "Repeats monthly",
+    "assignedBy": "Assigned by {{name}}",
+    "due": "Due {{date}}",
+    "filters": {
+      "open": "Open",
+      "mine": "Assigned to me",
+      "done": "Done",
+      "all": "All"
+    },
+    "view": {
+      "list": "List",
+      "calendar": "Calendar"
+    },
+    "detailDialog": {
+      "title": "Task",
+      "subtitle": "Reassign, reschedule, or update this task.",
       "statusOpen": "Open",
       "statusDone": "Done",
       "confirmDelete": "Delete this task? This cannot be undone."

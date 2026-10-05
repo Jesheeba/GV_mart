@@ -3,6 +3,7 @@ import { TriangleAlert } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { TechnicianChip } from "./LeadBadges"
 import type { LeadListItem } from "@/services/automation"
 
@@ -24,6 +25,7 @@ export function LeadsKanban({
   onCardClick: (row: LeadListItem) => void
 }) {
   const { t } = useTranslation()
+  const { label: sourceLabel } = useLeadSourceOptions()
 
   if (error) {
     return (
@@ -61,7 +63,7 @@ export function LeadsKanban({
                       <div className="text-sm font-medium text-text">{r.customers?.name ?? r.name}</div>
                       <div className="text-xs text-text-muted">{r.mobile ?? r.customers?.mobile ?? "—"}</div>
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-text-muted">
-                        <span className="rounded-full bg-surface-alt px-2 py-0.5">{t(`leads.source.${r.source}`)}</span>
+                        <span className="rounded-full bg-surface-alt px-2 py-0.5">{sourceLabel(r.source)}</span>
                         {r.enquiry_type ? <span className="rounded-full bg-surface-alt px-2 py-0.5">{t(`leads.enquiryType.${r.enquiry_type}`)}</span> : null}
                       </div>
                       {r.technicians?.profiles?.full_name ? <TechnicianChip source={r.source} name={r.technicians.profiles.full_name} /> : null}

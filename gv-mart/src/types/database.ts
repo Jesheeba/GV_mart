@@ -215,7 +215,7 @@ export type Database = {
           name: string
           mobile: string
           profession: string | null
-          source: Database["public"]["Enums"]["lead_source"] | null
+          source: string | null
           tags: string[]
           notes: string | null
           // Lead/Quotation enhancement spec (2026-09-16) Item 3 — set true
@@ -232,7 +232,7 @@ export type Database = {
           name: string
           mobile: string
           profession?: string | null
-          source?: Database["public"]["Enums"]["lead_source"] | null
+          source?: string | null
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
@@ -246,7 +246,7 @@ export type Database = {
           name?: string
           mobile?: string
           profession?: string | null
-          source?: Database["public"]["Enums"]["lead_source"] | null
+          source?: string | null
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
@@ -4596,7 +4596,7 @@ export type Database = {
           customer_id: string | null
           name: string
           mobile: string | null
-          source: Database["public"]["Enums"]["lead_source"]
+          source: string
           enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
           kind: Database["public"]["Enums"]["lead_kind"] | null
           status: Database["public"]["Enums"]["lead_status"]
@@ -4626,7 +4626,7 @@ export type Database = {
           customer_id?: string | null
           name: string
           mobile?: string | null
-          source?: Database["public"]["Enums"]["lead_source"]
+          source?: string
           enquiry_type?: Database["public"]["Enums"]["enquiry_type"] | null
           kind?: Database["public"]["Enums"]["lead_kind"] | null
           status?: Database["public"]["Enums"]["lead_status"]
@@ -4647,7 +4647,7 @@ export type Database = {
           customer_id?: string | null
           name?: string
           mobile?: string | null
-          source?: Database["public"]["Enums"]["lead_source"]
+          source?: string
           enquiry_type?: Database["public"]["Enums"]["enquiry_type"] | null
           kind?: Database["public"]["Enums"]["lead_kind"] | null
           status?: Database["public"]["Enums"]["lead_status"]
@@ -4820,6 +4820,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lead_sources: {
+        Row: {
+          id: string
+          org_id: string
+          key: string
+          label: string
+          is_system: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          key: string
+          label: string
+          is_system?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          key?: string
+          label?: string
+          is_system?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       automation_flows: {
         Row: {
@@ -6113,7 +6146,7 @@ export type Database = {
         Args: {
           p_org_id: string
           p_profession: string
-          p_source: Database["public"]["Enums"]["lead_source"]
+          p_source: string
           p_members: Json
           p_address: Json
         }
@@ -6595,6 +6628,14 @@ export type Database = {
         Args: { p_request_id: string; p_supplier_id: string }
         Returns: string
       }
+      customer_delete_impact: {
+        Args: { p_customer_id: string }
+        Returns: Json
+      }
+      delete_customer: {
+        Args: { p_customer_id: string; p_confirm_name: string }
+        Returns: undefined
+      }
       log_lead_activity: {
         Args: { p_lead_id: string; p_type: string; p_note: string | null }
         Returns: string
@@ -6700,7 +6741,6 @@ export type Database = {
       product_enquiry_tab_type: "catalog_grid" | "video_library"
       product_enquiry_field: "category" | "brand" | "price_range"
       lead_status: "new" | "contacted" | "quoted" | "won" | "lost"
-      lead_source: "field" | "customer_app" | "whatsapp" | "walk_in" | "referral" | "other"
       lead_kind: "service" | "spare" | "product" | "amc"
       automation_action: "send_video" | "quotation" | "link"
       // Installation tracking + incentive (2026-09-25), see

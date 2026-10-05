@@ -10,6 +10,7 @@ import { useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
 import { LeadDetailPanel } from "./LeadDetailPanel"
 import { NewLeadForm } from "./NewLeadForm"
+import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { SourceBadge, TechnicianChip } from "./LeadBadges"
 import type { LeadListItem } from "@/services/automation"
 import type { Enums } from "@/types/database"
@@ -18,7 +19,6 @@ import { cn } from "@/lib/utils"
 const TABLE_GRID_COLS =
   "grid-cols-[minmax(140px,1.4fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.8fr)_minmax(90px,1fr)_minmax(110px,0.9fr)_minmax(110px,1.2fr)_minmax(90px,1fr)]"
 
-const SOURCE_OPTIONS: Enums<"lead_source">[] = ["field", "customer_app", "whatsapp", "walk_in", "referral", "other"]
 const TOPIC_OPTIONS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
 const KIND_OPTIONS: Enums<"lead_kind">[] = ["service", "spare", "product", "amc"]
 
@@ -26,9 +26,10 @@ export function LeadsPage() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
+  const { sources, label } = useLeadSourceOptions()
 
   const [view, setView] = useState<"table" | "kanban">("kanban")
-  const [source, setSource] = useState<Enums<"lead_source"> | "">("")
+  const [source, setSource] = useState<string>("")
   const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
   const [kind, setKind] = useState<Enums<"lead_kind"> | "">("")
   const [search, setSearch] = useState("")
@@ -147,13 +148,13 @@ export function LeadsPage() {
         </div>
         <select
           value={source}
-          onChange={(e) => setSource(e.target.value as Enums<"lead_source"> | "")}
+          onChange={(e) => setSource(e.target.value)}
           className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
         >
           <option value="">{t("leads.filters.allSources")}</option>
-          {SOURCE_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {t(`leads.source.${s}`)}
+          {sources.map((s) => (
+            <option key={s.key} value={s.key}>
+              {label(s.key)}
             </option>
           ))}
         </select>

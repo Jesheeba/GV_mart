@@ -495,3 +495,37 @@ export type ComplaintTypeSpareRow = Tables<"complaint_type_spares"> & { spares: 
 export type SettingsRow = Tables<"settings">
 export type SopStepTemplateRow = Tables<"sop_step_templates"> & { products: Pick<Tables<"products">, "name"> | null }
 export type AppointmentSlotRow = Tables<"appointment_slots">
+
+// ── Lead sources (2026-10-05) ────────────────────────────────────────────
+// Admin-editable list behind leads.source / customers.source (text keys).
+// is_system rows are the six built-ins the code keys off — never deleted.
+export async function listLeadSources(orgId: string) {
+  const { data, error } = await supabase.from("lead_sources").select("*").eq("org_id", orgId).order("created_at")
+  if (error) throw error
+  return data
+}
+export async function createLeadSource(row: TablesInsert<"lead_sources">) {
+  const { data, error } = await supabase.from("lead_sources").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateLeadSource(id: string, patch: TablesUpdate<"lead_sources">) {
+  const { data, error } = await supabase.from("lead_sources").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteLeadSource(id: string) {
+  const { error } = await supabase.from("lead_sources").delete().eq("id", id).eq("is_system", false)
+  if (error) throw error
+}
+/** True when any lead or customer still carries this source key. */
+export async function leadSourceInUse(orgId: string, key: string) {
+  const [leads, customers] = await Promise.all([
+    supabase.from("leads").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("source", key),
+    supabase.from("customers").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("source", key),
+  ])
+  if (leads.error) throw leads.error
+  if (customers.error) throw customers.error
+  return (leads.count ?? 0) + (customers.count ?? 0) > 0
+}
+export type LeadSourceRow = Tables<"lead_sources">

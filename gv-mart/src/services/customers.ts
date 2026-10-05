@@ -359,7 +359,7 @@ export async function lookupByPincode(orgId: string, pincode: string) {
 export type CreateCustomerInput = {
   orgId: string
   profession?: string
-  source?: Enums<"lead_source">
+  source?: string
   members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation }[]
   address: {
     doorNo: string
@@ -412,6 +412,31 @@ export async function updateCustomerProfession(id: string, profession: string) {
   const { data, error } = await supabase.from("customers").update({ profession }).eq("id", id).select().single()
   if (error) throw error
   return data
+}
+
+export type CustomerDeleteImpact = {
+  tickets: number
+  amc_contracts: number
+  warranties: number
+  rental_contracts: number
+  quotations: number
+  addresses: number
+  members: number
+  invoices: number
+  has_login: boolean
+}
+
+/** What deleting this customer would remove / what blocks it (see 20261005140000_delete_customer.sql). */
+export async function getCustomerDeleteImpact(customerId: string) {
+  const { data, error } = await supabase.rpc("customer_delete_impact", { p_customer_id: customerId })
+  if (error) throw error
+  return data as unknown as CustomerDeleteImpact
+}
+
+/** Master only. The server re-checks the typed name, so the UI gate can't be bypassed. */
+export async function deleteCustomer(customerId: string, confirmName: string) {
+  const { error } = await supabase.rpc("delete_customer", { p_customer_id: customerId, p_confirm_name: confirmName })
+  if (error) throw error
 }
 
 /** Clears the needs_setup flag update_lead_status sets when it auto-creates

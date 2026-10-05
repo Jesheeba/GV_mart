@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -9,9 +10,10 @@ import { Label } from "@/components/ui/label"
 import { useCreateLead } from "@/hooks/useAutomation"
 import { leadSchema, type LeadInput } from "@/lib/validation/automation"
 import { useProfile } from "@/hooks/useProfile"
+import { useLeadSourceOptions } from "@/hooks/useLeadSources"
+import { LeadItemsPicker, type LeadItemSelection } from "./LeadItemsPicker"
 import type { Enums } from "@/types/database"
 
-const SOURCES = ["field", "customer_app", "whatsapp", "walk_in", "referral", "other"] as const
 const ENQUIRY_TYPES = ["online", "price", "quality", "customization", "water_premium", "budget"] as const
 const KINDS = ["service", "spare", "product", "amc"] as const
 
@@ -19,6 +21,8 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const createLead = useCreateLead()
+  const { activeSources, label: sourceLabel } = useLeadSourceOptions()
+  const [items, setItems] = useState<LeadItemSelection>({})
 
   const form = useForm<LeadInput>({
     resolver: zodResolver(leadSchema),
@@ -26,7 +30,11 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
     defaultValues: { name: "", mobile: "", source: "other", enquiryType: "", kind: "" },
   })
 
+  const kindValue = form.watch("kind")
+  const pickerKind = kindValue === "product" || kindValue === "spare" ? kindValue : null
+
   async function onSubmit(values: LeadInput) {
+    const itemRows = pickerKind ? Object.entries(items).map(([id, qty]) => ({ id, qty })) : []
     await createLead.mutateAsync({
       org_id: profile!.org_id,
       name: values.name,
@@ -34,6 +42,7 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       source: values.source,
       enquiry_type: (values.enquiryType || null) as Enums<"enquiry_type"> | null,
       kind: (values.kind || null) as Enums<"lead_kind"> | null,
+      items: itemRows.map((r) => (pickerKind === "spare" ? { spare_id: r.id, qty: r.qty } : { product_id: r.id, qty: r.qty })),
     })
     onCreated()
   }
@@ -59,9 +68,9 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
         <div className="space-y-1.5">
           <Label htmlFor="lead-source">{t("leads.new.source")}</Label>
           <select id="lead-source" {...form.register("source")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-            {SOURCES.map((s) => (
-              <option key={s} value={s}>
-                {t(`leads.source.${s}`)}
+            {activeSources.map((s) => (
+              <option key={s.key} value={s.key}>
+                {sourceLabel(s.key)}
               </option>
             ))}
           </select>
@@ -79,7 +88,7 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
-          <select id="lead-kind" {...form.register("kind")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <select id="lead-kind" {...form.register("kind", { onChange: () => setItems({}) })} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("service.filters.all")}</option>
             {KINDS.map((k) => (
               <option key={k} value={k}>
@@ -88,6 +97,7 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             ))}
           </select>
         </div>
+        {pickerKind ? <LeadItemsPicker key={pickerKind} orgId={profile?.org_id} kind={pickerKind} value={items} onChange={setItems} /> : null}
       </div>
       {createLead.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createLead.error as Error).message}</p> : null}
       <div className="flex justify-end">

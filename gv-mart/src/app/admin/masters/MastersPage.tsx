@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Ban, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wrench } from "lucide-react"
+import { Ban, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
@@ -12,6 +12,7 @@ import {
   giftExclusionProductsHooks,
   giftsHooks,
   incentiveRulesHooks,
+  leadSourcesHooks,
   modelsHooks,
   productEnquiryTabsHooks,
   productsHooks,
@@ -38,6 +39,7 @@ import { ProductEnquiryConfigTab } from "./ProductEnquiryConfigTab"
 import { SettingsTab } from "./SettingsTab"
 import { PaymentSettingsTab } from "./PaymentSettingsTab"
 import { WaterQualityTab } from "./WaterQualityTab"
+import { LeadSourcesTab } from "./LeadSourcesTab"
 
 type ModuleId =
   | "brands"
@@ -54,6 +56,7 @@ type ModuleId =
   | "sopSteps"
   | "productEnquiry"
   | "waterQuality"
+  | "leadSources"
   | "settings"
   | "paymentSettings"
 
@@ -87,6 +90,7 @@ export function MastersPage() {
   const { data: complaintTypes } = complaintTypesHooks.useList(orgId)
   const { data: sopStepTemplates } = sopStepTemplatesHooks.useList(orgId)
   const { data: productEnquiryTabs } = productEnquiryTabsHooks.useList(orgId)
+  const { data: leadSources } = leadSourcesHooks.useList(orgId)
   const { data: waterQualityDistricts } = waterQualityReferenceHooks.useList(orgId)
   // complaintTypes now also holds product-specific rows (product_id set),
   // managed from Inventory / Masters > Products, not from this tab. The
@@ -128,6 +132,7 @@ export function MastersPage() {
       title: t("masters.tabs.waterQuality"),
       desc: t("masters.overview.waterQualityDesc", { count: waterQualityDistricts?.length ?? 0 }),
     },
+    { id: "leadSources", icon: Megaphone, swatch: "accent", title: t("masters.tabs.leadSources"), desc: t("masters.overview.leadSourcesDesc", { count: leadSources?.length ?? 0 }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
     { id: "paymentSettings", icon: QrCode, swatch: "green", title: t("masters.tabs.paymentSettings"), desc: t("masters.overview.paymentSettingsDesc") },
   ]
@@ -205,6 +210,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="waterQuality">
             <WaterQualityTab />
+          </TabsContent>
+          <TabsContent value="leadSources">
+            <LeadSourcesTab />
           </TabsContent>
           <TabsContent value="settings">
             <SettingsTab />
