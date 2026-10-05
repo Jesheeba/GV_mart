@@ -362,13 +362,13 @@ export type CreateCustomerInput = {
   source?: string
   members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation }[]
   address: {
-    doorNo: string
+    doorNo?: string
     buildingNo?: string
     buildingName?: string
     plotNo?: string
     streetCross?: string
-    area: string
-    pincode: string
+    area?: string
+    pincode?: string
     landmark?: string
     district?: string
     state?: string
@@ -388,13 +388,13 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
     p_source: input.source ?? "other",
     p_members: input.members.map((m) => ({ name: m.name, mobile: m.mobile, is_primary: m.isPrimary, relation: m.relation ?? null })),
     p_address: {
-      door_no: input.address.doorNo,
+      door_no: input.address.doorNo ?? "",
       building_no: input.address.buildingNo ?? "",
       building_name: input.address.buildingName ?? "",
       plot_no: input.address.plotNo ?? "",
       street_cross: input.address.streetCross ?? "",
-      area: input.address.area,
-      pincode: input.address.pincode,
+      area: input.address.area ?? "",
+      pincode: input.address.pincode ?? "",
       landmark: input.address.landmark ?? "",
       district: input.address.district ?? "",
       state: input.address.state ?? "",
@@ -536,13 +536,13 @@ export async function upsertPrimaryAddress(
   customerId: string,
   existingAddressId: string | null,
   patch: {
-    doorNo: string
+    doorNo?: string
     buildingNo?: string
     buildingName?: string
     plotNo?: string
     streetCross?: string
-    area: string
-    pincode: string
+    area?: string
+    pincode?: string
     landmark?: string
     district?: string
     state?: string
@@ -554,13 +554,13 @@ export async function upsertPrimaryAddress(
   }
 ) {
   const row = {
-    door_no: patch.doorNo,
+    door_no: patch.doorNo || null,
     building_no: patch.buildingNo || null,
     building_name: patch.buildingName || null,
     plot_no: patch.plotNo || null,
     street_cross: patch.streetCross || null,
-    area: patch.area,
-    pincode: patch.pincode,
+    area: patch.area || null,
+    pincode: patch.pincode || null,
     landmark: patch.landmark || null,
     district: patch.district || null,
     state: patch.state || null,
@@ -573,7 +573,12 @@ export async function upsertPrimaryAddress(
   if (existingAddressId) {
     const { data, error } = await supabase.from("addresses").update(row).eq("id", existingAddressId).select().single()
     if (error) throw error
-    await clearCustomerNeedsSetup(customerId)
+    // Emptying the address again puts the flag back.
+    const { error: flagError } = await supabase
+      .from("customers")
+      .update({ needs_setup: !(patch.doorNo || patch.area || patch.pincode || patch.streetCross || patch.landmark) })
+      .eq("id", customerId)
+    if (flagError) throw flagError
     return data
   }
   const { data, error } = await supabase

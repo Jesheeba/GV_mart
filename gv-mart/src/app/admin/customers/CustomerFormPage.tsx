@@ -37,6 +37,15 @@ import {
   useUpsertPrimaryAddress,
 } from "@/hooks/useCustomers"
 
+/** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
+function hasAddressText(a: AddressStepInput) {
+  return (
+    [a.doorNo, a.buildingNo, a.buildingName, a.plotNo, a.streetCross, a.area, a.pincode, a.landmark, a.district, a.state, a.zone].some((v) => v?.trim()) ||
+    a.lat != null ||
+    a.lng != null
+  )
+}
+
 function MemberFieldRow({
   index,
   control,
@@ -191,8 +200,8 @@ export function CustomerFormPage() {
       lng: undefined,
     },
   })
-  const doorNo = addressForm.watch("doorNo")
-  const area = addressForm.watch("area")
+  const doorNo = addressForm.watch("doorNo") ?? ""
+  const area = addressForm.watch("area") ?? ""
   const pincode = addressForm.watch("pincode")
   const streetCross = addressForm.watch("streetCross")
   const landmark = addressForm.watch("landmark")
@@ -380,7 +389,7 @@ export function CustomerFormPage() {
       // The customer itself is already created at this point, so a failure
       // here shouldn't block navigation — just warn so it can be re-entered
       // via edit.
-      if (addressValues.zone?.trim()) {
+      if (addressValues.zone?.trim() && hasAddressText(addressValues)) {
         try {
           const primaryAddressId = await getPrimaryAddressId(newId)
           await setAddressZone(primaryAddressId, addressValues.zone.trim())
@@ -396,7 +405,10 @@ export function CustomerFormPage() {
     const profession = peopleForm.getValues("profession")
     await updateProfession.mutateAsync(profession ?? "")
     const existingAddressId = existing.data!.addresses.find((a) => a.is_primary)?.id ?? existing.data!.addresses[0]?.id ?? null
-    await upsertAddress.mutateAsync({ existingAddressId, patch: addressValues })
+    // Blank address on a customer with none stays "needs setup" — no empty row.
+    if (existingAddressId || hasAddressText(addressValues)) {
+      await upsertAddress.mutateAsync({ existingAddressId, patch: addressValues })
+    }
     navigate(`/admin/customers/${id}`)
   }
 
@@ -572,7 +584,7 @@ export function CustomerFormPage() {
                 }
               }}
             />
-            {lat == null && lng == null && !autoLocate.isPending ? (
+            {lat == null && lng == null && !autoLocate.isPending && hasAddressText(addressForm.getValues()) ? (
               <p className="text-xs text-warning">{t("customers.form.map.pinRequired")}</p>
             ) : null}
           </div>
