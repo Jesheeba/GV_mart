@@ -48,13 +48,16 @@ export const peopleStepSchema = z.object({
 export type PeopleStepInput = z.input<typeof peopleStepSchema>
 
 export const addressStepSchema = z.object({
-  doorNo: z.string().trim().min(1, "customers.errors.doorNoRequired"),
+  // The whole address is optional — a contact can be saved without one and is
+  // flagged needs_setup until an address is filled in. Pincode is only checked
+  // when something was typed.
+  doorNo: z.string().trim().optional().or(z.literal("")),
   buildingNo: z.string().trim().optional().or(z.literal("")),
   buildingName: z.string().trim().optional().or(z.literal("")),
   plotNo: z.string().trim().optional().or(z.literal("")),
   streetCross: z.string().trim().optional().or(z.literal("")),
-  area: z.string().trim().min(1, "customers.errors.areaRequired"),
-  pincode: z.string().regex(PINCODE_REGEX, "customers.errors.pincodeInvalid"),
+  area: z.string().trim().optional().or(z.literal("")),
+  pincode: z.union([z.string().regex(PINCODE_REGEX, "customers.errors.pincodeInvalid"), z.literal("")]),
   landmark: z.string().trim().optional().or(z.literal("")),
   district: z.string().trim().optional().or(z.literal("")),
   state: z.string().trim().optional().or(z.literal("")),
