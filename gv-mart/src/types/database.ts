@@ -6599,6 +6599,14 @@ export type Database = {
         Args: { p_lead_id: string; p_type: string; p_note: string | null }
         Returns: string
       }
+      delete_lead: {
+        Args: { p_lead_id: string }
+        Returns: undefined
+      }
+      move_lead_to_customer: {
+        Args: { p_lead_id: string }
+        Returns: string
+      }
       update_lead_status: {
         Args: { p_lead_id: string; p_status: Database["public"]["Enums"]["lead_status"]; p_reason?: string | null }
         Returns: undefined
@@ -6632,14 +6640,6 @@ export type Database = {
         Returns: number
       }
       compute_salary: {
-      delete_lead: {
-        Args: { p_lead_id: string }
-        Returns: undefined
-      }
-      move_lead_to_customer: {
-        Args: { p_lead_id: string }
-        Returns: string
-      }
         Args: { p_org_id: string; p_technician_id: string; p_period: string }
         Returns: Database["public"]["Tables"]["salaries"]["Row"]
       }
