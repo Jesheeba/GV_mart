@@ -535,6 +535,9 @@ export type ProductTdsRecommendationRow = Tables<"product_tds_recommendations"> 
 export type AmcPlanRow = Tables<"amc_plans">
 export type RentalPlanRow = Tables<"rental_plans">
 export type IncentiveRuleRow = Tables<"incentive_rules">
+/** incentive_rules.is_active was added in 20261007100000; src/types/database.ts has not been
+ * regenerated for it yet, so the column is typed here instead. */
+export type IncentiveRuleWithActive = IncentiveRuleRow & { is_active: boolean }
 export type RoleBaseSalaryRow = Tables<"role_base_salaries">
 export type InstallationRateRow = Tables<"installation_incentive_rates">
 export type ComplaintTypeRow = Tables<"complaint_types">

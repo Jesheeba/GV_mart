@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { incentiveRulesHooks } from "@/hooks/useMasters"
-import type { IncentiveRuleRow } from "@/services/masters"
+import type { IncentiveRuleRow, IncentiveRuleWithActive } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
 
 const TYPES = ["service_income", "sales_income", "review", "finder_credit", "installation"] as const
@@ -29,6 +29,15 @@ export function IncentiveRulesTab() {
     },
     { key: "threshold", label: t("masters.incentives.threshold"), type: "number", step: "0.01", required: true, min: 0 },
     { key: "amount", label: t("masters.incentives.amount"), type: "number", step: "0.01", required: true, min: 0 },
+    {
+      key: "is_active",
+      label: t("masters.incentives.status"),
+      type: "select",
+      options: [
+        { value: "true", label: t("masters.incentives.active") },
+        { value: "false", label: t("masters.incentives.inactive") },
+      ],
+    },
   ]
 
   return (
@@ -42,11 +51,12 @@ export function IncentiveRulesTab() {
       isMutating={createMut.isPending || updateMut.isPending}
       addLabel={t("masters.incentives.add")}
       emptyMessage={t("masters.incentives.empty")}
-      toFormValues={(r) => ({ type: r.type, threshold: String(r.threshold), amount: String(r.amount) })}
+      toFormValues={(r) => ({ type: r.type, threshold: String(r.threshold), amount: String(r.amount), is_active: String((r as IncentiveRuleWithActive).is_active ?? true) })}
       columns={[
         { key: "type", header: t("masters.incentives.type"), render: (r) => t(`masters.incentives.types.${r.type}`) },
         { key: "threshold", header: t("masters.incentives.threshold"), render: (r) => `₹${r.threshold}` },
         { key: "amount", header: t("masters.incentives.amount"), render: (r) => `₹${r.amount}` },
+        { key: "status", header: t("masters.incentives.status"), render: (r) => ((r as IncentiveRuleWithActive).is_active === false ? t("masters.incentives.inactive") : t("masters.incentives.active")) },
       ]}
       onCreate={(v) =>
         createMut.mutateAsync({
@@ -54,12 +64,13 @@ export function IncentiveRulesTab() {
           type: v.type as IncentiveRuleRow["type"],
           threshold: Number(v.threshold) || 0,
           amount: Number(v.amount) || 0,
-        })
+          is_active: v.is_active !== "false",
+        } as never)
       }
       onUpdate={(id, v) =>
         updateMut.mutateAsync({
           id,
-          patch: { type: v.type as IncentiveRuleRow["type"], threshold: Number(v.threshold) || 0, amount: Number(v.amount) || 0 },
+          patch: { type: v.type as IncentiveRuleRow["type"], threshold: Number(v.threshold) || 0, amount: Number(v.amount) || 0, is_active: v.is_active !== "false" } as never,
         })
       }
       onDelete={(id) => deleteMut.mutateAsync(id)}
