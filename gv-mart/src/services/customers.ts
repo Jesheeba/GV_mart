@@ -573,6 +573,7 @@ export async function upsertPrimaryAddress(
   if (existingAddressId) {
     const { data, error } = await supabase.from("addresses").update(row).eq("id", existingAddressId).select().single()
     if (error) throw error
+    await clearCustomerNeedsSetup(customerId)
     return data
   }
   const { data, error } = await supabase
@@ -581,6 +582,9 @@ export async function upsertPrimaryAddress(
     .select()
     .single()
   if (error) throw error
+  // Saving the primary address is what "set up" means — the orange flag
+  // clears itself here instead of via a manual dismiss button.
+  await clearCustomerNeedsSetup(customerId)
   return data
 }
 
