@@ -607,10 +607,25 @@ export async function listMyReferralPoints(customerId: string) {
 
 // ── Settings (read-only: amc window, gst rate, etc.) ──────────────────────
 
+/** Customers can't read `settings` directly (internal values like discount caps) — this RPC returns only the fields the customer app uses. */
+export type CustomerAppSettings = Pick<
+  Tables<"settings">,
+  | "amc_book_window_days"
+  | "review_link_min_stars"
+  | "google_review_url"
+  | "emi_enabled"
+  | "emi_tenure_months"
+  | "emi_disclaimer"
+  | "work_start"
+  | "work_end"
+  | "narrow_window_threshold_minutes"
+  | "default_duration_paid_minutes"
+>
+
 export async function getSettings(orgId: string) {
-  const { data, error } = await supabase.from("settings").select("*").eq("org_id", orgId).maybeSingle()
+  const { data, error } = await supabase.rpc("get_customer_app_settings", { p_org_id: orgId })
   if (error) throw error
-  return data
+  return (data ?? null) as CustomerAppSettings | null
 }
 
 // ── Live tracking (CUST-07 <LiveTracking>) ────────────────────────────────

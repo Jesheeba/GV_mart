@@ -6237,6 +6237,12 @@ export type Database = {
           created_at: string
         }
       }
+      get_customer_app_settings: {
+        Args: {
+          p_org_id: string
+        }
+        Returns: Json
+      }
       link_customer_google_account: {
         Args: {
           p_mobile: string
