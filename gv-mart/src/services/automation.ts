@@ -96,6 +96,19 @@ export async function updateLeadStatus(leadId: string, status: LeadStatus, reaso
   if (error) throw error
 }
 
+/** Master only — removes the lead (quotes/tickets raised from it stay, just unlinked). */
+export async function deleteLead(leadId: string) {
+  const { error } = await supabase.rpc("delete_lead", { p_lead_id: leadId })
+  if (error) throw error
+}
+
+/** Creates (or reuses by mobile) the customer for this lead, then removes the lead. Returns the customer id. */
+export async function moveLeadToCustomer(leadId: string) {
+  const { data, error } = await supabase.rpc("move_lead_to_customer", { p_lead_id: leadId })
+  if (error) throw error
+  return data as string
+}
+
 export async function awardReferralPoints(input: { orgId: string; customerId: string; points: number; reason: string | null; refId: string | null }) {
   const { data, error } = await supabase.rpc("award_referral_points", {
     p_org_id: input.orgId,

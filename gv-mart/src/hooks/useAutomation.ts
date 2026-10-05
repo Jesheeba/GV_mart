@@ -39,6 +39,23 @@ export function useUpdateLeadStatus() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
   })
 }
+export function useDeleteLead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (leadId: string) => automation.deleteLead(leadId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+  })
+}
+export function useMoveLeadToCustomer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (leadId: string) => automation.moveLeadToCustomer(leadId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      qc.invalidateQueries({ queryKey: ["customers"] })
+    },
+  })
+}
 export function useAwardReferralPoints() {
   const qc = useQueryClient()
   return useMutation({

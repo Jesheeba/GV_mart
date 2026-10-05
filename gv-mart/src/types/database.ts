@@ -6632,6 +6632,14 @@ export type Database = {
         Returns: number
       }
       compute_salary: {
+      delete_lead: {
+        Args: { p_lead_id: string }
+        Returns: undefined
+      }
+      move_lead_to_customer: {
+        Args: { p_lead_id: string }
+        Returns: string
+      }
         Args: { p_org_id: string; p_technician_id: string; p_period: string }
         Returns: Database["public"]["Tables"]["salaries"]["Row"]
       }

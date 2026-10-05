@@ -3015,7 +3015,14 @@
       "lostReasonLabel": "Reason",
       "lostReasonPlaceholder": "Select a reason…",
       "lostReasonOtherPlaceholder": "Describe the reason",
-      "confirmLost": "Confirm lost"
+      "confirmLost": "Confirm lost",
+      "addedByMistake": "Added by mistake?",
+      "moveToCustomer": "Move to customer",
+      "deleteLead": "Delete lead",
+      "moveConfirm": "This creates the customer (or links to the existing one with the same mobile) and removes the lead from this list.",
+      "deleteConfirm": "This permanently deletes the lead and its activity history. Quotations or tickets raised from it are kept.",
+      "movedToast": "Moved to Customers",
+      "deletedToast": "Lead deleted"
     }
   },
   "automation": {

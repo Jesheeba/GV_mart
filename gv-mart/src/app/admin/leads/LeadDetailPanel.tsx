@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { FileText, Loader2, Search, X } from "lucide-react"
+import { FileText, Loader2, Search, Trash2, UserCheck, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,14 @@ import { Autocomplete } from "@/components/shared/Autocomplete"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
-import { useAwardReferralPoints, useLeadActivities, useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
+import {
+  useAwardReferralPoints,
+  useDeleteLead,
+  useLeadActivities,
+  useLogLeadActivity,
+  useMoveLeadToCustomer,
+  useUpdateLeadStatus,
+} from "@/hooks/useAutomation"
 import { useQuotationsForLead } from "@/hooks/useQuotations"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -48,6 +55,12 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
   const activities = useLeadActivities(lead.id)
   const logActivity = useLogLeadActivity()
   const updateStatus = useUpdateLeadStatus()
+  const deleteLead = useDeleteLead()
+  const moveToCustomer = useMoveLeadToCustomer()
+  const isMaster = profile?.role === "master"
+  const [pendingRemoval, setPendingRemoval] = useState<"move" | "delete" | null>(null)
+  const removalBusy = deleteLead.isPending || moveToCustomer.isPending
+  const removalFailed = (err: unknown) => toast.error(err instanceof Error && err.message ? err.message : t("common.actionFailed"))
   const awardPoints = useAwardReferralPoints()
   const leadQuotations = useQuotationsForLead(lead.id)
 
@@ -342,6 +355,68 @@ export function LeadDetailPanel({ lead, onClose }: { lead: LeadListItem; onClose
           ) : null}
         </div>
       ) : null}
+
+      <div className="space-y-2 rounded-xl border border-border p-3">
+        <Label>{t("leads.detail.addedByMistake")}</Label>
+        {pendingRemoval ? (
+          <div className="space-y-2">
+            <p className="text-xs text-text-muted">
+              {pendingRemoval === "move" ? t("leads.detail.moveConfirm") : t("leads.detail.deleteConfirm")}
+            </p>
+            <div className="flex justify-end gap-1.5">
+              <Button size="sm" variant="ghost" disabled={removalBusy} onClick={() => setPendingRemoval(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                size="sm"
+                variant={pendingRemoval === "delete" ? "destructive" : "accent"}
+                disabled={removalBusy}
+                onClick={() => {
+                  if (pendingRemoval === "move") {
+                    moveToCustomer.mutate(lead.id, {
+                      onSuccess: (customerId) => {
+                        toast.success(t("leads.detail.movedToast"))
+                        onClose()
+                        navigate(`/admin/customers/${customerId}`)
+                      },
+                      onError: removalFailed,
+                    })
+                  } else {
+                    deleteLead.mutate(lead.id, {
+                      onSuccess: () => {
+                        toast.success(t("leads.detail.deletedToast"))
+                        onClose()
+                      },
+                      onError: removalFailed,
+                    })
+                  }
+                }}
+              >
+                {removalBusy ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : pendingRemoval === "move" ? (
+                  t("leads.detail.moveToCustomer")
+                ) : (
+                  t("leads.detail.deleteLead")
+                )}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => setPendingRemoval("move")}>
+              <UserCheck className="size-3.5" />
+              {t("leads.detail.moveToCustomer")}
+            </Button>
+            {isMaster ? (
+              <Button size="sm" variant="outline" onClick={() => setPendingRemoval("delete")}>
+                <Trash2 className="size-3.5" />
+                {t("leads.detail.deleteLead")}
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </div>
     </Card>
   )
 }
