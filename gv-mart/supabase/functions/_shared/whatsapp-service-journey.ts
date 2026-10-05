@@ -42,8 +42,13 @@ export type CreateServiceTicketParams = {
 // without a type mismatch at the call site in whatsapp-webhook/index.ts.
 export type ServiceRouteResult = RouteResult
 
+// IST calendar date n days from now. Edge functions run in UTC, so a plain
+// toISOString() date is the UTC date: between 00:00 and 05:30 IST it is still
+// "yesterday" in India, which made "Tomorrow" slots resolve to today's IST date.
+// IST has no DST, so a fixed +05:30 shift is exact.
+const IST_OFFSET_MS = 5.5 * 3_600_000
 function daysFromNow(n: number): string {
-  return new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10)
+  return new Date(Date.now() + IST_OFFSET_MS + n * 86_400_000).toISOString().slice(0, 10)
 }
 function dayLabel(lang: WaLang, n: number): string {
   return n === 0 ? t(lang, "common.today") : n === 1 ? "Tomorrow" : daysFromNow(n)

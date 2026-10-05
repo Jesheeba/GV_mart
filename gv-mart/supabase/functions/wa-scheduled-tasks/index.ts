@@ -51,7 +51,9 @@ async function runAmcReminders(admin: SupabaseClient, orgId: string, errors: str
   let sent = 0
   let skipped = 0
   for (const days of AMC_REMINDER_WINDOWS) {
-    const targetDate = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+    // IST calendar date `days` from now (expiry_date is an IST-calendar date). The
+    // function runs in UTC, so shift by +05:30 (no DST) before taking the date part.
+    const targetDate = new Date(Date.now() + 5.5 * 3_600_000 + days * 86_400_000).toISOString().slice(0, 10)
     const template = `amc_reminder_${days}`
     const { data: contracts, error } = await admin
       .from("amc_contracts")
