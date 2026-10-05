@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { toLocalDateString } from "@/lib/local-date"
 import { useQueries } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -34,7 +35,7 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
   // Tickets deliberately stay outside `period` — see their own comments below.
   const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
   const range = periodToRange(period)
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = toLocalDateString(new Date())
   const periodIncludesToday = todayStr >= range.from && todayStr <= range.to
 
   // P&L trend chart granularity changes meaning by mode (owner-confirmed):

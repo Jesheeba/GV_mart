@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, Wand2 } from "lucide-react"
@@ -13,7 +14,7 @@ import type { AppointmentListItem } from "@/services/service"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 
 function toDateInput(d: Date) {
-  return d.toISOString().slice(0, 10)
+  return toLocalDateString(d)
 }
 
 export function AppointmentsPage() {

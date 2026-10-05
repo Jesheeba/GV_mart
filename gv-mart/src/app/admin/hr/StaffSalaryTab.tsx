@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { Loader2, Repeat, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -20,7 +21,7 @@ function currentMonthIso() {
 
 function monthToRange(month: string) {
   const [y, m] = month.split("-").map(Number)
-  return { from: `${month}-01`, to: new Date(y, m, 0).toISOString().slice(0, 10) }
+  return { from: `${month}-01`, to: toLocalDateString(new Date(y, m, 0)) }
 }
 
 const SALARY_TASK_PREFIX = "Process salary — "
@@ -103,7 +104,7 @@ export function StaffSalaryTab() {
     }
     setSettingUpReminders(true)
     const now = new Date()
-    const nextMonth1st = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10)
+    const nextMonth1st = toLocalDateString(new Date(now.getFullYear(), now.getMonth() + 1, 1))
     try {
       for (const person of missing) {
         await assignTask.mutateAsync({

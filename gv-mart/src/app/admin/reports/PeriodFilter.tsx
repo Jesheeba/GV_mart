@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { toLocalDateString, toLocalMonthString } from "@/lib/local-date"
 import { Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,9 +37,9 @@ export function PeriodFilter({
 
   function switchMode(mode: PeriodMode) {
     if (mode === value.mode) return
-    if (mode === "month") onChange({ mode: "month", month: now.toISOString().slice(0, 7) })
+    if (mode === "month") onChange({ mode: "month", month: toLocalMonthString(now) })
     else if (mode === "year") onChange({ mode: "year", year: currentYear })
-    else onChange({ mode: "range", range: { from: now.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) } })
+    else onChange({ mode: "range", range: { from: toLocalDateString(now), to: toLocalDateString(now) } })
   }
 
   return (

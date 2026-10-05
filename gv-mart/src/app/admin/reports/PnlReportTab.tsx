@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
@@ -362,7 +363,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
   const form = useForm<CreateExpenseFormInput, unknown, CreateExpenseOutput>({
     resolver: zodResolver(createExpenseSchema),
     mode: "onChange",
-    defaultValues: { category: "marketing", amount: 0, date: new Date().toISOString().slice(0, 10) },
+    defaultValues: { category: "marketing", amount: 0, date: toLocalDateString(new Date()) },
   })
 
   async function onSubmit(values: CreateExpenseOutput) {

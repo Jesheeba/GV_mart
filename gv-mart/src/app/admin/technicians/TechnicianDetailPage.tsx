@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { Briefcase, ChevronLeft, ChevronRight, Gauge, Gift, History, KeyRound, Loader2, Pencil, Phone, Power, Trash2, TriangleAlert, UserPlus, X } from "lucide-react"
@@ -63,7 +64,7 @@ function initialsOf(name: string) {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  return toLocalDateString(new Date())
 }
 
 function TierProgressLine({ progress }: { progress: NonNullable<ReturnType<typeof useTechnicianTierProgress>["data"]> }) {

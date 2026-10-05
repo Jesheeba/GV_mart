@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { CheckCircle2, Loader2, Printer, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -23,7 +24,7 @@ function monthToPeriodDate(month: string) {
 function monthToRange(month: string) {
   const [y, m] = month.split("-").map(Number)
   const from = `${month}-01`
-  const to = new Date(y, m, 0).toISOString().slice(0, 10)
+  const to = toLocalDateString(new Date(y, m, 0))
   return { from, to }
 }
 

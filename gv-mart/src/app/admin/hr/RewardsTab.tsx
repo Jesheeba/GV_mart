@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { toLocalMonthString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { Loader2, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,7 +14,7 @@ import { useActiveTechnicians, useLogReward, useRewardCandidates, useRewards } f
 import type { RewardCandidate, RewardCategory, RewardListItem } from "@/services/hr"
 
 function currentMonthIso() {
-  return new Date().toISOString().slice(0, 7)
+  return toLocalMonthString(new Date())
 }
 function monthToPeriodDate(month: string) {
   return `${month}-01`
