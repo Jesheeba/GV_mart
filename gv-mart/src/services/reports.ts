@@ -249,6 +249,11 @@ export async function getSalesServiceReport(orgId: string, range: DateRange): Pr
     // transaction sets both — but not guaranteed if a shift crosses
     // midnight right at a range boundary). Treat those as fully collected
     // rather than silently dropping them, same as an invoice with total<=0.
+    // KNOWN DIFFERENCE vs getPnlReport's revenueCollectedWithGst: a visit with
+    // no linked invoice is counted as fully collected here, but the P&L only
+    // sums real invoices.amount_paid, so such a visit contributes nothing
+    // there. The two "Collected" figures diverge by exactly that amount
+    // (documented 2026-10-06; not fixed — see Phase 1 review).
     serviceCollected += !inv || inv.total <= 0 ? charge : charge * ((inv.amount_paid ?? 0) / inv.total)
   }
 
@@ -387,6 +392,10 @@ export async function getPnlReport(orgId: string, range: DateRange): Promise<Pnl
   // Collected (cash-basis) counterparts — amount_paid summed directly, GST
   // portion of it prorated per invoice by that invoice's own gst/total
   // ratio (an invoice with total<=0 has nothing to prorate).
+  // KNOWN DIFFERENCE vs getSalesServiceReport's totalCollected: this sums only
+  // real invoices.amount_paid, whereas that report treats a service visit with
+  // no linked invoice as fully collected. Same period can therefore show a
+  // higher "Collected" there (documented 2026-10-06; not fixed).
   const revenueCollectedWithGst = invoices.reduce((sum, i) => sum + (i.amount_paid ?? 0), 0)
   const gstCollectedOfPayments = invoices.reduce(
     (sum, i) => sum + (i.total > 0 ? (i.amount_paid ?? 0) * ((i.gst ?? 0) / i.total) : 0),
