@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { BatteryCharging, ChevronLeft, Droplet, FlaskConical, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, UserPlus, Users, Wind, Wrench, Zap } from "lucide-react"
+import { BatteryCharging, ChevronLeft, Droplet, FlaskConical, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, Trash2, UserPlus, Users, Wind, Wrench, Zap } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -30,6 +30,7 @@ import type { Enums } from "@/types/database"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
+import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
 
 const AMC_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
 
@@ -97,6 +98,7 @@ export function CustomerDetailPage() {
   const orgId = profile?.org_id
   const { data: customer, isLoading, isError, refetch } = useCustomer(id)
   const [tdsDialogOpen, setTdsDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const products = useCustomerProducts(orgId, customer?.id)
   const timeline = useCustomerTimeline(orgId, customer?.id)
@@ -389,6 +391,17 @@ export function CustomerDetailPage() {
               <Button variant="outline" size="icon" title={t("customers.detail.actions.edit")} onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
                 <Pencil className="size-4" />
               </Button>
+              {profile?.role === "master" ? (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title={t("customers.detail.actions.delete")}
+                  className="text-danger hover:bg-danger/10"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -479,6 +492,7 @@ export function CustomerDetailPage() {
         </div>
       </div>
 
+      <DeleteCustomerDialog customer={customer} open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} />
       {tds || measured ? <TdsSuggestionDialog tds={tds ?? null} measured={measured} open={tdsDialogOpen} onClose={() => setTdsDialogOpen(false)} /> : null}
 
       <Tabs defaultValue="products">

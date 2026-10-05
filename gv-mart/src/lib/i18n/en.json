@@ -217,6 +217,26 @@
     "sourceConversion": "Source Conversion"
   },
   "customers": {
+    "delete": {
+      "title": "Delete customer",
+      "warning": "This permanently deletes {{name}}. This cannot be undone.",
+      "willRemove": "This will also remove",
+      "impact": {
+        "tickets": "service tickets (with their visits)",
+        "amc_contracts": "AMC contracts",
+        "warranties": "warranties",
+        "rental_contracts": "rental contracts",
+        "quotations": "quotations",
+        "addresses": "addresses",
+        "members": "family members"
+      },
+      "nothingElse": "No tickets, contracts or other records are attached to this customer.",
+      "typeName": "Type \"{{name}}\" to confirm",
+      "blockedInvoices": "This customer has {{count}} invoice(s). Invoices are financial records and must be kept, so this customer cannot be deleted.",
+      "blockedLogin": "This customer has an app login, so it cannot be deleted here.",
+      "confirm": "Delete customer",
+      "deleted": "Customer deleted"
+    },
     "title": "Customers",
     "subtitle": "Every registered customer, their address and family members.",
     "eyebrow": "GV Mart · Customers",
@@ -397,7 +417,8 @@
         "newSale": "New Sale",
         "newTicket": "New Service",
         "sellAmc": "Sell AMC",
-        "edit": "Edit"
+        "edit": "Edit",
+        "delete": "Delete"
       }
     },
     "form": {

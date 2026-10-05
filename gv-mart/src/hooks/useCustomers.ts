@@ -141,6 +141,23 @@ export function useUpdateCustomerProfession(customerId: string) {
   })
 }
 
+export function useCustomerDeleteImpact(customerId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["customers", "deleteImpact", customerId],
+    queryFn: () => customers.getCustomerDeleteImpact(customerId!),
+    enabled: !!customerId && enabled,
+    gcTime: 0,
+  })
+}
+
+export function useDeleteCustomer() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ customerId, confirmName }: { customerId: string; confirmName: string }) => customers.deleteCustomer(customerId, confirmName),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers"] }),
+  })
+}
+
 export function useClearCustomerNeedsSetup(customerId: string) {
   const queryClient = useQueryClient()
   return useMutation({
