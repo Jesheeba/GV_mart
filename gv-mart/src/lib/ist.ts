@@ -16,3 +16,21 @@ export function getIstNow(): { date: string; time: string } {
     time: now.toLocaleTimeString("en-GB", { timeZone: IST_TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false }),
   }
 }
+
+/**
+ * Absolute instants for the start/end of an IST calendar day ("YYYY-MM-DD").
+ * IST has no DST, so the fixed +05:30 offset is exact — and, unlike
+ * `new Date(`${d}T00:00:00`)` (device timezone) or a bare `${d}T00:00:00`
+ * string (read by Postgres as UTC), it does not depend on the device or the
+ * database session timezone.
+ */
+export function istDayStartIso(date: string): string {
+  return new Date(`${date}T00:00:00+05:30`).toISOString()
+}
+export function istDayEndIso(date: string): string {
+  return new Date(`${date}T23:59:59.999+05:30`).toISOString()
+}
+/** IST calendar date ("YYYY-MM-DD") of a timestamp. */
+export function istDateOf(timestamp: string | Date): string {
+  return new Date(timestamp).toLocaleDateString("en-CA", { timeZone: IST_TIME_ZONE })
+}
