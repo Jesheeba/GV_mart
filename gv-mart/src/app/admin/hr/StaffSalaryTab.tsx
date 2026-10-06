@@ -211,10 +211,13 @@ export function StaffSalaryTab() {
             {loggingId === r.id ? <Loader2 className="size-3 animate-spin" /> : <Wallet className="size-3" />}
             {t("hr.staffSalary.logSalary")}
           </Button>
-          <Button size="xs" variant="outline" onClick={() => { setResetTarget(r); setNewPassword("") }}>
-            <KeyRound className="size-3" />
-            {t("hr.staffSalary.resetPassword")}
-          </Button>
+          {/* Masters change their own password elsewhere; the Edge Function refuses a master target. */}
+          {r.role !== "master" ? (
+            <Button size="xs" variant="outline" onClick={() => { setResetTarget(r); setNewPassword("") }}>
+              <KeyRound className="size-3" />
+              {t("hr.staffSalary.resetPassword")}
+            </Button>
+          ) : null}
           <Button
             size="xs"
             variant="outline"
