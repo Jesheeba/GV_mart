@@ -82,7 +82,7 @@ export function SalesServiceReportTab() {
             <KpiCard
               label={t("reports.salesService.serviceRevenue")}
               value={data ? formatCurrency(data.serviceRevenue) : "—"}
-              subValue={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.serviceCollected)}` : undefined}
+              subValue={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.serviceCollected)} · ${t("reports.salesService.visitsCount", { count: data.serviceVisitCount })}` : undefined}
               icon={<Wrench className="size-4" />}
               loading={isLoading}
             />
@@ -106,7 +106,7 @@ export function SalesServiceReportTab() {
             <HighlightKpiCard
               label={t("reports.salesService.totalRevenue")}
               value={data ? formatCurrency(data.totalRevenue) : "—"}
-              caption={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.totalCollected)}` : undefined}
+              caption={data ? `${t("reports.collectedLabel")}: ${formatCurrency(data.totalCollected)} · ${t("reports.salesService.ofWhichGst")}: ${formatCurrency(data.totalGst)}` : undefined}
               icon={<IndianRupee className="size-4" />}
               loading={isLoading}
             />

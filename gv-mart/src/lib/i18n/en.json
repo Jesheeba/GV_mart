@@ -4168,7 +4168,9 @@
       "avgValuePerCall": "Avg Value per Call",
       "revenue": "Revenue",
       "revenueByType": "Revenue by type",
-      "revenueByTypeNote": "Count = invoices (visits for Service). Qty = units sold for Sales; equals count for the others. Average = revenue ÷ count.",
+      "revenueByTypeNote": "Count = invoices. Service = invoices raised from a service visit, at their full GST-inclusive total. Qty = units sold for Sales; equals count for the others. Average = revenue ÷ count.",
+      "ofWhichGst": "Of which GST",
+      "visitsCount": "{{count}} visits",
       "revenueByTypeCols": {
         "type": "Type",
         "revenue": "Invoiced",
@@ -4355,7 +4357,7 @@
         "quoted": "Quoted or later",
         "won": "Won"
       },
-      "funnelNote": "Stages come from each lead’s logged stage history. Leads from before history was recorded are placed by their current status; a lead lost before then can’t be placed at a stage, so it is only counted as lost.",
+      "funnelNote": "Stages come from each lead’s logged stage history. A lead with no recorded history can’t be placed at a stage, so it appears only in the totals (or as Lost).",
       "lostUnknown": "{{count}} with stage unknown",
       "productTitle": "Product-wise sales",
       "item": "Item",
