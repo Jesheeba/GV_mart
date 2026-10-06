@@ -98,9 +98,24 @@ describe.skipIf(!email || !password || !org)("legacy vs SQL (live throwaway org)
     expect(n.lowRatingEntries.map((e) => [e.ratingId, e.stars, e.reason, e.customerName, e.technicianName])).toEqual(o.lowRatingEntries.map((e) => [e.ratingId, e.stars, e.reason, e.customerName, e.technicianName]))
   })
 
-  it("Coverage matches when the browser is on IST", async () => {
+  it("Coverage: only the two documented IST fixes differ", async () => {
     const [o, n] = await Promise.all([getCoverageReportLegacy(org, oct), getCoverageReport(org, oct)])
-    expect(n).toEqual(o)
+    const tzIsIst = new Date().getTimezoneOffset() === -330
+    expect(n.truncated).toBe(o.truncated)
+    expect(n.installation).toEqual(o.installation)
+    expect(n.months.length).toBe(o.months.length)
+    n.months.forEach((m, i) => {
+      const old = o.months[i]
+      expect(m.month).toBe(old.month)
+      expect(m.warranty.active).toBe(old.warranty.active)
+      expect(m.amc).toEqual({ ...old.amc, visits: tzIsIst ? old.amc.visits : m.amc.visits })
+      if (tzIsIst) expect(m.warranty.visits).toBe(old.warranty.visits) // off IST the browser buckets visits by its own timezone: that is the bug
+    })
+    // Fix 2: the fixture has a rental returned at 00:30 IST on Oct 1 (still "out" on the IST date Oct 1, but its UTC
+    // date is Sep 30, which is what the browser sliced), so October now counts one more active rental worth 300.
+    const m = n.months[0], old = o.months[0]
+    expect(m.rental.active).toBe(old.rental.active + 1)
+    expect(m.rental.planValue).toBe(old.rental.planValue + 300)
   })
 
   it("Salary by staff matches", async () => {
