@@ -30,9 +30,10 @@ begin
   select md5(string_agg(id::text||status||coalesce(lost_reason,''), ',' order by id)) into fp_before from leads where created_at < now() - interval '1 minute';
 
   -- backfill
-  perform pg_temp.chk('backfill: every pre-existing lead has exactly 1 backfill row',
-    (select count(*) from leads l where created_at < now() - interval '1 minute' and (select count(*) from lead_stage_log g where g.lead_id=l.id and g.source='backfill')=1)
-    = (select count(*) from leads where created_at < now() - interval '1 minute'));
+  -- only leads that existed when the migration ran were backfilled; later real leads got a creation row instead
+  perform pg_temp.chk('backfill: every lead that predates the migration has exactly 1 backfill row',
+    (select count(*) from leads l where created_at < (select min(changed_at) from lead_stage_log where source='backfill') and (select count(*) from lead_stage_log g where g.lead_id=l.id and g.source='backfill')=1)
+    = (select count(*) from leads where created_at < (select min(changed_at) from lead_stage_log where source='backfill')));
   perform pg_temp.chk('backfill rows: from_status null, changed_by null', not exists (select 1 from lead_stage_log where source='backfill' and (from_status is not null or changed_by is not null)));
 
   -- creation + transitions
