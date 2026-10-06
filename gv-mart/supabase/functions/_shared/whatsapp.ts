@@ -19,6 +19,7 @@
 // that shape and dispatches interactive messages for real, same as text.
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import type { Reply } from "./whatsapp-journeys.ts"
+import { buildWasiErrorDetail } from "./wasi-error-detail.ts"
 
 // 2026-08-25 incident: sendViaWasi's fetch had no timeout at all, so a single
 // slow/hung Wasi request could block a whole Edge Function invocation past
@@ -252,7 +253,10 @@ async function sendViaWasi(
   }
 
   console.error("whatsapp.ts: wasi send failed", res.status, rawText)
-  return { ok: false, error: formatWasiError(res.status, parsed ?? rawText), rawBody: rawText }
+  // The stored error keeps the short summary first, then a cleaned (tokens stripped, phone numbers
+  // masked, ~500 chars) copy of Wasi's own response and a few safe headers — so a rejection can be
+  // diagnosed from the outbox row without digging through function logs.
+  return { ok: false, error: buildWasiErrorDetail(formatWasiError(res.status, parsed ?? rawText), rawText, res.headers), rawBody: rawText }
 }
 
 export async function sendMessage(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
