@@ -1,8 +1,9 @@
 -- Rolled-back PARITY test for Phase 2 gap 3 (migration 20261008130000_lead_assignment).
 -- Runs the OLD run_lead_followup_notifications (its source from migration 20261007120000, created as a
--- pg_temp function) and then the NEW public one at the same simulated times, on
---   (a) the real organisation's current data (all leads unassigned) and
---   (b) a throwaway organisation with a master + a sales_admin and __TEST_ leads that exercise
+-- pg_temp function) and then the NEW public one at the same simulated times. Both runners loop over every
+-- organisation, so rows for the real organisation are compared too (old must equal new whatever it holds,
+-- including nothing), but NO assertion depends on live data: every expectation is about
+--   a throwaway organisation with a master + a sales_admin and __TEST_ leads that exercise
 --       digest, overdue-24h and exact-time reminders,
 -- and compares every notification row they create. Everything ends in a RAISE (rolled back).
 -- The old function runs against the real organisation INSIDE the transaction only; the rows it writes
@@ -196,12 +197,8 @@ begin
     perform pg_temp.chk('notification rows identical (every org, user, type, title, body, ref): ' || rec.scenario, d_old = d_new and n_old = n_new, n_old || ' rows old / ' || n_new || ' new');
   end loop;
 
-  perform pg_temp.chk('real organisation was exercised (digest rows exist for it in s1)', exists (select 1 from cap where phase='new' and scenario='s1 Wed 10:00 IST' and org_id = real_org and type='lead_followup_digest'));
   perform pg_temp.chk('throwaway organisation: master + sales_admin each got digest, overdue list', (select count(*) from cap where phase='new' and scenario='s1 Wed 10:00 IST' and org_id=test_org and type in ('lead_followup_digest','lead_followup_overdue'))=4);
   perform pg_temp.chk('throwaway organisation: reminder sent to both recipients in s3', (select count(*) from cap where phase='new' and scenario='s3 reminder window' and org_id=test_org and type='lead_callback_reminder')=2);
-  insert into pg_temp.res(line) select 'INFO  real-org s1 digest body: ' || body from cap where phase='new' and scenario='s1 Wed 10:00 IST' and org_id=real_org and type='lead_followup_digest' limit 1;
-  insert into pg_temp.res(line) select 'INFO  real-org s1 overdue body: ' || left(body, 160) from cap where phase='new' and scenario='s1 Wed 10:00 IST' and org_id=real_org and type='lead_followup_overdue' limit 1;
-  insert into pg_temp.res(line) select 'INFO  real-org s5 overdue body: ' || left(body, 160) from cap where phase='new' and scenario='s5 Thu 10:00 IST' and org_id=real_org and type='lead_followup_overdue' limit 1;
 
   select string_agg(r2.line, E'\n' order by r2.n) into txt from pg_temp.res r2;
   raise exception E'RESULTS\n%', txt;
