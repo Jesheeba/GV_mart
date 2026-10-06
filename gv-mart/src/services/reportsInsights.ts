@@ -1,6 +1,14 @@
 import { supabase } from "@/lib/supabase"
 import type { Enums } from "@/types/database"
 import { rangeToTimestamps, type DateRange } from "@/services/reports"
+import {
+  mapCoverage,
+  mapCustomerTotals,
+  mapProductSales,
+  type CoverageRpc,
+  type CustomerTotalsRpc,
+  type ProductSalesRpcRow,
+} from "@/services/reportMappers"
 
 // Salary/Incentive system, Phase 2 — coverage, installation rates,
 // product-wise sales, lead funnel, customer totals. Read-only aggregations
@@ -78,7 +86,8 @@ export type CoverageReport = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
-export async function getCoverageReport(orgId: string, range: DateRange): Promise<CoverageReport> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getCoverageReportLegacy(orgId: string, range: DateRange): Promise<CoverageReport> {
   const { fromIso, toIso } = rangeToTimestamps(range)
   const { months, truncated } = monthsInRange(range)
   // Restrict every query to the (possibly truncated) month window.
@@ -221,7 +230,8 @@ export type ProductSalesRow = {
   avgPrice: number
 }
 
-export async function getProductSalesReport(orgId: string, range: DateRange): Promise<ProductSalesRow[]> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getProductSalesReportLegacy(orgId: string, range: DateRange): Promise<ProductSalesRow[]> {
   const { fromIso, toIso } = rangeToTimestamps(range)
   const { data, error } = await supabase
     .from("invoice_items")
@@ -350,7 +360,8 @@ export type CustomerTotals = {
   avgRevenuePerBuyer: number
 }
 
-export async function getCustomerTotals(orgId: string, range: DateRange): Promise<CustomerTotals> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getCustomerTotalsLegacy(orgId: string, range: DateRange): Promise<CustomerTotals> {
   const { fromIso, toIso } = rangeToTimestamps(range)
   const [totalRes, newRes, invRes] = await Promise.all([
     supabase.from("customers").select("id", { count: "exact", head: true }).eq("org_id", orgId),
@@ -384,4 +395,23 @@ export async function getCustomerTotals(orgId: string, range: DateRange): Promis
     repeatRatePercent: buyerIds.length > 0 ? Math.round((repeat.size / buyerIds.length) * 1000) / 10 : null,
     avgRevenuePerBuyer: buyerIds.length > 0 ? round2(totalRevenue / buyerIds.length) : 0,
   }
+}
+
+// ── SQL-backed versions (migrations 20261009100000 / 110000) ─────────────
+async function callReport<T>(fn: string, range: DateRange): Promise<T> {
+  const { data, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)(fn, { p_from: range.from, p_to: range.to })
+  if (error) throw error
+  return data as T
+}
+
+export async function getCoverageReport(_orgId: string, range: DateRange): Promise<CoverageReport> {
+  return mapCoverage(await callReport<CoverageRpc>("report_coverage", range))
+}
+
+export async function getProductSalesReport(_orgId: string, range: DateRange): Promise<ProductSalesRow[]> {
+  return mapProductSales(await callReport<ProductSalesRpcRow[]>("report_product_sales", range))
+}
+
+export async function getCustomerTotals(_orgId: string, range: DateRange): Promise<CustomerTotals> {
+  return mapCustomerTotals(await callReport<CustomerTotalsRpc>("report_customer_totals", range))
 }

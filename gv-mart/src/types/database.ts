@@ -7249,6 +7249,50 @@ export type Database = {
         Args: { p_from: string; p_to: string }
         Returns: Json
       }
+      report_coverage: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_customer_totals: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_expenses_salary_by_staff: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_expenses_year_over_year: {
+        Args: { p_years_back?: number }
+        Returns: Json
+      }
+      report_feedback: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_ops_resolution: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_performance: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_pnl: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_product_sales: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_sales_service: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      report_top_customers: {
+        Args: { p_from: string; p_to: string; p_limit?: number }
+        Returns: Json
+      }
       lead_timeline: {
         Args: { p_lead_id: string }
         Returns: {

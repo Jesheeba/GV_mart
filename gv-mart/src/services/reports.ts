@@ -1,7 +1,25 @@
 import { supabase } from "@/lib/supabase"
 import { istDayStartIso, istDayEndIso } from "@/lib/ist"
 import { minutesBetween } from "@/lib/visit-duration"
-import { toLocalDateString, toLocalMonthString } from "@/lib/local-date"
+import { getIstNow } from "@/lib/ist"
+import {
+  mapFeedback,
+  mapOpsResolution,
+  mapPerformance,
+  mapPnl,
+  mapSalaryByStaff,
+  mapSalesService,
+  mapTopCustomers,
+  mapYearOverYear,
+  type FeedbackRpc,
+  type OpsResolutionRpc,
+  type PerformanceRpcRow,
+  type PnlRpc,
+  type SalaryByStaffRpcRow,
+  type SalesServiceRpc,
+  type TopCustomerRpcRow,
+  type YearOverYearRpcRow,
+} from "@/services/reportMappers"
 import type { Enums } from "@/types/database"
 
 export type DateRange = { from: string; to: string }
@@ -13,11 +31,21 @@ export function rangeToTimestamps(range: DateRange) {
   return { fromIso, toIso }
 }
 
+/** Pure calendar arithmetic on "YYYY-MM-DD" strings (UTC math, so it never depends on the device timezone). */
+export function addDaysIso(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+/** Last day of the month of a "YYYY-MM-DD" / "YYYY-MM" string. */
+function lastDayOfMonthIso(yyyyMm: string): string {
+  const [y, m] = yyyyMm.split("-").map(Number)
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+}
+
 export function defaultDateRange(days = 30): DateRange {
-  const to = new Date()
-  const from = new Date()
-  from.setDate(from.getDate() - days)
-  return { from: toLocalDateString(from), to: toLocalDateString(to) }
+  const to = getIstNow().date
+  return { from: addDaysIso(to, -days), to }
 }
 
 // ── F2 quick-select date presets ─────────────────────────────────────────
@@ -29,19 +57,17 @@ export type DateRangePreset = (typeof dateRangePresets)[number]
  * string shape as defaultDateRange() (what the <input type="date"> and
  * rangeToTimestamps() both expect). "All-time" has no real epoch to anchor
  * to, so it just uses a date well before this app could have any data. */
-export function dateRangeForPreset(preset: DateRangePreset): DateRange {
-  const now = new Date()
-  const toStr = toLocalDateString
-  if (preset === "thisMonth") {
-    return { from: toStr(new Date(now.getFullYear(), now.getMonth(), 1)), to: toStr(now) }
-  }
+export function dateRangeForPreset(preset: DateRangePreset, today: string = getIstNow().date): DateRange {
+  const [y, m] = today.split("-").map(Number)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  if (preset === "thisMonth") return { from: `${y}-${pad(m)}-01`, to: today }
   if (preset === "previousMonth") {
-    return { from: toStr(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: toStr(new Date(now.getFullYear(), now.getMonth(), 0)) }
+    const py = m === 1 ? y - 1 : y
+    const pm = m === 1 ? 12 : m - 1
+    return { from: `${py}-${pad(pm)}-01`, to: lastDayOfMonthIso(`${py}-${pad(pm)}`) }
   }
-  if (preset === "thisYear") {
-    return { from: toStr(new Date(now.getFullYear(), 0, 1)), to: toStr(now) }
-  }
-  return { from: "2000-01-01", to: toStr(now) }
+  if (preset === "thisYear") return { from: `${y}-01-01`, to: today }
+  return { from: "2000-01-01", to: today }
 }
 
 // ── Month/Year/Custom period filter ──────────────────────────────────────
@@ -65,16 +91,12 @@ export function periodToRange(value: PeriodValue): DateRange {
   if (value.mode === "year") {
     return { from: `${value.year}-01-01`, to: `${value.year}-12-31` }
   }
-  // "month" — last day of the month via day 0 of the next month, same trick dateRangeForPreset uses.
-  const [y, m] = value.month.split("-").map(Number)
-  const from = new Date(y, m - 1, 1)
-  const to = new Date(y, m, 0)
-  return { from: toLocalDateString(from), to: toLocalDateString(to) }
+  // "month": plain string arithmetic, so the result is the same in every device timezone.
+  return { from: `${value.month}-01`, to: lastDayOfMonthIso(value.month) }
 }
 
 export function defaultPeriodValue(): PeriodValue {
-  const now = new Date()
-  return { mode: "month", month: toLocalMonthString(now) }
+  return { mode: "month", month: getIstNow().date.slice(0, 7) }
 }
 
 // ── ADM-27 Sales & Service report ───────────────────────────────────────
@@ -134,9 +156,17 @@ export type SalesServiceReport = {
     avgValue: number
     percent: number
   }[]
+  /** "Of which GST": the GST included in totalRevenue (the tiles are GST-inclusive). */
+  totalGst: number
+  /** Service visits in the period, shown next to (not instead of) the service-invoice count. */
+  serviceVisitCount: number
 }
 
-export async function getSalesServiceReport(orgId: string, range: DateRange): Promise<SalesServiceReport> {
+/** The browser-side implementation predates totalGst / serviceVisitCount. */
+export type LegacySalesServiceReport = Omit<SalesServiceReport, "totalGst" | "serviceVisitCount">
+
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getSalesServiceReportLegacy(orgId: string, range: DateRange): Promise<LegacySalesServiceReport> {
   const { fromIso, toIso } = rangeToTimestamps(range)
 
   const [callsRes, invoicesRes, visitsRes] = await Promise.all([
@@ -348,7 +378,8 @@ export type PnlReport = {
   }
 }
 
-export async function getPnlReport(orgId: string, range: DateRange): Promise<PnlReport> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getPnlReportLegacy(orgId: string, range: DateRange): Promise<PnlReport> {
   const { fromIso, toIso } = rangeToTimestamps(range)
 
   const [invoicesRes, expensesRes, invoiceItemsRes, giftLogsRes] = await Promise.all([
@@ -474,22 +505,17 @@ export type PerformanceRow = {
   installations: number
 }
 
-export async function getPerformanceReport(orgId: string, range: DateRange): Promise<PerformanceRow[]> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getPerformanceReportLegacy(orgId: string, range: DateRange): Promise<PerformanceRow[]> {
   const { fromIso, toIso } = rangeToTimestamps(range)
 
-  const [visitsRes, ticketsRes, ratingsRes, leadsRes, attendanceRes, installsRes] = await Promise.all([
+  const [visitsRes, ratingsRes, leadsRes, attendanceRes, installsRes] = await Promise.all([
     supabase
       .from("service_visits")
       .select("id, technician_id, service_charge, timer_start, timer_end, needs_revisit, technicians(id, profiles(full_name))")
       .eq("org_id", orgId)
       .gte("timer_start", fromIso)
       .lte("timer_start", toIso),
-    supabase
-      .from("service_tickets")
-      .select("id, status, created_at, updated_at, appointments(technician_id)")
-      .eq("org_id", orgId)
-      .gte("created_at", fromIso)
-      .lte("created_at", toIso),
     supabase
       .from("ratings")
       .select("stars, service_visits!inner(technician_id, org_id, timer_start)")
@@ -520,7 +546,6 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
   ])
   if (installsRes.error) throw installsRes.error
   if (visitsRes.error) throw visitsRes.error
-  if (ticketsRes.error) throw ticketsRes.error
   if (ratingsRes.error) throw ratingsRes.error
   if (leadsRes.error) throw leadsRes.error
   if (attendanceRes.error) throw attendanceRes.error
@@ -668,12 +693,12 @@ export async function getPerformanceReport(orgId: string, range: DateRange): Pro
     if (row) row.installations += i.qty ?? 0
   }
 
-  void ticketsRes // ticket-level 24h-resolution KPI surfaced via getOpsResolutionKpi below
   return [...byTech.values()].sort((a, b) => b.revenue - a.revenue)
 }
 
 /** Operation-admin KPI: % of tickets in range resolved (completed) within 24h of creation. */
-export async function getOpsResolutionKpi(orgId: string, range: DateRange): Promise<{ resolvedWithin24h: number; totalCompleted: number; percent: number | null }> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getOpsResolutionKpiLegacy(orgId: string, range: DateRange): Promise<{ resolvedWithin24h: number; totalCompleted: number; percent: number | null }> {
   const { fromIso, toIso } = rangeToTimestamps(range)
   const { data, error } = await supabase
     .from("service_tickets")
@@ -713,7 +738,8 @@ export type FeedbackReport = {
   lowRatingEntries: { ratingId: string; stars: number; review: string | null; reason: string | null; createdAt: string; customerName: string | null; technicianName: string | null }[]
 }
 
-export async function getFeedbackReport(orgId: string, range: DateRange): Promise<FeedbackReport> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getFeedbackReportLegacy(orgId: string, range: DateRange): Promise<FeedbackReport> {
   const { fromIso, toIso } = rangeToTimestamps(range)
 
   const { data: ratingsData, error: ratingsError } = await supabase
@@ -791,6 +817,52 @@ export async function getFeedbackReport(orgId: string, range: DateRange): Promis
   })
 
   return { starsDistribution, averageRating, trend, lowRatingEntries }
+}
+
+// ── SQL-backed report functions ──────────────────────────────────────────
+// The heavy aggregations run in Postgres (migrations 20261009100000 / 110000 / 120000): the browser
+// versions above were silently truncated at the PostgREST 1000-row cap. The organisation comes from the
+// session of the caller inside each function, so `orgId` stays in these signatures only for the callers
+// and React Query keys that already pass it. Plain dates in; the IST half-open window is built in SQL.
+const rpcArgs = (range: DateRange) => ({ p_from: range.from, p_to: range.to })
+
+async function callReport<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)(fn, args)
+  if (error) throw error
+  return data as T
+}
+
+export async function getSalesServiceReport(_orgId: string, range: DateRange): Promise<SalesServiceReport> {
+  return mapSalesService(await callReport<SalesServiceRpc>("report_sales_service", rpcArgs(range)))
+}
+
+export async function getPnlReport(_orgId: string, range: DateRange): Promise<PnlReport> {
+  return mapPnl(await callReport<PnlRpc>("report_pnl", rpcArgs(range)))
+}
+
+export async function getPerformanceReport(_orgId: string, range: DateRange): Promise<PerformanceRow[]> {
+  return mapPerformance(await callReport<PerformanceRpcRow[]>("report_performance", rpcArgs(range)))
+}
+
+/** Operation-admin KPI: % of tickets in range resolved (completed) within 24h of creation. */
+export async function getOpsResolutionKpi(_orgId: string, range: DateRange): Promise<{ resolvedWithin24h: number; totalCompleted: number; percent: number | null }> {
+  return mapOpsResolution(await callReport<OpsResolutionRpc>("report_ops_resolution", rpcArgs(range)))
+}
+
+export async function getFeedbackReport(_orgId: string, range: DateRange): Promise<FeedbackReport> {
+  return mapFeedback(await callReport<FeedbackRpc>("report_feedback", rpcArgs(range)))
+}
+
+export async function getSalarySpendByStaff(_orgId: string, range: DateRange): Promise<StaffSalaryTotal[]> {
+  return mapSalaryByStaff(await callReport<SalaryByStaffRpcRow[]>("report_expenses_salary_by_staff", rpcArgs(range)))
+}
+
+export async function getExpensesYearOverYear(_orgId: string, yearsBack = 3): Promise<YearTotals[]> {
+  return mapYearOverYear(await callReport<YearOverYearRpcRow[]>("report_expenses_year_over_year", { p_years_back: yearsBack }))
+}
+
+export async function getTopCustomersBySales(_orgId: string, range: DateRange, limit: number): Promise<TopCustomerRow[]> {
+  return mapTopCustomers(await callReport<TopCustomerRpcRow[]>("report_top_customers", { ...rpcArgs(range), p_limit: limit }))
 }
 
 // ── Log Expense (ADM-28 gap fix; extended 2026-09-24 for the Accounts /
@@ -904,7 +976,8 @@ export async function getOpenRecurringTasks(orgId: string) {
  * wrote it (technician "Log to Accounts" or manual staff entry). */
 export type StaffSalaryTotal = { staffId: string; staffName: string; total: number }
 
-export async function getSalarySpendByStaff(orgId: string, range: DateRange): Promise<StaffSalaryTotal[]> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getSalarySpendByStaffLegacy(orgId: string, range: DateRange): Promise<StaffSalaryTotal[]> {
   const { data, error } = await supabase
     .from("expenses")
     .select("amount, staff_id, staff:profiles!expenses_staff_id_fkey(full_name)")
@@ -936,7 +1009,8 @@ export type YearTotals = {
   byCategory: { category: Enums<"expense_category">; amount: number }[]
 }
 
-export async function getExpensesYearOverYear(orgId: string, yearsBack = 3): Promise<YearTotals[]> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getExpensesYearOverYearLegacy(orgId: string, yearsBack = 3): Promise<YearTotals[]> {
   const now = new Date()
   const currentYear = now.getUTCFullYear()
   const dayOfYear = Math.ceil((now.getTime() - Date.UTC(currentYear, 0, 1)) / 86_400_000) + 1
@@ -996,7 +1070,8 @@ export type TopCustomerRow = {
   lastPurchaseAt: string
 }
 
-export async function getTopCustomersBySales(orgId: string, range: DateRange, limit: number): Promise<TopCustomerRow[]> {
+/** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
+export async function getTopCustomersBySalesLegacy(orgId: string, range: DateRange, limit: number): Promise<TopCustomerRow[]> {
   const { fromIso, toIso } = rangeToTimestamps(range)
 
   const { data: invoices, error: invErr } = await supabase
