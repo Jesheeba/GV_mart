@@ -4666,6 +4666,7 @@ export type Database = {
           // open follow-up (kept in sync by a trigger on lead_followups).
           postpone_count: number
           next_followup_at: string | null
+          assigned_to: string | null
           created_at: string
           updated_at: string
         }
@@ -4689,6 +4690,8 @@ export type Database = {
           lost_reason?: string | null
           postpone_count?: number
           next_followup_at?: string | null
+          // assign_lead only — a trigger rejects any other write
+          assigned_to?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4712,6 +4715,8 @@ export type Database = {
           lost_reason?: string | null
           postpone_count?: number
           next_followup_at?: string | null
+          // assign_lead only — a trigger rejects any other write
+          assigned_to?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6961,6 +6966,8 @@ export type Database = {
           p_source?: string | null
           p_kind?: Database["public"]["Enums"]["lead_kind"] | null
           p_stuck_only?: boolean
+          p_scope?: string
+          p_assignee?: string | null
         }
         Returns: {
           followup_id: string
@@ -6984,10 +6991,16 @@ export type Database = {
           last_outcome_label_ta: string | null
           last_outcome_note: string | null
           last_outcome_at: string | null
+          assignee_id: string | null
+          assignee_name: string | null
         }[]
       }
       followup_counts: {
-        Args: Record<PropertyKey, never>
+        Args: { p_scope?: string; p_assignee?: string | null }
+        Returns: Json
+      }
+      assign_lead: {
+        Args: { p_lead_id: string; p_assignee: string | null; p_reason?: string | null }
         Returns: Json
       }
       get_lead_funnel: {

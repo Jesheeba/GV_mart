@@ -3,14 +3,18 @@ import { useTranslation } from "react-i18next"
 import { Inbox, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useFollowups } from "@/hooks/useLeadFollowups"
+import { useFollowups, useLeadAssignees } from "@/hooks/useLeadFollowups"
+import { useProfile } from "@/hooks/useProfile"
+import { AssignLeadDialog } from "./AssignLeadDialog"
+import { assignActionFor } from "@/lib/lead-assign"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { FollowupCard } from "./FollowupCard"
 import { LogOutcomeSheet } from "./LogOutcomeSheet"
 import { RescheduleDialog } from "./RescheduleDialog"
 import { formatIstDate, getIstNow } from "@/lib/lead-followups"
 import { cn } from "@/lib/utils"
-import type { FollowupBucket, FollowupListItem } from "@/services/leadFollowups"
+import type { FollowupBucket, FollowupListItem, FollowupScope } from "@/services/leadFollowups"
+import type { UserRole } from "@/lib/roles"
 import type { Enums } from "@/types/database"
 
 const TABS: FollowupBucket[] = ["overdue", "today", "upcoming"]
@@ -29,11 +33,18 @@ export function MyDayPage() {
   const [source, setSource] = useState("")
   const [kind, setKind] = useState<Enums<"lead_kind"> | "">("")
   const [stuckOnly, setStuckOnly] = useState(false)
+  const { data: profile } = useProfile()
+  const role = profile?.role as UserRole | undefined
+  const isMaster = role === "master"
+  const assignees = useLeadAssignees(profile?.org_id, role).data ?? []
+  // auto = master: everything; sales_admin: own + unassigned (resolved by the server too)
+  const [scope, setScope] = useState<FollowupScope>("auto")
+  const [assignFor, setAssignFor] = useState<FollowupListItem | null>(null)
 
   const [outcomeFor, setOutcomeFor] = useState<FollowupListItem | null>(null)
   const [rescheduleFor, setRescheduleFor] = useState<FollowupListItem | null>(null)
 
-  const list = useFollowups({ bucket: "all", stage: stage || undefined, source: source || undefined, kind: kind || undefined, stuckOnly })
+  const list = useFollowups({ bucket: "all", stage: stage || undefined, source: source || undefined, kind: kind || undefined, stuckOnly, scope })
 
   const byBucket = useMemo(() => {
     const out: Record<FollowupBucket, FollowupListItem[]> = { overdue: [], today: [], upcoming: [] }
@@ -43,7 +54,7 @@ export function MyDayPage() {
 
   const tab = chosenTab ?? (byBucket.overdue.length > 0 ? "overdue" : "today")
   const rows = byBucket[tab]
-  const filtersActive = !!(stage || source || kind || stuckOnly)
+  const filtersActive = !!(stage || source || kind || stuckOnly || scope !== "auto")
 
   return (
     <div className="space-y-4 pt-2">
@@ -96,6 +107,20 @@ export function MyDayPage() {
             </option>
           ))}
         </select>
+        <select value={scope} onChange={(e) => setScope(e.target.value as FollowupScope)} className={selectClass} aria-label={t("leads.assign.scopeLabel")} data-testid="scope-select">
+          <option value="auto">{t(isMaster ? "leads.assign.scope.all" : "leads.assign.scope.mineUnassigned")}</option>
+          <option value="mine">{t("leads.assign.scope.mine")}</option>
+          <option value="unassigned">{t("leads.assign.scope.unassigned")}</option>
+          {isMaster
+            ? assignees
+                .filter((a) => a.id !== profile?.id)
+                .map((a) => (
+                  <option key={a.id} value={`person:${a.id}`}>
+                    {a.full_name}
+                  </option>
+                ))
+            : null}
+        </select>
         <button
           type="button"
           aria-pressed={stuckOnly}
@@ -112,6 +137,7 @@ export function MyDayPage() {
               setSource("")
               setKind("")
               setStuckOnly(false)
+              setScope("auto")
             }}
             className="text-xs font-semibold text-text-muted hover:text-text"
           >
@@ -142,7 +168,13 @@ export function MyDayPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2" data-testid="followup-list">
           {rows.map((r) => (
-            <FollowupCard key={r.followup_id} item={r} onLogOutcome={setOutcomeFor} onReschedule={setRescheduleFor} />
+            <FollowupCard
+              key={r.followup_id}
+              item={r}
+              onLogOutcome={setOutcomeFor}
+              onReschedule={setRescheduleFor}
+              onAssign={assignActionFor(role, profile?.id, r.assignee_id, assignees) ? setAssignFor : undefined}
+            />
           ))}
         </div>
       )}
@@ -151,6 +183,11 @@ export function MyDayPage() {
         lead={outcomeFor ? { id: outcomeFor.lead_id, name: outcomeFor.lead_name, mobile: outcomeFor.mobile, status: outcomeFor.lead_status } : null}
         open={!!outcomeFor}
         onOpenChange={(o) => !o && setOutcomeFor(null)}
+      />
+      <AssignLeadDialog
+        leads={assignFor ? [{ id: assignFor.lead_id, name: assignFor.lead_name, assignedTo: assignFor.assignee_id }] : []}
+        open={!!assignFor}
+        onOpenChange={(o) => !o && setAssignFor(null)}
       />
       <RescheduleDialog lead={rescheduleFor ? { id: rescheduleFor.lead_id, name: rescheduleFor.lead_name } : null} open={!!rescheduleFor} onOpenChange={(o) => !o && setRescheduleFor(null)} />
     </div>

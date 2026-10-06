@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
-import { CalendarClock, ClipboardCheck, MessageCircle, Phone } from "lucide-react"
+import { CalendarClock, ClipboardCheck, MessageCircle, Phone, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { StatusDot } from "@/components/shared/StatusDot"
@@ -17,10 +17,13 @@ export function FollowupCard({
   item,
   onLogOutcome,
   onReschedule,
+  onAssign,
 }: {
   item: FollowupListItem
   onLogOutcome: (item: FollowupListItem) => void
   onReschedule: (item: FollowupListItem) => void
+  /** Set only when the signed-in person may assign this lead (see assignActionFor). */
+  onAssign?: (item: FollowupListItem) => void
 }) {
   const { t, i18n } = useTranslation()
   const { label: sourceLabel } = useLeadSourceOptions()
@@ -49,6 +52,10 @@ export function FollowupCard({
         {item.kind ? <span>{t(`leads.kind.${item.kind}`)}</span> : null}
         {item.product_name ? <span className="font-medium text-text">{item.product_name}</span> : null}
         <span>{sourceLabel(item.source)}</span>
+        <span className="inline-flex items-center gap-1" data-testid="assignee-chip">
+          <UserRound className="size-3" />
+          {item.assignee_name ?? t("leads.assign.unassigned")}
+        </span>
         <span className="inline-flex items-center gap-1">
           <CalendarClock className="size-3" />
           {t(`leads.followup.type.${item.followup_type}`)}
@@ -92,6 +99,11 @@ export function FollowupCard({
         <Button size="sm" variant="ghost" onClick={() => onReschedule(item)}>
           {t("leads.followup.reschedule")}
         </Button>
+        {onAssign ? (
+          <Button size="sm" variant="ghost" onClick={() => onAssign(item)}>
+            {t(item.assignee_id ? "leads.assign.reassign" : "leads.assign.assign")}
+          </Button>
+        ) : null}
       </div>
     </Card>
   )

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
-import { ArrowRightLeft, CalendarCheck, CalendarClock, CalendarX, FileText, MessageSquareText, Phone, StickyNote, UserRound } from "lucide-react"
+import { ArrowRightLeft, CalendarCheck, CalendarClock, CalendarX, FileText, MessageSquareText, Phone, StickyNote, UserRound, UserRoundCog } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useLeadTimeline } from "@/hooks/useLeadFollowups"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -20,6 +20,7 @@ const KIND_ICON: Record<string, typeof Phone> = {
   followup_done: CalendarCheck,
   followup_cancelled: CalendarX,
   quotation: FileText,
+  assignment: UserRoundCog,
 }
 
 /** Unified, newest-first history of a lead: outcomes, notes, stage changes, follow-ups set/done/cancelled, quotations — each with its author and IST time. */
@@ -98,6 +99,13 @@ function TimelineRow({ event: e, lang, t }: { event: TimelineEvent; lang: string
           ? t("leads.timeline.followupRescheduled", { when: formatIstDateTime(String(d.due_at), lang) })
           : t("leads.timeline.followupCancelled", { when: formatIstDateTime(String(d.due_at), lang), why: t(`leads.timeline.cancelReason.${reason}`) })
       if (reason === "rescheduled" && d.reschedule_reason) body = <p className="mt-0.5 text-text-muted">{t("leads.timeline.reason")}: {String(d.reschedule_reason)}</p>
+      break
+    }
+    case "assignment": {
+      const to = d.to_name ? String(d.to_name) : null
+      const from = d.from_name ? String(d.from_name) : null
+      title = to ? (from ? t("leads.timeline.reassigned", { from, to }) : t("leads.timeline.assigned", { to })) : t("leads.timeline.unassigned")
+      if (d.reason) body = <p className="mt-0.5 text-text-muted">{t("leads.timeline.reason")}: {String(d.reason)}</p>
       break
     }
     case "quotation":

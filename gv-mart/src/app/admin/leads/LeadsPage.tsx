@@ -13,7 +13,9 @@ import { NewLeadForm } from "./NewLeadForm"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { SourceBadge, TechnicianChip } from "./LeadBadges"
 import { FollowupCell } from "./FollowupBadges"
-import { useLeadSchedule } from "@/hooks/useLeadFollowups"
+import { useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
+import { AssignLeadDialog } from "./AssignLeadDialog"
+import type { UserRole } from "@/lib/roles"
 import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 import { isOverdueNow } from "@/lib/lead-followups"
 import type { LeadListItem } from "@/services/automation"
@@ -45,6 +47,16 @@ export function LeadsPage() {
   const navigate = useNavigate()
   const schedule = useLeadSchedule(orgId).data ?? DEFAULT_LEAD_SCHEDULE
   const [quick, setQuick] = useState<QuickFilter>("")
+  const role = profile?.role as UserRole | undefined
+  const isMaster = role === "master"
+  const assignees = useLeadAssignees(orgId, role).data ?? []
+  // "": master = everyone; sales_admin = own + unassigned. Also "mine", "unassigned", or a person id (master).
+  const [assignedFilter, setAssignedFilter] = useState<string>("")
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [assignOpen, setAssignOpen] = useState(false)
+  const activeAssignee = (l: LeadListItem) => (l.assigned_to && assignees.some((a) => a.id === l.assigned_to) ? l.assigned_to : null)
+  const assigneeName = (l: LeadListItem) => assignees.find((a) => a.id === activeAssignee(l))?.full_name ?? null
   const openLead = (l: LeadListItem) => navigate("/admin/leads/" + l.id)
 
   const stats = useMemo(() => {
@@ -66,14 +78,21 @@ export function LeadsPage() {
     () =>
       (leads.data ?? []).filter((l) => {
         if (searchTerm && !((l.customers?.name ?? l.name ?? "").toLowerCase().includes(searchTerm) || (l.mobile ?? l.customers?.mobile ?? "").includes(searchTerm))) return false
+        const who = activeAssignee(l)
+        if (assignedFilter === "mine" && who !== profile?.id) return false
+        if (assignedFilter === "unassigned" && who !== null) return false
+        if (assignedFilter === "" && !isMaster && who !== null && who !== profile?.id) return false
+        if (assignedFilter && assignedFilter !== "mine" && assignedFilter !== "unassigned" && who !== assignedFilter) return false
         const open = l.status !== "won" && l.status !== "lost"
         if (quick === "overdue") return open && !!l.next_followup_at && isOverdueNow(l.next_followup_at)
         if (quick === "noFollowup") return open && !l.next_followup_at
         if (quick === "stuck") return open && l.postpone_count >= stuckAt
         return true
       }),
-    [leads.data, searchTerm, quick, stuckAt]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [leads.data, searchTerm, quick, stuckAt, assignedFilter, assignees, profile?.id, isMaster]
   )
+  const selectedOpen = filteredLeads.filter((l) => selected.has(l.id) && l.status !== "won" && l.status !== "lost")
 
   return (
     <div className="space-y-4 pt-2">
@@ -195,6 +214,46 @@ export function LeadsPage() {
             </option>
           ))}
         </select>
+        <select
+          value={assignedFilter}
+          onChange={(e) => setAssignedFilter(e.target.value)}
+          aria-label={t("leads.assign.filterLabel")}
+          data-testid="assigned-filter"
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+        >
+          <option value="">{t(isMaster ? "leads.assign.scope.all" : "leads.assign.scope.mineUnassigned")}</option>
+          <option value="mine">{t("leads.assign.scope.mine")}</option>
+          <option value="unassigned">{t("leads.assign.scope.unassigned")}</option>
+          {isMaster
+            ? assignees
+                .filter((a) => a.id !== profile?.id)
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.full_name}
+                  </option>
+                ))
+            : null}
+        </select>
+        {isMaster && view === "table" ? (
+          <>
+            <button
+              type="button"
+              aria-pressed={selectMode}
+              onClick={() => {
+                setSelectMode((v) => !v)
+                setSelected(new Set())
+              }}
+              className={cn("rounded-full border px-3.5 py-2 text-xs font-semibold", selectMode ? "border-ink bg-ink text-white" : "border-border bg-surface text-text-muted")}
+            >
+              {t(selectMode ? "leads.assign.selectDone" : "leads.assign.select")}
+            </button>
+            {selectMode && selectedOpen.length > 0 ? (
+              <Button size="sm" variant="accent" onClick={() => setAssignOpen(true)}>
+                {t("leads.assign.assignSelected", { count: selectedOpen.length })}
+              </Button>
+            ) : null}
+          </>
+        ) : null}
         <div className="flex gap-1.5" role="group" aria-label={t("leads.quick.label")}>
           {QUICK_FILTERS.map((q) => (
             <button
@@ -211,7 +270,7 @@ export function LeadsPage() {
             </button>
           ))}
         </div>
-        {source || enquiryType || kind || search || quick ? (
+        {source || enquiryType || kind || search || quick || assignedFilter ? (
           <button
             type="button"
             onClick={() => {
@@ -220,6 +279,7 @@ export function LeadsPage() {
               setKind("")
               setSearch("")
               setQuick("")
+              setAssignedFilter("")
             }}
             className="text-xs font-semibold text-text-muted hover:text-text"
           >
@@ -237,6 +297,10 @@ export function LeadsPage() {
             onRetry={() => leads.refetch()}
             onRowClick={openLead}
             stuckAt={stuckAt}
+            assigneeName={assigneeName}
+            selectMode={selectMode}
+            selected={selected}
+            onToggle={(id) => setSelected((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n })}
           />
         ) : (
           <LeadsKanban
@@ -249,6 +313,16 @@ export function LeadsPage() {
           />
         )}
       </div>
+
+      <AssignLeadDialog
+        leads={selectedOpen.map((l) => ({ id: l.id, name: l.customers?.name ?? l.name, assignedTo: l.assigned_to }))}
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+        onDone={() => {
+          setSelected(new Set())
+          setSelectMode(false)
+        }}
+      />
     </div>
   )
 }
@@ -262,6 +336,10 @@ function LeadsTable({
   onRetry,
   onRowClick,
   stuckAt,
+  assigneeName,
+  selectMode,
+  selected,
+  onToggle,
 }: {
   rows: LeadListItem[]
   loading: boolean
@@ -269,6 +347,10 @@ function LeadsTable({
   onRetry: () => void
   onRowClick: (row: LeadListItem) => void
   stuckAt: number
+  assigneeName: (row: LeadListItem) => string | null
+  selectMode: boolean
+  selected: Set<string>
+  onToggle: (id: string) => void
 }) {
   const { t } = useTranslation()
 
@@ -327,7 +409,24 @@ function LeadsTable({
             }}
             className={cn("grid cursor-pointer items-center border-b border-border px-[22px] py-[14px] last:border-b-0 hover:bg-surface-alt", TABLE_GRID_COLS)}
           >
-            <span className="truncate text-[13px] font-semibold text-text">{r.customers?.name ?? r.name}</span>
+            <span className="flex min-w-0 items-start gap-2">
+              {selectMode && r.status !== "won" && r.status !== "lost" ? (
+                <input
+                  type="checkbox"
+                  checked={selected.has(r.id)}
+                  onChange={() => onToggle(r.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={r.customers?.name ?? r.name}
+                  className="mt-0.5 size-4 shrink-0 accent-accent"
+                />
+              ) : null}
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-semibold text-text">{r.customers?.name ?? r.name}</span>
+                <span className="block truncate text-[11px] text-text-muted" data-testid="row-assignee">
+                  {assigneeName(r) ?? t("leads.assign.unassigned")}
+                </span>
+              </span>
+            </span>
             <span className="text-[13px] font-medium text-text-muted">{r.mobile ?? r.customers?.mobile ?? "—"}</span>
             <SourceBadge source={r.source} />
             <span className="text-[13px] font-medium text-text">{r.kind ? t(`leads.kind.${r.kind}`) : "—"}</span>

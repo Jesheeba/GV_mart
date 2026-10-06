@@ -105,6 +105,18 @@ export function useReopenLead() {
   const done = useInvalidateLeadWork()
   return useMutation({ mutationFn: svc.reopenLead, onSuccess: done })
 }
+export function useLeadAssignees(orgId: string | undefined, role: UserRole | undefined) {
+  return useQuery({
+    queryKey: ["lead_assignees", orgId],
+    queryFn: () => svc.listLeadAssignees(orgId!),
+    enabled: !!orgId && canWorkFollowups(role),
+    staleTime: 5 * 60_000,
+  })
+}
+export function useAssignLead() {
+  const done = useInvalidateLeadWork()
+  return useMutation({ mutationFn: svc.assignLead, onSuccess: done })
+}
 export function useAddLeadNote() {
   const done = useInvalidateLeadWork()
   return useMutation({ mutationFn: ({ leadId, note }: { leadId: string; note: string }) => svc.addLeadNote(leadId, note), onSuccess: done })

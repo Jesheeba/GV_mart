@@ -11,7 +11,9 @@ export type FollowupType = Enums<"lead_followup_type">
 export type FollowupListItem = Database["public"]["Functions"]["list_followups"]["Returns"][number]
 export type TimelineEvent = Database["public"]["Functions"]["lead_timeline"]["Returns"][number]
 export type FollowupBucket = "overdue" | "today" | "upcoming"
-export type FollowupCounts = { overdue: number; today: number; total: number }
+export type FollowupCounts = { overdue: number; today: number; total: number; by_person: { id: string; name: string; overdue: number; today: number }[] }
+/** My Day scope: "auto" = master all / sales_admin own + unassigned. "person:<uuid>" is master-only. */
+export type FollowupScope = "auto" | "all" | "mine" | "unassigned" | "mine_unassigned" | `person:${string}`
 
 export type LeadSchedule = {
   lead_work_days: number[]
@@ -69,6 +71,13 @@ export type FollowupFilters = {
   source?: string
   kind?: Enums<"lead_kind">
   stuckOnly?: boolean
+  scope?: FollowupScope
+}
+
+function scopeArgs(scope: FollowupScope | undefined): { p_scope?: string; p_assignee?: string } {
+  if (!scope || scope === "auto") return {}
+  if (scope.startsWith("person:")) return { p_scope: "person", p_assignee: scope.slice(7) }
+  return { p_scope: scope }
 }
 
 export async function listFollowups(filters: FollowupFilters = {}): Promise<FollowupListItem[]> {
@@ -78,6 +87,7 @@ export async function listFollowups(filters: FollowupFilters = {}): Promise<Foll
     p_source: filters.source ?? null,
     p_kind: filters.kind ?? null,
     p_stuck_only: filters.stuckOnly ?? false,
+    ...scopeArgs(filters.scope),
   })
   if (error) throw error
   return data ?? []
@@ -87,7 +97,7 @@ export async function getFollowupCounts(): Promise<FollowupCounts> {
   const { data, error } = await supabase.rpc("followup_counts")
   if (error) throw error
   const c = (data ?? {}) as Partial<FollowupCounts>
-  return { overdue: c.overdue ?? 0, today: c.today ?? 0, total: c.total ?? 0 }
+  return { overdue: c.overdue ?? 0, today: c.today ?? 0, total: c.total ?? 0, by_person: c.by_person ?? [] }
 }
 
 export async function getLeadTimeline(leadId: string): Promise<TimelineEvent[]> {
@@ -187,4 +197,26 @@ export async function addLeadNote(leadId: string, note: string) {
   const { data, error } = await supabase.rpc("add_lead_note", { p_lead_id: leadId, p_note: note, p_type: "note" })
   if (error) throw error
   return data as string
+}
+
+// ── assignment ───────────────────────────────────────────────────────────
+export type LeadAssignee = { id: string; full_name: string; role: Enums<"user_role"> }
+
+/** Active masters + sales_admins of the organisation: the only people a lead can be assigned to. */
+export async function listLeadAssignees(orgId: string): Promise<LeadAssignee[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .in("role", ["master", "sales_admin"])
+    .order("full_name", { ascending: true })
+  if (error) throw error
+  return (data ?? []) as LeadAssignee[]
+}
+
+export async function assignLead(i: { leadId: string; assigneeId: string | null; reason?: string | null }) {
+  const { data, error } = await supabase.rpc("assign_lead", { p_lead_id: i.leadId, p_assignee: i.assigneeId, p_reason: i.reason ?? null })
+  if (error) throw error
+  return data as unknown as { lead_id: string; assigned_to: string | null; previous: string | null }
 }

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, ClipboardCheck, Loader2, MessageCircle, Phone, RotateCcw, StickyNote } from "lucide-react"
+import { ArrowLeft, ClipboardCheck, Loader2, MessageCircle, Phone, RotateCcw, StickyNote, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,10 @@ import { StatusDot } from "@/components/shared/StatusDot"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useLead } from "@/hooks/useAutomation"
-import { useAddLeadNote, useLeadSchedule } from "@/hooks/useLeadFollowups"
+import { useAddLeadNote, useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
+import { AssignLeadDialog } from "./AssignLeadDialog"
+import { assignActionFor } from "@/lib/lead-assign"
+import type { UserRole } from "@/lib/roles"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { LeadDetailPanel } from "./LeadDetailPanel"
 import { LeadTimeline } from "./LeadTimeline"
@@ -36,6 +39,8 @@ export function LeadDetailPage() {
   const [outcomeOpen, setOutcomeOpen] = useState(false)
   const [rescheduleOpen, setRescheduleOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [assignOpen, setAssignOpen] = useState(false)
+  const assignees = useLeadAssignees(profile?.org_id, profile?.role as UserRole | undefined).data ?? []
   const [note, setNote] = useState("")
 
   if (lead.isLoading) {
@@ -65,6 +70,8 @@ export function LeadDetailPage() {
   const stuck = !closed && l.postpone_count >= schedule.lead_stuck_postpones
   const tone = l.status === "won" ? "success" : l.status === "lost" ? "danger" : l.status === "new" ? "info" : "warning"
   const sheetLead = { id: l.id, name, mobile, status: l.status }
+  const assigneeName = assignees.find((a) => a.id === l.assigned_to)?.full_name ?? null
+  const assignAction = closed ? null : assignActionFor(profile?.role as UserRole | undefined, profile?.id, l.assigned_to, assignees)
 
   async function saveNote() {
     if (!note.trim()) return
@@ -101,6 +108,10 @@ export function LeadDetailPage() {
               <span>{sourceLabel(l.source)}</span>
               {l.kind ? <span>· {t(`leads.kind.${l.kind}`)}</span> : null}
               {l.enquiry_type ? <span>· {t(`leads.enquiryType.${l.enquiry_type}`)}</span> : null}
+              <span className="inline-flex items-center gap-1" data-testid="lead-assignee">
+                · <UserRound className="size-3" />
+                {assigneeName ?? t("leads.assign.unassigned")}
+              </span>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -130,6 +141,12 @@ export function LeadDetailPage() {
               ) : null}
             </>
           )}
+          {assignAction ? (
+            <Button size="sm" variant="outline" onClick={() => setAssignOpen(true)}>
+              <UserRound className="size-3.5" />
+              {t(`leads.assign.action.${assignAction}`)}
+            </Button>
+          ) : null}
           <Button size="sm" variant="outline" onClick={() => setNoteOpen((v) => !v)}>
             <StickyNote className="size-3.5" />
             {t("leads.detail.addNote")}
@@ -169,6 +186,8 @@ export function LeadDetailPage() {
 
       <LogOutcomeSheet lead={sheetLead} open={outcomeOpen} onOpenChange={setOutcomeOpen} />
       <RescheduleDialog lead={{ id: l.id, name }} open={rescheduleOpen} onOpenChange={setRescheduleOpen} />
+
+      <AssignLeadDialog leads={[{ id: l.id, name, assignedTo: l.assigned_to }]} open={assignOpen} onOpenChange={setAssignOpen} />
     </div>
   )
 }
