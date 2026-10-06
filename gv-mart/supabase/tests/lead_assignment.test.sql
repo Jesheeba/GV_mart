@@ -39,6 +39,8 @@ begin
   insert into leads(org_id,name,mobile) values (v_org,'__TEST_d','9888888804') returning id into d;
   insert into leads(org_id,name,mobile) values (v_org,'__TEST_e','9888888805') returning id into e;
   insert into leads(org_id,name,mobile,status) values (v_org,'__TEST_closed','9888888806','lost') returning id into closed;
+  -- initial calls are due 'an hour from now', which after closing time rolls to the next working day; pin them to now so the Today counts do not depend on the clock
+  update lead_followups set due_at = now() where org_id = v_org and status = 'open';
   perform pg_temp.chk('new leads are unassigned', (select count(*) from leads where org_id=v_org and assigned_to is not null)=0);
 
   -- ===== who may call assign_lead =====
