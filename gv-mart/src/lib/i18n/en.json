@@ -4165,7 +4165,8 @@
         "quoted": "Quoted or later",
         "won": "Won"
       },
-      "funnelNote": "Stages come from each lead’s current status (no stage history is stored); lost leads can’t be placed at a stage so they are shown separately.",
+      "funnelNote": "Stages come from each lead’s logged stage history. Leads from before history was recorded are placed by their current status; a lead lost before then can’t be placed at a stage, so it is only counted as lost.",
+      "lostUnknown": "{{count}} with stage unknown",
       "productTitle": "Product-wise sales",
       "item": "Item",
       "type": "Type",

@@ -6989,6 +6989,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      get_lead_funnel: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       lead_timeline: {
         Args: { p_lead_id: string }
         Returns: {

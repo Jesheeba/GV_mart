@@ -291,51 +291,48 @@ export type LeadStatus = Enums<"lead_status">
 export type LeadFunnel = {
   total: number
   byStatus: Record<LeadStatus, number>
-  /** Cumulative "reached at least this stage", derived from CURRENT status
-   * (no stage history is stored): contacted+ = contacted/quoted/won,
-   * quoted+ = quoted/won. Lost leads can't be placed at a stage, so they are
-   * reported separately and excluded from the stage counts. */
+  /** Cumulative "reached at least this stage", from each lead's logged stage
+   * history (lead_stage_log). Leads whose history predates the log are placed
+   * by their current status, exactly as before; a lead lost before the log
+   * existed has no known stage and is counted only in `lostStageUnknown`. */
   stages: { key: "created" | "contacted" | "quoted" | "won"; count: number }[]
   lost: number
+  /** Lost leads we can place at a stage / cannot (history unknown). */
+  lostStageKnown: number
+  lostStageUnknown: number
   conversionPercent: number | null
   bySource: { source: string; total: number; won: number; conversionPercent: number | null }[]
 }
 
-export async function getLeadFunnel(orgId: string, range: DateRange): Promise<LeadFunnel> {
-  const { fromIso, toIso } = rangeToTimestamps(range)
-  const { data, error } = await supabase
-    .from("leads")
-    .select("status, source")
-    .eq("org_id", orgId)
-    .gte("created_at", fromIso)
-    .lte("created_at", toIso)
-  if (error) throw error
-  const leads = data ?? []
+type LeadFunnelRpc = {
+  total: number
+  by_status: Record<LeadStatus, number>
+  reached: { created: number; contacted: number; quoted: number; won: number }
+  lost_stage_known: number
+  lost_stage_unknown: number
+  by_source: { source: string; total: number; won: number }[]
+}
 
-  const byStatus: Record<LeadStatus, number> = { new: 0, contacted: 0, quoted: 0, won: 0, lost: 0 }
-  const srcMap = new Map<string, { total: number; won: number }>()
-  for (const l of leads) {
-    byStatus[l.status] += 1
-    const e = srcMap.get(l.source) ?? { total: 0, won: 0 }
-    e.total += 1
-    if (l.status === "won") e.won += 1
-    srcMap.set(l.source, e)
-  }
+export async function getLeadFunnel(_orgId: string, range: DateRange): Promise<LeadFunnel> {
+  const { fromIso, toIso } = rangeToTimestamps(range)
+  const { data, error } = await supabase.rpc("get_lead_funnel", { p_from: fromIso, p_to: toIso })
+  if (error) throw error
+  const f = data as unknown as LeadFunnelRpc
   const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null)
   return {
-    total: leads.length,
-    byStatus,
+    total: f.total,
+    byStatus: f.by_status,
     stages: [
-      { key: "created", count: leads.length - byStatus.lost },
-      { key: "contacted", count: byStatus.contacted + byStatus.quoted + byStatus.won },
-      { key: "quoted", count: byStatus.quoted + byStatus.won },
-      { key: "won", count: byStatus.won },
+      { key: "created", count: f.reached.created },
+      { key: "contacted", count: f.reached.contacted },
+      { key: "quoted", count: f.reached.quoted },
+      { key: "won", count: f.reached.won },
     ],
-    lost: byStatus.lost,
-    conversionPercent: pct(byStatus.won, leads.length),
-    bySource: [...srcMap.entries()]
-      .map(([source, v]) => ({ source, ...v, conversionPercent: pct(v.won, v.total) }))
-      .sort((a, b) => b.total - a.total),
+    lost: f.by_status.lost,
+    lostStageKnown: f.lost_stage_known,
+    lostStageUnknown: f.lost_stage_unknown,
+    conversionPercent: pct(f.by_status.won, f.total),
+    bySource: f.by_source.map((s) => ({ ...s, conversionPercent: pct(s.won, s.total) })),
   }
 }
 

@@ -98,6 +98,7 @@ export function SalesInsightsReportTab() {
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2 text-xs text-text-muted">
                 <span>
                   {t("reports.insights.lost")}: <b className="text-text">{f.lost}</b>
+                  {f.lostStageUnknown > 0 ? <span> ({t("reports.insights.lostUnknown", { count: f.lostStageUnknown })})</span> : null}
                 </span>
                 <span>
                   {t("reports.insights.conversion")}: <b className="text-text">{f.conversionPercent != null ? `${f.conversionPercent}%` : "—"}</b>
