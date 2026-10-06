@@ -98,8 +98,14 @@ export function LoginPage() {
 
   const signInErrorMessage = (() => {
     if (!signInMutation.isError) return null
-    const message = (signInMutation.error as Error).message
-    return message.toLowerCase().includes("invalid") ? t("auth.invalidCredentials") : t("auth.genericSignInError")
+    // Only a real wrong-password response says "Incorrect email or password". A broken deployment
+    // (bad/missing anon key → "Invalid API key") must not be disguised as a credentials problem.
+    const error = signInMutation.error as Error & { code?: string }
+    if (error.code === "invalid_credentials" || error.message === "Invalid login credentials") {
+      return t("auth.invalidCredentials")
+    }
+    console.error("[auth] sign-in failed:", error.code, error.message)
+    return t("auth.genericSignInError")
   })()
 
   return (
