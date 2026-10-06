@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
-import { useNonTechnicianStaff, useResetStaffPassword, useSetStaffRoleKey } from "@/hooks/useHr"
+import { useNonTechnicianStaff, useResetStaffPassword, useSetStaffActive, useSetStaffRoleKey } from "@/hooks/useHr"
 import { roleBaseSalariesHooks } from "@/hooks/useMasters"
 import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
 import { useAssignableProfiles, useAssignTask, useOrgTasks } from "@/hooks/useTasks"
@@ -52,6 +52,7 @@ export function StaffSalaryTab() {
   const { data: roleSalaries } = roleBaseSalariesHooks.useList(orgId)
   const setRoleKey = useSetStaffRoleKey()
   const resetPassword = useResetStaffPassword()
+  const setActive = useSetStaffActive()
   const [resetTarget, setResetTarget] = useState<StaffOption | null>(null)
   const [newPassword, setNewPassword] = useState("")
   const newPasswordValid = newPassword.length >= 8
@@ -148,7 +149,16 @@ export function StaffSalaryTab() {
   }
 
   const columns: DataTableColumn<StaffOption>[] = [
-    { key: "name", header: t("hr.staffSalary.staff"), render: (r) => r.full_name },
+    {
+      key: "name",
+      header: t("hr.staffSalary.staff"),
+      render: (r) => (
+        <span className={r.is_active ? "" : "text-text-muted"}>
+          {r.full_name}
+          {!r.is_active && <span className="ml-2 rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-semibold uppercase">{t("hr.staffSalary.inactive")}</span>}
+        </span>
+      ),
+    },
     { key: "role", header: t("hr.staffSalary.role"), render: (r) => t(`roles.${r.role}`, r.role) },
     {
       key: "salaryRole",
@@ -197,13 +207,26 @@ export function StaffSalaryTab() {
             onChange={(e) => setAmounts((prev) => ({ ...prev, [r.id]: e.target.value }))}
             className="h-9 w-32"
           />
-          <Button size="xs" variant="accent" onClick={() => logSalary(r)} disabled={!(Number(effectiveAmount(r)) > 0) || loggingId === r.id}>
+          <Button size="xs" variant="accent" onClick={() => logSalary(r)} disabled={!r.is_active || !(Number(effectiveAmount(r)) > 0) || loggingId === r.id}>
             {loggingId === r.id ? <Loader2 className="size-3 animate-spin" /> : <Wallet className="size-3" />}
             {t("hr.staffSalary.logSalary")}
           </Button>
           <Button size="xs" variant="outline" onClick={() => { setResetTarget(r); setNewPassword("") }}>
             <KeyRound className="size-3" />
             {t("hr.staffSalary.resetPassword")}
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            disabled={setActive.isPending}
+            onClick={() =>
+              setActive.mutate(
+                { profileId: r.id, isActive: !r.is_active },
+                { onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.staffSalary.activeChangeFailed")) }
+              )
+            }
+          >
+            {r.is_active ? t("hr.staffSalary.deactivate") : t("hr.staffSalary.activate")}
           </Button>
         </div>
       ),

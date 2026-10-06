@@ -3860,6 +3860,10 @@
       "logged": "Logged"
     },
     "staffSalary": {
+      "inactive": "Inactive",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "activeChangeFailed": "Couldn't change the active status.",
       "resetPassword": "Reset password",
       "resetPasswordHint": "Type a new password for {{name}} (min 8 characters). Their current password stops working immediately.",
       "newPassword": "New password",
