@@ -170,16 +170,16 @@ export async function logReward(input: LogRewardInput) {
 export async function resetStaffPassword(profileId: string, password?: string): Promise<{ password?: string }> {
   const { data, error } = await supabase.functions.invoke("admin-reset-staff-password", { body: { profileId, password } })
   if (error) {
-    const context = (error as { context?: Response }).context
-    if (context) {
-      try {
-        const body = await context.clone().json()
-        if (body?.error) throw new Error(body.error)
-      } catch (e) {
-        if (e instanceof Error && e.message !== error.message && !(e instanceof SyntaxError)) throw e
-      }
+    // supabase-js buries the function's own JSON error body in error.context (a Response) — surface it if readable.
+    const context = (error as { context?: unknown }).context as { clone?: () => Response; json?: () => Promise<{ error?: string }> } | undefined
+    let message: string | null = null
+    try {
+      const res = typeof context?.clone === "function" ? context.clone() : context
+      if (res && typeof res.json === "function") message = ((await res.json()) as { error?: string })?.error ?? null
+    } catch {
+      // body unreadable — fall through to the generic error
     }
-    throw error
+    throw new Error(message || error.message)
   }
-  return data as { password: string }
+  return data as { password?: string }
 }
