@@ -86,11 +86,14 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
   const costHeights = barHeights(costSeries)
   const pnlChartLoading = monthlyPnl.some((q) => q.isLoading)
 
-  const productTotal = salesService?.invoiceTypeRatio.find((r) => r.type === "product")?.total ?? 0
-  const amcTotal = salesService?.invoiceTypeRatio.find((r) => r.type === "amc")?.total ?? 0
-  const spareInvoiceTotal = salesService?.invoiceTypeRatio.find((r) => r.type === "spare")?.total ?? 0
-  const serviceVisitTotal = salesService?.technicianServiceCounts.reduce((sum, tc) => sum + tc.revenue, 0) ?? 0
-  const serviceTotal = spareInvoiceTotal + serviceVisitTotal
+  // Revenue mix by the report's own revenue classes (one invoice, one class): Sales = product invoices
+  // plus counter spare sales, Service = spare invoices raised from a service visit (full invoice total,
+  // which already contains the service charge, so nothing is added on top), AMC. Rental is not a slice
+  // of this chart (it never was).
+  const revenueOf = (type: "sales" | "service" | "amc" | "rental") => salesService?.revenueByType.find((r) => r.type === type)?.revenue ?? 0
+  const productTotal = revenueOf("sales")
+  const amcTotal = revenueOf("amc")
+  const serviceTotal = revenueOf("service")
   const mixTotal = productTotal + serviceTotal + amcTotal || 1
   const productPct = Math.round((productTotal / mixTotal) * 100)
   const servicePct = Math.round((serviceTotal / mixTotal) * 100)
@@ -245,8 +248,8 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
               </div>
             </div>
             <div className="flex flex-1 flex-col gap-3.5">
-              <MixRow color="#F5612C" label={t("dashboard.productSales")} amount={productTotal} pct={productPct} />
-              <MixRow color="#1A1A1A" label={t("dashboard.serviceAndSpares")} amount={serviceTotal} pct={servicePct} />
+              <MixRow color="#F5612C" label={t("reports.salesService.revenueTypeLabel.sales")} amount={productTotal} pct={productPct} />
+              <MixRow color="#1A1A1A" label={t("reports.salesService.revenueTypeLabel.service")} amount={serviceTotal} pct={servicePct} />
               <MixRow color="#E8C9BB" label={t("dashboard.amcContracts")} amount={amcTotal} pct={amcPct} />
             </div>
           </div>
