@@ -116,18 +116,20 @@ begin
   perform pg_temp.chk('reopen of an open lead rejected', b=false);
   perform pg_temp.as_pg();
 
-  -- ===== backward compat: old 5-arg reopen_lead still works (deployed frontend) =====
+  -- ===== the old 5-argument overload is gone (20261008120000) =====
   insert into leads(org_id,name,mobile) values (v_org,'__T_r3','9555555503') returning id into l3;
   perform pg_temp.as_user(v_sales);
   perform update_lead_status(l3, 'quoted');
   perform update_lead_status(l3, 'lost', 'no_longer_needs');
-  r := reopen_lead(l3, due, 'call'::lead_followup_type, 'old frontend', false);
+  begin perform reopen_lead(l3, due, 'call'::lead_followup_type, 'old frontend', false); b:=true; exception when others then b:=sqlerrm like '%does not exist%'; end;
+  perform pg_temp.chk('OLD 5-arg reopen_lead no longer exists', b);
+  r := pg_temp.ro(l3, due, 'reopened with reason');
   perform pg_temp.as_pg();
-  perform pg_temp.chk('OLD 5-arg reopen_lead still works: contacted, 1 open follow-up', r->>'status'='contacted' and (select count(*) from lead_followups where lead_id=l3 and status='open')=1, r::text);
-  perform pg_temp.chk('old reopen logged as source reopen with no reason', (select count(*) from lead_stage_log where lead_id=l3 and source='reopen' and reason is null)=1);
+  perform pg_temp.chk('new reopen_lead has no ambiguity: untyped-literal style call resolves', r->>'status'='quoted', r::text);
+  perform pg_temp.chk('only one reopen_lead overload exists', (select count(*) from pg_proc where proname='reopen_lead' and pronamespace='public'::regnamespace)=1);
 
   -- ===== one-shot context: a later direct update does not inherit it =====
-  update leads set status='quoted' where id=l3;
+  update leads set status='contacted' where id=l3;
   perform pg_temp.chk('later direct update logged as source other', (select source from lead_stage_log where lead_id=l3 order by changed_at desc, id desc limit 1)='other');
 
   -- ===== won lead via create_sale-style direct update still logs; closed->won direct (sale) is not blocked =====

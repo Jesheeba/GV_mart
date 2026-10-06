@@ -1,0 +1,12 @@
+-- Lead follow-up Phase 2: drop the old 5-argument reopen_lead.
+--
+-- 20261008110000 added reopen_lead(uuid, timestamptz, text reason, ...) and kept
+-- the old reopen_lead(uuid, timestamptz, lead_followup_type, text, boolean) so the
+-- frontend deployed at the time kept working. The new frontend (500275f) is live
+-- and verified, and calls only the reason-required overload, so the old one goes.
+-- Dropping it also removes the "function is not unique" ambiguity for SQL callers
+-- that pass untyped literals.
+--
+-- Not retroactive for anyone still running a cached pre-500275f bundle: their
+-- Reopen button would error until they reload.
+drop function if exists public.reopen_lead(uuid, timestamptz, public.lead_followup_type, text, boolean);

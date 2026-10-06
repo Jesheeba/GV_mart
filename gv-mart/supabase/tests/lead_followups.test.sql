@@ -139,9 +139,9 @@ begin
   begin perform update_lead_status(l5, 'contacted'); perform pg_temp.chk('stage button cannot reopen a closed lead', false); exception when others then perform pg_temp.chk('stage button cannot reopen a closed lead', sqlerrm like '%Reopen%', sqlerrm); end;
   begin perform update_lead_status(l3, 'lost', '  '); perform pg_temp.chk('Lost needs reason', false); exception when others then perform pg_temp.chk('Lost needs reason', sqlerrm like '%reason is required%'); end;
   begin update leads set status='contacted' where id=l5; perform pg_temp.chk('direct UPDATE reopen without follow-up rejected', false); exception when others then perform pg_temp.chk('direct UPDATE reopen without follow-up rejected', sqlerrm like '%requires a new follow-up%', sqlerrm); end;
-  begin perform reopen_lead(l5, now() - interval '1 day'); perform pg_temp.chk('reopen with past date rejected', false); exception when others then perform pg_temp.chk('reopen with past date rejected', true); end;
-  r := reopen_lead(l5, now() + interval '1 day', 'call'::lead_followup_type, 'came back');
-  perform pg_temp.chk('reopen_lead: contacted, lost_reason cleared, new open task', (select status from leads where id=l5)='contacted' and (select lost_reason from leads where id=l5) is null and (select count(*) from lead_followups where lead_id=l5 and status='open')=1 and (select source from lead_followups where lead_id=l5 and status='open')='reopen');
+  begin perform reopen_lead(l5, now() - interval '1 day', 'valid reason'::text); perform pg_temp.chk('reopen with past date rejected', false); exception when others then perform pg_temp.chk('reopen with past date rejected', sqlerrm like '%past%', sqlerrm); end;
+  r := reopen_lead(l5, now() + interval '1 day', 'customer came back'::text, 'call'::lead_followup_type, 'came back');
+  perform pg_temp.chk('reopen_lead: back to the pre-closing stage (new), lost_reason cleared, new open task', (select status from leads where id=l5)='new' and (select lost_reason from leads where id=l5) is null and (select count(*) from lead_followups where lead_id=l5 and status='open')=1 and (select source from lead_followups where lead_id=l5 and status='open')='reopen');
   perform pg_temp.chk('lost + reopen stage changes both recorded with author', (select count(*) from lead_activities where lead_id=l5 and type='status_change' and created_by=v_sales)=2);
   perform add_lead_note(l4, 'note on closed lead');
   perform pg_temp.chk('note on CLOSED lead allowed', exists(select 1 from lead_activities where lead_id=l4 and type='note'));
