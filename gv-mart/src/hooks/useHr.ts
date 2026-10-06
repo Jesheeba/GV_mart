@@ -18,6 +18,10 @@ export function useNonTechnicianStaff(orgId: string | undefined) {
   })
 }
 
+export function useResetStaffPassword() {
+  return useMutation({ mutationFn: (profileId: string) => hr.resetStaffPassword(profileId) })
+}
+
 export function useSetStaffRoleKey() {
   const qc = useQueryClient()
   return useMutation({

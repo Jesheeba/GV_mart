@@ -2,19 +2,20 @@ import { useState } from "react"
 import { getIstNow } from "@/lib/ist"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
-import { Loader2, Repeat, Wallet } from "lucide-react"
+import { KeyRound, Loader2, Repeat, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
-import { useNonTechnicianStaff, useSetStaffRoleKey } from "@/hooks/useHr"
+import { useNonTechnicianStaff, useResetStaffPassword, useSetStaffRoleKey } from "@/hooks/useHr"
 import { roleBaseSalariesHooks } from "@/hooks/useMasters"
 import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
 import { useAssignableProfiles, useAssignTask, useOrgTasks } from "@/hooks/useTasks"
 import { formatCurrency } from "@/lib/sale-calc"
 import { useToast } from "@/components/ui/toast-context"
 import type { StaffOption } from "@/services/hr"
+import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 
 function currentMonthIso() {
   return getIstNow().date.slice(0, 7)
@@ -50,6 +51,19 @@ export function StaffSalaryTab() {
   // staff member linked via profiles.staff_role_key; master can still override.
   const { data: roleSalaries } = roleBaseSalariesHooks.useList(orgId)
   const setRoleKey = useSetStaffRoleKey()
+  const resetPassword = useResetStaffPassword()
+  const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
+  const [resettingId, setResettingId] = useState<string | null>(null)
+
+  function resetStaffLogin(person: StaffOption) {
+    if (!window.confirm(t("hr.staffSalary.resetPasswordConfirm", { name: person.full_name }))) return
+    setResettingId(person.id)
+    resetPassword.mutate(person.id, {
+      onSuccess: (res) => setRevealedPassword(res.password),
+      onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.staffSalary.resetPasswordFailed")),
+      onSettled: () => setResettingId(null),
+    })
+  }
   const baseByRoleKey = new Map((roleSalaries ?? []).filter((r) => r.is_active).map((r) => [r.role_key, r.monthly_base]))
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [loggingId, setLoggingId] = useState<string | null>(null)
@@ -180,6 +194,10 @@ export function StaffSalaryTab() {
             {loggingId === r.id ? <Loader2 className="size-3 animate-spin" /> : <Wallet className="size-3" />}
             {t("hr.staffSalary.logSalary")}
           </Button>
+          <Button size="xs" variant="outline" onClick={() => resetStaffLogin(r)} disabled={resettingId === r.id}>
+            {resettingId === r.id ? <Loader2 className="size-3 animate-spin" /> : <KeyRound className="size-3" />}
+            {t("hr.staffSalary.resetPassword")}
+          </Button>
         </div>
       ),
     },
@@ -211,6 +229,7 @@ export function StaffSalaryTab() {
         onRetry={() => refetch()}
         emptyMessage={t("hr.staffSalary.empty")}
       />
+      <PasswordRevealDialog password={revealedPassword} title={t("hr.staffSalary.passwordDialogTitle")} onClose={() => setRevealedPassword(null)} />
     </div>
   )
 }
