@@ -167,8 +167,8 @@ export async function logReward(input: LogRewardInput) {
 }
 
 /** Master-only: generate + set a new password for an admin/staff login. Returned once, never stored. */
-export async function resetStaffPassword(profileId: string): Promise<{ password: string }> {
-  const { data, error } = await supabase.functions.invoke("admin-reset-staff-password", { body: { profileId } })
+export async function resetStaffPassword(profileId: string, password?: string): Promise<{ password?: string }> {
+  const { data, error } = await supabase.functions.invoke("admin-reset-staff-password", { body: { profileId, password } })
   if (error) {
     const context = (error as { context?: Response }).context
     if (context) {

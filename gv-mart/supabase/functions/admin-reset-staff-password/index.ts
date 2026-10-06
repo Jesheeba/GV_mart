@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
   const { data: caller } = await admin.from("profiles").select("org_id, role").eq("id", userRes.user.id).single()
   if (!caller || caller.role !== "master") return json({ error: "Only master may reset staff passwords" }, 403)
 
-  let body: { profileId?: string }
+  let body: { profileId?: string; password?: string }
   try {
     body = await req.json()
   } catch {
@@ -63,10 +63,13 @@ Deno.serve(async (req) => {
   if (!target || target.org_id !== caller.org_id) return json({ error: "Staff member not found" }, 404)
   if (!STAFF_ROLES.includes(target.role)) return json({ error: "Only admin/staff logins can be reset here" }, 400)
 
-  const password = generatePassword()
+  // Master may type the password; if omitted, generate one (returned once).
+  const typed = typeof body.password === "string" ? body.password : ""
+  if (typed && (typed.length < 8 || typed.length > 72)) return json({ error: "Password must be 8-72 characters" }, 400)
+  const password = typed || generatePassword()
   const { error } = await admin.auth.admin.updateUserById(target.id, { password })
   if (error) return json({ error: error.message || "Could not reset the password" }, 400)
 
   console.log(`admin-reset-staff-password: master ${userRes.user.id} reset ${target.id}`)
-  return json({ password })
+  return json({ ok: true, generated: !typed, password: typed ? undefined : password })
 })

@@ -19,7 +19,7 @@ export function useNonTechnicianStaff(orgId: string | undefined) {
 }
 
 export function useResetStaffPassword() {
-  return useMutation({ mutationFn: (profileId: string) => hr.resetStaffPassword(profileId) })
+  return useMutation({ mutationFn: ({ profileId, password }: { profileId: string; password?: string }) => hr.resetStaffPassword(profileId, password) })
 }
 
 export function useSetStaffRoleKey() {

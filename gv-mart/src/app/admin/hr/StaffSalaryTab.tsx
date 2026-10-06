@@ -15,7 +15,7 @@ import { useAssignableProfiles, useAssignTask, useOrgTasks } from "@/hooks/useTa
 import { formatCurrency } from "@/lib/sale-calc"
 import { useToast } from "@/components/ui/toast-context"
 import type { StaffOption } from "@/services/hr"
-import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
 function currentMonthIso() {
   return getIstNow().date.slice(0, 7)
@@ -52,18 +52,25 @@ export function StaffSalaryTab() {
   const { data: roleSalaries } = roleBaseSalariesHooks.useList(orgId)
   const setRoleKey = useSetStaffRoleKey()
   const resetPassword = useResetStaffPassword()
-  const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
-  const [resettingId, setResettingId] = useState<string | null>(null)
+  const [resetTarget, setResetTarget] = useState<StaffOption | null>(null)
+  const [newPassword, setNewPassword] = useState("")
+  const newPasswordValid = newPassword.length >= 8
 
-  function resetStaffLogin(person: StaffOption) {
-    if (!window.confirm(t("hr.staffSalary.resetPasswordConfirm", { name: person.full_name }))) return
-    setResettingId(person.id)
-    resetPassword.mutate(person.id, {
-      onSuccess: (res) => setRevealedPassword(res.password),
-      onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.staffSalary.resetPasswordFailed")),
-      onSettled: () => setResettingId(null),
-    })
+  function submitPasswordReset() {
+    if (!resetTarget || !newPasswordValid) return
+    resetPassword.mutate(
+      { profileId: resetTarget.id, password: newPassword },
+      {
+        onSuccess: () => {
+          toast.success(t("hr.staffSalary.resetPasswordDone", { name: resetTarget.full_name }))
+          setResetTarget(null)
+          setNewPassword("")
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.staffSalary.resetPasswordFailed")),
+      }
+    )
   }
+
   const baseByRoleKey = new Map((roleSalaries ?? []).filter((r) => r.is_active).map((r) => [r.role_key, r.monthly_base]))
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [loggingId, setLoggingId] = useState<string | null>(null)
@@ -194,8 +201,8 @@ export function StaffSalaryTab() {
             {loggingId === r.id ? <Loader2 className="size-3 animate-spin" /> : <Wallet className="size-3" />}
             {t("hr.staffSalary.logSalary")}
           </Button>
-          <Button size="xs" variant="outline" onClick={() => resetStaffLogin(r)} disabled={resettingId === r.id}>
-            {resettingId === r.id ? <Loader2 className="size-3 animate-spin" /> : <KeyRound className="size-3" />}
+          <Button size="xs" variant="outline" onClick={() => { setResetTarget(r); setNewPassword("") }}>
+            <KeyRound className="size-3" />
             {t("hr.staffSalary.resetPassword")}
           </Button>
         </div>
@@ -229,7 +236,35 @@ export function StaffSalaryTab() {
         onRetry={() => refetch()}
         emptyMessage={t("hr.staffSalary.empty")}
       />
-      <PasswordRevealDialog password={revealedPassword} title={t("hr.staffSalary.passwordDialogTitle")} onClose={() => setRevealedPassword(null)} />
+      <Dialog open={!!resetTarget} onOpenChange={(open) => !open && setResetTarget(null)}>
+        <DialogContent>
+          <DialogTitle>{t("hr.staffSalary.passwordDialogTitle")}</DialogTitle>
+          <DialogDescription>{t("hr.staffSalary.resetPasswordHint", { name: resetTarget?.full_name ?? "" })}</DialogDescription>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              submitPasswordReset()
+            }}
+          >
+            <div className="space-y-1">
+              <Label htmlFor="staff-new-password" className="block text-xs font-medium text-text-muted">
+                {t("hr.staffSalary.newPassword")}
+              </Label>
+              <Input id="staff-new-password" type="text" autoComplete="off" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setResetTarget(null)}>
+                {t("common.cancel", "Cancel")}
+              </Button>
+              <Button type="submit" disabled={!newPasswordValid || resetPassword.isPending}>
+                {resetPassword.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                {t("hr.staffSalary.resetPassword")}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
