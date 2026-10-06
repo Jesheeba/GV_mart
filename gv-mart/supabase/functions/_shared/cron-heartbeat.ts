@@ -17,7 +17,7 @@
 //     wa-scheduled-tasks/index.ts's header on avoiding new infra).
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2"
 
-export type CronJobKey = "wa_scheduled_tasks" | "wa_milestone_dispatch" | "technician_shift_reset"
+export type CronJobKey = "wa_scheduled_tasks" | "wa_milestone_dispatch" | "technician_shift_reset" | "lead_followup_notifications"
 
 // Expected interval per job. wa-scheduled-tasks and wa-milestone-dispatch
 // are ALSO admin-configurable per org (settings.*_interval_minutes) for
@@ -28,6 +28,9 @@ const EXPECTED_INTERVAL_MINUTES: Record<CronJobKey, number> = {
   wa_scheduled_tasks: 24 * 60, // daily
   wa_milestone_dispatch: 5,
   technician_shift_reset: 24 * 60, // daily
+  // pg_cron job, not GitHub-driven: it writes its own heartbeat (lead_followup_cron_tick, migration
+  // 20261008140000) and is watched from here, because pg_cron cannot alert on its own death.
+  lead_followup_notifications: 5,
 }
 
 // How far past its expected interval a job has to be before it's "stale"
@@ -72,8 +75,9 @@ export async function checkAndAlertStaleJobs(admin: SupabaseClient): Promise<voi
     }
     const ageMs = now - new Date(heartbeat.last_run_at).getTime()
     if (ageMs > staleAfterMs) {
-      const ageHours = Math.round(ageMs / 3_600_000)
-      staleJobs.push({ jobKey, reason: `last ran ${ageHours}h ago, expected every ${EXPECTED_INTERVAL_MINUTES[jobKey]}m` })
+      // minutes under two hours: a 5-minute job that is 20 minutes late must not read "0h ago"
+      const ageText = ageMs < 2 * 3_600_000 ? `${Math.round(ageMs / 60_000)}m` : `${Math.round(ageMs / 3_600_000)}h`
+      staleJobs.push({ jobKey, reason: `last ran ${ageText} ago, expected every ${EXPECTED_INTERVAL_MINUTES[jobKey]}m` })
       continue
     }
     if (heartbeat.last_status === "error") {
