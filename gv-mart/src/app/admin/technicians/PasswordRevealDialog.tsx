@@ -15,10 +15,12 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 export function PasswordRevealDialog({
   password,
   phone,
+  title,
   onClose,
 }: {
   password: string | null
   phone?: string | null
+  title?: string
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -53,7 +55,7 @@ export function PasswordRevealDialog({
   return (
     <Dialog open={!!password} onOpenChange={(open) => !open && onClose()}>
       <DialogContent showClose={false} finalFocus={() => focusStableFallback()}>
-        <DialogTitle>{t("technicians.list.passwordDialogTitle")}</DialogTitle>
+        <DialogTitle>{title ?? t("technicians.list.passwordDialogTitle")}</DialogTitle>
         <DialogDescription>{t("technicians.list.passwordDialogHint")}</DialogDescription>
         <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5">
           <code className="flex-1 select-all font-mono text-sm text-text">{password}</code>
