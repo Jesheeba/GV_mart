@@ -10,6 +10,7 @@ export type LeadFollowupRow = Tables<"lead_followups">
 export type FollowupType = Enums<"lead_followup_type">
 export type FollowupListItem = Database["public"]["Functions"]["list_followups"]["Returns"][number]
 export type TimelineEvent = Database["public"]["Functions"]["lead_timeline"]["Returns"][number]
+export type LeadWithoutFollowup = Database["public"]["Functions"]["list_leads_without_followup"]["Returns"][number]
 export type FollowupBucket = "overdue" | "today" | "upcoming"
 export type FollowupCounts = { overdue: number; today: number; total: number; by_person: { id: string; name: string; overdue: number; today: number }[] }
 /** My Day scope: "auto" = master all / sales_admin own + unassigned. "person:<uuid>" is master-only. */
@@ -219,4 +220,45 @@ export async function assignLead(i: { leadId: string; assigneeId: string | null;
   const { data, error } = await supabase.rpc("assign_lead", { p_lead_id: i.leadId, p_assignee: i.assigneeId, p_reason: i.reason ?? null })
   if (error) throw error
   return data as unknown as { lead_id: string; assigned_to: string | null; previous: string | null }
+}
+
+// ── leads without a follow-up ("No follow-up" tab) ───────────────────────
+export type NoFollowupFilters = {
+  stage?: Enums<"lead_status">
+  source?: string
+  kind?: Enums<"lead_kind">
+  scope?: FollowupScope
+}
+
+/** Open leads that have no open follow-up, oldest first, within the caller's scope (same rules as My Day). */
+export async function listLeadsWithoutFollowup(filters: NoFollowupFilters = {}): Promise<LeadWithoutFollowup[]> {
+  const { data, error } = await supabase.rpc("list_leads_without_followup", {
+    p_stage: filters.stage ?? null,
+    p_source: filters.source ?? null,
+    p_kind: filters.kind ?? null,
+    ...scopeArgs(filters.scope),
+  })
+  if (error) throw error
+  return data ?? []
+}
+
+export type BulkFollowupResult = {
+  created: number
+  skipped: { lead_id: string; reason: string }[]
+  per_day: number | null
+  first_day: string | null
+  last_day: string | null
+}
+
+/** Schedule one follow-up per lead. perDay set = spread N a day over working days (oldest lead first); null = everyone at dueAt. */
+export async function setLeadFollowupsBulk(i: { leadIds: string[]; dueAt: string; type?: FollowupType; note?: string | null; perDay?: number | null }) {
+  const { data, error } = await supabase.rpc("set_lead_followups_bulk", {
+    p_lead_ids: i.leadIds,
+    p_due_at: i.dueAt,
+    p_type: i.type ?? "call",
+    p_note: i.note ?? null,
+    p_per_day: i.perDay ?? null,
+  })
+  if (error) throw error
+  return data as unknown as BulkFollowupResult
 }

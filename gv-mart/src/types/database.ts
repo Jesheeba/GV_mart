@@ -6999,6 +6999,43 @@ export type Database = {
         Args: { p_scope?: string; p_assignee?: string | null }
         Returns: Json
       }
+      list_leads_without_followup: {
+        Args: {
+          p_stage?: Database["public"]["Enums"]["lead_status"] | null
+          p_source?: string | null
+          p_kind?: Database["public"]["Enums"]["lead_kind"] | null
+          p_scope?: string
+          p_assignee?: string | null
+        }
+        Returns: {
+          lead_id: string
+          lead_name: string
+          mobile: string | null
+          source: string
+          kind: Database["public"]["Enums"]["lead_kind"] | null
+          enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
+          lead_status: Database["public"]["Enums"]["lead_status"]
+          product_name: string | null
+          created_at: string
+          postpone_count: number
+          assignee_id: string | null
+          assignee_name: string | null
+          last_outcome_label_en: string | null
+          last_outcome_label_ta: string | null
+          last_outcome_note: string | null
+          last_outcome_at: string | null
+        }[]
+      }
+      set_lead_followups_bulk: {
+        Args: {
+          p_lead_ids: string[]
+          p_due_at: string
+          p_type?: Database["public"]["Enums"]["lead_followup_type"]
+          p_note?: string | null
+          p_per_day?: number | null
+        }
+        Returns: Json
+      }
       assign_lead: {
         Args: { p_lead_id: string; p_assignee: string | null; p_reason?: string | null }
         Returns: Json

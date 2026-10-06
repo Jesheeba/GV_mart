@@ -3193,13 +3193,40 @@
       "selectDone": "Done selecting",
       "assignSelected": "Assign selected ({{count}})"
     },
+    "noFollowup": {
+      "intro": "Open leads nobody has scheduled yet, oldest first. Set a follow-up so they show up in Today.",
+      "waiting": "waiting {{count}} d",
+      "today": "new today",
+      "selectAll": "Select all ({{count}})",
+      "setSelected": "Set follow-up for selected ({{count}})",
+      "bulkTitle": "Set follow-up for {{count}} leads",
+      "bulkHint": "One follow-up per lead. Leads that already have one, are closed, or belong to someone else are skipped.",
+      "modeSpread": "Spread over working days",
+      "modeSame": "Same time for all",
+      "startDay": "Start on",
+      "perDay": "Leads per day",
+      "preview": "{{count}} leads over {{days}} working day(s): {{perDay}} a day, the last day {{last}}. Oldest lead first.",
+      "perDayInvalid": "Enter a whole number from 1 to 100.",
+      "spreadRule": "Times are spread evenly between opening + 30 minutes and closing - 1 hour, on working days only. Starts tomorrow or later.",
+      "tooMany": "At most {{max}} leads at a time.",
+      "bulkSave": "Schedule {{count}} leads",
+      "bulkDone": "{{count}} follow-up(s) scheduled.",
+      "bulkSkipped": "Skipped: {{detail}}.",
+      "skipped": {
+        "closed": "closed",
+        "has_followup": "already scheduled",
+        "not_yours": "assigned to someone else",
+        "not_found": "not found"
+      }
+    },
     "myDay": {
       "title": "My Day",
       "subtitle": "Follow-ups for {{date}} (IST)",
       "tab": {
         "overdue": "Overdue",
         "today": "Today",
-        "upcoming": "Upcoming"
+        "upcoming": "Upcoming",
+        "none": "No follow-up"
       },
       "filters": {
         "stage": "Stage",
@@ -3211,7 +3238,8 @@
       "empty": {
         "overdue": "Nothing overdue — you're on top of it.",
         "today": "No follow-ups due today.",
-        "upcoming": "No follow-ups in the next 7 days."
+        "upcoming": "No follow-ups in the next 7 days.",
+        "none": "Every open lead has a follow-up."
       },
       "loadFailed": "Couldn't load follow-ups.",
       "badgeTitle": "{{overdue}} overdue, {{today}} due today"

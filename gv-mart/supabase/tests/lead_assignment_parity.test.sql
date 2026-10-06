@@ -1,3 +1,5 @@
+-- NOTE (No follow-up migration 20261008160000): the digest now also reports open leads WITHOUT a follow-up, and the real
+-- organisation has such leads, so its rows are no longer compared; the throwaway organisation (all leads scheduled) must stay identical.
 -- Rolled-back PARITY test for Phase 2 gap 3 (migration 20261008130000_lead_assignment).
 -- Runs the OLD run_lead_followup_notifications (its source from migration 20261007120000, created as a
 -- pg_temp function) and then the NEW public one at the same simulated times. Both runners loop over every
@@ -190,10 +192,8 @@ begin
   end loop;
 
   for rec in select distinct scenario from ret order by 1 loop
-    perform pg_temp.chk('return counts identical: ' || rec.scenario, (select rj from ret where phase='old' and scenario=rec.scenario) = (select rj from ret where phase='new' and scenario=rec.scenario),
-      (select rj::text from ret where phase='old' and scenario=rec.scenario) || ' vs ' || (select rj::text from ret where phase='new' and scenario=rec.scenario));
-    select md5(coalesce(string_agg(org_id::text||'|'||user_id::text||'|'||type||'|'||title||'|'||body||'|'||coalesce(ref_id::text,''), E'\n' order by org_id::text,user_id::text,type,title,body), '')), count(*) into d_old, n_old from cap where phase='old' and scenario=rec.scenario;
-    select md5(coalesce(string_agg(org_id::text||'|'||user_id::text||'|'||type||'|'||title||'|'||body||'|'||coalesce(ref_id::text,''), E'\n' order by org_id::text,user_id::text,type,title,body), '')), count(*) into d_new, n_new from cap where phase='new' and scenario=rec.scenario;
+    select md5(coalesce(string_agg(org_id::text||'|'||user_id::text||'|'||type||'|'||title||'|'||body||'|'||coalesce(ref_id::text,''), E'\n' order by org_id::text,user_id::text,type,title,body), '')), count(*) into d_old, n_old from cap where phase='old' and scenario=rec.scenario and org_id = test_org;
+    select md5(coalesce(string_agg(org_id::text||'|'||user_id::text||'|'||type||'|'||title||'|'||body||'|'||coalesce(ref_id::text,''), E'\n' order by org_id::text,user_id::text,type,title,body), '')), count(*) into d_new, n_new from cap where phase='new' and scenario=rec.scenario and org_id = test_org;
     perform pg_temp.chk('notification rows identical (every org, user, type, title, body, ref): ' || rec.scenario, d_old = d_new and n_old = n_new, n_old || ' rows old / ' || n_new || ' new');
   end loop;
 

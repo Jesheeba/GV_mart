@@ -19,3 +19,15 @@ export function assignActionFor(role: UserRole | undefined, myId: string | undef
   return null
 }
 
+
+/**
+ * May the signed-in person schedule a follow-up for this lead? Mirrors set_lead_followup on the server:
+ * master - any lead; sales_admin - their own leads and unassigned ones (a lead whose assignee is no longer an
+ * active master/sales_admin counts as unassigned).
+ */
+export function canScheduleLead(role: UserRole | undefined, myId: string | undefined, assignedTo: string | null, assignees: LeadAssignee[]): boolean {
+  if (role === "master") return true
+  if (role !== "sales_admin") return false
+  const effective = assignedTo && assignees.some((a) => a.id === assignedTo) ? assignedTo : null
+  return effective === null || effective === myId
+}

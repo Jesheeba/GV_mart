@@ -15,6 +15,8 @@ import { SourceBadge, TechnicianChip } from "./LeadBadges"
 import { FollowupCell } from "./FollowupBadges"
 import { useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
 import { AssignLeadDialog } from "./AssignLeadDialog"
+import { SetFollowupDialog } from "./SetFollowupDialog"
+import { canScheduleLead } from "@/lib/lead-assign"
 import type { UserRole } from "@/lib/roles"
 import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 import { isOverdueNow } from "@/lib/lead-followups"
@@ -55,6 +57,8 @@ export function LeadsPage() {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [assignOpen, setAssignOpen] = useState(false)
+  const [scheduleFor, setScheduleFor] = useState<LeadListItem | null>(null)
+  const canSchedule = (l: LeadListItem) => canScheduleLead(role, profile?.id, l.assigned_to, assignees)
   const activeAssignee = (l: LeadListItem) => (l.assigned_to && assignees.some((a) => a.id === l.assigned_to) ? l.assigned_to : null)
   const assigneeName = (l: LeadListItem) => assignees.find((a) => a.id === activeAssignee(l))?.full_name ?? null
   const openLead = (l: LeadListItem) => navigate("/admin/leads/" + l.id)
@@ -298,6 +302,8 @@ export function LeadsPage() {
             onRowClick={openLead}
             stuckAt={stuckAt}
             assigneeName={assigneeName}
+            canSchedule={canSchedule}
+            onSetFollowup={setScheduleFor}
             selectMode={selectMode}
             selected={selected}
             onToggle={(id) => setSelected((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n })}
@@ -314,6 +320,7 @@ export function LeadsPage() {
         )}
       </div>
 
+      <SetFollowupDialog lead={scheduleFor ? { id: scheduleFor.id, name: scheduleFor.customers?.name ?? scheduleFor.name } : null} open={!!scheduleFor} onOpenChange={(o) => !o && setScheduleFor(null)} />
       <AssignLeadDialog
         leads={selectedOpen.map((l) => ({ id: l.id, name: l.customers?.name ?? l.name, assignedTo: l.assigned_to }))}
         open={assignOpen}
@@ -337,6 +344,8 @@ function LeadsTable({
   onRowClick,
   stuckAt,
   assigneeName,
+  canSchedule,
+  onSetFollowup,
   selectMode,
   selected,
   onToggle,
@@ -348,6 +357,8 @@ function LeadsTable({
   onRowClick: (row: LeadListItem) => void
   stuckAt: number
   assigneeName: (row: LeadListItem) => string | null
+  canSchedule: (row: LeadListItem) => boolean
+  onSetFollowup: (row: LeadListItem) => void
   selectMode: boolean
   selected: Set<string>
   onToggle: (id: string) => void
@@ -435,7 +446,22 @@ function LeadsTable({
               tone={r.status === "won" ? "success" : r.status === "lost" ? "danger" : "warning"}
               label={t(`leads.status.${r.status}`)}
             />
-            <FollowupCell lead={r} stuckAt={stuckAt} />
+            <span className="flex flex-wrap items-center gap-1.5">
+              <FollowupCell lead={r} stuckAt={stuckAt} />
+              {r.status !== "won" && r.status !== "lost" && !r.next_followup_at && canSchedule(r) ? (
+                <button
+                  type="button"
+                  data-testid="row-set-followup"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSetFollowup(r)
+                  }}
+                  className="rounded-full border border-border px-2.5 py-0.5 text-[11px] font-semibold text-text hover:bg-surface-alt"
+                >
+                  {t("leads.followup.setButton")}
+                </button>
+              ) : null}
+            </span>
             <TechnicianChip source={r.source} name={r.technicians?.profiles?.full_name ?? null} />
             <span className="text-xs font-medium text-text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
           </div>

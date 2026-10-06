@@ -12,7 +12,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useLead } from "@/hooks/useAutomation"
 import { useAddLeadNote, useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
 import { AssignLeadDialog } from "./AssignLeadDialog"
-import { assignActionFor } from "@/lib/lead-assign"
+import { assignActionFor, canScheduleLead } from "@/lib/lead-assign"
 import type { UserRole } from "@/lib/roles"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { LeadDetailPanel } from "./LeadDetailPanel"
@@ -73,6 +73,7 @@ export function LeadDetailPage() {
   const tone = l.status === "won" ? "success" : l.status === "lost" ? "danger" : l.status === "new" ? "info" : "warning"
   const sheetLead = { id: l.id, name, mobile, status: l.status }
   const assigneeName = assignees.find((a) => a.id === l.assigned_to)?.full_name ?? null
+  const canSchedule = canScheduleLead(profile?.role as UserRole | undefined, profile?.id, l.assigned_to, assignees)
   const assignAction = closed ? null : assignActionFor(profile?.role as UserRole | undefined, profile?.id, l.assigned_to, assignees)
 
   async function saveNote() {
@@ -140,12 +141,12 @@ export function LeadDetailPage() {
                 <Button size="sm" variant="outline" onClick={() => setRescheduleOpen(true)}>
                   {t("leads.followup.reschedule")}
                 </Button>
-              ) : (
+              ) : canSchedule ? (
                 <Button size="sm" variant="outline" onClick={() => setSetFollowupOpen(true)} data-testid="set-followup">
                   <CalendarPlus className="size-3.5" />
                   {t("leads.followup.setButton")}
                 </Button>
-              )}
+              ) : null}
             </>
           )}
           {assignAction ? (

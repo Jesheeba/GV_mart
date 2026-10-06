@@ -55,6 +55,16 @@ export function useFollowups(filters: FollowupFilters, enabled = true) {
   })
 }
 
+/** Open leads nobody has scheduled (My Day "No follow-up" tab). */
+export function useLeadsWithoutFollowup(filters: svc.NoFollowupFilters, enabled = true) {
+  return useQuery({
+    queryKey: ["followups", "none", filters],
+    queryFn: () => svc.listLeadsWithoutFollowup(filters),
+    enabled,
+    refetchInterval: POLL_MS,
+  })
+}
+
 /** Today + overdue badge for the menu. */
 export function useFollowupCounts(role: UserRole | undefined) {
   return useQuery({
@@ -116,6 +126,10 @@ export function useLeadAssignees(orgId: string | undefined, role: UserRole | und
 export function useAssignLead() {
   const done = useInvalidateLeadWork()
   return useMutation({ mutationFn: svc.assignLead, onSuccess: done })
+}
+export function useSetFollowupsBulk() {
+  const done = useInvalidateLeadWork()
+  return useMutation({ mutationFn: svc.setLeadFollowupsBulk, onSuccess: done })
 }
 export function useAddLeadNote() {
   const done = useInvalidateLeadWork()
