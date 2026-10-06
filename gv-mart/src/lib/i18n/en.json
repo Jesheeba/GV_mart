@@ -3260,6 +3260,8 @@
       "nextType": "Follow-up type",
       "wonHint": "This marks the lead Won and creates the customer if there isn't one yet.",
       "reopenSave": "Reopen",
+      "reopenReason": "Why are you reopening this lead? (required)",
+      "reopenReasonPlaceholder": "e.g. customer called back",
       "reopened": "Lead reopened. Next follow-up: {{when}}",
       "savedNext": "Saved. Next follow-up: {{when}}",
       "savedWon": "Saved. Lead marked Won.",
@@ -4160,7 +4162,7 @@
       "leads": "Leads",
       "won": "Won",
       "stage": {
-        "created": "Leads (not lost)",
+        "created": "Leads (stage known)",
         "contacted": "Contacted or later",
         "quoted": "Quoted or later",
         "won": "Won"

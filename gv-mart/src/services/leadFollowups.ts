@@ -170,16 +170,17 @@ export async function setLeadFollowup(i: { leadId: string; dueAt: string; type?:
   return data as string
 }
 
-export async function reopenLead(i: { leadId: string; nextDueAt: string; type?: FollowupType; note?: string | null; isExact?: boolean }) {
+export async function reopenLead(i: { leadId: string; nextDueAt: string; reason: string; type?: FollowupType; note?: string | null; isExact?: boolean }) {
   const { data, error } = await supabase.rpc("reopen_lead", {
     p_lead_id: i.leadId,
     p_next_due_at: i.nextDueAt,
+    p_reason: i.reason,
     p_type: i.type ?? "call",
     p_note: i.note ?? null,
     p_is_exact: i.isExact ?? false,
   })
   if (error) throw error
-  return data as unknown as { followup_id: string; next_due_at: string; status: Enums<"lead_status"> }
+  return data as unknown as { followup_id: string; next_due_at: string; status: Enums<"lead_status">; stage_was_known: boolean }
 }
 
 export async function addLeadNote(leadId: string, note: string) {

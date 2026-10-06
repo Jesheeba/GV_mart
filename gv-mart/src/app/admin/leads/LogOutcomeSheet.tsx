@@ -83,6 +83,7 @@ function SheetBody({
 
   const [outcomeId, setOutcomeId] = useState<string | null>(null)
   const [note, setNote] = useState("")
+  const [reopenReason, setReopenReason] = useState("")
   const [channel, setChannel] = useState<Channel>(defaultChannel)
   const [next, setNext] = useState<NextFollowupValue>(() => {
     if (!reopen) return { date: null, time: null, exact: false }
@@ -115,7 +116,7 @@ function SheetBody({
   const lostReasonValue = lostPreset === "other" ? lostOther.trim() : lostPreset
   const nextValid = isNextFollowupValid(next)
   const canSave = reopen
-    ? nextValid
+    ? nextValid && reopenReason.trim().length >= 3
     : !!selected && (closing ? (needsLostReason ? !!lostReasonValue : true) : !selected.requires_followup || nextValid)
 
   async function save() {
@@ -124,6 +125,7 @@ function SheetBody({
         const res = await reopenLead.mutateAsync({
           leadId: lead.id,
           nextDueAt: toIso(next.date!, next.time!),
+          reason: reopenReason.trim(),
           type: followupType,
           note: note.trim() || null,
           isExact: next.exact,
@@ -173,6 +175,13 @@ function SheetBody({
               ))}
             </div>
           )}
+        </section>
+      ) : null}
+
+      {reopen ? (
+        <section className="space-y-2">
+          <Label htmlFor="reopen-reason">{t("leads.outcomeSheet.reopenReason")}</Label>
+          <Input id="reopen-reason" autoFocus value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} placeholder={t("leads.outcomeSheet.reopenReasonPlaceholder")} />
         </section>
       ) : null}
 

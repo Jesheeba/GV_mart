@@ -43,6 +43,11 @@ begin
   v_tech := pg_temp.mkuser('technician', v_org);
   select count(*) into n_users from profiles where org_id=v_org and role in ('master','sales_admin') and is_active;
   delete from lead_notification_log;  -- rolled back; keeps the test independent of any real run
+  -- Isolate from live data (all rolled back): a real cron run may already have sent today's digest, and the
+  -- real open follow-ups would be counted into the digest. Only this test's own __N_ leads stay open.
+  delete from notifications where type in ('lead_followup_digest','lead_followup_overdue','lead_callback_reminder');
+  update lead_followups set status='cancelled', cancelled_at=now(), cancel_reason='rescheduled'
+    where status='open' and lead_id in (select id from leads where org_id=v_org and name not like '\_\_N\_%');
 
   -- A: exact-time callback 15:30 IST; B: due today 11:00 IST; C: overdue 2 days; D: overdue 30h; E: overdue 5h (not stale)
   insert into leads(org_id,name,mobile) values (v_org,'__N_A_callback','9555555501') returning id into la;

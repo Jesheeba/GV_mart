@@ -73,7 +73,8 @@ function TimelineRow({ event: e, lang, t }: { event: TimelineEvent; lang: string
       const from = d.from_status ? t(`leads.status.${String(d.from_status)}`) : null
       const to = d.to_status ? t(`leads.status.${String(d.to_status)}`) : String(note ?? "")
       title = from ? t("leads.timeline.stageChange", { from, to }) : t("leads.timeline.stageSet", { to })
-      if (d.to_status === "lost" && note) body = <p className="mt-0.5 text-text-muted">{t("leads.detail.lostReasonLabel")}: {lostReasonLabel(note, t as never)}</p>
+      if ((d.from_status === "won" || d.from_status === "lost") && d.to_status !== "won" && d.to_status !== "lost" && note) body = <p className="mt-0.5 text-text-muted">{t("leads.timeline.reason")}: {note}</p>
+      else if (d.to_status === "lost" && note) body = <p className="mt-0.5 text-text-muted">{t("leads.detail.lostReasonLabel")}: {lostReasonLabel(note, t as never)}</p>
       break
     }
     case "followup_set": {

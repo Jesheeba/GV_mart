@@ -6943,6 +6943,7 @@ export type Database = {
         Args: {
           p_lead_id: string
           p_next_due_at: string
+          p_reason: string
           p_type?: Database["public"]["Enums"]["lead_followup_type"]
           p_note?: string | null
           p_is_exact?: boolean
