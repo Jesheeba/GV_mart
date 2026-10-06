@@ -60,9 +60,100 @@ export async function beginStaffAudit(
   return data.id as string
 }
 
-export async function finishStaffAudit(admin: SupabaseClient, auditId: string, ok: boolean, details: Record<string, unknown> = {}): Promise<void> {
+export async function finishStaffAudit(
+  admin: SupabaseClient,
+  auditId: string,
+  ok: boolean,
+  details: Record<string, unknown> = {},
+  rowId?: string
+): Promise<void> {
   const { data: row } = await admin.from("audit_log").select("after").eq("id", auditId).single()
   const after = { ...((row?.after as Record<string, unknown> | null) ?? {}), ...details, result: ok ? "ok" : "failed" }
-  const { error } = await admin.from("audit_log").update({ after }).eq("id", auditId)
+  const patch: Record<string, unknown> = rowId ? { after, row_id: rowId } : { after }
+  const { error } = await admin.from("audit_log").update(patch).eq("id", auditId)
   if (error) console.error("staff-auth: could not complete the audit row", auditId, error.message)
+}
+
+// ── creating a staff login (admin-create-staff) ──────────────────────────
+/** Roles a master may CREATE here. master is deliberately absent: no function can mint a master. */
+export const CREATABLE_STAFF_ROLES = ["operation_admin", "sales_admin"] as const
+export type CreatableStaffRole = (typeof CREATABLE_STAFF_ROLES)[number]
+
+export type CreateStaffInput = {
+  fullName: string
+  email: string
+  phone: string | null
+  role: CreatableStaffRole
+  /** Typed password, or null when the server should generate one. */
+  password: string | null
+  reason: string | null
+}
+export type CreateStaffValidation = { ok: true; value: CreateStaffInput } | { ok: false; error: string }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/** True when the text contains an ASCII control character (including newlines and tabs). */
+function hasControlChars(text: string): boolean {
+  for (let k = 0; k < text.length; k++) {
+    const c = text.charCodeAt(k)
+    if (c < 32 || c === 127) return true
+  }
+  return false
+}
+
+/** Pure validation of the request body; never trusts a client-supplied org, id or is_active. */
+export function validateCreateStaffInput(body: unknown): CreateStaffValidation {
+  const b = (body ?? {}) as Record<string, unknown>
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+
+  const fullName = str(b.fullName)
+  if (fullName.length < 2 || fullName.length > 80 || hasControlChars(fullName)) return { ok: false, error: "Full name must be 2-80 characters" }
+
+  const email = str(b.email).toLowerCase()
+  if (email.length > 254 || !EMAIL_RE.test(email)) return { ok: false, error: "A valid email address is required" }
+
+  const role = b.role
+  if (typeof role !== "string" || !(CREATABLE_STAFF_ROLES as readonly string[]).includes(role)) {
+    return { ok: false, error: "Role must be operation_admin or sales_admin" }
+  }
+
+  let phone: string | null = null
+  const rawPhone = str(b.phone)
+  if (rawPhone) {
+    let digits = rawPhone.replace(/\D/g, "")
+    if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2)
+    if (digits.length !== 10) return { ok: false, error: "Phone must be a 10-digit mobile number" }
+    phone = digits
+  }
+
+  let password: string | null = null
+  if (b.password !== undefined && b.password !== null && b.password !== "") {
+    if (typeof b.password !== "string" || b.password.length < 8 || b.password.length > 72) return { ok: false, error: "Password must be 8-72 characters" }
+    password = b.password
+  }
+
+  const rawReason = str(b.reason)
+  if (rawReason.length > 200 || hasControlChars(rawReason)) return { ok: false, error: "Reason must be a single line of at most 200 characters" }
+
+  return { ok: true, value: { fullName, email, phone, role: role as CreatableStaffRole, password, reason: rawReason || null } }
+}
+
+/** 14 chars, at least one of each class, drawn from crypto randomness. */
+export function generatePassword(): string {
+  const lower = "abcdefghijkmnpqrstuvwxyz"
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+  const digits = "23456789"
+  const symbols = "!@#$%*?"
+  const all = lower + upper + digits + symbols
+  const rand = (n: number) => {
+    const buf = new Uint32Array(1)
+    crypto.getRandomValues(buf)
+    return buf[0] % n
+  }
+  const pick = (chars: string) => chars[rand(chars.length)]
+  const chars = [pick(lower), pick(upper), pick(digits), pick(symbols), ...Array.from({ length: 10 }, () => pick(all))]
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = rand(i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join("")
 }

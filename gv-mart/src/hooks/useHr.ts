@@ -26,6 +26,14 @@ export function useSetStaffActive() {
   })
 }
 
+export function useCreateStaff() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: hr.CreateStaffInput) => hr.createStaff(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["profiles", "nonTechnicianStaff"] }),
+  })
+}
+
 export function useResetStaffPassword() {
   return useMutation({ mutationFn: ({ profileId, password }: { profileId: string; password?: string }) => hr.resetStaffPassword(profileId, password) })
 }

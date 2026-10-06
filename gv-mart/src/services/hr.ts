@@ -171,20 +171,40 @@ export async function logReward(input: LogRewardInput) {
   return data
 }
 
-/** Master-only: generate + set a new password for an admin/staff login. Returned once, never stored. */
-export async function resetStaffPassword(profileId: string, password?: string): Promise<{ password?: string }> {
-  const { data, error } = await supabase.functions.invoke("admin-reset-staff-password", { body: { profileId, password } })
+/** Calls a master-only staff Edge Function. supabase-js buries the function's own JSON error body in error.context (a Response): surface it if readable. */
+async function invokeStaffFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke(name, { body })
   if (error) {
-    // supabase-js buries the function's own JSON error body in error.context (a Response) — surface it if readable.
     const context = (error as { context?: unknown }).context as { clone?: () => Response; json?: () => Promise<{ error?: string }> } | undefined
     let message: string | null = null
     try {
       const res = typeof context?.clone === "function" ? context.clone() : context
       if (res && typeof res.json === "function") message = ((await res.json()) as { error?: string })?.error ?? null
     } catch {
-      // body unreadable — fall through to the generic error
+      // body unreadable - fall through to the generic error
     }
     throw new Error(message || error.message)
   }
-  return data as { password?: string }
+  return data as T
+}
+
+/** Master-only: set a new password for an operation_admin / sales_admin login. A generated password is returned once, never stored. */
+export async function resetStaffPassword(profileId: string, password?: string): Promise<{ password?: string }> {
+  return invokeStaffFunction<{ password?: string }>("admin-reset-staff-password", { profileId, password })
+}
+
+export type CreateStaffInput = {
+  fullName: string
+  email: string
+  phone?: string
+  role: "sales_admin" | "operation_admin"
+  /** Typed password; omit to have the server generate one (returned once). */
+  password?: string
+  /** Optional one-line reason, stored in the audit row. */
+  reason?: string
+}
+
+/** Master-only: create an office-staff login (email = login). The password is shared in person; a generated one is returned once. */
+export async function createStaff(input: CreateStaffInput): Promise<{ id: string; email: string; generated: boolean; password?: string }> {
+  return invokeStaffFunction("admin-create-staff", { ...input })
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { beginStaffAudit, checkStaffTarget, finishStaffAudit, requireActiveMaster } from "./staff-auth"
+import { beginStaffAudit, checkStaffTarget, finishStaffAudit, generatePassword, requireActiveMaster, validateCreateStaffInput } from "./staff-auth"
 
 // Fake Supabase admin client: auth.getUser plus a tiny in-memory table API (select / insert / update with eq / single).
 type Profile = { org_id: string; role: string; is_active: boolean }
@@ -126,5 +126,71 @@ describe("staff audit rows", () => {
   it("returns null when the audit row cannot be written, so the caller can refuse the action", async () => {
     const f = fakeAdmin({ failAuditInsert: true })
     expect(await beginStaffAudit(f.client, { orgId: "o", actorId: "u", action: "STAFF_PASSWORD_RESET", targetId: "t", details: {} })).toBeNull()
+  })
+})
+
+describe("validateCreateStaffInput", () => {
+  const good = { fullName: "  Priya Dharshini ", email: " Priya@Example.COM ", role: "sales_admin" }
+
+  it("accepts the minimum (name, email, role) and normalises it", () => {
+    const r = validateCreateStaffInput(good)
+    expect(r).toEqual({ ok: true, value: { fullName: "Priya Dharshini", email: "priya@example.com", phone: null, role: "sales_admin", password: null, reason: null } })
+  })
+  it("accepts operation_admin, a phone in common formats, a typed password and a reason", () => {
+    const r = validateCreateStaffInput({ ...good, role: "operation_admin", phone: "+91 98765-43210", password: "correct horse", reason: "covers Coimbatore" })
+    expect(r).toMatchObject({ ok: true, value: { role: "operation_admin", phone: "9876543210", password: "correct horse", reason: "covers Coimbatore" } })
+  })
+  it("NEVER accepts master, technician, customer or anything else as the role", () => {
+    for (const role of ["master", "technician", "customer", "admin", "", undefined, null, 5, "Sales_Admin", "sales_admin "]) {
+      expect(validateCreateStaffInput({ ...good, role }).ok, String(role)).toBe(false)
+    }
+  })
+  it("ignores fields the client must not control (org, id, is_active)", () => {
+    const r = validateCreateStaffInput({ ...good, org_id: "other-org", id: "x", is_active: false, orgId: "other-org" })
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(Object.keys(r.value).sort()).toEqual(["email", "fullName", "password", "phone", "reason", "role"])
+  })
+  it("requires a valid email", () => {
+    for (const email of ["", "no-at-sign", "a@b", "a b@c.com", undefined, 12, "x".repeat(250) + "@a.co"]) {
+      expect(validateCreateStaffInput({ ...good, email }).ok, String(email)).toBe(false)
+    }
+  })
+  it("rejects bad names, phones, passwords and reasons", () => {
+    expect(validateCreateStaffInput({ ...good, fullName: "A" }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, fullName: "x".repeat(81) }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, fullName: "Line\nBreak" }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, phone: "12345" }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, password: "short" }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, password: "x".repeat(73) }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, reason: "two\nlines" }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, reason: "x".repeat(201) }).ok).toBe(false)
+    expect(validateCreateStaffInput(null).ok).toBe(false)
+    expect(validateCreateStaffInput("a string").ok).toBe(false)
+  })
+})
+
+describe("generatePassword", () => {
+  it("makes 14-character passwords with every character class, and different each time", () => {
+    const seen = new Set<string>()
+    for (let i = 0; i < 50; i++) {
+      const p = generatePassword()
+      expect(p).toHaveLength(14)
+      expect(p).toMatch(/[a-z]/)
+      expect(p).toMatch(/[A-Z]/)
+      expect(p).toMatch(/[2-9]/)
+      expect(p).toMatch(/[!@#$%*?]/)
+      seen.add(p)
+    }
+    expect(seen.size).toBe(50)
+  })
+})
+
+describe("finishStaffAudit with a target id", () => {
+  it("sets row_id once the created user's id is known", async () => {
+    const f = fakeAdmin()
+    const id = await beginStaffAudit(f.client, { orgId: "org-1", actorId: "u-master", action: "STAFF_CREATE", targetId: null, details: { role: "sales_admin", email: "a@b.co" } })
+    expect(f.rows[0].row_id).toBeNull()
+    await finishStaffAudit(f.client, id!, true, {}, "new-user-id")
+    expect(f.rows[0]).toMatchObject({ row_id: "new-user-id", after: { result: "ok", role: "sales_admin", email: "a@b.co" } })
   })
 })

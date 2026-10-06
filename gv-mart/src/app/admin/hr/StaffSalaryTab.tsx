@@ -2,7 +2,7 @@ import { useState } from "react"
 import { getIstNow } from "@/lib/ist"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
-import { KeyRound, Loader2, Repeat, Wallet } from "lucide-react"
+import { KeyRound, Loader2, Repeat, UserPlus, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,6 +16,7 @@ import { useAssignableProfiles, useAssignTask, useOrgTasks } from "@/hooks/useTa
 import { formatCurrency } from "@/lib/sale-calc"
 import { useToast } from "@/components/ui/toast-context"
 import type { StaffOption } from "@/services/hr"
+import { AddStaffDialog } from "./AddStaffDialog"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
 function currentMonthIso() {
@@ -56,6 +57,7 @@ export function StaffSalaryTab() {
   const setActive = useSetStaffActive()
   const setReceives = useSetReceivesNewLeads()
   const [resetTarget, setResetTarget] = useState<StaffOption | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
   const [newPassword, setNewPassword] = useState("")
   const newPasswordValid = newPassword.length >= 8
 
@@ -272,10 +274,16 @@ export function StaffSalaryTab() {
           </Label>
           <Input id="staff-salary-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 max-w-44 border-border" />
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="accent" onClick={() => setAddOpen(true)}>
+            <UserPlus className="size-3.5" />
+            {t("hr.staffSalary.addStaff")}
+          </Button>
         <Button variant="outline" onClick={setupReminders} disabled={settingUpReminders || !assignableProfiles}>
           {settingUpReminders ? <Loader2 className="size-3.5 animate-spin" /> : <Repeat className="size-3.5" />}
           {t("hr.staffSalary.setupReminders")}
         </Button>
+        </div>
       </div>
 
       <DataTable
@@ -287,6 +295,7 @@ export function StaffSalaryTab() {
         onRetry={() => refetch()}
         emptyMessage={t("hr.staffSalary.empty")}
       />
+      <AddStaffDialog open={addOpen} onOpenChange={setAddOpen} />
       <Dialog open={!!resetTarget} onOpenChange={(open) => !open && setResetTarget(null)}>
         <DialogContent>
           <DialogTitle>{t("hr.staffSalary.passwordDialogTitle")}</DialogTitle>
