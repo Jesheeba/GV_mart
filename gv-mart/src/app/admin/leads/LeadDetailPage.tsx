@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, ClipboardCheck, Loader2, MessageCircle, Phone, RotateCcw, StickyNote, UserRound } from "lucide-react"
+import { ArrowLeft, CalendarPlus, ClipboardCheck, Loader2, MessageCircle, Phone, RotateCcw, StickyNote, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,7 @@ import { LeadDetailPanel } from "./LeadDetailPanel"
 import { LeadTimeline } from "./LeadTimeline"
 import { LogOutcomeSheet } from "./LogOutcomeSheet"
 import { RescheduleDialog } from "./RescheduleDialog"
+import { SetFollowupDialog } from "./SetFollowupDialog"
 import { FollowupChip, PostponeBadge, StuckBadge } from "./FollowupBadges"
 import { rememberCall } from "@/lib/call-return"
 import { telHref } from "@/lib/lead-followups"
@@ -38,6 +39,7 @@ export function LeadDetailPage() {
 
   const [outcomeOpen, setOutcomeOpen] = useState(false)
   const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  const [setFollowupOpen, setSetFollowupOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const assignees = useLeadAssignees(profile?.org_id, profile?.role as UserRole | undefined).data ?? []
@@ -138,7 +140,12 @@ export function LeadDetailPage() {
                 <Button size="sm" variant="outline" onClick={() => setRescheduleOpen(true)}>
                   {t("leads.followup.reschedule")}
                 </Button>
-              ) : null}
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setSetFollowupOpen(true)} data-testid="set-followup">
+                  <CalendarPlus className="size-3.5" />
+                  {t("leads.followup.setButton")}
+                </Button>
+              )}
             </>
           )}
           {assignAction ? (
@@ -186,6 +193,7 @@ export function LeadDetailPage() {
 
       <LogOutcomeSheet lead={sheetLead} open={outcomeOpen} onOpenChange={setOutcomeOpen} />
       <RescheduleDialog lead={{ id: l.id, name }} open={rescheduleOpen} onOpenChange={setRescheduleOpen} />
+      <SetFollowupDialog lead={{ id: l.id, name }} open={setFollowupOpen} onOpenChange={setSetFollowupOpen} />
 
       <AssignLeadDialog leads={[{ id: l.id, name, assignedTo: l.assigned_to }]} open={assignOpen} onOpenChange={setAssignOpen} />
     </div>

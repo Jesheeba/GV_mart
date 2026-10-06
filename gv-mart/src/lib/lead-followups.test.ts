@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest"
 import {
   addDays,
   addMonths,
+  canSetFollowup,
+  cleanFollowupNote,
+  FOLLOWUP_NOTE_MAX,
   defaultNextFor,
   formatIstDateTime,
+  isFollowupAlreadySetError,
   isFutureIst,
   isoDow,
   istDate,
@@ -117,5 +121,39 @@ describe("contact links", () => {
   it("builds a tel: href", () => {
     expect(telHref("98840 11001")).toBe("tel:9884011001")
     expect(telHref("+91 98840-11001")).toBe("tel:+919884011001")
+  })
+})
+
+describe("Set follow-up form", () => {
+  const now = new Date("2026-10-06T06:00:00Z") // 11:30 IST
+  const when = (date: string | null, time: string | null) => ({ date, time, exact: false })
+
+  it("needs a known type and a complete future date + time", () => {
+    expect(canSetFollowup({ type: "call", next: when("2026-10-07", "10:00") }, now)).toBe(true)
+    expect(canSetFollowup({ type: "send_quote", next: when("2026-10-07", "10:00") }, now)).toBe(true)
+    expect(canSetFollowup({ type: "call", next: when(null, "10:00") }, now)).toBe(false)
+    expect(canSetFollowup({ type: "call", next: when("2026-10-07", null) }, now)).toBe(false)
+  })
+  it("rejects a time already past in IST and an unknown type", () => {
+    expect(canSetFollowup({ type: "call", next: when("2026-10-06", "10:00") }, now)).toBe(false)
+    expect(canSetFollowup({ type: "call", next: when("2026-10-06", "12:00") }, now)).toBe(true)
+    expect(canSetFollowup({ type: "meeting", next: when("2026-10-07", "10:00") }, now)).toBe(false)
+  })
+  it("an exact time with no time typed yet is not savable", () => {
+    expect(canSetFollowup({ type: "call", next: { date: "2026-10-07", time: null, exact: true } }, now)).toBe(false)
+    expect(canSetFollowup({ type: "call", next: { date: "2026-10-07", time: "15:30", exact: true } }, now)).toBe(true)
+  })
+  it("note: blank becomes null, trimmed, capped", () => {
+    expect(cleanFollowupNote("   ")).toBeNull()
+    expect(cleanFollowupNote("  send brochure ")).toBe("send brochure")
+    expect(cleanFollowupNote("x".repeat(500))).toHaveLength(FOLLOWUP_NOTE_MAX)
+  })
+  it("recognises the lost-the-race error in every shape the API gives", () => {
+    expect(isFollowupAlreadySetError({ message: "this lead already has an open follow-up" })).toBe(true)
+    expect(isFollowupAlreadySetError({ code: "23505", message: "duplicate key" })).toBe(true)
+    expect(isFollowupAlreadySetError({ message: 'duplicate key value violates unique constraint "lead_followups_one_open_per_lead"' })).toBe(true)
+    expect(isFollowupAlreadySetError(new Error("this lead already has an open follow-up"))).toBe(true)
+    expect(isFollowupAlreadySetError({ message: "the follow-up time is in the past" })).toBe(false)
+    expect(isFollowupAlreadySetError(null)).toBe(false)
   })
 })

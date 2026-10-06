@@ -218,3 +218,29 @@ export function isNextFollowupValid(v: NextFollowupValue, now: Date = new Date()
 }
 
 export { getIstNow }
+
+export const FOLLOWUP_TYPES = ["call", "whatsapp", "visit", "send_quote"] as const
+export type SetFollowupType = (typeof FOLLOWUP_TYPES)[number]
+export const FOLLOWUP_NOTE_MAX = 200
+
+/** "Set follow-up" form: a known type plus a complete, future date/time. */
+export function canSetFollowup(f: { type: string; next: NextFollowupValue }, now: Date = new Date()): boolean {
+  return (FOLLOWUP_TYPES as readonly string[]).includes(f.type) && isNextFollowupValid(f.next, now)
+}
+
+/** Trimmed note, or null when blank; capped so a paste can't bloat the row. */
+export function cleanFollowupNote(note: string): string | null {
+  const n = note.trim().slice(0, FOLLOWUP_NOTE_MAX).trim()
+  return n === "" ? null : n
+}
+
+/**
+ * True when set_lead_followup lost a race: another person set the follow-up
+ * first (the RPC's own check, or the one-open-per-lead unique index). Supabase
+ * errors are plain objects, not Error instances, so read message/code off any shape.
+ */
+export function isFollowupAlreadySetError(e: unknown): boolean {
+  const o = (e ?? {}) as { message?: unknown; code?: unknown; details?: unknown }
+  const text = `${String(o.message ?? "")} ${String(o.details ?? "")}`
+  return String(o.code ?? "") === "23505" || /already has an open follow-up|lead_followups_one_open_per_lead/i.test(text)
+}
