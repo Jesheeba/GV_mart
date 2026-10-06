@@ -3859,9 +3859,11 @@
     },
     "staffSalary": {
       "resetPassword": "Reset password",
-      "resetPasswordConfirm": "Generate a new password for {{name}}? Their current password will stop working immediately.",
+      "resetPasswordHint": "Type a new password for {{name}} (min 8 characters). Their current password stops working immediately.",
+      "newPassword": "New password",
+      "resetPasswordDone": "Password updated for {{name}}.",
       "resetPasswordFailed": "Couldn't reset the password.",
-      "passwordDialogTitle": "New login password",
+      "passwordDialogTitle": "Set login password",
       "salaryRole": "Salary role",
       "noRole": "— none —",
       "subtitle": "Master, Operation Admin and Sales Admin salaries — typed manually each time, no fixed or auto-repeating amount. Technician salaries stay on the Salary tab (calculated automatically).",
