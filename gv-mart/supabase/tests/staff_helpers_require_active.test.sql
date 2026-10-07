@@ -1,4 +1,4 @@
--- Rolled-back proof for the HELD migration supabase/held/20261010110000_staff_helpers_require_active.sql.
+-- Rolled-back proof for migration 20261010110000_staff_helpers_require_active.sql.
 -- Applies the new helpers INSIDE the transaction only, compares them with the old definition
 -- for every role x is_active combination, then checks real table access. Always ends in RAISE.
 do $t$
@@ -20,24 +20,20 @@ begin
     end loop;
   end loop;
 
-  -- capture OLD behaviour, then apply the new helpers inside this transaction
-  create temp table _old(k text primary key, s boolean, st boolean) on commit drop;
-  for r in select k, v::text::uuid id from jsonb_each_text(ids) e(k,v) loop
-    perform set_config('request.jwt.claims', json_build_object('sub',r.id,'role','authenticated')::text, true);
-    insert into _old values (r.k, public.is_sales_staff(), public.is_staff());
-  end loop;
-
-  execute $f$
-    create or replace function public.is_sales_staff() returns boolean language sql stable security definer set search_path = public as $q$
-      select exists (select 1 from public.profiles where id = auth.uid() and (role = 'master' or (role = 'sales_admin' and is_active))) $q$ $f$;
-  execute $f$
-    create or replace function public.is_staff() returns boolean language sql stable security definer set search_path = public as $q$
-      select exists (select 1 from public.profiles where id = auth.uid() and (role in ('master','operation_admin') or (role = 'sales_admin' and is_active))) $q$ $f$;
+  -- OLD behaviour = the previous bodies, evaluated inline; NEW = whatever is live (or applied here if not yet)
+  if exists (select 1 from pg_proc where proname='is_staff' and pronamespace='public'::regnamespace and prosrc like '%current_role()%') then
+    execute $f$
+      create or replace function public.is_sales_staff() returns boolean language sql stable security definer set search_path = public as $q$
+        select exists (select 1 from public.profiles where id = auth.uid() and (role = 'master' or (role = 'sales_admin' and is_active))) $q$ $f$;
+    execute $f$
+      create or replace function public.is_staff() returns boolean language sql stable security definer set search_path = public as $q$
+        select exists (select 1 from public.profiles where id = auth.uid() and (role in ('master','operation_admin') or (role = 'sales_admin' and is_active))) $q$ $f$;
+  end if;
 
   for r in select k, v::text::uuid id from jsonb_each_text(ids) e(k,v) order by 1 loop
     perform set_config('request.jwt.claims', json_build_object('sub',r.id,'role','authenticated')::text, true);
     new_s := public.is_sales_staff(); new_st := public.is_staff();
-    select s, st into old_s, old_st from _old where k=r.k;
+    old_s := public.current_role() in ('master','sales_admin'); old_st := public.current_role() in ('master','operation_admin','sales_admin');
     if r.k like 'sales_admin_false' then
       res := res || E'\n' || case when old_s and old_st and not new_s and not new_st then 'ok   inactive sales_admin: was staff, now NOT (is_sales_staff '||old_s||'->'||new_s||', is_staff '||old_st||'->'||new_st||')' else 'FAIL inactive sales_admin' end;
     else

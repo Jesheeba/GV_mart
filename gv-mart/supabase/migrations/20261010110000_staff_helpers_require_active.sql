@@ -1,4 +1,4 @@
--- HELD: written for review, NOT applied. Show-before-apply per owner instruction.
+-- Staff helpers require is_active for sales_admin (approved 2026-10-07). Rollback: supabase/rollbacks/20261010110000_staff_helpers_require_active.rollback.sql
 --
 -- A deactivated sales_admin must lose staff-level access immediately, not when the
 -- access token expires (up to ~1h after a ban + session revoke). current_role() ignores
