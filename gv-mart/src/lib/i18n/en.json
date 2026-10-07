@@ -1013,6 +1013,23 @@
       }
     }
   },
+  "leadAssign": {
+    "title": "Auto-assign new leads",
+    "hint": "When on, every new lead goes to the active sales person who was assigned a lead longest ago. Leads that already exist are never changed.",
+    "on": "On",
+    "off": "Off",
+    "saveFailed": "Could not change the setting.",
+    "offNote": "Off — new leads stay unassigned until you or a sales person picks them up.",
+    "noReceivers": "No sales person is receiving new leads right now. New leads will wait and be handed out when one is available.",
+    "waitingTitle": "Leads waiting for a sales person",
+    "waitingCount_one": "{{count}} lead is waiting for a sales person.",
+    "waitingCount_other": "{{count}} leads are waiting for a sales person.",
+    "waitingHint": "They are assigned automatically, oldest first, as soon as a sales person is available.",
+    "receivesLeads": "Receives new leads",
+    "receivesLeadsOn": "Receiving",
+    "receivesLeadsPaused": "Paused",
+    "receivesLeadsFailed": "Could not update this person."
+  },
   "settings": {
     "orgProfile": {
       "title": "Business Details",

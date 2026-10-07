@@ -42,12 +42,12 @@ export async function listActiveTechnicians(orgId: string): Promise<TechnicianOp
  * compute_salary(). These get a plain manual amount entry instead, per
  * period, written to `expenses` (category='salary', staff_id=profiles.id)
  * the exact same way the technician path's "Log to Accounts" action does. */
-export type StaffOption = { id: string; full_name: string; role: "master" | "operation_admin" | "sales_admin"; staff_role_key: string | null; is_active: boolean }
+export type StaffOption = { id: string; full_name: string; role: "master" | "operation_admin" | "sales_admin"; staff_role_key: string | null; is_active: boolean; receives_new_leads: boolean }
 
 export async function listNonTechnicianStaff(orgId: string): Promise<StaffOption[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, role, staff_role_key, is_active")
+    .select("id, full_name, role, staff_role_key, is_active, receives_new_leads")
     .eq("org_id", orgId)
     .in("role", ["master", "operation_admin", "sales_admin"])
     .order("full_name", { ascending: true })

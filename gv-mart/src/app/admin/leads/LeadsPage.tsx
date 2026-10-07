@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard } from "@/components/shared/KpiCard"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
+import { WaitingLeadsBanner } from "./WaitingLeadsBanner"
 import { useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
 import { NewLeadForm } from "./NewLeadForm"
@@ -100,6 +101,7 @@ export function LeadsPage() {
 
   return (
     <div className="space-y-4 pt-2">
+      <WaitingLeadsBanner />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-text">{t("nav.leads")}</h1>

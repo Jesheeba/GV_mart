@@ -15,6 +15,7 @@ import { useOrganization, useUpdateOrganization } from "@/hooks/useSales"
 import { settingsSchema, type SettingsFormInput, type SettingsOutput } from "@/lib/validation/settings"
 import { cn } from "@/lib/utils"
 import { AppointmentSlotsCard } from "./AppointmentSlotsCard"
+import { AutoAssignLeadsCard } from "./AutoAssignLeadsCard"
 
 function hhmm(value: string) {
   return value.slice(0, 5)
@@ -195,6 +196,7 @@ export function SettingsTab() {
         <p className="px-1 text-xs text-text-muted">{t("settings.narrowWindowThresholdHint")}</p>
       </Card>
 
+      <AutoAssignLeadsCard />
       <AppointmentSlotsCard />
 
       <Card className="gap-4">

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
+import { useSetReceivesNewLeads } from "@/hooks/useLeadAssignment"
 import { useNonTechnicianStaff, useResetStaffPassword, useSetStaffActive, useSetStaffRoleKey } from "@/hooks/useHr"
 import { roleBaseSalariesHooks } from "@/hooks/useMasters"
 import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
@@ -53,6 +54,7 @@ export function StaffSalaryTab() {
   const setRoleKey = useSetStaffRoleKey()
   const resetPassword = useResetStaffPassword()
   const setActive = useSetStaffActive()
+  const setReceives = useSetReceivesNewLeads()
   const [resetTarget, setResetTarget] = useState<StaffOption | null>(null)
   const [newPassword, setNewPassword] = useState("")
   const newPasswordValid = newPassword.length >= 8
@@ -160,6 +162,29 @@ export function StaffSalaryTab() {
       ),
     },
     { key: "role", header: t("hr.staffSalary.role"), render: (r) => t(`roles.${r.role}`, r.role) },
+    {
+      key: "receivesLeads",
+      header: t("leadAssign.receivesLeads"),
+      render: (r) =>
+        r.role === "sales_admin" ? (
+          <label className="flex items-center gap-2 text-xs text-text-muted">
+            <input
+              type="checkbox"
+              className="size-4 accent-accent"
+              aria-label={t("leadAssign.receivesLeads")}
+              checked={r.receives_new_leads}
+              disabled={setReceives.isPending}
+              onChange={(e) =>
+                setReceives.mutate(
+                  { profileId: r.id, receives: e.target.checked },
+                  { onError: (err) => toast.error(err instanceof Error ? err.message : t("leadAssign.receivesLeadsFailed")) }
+                )
+              }
+            />
+            {r.receives_new_leads ? t("leadAssign.receivesLeadsOn") : t("leadAssign.receivesLeadsPaused")}
+          </label>
+        ) : null,
+    },
     {
       key: "salaryRole",
       header: t("hr.staffSalary.salaryRole"),
