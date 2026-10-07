@@ -83,7 +83,9 @@ export async function createLead(row: {
   name: string
   mobile: string | null
   source: string
-  enquiry_type: Enums<"enquiry_type"> | null
+  enquiry_type?: Enums<"enquiry_type"> | null
+  product_category?: Enums<"brand_category"> | null
+  notes?: string | null
   kind?: Enums<"lead_kind"> | null
   /** Products/spares picked from inventory; first one also fills the lead's scalar columns (back-compat, see lead_items migration). */
   items?: { product_id?: string; spare_id?: string; qty: number }[]

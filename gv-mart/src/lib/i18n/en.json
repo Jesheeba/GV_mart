@@ -3052,6 +3052,9 @@
       "clear": "Clear filters"
     },
     "new": {
+      "productCategory": "Product type",
+      "notes": "Client instructions / notes",
+      "notesPlaceholder": "Type anything the client asked for — items, quantity, budget, timing…",
       "pickProducts": "Select products from inventory",
       "pickSpares": "Select spares from inventory",
       "selectedCount": "{{count}} selected",

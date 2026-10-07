@@ -4667,6 +4667,8 @@ export type Database = {
           postpone_count: number
           next_followup_at: string | null
           assigned_to: string | null
+          product_category: Database["public"]["Enums"]["brand_category"] | null
+          notes: string | null
           created_at: string
           updated_at: string
         }
@@ -4692,6 +4694,8 @@ export type Database = {
           next_followup_at?: string | null
           // assign_lead only — a trigger rejects any other write
           assigned_to?: string | null
+          product_category?: Database["public"]["Enums"]["brand_category"] | null
+          notes?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4717,6 +4721,8 @@ export type Database = {
           next_followup_at?: string | null
           // assign_lead only — a trigger rejects any other write
           assigned_to?: string | null
+          product_category?: Database["public"]["Enums"]["brand_category"] | null
+          notes?: string | null
           created_at?: string
           updated_at?: string
         }

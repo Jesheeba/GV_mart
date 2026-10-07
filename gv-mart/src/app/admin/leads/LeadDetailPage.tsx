@@ -111,11 +111,13 @@ export function LeadDetailPage() {
               <span>{sourceLabel(l.source)}</span>
               {l.kind ? <span>· {t(`leads.kind.${l.kind}`)}</span> : null}
               {l.enquiry_type ? <span>· {t(`leads.enquiryType.${l.enquiry_type}`)}</span> : null}
+              {l.product_category ? <span>· {t(`masters.categories.${l.product_category}`)}</span> : null}
               <span className="inline-flex items-center gap-1" data-testid="lead-assignee">
                 · <UserRound className="size-3" />
                 {assigneeName ?? t("leads.assign.unassigned")}
               </span>
             </div>
+            {l.notes ? <p className="whitespace-pre-wrap pt-1.5 text-sm text-text">{l.notes}</p> : null}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             <StatusDot tone={tone} label={t(`leads.status.${l.status}`)} />
