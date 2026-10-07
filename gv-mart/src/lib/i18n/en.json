@@ -43,7 +43,7 @@
   "roles": {
     "master": "Owner",
     "operation_admin": "Operations",
-    "sales_admin": "Sales",
+    "sales_admin": "Sales person",
     "technician": "Technician",
     "customer": "Customer"
   },
@@ -3939,7 +3939,7 @@
       "passwordDialogTitle": "Set login password",
       "salaryRole": "Salary role",
       "noRole": "— none —",
-      "subtitle": "Master, Operation Admin and Sales Admin salaries — typed manually each time, no fixed or auto-repeating amount. Technician salaries stay on the Salary tab (calculated automatically).",
+      "subtitle": "Master, Operation Admin and Sales person salaries — typed manually each time, no fixed or auto-repeating amount. Technician salaries stay on the Salary tab (calculated automatically).",
       "month": "Month",
       "staff": "Staff",
       "role": "Role",
@@ -4139,7 +4139,7 @@
       "reviewsShort": "Reviews",
       "conversion": "Conversion",
       "opsKpiLabel": "Ops KPI: tickets resolved within 24h",
-      "kpiNote": "Operation Admin KPI = complaints resolved within 24h; Sales Admin KPI = lead conversion rate.",
+      "kpiNote": "Operation Admin KPI = complaints resolved within 24h; Sales person KPI = lead conversion rate.",
       "legendCaption": "1st-fix rate, technician-wise",
       "legendStrong": "≥ 90% strong",
       "legendWatch": "80–89% watch",
@@ -4404,7 +4404,7 @@
     "roleLabel": {
       "master": "Master",
       "operation_admin": "Operation Admin",
-      "sales_admin": "Sales Admin",
+      "sales_admin": "Sales person",
       "technician": "Technician"
     },
     "assignDialog": {
