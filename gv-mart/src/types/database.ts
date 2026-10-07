@@ -62,6 +62,7 @@ export type Database = {
           staff_role_key: string | null
           created_at: string
           updated_at: string
+          receives_new_leads: boolean
         }
         Insert: {
           id: string
@@ -75,6 +76,7 @@ export type Database = {
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
+          receives_new_leads?: boolean
         }
         Update: {
           id?: string
@@ -88,6 +90,7 @@ export type Database = {
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
+          receives_new_leads?: boolean
         }
         Relationships: [
           {
@@ -4671,6 +4674,7 @@ export type Database = {
           notes: string | null
           created_at: string
           updated_at: string
+          auto_assign_pending: boolean
         }
         Insert: {
           id?: string
@@ -4698,6 +4702,7 @@ export type Database = {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          auto_assign_pending?: boolean
         }
         Update: {
           id?: string
@@ -4725,6 +4730,7 @@ export type Database = {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          auto_assign_pending?: boolean
         }
         Relationships: [
           {
@@ -5683,6 +5689,7 @@ export type Database = {
           huddle_reminder_last_date: string | null
           created_at: string
           updated_at: string
+          auto_assign_leads: boolean
         }
         Insert: {
           id?: string
@@ -5745,6 +5752,7 @@ export type Database = {
           huddle_reminder_last_date?: string | null
           created_at?: string
           updated_at?: string
+          auto_assign_leads?: boolean
         }
         Update: {
           id?: string
@@ -5807,6 +5815,7 @@ export type Database = {
           huddle_reminder_last_date?: string | null
           created_at?: string
           updated_at?: string
+          auto_assign_leads?: boolean
         }
         Relationships: [
           {
