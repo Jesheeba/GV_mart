@@ -6,7 +6,8 @@ export const leadSchema = z.object({
   name: z.string().trim().min(2, "leads.errors.nameRequired").max(120),
   mobile: z.string().trim().max(20).optional().or(z.literal("")),
   source: z.string().trim().min(1, "leads.errors.sourceRequired"),
-  enquiryType: z.enum(["online", "price", "quality", "customization", "water_premium", "budget"]).optional().or(z.literal("")),
+  productCategory: z.enum(["ro", "ac", "inverter", "battery"]).optional().or(z.literal("")),
+  notes: z.string().trim().max(2000).optional().or(z.literal("")),
   kind: z.enum(["service", "spare", "product", "amc"]).optional().or(z.literal("")),
 })
 export type LeadInput = z.infer<typeof leadSchema>

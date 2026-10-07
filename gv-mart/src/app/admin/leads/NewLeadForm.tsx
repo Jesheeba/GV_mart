@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -11,10 +10,9 @@ import { useCreateLead } from "@/hooks/useAutomation"
 import { leadSchema, type LeadInput } from "@/lib/validation/automation"
 import { useProfile } from "@/hooks/useProfile"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
-import { LeadItemsPicker, type LeadItemSelection } from "./LeadItemsPicker"
 import type { Enums } from "@/types/database"
 
-const ENQUIRY_TYPES = ["online", "price", "quality", "customization", "water_premium", "budget"] as const
+const PRODUCT_CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
 const KINDS = ["service", "spare", "product", "amc"] as const
 
 export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
@@ -22,27 +20,22 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
   const { data: profile } = useProfile()
   const createLead = useCreateLead()
   const { activeSources, label: sourceLabel } = useLeadSourceOptions()
-  const [items, setItems] = useState<LeadItemSelection>({})
 
   const form = useForm<LeadInput>({
     resolver: zodResolver(leadSchema),
     mode: "onChange",
-    defaultValues: { name: "", mobile: "", source: "other", enquiryType: "", kind: "" },
+    defaultValues: { name: "", mobile: "", source: "other", productCategory: "", notes: "", kind: "" },
   })
 
-  const kindValue = form.watch("kind")
-  const pickerKind = kindValue === "product" || kindValue === "spare" ? kindValue : null
-
   async function onSubmit(values: LeadInput) {
-    const itemRows = pickerKind ? Object.entries(items).map(([id, qty]) => ({ id, qty })) : []
     await createLead.mutateAsync({
       org_id: profile!.org_id,
       name: values.name,
       mobile: values.mobile || null,
       source: values.source,
-      enquiry_type: (values.enquiryType || null) as Enums<"enquiry_type"> | null,
+      product_category: (values.productCategory || null) as Enums<"brand_category"> | null,
+      notes: values.notes || null,
       kind: (values.kind || null) as Enums<"lead_kind"> | null,
-      items: itemRows.map((r) => (pickerKind === "spare" ? { spare_id: r.id, qty: r.qty } : { product_id: r.id, qty: r.qty })),
     })
     onCreated()
   }
@@ -76,19 +69,19 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="lead-enquiry-type">{t("leads.new.enquiryType")}</Label>
-          <select id="lead-enquiry-type" {...form.register("enquiryType")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
+          <select id="lead-product-category" {...form.register("productCategory")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("service.filters.all")}</option>
-            {ENQUIRY_TYPES.map((e) => (
-              <option key={e} value={e}>
-                {t(`leads.enquiryType.${e}`)}
+            {PRODUCT_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {t(`masters.categories.${c}`)}
               </option>
             ))}
           </select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
-          <select id="lead-kind" {...form.register("kind", { onChange: () => setItems({}) })} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <select id="lead-kind" {...form.register("kind")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("service.filters.all")}</option>
             {KINDS.map((k) => (
               <option key={k} value={k}>
@@ -97,7 +90,16 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             ))}
           </select>
         </div>
-        {pickerKind ? <LeadItemsPicker key={pickerKind} orgId={profile?.org_id} kind={pickerKind} value={items} onChange={setItems} /> : null}
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="lead-notes">{t("leads.new.notes")}</Label>
+          <textarea
+            id="lead-notes"
+            rows={4}
+            placeholder={t("leads.new.notesPlaceholder")}
+            {...form.register("notes")}
+            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
+          />
+        </div>
       </div>
       {createLead.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createLead.error as Error).message}</p> : null}
       <div className="flex justify-end">

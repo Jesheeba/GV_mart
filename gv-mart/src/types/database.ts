@@ -4666,6 +4666,8 @@ export type Database = {
           // open follow-up (kept in sync by a trigger on lead_followups).
           postpone_count: number
           next_followup_at: string | null
+          product_category: Database["public"]["Enums"]["brand_category"] | null
+          notes: string | null
           created_at: string
           updated_at: string
         }
@@ -4689,6 +4691,8 @@ export type Database = {
           lost_reason?: string | null
           postpone_count?: number
           next_followup_at?: string | null
+          product_category?: Database["public"]["Enums"]["brand_category"] | null
+          notes?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4712,6 +4716,8 @@ export type Database = {
           lost_reason?: string | null
           postpone_count?: number
           next_followup_at?: string | null
+          product_category?: Database["public"]["Enums"]["brand_category"] | null
+          notes?: string | null
           created_at?: string
           updated_at?: string
         }
