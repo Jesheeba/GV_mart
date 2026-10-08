@@ -11,6 +11,8 @@
 --     lead_assignments row + notification per lead, and marks the master's waiting notice read
 --     once nothing is left waiting.
 --   * Internal only: REVOKE ALL FROM PUBLIC, anon, authenticated. Called by triggers.
+--   * The two trigger calls are wrapped in an exception block that logs a WARNING and swallows the error, so a
+--     distribution failure never blocks activating a sales person or switching auto-assign ON (review F-12).
 
 create or replace function public._lead_distribute_pending(p_org uuid)
 returns integer language plpgsql security definer set search_path = public as $$
@@ -73,7 +75,12 @@ returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.role = 'sales_admin' and new.is_active and new.receives_new_leads
      and (tg_op = 'INSERT' or not (old.role = 'sales_admin' and old.is_active and old.receives_new_leads)) then
-    perform public._lead_distribute_pending(new.org_id);
+    -- F-12: a failure here must never block the master activating / editing a sales person (or the switch).
+    begin
+      perform public._lead_distribute_pending(new.org_id);
+    exception when others then
+      raise warning '_lead_distribute_pending failed for org % (%): %', new.org_id, sqlstate, sqlerrm;
+    end;
   end if;
   return null;
 end;
@@ -88,7 +95,12 @@ create or replace function public._trg_settings_distribute_pending()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.auto_assign_leads and not old.auto_assign_leads then
-    perform public._lead_distribute_pending(new.org_id);
+    -- F-12: a failure here must never block the master activating / editing a sales person (or the switch).
+    begin
+      perform public._lead_distribute_pending(new.org_id);
+    exception when others then
+      raise warning '_lead_distribute_pending failed for org % (%): %', new.org_id, sqlstate, sqlerrm;
+    end;
   end if;
   return null;
 end;
