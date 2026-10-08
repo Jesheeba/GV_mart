@@ -1,18 +1,35 @@
-import { describe, expect, it } from "vitest"
-import { beginStaffAudit, checkStaffTarget, finishStaffAudit, generatePassword, requireActiveMaster, validateCreateStaffInput } from "./staff-auth"
+import { describe, expect, it, vi } from "vitest"
+import {
+  beginStaffAudit,
+  checkStaffTarget,
+  classifyAuthError,
+  finishStaffAudit,
+  generatePassword,
+  requireActiveMaster,
+  revokeUserSessions,
+  validateCreateStaffInput,
+  validateTypedPassword,
+} from "./staff-auth"
+import { staffCorsHeaders, staffPreflight } from "./staff-cors"
 
-// Fake Supabase admin client: auth.getUser plus a tiny in-memory table API (select / insert / update with eq / single).
-type Profile = { org_id: string; role: string; is_active: boolean }
-type Row = { id: string; [k: string]: unknown }
+// Fake Supabase admin client: auth.getUser, an in-memory table API (select / eq / single / insert only: audit is
+// append-only, so there is deliberately NO update) and rpc.
+type Profile = { org_id: string; role: string; is_active: boolean; full_name?: string }
+type Row = Record<string, unknown>
 
-function fakeAdmin(opts: { users?: Record<string, string>; profiles?: Record<string, Profile>; failAuditInsert?: boolean } = {}) {
+function fakeAdmin(opts: { users?: Record<string, string>; profiles?: Record<string, Profile>; failAuditInsert?: boolean; failRpc?: boolean } = {}) {
   const rows: Row[] = []
+  const rpcCalls: { fn: string; args: unknown }[] = []
   const client = {
     auth: {
       getUser: async (token: string) => {
         const id = opts.users?.[token]
         return id ? { data: { user: { id } }, error: null } : { data: { user: null }, error: { message: "bad jwt" } }
       },
+    },
+    rpc: async (fn: string, args: unknown) => {
+      rpcCalls.push({ fn, args })
+      return opts.failRpc ? { data: null, error: { code: "42501", message: "denied" } } : { data: 1, error: null }
     },
     from(table: string) {
       let filterId: string | null = null
@@ -23,34 +40,23 @@ function fakeAdmin(opts: { users?: Record<string, string>; profiles?: Record<str
           return api
         },
         single: async () => {
-          if (table === "profiles") {
-            const p = filterId ? opts.profiles?.[filterId] : undefined
-            return p ? { data: p, error: null } : { data: null, error: { message: "not found" } }
-          }
-          const r = rows.find((x) => x.id === filterId) ?? rows[rows.length - 1]
-          return r ? { data: r, error: null } : { data: null, error: { message: "none" } }
+          const p = table === "profiles" && filterId ? opts.profiles?.[filterId] : undefined
+          return p ? { data: p, error: null } : { data: null, error: { message: "not found" } }
         },
-        insert: (row: Record<string, unknown>) => {
-          if (opts.failAuditInsert) return { select: () => ({ single: async () => ({ data: null, error: { message: "denied" } }) }) }
-          const stored: Row = { id: `audit-${rows.length + 1}`, ...row }
-          rows.push(stored)
-          return { select: () => ({ single: async () => ({ data: { id: stored.id }, error: null }) }) }
+        insert: async (row: Row) => {
+          if (opts.failAuditInsert) return { error: { message: "denied" } }
+          rows.push({ ...row })
+          return { error: null }
         },
-        update: (patch: Record<string, unknown>) => ({
-          eq: async (_c: string, v: string) => {
-            const r = rows.find((x) => x.id === v)
-            if (r) Object.assign(r, patch)
-            return { error: null }
-          },
-        }),
       }
       return api
     },
   }
-  return { client: client as never, rows }
+  return { client: client as never, rows, rpcCalls }
 }
 
-const master: Profile = { org_id: "org-1", role: "master", is_active: true }
+const master: Profile = { org_id: "org-1", role: "master", is_active: true, full_name: "Ramesh Kumar" }
+const caller = { userId: "u-master", orgId: "org-1", fullName: "Ramesh Kumar" }
 
 describe("requireActiveMaster", () => {
   const users = { "good-token": "u-master", "sales-token": "u-sales", "inactive-token": "u-old", "ghost-token": "u-ghost" }
@@ -79,14 +85,13 @@ describe("requireActiveMaster", () => {
     const r = await requireActiveMaster(fakeAdmin({ users, profiles }).client, "Bearer inactive-token")
     expect(r.ok === false && r.status).toBe(403)
   })
-  it("accepts an active master and returns the caller and organisation", async () => {
+  it("accepts an active master and returns the caller, organisation and name (for the audit snapshot)", async () => {
     const r = await requireActiveMaster(fakeAdmin({ users, profiles }).client, "Bearer good-token")
-    expect(r).toEqual({ ok: true, caller: { userId: "u-master", orgId: "org-1" } })
+    expect(r).toEqual({ ok: true, caller: { userId: "u-master", orgId: "org-1", fullName: "Ramesh Kumar" } })
   })
 })
 
 describe("checkStaffTarget", () => {
-  const caller = { userId: "u-master", orgId: "org-1" }
   it("allows operation_admin and sales_admin in the same organisation", () => {
     expect(checkStaffTarget(caller, { id: "t", org_id: "org-1", role: "sales_admin" }).ok).toBe(true)
     expect(checkStaffTarget(caller, { id: "t", org_id: "org-1", role: "operation_admin" }).ok).toBe(true)
@@ -107,25 +112,98 @@ describe("checkStaffTarget", () => {
   })
 })
 
-describe("staff audit rows", () => {
-  it("writes the row first, then completes it with the outcome, and never holds a password", async () => {
+describe("staff audit rows (append-only: a start row and a separate completion row)", () => {
+  it("inserts a start row first and a SEPARATE completion row linked by correlation_id; nothing is updated; no password", async () => {
     const f = fakeAdmin()
-    const id = await beginStaffAudit(f.client, { orgId: "org-1", actorId: "u-master", action: "STAFF_PASSWORD_RESET", targetId: "t", details: { target_role: "sales_admin", generated: true } })
-    expect(id).toBe("audit-1")
-    expect(f.rows[0]).toMatchObject({ org_id: "org-1", actor_id: "u-master", action: "STAFF_PASSWORD_RESET", table_name: "profiles", row_id: "t", after: { result: "pending", generated: true } })
-    await finishStaffAudit(f.client, id!, true)
-    expect(f.rows[0].after).toMatchObject({ result: "ok", target_role: "sales_admin" })
-    expect(JSON.stringify(f.rows[0])).not.toMatch(/password"\s*:/i)
+    const audit = await beginStaffAudit(f.client, { caller, action: "STAFF_PASSWORD_RESET", targetId: "t", details: { target_role: "sales_admin", generated: true } })
+    expect(audit).not.toBeNull()
+    expect(f.rows).toHaveLength(1)
+    expect(f.rows[0]).toMatchObject({ org_id: "org-1", actor_id: "u-master", action: "STAFF_PASSWORD_RESET", table_name: "profiles", row_id: "t" })
+    expect(f.rows[0].after).toMatchObject({ phase: "start", result: "pending", actor_name: "Ramesh Kumar", generated: true })
+    expect(await finishStaffAudit(f.client, audit!, true, { sessions_revoked: true })).toBe(true)
+    expect(f.rows).toHaveLength(2) // a second row; the first is untouched
+    expect(f.rows[0].after).toMatchObject({ phase: "start", result: "pending" })
+    expect(f.rows[1].after).toMatchObject({ phase: "result", result: "ok", actor_name: "Ramesh Kumar", sessions_revoked: true })
+    expect((f.rows[0].after as Row).correlation_id).toBe((f.rows[1].after as Row).correlation_id)
+    expect(JSON.stringify(f.rows)).not.toMatch(/password"\s*:/i)
   })
   it("records a failed outcome", async () => {
     const f = fakeAdmin()
-    const id = await beginStaffAudit(f.client, { orgId: "org-1", actorId: "u", action: "STAFF_PASSWORD_RESET", targetId: "t", details: {} })
-    await finishStaffAudit(f.client, id!, false, { error: "update failed" })
-    expect(f.rows[0].after).toMatchObject({ result: "failed", error: "update failed" })
+    const audit = await beginStaffAudit(f.client, { caller, action: "STAFF_PASSWORD_RESET", targetId: "t", details: {} })
+    await finishStaffAudit(f.client, audit!, false, { error: "update_failed" })
+    expect(f.rows[1].after).toMatchObject({ phase: "result", result: "failed", error: "update_failed" })
   })
-  it("returns null when the audit row cannot be written, so the caller can refuse the action", async () => {
+  it("returns null when the start row cannot be written, so the caller can refuse the action", async () => {
     const f = fakeAdmin({ failAuditInsert: true })
-    expect(await beginStaffAudit(f.client, { orgId: "o", actorId: "u", action: "STAFF_PASSWORD_RESET", targetId: "t", details: {} })).toBeNull()
+    expect(await beginStaffAudit(f.client, { caller, action: "STAFF_PASSWORD_RESET", targetId: "t", details: {} })).toBeNull()
+  })
+  it("reports (does not throw) when the completion row cannot be written", async () => {
+    const f = fakeAdmin()
+    const audit = await beginStaffAudit(f.client, { caller, action: "STAFF_CREATE", targetId: null, details: {} })
+    const failing = fakeAdmin({ failAuditInsert: true })
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {})
+    expect(await finishStaffAudit(failing.client, audit!, true)).toBe(false)
+    spy.mockRestore()
+  })
+  it("sets row_id to the created user's id on the completion row", async () => {
+    const f = fakeAdmin()
+    const audit = await beginStaffAudit(f.client, { caller, action: "STAFF_CREATE", targetId: null, details: { role: "sales_admin", email: "a@b.co" } })
+    expect(f.rows[0].row_id).toBeNull()
+    await finishStaffAudit(f.client, audit!, true, {}, "new-user-id")
+    expect(f.rows[1]).toMatchObject({ row_id: "new-user-id", after: { result: "ok" } })
+  })
+})
+
+describe("classifyAuthError (fixed messages only)", () => {
+  it("recognises a duplicate email by code or message, and a weak password separately", () => {
+    expect(classifyAuthError({ code: "email_exists" })).toBe("duplicate_email")
+    expect(classifyAuthError({ message: "A user with this email address has already been registered" })).toBe("duplicate_email")
+    expect(classifyAuthError({ code: "weak_password", message: "Password should be at least 6 characters" })).toBe("weak_password")
+    expect(classifyAuthError({ message: "something else" })).toBe("other")
+    expect(classifyAuthError(null)).toBe("other")
+  })
+})
+
+describe("revokeUserSessions", () => {
+  it("calls the service-role-only revoke_user_sessions function with the target's id", async () => {
+    const f = fakeAdmin()
+    expect(await revokeUserSessions(f.client, "u-sales")).toBe(true)
+    expect(f.rpcCalls).toEqual([{ fn: "revoke_user_sessions", args: { p_user_id: "u-sales" } }])
+  })
+  it("returns false (and logs only the user id and code) when the function fails", async () => {
+    const f = fakeAdmin({ failRpc: true })
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {})
+    expect(await revokeUserSessions(f.client, "u-sales")).toBe(false)
+    expect(JSON.stringify(spy.mock.calls)).not.toContain("denied")
+    spy.mockRestore()
+  })
+})
+
+describe("validateTypedPassword (bytes, deny-list)", () => {
+  it("accepts a reasonable password", () => {
+    expect(validateTypedPassword("correct horse battery")).toBeNull()
+    expect(validateTypedPassword("T7!rn-Qv92x")).toBeNull()
+  })
+  it("counts BYTES, not characters", () => {
+    expect(validateTypedPassword("éèêë")).not.toBeNull() // 4 characters = 8 bytes: too short
+    expect(validateTypedPassword("éèêëà")).toBeNull() // 5 characters = 10 bytes: long enough
+    expect(validateTypedPassword("éèêë".repeat(9))).toBeNull() // 72 bytes exactly
+    expect(validateTypedPassword("éèêë".repeat(9) + "x")).not.toBeNull() // 73 bytes
+    expect(validateTypedPassword("éèêë".repeat(10))).not.toBeNull() // 40 characters are 80 bytes: over the 72-byte limit even though only 40 characters
+  })
+  it("rejects fewer than 10 bytes and more than 72 bytes; accepts exactly 10 and exactly 72 ASCII", () => {
+    expect(validateTypedPassword("a1!aB2@cD")).not.toBeNull() // 9 bytes
+    expect(validateTypedPassword("a1!aB2@cD3")).toBeNull() // 10 bytes
+    expect(validateTypedPassword("Zx9!".repeat(18))).toBeNull() // 72 bytes
+    expect(validateTypedPassword("Zx9!".repeat(18) + "k")).not.toBeNull() // 73 bytes
+  })
+  it("rejects common and predictable passwords, case-insensitively", () => {
+    for (const p of ["Password123", "PASSWORD1234", "1234567890", "qwertyuiop", "Welcome@123", "gvmart@123", "aaaaaaaaaaaa", "abcdefghijk", "9876543210", "Qwerty12345"]) {
+      expect(validateTypedPassword(p), p).not.toBeNull()
+    }
+  })
+  it("rejects non-strings", () => {
+    for (const p of [undefined, null, 12345678901, {}, []]) expect(validateTypedPassword(p as never)).not.toBeNull()
   })
 })
 
@@ -161,7 +239,9 @@ describe("validateCreateStaffInput", () => {
     expect(validateCreateStaffInput({ ...good, fullName: "Line\nBreak" }).ok).toBe(false)
     expect(validateCreateStaffInput({ ...good, phone: "12345" }).ok).toBe(false)
     expect(validateCreateStaffInput({ ...good, password: "short" }).ok).toBe(false)
-    expect(validateCreateStaffInput({ ...good, password: "x".repeat(73) }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, password: "12345678" }).ok).toBe(false) // under 10 bytes
+    expect(validateCreateStaffInput({ ...good, password: "password1234" }).ok).toBe(false) // deny-list
+    expect(validateCreateStaffInput({ ...good, password: "Zx9!".repeat(19) }).ok).toBe(false) // over 72 bytes
     expect(validateCreateStaffInput({ ...good, reason: "two\nlines" }).ok).toBe(false)
     expect(validateCreateStaffInput({ ...good, reason: "x".repeat(201) }).ok).toBe(false)
     expect(validateCreateStaffInput(null).ok).toBe(false)
@@ -185,12 +265,33 @@ describe("generatePassword", () => {
   })
 })
 
-describe("finishStaffAudit with a target id", () => {
-  it("sets row_id once the created user's id is known", async () => {
-    const f = fakeAdmin()
-    const id = await beginStaffAudit(f.client, { orgId: "org-1", actorId: "u-master", action: "STAFF_CREATE", targetId: null, details: { role: "sales_admin", email: "a@b.co" } })
-    expect(f.rows[0].row_id).toBeNull()
-    await finishStaffAudit(f.client, id!, true, {}, "new-user-id")
-    expect(f.rows[0]).toMatchObject({ row_id: "new-user-id", after: { result: "ok", role: "sales_admin", email: "a@b.co" } })
+describe("staffCorsHeaders (F-14: origin allow-list read from ALLOWED_ORIGINS)", () => {
+  const withEnv = (value: string | undefined, run: () => void) => {
+    ;(globalThis as { Deno?: unknown }).Deno = { env: { get: (k: string) => (k === "ALLOWED_ORIGINS" ? value : undefined) } }
+    run()
+  }
+  const req = (origin?: string, method = "POST") => new Request("https://fn.test/x", { method, headers: origin ? { Origin: origin } : {} })
+
+  it("echoes only an exactly listed origin, never '*'", () => {
+    withEnv("https://app.example.test, capacitor://localhost", () => {
+      expect(staffCorsHeaders(req("https://app.example.test"))["Access-Control-Allow-Origin"]).toBe("https://app.example.test")
+      expect(staffCorsHeaders(req("capacitor://localhost"))["Access-Control-Allow-Origin"]).toBe("capacitor://localhost")
+      expect(staffCorsHeaders(req("https://evil.example"))["Access-Control-Allow-Origin"]).toBeUndefined()
+      expect(staffCorsHeaders(req("https://app.example.test.evil.example"))["Access-Control-Allow-Origin"]).toBeUndefined()
+      expect(staffCorsHeaders(req())["Access-Control-Allow-Origin"]).toBeUndefined()
+      expect(staffCorsHeaders(req("https://app.example.test")).Vary).toBe("Origin")
+    })
+  })
+  it("fails closed: no ALLOWED_ORIGINS means no Allow-Origin header, and a wildcard entry is ignored", () => {
+    withEnv(undefined, () => expect(staffCorsHeaders(req("https://app.example.test"))["Access-Control-Allow-Origin"]).toBeUndefined())
+    withEnv("*", () => expect(staffCorsHeaders(req("https://app.example.test"))["Access-Control-Allow-Origin"]).toBeUndefined())
+  })
+  it("answers preflight with 204 and only POST/OPTIONS allowed", () => {
+    withEnv("https://app.example.test", () => {
+      const res = staffPreflight(req("https://app.example.test", "OPTIONS"))!
+      expect(res.status).toBe(204)
+      expect(res.headers.get("Access-Control-Allow-Methods")).toBe("POST, OPTIONS")
+      expect(staffPreflight(req("https://app.example.test", "POST"))).toBeNull()
+    })
   })
 })

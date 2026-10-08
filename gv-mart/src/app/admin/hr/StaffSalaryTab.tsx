@@ -59,7 +59,7 @@ export function StaffSalaryTab() {
   const [resetTarget, setResetTarget] = useState<StaffOption | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [newPassword, setNewPassword] = useState("")
-  const newPasswordValid = newPassword.length >= 8
+  const newPasswordValid = new TextEncoder().encode(newPassword).length >= 10
 
   function submitPasswordReset() {
     if (!resetTarget || !newPasswordValid) return
@@ -311,7 +311,7 @@ export function StaffSalaryTab() {
               <Label htmlFor="staff-new-password" className="block text-xs font-medium text-text-muted">
                 {t("hr.staffSalary.newPassword")}
               </Label>
-              <Input id="staff-new-password" type="text" autoComplete="off" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <Input id="staff-new-password" type="text" autoComplete="off" minLength={10} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setResetTarget(null)}>

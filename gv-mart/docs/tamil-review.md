@@ -6,3 +6,4 @@ Draft translations added by engineering. Change them in `src/lib/i18n/ta.json` o
 |------|--------|---------|---------------|-------|
 | [ ] | `roles.sales_admin`, `tasks.roleLabel.sales_admin`, plus the two mentions in the staff-salary subtitle and the KPI note | Sales person | விற்பனையாளர் | Replaces "விற்பனை" / "சேல்ஸ் அட்மின்" / "விற்பனை நிர்வாகி". The internal role value stays `sales_admin`. |
 | [ ] | `leadAssign.*` (auto-assign card, waiting-leads banner, "Receives new leads" switch) | Auto-assign new leads, etc. | see `ta.json` → `leadAssign` | Draft Tamil for the whole group; please review wording. |
+| [ ] | `hr.staffSalary.resetPasswordHint`, `hr.staffSalary.typedPassword` | min 10 characters (was 8) | updated "10" in ta.json | Draft: please check wording. |

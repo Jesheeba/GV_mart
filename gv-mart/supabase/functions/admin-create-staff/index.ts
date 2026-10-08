@@ -6,28 +6,26 @@
 // Guarded by _shared/staff-auth.ts and written to be reviewed as a unit:
 //   * the caller's JWT is verified in code and the caller must be an ACTIVE master
 //     (verify_jwt stays on at the gateway: this function has no config.toml entry);
-//   * the role is an allow-list of two: a master, technician or customer can never be created here;
+//   * CORS answers only the origins listed in the ALLOWED_ORIGINS secret (_shared/staff-cors.ts);
+//   * the role is an allow-list of two (and the database refuses any client-side write that sets role = master);
 //   * the new profile always goes into the CALLER's organisation, active - the request cannot choose either;
-//   * an audit_log row (STAFF_CREATE: who, email, name, role, optional one-line reason, generated or typed -
-//     never the password) is written BEFORE anything is created: no audit row, no account;
+//   * a typed password must pass validateTypedPassword (>= 10 bytes, <= 72 bytes, common/predictable refused);
+//   * an APPEND-ONLY audit start row (who, email, name, role, optional one-line reason, generated or typed -
+//     never the password) is written BEFORE anything is created: no audit row, no account; a separate
+//     completion row records the outcome (audit_log forbids UPDATE and DELETE);
 //   * if the profile insert fails the auth user is deleted again, so no orphan login is left behind;
+//   * Auth error text is never forwarded: only fixed messages;
 //   * the password is never logged and never stored anywhere but Supabase Auth.
 // Email is the login; there is no email/SMS service, so the master shares the password in person.
 import { createClient } from "jsr:@supabase/supabase-js@2"
-import { corsHeaders, handleCors } from "../_shared/cors.ts"
-import { beginStaffAudit, finishStaffAudit, generatePassword, requireActiveMaster, validateCreateStaffInput } from "../_shared/staff-auth.ts"
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } })
-}
-
-/** GoTrue reports an existing email with code "email_exists" (older versions: a message containing "already registered"). A bare 422 is NOT enough: a weak password is also a 422. */
-function isDuplicateEmail(err: { message?: string; code?: string }): boolean {
-  return err.code === "email_exists" || /already (been )?registered|already exists/i.test(err.message ?? "")
-}
+import { staffCorsHeaders, staffPreflight } from "../_shared/staff-cors.ts"
+import { beginStaffAudit, classifyAuthError, finishStaffAudit, generatePassword, requireActiveMaster, validateCreateStaffInput } from "../_shared/staff-auth.ts"
 
 Deno.serve(async (req) => {
-  const preflight = handleCors(req)
+  const cors = staffCorsHeaders(req)
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } })
+
+  const preflight = staffPreflight(req)
   if (preflight) return preflight
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405)
 
@@ -53,21 +51,22 @@ Deno.serve(async (req) => {
   const generated = input.password === null
   const password = input.password ?? generatePassword()
 
-  // Fail closed: the audit row comes first. It never contains the password.
-  const auditId = await beginStaffAudit(admin, {
-    orgId: caller.orgId,
-    actorId: caller.userId,
+  // Fail closed: the audit start row comes first. It never contains the password.
+  const audit = await beginStaffAudit(admin, {
+    caller,
     action: "STAFF_CREATE",
     targetId: null,
     details: { role: input.role, email: input.email, full_name: input.fullName, generated, ...(input.reason ? { reason: input.reason } : {}) },
   })
-  if (!auditId) return json({ error: "Could not record the audit entry; nothing was created" }, 500)
+  if (!audit) return json({ error: "Could not record the audit entry; nothing was created" }, 500)
 
   const { data: created, error: createErr } = await admin.auth.admin.createUser({ email: input.email, password, email_confirm: true })
   if (createErr || !created?.user) {
-    const duplicate = !!createErr && isDuplicateEmail(createErr)
-    await finishStaffAudit(admin, auditId, false, { error: duplicate ? "duplicate_email" : "auth_create_failed" })
-    return duplicate ? json({ error: "A login with this email already exists" }, 409) : json({ error: "Could not create the login" }, 400)
+    const kind = classifyAuthError(createErr)
+    await finishStaffAudit(admin, audit, false, { error: kind === "duplicate_email" ? "duplicate_email" : kind === "weak_password" ? "weak_password" : "auth_create_failed" })
+    if (kind === "duplicate_email") return json({ error: "A login with this email already exists" }, 409)
+    if (kind === "weak_password") return json({ error: "That password is not accepted; choose another or let the system generate one" }, 400)
+    return json({ error: "Could not create the login" }, 400)
   }
   const userId = created.user.id
 
@@ -82,12 +81,12 @@ Deno.serve(async (req) => {
   if (profileErr) {
     // roll the login back: an auth user without a profile cannot sign in usefully and would block re-using the email
     const { error: rollbackErr } = await admin.auth.admin.deleteUser(userId)
-    await finishStaffAudit(admin, auditId, false, { error: "profile_insert_failed", rolled_back: !rollbackErr })
-    console.error("admin-create-staff: profile insert failed", profileErr.message, rollbackErr ? "ROLLBACK FAILED for " + userId : "rolled back")
+    await finishStaffAudit(admin, audit, false, { error: "profile_insert_failed", rolled_back: !rollbackErr }, userId)
+    console.error("admin-create-staff: profile insert failed", profileErr.code ?? "", rollbackErr ? "ROLLBACK FAILED for " + userId : "rolled back")
     return json({ error: "Could not create the staff profile; nothing was created" }, 500)
   }
 
-  await finishStaffAudit(admin, auditId, true, {}, userId)
+  await finishStaffAudit(admin, audit, true, {}, userId)
   console.log(`admin-create-staff: master ${caller.userId} created ${input.role} ${userId}`)
   return json({ ok: true, id: userId, email: input.email, generated, password: generated ? password : undefined })
 })

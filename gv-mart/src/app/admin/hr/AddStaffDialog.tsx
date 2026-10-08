@@ -35,7 +35,7 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [revealed, setRevealed] = useState<{ password: string } | null>(null)
 
   const emailOk = EMAIL_RE.test(email.trim())
-  const typedOk = mode === "generate" || typed.length >= 8
+  const typedOk = mode === "generate" || new TextEncoder().encode(typed).length >= 10
   const canSubmit = fullName.trim().length >= 2 && emailOk && typedOk && !create.isPending
 
   function reset() {
@@ -129,7 +129,7 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 {t("hr.staffSalary.passwordType")}
               </label>
               {mode === "type" ? (
-                <Input aria-label={t("hr.staffSalary.typedPassword")} placeholder={t("hr.staffSalary.typedPassword")} type="text" autoComplete="off" minLength={8} maxLength={72} value={typed} onChange={(e) => setTyped(e.target.value)} />
+                <Input aria-label={t("hr.staffSalary.typedPassword")} placeholder={t("hr.staffSalary.typedPassword")} type="text" autoComplete="off" minLength={10} maxLength={72} value={typed} onChange={(e) => setTyped(e.target.value)} />
               ) : null}
             </fieldset>
 
