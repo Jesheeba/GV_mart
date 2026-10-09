@@ -580,3 +580,62 @@ export async function leadSourceInUse(orgId: string, key: string) {
   return (leads.count ?? 0) + (customers.count ?? 0) > 0
 }
 export type LeadSourceRow = Tables<"lead_sources">
+
+// ── Lead kinds + lead product types (batch 17) ────────────────────────────
+// Admin-editable lists behind leads.kind_key / leads.product_type_key (text keys).
+// is_system rows are the built-ins the code keys off — never deleted; custom rows
+// can be deleted only while no lead carries the key (also enforced by a DB trigger).
+export type LeadKindRow = Tables<"lead_kinds">
+export type LeadProductTypeRow = Tables<"lead_product_types">
+
+export async function listLeadKinds(orgId: string) {
+  const { data, error } = await supabase.from("lead_kinds").select("*").eq("org_id", orgId).order("created_at")
+  if (error) throw error
+  return data
+}
+export async function createLeadKind(row: TablesInsert<"lead_kinds">) {
+  const { data, error } = await supabase.from("lead_kinds").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateLeadKind(id: string, patch: TablesUpdate<"lead_kinds">) {
+  const { data, error } = await supabase.from("lead_kinds").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteLeadKind(id: string) {
+  const { error } = await supabase.from("lead_kinds").delete().eq("id", id).eq("is_system", false)
+  if (error) throw error
+}
+/** True when any lead still carries this kind key. */
+export async function leadKindInUse(orgId: string, key: string) {
+  const { count, error } = await supabase.from("leads").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("kind_key", key)
+  if (error) throw error
+  return (count ?? 0) > 0
+}
+
+export async function listLeadProductTypes(orgId: string) {
+  const { data, error } = await supabase.from("lead_product_types").select("*").eq("org_id", orgId).order("created_at")
+  if (error) throw error
+  return data
+}
+export async function createLeadProductType(row: TablesInsert<"lead_product_types">) {
+  const { data, error } = await supabase.from("lead_product_types").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updateLeadProductType(id: string, patch: TablesUpdate<"lead_product_types">) {
+  const { data, error } = await supabase.from("lead_product_types").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deleteLeadProductType(id: string) {
+  const { error } = await supabase.from("lead_product_types").delete().eq("id", id).eq("is_system", false)
+  if (error) throw error
+}
+/** True when any lead still carries this product type key. */
+export async function leadProductTypeInUse(orgId: string, key: string) {
+  const { count, error } = await supabase.from("leads").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("product_type_key", key)
+  if (error) throw error
+  return (count ?? 0) > 0
+}

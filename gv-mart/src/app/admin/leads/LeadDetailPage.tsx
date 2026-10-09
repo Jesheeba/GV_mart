@@ -15,6 +15,7 @@ import { AssignLeadDialog } from "./AssignLeadDialog"
 import { assignActionFor, canScheduleLead } from "@/lib/lead-assign"
 import type { UserRole } from "@/lib/roles"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
+import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLists"
 import { LeadDetailPanel } from "./LeadDetailPanel"
 import { LeadTimeline } from "./LeadTimeline"
 import { LogOutcomeSheet } from "./LogOutcomeSheet"
@@ -33,6 +34,8 @@ export function LeadDetailPage() {
   const { leadId } = useParams<{ leadId: string }>()
   const { data: profile } = useProfile()
   const { label: sourceLabel } = useLeadSourceOptions()
+  const { label: kindLabel } = useLeadKindOptions()
+  const { label: productTypeLabel } = useLeadProductTypeOptions()
   const schedule = useLeadSchedule(profile?.org_id).data ?? DEFAULT_LEAD_SCHEDULE
   const lead = useLead(leadId)
   const addNote = useAddLeadNote()
@@ -109,9 +112,9 @@ export function LeadDetailPage() {
             )}
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs text-text-muted">
               <span>{sourceLabel(l.source)}</span>
-              {l.kind ? <span>· {t(`leads.kind.${l.kind}`)}</span> : null}
+              {l.kind_key ?? l.kind ? <span>· {kindLabel((l.kind_key ?? l.kind)!)}</span> : null}
               {l.enquiry_type ? <span>· {t(`leads.enquiryType.${l.enquiry_type}`)}</span> : null}
-              {l.product_category ? <span>· {t(`masters.categories.${l.product_category}`)}</span> : null}
+              {l.product_type_key ?? l.product_category ? <span>· {productTypeLabel((l.product_type_key ?? l.product_category)!)}</span> : null}
               <span className="inline-flex items-center gap-1" data-testid="lead-assignee">
                 · <UserRound className="size-3" />
                 {assigneeName ?? t("leads.assign.unassigned")}

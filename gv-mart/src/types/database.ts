@@ -4646,6 +4646,7 @@ export type Database = {
           source: string
           enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
           kind: Database["public"]["Enums"]["lead_kind"] | null
+          kind_key: string | null
           status: Database["public"]["Enums"]["lead_status"]
           owner_id: string | null
           score: number | null
@@ -4671,6 +4672,7 @@ export type Database = {
           next_followup_at: string | null
           assigned_to: string | null
           product_category: Database["public"]["Enums"]["brand_category"] | null
+          product_type_key: string | null
           notes: string | null
           created_at: string
           updated_at: string
@@ -4685,6 +4687,7 @@ export type Database = {
           source?: string
           enquiry_type?: Database["public"]["Enums"]["enquiry_type"] | null
           kind?: Database["public"]["Enums"]["lead_kind"] | null
+          kind_key?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           owner_id?: string | null
           score?: number | null
@@ -4699,6 +4702,7 @@ export type Database = {
           // assign_lead only — a trigger rejects any other write
           assigned_to?: string | null
           product_category?: Database["public"]["Enums"]["brand_category"] | null
+          product_type_key?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -4713,6 +4717,7 @@ export type Database = {
           source?: string
           enquiry_type?: Database["public"]["Enums"]["enquiry_type"] | null
           kind?: Database["public"]["Enums"]["lead_kind"] | null
+          kind_key?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           owner_id?: string | null
           score?: number | null
@@ -4727,6 +4732,7 @@ export type Database = {
           // assign_lead only — a trigger rejects any other write
           assigned_to?: string | null
           product_category?: Database["public"]["Enums"]["brand_category"] | null
+          product_type_key?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -5054,6 +5060,78 @@ export type Database = {
           org_id?: string
           key?: string
           label?: string
+          is_system?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lead_kinds: {
+        Row: {
+          id: string
+          org_id: string
+          key: string
+          label: string
+          label_ta: string | null
+          is_system: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          key: string
+          label: string
+          label_ta?: string | null
+          is_system?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          key?: string
+          label?: string
+          label_ta?: string | null
+          is_system?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lead_product_types: {
+        Row: {
+          id: string
+          org_id: string
+          key: string
+          label: string
+          label_ta: string | null
+          is_system: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          key: string
+          label: string
+          label_ta?: string | null
+          is_system?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          key?: string
+          label?: string
+          label_ta?: string | null
           is_system?: boolean
           is_active?: boolean
           created_at?: string
@@ -6979,7 +7057,7 @@ export type Database = {
           p_bucket?: string
           p_stage?: Database["public"]["Enums"]["lead_status"] | null
           p_source?: string | null
-          p_kind?: Database["public"]["Enums"]["lead_kind"] | null
+          p_kind?: string | null
           p_stuck_only?: boolean
           p_scope?: string
           p_assignee?: string | null
@@ -6990,7 +7068,7 @@ export type Database = {
           lead_name: string
           mobile: string | null
           source: string
-          kind: Database["public"]["Enums"]["lead_kind"] | null
+          kind: string | null
           enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
           lead_status: Database["public"]["Enums"]["lead_status"]
           product_name: string | null
@@ -7018,7 +7096,7 @@ export type Database = {
         Args: {
           p_stage?: Database["public"]["Enums"]["lead_status"] | null
           p_source?: string | null
-          p_kind?: Database["public"]["Enums"]["lead_kind"] | null
+          p_kind?: string | null
           p_scope?: string
           p_assignee?: string | null
         }
@@ -7027,7 +7105,7 @@ export type Database = {
           lead_name: string
           mobile: string | null
           source: string
-          kind: Database["public"]["Enums"]["lead_kind"] | null
+          kind: string | null
           enquiry_type: Database["public"]["Enums"]["enquiry_type"] | null
           lead_status: Database["public"]["Enums"]["lead_status"]
           product_name: string | null

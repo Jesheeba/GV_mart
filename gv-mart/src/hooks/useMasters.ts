@@ -460,3 +460,17 @@ export const leadSourcesHooks = entityHooks("lead_sources", {
   update: masters.updateLeadSource,
   remove: masters.deleteLeadSource,
 })
+
+export const leadKindsHooks = entityHooks("lead_kinds", {
+  list: masters.listLeadKinds,
+  create: masters.createLeadKind,
+  update: masters.updateLeadKind,
+  remove: masters.deleteLeadKind,
+})
+
+export const leadProductTypesHooks = entityHooks("lead_product_types", {
+  list: masters.listLeadProductTypes,
+  create: masters.createLeadProductType,
+  update: masters.updateLeadProductType,
+  remove: masters.deleteLeadProductType,
+})

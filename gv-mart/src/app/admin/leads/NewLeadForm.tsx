@@ -10,16 +10,15 @@ import { useCreateLead } from "@/hooks/useAutomation"
 import { leadSchema, type LeadInput } from "@/lib/validation/automation"
 import { useProfile } from "@/hooks/useProfile"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
-import type { Enums } from "@/types/database"
-
-const PRODUCT_CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
-const KINDS = ["service", "spare", "product", "amc"] as const
+import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLists"
 
 export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const createLead = useCreateLead()
   const { activeSources, label: sourceLabel } = useLeadSourceOptions()
+  const { activeKinds, label: kindLabel } = useLeadKindOptions()
+  const { activeProductTypes, label: productTypeLabel } = useLeadProductTypeOptions()
 
   const form = useForm<LeadInput>({
     resolver: zodResolver(leadSchema),
@@ -33,9 +32,9 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       name: values.name,
       mobile: values.mobile || null,
       source: values.source,
-      product_category: (values.productCategory || null) as Enums<"brand_category"> | null,
+      product_type_key: values.productCategory || null,
       notes: values.notes || null,
-      kind: (values.kind || null) as Enums<"lead_kind"> | null,
+      kind_key: values.kind || null,
     })
     onCreated()
   }
@@ -72,9 +71,9 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
           <select id="lead-product-category" {...form.register("productCategory")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("service.filters.all")}</option>
-            {PRODUCT_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {t(`masters.categories.${c}`)}
+            {activeProductTypes.map((p) => (
+              <option key={p.key} value={p.key}>
+                {productTypeLabel(p.key)}
               </option>
             ))}
           </select>
@@ -83,9 +82,9 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
           <select id="lead-kind" {...form.register("kind")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
             <option value="">{t("service.filters.all")}</option>
-            {KINDS.map((k) => (
-              <option key={k} value={k}>
-                {t(`leads.kind.${k}`)}
+            {activeKinds.map((k) => (
+              <option key={k.key} value={k.key}>
+                {kindLabel(k.key)}
               </option>
             ))}
           </select>

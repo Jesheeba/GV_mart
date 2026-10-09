@@ -11,6 +11,7 @@ import { NoFollowupCard } from "./NoFollowupCard"
 import { BulkSetFollowupDialog } from "./BulkSetFollowupDialog"
 import { SetFollowupDialog } from "./SetFollowupDialog"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
+import { useLeadKindOptions } from "@/hooks/useLeadLists"
 import { FollowupCard } from "./FollowupCard"
 import { LogOutcomeSheet } from "./LogOutcomeSheet"
 import { RescheduleDialog } from "./RescheduleDialog"
@@ -24,7 +25,6 @@ import type { Enums } from "@/types/database"
 type MyDayTab = FollowupBucket | "none"
 const TABS: MyDayTab[] = ["overdue", "today", "upcoming", "none"]
 const STAGES: Enums<"lead_status">[] = ["new", "contacted", "quoted"]
-const KINDS: Enums<"lead_kind">[] = ["service", "spare", "product", "amc"]
 
 const selectClass =
   "h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
@@ -33,10 +33,11 @@ const selectClass =
 export function MyDayPage() {
   const { t, i18n } = useTranslation()
   const { sources, label: sourceLabel } = useLeadSourceOptions()
+  const { activeKinds, label: kindLabel } = useLeadKindOptions()
   const [chosenTab, setChosenTab] = useState<MyDayTab | null>(null)
   const [stage, setStage] = useState<Enums<"lead_status"> | "">("")
   const [source, setSource] = useState("")
-  const [kind, setKind] = useState<Enums<"lead_kind"> | "">("")
+  const [kind, setKind] = useState("")
   const [stuckOnly, setStuckOnly] = useState(false)
   const { data: profile } = useProfile()
   const role = profile?.role as UserRole | undefined
@@ -117,11 +118,11 @@ export function MyDayPage() {
             </option>
           ))}
         </select>
-        <select value={kind} onChange={(e) => setKind(e.target.value as Enums<"lead_kind"> | "")} className={selectClass} aria-label={t("leads.myDay.filters.kind")}>
+        <select value={kind} onChange={(e) => setKind(e.target.value)} className={selectClass} aria-label={t("leads.myDay.filters.kind")}>
           <option value="">{t("leads.filters.allKinds")}</option>
-          {KINDS.map((k) => (
-            <option key={k} value={k}>
-              {t(`leads.kind.${k}`)}
+          {activeKinds.map((k) => (
+            <option key={k.key} value={k.key}>
+              {kindLabel(k.key)}
             </option>
           ))}
         </select>

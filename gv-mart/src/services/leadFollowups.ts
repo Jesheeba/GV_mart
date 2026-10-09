@@ -70,7 +70,7 @@ export type FollowupFilters = {
   bucket?: FollowupBucket | "all"
   stage?: Enums<"lead_status">
   source?: string
-  kind?: Enums<"lead_kind">
+  kind?: string
   stuckOnly?: boolean
   scope?: FollowupScope
 }
@@ -226,7 +226,7 @@ export async function assignLead(i: { leadId: string; assigneeId: string | null;
 export type NoFollowupFilters = {
   stage?: Enums<"lead_status">
   source?: string
-  kind?: Enums<"lead_kind">
+  kind?: string
   scope?: FollowupScope
 }
 

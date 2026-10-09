@@ -14,6 +14,8 @@ import {
   incentiveRulesHooks,
   roleBaseSalariesHooks,
   installationRatesHooks,
+  leadKindsHooks,
+  leadProductTypesHooks,
   leadSourcesHooks,
   modelsHooks,
   productEnquiryTabsHooks,
@@ -44,6 +46,8 @@ import { SettingsTab } from "./SettingsTab"
 import { PaymentSettingsTab } from "./PaymentSettingsTab"
 import { WaterQualityTab } from "./WaterQualityTab"
 import { LeadSourcesTab } from "./LeadSourcesTab"
+import { LeadKindsTab } from "./LeadKindsTab"
+import { LeadProductTypesTab } from "./LeadProductTypesTab"
 import { LeadOutcomesTab } from "./LeadOutcomesTab"
 import { useLeadOutcomes } from "@/hooks/useLeadFollowups"
 
@@ -65,6 +69,8 @@ type ModuleId =
   | "productEnquiry"
   | "waterQuality"
   | "leadSources"
+  | "leadKinds"
+  | "leadProductTypes"
   | "leadOutcomes"
   | "settings"
   | "paymentSettings"
@@ -102,6 +108,8 @@ export function MastersPage() {
   const { data: sopStepTemplates } = sopStepTemplatesHooks.useList(orgId)
   const { data: productEnquiryTabs } = productEnquiryTabsHooks.useList(orgId)
   const { data: leadSources } = leadSourcesHooks.useList(orgId)
+  const { data: leadKinds } = leadKindsHooks.useList(orgId)
+  const { data: leadProductTypes } = leadProductTypesHooks.useList(orgId)
   const { data: leadOutcomes } = useLeadOutcomes(orgId)
   const { data: waterQualityDistricts } = waterQualityReferenceHooks.useList(orgId)
   // complaintTypes now also holds product-specific rows (product_id set),
@@ -147,6 +155,14 @@ export function MastersPage() {
       desc: t("masters.overview.waterQualityDesc", { count: waterQualityDistricts?.length ?? 0 }),
     },
     { id: "leadSources", icon: Megaphone, swatch: "accent", title: t("masters.tabs.leadSources"), desc: t("masters.overview.leadSourcesDesc", { count: leadSources?.length ?? 0 }) },
+    { id: "leadKinds", icon: Tag, swatch: "info", title: t("masters.tabs.leadKinds"), desc: t("masters.overview.leadKindsDesc", { count: leadKinds?.length ?? 0 }) },
+    {
+      id: "leadProductTypes",
+      icon: Package,
+      swatch: "info",
+      title: t("masters.tabs.leadProductTypes"),
+      desc: t("masters.overview.leadProductTypesDesc", { count: leadProductTypes?.length ?? 0 }),
+    },
     { id: "leadOutcomes", icon: PhoneCall, swatch: "green", title: t("masters.tabs.leadOutcomes"), desc: t("masters.overview.leadOutcomesDesc", { count: leadOutcomes?.length ?? 0 }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
     { id: "paymentSettings", icon: QrCode, swatch: "green", title: t("masters.tabs.paymentSettings"), desc: t("masters.overview.paymentSettingsDesc") },
@@ -234,6 +250,12 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="leadSources">
             <LeadSourcesTab />
+          </TabsContent>
+          <TabsContent value="leadKinds">
+            <LeadKindsTab />
+          </TabsContent>
+          <TabsContent value="leadProductTypes">
+            <LeadProductTypesTab />
           </TabsContent>
           <TabsContent value="leadOutcomes">
             <LeadOutcomesTab />

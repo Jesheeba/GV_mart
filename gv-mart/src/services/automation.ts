@@ -27,7 +27,8 @@ export type LeadListItem = LeadRow & {
 export type LeadFilters = {
   source?: string
   enquiryType?: Enums<"enquiry_type">
-  kind?: Enums<"lead_kind">
+  /** A lead kind key from Masters (service/spare/product/amc/warranty/…). */
+  kind?: string
   /** Owner request 2026-07-29: scopes to leads created within this range,
    *  for the dashboard's period-filtered Lead→Sale Conversion tile. Optional
    *  and additive — every existing caller keeps returning all-time leads. */
@@ -56,7 +57,7 @@ export async function listLeads(orgId: string, filters: LeadFilters = {}): Promi
     .order("created_at", { ascending: false })
   if (filters.source) query = query.eq("source", filters.source)
   if (filters.enquiryType) query = query.eq("enquiry_type", filters.enquiryType)
-  if (filters.kind) query = query.eq("kind", filters.kind)
+  if (filters.kind) query = query.eq("kind_key", filters.kind)
   if (filters.ownerId) query = query.eq("owner_id", filters.ownerId)
   if (filters.customerId) query = query.eq("customer_id", filters.customerId)
   if (filters.dateRange) {
@@ -84,9 +85,10 @@ export async function createLead(row: {
   mobile: string | null
   source: string
   enquiry_type?: Enums<"enquiry_type"> | null
-  product_category?: Enums<"brand_category"> | null
+  /** Keys from the Masters lists; the database keeps the old enum columns in step for built-in keys. */
+  product_type_key?: string | null
   notes?: string | null
-  kind?: Enums<"lead_kind"> | null
+  kind_key?: string | null
   /** Products/spares picked from inventory; first one also fills the lead's scalar columns (back-compat, see lead_items migration). */
   items?: { product_id?: string; spare_id?: string; qty: number }[]
 }) {

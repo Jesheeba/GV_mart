@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
+import { useLeadKindOptions } from "@/hooks/useLeadLists"
 import { FollowupChip, PostponeBadge, StuckBadge } from "./FollowupBadges"
 import { rememberCall } from "@/lib/call-return"
 import { telHref } from "@/lib/lead-followups"
@@ -27,6 +28,7 @@ export function FollowupCard({
 }) {
   const { t, i18n } = useTranslation()
   const { label: sourceLabel } = useLeadSourceOptions()
+  const { label: kindLabel } = useLeadKindOptions()
   const lang = i18n.language
   const outcomeLabel = lang.startsWith("ta") && item.last_outcome_label_ta ? item.last_outcome_label_ta : item.last_outcome_label_en
   const call = { id: item.lead_id, name: item.lead_name, mobile: item.mobile, status: item.lead_status }
@@ -49,7 +51,7 @@ export function FollowupCard({
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         <StatusDot tone={item.lead_status === "new" ? "info" : "warning"} label={t(`leads.status.${item.lead_status}`)} className="[&>span:last-child]:text-xs" />
-        {item.kind ? <span>{t(`leads.kind.${item.kind}`)}</span> : null}
+        {item.kind ? <span>{kindLabel(item.kind)}</span> : null}
         {item.product_name ? <span className="font-medium text-text">{item.product_name}</span> : null}
         <span>{sourceLabel(item.source)}</span>
         <span className="inline-flex items-center gap-1" data-testid="assignee-chip">

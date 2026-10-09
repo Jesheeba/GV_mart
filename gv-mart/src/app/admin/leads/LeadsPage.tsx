@@ -12,6 +12,7 @@ import { useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
 import { NewLeadForm } from "./NewLeadForm"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
+import { useLeadKindOptions } from "@/hooks/useLeadLists"
 import { SourceBadge, TechnicianChip } from "./LeadBadges"
 import { FollowupCell } from "./FollowupBadges"
 import { useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
@@ -32,18 +33,18 @@ type QuickFilter = "" | "overdue" | "noFollowup" | "stuck"
 const QUICK_FILTERS: Exclude<QuickFilter, "">[] = ["overdue", "noFollowup", "stuck"]
 
 const TOPIC_OPTIONS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
-const KIND_OPTIONS: Enums<"lead_kind">[] = ["service", "spare", "product", "amc"]
 
 export function LeadsPage() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
   const { sources, label } = useLeadSourceOptions()
+  const { activeKinds, label: kindLabel } = useLeadKindOptions()
 
   const [view, setView] = useState<"table" | "kanban">("kanban")
   const [source, setSource] = useState<string>("")
   const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
-  const [kind, setKind] = useState<Enums<"lead_kind"> | "">("")
+  const [kind, setKind] = useState<string>("")
   const [search, setSearch] = useState("")
   const leads = useLeads(orgId, { source: source || undefined, enquiryType: enquiryType || undefined, kind: kind || undefined })
   const [showNew, setShowNew] = useState(false)
@@ -210,13 +211,13 @@ export function LeadsPage() {
         </select>
         <select
           value={kind}
-          onChange={(e) => setKind(e.target.value as Enums<"lead_kind"> | "")}
+          onChange={(e) => setKind(e.target.value)}
           className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
         >
           <option value="">{t("leads.filters.allKinds")}</option>
-          {KIND_OPTIONS.map((k) => (
-            <option key={k} value={k}>
-              {t(`leads.kind.${k}`)}
+          {activeKinds.map((k) => (
+            <option key={k.key} value={k.key}>
+              {kindLabel(k.key)}
             </option>
           ))}
         </select>
@@ -366,6 +367,7 @@ function LeadsTable({
   onToggle: (id: string) => void
 }) {
   const { t } = useTranslation()
+  const { label: kindLabel } = useLeadKindOptions()
 
   const headers = [
     t("leads.table.name"),
@@ -442,7 +444,7 @@ function LeadsTable({
             </span>
             <span className="text-[13px] font-medium text-text-muted">{r.mobile ?? r.customers?.mobile ?? "—"}</span>
             <SourceBadge source={r.source} />
-            <span className="text-[13px] font-medium text-text">{r.kind ? t(`leads.kind.${r.kind}`) : "—"}</span>
+            <span className="text-[13px] font-medium text-text">{r.kind_key ?? r.kind ? kindLabel((r.kind_key ?? r.kind)!) : "—"}</span>
             <span className="text-[13px] font-medium text-text">{r.enquiry_type ? t(`leads.enquiryType.${r.enquiry_type}`) : "—"}</span>
             <StatusDot
               tone={r.status === "won" ? "success" : r.status === "lost" ? "danger" : "warning"}

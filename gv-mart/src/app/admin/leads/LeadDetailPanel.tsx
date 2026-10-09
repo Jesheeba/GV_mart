@@ -16,7 +16,6 @@ import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { formatCurrency } from "@/lib/sale-calc"
 import { LOST_REASON_PRESETS, lostReasonLabel, type LostReasonPreset } from "@/lib/lead-lost-reasons"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
-import type { Enums } from "@/types/database"
 
 const QUOTATION_STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
 
@@ -30,7 +29,7 @@ type QuoteItemSeed = { productId: string | null; spareId: string | null; qty: nu
 // own full-price product line alongside the spare. Rows that end up with
 // neither id (e.g. a legacy lead whose spare was never resolved to a real
 // spare_id) are dropped — there is nothing priced to seed.
-function toQuoteItems(kind: Enums<"lead_kind"> | null, rows: QuoteItemSeed[]) {
+function toQuoteItems(kind: string | null, rows: QuoteItemSeed[]) {
   return rows
     .map((r) => ({ productId: kind === "spare" ? null : r.productId, spareId: r.spareId, qty: r.qty }))
     .filter((r) => r.productId || r.spareId)
@@ -96,7 +95,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
               // quotation cart; falls back to the lead's own scalar columns
               // for leads created before lead_items existed.
               items: toQuoteItems(
-                lead.kind,
+                lead.kind_key ?? lead.kind,
                 (lead.lead_items ?? []).length > 0
                   ? (lead.lead_items ?? []).map((li) => ({ productId: li.product_id, spareId: li.spare_id, qty: li.qty }))
                   : [{ productId: lead.product_id, spareId: lead.spare_id, qty: lead.qty }]
