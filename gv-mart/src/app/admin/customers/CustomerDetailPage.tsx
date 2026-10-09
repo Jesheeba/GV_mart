@@ -546,7 +546,7 @@ export function CustomerDetailPage() {
 
         <TabsContent value="family" className="mt-3.5">
           <Card size="default">
-            <FamilyMembersPanel orgId={orgId} customerId={customer.id} members={customer.customer_members} />
+            <FamilyMembersPanel orgId={orgId} customerId={customer.id} members={customer.customer_members} customerProfession={customer.profession} />
           </Card>
         </TabsContent>
 

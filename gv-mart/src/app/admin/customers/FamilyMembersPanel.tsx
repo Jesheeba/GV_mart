@@ -17,7 +17,7 @@ import type { MemberRow } from "@/services/customers"
  * relation field (relation is meaningless for "this customer's relation to
  * themselves" — matches MemberFieldRow's same isPrimary-gated behavior in
  * the create-mode form). */
-function MemberEditForm({ member, onDone }: { member: MemberRow; onDone: () => void }) {
+function MemberEditForm({ member, customerProfession, onDone }: { member: MemberRow; customerProfession?: string | null; onDone: () => void }) {
   const { t } = useTranslation()
   const updateMember = useUpdateMember(member.customer_id)
   const {
@@ -27,7 +27,14 @@ function MemberEditForm({ member, onDone }: { member: MemberRow; onDone: () => v
   } = useForm<MemberInput>({
     resolver: zodResolver(memberSchema),
     mode: "onChange",
-    defaultValues: { name: member.name, mobile: member.mobile, relation: member.relation ?? undefined, profession: member.profession ?? "" },
+    defaultValues: {
+      name: member.name,
+      mobile: member.mobile,
+      relation: member.relation ?? undefined,
+      // the primary member IS the customer: fall back to the customer-level profession older records kept
+      profession: member.profession ?? (member.is_primary ? customerProfession ?? "" : ""),
+      email: member.email ?? "",
+    },
   })
 
   const onSave = handleSubmit((values) => {
@@ -39,7 +46,9 @@ function MemberEditForm({ member, onDone }: { member: MemberRow; onDone: () => v
           mobile: values.mobile,
           relation: member.is_primary ? null : values.relation || null,
           profession: values.profession || null,
+          email: values.email || null,
         },
+        syncCustomer: member.is_primary ? { customerId: member.customer_id } : undefined,
       },
       { onSuccess: onDone }
     )
@@ -57,6 +66,15 @@ function MemberEditForm({ member, onDone }: { member: MemberRow; onDone: () => v
           {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
         </div>
       </div>
+      <div className="flex gap-2">
+        <div className="flex-1 space-y-1">
+          <Input placeholder={t("customers.form.memberProfession")} {...register("profession")} />
+        </div>
+        <div className="flex-1 space-y-1">
+          <Input type="email" placeholder={t("customers.form.memberEmail")} aria-invalid={!!errors.email} {...register("email")} />
+          {errors.email ? <p className="text-xs text-danger">{t(errors.email.message!)}</p> : null}
+        </div>
+      </div>
       {!member.is_primary ? (
         <select
           aria-label={t("customers.form.memberRelation")}
@@ -72,7 +90,6 @@ function MemberEditForm({ member, onDone }: { member: MemberRow; onDone: () => v
           ))}
         </select>
       ) : null}
-      <Input placeholder={t("customers.form.memberProfession")} {...register("profession")} />
       {updateMember.isError ? <p className="text-xs text-danger">{(updateMember.error as Error).message}</p> : null}
       <div className="flex justify-end gap-2">
         <Button type="button" size="sm" variant="ghost" onClick={onDone}>
@@ -96,10 +113,13 @@ export function FamilyMembersPanel({
   orgId,
   customerId,
   members,
+  customerProfession,
 }: {
   orgId: string | undefined
   customerId: string
   members: MemberRow[]
+  /** customers.profession — shown as the primary member's profession until they have their own. */
+  customerProfession?: string | null
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -174,7 +194,7 @@ export function FamilyMembersPanel({
               </span>
               <div className="min-w-0 flex-1">
                 {editingId === member.id ? (
-                  <MemberEditForm member={member} onDone={() => setEditingId(null)} />
+                  <MemberEditForm member={member} customerProfession={customerProfession} onDone={() => setEditingId(null)} />
                 ) : (
                 <>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -192,6 +212,7 @@ export function FamilyMembersPanel({
                 </div>
                 <div className="gv-tnum text-xs text-text-muted">{member.mobile}</div>
                 {member.profession ? <div className="text-xs text-text-muted">{member.profession}</div> : null}
+                {member.email ? <div className="text-xs text-text-muted break-all">{member.email}</div> : null}
 
                 {loggingReviewId === member.id ? (
                   <div className="mt-1 flex items-center gap-1">
@@ -329,6 +350,15 @@ export function FamilyMembersPanel({
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>
+          <div className="flex gap-2">
+            <div className="flex-1 space-y-1">
+              <Input placeholder={t("customers.form.memberProfession")} {...register("profession")} />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Input type="email" placeholder={t("customers.form.memberEmail")} aria-invalid={!!errors.email} {...register("email")} />
+              {errors.email ? <p className="text-xs text-danger">{t(errors.email.message!)}</p> : null}
+            </div>
+          </div>
           <select
             aria-label={t("customers.form.memberRelation")}
             defaultValue=""
@@ -342,7 +372,6 @@ export function FamilyMembersPanel({
               </option>
             ))}
           </select>
-          <Input placeholder={t("customers.form.memberProfession")} {...register("profession")} />
           {addMember.isError ? <p className="text-xs text-danger">{(addMember.error as Error).message}</p> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>

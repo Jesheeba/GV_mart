@@ -262,6 +262,17 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>
+          <div className="flex gap-2">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="member-profession">{t("customerApp.profile.memberProfession")}</Label>
+              <Input id="member-profession" placeholder={t("customerApp.profile.memberProfession")} {...register("profession")} />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="member-email">{t("customerApp.profile.memberEmail")}</Label>
+              <Input id="member-email" type="email" placeholder={t("customerApp.profile.memberEmail")} aria-invalid={!!errors.email} {...register("email")} />
+              {errors.email ? <p className="text-xs text-danger">{t(errors.email.message!)}</p> : null}
+            </div>
+          </div>
           {addMember.isError ? <p className="text-xs text-danger">{(addMember.error as Error).message}</p> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>

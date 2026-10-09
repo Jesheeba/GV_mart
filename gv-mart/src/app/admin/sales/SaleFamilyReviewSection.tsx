@@ -140,6 +140,15 @@ export function SaleFamilyReviewSection({ orgId, customerId }: { orgId: string |
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>
+          <div className="flex gap-2">
+            <div className="flex-1 space-y-1">
+              <Input placeholder={t("customers.form.memberProfession")} {...register("profession")} />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Input type="email" placeholder={t("customers.form.memberEmail")} aria-invalid={!!errors.email} {...register("email")} />
+              {errors.email ? <p className="text-xs text-danger">{t(errors.email.message!)}</p> : null}
+            </div>
+          </div>
           <select
             aria-label={t("customers.form.memberRelation")}
             defaultValue=""
@@ -153,7 +162,6 @@ export function SaleFamilyReviewSection({ orgId, customerId }: { orgId: string |
               </option>
             ))}
           </select>
-          <Input placeholder={t("customers.form.memberProfession")} {...register("profession")} />
           {addMember.isError ? <p className="text-xs text-danger">{(addMember.error as Error).message}</p> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>

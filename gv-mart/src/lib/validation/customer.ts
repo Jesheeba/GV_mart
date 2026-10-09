@@ -3,6 +3,8 @@ import { z } from "zod"
 // Indian mobile: 10 digits, starts 6-9.
 const MOBILE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
+// Same loose shape as the customer_members_email_format check constraint.
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 // Mirrors the public.family_relation Postgres enum (migration
 // 20260703130000_family_member_relation.sql). Only meaningful for
@@ -31,6 +33,8 @@ export const memberSchema = z.object({
     .optional()
     .transform((v) => (v === "" ? undefined : v)),
   profession: z.string().trim().max(80).optional().or(z.literal("")),
+  // Optional. Field order on every member form: Name, Number, Profession, Email.
+  email: z.string().trim().max(254).refine((v) => v === "" || EMAIL_REGEX.test(v), "customers.errors.emailInvalid").optional(),
 })
 // react-hook-form types form state from the schema's *input* shape (what the
 // user can actually type/select, including relation:"" before transform),

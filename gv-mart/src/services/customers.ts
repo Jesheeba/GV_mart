@@ -13,6 +13,8 @@ export type MemberRow = Tables<"customer_members"> & {
   relation: FamilyRelation | null
   moved_out_at: string | null
   profession: string | null
+  /** Optional member email (20261012110000_customer_member_email.sql). */
+  email: string | null
   google_review_stars: number | null
   google_review_logged_at: string | null
   // Technician KPI review attribution (2026-09-22) — see
@@ -360,7 +362,7 @@ export type CreateCustomerInput = {
   orgId: string
   profession?: string
   source?: string
-  members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation }[]
+  members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation; profession?: string; email?: string }[]
   address: {
     doorNo?: string
     buildingNo?: string
@@ -386,7 +388,14 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
     // parameter accepts null (a generator limitation, not a real constraint).
     p_profession: input.profession || "",
     p_source: input.source ?? "other",
-    p_members: input.members.map((m) => ({ name: m.name, mobile: m.mobile, is_primary: m.isPrimary, relation: m.relation ?? null })),
+    p_members: input.members.map((m) => ({
+      name: m.name,
+      mobile: m.mobile,
+      is_primary: m.isPrimary,
+      relation: m.relation ?? null,
+      profession: m.profession?.trim() || null,
+      email: m.email?.trim() || null,
+    })),
     p_address: {
       door_no: input.address.doorNo ?? "",
       building_no: input.address.buildingNo ?? "",
@@ -450,11 +459,11 @@ export async function clearCustomerNeedsSetup(id: string) {
 export async function addMember(
   orgId: string,
   customerId: string,
-  member: { name: string; mobile: string; relation?: FamilyRelation; profession?: string | null }
+  member: { name: string; mobile: string; relation?: FamilyRelation; profession?: string | null; email?: string | null }
 ) {
   const { data, error } = await supabase
     .from("customer_members")
-    // `relation`/`profession` aren't in the generated Insert type yet (see MemberRow comment) — same
+    // `relation`/`profession`/`email` aren't in the generated Insert type yet (see MemberRow comment) — same
     // locally-extended-row precedent, cast narrows back to `never` only on this one call.
     .insert({
       org_id: orgId,
@@ -464,6 +473,7 @@ export async function addMember(
       is_primary: false,
       relation: member.relation ?? null,
       profession: member.profession || null,
+      email: member.email?.trim() || null,
     } as never)
     .select()
     .single()
@@ -473,17 +483,23 @@ export async function addMember(
 
 export async function updateMember(
   memberId: string,
-  member: { name: string; mobile: string; relation?: FamilyRelation | null; profession?: string | null }
+  member: { name: string; mobile: string; relation?: FamilyRelation | null; profession?: string | null; email?: string | null },
+  // The primary member IS the customer: keep customers.profession in step with theirs.
+  syncCustomer?: { customerId: string }
 ) {
   const { data, error } = await supabase
     .from("customer_members")
     // Same locally-extended-row cast as addMember above — relation/profession
     // aren't in the generated Update type yet either.
-    .update({ name: member.name, mobile: member.mobile, relation: member.relation ?? null, profession: member.profession || null } as never)
+    .update({ name: member.name, mobile: member.mobile, relation: member.relation ?? null, profession: member.profession || null, email: member.email?.trim() || null } as never)
     .eq("id", memberId)
     .select()
     .single()
   if (error) throw error
+  if (syncCustomer) {
+    const { error: profErr } = await supabase.from("customers").update({ profession: member.profession || "" }).eq("id", syncCustomer.customerId)
+    if (profErr) throw profErr
+  }
   return data as unknown as MemberRow
 }
 

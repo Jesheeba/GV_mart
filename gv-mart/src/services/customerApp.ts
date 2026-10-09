@@ -138,10 +138,10 @@ export async function deleteMyAddress(addressId: string) {
 
 // ── Family members (CUST-08, max 5 — same trigger as admin side) ─────────
 
-export async function addMyMember(orgId: string, customerId: string, member: { name: string; mobile: string }) {
+export async function addMyMember(orgId: string, customerId: string, member: { name: string; mobile: string; profession?: string; email?: string }) {
   const { data, error } = await supabase
     .from("customer_members")
-    .insert({ org_id: orgId, customer_id: customerId, name: member.name, mobile: member.mobile, is_primary: false })
+    .insert({ org_id: orgId, customer_id: customerId, name: member.name, mobile: member.mobile, is_primary: false, profession: member.profession?.trim() || null, email: member.email?.trim() || null } as never)
     .select()
     .single()
   if (error) throw error

@@ -33,7 +33,6 @@ import {
   useCustomer,
   useMobileDuplicateCheck,
   usePincodeLookup,
-  useUpdateCustomerProfession,
   useUpsertPrimaryAddress,
 } from "@/hooks/useCustomers"
 
@@ -92,6 +91,20 @@ function MemberFieldRow({
           {dup.data ? (
             <p className="text-xs text-warning">{t("customers.form.duplicateWarning", { name: dup.data.name })}</p>
           ) : null}
+        </div>
+      </div>
+      <div className="mt-2 flex gap-2">
+        <div className="flex-1 space-y-1">
+          <Input placeholder={t("customers.form.memberProfession")} {...register(`members.${index}.profession`)} />
+        </div>
+        <div className="flex-1 space-y-1">
+          <Input
+            type="email"
+            placeholder={t("customers.form.memberEmail")}
+            aria-invalid={!!errors.members?.[index]?.email}
+            {...register(`members.${index}.email`)}
+          />
+          {errors.members?.[index]?.email ? <p className="text-xs text-danger">{t(errors.members[index]!.email!.message!)}</p> : null}
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -329,7 +342,6 @@ export function CustomerFormPage() {
   }, [mode, existing.data])
 
   const createCustomer = useCreateCustomer()
-  const updateProfession = useUpdateCustomerProfession(id ?? "")
   const upsertAddress = useUpsertPrimaryAddress(orgId, id ?? "")
 
   if (mode === "edit" && existing.isLoading) return <FullPageLoader label={t("common.loading")} />
@@ -360,12 +372,15 @@ export function CustomerFormPage() {
       const peopleValues = peopleForm.getValues()
       const newId = await createCustomer.mutateAsync({
         orgId: orgId!,
-        profession: peopleValues.profession,
+        // The primary member's own profession becomes the customer's (the RPC also falls back to it).
+        profession: peopleValues.members[peopleValues.primaryIndex]?.profession?.trim() || undefined,
         members: peopleValues.members.map((m, i) => ({
           name: m.name,
           mobile: m.mobile,
           isPrimary: i === peopleValues.primaryIndex,
           relation: i === peopleValues.primaryIndex ? undefined : m.relation || undefined,
+          profession: m.profession?.trim() || undefined,
+          email: m.email?.trim() || undefined,
         })),
         address: {
           doorNo: addressValues.doorNo,
@@ -401,9 +416,7 @@ export function CustomerFormPage() {
       return
     }
 
-    // edit mode
-    const profession = peopleForm.getValues("profession")
-    await updateProfession.mutateAsync(profession ?? "")
+    // edit mode (profession is edited per member now; the primary member's change also updates the customer)
     const existingAddressId = existing.data!.addresses.find((a) => a.is_primary)?.id ?? existing.data!.addresses[0]?.id ?? null
     // Blank address on a customer with none stays "needs setup" — no empty row.
     if (existingAddressId || hasAddressText(addressValues)) {
@@ -412,7 +425,7 @@ export function CustomerFormPage() {
     navigate(`/admin/customers/${id}`)
   }
 
-  const isSaving = createCustomer.isPending || updateProfession.isPending || upsertAddress.isPending
+  const isSaving = createCustomer.isPending || upsertAddress.isPending
   const saveError = (createCustomer.error ?? upsertAddress.error) as Error | null
 
   return (
@@ -427,11 +440,6 @@ export function CustomerFormPage() {
 
       {step === 0 ? (
         <Card className="gap-4 px-5">
-          <div className="space-y-1.5 px-1">
-            <Label htmlFor="profession">{t("customers.form.profession")}</Label>
-            <Input id="profession" placeholder={t("customers.form.professionPlaceholder")} {...peopleForm.register("profession")} />
-          </div>
-
           {mode === "create" ? (
             <div className="space-y-2 px-1">
               <div className="flex items-center justify-between">
@@ -475,7 +483,7 @@ export function CustomerFormPage() {
               ) : null}
             </div>
           ) : (
-            <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} />
+            <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
           )}
         </Card>
       ) : (

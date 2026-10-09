@@ -36,9 +36,12 @@ export type CustomerAddressInput = z.infer<typeof customerAddressSchema>
 // ── CUST-08 Profile: family member (mirrors ADM-04, max 5 enforced by the
 // existing DB trigger + a client-side count check in the hook) ───────────
 const MOBILE_REGEX = /^[6-9]\d{9}$/
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 export const customerMemberSchema = z.object({
   name: z.string().trim().min(2, "customerApp.errors.nameRequired"),
   mobile: z.string().regex(MOBILE_REGEX, "customerApp.errors.mobileInvalid"),
+  profession: z.string().trim().max(80).optional().or(z.literal("")),
+  email: z.string().trim().max(254).refine((v) => v === "" || EMAIL_REGEX.test(v), "customerApp.errors.emailInvalid").optional(),
 })
 export type CustomerMemberInput = z.infer<typeof customerMemberSchema>
 

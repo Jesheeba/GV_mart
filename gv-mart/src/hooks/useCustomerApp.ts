@@ -110,7 +110,7 @@ export function useDeleteMyAddress(customerId: string | undefined) {
 export function useAddMyMember(orgId: string | undefined, customerId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (member: { name: string; mobile: string }) => api.addMyMember(orgId!, customerId!, member),
+    mutationFn: (member: { name: string; mobile: string; profession?: string; email?: string }) => api.addMyMember(orgId!, customerId!, member),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customerApp", "record", customerId] }),
   })
 }
