@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
 import { useRepeatComplaintCustomers, useTicketsList } from "@/hooks/useService"
-import { isUnassignedRow, type TicketFiltersInput, type TicketListItem } from "@/services/service"
-import { isTicketOverdue } from "@/lib/ticketOverdue"
+import type { TicketFiltersInput, TicketListItem } from "@/services/service"
+import { PRIMARY_FILTERS, countByPrimaryFilter, filterTickets, isMissingProduct, type PrimaryFilter } from "@/lib/ticketFilters"
 import { cn } from "@/lib/utils"
 import { SlaCountdown } from "./SlaCountdown"
 import { ChannelBadge, PriorityText, TicketTypeBadge } from "./TicketBadges"
@@ -18,18 +18,20 @@ import { TicketsKanban } from "./TicketsKanban"
 const TABLE_GRID_COLS =
   "grid-cols-[minmax(90px,0.95fr)_minmax(150px,1.5fr)_minmax(140px,1.5fr)_minmax(70px,0.8fr)_minmax(70px,0.6fr)_minmax(110px,1.1fr)_minmax(120px,1.1fr)_minmax(100px,1fr)]"
 
-function isMissingProductRow(r: TicketListItem) {
-  return !r.product_id && !r.unlisted_product_name
-}
-
-// Everything this page fetches gets partitioned into Open/Overdue/Completed/
-// Cancelled client-side (see visibleRows below), so the server-side status
-// filter is never used here — that keeps the chip counts accurate no matter
-// which tab is active, instead of only being accurate for whichever status
-// the last request happened to narrow to.
+// Everything this page fetches gets partitioned client-side (see
+// src/lib/ticketFilters.ts), so the server-side status filter is never used
+// here — that keeps the chip counts accurate no matter which tab is active,
+// instead of only being accurate for whichever status the last request
+// happened to narrow to.
 const NO_SERVER_FILTERS: TicketFiltersInput = {}
 
-type PrimaryFilter = "open" | "overdue" | "completed" | "cancelled"
+const FILTER_LABEL_KEYS: Record<PrimaryFilter, string> = {
+  overdue: "service.quickFilters.overdue",
+  unassigned: "service.quickFilters.unassigned",
+  pending: "service.quickFilters.pending",
+  cancelled: "service.status.cancelled",
+  completed: "service.status.completed",
+}
 
 export function TicketsListPage() {
   const { t } = useTranslation()
@@ -38,11 +40,9 @@ export function TicketsListPage() {
   const orgId = profile?.org_id
 
   const [view, setView] = useState<"table" | "kanban">("table")
-  const [primaryFilter, setPrimaryFilter] = useState<PrimaryFilter>("open")
-  // Independent toggles — AND with the primary filter instead of being
-  // mutually exclusive with it, so "overdue tickets with no technician" is
-  // still expressible.
-  const [unassignedOnly, setUnassignedOnly] = useState(false)
+  const [primaryFilter, setPrimaryFilter] = useState<PrimaryFilter>("pending")
+  // Independent toggle — ANDs with the primary filter instead of being
+  // mutually exclusive with it.
   const [missingProductOnly, setMissingProductOnly] = useState(false)
 
   const { data: rows, isLoading, isError, refetch } = useTicketsList(orgId, NO_SERVER_FILTERS)
@@ -51,30 +51,19 @@ export function TicketsListPage() {
   const allRows = useMemo(() => rows ?? [], [rows])
   const now = Date.now()
 
-  const openCount = allRows.filter((r) => r.status !== "completed" && r.status !== "cancelled").length
-  const overdueCount = allRows.filter((r) => isTicketOverdue(r, now)).length
-  const completedCount = allRows.filter((r) => r.status === "completed").length
-  const cancelledCount = allRows.filter((r) => r.status === "cancelled").length
-  const unassignedCount = allRows.filter(isUnassignedRow).length
-  const missingProductCount = allRows.filter(isMissingProductRow).length
+  // Chip counts and the visible list come from the same predicates
+  // (ticketFilters.ts), so a chip's number always equals its list length.
+  const counts = countByPrimaryFilter(allRows, now)
+  const missingProductCount = allRows.filter(isMissingProduct).length
 
-  const visibleRows = useMemo(() => {
-    let out = allRows
-    if (primaryFilter === "open" || primaryFilter === "overdue") {
-      out = out.filter((r) => r.status !== "completed" && r.status !== "cancelled")
-      if (primaryFilter === "overdue") out = out.filter((r) => isTicketOverdue(r, now))
-    } else {
-      out = out.filter((r) => r.status === primaryFilter)
-    }
-    if (unassignedOnly) out = out.filter(isUnassignedRow)
-    if (missingProductOnly) out = out.filter(isMissingProductRow)
-    return out
-  }, [allRows, primaryFilter, unassignedOnly, missingProductOnly, now])
+  const visibleRows = useMemo(
+    () => filterTickets(allRows, primaryFilter, now, { missingProductOnly }),
+    [allRows, primaryFilter, missingProductOnly, now]
+  )
 
-  const hasActiveFilters = primaryFilter !== "open" || unassignedOnly || missingProductOnly
+  const hasActiveFilters = primaryFilter !== "pending" || missingProductOnly
   function clearAllFilters() {
-    setPrimaryFilter("open")
-    setUnassignedOnly(false)
+    setPrimaryFilter("pending")
     setMissingProductOnly(false)
   }
 
@@ -84,7 +73,7 @@ export function TicketsListPage() {
         <div>
           <h1 className="text-2xl font-bold text-text">{t("nav.service")}</h1>
           <p className="text-sm font-medium text-text-muted">
-            {isLoading ? t("service.subtitle") : t("service.stats", { open: openCount, overdue: overdueCount })}
+            {isLoading ? t("service.subtitle") : t("service.stats", { open: counts.pending, overdue: counts.overdue })}
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -130,32 +119,29 @@ export function TicketsListPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
-        <QuickFilterChip active={primaryFilter === "open"} onClick={() => setPrimaryFilter("open")}>
-          {t("service.quickFilters.allOpen")} · {openCount}
-        </QuickFilterChip>
-        <button
-          type="button"
-          onClick={() => setPrimaryFilter("overdue")}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full bg-[#FCEAEA] px-[15px] py-2 text-xs font-semibold text-danger",
-            primaryFilter === "overdue" ? "outline outline-2 outline-danger" : ""
-          )}
-        >
-          <span className="size-1.5 rounded-full bg-danger" />
-          {t("service.quickFilters.overdue")} · {overdueCount}
-        </button>
-        <QuickFilterChip active={primaryFilter === "completed"} onClick={() => setPrimaryFilter("completed")}>
-          {t("service.status.completed")} · {completedCount}
-        </QuickFilterChip>
-        <QuickFilterChip active={primaryFilter === "cancelled"} onClick={() => setPrimaryFilter("cancelled")}>
-          {t("service.status.cancelled")} · {cancelledCount}
-        </QuickFilterChip>
+        {PRIMARY_FILTERS.map((f) =>
+          f === "overdue" ? (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setPrimaryFilter(f)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full bg-[#FCEAEA] px-[15px] py-2 text-xs font-semibold text-danger",
+                primaryFilter === f ? "outline outline-2 outline-danger" : ""
+              )}
+            >
+              <span className="size-1.5 rounded-full bg-danger" />
+              {t("service.quickFilters.overdue")} · {counts.overdue}
+            </button>
+          ) : (
+            <QuickFilterChip key={f} active={primaryFilter === f} onClick={() => setPrimaryFilter(f)}>
+              {t(FILTER_LABEL_KEYS[f])} · {counts[f]}
+            </QuickFilterChip>
+          )
+        )}
 
         <span className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
 
-        <QuickFilterChip active={unassignedOnly} onClick={() => setUnassignedOnly((v) => !v)}>
-          {t("service.quickFilters.unassigned")} · {unassignedCount}
-        </QuickFilterChip>
         <QuickFilterChip active={missingProductOnly} onClick={() => setMissingProductOnly((v) => !v)}>
           {t("service.quickFilters.missingProduct")} · {missingProductCount}
         </QuickFilterChip>
@@ -278,7 +264,11 @@ function TicketsTable({
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") onRowClick(r)
             }}
-            className={cn("grid cursor-pointer items-center border-b border-border px-[22px] py-[14px] last:border-b-0 hover:bg-surface-alt", TABLE_GRID_COLS)}
+            className={cn(
+              "grid cursor-pointer items-center border-b border-border px-[22px] py-[14px] last:border-b-0",
+              r.status === "completed" ? "bg-success/10 hover:bg-success/20" : "hover:bg-surface-alt",
+              TABLE_GRID_COLS
+            )}
           >
             <div className="leading-tight">
               <div className="flex items-center gap-1.5">
