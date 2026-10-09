@@ -1587,7 +1587,7 @@
       "whatsapp": "WhatsApp",
       "walk_in": "Walk-in",
       "customer_app": "Customer app",
-      "field": "Field"
+      "field": "Technician"
     },
     "appointment": {
       "always": "Always"
@@ -3108,7 +3108,7 @@
       "lost": "Lost"
     },
     "source": {
-      "field": "Field",
+      "field": "Technician",
       "customer_app": "Customer app",
       "whatsapp": "WhatsApp",
       "walk_in": "Walk-in",
