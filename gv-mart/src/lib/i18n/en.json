@@ -75,7 +75,7 @@
     "complaints": "Complaints",
     "returns": "Returns",
     "auditLog": "Audit Log",
-    "myDay": "My Day"
+    "myDay": "Daily Follow Up"
   },
   "auth": {
     "heroTitle": "Sign in to your workspace",
@@ -3178,7 +3178,7 @@
       "deletedToast": "Lead deleted",
       "changeStage": "Change stage",
       "backToLeads": "Back to Leads",
-      "backToMyDay": "Back to My Day",
+      "backToMyDay": "Back to Daily Follow Up",
       "notFound": "This lead no longer exists (it may have been moved to Customers or deleted).",
       "reopen": "Reopen lead",
       "addNote": "Add note",
@@ -3241,7 +3241,7 @@
       }
     },
     "myDay": {
-      "title": "My Day",
+      "title": "Daily Follow Up",
       "subtitle": "Follow-ups for {{date}} (IST)",
       "tab": {
         "overdue": "Overdue",
@@ -3263,7 +3263,7 @@
         "none": "Every open lead has a follow-up."
       },
       "loadFailed": "Couldn't load follow-ups.",
-      "badgeTitle": "{{overdue}} overdue, {{today}} due today"
+      "badgeTitle": "Daily Follow Up: {{overdue}} overdue, {{today}} due today"
     },
     "followup": {
       "none": "No follow-up",
