@@ -1624,7 +1624,7 @@
     "newComplaint": {
       "title": "New Complaint",
       "stepCustomer": "Customer",
-      "stepEquipment": "Equipment",
+      "stepProduct": "Equipment",
       "stepComplaint": "Complaint",
       "stepType": "Type",
       "stepPriority": "Priority",
@@ -1652,7 +1652,7 @@
       },
       "nameOfComplaint": "Name of complaint",
       "nameOfComplaintPlaceholder": "e.g. Water flow stopped, Not cooling",
-      "natureOfComplaint": "Nature of complaint (optional)",
+      "natureOfComplaint": "Complaint description (optional)",
       "natureOfComplaintPlaceholder": "e.g. Issue observed for past 2 days",
       "natureOfComplaintHint": "Additional details to help the technician.",
       "priority": "Priority",
@@ -1667,7 +1667,7 @@
         "autosaveNote": "Everything you enter here is saved on this device automatically.",
         "restoredNote": "Restored your saved draft for this complaint.",
         "discard": "Discard draft",
-        "discardWarning": "This clears everything you've entered on this device for this complaint (customer, equipment, details, appointment). Nothing already saved to the server is affected.",
+        "discardWarning": "This clears everything you've entered on this device for this complaint (customer, product, details, appointment). Nothing already saved to the server is affected.",
         "confirmDiscard": "Yes, discard"
       }
     },
