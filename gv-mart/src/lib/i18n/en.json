@@ -1624,7 +1624,7 @@
     "newComplaint": {
       "title": "New Complaint",
       "stepCustomer": "Customer",
-      "stepProduct": "Equipment",
+      "stepEquipment": "Product",
       "stepComplaint": "Complaint",
       "stepType": "Type",
       "stepPriority": "Priority",
