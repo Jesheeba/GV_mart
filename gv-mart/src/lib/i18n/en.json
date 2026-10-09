@@ -432,6 +432,7 @@
       "memberRelation": "Relation",
       "memberRelationPlaceholder": "Relation to primary contact",
       "memberProfession": "Profession (e.g. Teacher, Shop Owner)",
+      "memberEmail": "Email (optional)",
       "relation": {
         "spouse": "Spouse",
         "son": "Son",
@@ -484,6 +485,7 @@
     "errors": {
       "nameRequired": "Enter a name (at least 2 characters)",
       "mobileInvalid": "Enter a valid 10-digit mobile number",
+      "emailInvalid": "Enter a valid email address",
       "memberRequired": "Add at least one member",
       "memberMax": "A customer can have at most 5 members",
       "doorNoRequired": "Door/Flat number is required",
@@ -2082,6 +2084,7 @@
       "pincodeInvalid": "Enter a valid 6-digit PIN code",
       "nameRequired": "Enter a name (at least 2 characters)",
       "mobileInvalid": "Enter a valid 10-digit mobile number",
+      "emailInvalid": "Enter a valid email address",
       "addressRequired": "Select an address",
       "complaintRequired": "Describe the complaint (at least 3 characters)",
       "scheduledAtRequired": "Please pick a date and time",
@@ -2130,6 +2133,8 @@
       "addMember": "Add member",
       "noMembers": "No family members added yet.",
       "memberName": "Name",
+      "memberProfession": "Profession (optional)",
+      "memberEmail": "Email (optional)",
       "memberMobile": "Mobile number"
     },
     "addressPicker": {

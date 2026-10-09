@@ -18,3 +18,6 @@ English is approved; Tamil is a draft until a Tamil speaker signs it off. Delete
 | `masters.leadProductTypes.*` | Product type name, Add product type, hint and error texts (see ta.json) | பொருள் வகையின் பெயர், பொருள் வகையைச் சேர் … | ii |
 | seed: kind "Warranty" (`lead_kinds.label_ta`) | Warranty | உத்தரவாதம் (matches the existing AMC/warranty wording) | ii |
 | seed: product type "Multigrade" (`lead_product_types.label_ta`) | Multigrade | மல்டிகிரேட் (transliteration) | ii |
+| `customers.form.memberEmail`, `customerApp.profile.memberEmail` | Email (optional) | மின்னஞ்சல் (விருப்பம்) | iii |
+| `customers.errors.emailInvalid`, `customerApp.errors.emailInvalid` | Enter a valid email address | சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும் | iii |
+| `customerApp.profile.memberProfession` | Profession (optional) | தொழில் (விருப்பம்) | iii |
