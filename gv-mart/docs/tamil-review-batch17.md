@@ -12,3 +12,9 @@ English is approved; Tamil is a draft until a Tamil speaker signs it off. Delete
 | `service.newComplaint.stepEquipment` | Product | பொருள் | i |
 | `service.newComplaint.discardWarning` | …(customer, product, details, appointment)… | …(வாடிக்கையாளர், பொருள், விவரங்கள், நியமனம்)… | i |
 | `service.newComplaint.natureOfComplaint` | Complaint description (optional) | புகார் விவரம் (விருப்பம்) | i |
+| `masters.tabs.leadKinds` / `masters.overview.leadKindsDesc` | Lead Kinds / {{count}} kinds | லீட் வகைகள் / {{count}} வகைகள் | ii |
+| `masters.tabs.leadProductTypes` / `masters.overview.leadProductTypesDesc` | Lead Product Types / {{count}} product types | லீட் பொருள் வகைகள் / {{count}} பொருள் வகைகள் | ii |
+| `masters.leadKinds.*` | Kind name, Tamil name (optional), Built-in, Custom, Add kind, hint and error texts (see ta.json) | வகையின் பெயர், தமிழ் பெயர் (விருப்பம்), உள்ளமைந்தது, தனிப்பயன், வகையைச் சேர் … | ii |
+| `masters.leadProductTypes.*` | Product type name, Add product type, hint and error texts (see ta.json) | பொருள் வகையின் பெயர், பொருள் வகையைச் சேர் … | ii |
+| seed: kind "Warranty" (`lead_kinds.label_ta`) | Warranty | உத்தரவாதம் (matches the existing AMC/warranty wording) | ii |
+| seed: product type "Multigrade" (`lead_product_types.label_ta`) | Multigrade | மல்டிகிரேட் (transliteration) | ii |
