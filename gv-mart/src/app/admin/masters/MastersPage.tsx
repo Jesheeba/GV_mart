@@ -48,6 +48,7 @@ import { WaterQualityTab } from "./WaterQualityTab"
 import { LeadSourcesTab } from "./LeadSourcesTab"
 import { LeadKindsTab } from "./LeadKindsTab"
 import { LeadProductTypesTab } from "./LeadProductTypesTab"
+import { PostServiceCallsTab } from "./PostServiceCallsTab"
 import { LeadOutcomesTab } from "./LeadOutcomesTab"
 import { useLeadOutcomes } from "@/hooks/useLeadFollowups"
 
@@ -71,6 +72,7 @@ type ModuleId =
   | "leadSources"
   | "leadKinds"
   | "leadProductTypes"
+  | "postService"
   | "leadOutcomes"
   | "settings"
   | "paymentSettings"
@@ -163,6 +165,7 @@ export function MastersPage() {
       title: t("masters.tabs.leadProductTypes"),
       desc: t("masters.overview.leadProductTypesDesc", { count: leadProductTypes?.length ?? 0 }),
     },
+    { id: "postService", icon: PhoneCall, swatch: "info", title: t("masters.tabs.postService"), desc: t("masters.overview.postServiceDesc") },
     { id: "leadOutcomes", icon: PhoneCall, swatch: "green", title: t("masters.tabs.leadOutcomes"), desc: t("masters.overview.leadOutcomesDesc", { count: leadOutcomes?.length ?? 0 }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
     { id: "paymentSettings", icon: QrCode, swatch: "green", title: t("masters.tabs.paymentSettings"), desc: t("masters.overview.paymentSettingsDesc") },
@@ -256,6 +259,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="leadProductTypes">
             <LeadProductTypesTab />
+          </TabsContent>
+          <TabsContent value="postService">
+            <PostServiceCallsTab />
           </TabsContent>
           <TabsContent value="leadOutcomes">
             <LeadOutcomesTab />

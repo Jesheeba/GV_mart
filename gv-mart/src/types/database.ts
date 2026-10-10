@@ -4941,7 +4941,11 @@ export type Database = {
         Row: {
           id: string
           org_id: string
-          lead_id: string
+          lead_id: string | null
+          // post-service follow-ups (20261014100000): exactly one of lead_id / ticket_id
+          ticket_id: string | null
+          customer_id: string | null
+          assigned_to: string | null
           due_at: string
           type: Database["public"]["Enums"]["lead_followup_type"]
           is_exact_time: boolean
@@ -4974,6 +4978,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      post_service_outcomes: {
+        Row: {
+          id: string
+          org_id: string
+          code: string
+          label_en: string
+          label_ta: string
+          retry: boolean
+          alert: boolean
+          is_active: boolean
+          is_system: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          code: string
+          label_en: string
+          label_ta: string
+          retry?: boolean
+          alert?: boolean
+          is_active?: boolean
+          is_system?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          code?: string
+          label_en?: string
+          label_ta?: string
+          retry?: boolean
+          alert?: boolean
+          is_active?: boolean
+          is_system?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      post_service_calls: {
+        Row: {
+          id: string
+          org_id: string
+          followup_id: string
+          ticket_id: string
+          customer_id: string | null
+          outcome_id: string
+          outcome_code: string
+          note: string | null
+          called_by: string | null
+          called_at: string
+        }
+        // Read-only from the client: written by log_post_service_call.
+        Insert: never
+        Update: never
+        Relationships: []
       }
       lead_items: {
         Row: {
@@ -5701,6 +5768,11 @@ export type Database = {
           work_end: string
           lead_work_days: number[]
           lead_work_start: string
+          post_service_followup_enabled: boolean
+          post_service_followup_days: number
+          post_service_followup_assignee: string | null
+          post_service_ticket_types: string[]
+          post_service_dedupe_days: number
           lead_work_end: string
           lead_stuck_postpones: number
           lead_reminder_minutes: number
@@ -5781,6 +5853,11 @@ export type Database = {
           work_end?: string
           lead_work_days?: number[]
           lead_work_start?: string
+          post_service_followup_enabled?: boolean
+          post_service_followup_days?: number
+          post_service_followup_assignee?: string | null
+          post_service_ticket_types?: string[]
+          post_service_dedupe_days?: number
           lead_work_end?: string
           lead_stuck_postpones?: number
           lead_reminder_minutes?: number
@@ -5844,6 +5921,11 @@ export type Database = {
           work_end?: string
           lead_work_days?: number[]
           lead_work_start?: string
+          post_service_followup_enabled?: boolean
+          post_service_followup_days?: number
+          post_service_followup_assignee?: string | null
+          post_service_ticket_types?: string[]
+          post_service_dedupe_days?: number
           lead_work_end?: string
           lead_stuck_postpones?: number
           lead_reminder_minutes?: number
@@ -7052,6 +7134,35 @@ export type Database = {
       add_lead_note: {
         Args: { p_lead_id: string; p_note: string | null; p_type?: string }
         Returns: string
+      }
+      list_post_service_followups: {
+        Args: { p_bucket?: string; p_scope?: string; p_assignee?: string | null }
+        Returns: {
+          followup_id: string
+          ticket_id: string
+          customer_id: string
+          customer_name: string
+          mobile: string | null
+          complaint: string | null
+          ticket_type: string | null
+          product_name: string | null
+          created_at: string
+          due_at: string
+          note: string | null
+          bucket: string
+          assignee_id: string | null
+          assignee_name: string | null
+          attempts: number
+          last_outcome_code: string | null
+          last_outcome_label_en: string | null
+          last_outcome_label_ta: string | null
+          last_outcome_note: string | null
+          last_outcome_at: string | null
+        }[]
+      }
+      log_post_service_call: {
+        Args: { p_followup_id: string; p_outcome_id: string; p_note?: string | null; p_next_due_at?: string | null }
+        Returns: Json
       }
       list_followups: {
         Args: {

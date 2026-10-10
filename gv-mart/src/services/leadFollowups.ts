@@ -75,7 +75,7 @@ export type FollowupFilters = {
   scope?: FollowupScope
 }
 
-function scopeArgs(scope: FollowupScope | undefined): { p_scope?: string; p_assignee?: string } {
+export function scopeArgs(scope: FollowupScope | undefined): { p_scope?: string; p_assignee?: string } {
   if (!scope || scope === "auto") return {}
   if (scope.startsWith("person:")) return { p_scope: "person", p_assignee: scope.slice(7) }
   return { p_scope: scope }

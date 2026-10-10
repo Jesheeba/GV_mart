@@ -13,6 +13,11 @@ import { SetFollowupDialog } from "./SetFollowupDialog"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeadKindOptions } from "@/hooks/useLeadLists"
 import { FollowupCard } from "./FollowupCard"
+import { PostServiceCard } from "./PostServiceCard"
+import { PostServiceCallSheet } from "./PostServiceCallSheet"
+import { usePostServiceFollowups } from "@/hooks/usePostServiceFollowups"
+import { mergeBuckets, postServiceVisible } from "@/lib/daily-followup-merge"
+import type { PostServiceFollowupItem } from "@/services/postServiceFollowups"
 import { LogOutcomeSheet } from "./LogOutcomeSheet"
 import { RescheduleDialog } from "./RescheduleDialog"
 import { formatIstDate, getIstNow } from "@/lib/lead-followups"
@@ -54,17 +59,18 @@ export function MyDayPage() {
 
   const [outcomeFor, setOutcomeFor] = useState<FollowupListItem | null>(null)
   const [rescheduleFor, setRescheduleFor] = useState<FollowupListItem | null>(null)
+  const [postCallFor, setPostCallFor] = useState<PostServiceFollowupItem | null>(null)
 
   const list = useFollowups({ bucket: "all", stage: stage || undefined, source: source || undefined, kind: kind || undefined, stuckOnly, scope })
 
   const none = useLeadsWithoutFollowup({ stage: stage || undefined, source: source || undefined, kind: kind || undefined, scope })
   const noneRows = none.data ?? []
 
-  const byBucket = useMemo(() => {
-    const out: Record<FollowupBucket, FollowupListItem[]> = { overdue: [], today: [], upcoming: [] }
-    for (const r of list.data ?? []) if (r.bucket in out) out[r.bucket as FollowupBucket].push(r)
-    return out
-  }, [list.data])
+  // Post-service calls (item 13) come from their own function and are merged in by due time. An error there (e.g. the
+  // function not deployed yet) just means "no post-service calls" — it must never take the lead list down with it.
+  const postService = usePostServiceFollowups(scope, role)
+  const showPostService = postServiceVisible({ stage, source, kind, stuckOnly })
+  const byBucket = useMemo(() => mergeBuckets(list.data, showPostService ? postService.data : undefined), [list.data, postService.data, showPostService])
 
   // nothing due, but leads waiting to be scheduled: land on them so they are never out of sight
   const tab: MyDayTab = chosenTab ?? (byBucket.overdue.length > 0 ? "overdue" : byBucket.today.length > 0 ? "today" : noneRows.length > 0 ? "none" : "today")
@@ -258,18 +264,23 @@ export function MyDayPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2" data-testid="followup-list">
-          {rows.map((r) => (
-            <FollowupCard
-              key={r.followup_id}
-              item={r}
-              onLogOutcome={setOutcomeFor}
-              onReschedule={setRescheduleFor}
-              onAssign={assignActionFor(role, profile?.id, r.assignee_id, assignees) ? setAssignFor : undefined}
-            />
-          ))}
+          {rows.map((r) =>
+            r.type === "post" ? (
+              <PostServiceCard key={`ps-${r.item.followup_id}`} item={r.item} onLogCall={setPostCallFor} />
+            ) : (
+              <FollowupCard
+                key={r.item.followup_id}
+                item={r.item}
+                onLogOutcome={setOutcomeFor}
+                onReschedule={setRescheduleFor}
+                onAssign={assignActionFor(role, profile?.id, r.item.assignee_id, assignees) ? setAssignFor : undefined}
+              />
+            )
+          )}
         </div>
       )}
 
+      <PostServiceCallSheet item={postCallFor} open={!!postCallFor} onOpenChange={(o) => !o && setPostCallFor(null)} />
       <LogOutcomeSheet
         lead={outcomeFor ? { id: outcomeFor.lead_id, name: outcomeFor.lead_name, mobile: outcomeFor.mobile, status: outcomeFor.lead_status } : null}
         open={!!outcomeFor}

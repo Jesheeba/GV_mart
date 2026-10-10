@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { PostServiceCallsCard } from "./PostServiceCallsCard"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
@@ -1213,6 +1214,8 @@ export function TicketDetailPage() {
           </div>
         )}
       </Card>
+
+      <PostServiceCallsCard ticketId={ticket.id} />
     </div>
   )
 }

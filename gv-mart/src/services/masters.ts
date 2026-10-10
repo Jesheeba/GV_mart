@@ -581,6 +581,36 @@ export async function leadSourceInUse(orgId: string, key: string) {
 }
 export type LeadSourceRow = Tables<"lead_sources">
 
+// ── Post-service call outcomes (batch-17 item 13) ────────────────────────────
+// Master-editable list of results for the post-service follow-up call. Built-in rows can be turned off but not
+// deleted; a row that already has calls logged against it cannot be deleted either (database FK) — deactivate it.
+export type PostServiceOutcomeRow = Tables<"post_service_outcomes">
+export async function listPostServiceOutcomes(orgId: string) {
+  const { data, error } = await supabase.from("post_service_outcomes").select("*").eq("org_id", orgId).order("sort_order")
+  if (error) throw error
+  return data
+}
+export async function createPostServiceOutcome(row: TablesInsert<"post_service_outcomes">) {
+  const { data, error } = await supabase.from("post_service_outcomes").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+export async function updatePostServiceOutcome(id: string, patch: TablesUpdate<"post_service_outcomes">) {
+  const { data, error } = await supabase.from("post_service_outcomes").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+export async function deletePostServiceOutcome(id: string) {
+  const { error } = await supabase.from("post_service_outcomes").delete().eq("id", id).eq("is_system", false)
+  if (error) throw error
+}
+/** True when any logged call used this outcome. */
+export async function postServiceOutcomeInUse(id: string) {
+  const { count, error } = await supabase.from("post_service_calls").select("id", { count: "exact", head: true }).eq("outcome_id", id)
+  if (error) throw error
+  return (count ?? 0) > 0
+}
+
 // ── Lead kinds + lead product types (batch 17) ────────────────────────────
 // Admin-editable lists behind leads.kind_key / leads.product_type_key (text keys).
 // is_system rows are the built-ins the code keys off — never deleted; custom rows
