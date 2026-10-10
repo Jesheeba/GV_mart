@@ -1,4 +1,5 @@
 -- Rolled-back DB tests for Phase 2 gap 2 (migration 20261008100000_lead_stage_log). One transaction ending in RAISE; read RESULTS in the error.
+-- Funnel/transition checks run in a throwaway __TEST_ organisation; only the backfill and 'real leads untouched' checks read real data.
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
@@ -24,7 +25,10 @@ declare
   l1 uuid; l2 uuid; l3 uuid; l4 uuid; f jsonb; rec record; w_from timestamptz := '2000-01-01'; w_to timestamptz := '2100-01-01';
   old_total int; fp_before text; fp_after text; n int;
 begin
-  select org_id into v_org from profiles where role='master' limit 1;
+  -- A throwaway organisation (rolled back with everything else). It used to run in the real organisation, so the funnel
+  -- assertions ('exactly 1 lost lead with history', 'reached.contacted = ... + 1') broke as soon as real leads were
+  -- lost through Log Outcome. The backfill/real-data checks below are global (all leads) and still look at real data.
+  insert into organizations (name) values ('__TEST_b17_stage_log') returning id into v_org;
   v_master := pg_temp.mkuser('master', v_org);
   v_sales := pg_temp.mkuser('sales_admin', v_org);
   select md5(string_agg(id::text||status||coalesce(lost_reason,''), ',' order by id)) into fp_before from leads where created_at < now() - interval '1 minute';
