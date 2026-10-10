@@ -7013,6 +7013,7 @@ export type Database = {
           p_next_note?: string | null
           p_next_is_exact?: boolean
           p_lost_reason?: string | null
+          p_followup_needed?: boolean | null
         }
         Returns: Json
       }

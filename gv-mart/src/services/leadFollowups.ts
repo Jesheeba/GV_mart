@@ -124,11 +124,14 @@ export type LogOutcomeInput = {
   nextNote?: string | null
   nextIsExact?: boolean
   lostReason?: string | null
+  /** Staff's own answer to "Follow-up needed?". null/undefined = the outcome's requires_followup decides. */
+  followupNeeded?: boolean | null
 }
 export type LogOutcomeResult = {
   activity_id: string
   followup_id: string | null
   next_due_at: string | null
+  followup_needed?: boolean
   status: Enums<"lead_status">
   postpone_count: number
 }
@@ -144,6 +147,7 @@ export async function logLeadOutcome(i: LogOutcomeInput): Promise<LogOutcomeResu
     p_next_note: i.nextNote ?? null,
     p_next_is_exact: i.nextIsExact ?? false,
     p_lost_reason: i.lostReason ?? null,
+    p_followup_needed: i.followupNeeded ?? null,
   })
   if (error) throw error
   return data as unknown as LogOutcomeResult

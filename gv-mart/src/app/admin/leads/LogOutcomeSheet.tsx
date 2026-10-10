@@ -12,6 +12,7 @@ import { NextFollowupPicker } from "./NextFollowupPicker"
 import { DEFAULT_LEAD_SCHEDULE, type FollowupType, type LeadOutcomeRow } from "@/services/leadFollowups"
 import { defaultNextFor, formatIstDateTime, getIstNow, isNextFollowupValid, toIso, type NextFollowupValue } from "@/lib/lead-followups"
 import { LOST_REASON_PRESETS, isLostReasonPreset, type LostReasonPreset } from "@/lib/lead-lost-reasons"
+import { askFollowupQuestion, canSaveOutcome, defaultFollowupNeeded, scheduleNext } from "@/lib/lead-outcome-followup"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 
@@ -94,16 +95,18 @@ function SheetBody({
   const [followupType, setFollowupType] = useState<FollowupType>("call")
   const [lostPreset, setLostPreset] = useState<LostReasonPreset | "">("")
   const [lostOther, setLostOther] = useState("")
+  // "Follow-up needed?" — starts on what the chosen outcome asks for; the user can flip it.
+  const [needsFollowup, setNeedsFollowup] = useState(false)
 
   const active = useMemo(() => (outcomes.data ?? []).filter((o) => o.is_active), [outcomes.data])
   const selected = active.find((o) => o.id === outcomeId) ?? null
-  const closing = selected?.stage_effect === "won" || selected?.stage_effect === "lost"
   const needsLostReason = selected?.stage_effect === "lost"
   const outcomeLabel = (o: LeadOutcomeRow) => (lang.startsWith("ta") && o.label_ta ? o.label_ta : o.label_en)
   const busy = logOutcome.isPending || reopenLead.isPending
 
   function chooseOutcome(o: LeadOutcomeRow) {
     setOutcomeId(o.id)
+    setNeedsFollowup(defaultFollowupNeeded(o))
     setFollowupType(o.default_followup_type)
     const d = defaultNextFor(o, getIstNow(), schedule.lead_work_days, schedule.lead_work_end)
     setNext({ date: d.date, time: d.time, exact: d.exact })
@@ -117,7 +120,17 @@ function SheetBody({
   const nextValid = isNextFollowupValid(next)
   const canSave = reopen
     ? nextValid && reopenReason.trim().length >= 3
-    : !!selected && (closing ? (needsLostReason ? !!lostReasonValue : true) : !selected.requires_followup || nextValid)
+    : canSaveOutcome({ selected, needsLostReason, lostReasonValue, needsFollowup, nextValid })
+
+  function chooseFollowup(yes: boolean) {
+    setNeedsFollowup(yes)
+    // A Yes on an outcome with no schedule of its own needs a sensible starting date.
+    if (yes && !next.date) {
+      const n = defaultNextFor({ followup_mode: "offset", default_offset_days: 1 }, getIstNow(), schedule.lead_work_days, schedule.lead_work_end)
+      setNext({ date: n.date, time: n.time, exact: false })
+      setKeepNonWorking(null)
+    }
+  }
 
   async function save() {
     try {
@@ -132,7 +145,7 @@ function SheetBody({
         })
         toast.success(t("leads.outcomeSheet.reopened", { when: formatIstDateTime(res.next_due_at, lang) }))
       } else if (selected) {
-        const withNext = !closing && selected.requires_followup
+        const withNext = scheduleNext(selected, needsFollowup)
         const res = await logOutcome.mutateAsync({
           leadId: lead.id,
           outcomeId: selected.id,
@@ -142,9 +155,11 @@ function SheetBody({
           nextType: withNext ? followupType : null,
           nextIsExact: withNext ? next.exact : false,
           lostReason: needsLostReason ? lostReasonValue : null,
+          followupNeeded: askFollowupQuestion(selected) ? needsFollowup : null,
         })
         if (res.next_due_at) toast.success(t("leads.outcomeSheet.savedNext", { when: formatIstDateTime(res.next_due_at, lang) }))
-        else toast.success(t(res.status === "won" ? "leads.outcomeSheet.savedWon" : "leads.outcomeSheet.savedLost"))
+        else if (res.status === "won" || res.status === "lost") toast.success(t(res.status === "won" ? "leads.outcomeSheet.savedWon" : "leads.outcomeSheet.savedLost"))
+        else toast.success(t("leads.outcomeSheet.savedNoFollowup"))
       }
       onClose()
       onDone?.()
@@ -210,7 +225,15 @@ function SheetBody({
               </div>
             ) : null}
           </div>
-          <Input id="outcome-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("leads.outcomeSheet.notePlaceholder")} />
+          <textarea
+            id="outcome-note"
+            rows={4}
+            maxLength={2000}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t("leads.outcomeSheet.notePlaceholder")}
+            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+          />
           <div className="flex flex-wrap gap-1.5">
             {PHRASES.map((p) => (
               <button
@@ -242,7 +265,28 @@ function SheetBody({
 
       {selected?.stage_effect === "won" ? <p className="rounded-xl bg-success/10 px-3 py-2 text-xs text-text">{t("leads.outcomeSheet.wonHint")}</p> : null}
 
-      {(reopen || (selected && !closing && selected.requires_followup)) && (
+      {!reopen && askFollowupQuestion(selected) ? (
+        <section className="space-y-2">
+          <Label id="followup-needed-label">{t("leads.outcomeSheet.followupNeeded")}</Label>
+          <div className="flex gap-1.5" role="radiogroup" aria-labelledby="followup-needed-label">
+            {([true, false] as const).map((yes) => (
+              <button
+                key={String(yes)}
+                type="button"
+                role="radio"
+                aria-checked={needsFollowup === yes}
+                onClick={() => chooseFollowup(yes)}
+                className={cn(chipBase, needsFollowup === yes ? chipOn : chipOff)}
+              >
+                {t(yes ? "leads.outcomeSheet.yes" : "leads.outcomeSheet.no")}
+              </button>
+            ))}
+          </div>
+          {!needsFollowup ? <p className="text-xs text-text-muted">{t("leads.outcomeSheet.noFollowupHint")}</p> : null}
+        </section>
+      ) : null}
+
+      {(reopen || (askFollowupQuestion(selected) && needsFollowup)) && (
         <section className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label>{t("leads.outcomeSheet.step3")}</Label>
