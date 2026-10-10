@@ -206,11 +206,11 @@ begin
   perform pg_temp.chk('runner limited to one organisation (returns digests for it only)', (r->>'digests')::int=1, r::text);
   perform pg_temp.chk('digest rows: master, s1, s2 (s3 inactive gets none)', (select count(*) from notifications where org_id=v_org and type='lead_followup_digest')=3 and not exists (select 1 from notifications where org_id=v_org and user_id=s3 and type like 'lead\_followup%'));
   select body into v_body from notifications where org_id=v_org and user_id=s1 and type='lead_followup_digest';
-  perform pg_temp.chk('s1 digest = own(e)+unassigned(a,d): 2 due today, 1 overdue; no breakdown', v_body = '2 due today, 1 overdue. Open My Day.', v_body);
+  perform pg_temp.chk('s1 digest = own(e)+unassigned(a,d): 2 due today, 1 overdue; no breakdown', v_body = '2 due today, 1 overdue. Open Daily Follow Up.', v_body);
   select body into v_body from notifications where org_id=v_org and user_id=s2 and type='lead_followup_digest';
-  perform pg_temp.chk('s2 digest = own(b)+unassigned(a,d)', v_body like '1 due today, 2 overdue. Open My Day.', v_body);
+  perform pg_temp.chk('s2 digest = own(b)+unassigned(a,d)', v_body like '1 due today, 2 overdue. Open Daily Follow Up.', v_body);
   select body into v_body from notifications where org_id=v_org and user_id=m and type='lead_followup_digest';
-  perform pg_temp.chk('master digest = everything (5) plus unassigned and per-person split', v_body like '2 due today, 3 overdue. Open My Day. Unassigned: %By person: %', v_body);
+  perform pg_temp.chk('master digest = everything (5) plus unassigned and per-person split', v_body like '2 due today, 3 overdue. Open Daily Follow Up. Unassigned: %By person: %', v_body);
   select body into v_body from notifications where org_id=v_org and user_id=s1 and type='lead_followup_overdue';
   perform pg_temp.chk('s1 overdue-24h list: unassigned only (a); e is not overdue', v_body like '1 lead(s): __TEST_a', v_body);
   select body into v_body from notifications where org_id=v_org and user_id=s2 and type='lead_followup_overdue';
