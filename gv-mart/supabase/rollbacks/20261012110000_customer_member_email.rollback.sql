@@ -67,4 +67,7 @@ $function$;
 alter table public.customer_members drop constraint if exists customer_members_email_format;
 alter table public.customer_members drop column if exists email;
 
+-- restore the previous ACL ({=X, postgres, service_role, authenticated}): executable by PUBLIC again
+grant execute on function public.create_customer_with_details(uuid, text, text, jsonb, jsonb) to public;
+
 notify pgrst, 'reload schema';

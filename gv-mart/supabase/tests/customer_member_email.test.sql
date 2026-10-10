@@ -30,7 +30,9 @@ begin
 
   perform pg_temp.chk('customer_members.email column exists and is nullable', (select is_nullable from information_schema.columns where table_schema='public' and table_name='customer_members' and column_name='email')='YES');
   perform pg_temp.chk('exactly one create_customer_with_details overload', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='create_customer_with_details')=1);
-  perform pg_temp.chk('authenticated can still execute the RPC', has_function_privilege('authenticated','public.create_customer_with_details(uuid,text,text,jsonb,jsonb)','execute'));
+  perform pg_temp.chk('ACL: authenticated and service_role can execute the RPC', has_function_privilege('authenticated','public.create_customer_with_details(uuid,text,text,jsonb,jsonb)','execute') and has_function_privilege('service_role','public.create_customer_with_details(uuid,text,text,jsonb,jsonb)','execute'));
+  perform pg_temp.chk('ACL: anon cannot execute the RPC', not has_function_privilege('anon','public.create_customer_with_details(uuid,text,text,jsonb,jsonb)','execute'));
+  perform pg_temp.chk('ACL: no PUBLIC grant on the RPC', not exists (select 1 from pg_proc p, aclexplode(p.proacl) a where p.oid='public.create_customer_with_details(uuid,text,text,jsonb,jsonb)'::regprocedure and a.grantee = 0));
 
   perform pg_temp.as_user(v_master);
 

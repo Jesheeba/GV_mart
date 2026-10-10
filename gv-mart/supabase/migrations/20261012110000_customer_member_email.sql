@@ -7,6 +7,9 @@
 --     The customer's own profession now falls back to the primary member's when none is passed.
 -- No other writer is touched: members added/edited from the app go through direct table writes.
 -- Body below is the LIVE definition (2026-10-12) with only those two edits.
+-- ACL: the function was executable by PUBLIC (the original grant was only `to authenticated`, but functions default to PUBLIC).
+-- Its only caller is the staff create-customer screen (src/services/customers.ts, signed in); no Edge Function, SQL function,
+-- customer-app or WhatsApp-bot path calls it, so anon/PUBLIC are revoked.
 
 alter table public.customer_members add column email text;
 alter table public.customer_members add constraint customer_members_email_format
@@ -81,5 +84,8 @@ begin
   return v_customer_id;
 end;
 $function$;
+
+revoke execute on function public.create_customer_with_details(uuid, text, text, jsonb, jsonb) from public, anon;
+grant execute on function public.create_customer_with_details(uuid, text, text, jsonb, jsonb) to authenticated, service_role;
 
 notify pgrst, 'reload schema';
