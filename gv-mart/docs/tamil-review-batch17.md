@@ -21,3 +21,10 @@ English is approved; Tamil is a draft until a Tamil speaker signs it off. Delete
 | `customers.form.memberEmail`, `customerApp.profile.memberEmail` | Email (optional) | மின்னஞ்சல் (விருப்பம்) | iii |
 | `customers.errors.emailInvalid`, `customerApp.errors.emailInvalid` | Enter a valid email address | சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும் | iii |
 | `customerApp.profile.memberProfession` | Profession (optional) | தொழில் (விருப்பம்) | iii |
+| `leads.outcomeSheet.step2` | What was discussed (optional) | என்ன பேசப்பட்டது (விருப்பம்) | iv/17 |
+| `leads.outcomeSheet.notePlaceholder` | What did you and the customer talk about? Anything to remember… | வாடிக்கையாளருடன் என்ன பேசினீர்கள்? நினைவில் வைக்க வேண்டியவை… | iv/17 |
+| `leads.outcomeSheet.followupNeeded` | Follow-up needed? | பின்தொடர்தல் தேவையா? | iv/17 |
+| `leads.outcomeSheet.yes` / `.no` | Yes / No | ஆம் / இல்லை | iv/17 |
+| `leads.outcomeSheet.noFollowupHint` | The lead stays open and moves to the No follow-up tab until you schedule one. | லீட் திறந்தே இருக்கும்; நீங்கள் ஒன்றை நிர்ணயிக்கும் வரை "பின்தொடர்தல் இல்லை" தாவலில் இருக்கும். | iv/17 |
+| `leads.outcomeSheet.savedNoFollowup` | Saved. No follow-up scheduled — the lead is in the No follow-up tab. | சேமிக்கப்பட்டது. பின்தொடர்தல் நிர்ணயிக்கப்படவில்லை — லீட் "பின்தொடர்தல் இல்லை" தாவலில் உள்ளது. | iv/17 |
+| digest text (database, `run_lead_followup_notifications`) | …Open Daily Follow Up. | (English only today, as before; the digest body is not translated) | digest rename |
