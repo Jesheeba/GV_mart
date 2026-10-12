@@ -31,7 +31,7 @@ begin
         continue;
       end if;
 
-      -- A rule set to â‚¹0 pays nothing: no zero-amount rows.
+      -- A rule set to ₹0 pays nothing: no zero-amount rows.
       if v_rule.amount <= 0 then
         continue;
       end if;
