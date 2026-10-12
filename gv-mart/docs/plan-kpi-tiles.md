@@ -696,3 +696,20 @@ The admin shell is the same web bundle the Capacitor app loads, so this is respo
 | Q13 | Server tiles for open-lead count and Quotation to Sale (Step 2b)? | Not now; they stay list-based and test-filtered |
 
 Not part of Step 3: any migration, any change to a list page, any WhatsApp or notification behaviour, push or deploy.
+
+
+### 11.11 Step 3 build status (built and tested locally; NOT pushed, NOT deployed)
+
+Branch `feat/kpi-step3-ui`, stacked on `feat/kpi-step2-report-kpi-tiles`.
+
+**Hard rule:** this UI must not be pushed or deployed before `report_kpi_tiles` is applied live. If it is deployed against a
+database without the function, the strip shows an inline error with Retry (verified with a PGRST202 response), the rest of the
+dashboard keeps working, and no list page is touched.
+
+Built: `src/app/admin/kpi/` (`kpiTilesView.ts` pure view-model, `KpiTileStrip.tsx`), `src/hooks/useKpiTiles.ts`; dashboards
+(Owner, Ops, Sales) and three Reports tabs (P&L, Sales & Service, Sales Insights) use the strip; `kpi.*` strings in en and ta
+(Tamil is a draft, logged in `docs/tamil-review-kpi.md`).
+
+Deviations from 11.x worth knowing: on phone widths the tile grid is one column below 480 px (the admin shell's side rail
+leaves only about 280 px of content width, two columns did not fit Tamil text); the "Live" chip sits next to the sub-line,
+not in the title row; every tile has its own help text (the plan list only drafted some).

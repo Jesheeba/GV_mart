@@ -20,6 +20,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { SegButton } from "@/components/shared/SegButton"
 import { ColumnPicker } from "@/components/shared/ColumnPicker"
 import { useColumnPrefs } from "@/hooks/useColumnPrefs"
+import { KpiTileStrip } from "../kpi/KpiTileStrip"
 import { PeriodFilter } from "./PeriodFilter"
 
 // Optional P&L summary rows (revenue / COGS / OpEx / Net Profit always show)
@@ -106,6 +107,8 @@ export function PnlReportTab() {
   return (
     <div className="space-y-4">
       <PeriodFilter value={period} onChange={setPeriod} onExport={handleExport} />
+
+      <KpiTileStrip range={range} only={["invoiced", "collected", "spend", "cashProfit", "itemMargin"]} />
 
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-text">{t("reports.pnl.gstToggle")}</span>

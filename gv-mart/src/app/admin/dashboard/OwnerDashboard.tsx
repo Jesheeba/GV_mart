@@ -1,20 +1,19 @@
 import { useState } from "react"
-import { toLocalDateString } from "@/lib/local-date"
 import { useQueries } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { IndianRupee, ReceiptText, Target, TriangleAlert } from "lucide-react"
-import { usePnlReport, useSalesServiceReport } from "@/hooks/useReports"
+import { TriangleAlert } from "lucide-react"
+import { useSalesServiceReport } from "@/hooks/useReports"
+import { useKpiTiles } from "@/hooks/useKpiTiles"
 import { useTicketsList } from "@/hooks/useService"
-import { useLeads } from "@/hooks/useAutomation"
 import { useInventoryList } from "@/hooks/useInventory"
-import { useAmcContracts } from "@/hooks/useAmc"
 import * as reports from "@/services/reports"
 import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
 import { lastNMonthsEnding, monthsOfYear, todayRange, barHeights } from "./dashboardMath"
 import { PeriodFilter } from "../reports/PeriodFilter"
+import { KpiTileStrip } from "../kpi/KpiTileStrip"
 
 const TICKET_STATUS_TONE: Record<string, string> = {
   open: "#E8932B",
@@ -35,8 +34,6 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
   // Tickets deliberately stay outside `period` — see their own comments below.
   const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
   const range = periodToRange(period)
-  const todayStr = toLocalDateString(new Date())
-  const periodIncludesToday = todayStr >= range.from && todayStr <= range.to
 
   // P&L trend chart granularity changes meaning by mode (owner-confirmed):
   // Month mode keeps the original "7 trailing months" shape, just anchored to
@@ -52,16 +49,12 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
         ? lastNMonthsEnding(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)), 7)
         : lastNMonthsEnding(Number(range.to.slice(0, 4)), Number(range.to.slice(5, 7)), 7)
 
-  const { data: pnl, isLoading: pnlLoading } = usePnlReport(orgId, range)
   const { data: salesService, isLoading: ssLoading } = useSalesServiceReport(orgId, range)
-  const { data: todaySales } = useSalesServiceReport(orgId, todayRange())
+  // Server tiles (report_kpi_tiles): the strip below reads the same cached query; Needs attention reuses it for ticket / AMC counts.
+  const { data: kpi } = useKpiTiles(range)
+  const { data: kpiToday } = useKpiTiles(todayRange())
   const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, { excludeTest: true })
-  // Lead→Sale Conversion is genuinely period-shaped (a cohort's conversion
-  // rate, not a live count) — scoped to `range` via the new optional
-  // LeadFilters.dateRange, unlike Open Tickets below.
-  const { data: leads } = useLeads(orgId, { dateRange: range, excludeTest: true })
   const { data: spares } = useInventoryList(orgId, "spare")
-  const { data: amcContracts } = useAmcContracts(orgId, { excludeTest: true })
 
   const monthlyPnl = useQueries({
     queries: months.map((m) => ({
@@ -74,11 +67,10 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
   // now"), not a historical metric — filtering it to "opened during period"
   // would silently change its meaning, so it stays unfiltered regardless of
   // `period` (matches OpsDashboard's equivalent tile).
-  const openTickets = tickets?.filter((tk) => tk.status !== "completed" && tk.status !== "cancelled") ?? []
-  const wonLeads = leads?.filter((l) => l.status === "won").length ?? 0
-  const conversionPct = leads?.length ? Math.round((wonLeads / leads.length) * 100) : 0
+  // Open tickets and AMC renewals now come from the server tiles (test customers excluded there); the list below only feeds Recent tickets.
+  const openTicketCount = kpi?.service?.openTickets.count ?? 0
+  const amcDueCount = kpi?.service?.amc.renewalWindow ?? 0
   const lowStockCount = spares?.filter((s) => s.stock_qty <= s.min_stock).length ?? 0
-  const amcDueSoon = amcContracts?.filter((c) => c.status === "due_soon") ?? []
 
   const profitSeries = monthlyPnl.map((q) => q.data?.netProfitWithGst ?? 0)
   const costSeries = monthlyPnl.map((q) => q.data?.totalExpenses ?? 0)
@@ -141,65 +133,16 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
         <PeriodFilter value={period} onChange={setPeriod} />
       </div>
 
-      <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="relative flex flex-col gap-4.5 overflow-hidden rounded-card bg-gradient-to-br from-accent to-[#FF7E47] p-5.5 text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,0.65)]">
-          <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
-          <div className="relative flex items-center justify-between">
-            <span className="text-[13px] font-semibold text-white/90">{t("dashboard.totalRevenue")}</span>
-            <span className="flex size-8.5 items-center justify-center rounded-[11px] bg-white/20">
-              <IndianRupee className="size-4.5" />
-            </span>
-          </div>
-          <div className="relative text-[33px] font-extrabold tabular-nums leading-none tracking-tight">
-            {pnlLoading ? "—" : formatCurrency(pnl?.revenueWithGst ?? 0)}
-          </div>
-          <div className="relative flex items-center gap-2 text-xs">
-            <span className="rounded-full bg-white/25 px-2.5 py-1 font-bold">{periodLabel}</span>
-            {!pnlLoading && pnl ? (
-              <span className="font-semibold text-white/90">
-                {t("reports.collectedLabel")}: {formatCurrency(pnl.revenueCollectedWithGst)}
-              </span>
-            ) : null}
-          </div>
-        </div>
+      <KpiTileStrip range={range} className="mb-4.5" />
 
-        <DashCard
-          label={t("dashboard.openTickets")}
-          value={ticketsLoading ? "—" : String(openTickets.length)}
-          icon={<TriangleAlert className="size-4.5" />}
-          note={<span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning">{openTickets.length} {t("dashboard.open")}</span>}
-        />
-        {/* Always the literal calendar-day "today" — never scoped to `period` (a
-            past month/year has no meaningful "today's sales"). Dimmed with an
-            explanatory note when the selected period doesn't include today, so
-            it reads as an intentional live-metric exception rather than a bug. */}
-        <DashCard
-          label={t("dashboard.todaysSales")}
-          value={formatCurrency(todaySales?.totalRevenue ?? 0)}
-          icon={<ReceiptText className="size-4.5" />}
-          dimmed={!periodIncludesToday}
-          note={
-            <div className="flex flex-wrap items-center gap-2">
-              {periodIncludesToday ? (
-                <span className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-bold text-success">{t("common.today")}</span>
-              ) : (
-                <span className="text-xs font-medium text-text-muted">{t("dashboard.todaysSalesOutOfPeriod")}</span>
-              )}
-              {todaySales ? (
-                <span className="text-xs font-semibold text-text-muted">
-                  {t("reports.collectedLabel")}: {formatCurrency(todaySales.totalCollected)}
-                </span>
-              ) : null}
-            </div>
-          }
-        />
-        <DashCard
-          label={t("dashboard.leadConversion")}
-          value={`${conversionPct}%`}
-          icon={<Target className="size-4.5" />}
-          note={<span className="text-xs font-medium text-text-muted">{leads?.length ?? 0} {t("dashboard.leads")}</span>}
-        />
-      </div>
+      {/* Today (IST), same server function as the tiles above so the two can never disagree. Not scoped to the period. */}
+      {kpiToday?.sales ? (
+        <div data-testid="kpi-today-sales" className="mb-4.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-card border border-border bg-surface px-5 py-3 text-sm">
+          <span className="font-semibold text-text-muted">{t("kpi.todaySales")}</span>
+          <span className="text-lg font-extrabold tabular-nums text-text">{formatCurrency(kpiToday.sales.invoicedNet)}</span>
+          <span className="text-xs font-semibold text-text-muted">{t("kpi.invoiced.sub", { amount: formatCurrency(kpiToday.sales.invoicedTotal) })}</span>
+        </div>
+      ) : null}
 
       <div className="mb-4.5 grid grid-cols-1 gap-4.5 lg:grid-cols-[1.55fr_1fr]">
         <div className="rounded-card border border-border bg-surface p-5.5 pb-4 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
@@ -342,62 +285,29 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
                   onClick={() => navigate("/admin/inventory")}
                 />
               )}
-              {amcDueSoon.length > 0 && (
+              {amcDueCount > 0 && (
                 <AttentionRow
                   tone="info"
-                  title={t("dashboard.amcDueCount", { count: amcDueSoon.length })}
+                  title={t("dashboard.amcDueCount", { count: amcDueCount })}
                   subtitle={t("dashboard.amcDueSubtitle")}
                   onClick={() => navigate("/admin/amc")}
                 />
               )}
-              {openTickets.length > 0 && (
+              {openTicketCount > 0 && (
                 <AttentionRow
                   tone="warning"
-                  title={t("dashboard.openTicketsCount", { count: openTickets.length })}
+                  title={t("dashboard.openTicketsCount", { count: openTicketCount })}
                   subtitle={t("dashboard.openTicketsSubtitle")}
                   onClick={() => navigate("/admin/service")}
                 />
               )}
-              {lowStockCount === 0 && amcDueSoon.length === 0 && openTickets.length === 0 && (
+              {lowStockCount === 0 && amcDueCount === 0 && openTicketCount === 0 && (
                 <p className="text-sm text-text-muted">{t("dashboard.allClear")}</p>
               )}
             </div>
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-function DashCard({
-  label,
-  value,
-  icon,
-  note,
-  dimmed,
-}: {
-  label: string
-  value: string
-  icon: React.ReactNode
-  note: React.ReactNode
-  /** Owner request 2026-07-29: visually signals a live "right now" metric is
-   *  intentionally unaffected by the dashboard's period filter, rather than
-   *  looking stale/broken when the selected period isn't the current one. */
-  dimmed?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-4.5 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)] transition-opacity",
-        dimmed && "opacity-60"
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-[13px] font-semibold text-text-muted">{label}</span>
-        <span className="flex size-8.5 items-center justify-center rounded-[11px] bg-surface-alt text-text">{icon}</span>
-      </div>
-      <div className="text-[31px] font-extrabold tabular-nums leading-none tracking-tight text-text">{value}</div>
-      <div className="flex items-center gap-2">{note}</div>
     </div>
   )
 }

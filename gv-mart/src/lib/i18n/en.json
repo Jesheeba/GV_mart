@@ -1,4 +1,109 @@
 {
+  "kpi": {
+    "group": {
+      "sales": "Sales",
+      "service": "Service",
+      "moneyOut": "Spend and profit"
+    },
+    "invoiced": {
+      "title": "Revenue (excl. GST)",
+      "sub": "Incl. GST: {{amount}}",
+      "help": "What was billed in this period, before GST. This headline used to show the amount including GST; that figure is still shown underneath."
+    },
+    "collected": {
+      "title": "Collected so far",
+      "sub": "of {{total}} billed",
+      "help": "Money received so far against this period's bills. It is not the cash received during the period."
+    },
+    "outstanding": {
+      "title": "Outstanding",
+      "sub": "{{count}} unpaid bills · oldest {{date}}",
+      "none": "Nothing outstanding",
+      "help": "Unpaid and part-paid bills of any date, as of now."
+    },
+    "spend": {
+      "title": "Spend",
+      "sub": "Excluding stock purchases: {{amount}}",
+      "help": "Everything paid out in this period, by the date it was recorded."
+    },
+    "cashProfit": {
+      "title": "Cash profit",
+      "help": "Money collected (excl. GST) minus spend. Stock purchases count when they are billed, not when the stock is sold."
+    },
+    "itemMargin": {
+      "title": "Item margin",
+      "sub": "{{percent}}% margin",
+      "subWithCost": "{{percent}}% on items with a cost",
+      "help": "Selling price minus the cost price of the items sold. Items with no cost price recorded are left out, not counted as free."
+    },
+    "costMissing": {
+      "badge": "Cost missing on {{count}} items"
+    },
+    "streams": {
+      "title": "Where revenue comes from",
+      "product": "Products",
+      "spareCounter": "Spares (counter sales)",
+      "service": "Service",
+      "amc": "AMC",
+      "rental": "Rental",
+      "gstAdjustments": "GST and adjustments",
+      "total": "Total billed (incl. GST)",
+      "note": "Spares used on a service visit count as Service.",
+      "help": "Total billed in this period split by where it came from. The rows add up to the total."
+    },
+    "unitsSold": {
+      "title": "Units sold",
+      "help": "Number of products sold on counter and product bills in this period."
+    },
+    "avgSale": {
+      "title": "Average sale",
+      "help": "Average value of a product or counter sale bill in this period, including GST."
+    },
+    "leadsNew": {
+      "title": "New leads",
+      "help": "Leads that arrived in this period."
+    },
+    "leadWon": {
+      "title": "Lead to sale",
+      "sub": "{{won}} of {{total}} leads",
+      "help": "Of the leads that arrived in this period, the share that became a sale so far. Lost leads count in the total."
+    },
+    "openTickets": {
+      "title": "Open tickets",
+      "sub": "{{urgent}} urgent · {{past}} past SLA",
+      "help": "Service tickets that are open, assigned or in progress right now."
+    },
+    "resolved": {
+      "title": "Fixed within 24 hours",
+      "sub": "{{resolved}} of {{completed}} completed",
+      "help": "Of the tickets raised in this period and now completed, the share completed within 24 hours."
+    },
+    "rating": {
+      "title": "Customer rating",
+      "sub": "{{count}} ratings · {{low}} below 4.5",
+      "help": "Average star rating of visits in this period."
+    },
+    "amc": {
+      "title": "AMC contracts",
+      "sub": "{{count}} due for renewal",
+      "help": "AMC contracts active today, and how many are in their renewal window."
+    },
+    "repeat": {
+      "title": "Repeat buyers",
+      "sub": "{{repeat}} of {{buying}} buyers",
+      "help": "Of the customers who bought in this period, the share who had bought before."
+    },
+    "todaySales": "Today's sales (excl. GST)",
+    "live": "Live",
+    "period": "Period: {{from}} – {{to}} (IST)",
+    "noSales": "No sales in this period yet",
+    "noData": "No data yet",
+    "error": "Could not load the tiles",
+    "helpButton": "What does this mean?",
+    "exactAmount": "Exact: {{amount}}",
+    "updating": "Updating…",
+    "toggleGroup": "Show or hide {{group}}"
+  },
   "common": {
     "appName": "GV Mart",
     "adminApp": "GV Mart Admin",

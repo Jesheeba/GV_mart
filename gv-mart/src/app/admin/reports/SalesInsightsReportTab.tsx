@@ -10,6 +10,7 @@ import { useCustomerTotals, useLeadFunnel, useProductSalesReport } from "@/hooks
 import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue } from "@/services/reports"
 import type { ProductSalesRow } from "@/services/reportsInsights"
 import { formatCurrency } from "@/lib/sale-calc"
+import { KpiTileStrip } from "../kpi/KpiTileStrip"
 import { PeriodFilter } from "./PeriodFilter"
 
 const PRODUCT_COLUMNS = ["type", "qty", "invoices", "revenue", "share", "avgPrice", "cost", "margin"] as const
@@ -61,6 +62,8 @@ export function SalesInsightsReportTab() {
   return (
     <div className="space-y-4">
       <PeriodFilter value={period} onChange={setPeriod} onExport={handleExport} />
+
+      <KpiTileStrip range={range} only={["leadsNew", "leadWon", "repeat"]} />
 
       <div className="space-y-2">
         <p className="px-1 text-sm font-semibold text-text">{t("reports.insights.customersTitle")}</p>

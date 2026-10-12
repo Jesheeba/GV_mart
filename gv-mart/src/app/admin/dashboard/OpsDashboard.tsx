@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { istDayStartIso, istDayEndIso } from "@/lib/ist"
 import { useNavigate } from "react-router-dom"
@@ -10,6 +11,9 @@ import { Button } from "@/components/ui/button"
 import { KpiCard } from "@/components/shared/KpiCard"
 import { HighlightKpiCard } from "@/components/shared/HighlightKpiCard"
 import { MissingProductAlert } from "@/components/shared/MissingProductAlert"
+import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
+import { PeriodFilter } from "../reports/PeriodFilter"
+import { KpiTileStrip } from "../kpi/KpiTileStrip"
 import { todayRange } from "./dashboardMath"
 
 const APPT_STATUS_TONE: Record<string, string> = {
@@ -23,6 +27,9 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
   const { t } = useTranslation()
   const navigate = useNavigate()
   const today = todayRange().from
+  // Server tiles follow a period (default: current IST month); the live tiles in the strip ignore it.
+  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
+  const range = periodToRange(period)
 
   const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, { excludeTest: true })
   const { data: technicians } = useTechnicians(orgId)
@@ -30,8 +37,6 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
   const { data: attendance, isLoading: attendanceLoading } = useAttendanceForDate(orgId, today)
   const { data: overdueSla, isLoading: overdueSlaLoading } = useOverdueSlaTickets(orgId)
 
-  const openTickets = tickets?.filter((tk) => tk.status !== "completed" && tk.status !== "cancelled") ?? []
-  const urgentOpen = openTickets.filter((tk) => tk.priority === "very_urgent" || tk.priority === "urgent")
   const completedToday = tickets?.filter((tk) => tk.status === "completed" && tk.updated_at?.slice(0, 10) === today).length ?? 0
 
   const onDuty = attendance?.filter((a) => a.check_in_at).length ?? 0
@@ -66,22 +71,18 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
 
       <MissingProductAlert orgId={orgId} />
 
-      <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-3">
+      <div className="mb-4.5 rounded-card border border-border bg-surface p-4 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+        <PeriodFilter value={period} onChange={setPeriod} />
+      </div>
+
+      <KpiTileStrip range={range} className="mb-4.5" />
+
+      <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-2">
         <HighlightKpiCard
           label={t("dashboard.completedToday")}
           value={ticketsLoading ? "—" : completedToday}
           caption={t("common.today")}
           loading={ticketsLoading}
-        />
-        <KpiCard
-          label={t("dashboard.openTickets")}
-          loading={ticketsLoading}
-          value={
-            <div className="flex flex-col gap-2">
-              <span className="text-[31px] font-extrabold leading-none tracking-tight tabular-nums text-text">{openTickets.length}</span>
-              <span className="w-fit rounded-full bg-[#FCF1DF] px-2.5 py-1 text-xs font-bold text-warning">{urgentOpen.length} {t("dashboard.urgent")}</span>
-            </div>
-          }
         />
         <KpiCard
           label={t("dashboard.onDutyTechs")}

@@ -11,6 +11,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { ColumnPicker } from "@/components/shared/ColumnPicker"
 import { useColumnPrefs } from "@/hooks/useColumnPrefs"
 import { PeriodFilter } from "./PeriodFilter"
+import { KpiTileStrip } from "../kpi/KpiTileStrip"
 
 const REVENUE_TYPE_COLUMNS = ["revenue", "collected", "share", "count", "qty", "avgValue"] as const
 type RevenueTypeColumn = (typeof REVENUE_TYPE_COLUMNS)[number]
@@ -56,6 +57,8 @@ export function SalesServiceReportTab() {
   return (
     <div className="space-y-4">
       <PeriodFilter value={period} onChange={setPeriod} onExport={handleExport} />
+
+      <KpiTileStrip range={range} only={["streams", "unitsSold", "openTickets", "resolved"]} />
 
       {isError ? (
         <p className="text-sm text-danger">

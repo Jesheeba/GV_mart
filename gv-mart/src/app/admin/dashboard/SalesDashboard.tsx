@@ -2,14 +2,14 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Plus } from "lucide-react"
-import { useSalesServiceReport } from "@/hooks/useReports"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeads } from "@/hooks/useAutomation"
+import { useKpiTiles } from "@/hooks/useKpiTiles"
 import { useQuotationsList } from "@/hooks/useQuotations"
 import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
-import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
 import { PeriodFilter } from "../reports/PeriodFilter"
+import { KpiTileStrip } from "../kpi/KpiTileStrip"
 
 const LEAD_STAGE_TONE: Record<string, string> = {
   new: "#C9C4BA",
@@ -32,7 +32,7 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
   const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
   const range = periodToRange(period)
 
-  const { data: salesService, isLoading: ssLoading } = useSalesServiceReport(orgId, range)
+  const { data: kpi } = useKpiTiles(range)
   const { data: leads, isLoading: leadsLoading } = useLeads(orgId, { dateRange: range, excludeTest: true })
   // Open Leads / Lead Pipeline are a live queue-depth signal ("what's still
   // open right now"), not a historical metric — filtering them to "created
@@ -42,9 +42,11 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
   const { data: quotations } = useQuotationsList(orgId, range, { excludeTest: true })
 
   const openLeads = allLeads?.filter((l) => l.status !== "won" && l.status !== "lost") ?? []
-  const wonLeads = leads?.filter((l) => l.status === "won").length ?? 0
-  const totalLeads = leads?.length ?? 0
-  const conversionPct = totalLeads ? Math.round((wonLeads / totalLeads) * 100) : 0
+  // Lead conversion comes from the server tiles (same numbers as the Reports funnel); `leads` below still feeds source split / recent leads.
+  const wonLeads = kpi?.sales?.leads.won ?? 0
+  const totalLeads = kpi?.sales?.leads.new ?? 0
+  const conversionPct = kpi?.sales?.leads.wonPercent != null ? Math.round(kpi.sales.leads.wonPercent) : 0
+  const leadsInPeriod = leads?.length ?? 0
 
   const convertedQuotes = quotations?.filter((q) => q.status === "converted").length ?? 0
   const totalQuotes = quotations?.length ?? 0
@@ -59,18 +61,11 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
   const sourceCounts = new Map<string, number>()
   for (const l of leads ?? []) sourceCounts.set(l.source, (sourceCounts.get(l.source) ?? 0) + 1)
   const sourceRows = [...sourceCounts.entries()]
-    .map(([source, count]) => ({ source, count, pct: totalLeads ? Math.round((count / totalLeads) * 100) : 0 }))
+    .map(([source, count]) => ({ source, count, pct: leadsInPeriod ? Math.round((count / leadsInPeriod) * 100) : 0 }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 4)
 
   const recentLeads = [...(leads ?? [])].slice(0, 4)
-
-  const periodLabel =
-    period.mode === "year"
-      ? String(period.year)
-      : period.mode === "month"
-        ? new Date(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)) - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
-        : `${new Date(range.from).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} – ${new Date(range.to).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
 
   return (
     <div>
@@ -102,24 +97,13 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
         <PeriodFilter value={period} onChange={setPeriod} />
       </div>
 
-      <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-3">
-        <div className="relative flex flex-col gap-4 overflow-hidden rounded-card bg-gradient-to-br from-accent to-[#FF7E47] p-5.5 text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,0.65)]">
-          <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
-          <span className="relative text-[13px] font-semibold text-white/90">{t("dashboard.totalRevenue")}</span>
-          <div className="relative text-[31px] font-extrabold leading-none tracking-tight tabular-nums">{ssLoading ? "—" : formatCurrency(salesService?.totalRevenue ?? 0)}</div>
-          <div className="relative flex flex-wrap items-center gap-2">
-            <span className="w-fit rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">{periodLabel}</span>
-            {!ssLoading && salesService ? (
-              <span className="text-xs font-semibold text-white/90">
-                {t("reports.collectedLabel")}: {formatCurrency(salesService.totalCollected)}
-              </span>
-            ) : null}
-          </div>
-        </div>
+      <KpiTileStrip range={range} className="mb-4.5" />
+
+      <div className="mb-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-2">
         <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
           <span className="text-[13px] font-semibold text-text-muted">{t("dashboard.openLeads")}</span>
           <div className="text-[31px] font-extrabold leading-none tracking-tight tabular-nums text-text">{allLeadsLoading ? "—" : openLeads.length}</div>
-          <span className="text-xs font-semibold text-text-muted">{totalLeads} {t("dashboard.leads")}</span>
+          <span className="text-xs font-semibold text-text-muted">{leadsInPeriod} {t("dashboard.leads")}</span>
         </div>
         <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5.5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
           <span className="text-[13px] font-semibold text-text-muted">{t("dashboard.quotationToSale")}</span>
