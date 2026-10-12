@@ -21,7 +21,7 @@ export function useNonTechnicianStaff(orgId: string | undefined) {
 export function useSetStaffActive() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ profileId, isActive }: { profileId: string; isActive: boolean }) => hr.setStaffActive(profileId, isActive),
+    mutationFn: ({ profileId, isActive, role }: { profileId: string; isActive: boolean; role?: string }) => hr.setStaffActive(profileId, isActive, role),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["profiles", "nonTechnicianStaff"] }),
   })
 }

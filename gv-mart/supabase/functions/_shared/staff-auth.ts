@@ -47,7 +47,7 @@ export function checkStaffTarget(caller: StaffCaller, target: StaffTarget | null
 
 // ── audit (append-only) ──────────────────────────────────────────────────
 
-export type StaffAuditAction = "STAFF_PASSWORD_RESET" | "STAFF_CREATE"
+export type StaffAuditAction = "STAFF_PASSWORD_RESET" | "STAFF_CREATE" | "STAFF_DEACTIVATE" | "STAFF_REACTIVATE"
 export type StaffAudit = { correlationId: string; caller: StaffCaller; action: StaffAuditAction; targetId: string | null }
 
 /** Inserts the START row. Returns the handle, or null if it could not be written (the caller must then refuse the action). */

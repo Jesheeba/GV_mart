@@ -4063,6 +4063,8 @@
       "activate": "Activate",
       "deactivate": "Deactivate",
       "activeChangeFailed": "Couldn't change the active status.",
+
+      "activePartial": "The change was saved but not fully completed everywhere. Press the button again to finish.",
       "resetPassword": "Reset password",
       "resetPasswordHint": "Type a new password for {{name}} (min 10 characters, not a common password). Their current password stops working immediately.",
       "newPassword": "New password",

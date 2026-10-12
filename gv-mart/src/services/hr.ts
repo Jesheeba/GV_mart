@@ -55,8 +55,17 @@ export async function listNonTechnicianStaff(orgId: string): Promise<StaffOption
   return (data ?? []) as StaffOption[]
 }
 
-/** Master-only (RLS + guard trigger): activate or deactivate another staff login. */
-export async function setStaffActive(profileId: string, isActive: boolean) {
+/**
+ * Master-only: activate or deactivate another staff login. A sales person goes through the admin-set-staff-active Edge
+ * Function (database change + login ban + session revocation + audit; a deactivation also returns their leads, follow-ups
+ * and tasks); every other role is a plain profile update (RLS + guard trigger).
+ */
+export async function setStaffActive(profileId: string, isActive: boolean, role?: string) {
+  if (role === "sales_admin") {
+    const res = await invokeStaffFunction<{ ok?: boolean; partial?: boolean }>("admin-set-staff-active", { profileId, active: isActive })
+    if (res && res.ok === false) throw new Error(res.partial ? "PARTIAL" : "FAILED")
+    return
+  }
   const { error } = await supabase.from("profiles").update({ is_active: isActive }).eq("id", profileId)
   if (error) throw error
 }

@@ -251,8 +251,8 @@ export function StaffSalaryTab() {
             disabled={setActive.isPending}
             onClick={() =>
               setActive.mutate(
-                { profileId: r.id, isActive: !r.is_active },
-                { onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.staffSalary.activeChangeFailed")) }
+                { profileId: r.id, isActive: !r.is_active, role: r.role },
+                { onError: (e) => toast.error(e instanceof Error && e.message === "PARTIAL" ? t("hr.staffSalary.activePartial") : e instanceof Error && e.message && e.message !== "FAILED" ? e.message : t("hr.staffSalary.activeChangeFailed")) }
               )
             }
           >
