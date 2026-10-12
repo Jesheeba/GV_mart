@@ -45,6 +45,10 @@ alter table public.whatsapp_contacts enable row level security;
 create policy whatsapp_contacts_select_staff on public.whatsapp_contacts
   for select using (org_id = public.current_org_id() and public.is_staff());
 -- no write policy: only the service role (webhook) writes, through wa_touch_contact below.
+-- This project auto-grants new public tables to anon/authenticated (see the default-privileges note, 2026-08-27):
+-- RLS already hides the rows, but the privileges themselves are revoked so the table is closed by two layers.
+revoke all on public.whatsapp_contacts from anon, authenticated;
+grant select on public.whatsapp_contacts to authenticated;
 
 create or replace function public.wa_touch_contact(p_org_id uuid, p_phone text, p_at timestamptz default now())
 returns void
@@ -94,6 +98,8 @@ create table if not exists public.whatsapp_wasi_templates (
 alter table public.whatsapp_wasi_templates enable row level security;
 create policy whatsapp_wasi_templates_select_staff on public.whatsapp_wasi_templates
   for select using (org_id = public.current_org_id() and public.is_staff());
+revoke all on public.whatsapp_wasi_templates from anon, authenticated;   -- written only by the service role
+grant select on public.whatsapp_wasi_templates to authenticated;
 
 -- ── event -> Wasi template mapping (master/ops editable). Names differ per language: <base>_en / <base>_ta ──────────
 create table if not exists public.whatsapp_event_templates (
@@ -115,6 +121,8 @@ create policy whatsapp_event_templates_select_staff on public.whatsapp_event_tem
 create policy whatsapp_event_templates_write_ops on public.whatsapp_event_templates for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
   with check (org_id = public.current_org_id() and public.is_ops_staff());
+
+revoke all on public.whatsapp_event_templates from anon;   -- authenticated keeps write, gated by the ops-staff policy above
 
 create trigger audit_whatsapp_event_templates
   after insert or update or delete on public.whatsapp_event_templates

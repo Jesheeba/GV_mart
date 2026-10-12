@@ -91,7 +91,14 @@ begin
                                  and not has_function_privilege('anon', 'public.wa_touch_contact(uuid, text, timestamptz)', 'execute')
                              then 'ok   wa_touch_contact is not executable by clients' else 'FAIL wa_touch_contact is executable by a client role' end;
   res := res || E'\n' || case when not has_table_privilege('anon', 'public.whatsapp_contacts', 'select')
-                             then 'ok   anon cannot read whatsapp_contacts' else 'FAIL anon can read whatsapp_contacts' end;
+                                 and not has_table_privilege('anon', 'public.whatsapp_wasi_templates', 'select')
+                                 and not has_table_privilege('anon', 'public.whatsapp_event_templates', 'select')
+                             then 'ok   anon has no privilege on the three new tables' else 'FAIL anon has a privilege on a new table' end;
+  res := res || E'\n' || case when has_table_privilege('authenticated', 'public.whatsapp_contacts', 'select')
+                                 and not has_table_privilege('authenticated', 'public.whatsapp_contacts', 'insert')
+                                 and not has_table_privilege('authenticated', 'public.whatsapp_wasi_templates', 'insert')
+                                 and not has_table_privilege('authenticated', 'public.whatsapp_wasi_templates', 'update')
+                             then 'ok   clients can read but never write contacts or the mirrored template list' else 'FAIL client write privilege on a service-owned table' end;
 
   raise exception E'RESULTS:%', res;
 end
