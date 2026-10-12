@@ -78,7 +78,7 @@ begin
         if v_n_today + v_n_overdue > 0 then
           insert into public.notifications (org_id, user_id, type, title, body)
           select v_org.id, p.id, 'lead_followup_digest', 'Follow-ups for today',
-                 format('%s due today, %s overdue. Open My Day.', v_n_today, v_n_overdue)
+                 format('%s due today, %s overdue. Open Daily Follow Up.', v_n_today, v_n_overdue)
           from public.profiles p
           where p.org_id = v_org.id and p.role in ('master', 'sales_admin') and p.is_active;
           v_digests := v_digests + 1;

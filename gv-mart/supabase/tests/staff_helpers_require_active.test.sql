@@ -33,9 +33,11 @@ begin
   for r in select k, v::text::uuid id from jsonb_each_text(ids) e(k,v) order by 1 loop
     perform set_config('request.jwt.claims', json_build_object('sub',r.id,'role','authenticated')::text, true);
     new_s := public.is_sales_staff(); new_st := public.is_staff();
-    old_s := public.current_role() in ('master','sales_admin'); old_st := public.current_role() in ('master','operation_admin','sales_admin');
-    if r.k like 'sales_admin_false' then
-      res := res || E'\n' || case when old_s and old_st and not new_s and not new_st then 'ok   inactive sales_admin: was staff, now NOT (is_sales_staff '||old_s||'->'||new_s||', is_staff '||old_st||'->'||new_st||')' else 'FAIL inactive sales_admin' end;
+    -- the pre-fix rule: the profile role alone (F-07 made current_role() itself NULL for inactive staff, which would turn this into NULL)
+    old_s := (select p.role from public.profiles p where p.id = auth.uid()) in ('master','sales_admin'); old_st := (select p.role from public.profiles p where p.id = auth.uid()) in ('master','operation_admin','sales_admin');
+    if r.k in ('master_false', 'operation_admin_false', 'sales_admin_false') then
+      -- since F-07 (current_role_active_gate) every inactive staff role loses staff access, not only sales_admin
+      res := res || E'\n' || case when old_st and not new_s and not new_st then 'ok   inactive '||r.k||': was staff by role, now NOT (is_sales_staff '||old_s||'->'||new_s||', is_staff '||old_st||'->'||new_st||')' else 'FAIL inactive '||r.k end;
     else
       res := res || E'\n' || case when old_s=new_s and old_st=new_st then 'ok   unchanged '||rpad(r.k,26)||' is_sales_staff='||new_s||' is_staff='||new_st else 'FAIL CHANGED '||r.k end;
     end if;

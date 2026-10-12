@@ -32,7 +32,7 @@ declare
   o_sat uuid; o_issue uuid; o_retry uuid; v_due timestamptz; d date;
   fp1 text; fp2 text; fn1 jsonb;
 begin
-  select md5(string_agg(id::text||'|'||coalesce(name,'')||'|'||created_at::text||'|'||updated_at::text, ',' order by id)) into fp1 from public.leads;
+  select md5(string_agg(id::text||'|'||coalesce(name,'')||'|'||created_at::text||'|'||updated_at::text, ',' order by id)) into fp1 from public.leads where name not like '\_\_TEST%';
 
   insert into organizations (name) values ('__TEST_b17_postservice') returning id into v_org;
   insert into organizations (name) values ('__TEST_b17_postservice_other') returning id into v_org2;
