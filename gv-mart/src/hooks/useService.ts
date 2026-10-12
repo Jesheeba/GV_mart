@@ -103,10 +103,10 @@ export function useUpdateTicketProduct() {
 }
 
 /** Gate-assignment-on-product — feeds the Dashboard/Masters nag. */
-export function useTicketsMissingProduct(orgId: string | undefined) {
+export function useTicketsMissingProduct(orgId: string | undefined, opts: { excludeTest?: boolean } = {}) {
   return useQuery({
-    queryKey: ["service_tickets", "missingProduct", orgId],
-    queryFn: () => service.listTicketsMissingProduct(orgId!),
+    queryKey: ["service_tickets", "missingProduct", orgId, opts],
+    queryFn: () => service.listTicketsMissingProduct(orgId!, opts),
     enabled: !!orgId,
     refetchInterval: 30_000,
   })

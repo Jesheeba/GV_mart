@@ -34,7 +34,7 @@ vi.mock("@/lib/supabase", () => ({
   },
 }))
 
-import { listTickets } from "@/services/service"
+import { listTickets, listTicketsMissingProduct } from "@/services/service"
 import { listLeads } from "@/services/automation"
 import { listAmcContracts } from "@/services/amc"
 import { listQuotations } from "@/services/quotations"
@@ -109,5 +109,22 @@ describe("listQuotations excludeTest", () => {
   it("returns everything when excludeTest is off", async () => {
     state.data = [row("a", true, null), row("b", false, null)]
     expect((await listQuotations("org-1")).length).toBe(2)
+  })
+})
+
+describe("listTicketsMissingProduct excludeTest", () => {
+  it("inner-joins the customer and drops is_test customers when asked", async () => {
+    await listTicketsMissingProduct("org-1", { excludeTest: true })
+    expect(state.table).toBe("service_tickets")
+    expect(selectArg()).toContain("customers!inner(name)")
+    expect(eqCalls()).toContainEqual(["customers.is_test", false])
+    // the existing "no product yet" predicates are untouched
+    expect(state.calls.some((c) => c.method === "is" && c.args[0] === "product_id")).toBe(true)
+  })
+  it("default call is unchanged", async () => {
+    await listTicketsMissingProduct("org-1")
+    expect(selectArg()).toContain("customers(name)")
+    expect(selectArg()).not.toContain("!inner")
+    expect(eqCalls().some(([c]) => c === "customers.is_test")).toBe(false)
   })
 })

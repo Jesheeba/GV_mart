@@ -14,7 +14,7 @@ const client = live ? createClient(env.KPI_LIVE_URL!, env.KPI_LIVE_ANON!, { auth
 
 vi.mock("@/lib/supabase", () => ({ get supabase() { return client } }))
 
-import { listTickets } from "@/services/service"
+import { listTickets, listTicketsMissingProduct } from "@/services/service"
 import { listLeads } from "@/services/automation"
 import { listAmcContracts } from "@/services/amc"
 import { listQuotations } from "@/services/quotations"
@@ -76,5 +76,12 @@ describe.skipIf(!live)("test-customer exclusion, live in a __TEST_ org", () => {
   it("ops dashboard source: excludeTest ticket list has the one normal open ticket and no completed-today leak", async () => {
     const kept = await listTickets(org, { excludeTest: true })
     expect(kept.map((t) => t.customers?.name)).toEqual(["__TEST_ Normal"])
+  })
+
+  it("missing-product nag: a flagged customer's ticket without a product is dropped, the normal one still appears", async () => {
+    const all = await listTicketsMissingProduct(org)
+    const kept = await listTicketsMissingProduct(org, { excludeTest: true })
+    expect(all.map((t) => t.name_of_complaint).sort()).toEqual(["__TEST_ T flagged", "__TEST_ T normal"])
+    expect(kept.map((t) => t.name_of_complaint)).toEqual(["__TEST_ T normal"])
   })
 })

@@ -131,3 +131,19 @@ Migration `20261016500000_revoke_anon_table_privileges` removes every anon privi
 
 ## 8. Order at a glance
 1 preconditions `[AUTO]` -> 2.1 secret `[YOU]` -> 2.2 deploy reset `[YOU]` -> 3 tests `[AUTO]` -> 2.3 deploy create `[YOU]` -> 3 tests `[AUTO]` -> (F-08 apply `[YOU]`) -> merge/push `[YOU]` -> 4 create sales persons `[YOU]` -> 5 distribution migration `[YOU]` -> 6 switch ON `[YOU]` -> 6 live verification `[AUTO]` -> (F-07 apply `[YOU]`, later).
+
+## 9. End-of-work credential rotation (do this when the current work stream ends; remind at hand-off)
+Claude sessions used these for live database work (Management API, pooler, Auth admin) and one was partly echoed in a session
+log on 2026-10-12. Nothing below lists a value; they live only in `gv-mart/.env` of the main clone.
+
+| # | Credential | Where it lives | After rotating, also update |
+|---|---|---|---|
+| 1 | `SUPABASE_DB_PASSWORD` (database password, also inside `SUPABASE_DB_URL`) | `gv-mart/.env` | the DB URL in `.env`, any GitHub Actions secret that reuses it |
+| 2 | Supabase personal access token (`SUPABASE_ACCESS_TOKEN`, Management API) | `gv-mart/.env` | revoke the old token in the Supabase account page; the CLI picks up the new one from `.env` |
+| 3 | Supabase `service_role` key (`SUPABASE_SERVICE_ROLE_KEY`) | `gv-mart/.env` | Edge Function secrets, GitHub Actions secrets and Vercel server-side variables that reuse it (it is never in the browser bundle) |
+| 4 | Test-login passwords of throwaway `__TEST_` users | the test-logins file on the Desktop | delete the file; the throwaway users are purged with their organisation |
+| 5 | Database backups on the Desktop (`GV_mart_db_backup_*`) | Desktop | move to encrypted storage or delete once the release is confirmed; they contain real data |
+
+Verify after rotating: the app still signs in, an Edge Function call works, the cron jobs still authenticate, and the
+Management API token in `.env` lists the project (`supabase projects list`).
+

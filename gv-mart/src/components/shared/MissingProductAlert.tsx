@@ -20,7 +20,7 @@ import { useTicketsMissingProduct } from "@/hooks/useService"
 export function MissingProductAlert({ orgId }: { orgId: string | undefined }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: tickets } = useTicketsMissingProduct(orgId)
+  const { data: tickets } = useTicketsMissingProduct(orgId, { excludeTest: true })
   const [open, setOpen] = useState(true)
 
   const count = tickets?.length ?? 0

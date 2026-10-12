@@ -190,15 +190,19 @@ export async function updateTicketProduct(
 }
 
 /** Gate-assignment-on-product (2026-08-04): open tickets with no product defined yet — feeds the Dashboard/Masters nag and the "Missing Product" filter chip. */
-export async function listTicketsMissingProduct(orgId: string) {
-  const { data, error } = await supabase
+export async function listTicketsMissingProduct(orgId: string, opts: { excludeTest?: boolean } = {}) {
+  // excludeTest (KPI step 1c): the nag must not list a flagged test customer's ticket. Opt-in, like the other lists.
+  const customers = opts.excludeTest ? "customers!inner(name)" : "customers(name)"
+  let query = supabase
     .from("service_tickets")
-    .select("id, name_of_complaint, created_at, customers(name), addresses(area)")
+    .select(`id, name_of_complaint, created_at, ${customers}, addresses(area)`)
     .eq("org_id", orgId)
     .is("product_id", null)
     .is("unlisted_product_name", null)
     .not("status", "in", "(completed,cancelled)")
     .order("created_at", { ascending: true })
+  if (opts.excludeTest) query = query.eq("customers.is_test", false)
+  const { data, error } = await query
   if (error) throw error
   return data
 }
