@@ -13,11 +13,11 @@ functions have never run under real Deno against a real Auth server.
 
 | ID | Sev | Finding | Status in this branch |
 |---|---|---|---|
-| F-01 | Medium | A password reset left the target's existing sessions and refresh tokens valid. | **Built, not applied.** `held/20261011100000_revoke_user_sessions.sql` (service-role-only definer function, empty search_path) + `revokeUserSessions()` called after a successful reset; failure is reported in the response and audit row. Live refresh-token test still to run (see 5). |
+| F-01 | Medium | A password reset left the target's existing sessions and refresh tokens valid. | **APPLIED LIVE 2026-10-12** (`migrations/20261011100000_revoke_user_sessions.sql`, rolled-back SQL test green first). (service-role-only definer function, empty search_path) + `revokeUserSessions()` called after a successful reset; failure is reported in the response and audit row. Live refresh-token test still to run (see 5). |
 | F-02 / F-05 / F-13 | Medium | Audit rows were written "pending" then UPDATEd; `REVOKE UPDATE` alone would have left every row "pending" forever. | **Built.** `staff-auth.ts` now INSERTs a start row and a separate completion row linked by `correlation_id`; nothing is updated; a missing completion row means "outcome unknown". |
-| F-03 | Medium | `audit_log` was mutable by service role / owner and erased by organisation cascade; `actor_id` lost on profile delete. | **Built, not applied, design awaiting approval.** `held/20261011110000_audit_log_append_only.sql`: trigger forbids UPDATE/DELETE/TRUNCATE (two narrow exceptions), UPDATE/DELETE/TRUNCATE revoked from anon/authenticated/service_role, `purge_test_organisation()` for throwaway cleanup, actor name snapshotted into `after`. |
+| F-03 | Medium | `audit_log` was mutable by service role / owner and erased by organisation cascade; `actor_id` lost on profile delete. | **APPLIED LIVE 2026-10-12** (design approved; `migrations/20261011110000_audit_log_append_only.sql`): trigger forbids UPDATE/DELETE/TRUNCATE (two narrow exceptions), UPDATE/DELETE/TRUNCATE revoked from anon/authenticated/service_role, `purge_test_organisation()` for throwaway cleanup, actor name snapshotted into `after`. |
 | F-04 | Medium | Typed passwords only needed 8 characters. | **Fixed.** 10-72 BYTES, deny-list of common passwords, repeated/sequential strings refused; one policy for create and reset; UI minimum raised to 10 bytes. Generated passwords unchanged. |
-| F-06 | Medium | A master (or stolen master token) could PATCH a profile's role to `master` through PostgREST. | **Built, not applied.** `held/20261011120000_profiles_no_client_master_grant.sql`: no authenticated/anon write can set role = master. |
+| F-06 | Medium | A master (or stolen master token) could PATCH a profile's role to `master` through PostgREST. | **APPLIED LIVE 2026-10-12** (`migrations/20261011120000_profiles_no_client_master_grant.sql`): no authenticated/anon write can set role = master. |
 | F-07 | Medium | The `is_active` gate covers only sales_admin; inactive master/operation_admin keep full DB access. | **Design only**: `docs/design-current-role-active-gate.md`. |
 | F-08 | Medium | Re-assessed (see 4): `simulate_inbound_whatsapp` rows are NOT dispatched, but staff can queue real outbound messages another way. | **Open, not in scope of this branch.** Proposed fix in 4. |
 | F-09 | Low | A technician can insert unlimited leads (rotation skew, notification spam). | Open. |
@@ -37,7 +37,7 @@ Both: POST only, `verify_jwt` on (no `config.toml` entry), JWT verified again in
 ## 3. Tests
 
 * Unit/handler tests (run in Node with a fake Deno runtime and fake client): `staff-auth.test.ts` 33 (was 21), `admin-reset-staff-password.handler.test.ts` 12 (was 10), `admin-create-staff.handler.test.ts` 13 (was 11). Whole suite 293 passed.
-* SQL: `supabase/tests/staff_security_fixes.test.sql` (rolled-back; covers F-06, the audit trigger and revokes, the purge route refusing real organisations, F-01 grants). **Not yet run: no database access when written.**
+* SQL: `supabase/tests/staff_security_fixes.test.sql` (rolled-back; covers F-06, the audit trigger and revokes, the purge route refusing real organisations, F-01 grants). **Run live (rolled back) 2026-10-12: all checks green.**
 * Limit that remains: none of this has run under real Deno / real Auth. The first live test is the post-deploy plan below.
 
 ## 4. F-08 re-assessment (static reading of the code)

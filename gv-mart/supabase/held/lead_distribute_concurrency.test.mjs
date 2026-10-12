@@ -84,21 +84,15 @@ try {
 } catch (e) {
   log("ERROR: " + e.message)
 } finally {
-  // ── cleanup: lead_outcomes and lead_sources first, then the organisation ───────────────────────────
+  // ── cleanup ───────────────────────────
   try {
     if (ORG) {
+      // audit_log is append-only: purge_test_organisation() is the only cleanup route (owner role, refuses non-__TEST_ orgs)
       await q(`
-        delete from notifications where org_id='${ORG}';
-        delete from audit_log where org_id='${ORG}';
         delete from lead_assignments where org_id='${ORG}';
         delete from lead_rotation where org_id='${ORG}';
-        delete from leads where org_id='${ORG}';
-        delete from lead_outcomes where org_id='${ORG}';
-        delete from lead_sources where org_id='${ORG}';
-        delete from profiles where org_id='${ORG}';
-        delete from auth.users where email like '__test\\_%@example.invalid';
-        delete from settings where org_id='${ORG}';
-        delete from organizations where id='${ORG}';`)
+        select purge_test_organisation('${ORG}');
+        delete from auth.users where email like '__test\\_%@example.invalid';`)
     }
     await q(`drop schema if exists __test_dp cascade`)
     const left = await q(`select (select count(*) from organizations where name like '\\_\\_TEST%') orgs,(select count(*) from auth.users where email like '\\_\\_test\\_%') users,(select count(*) from pg_namespace where nspname='__test_dp') schema_left`)

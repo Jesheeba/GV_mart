@@ -3,11 +3,11 @@
 --   20261011110000_audit_log_append_only.sql (F-02/03/05/13, purge route)
 --   20261011120000_profiles_no_client_master_grant.sql (F-06)
 -- The runner concatenates the three migration files in front of this block in ONE transaction; the block ends in RAISE,
--- so nothing is committed. Throwaway __TEST_ organisation and users only. NOT YET RUN (no database access when written).
+-- so nothing is committed. Throwaway __TEST_ organisation and users only. Run live 2026-10-12 via the Management API inside begin ... rollback.
 do $t$
 declare
   res text := ''; v_org uuid; v_real uuid; v_m uuid := gen_random_uuid(); v_s uuid := gen_random_uuid(); v_x uuid := gen_random_uuid();
-  v_sess uuid := gen_random_uuid(); v_aid uuid; n int; r int;
+  v_sess uuid := gen_random_uuid(); v_p uuid := gen_random_uuid(); v_aid uuid; n int; r int; v_other int;
 begin
   -- ===== F-06 no client-side master grant =====
   insert into organizations(name) values ('__TEST_secfix_org') returning id into v_org;
@@ -63,15 +63,22 @@ begin
   exception when others then res := res || E'\nFAIL A9 deleting an actor profile: '||sqlerrm; end;
 
   -- ===== purge route: real organisations cannot be purged =====
+  perform set_config('request.jwt.claims', '', true);   -- the actor profile was deleted above; no JWT for the seeding triggers
   insert into organizations(name) values ('Real Looking Org') returning id into v_real;
   insert into audit_log(org_id,action,table_name,after) values (v_real,'X','profiles','{}');
   begin perform purge_test_organisation(v_real); res := res || E'\nFAIL P1 purge accepted a non-test organisation';
   exception when others then res := res || E'\nok   P1 purge refuses a real organisation: '||sqlerrm; end;
   begin delete from organizations where id=v_real; res := res || E'\nFAIL P2 a real organisation with audit rows was deleted';
   exception when others then res := res || E'\nok   P2 direct DELETE of a real organisation with audit rows is blocked by the trigger'; end;
+  -- give the throwaway org real content so the cascade is exercised: a profile (audited), a lead and a customer
+  insert into auth.users(id,email) values (v_p,'__test_'||v_p||'@example.invalid');
+  insert into profiles(id,org_id,full_name,role) values (v_p,v_org,'__TEST_late_master','master');
+  update profiles set full_name='__TEST_late_master2' where id=v_p;
+  insert into leads(org_id,name,mobile,source,status) values (v_org,'__TEST_lead','9000000000','walk_in','new');
   begin perform purge_test_organisation(v_org); select count(*) into n from organizations where id=v_org;
         select count(*) into r from audit_log where org_id=v_org;
-        res := res || E'\n' || case when n=0 and r=0 then 'ok   P3 purge removes a __TEST_ organisation and its audit rows' else 'FAIL P3 org='||n||' audit='||r end;
+        v_other := (select count(*) from profiles where org_id=v_org) + (select count(*) from leads where org_id=v_org);
+        res := res || E'\n' || case when n=0 and r=0 and v_other=0 then 'ok   P3 purge removes a __TEST_ organisation with profile+lead and its audit rows' else 'FAIL P3 org='||n||' audit='||r||' other='||v_other end;
   exception when others then res := res || E'\nFAIL P3 '||sqlerrm; end;
   res := res || E'\n' || case when not has_function_privilege('authenticated','public.purge_test_organisation(uuid)','execute')
                               and not has_function_privilege('anon','public.purge_test_organisation(uuid)','execute')
