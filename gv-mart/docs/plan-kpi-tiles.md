@@ -477,3 +477,222 @@ product lines + spare lines + `gst_and_adjustments` (the remainder), so the stre
    master in a rolled-back transaction; parity with `report_pnl` / `report_sales_service`; lead hashes unchanged.
 8. Do not deploy the front end (Step 3 is the UI). Rollback: `drop function public.report_kpi_tiles(date, date);`
    `drop index if exists public.invoices_org_outstanding_idx;` and delete the `schema_migrations` row.
+
+
+---
+
+## 11. Step 3 - UI plan (design only; nothing built, nothing applied)
+
+Depends on Step 2 being applied (`report_kpi_tiles` live). Step 2 apply is on hold until the dispatcher canary and the
+automation Phase 2 apply are done; Step 3 code can be built and tested against faked responses before then, but its
+real-database browser check cannot run until the function exists live.
+
+Step 3 changes the front end only. No migration, no SQL change, no change to any list page.
+
+### 11.1 Where each tile group appears, and who sees what
+
+The dashboard a person lands on is decided by role in `DashboardPage.tsx` (master -> Owner, operation_admin -> Ops,
+sales_admin -> Sales). The Reports route is master-only in `nav.ts`; that does not change.
+
+| Role | Lands on | Tile groups shown | Headline row (6) |
+|---|---|---|---|
+| master | Owner dashboard | sales + service + money_out | 1 Revenue, 2 Collected, 5 Cash profit, 10 Lead to Won, 12 Open tickets, 14 Rating |
+| operation_admin | Ops dashboard | sales + service (no money_out) | 1 Revenue, 2 Collected, **3 Outstanding** (replaces cash profit), 10 Lead to Won, 12 Open tickets, 14 Rating |
+| sales_admin | Sales dashboard | sales only | 1 Revenue, 2 Collected, 3 Outstanding, 9 New leads, 10 Lead to Won, 16 Repeat buyers |
+
+A group the function returns as null is simply not rendered: no placeholder, no lock icon, no zero. The UI never decides
+visibility from the role string; it renders what the server returned, so a role change on the server is the only switch.
+
+Reports (master only): a compact tile strip is added at the top of three tabs, each showing only the tiles that belong there:
+P&L tab -> tiles 1, 2, 4, 5, 6; Sales & Service tab -> tiles 7, 8, 12, 13; Sales Insights tab -> tiles 9, 10, 16.
+They use that tab's own period filter, so the strip and the report below it always cover the same window.
+
+### 11.2 Tile layout
+
+One `KpiTileStrip` component fed by one query (`useKpiTiles(range)` -> `getKpiTiles`), so a dashboard shows a single
+consistent snapshot.
+
+1. **Headline row:** six tiles, same card style as today's `DashCard` (label, value, one sub-line, small icon). The first tile
+   keeps the accent gradient treatment the Owner dashboard already uses for Total Revenue.
+2. **Group sections** under it, one per visible group, each a titled grid of the remaining tiles:
+   - Sales: 3 Outstanding (if not already headline), 7 Revenue by stream, 8 Units sold and average sale, 9 New leads, 16 Repeat buyers.
+   - Service: 13 Fixed within 24 h, 15 AMC contracts (12 and 14 are headline).
+   - Money out (master): 4 Spend, 6 Item margin (5 is headline).
+3. **Revenue by stream** is a single wide tile: five rows (Products, Spares (counter sales), Service, AMC, Rental) plus
+   "GST and adjustments", each with amount and share, and the fixed note "Spares used on a service visit count as Service."
+   (condition b). The rows add up to tile 1's gross figure, shown as the tile total.
+4. **Live tiles** (3, 12, 15) carry a small "Live" chip and are not dimmed by the period; period tiles carry the period label.
+5. **Help text:** every tile has an info button opening a popover (the app has `popover`, no sheet component) with the
+   plain-language meaning from section 3. Tile 1's help text includes the basis-change note (condition c).
+
+**Cost-missing badge (condition a/4):** tile 6 shows a warning badge "Cost missing on N items" whenever
+`itemMargin.costMissing` is true, with the help text explaining that those lines are left out of the margin, not counted
+as free. When the badge shows, the margin percentage is labelled "on items with a cost". The badge is part of the tile,
+never hidden behind the popover.
+
+### 11.3 States (the real org has no invoices yet)
+
+| State | What the user sees |
+|---|---|
+| Loading | Skeleton cards in the final layout (no layout shift); previous data stays visible while a new period loads |
+| Error | One inline error card replacing the strip ("Could not load the tiles") with a Retry button; the rest of the dashboard keeps working |
+| Empty window (no invoices, e.g. today's real org) | Money tiles show a real "₹0", never a spinner or a dash; sub-line "No sales in this period yet"; percentages and averages that have no basis show "—" with "No data yet" (lead win rate with 0 leads, rating with 0 ratings, margin with no revenue) |
+| Live tiles with no rows | Show 0 with their normal sub-line ("0 open tickets") |
+| Partial permission | Groups the server nulled are absent; the strip lays out whatever remains |
+| Refetching | Subtle "updating" indicator on the period label, values stay |
+
+### 11.4 Date window (IST)
+
+- Reuse the existing `PeriodFilter` (Month / Year / Custom). `periodToRange` returns plain `YYYY-MM-DD` strings, which are sent
+  as the `p_from` / `p_to` dates; the server turns them into the IST half-open window. The browser never converts timezones
+  and never builds timestamps, so a phone set to another timezone gets the same numbers.
+- Default is the current IST month (`defaultPeriodValue()` already uses `getIstNow()`).
+- Owner and Sales dashboards already hold a period; Ops gets a `PeriodFilter` above the strip (it has none today); each
+  Reports tab reuses its own.
+- "Today" for live tiles comes back from the server (`window.todayIst`), not from the device clock; the tile footer shows
+  "Period: 1 Oct - 31 Oct (IST)".
+- Today's Sales on the Owner dashboard becomes the same call with a one-day window, so it cannot disagree with tile 1.
+
+### 11.5 Replacing the browser-computed tiles without touching list pages
+
+| Today (computed in the browser from a list) | Becomes |
+|---|---|
+| Owner: Total Revenue card | tile 1 (net headline, gross sub-line) |
+| Owner: Open Tickets card and "Needs attention" ticket count | tile 12 |
+| Owner: Lead Conversion card | tile 10 |
+| Owner: "Needs attention" AMC due soon | tile 15 (renewal window) |
+| Owner: Today's Sales | `getKpiTiles(today..today)` tile 1 |
+| Sales: Lead Conversion | tile 10 |
+| Ops: Open tickets and urgent count | tile 12 |
+
+Unchanged on purpose: Recent tickets, Top technicians, Low stock, Today's appointments, Attendance, Sales dashboard's Open
+Leads / Lead Pipeline / Source conversion / Quotation to Sale / Recent leads. These are list-shaped or not part of the tile
+function; they keep the Step 1 `excludeTest` flags. The Tickets, Leads, AMC, Quotations and Sales list pages are not edited.
+After the swap, the `excludeTest` option on any hook that no dashboard uses any more stays in the service layer (it is
+opt-in and harmless) and is only removed if a later cleanup decides to.
+
+Gaps found while planning (not solved by Step 3): "open leads" count and Quotation to Sale are not in `report_kpi_tiles`;
+they stay list-based and test-filtered. If you want them as server tiles, that is a small Step 2b migration.
+
+### 11.6 Strings: English and Tamil
+
+New namespace `kpi.*` in `src/lib/i18n/en.json` and `ta.json` (the existing `parity.test.ts` fails the build if a key is in
+one and not the other). Tamil below is a **draft for review**; it will also be recorded in a new
+`docs/tamil-review-kpi.md` as the earlier batches did. Existing keys reused where they exist (`common.retry`,
+`common.loading`, `dashboard.*` for unchanged tiles).
+
+| Key | English | Tamil (draft) |
+|---|---|---|
+| `kpi.group.sales` | Sales | விற்பனை |
+| `kpi.group.service` | Service | சேவை |
+| `kpi.group.moneyOut` | Spend and profit | செலவு மற்றும் லாபம் |
+| `kpi.invoiced.title` | Revenue (excl. GST) | வருவாய் (GST நீங்கலாக) |
+| `kpi.invoiced.sub` | Incl. GST: {{amount}} | GST உட்பட: {{amount}} |
+| `kpi.invoiced.help` | What was billed in this period, before GST. This headline used to show the amount including GST; that figure is still shown underneath. | இந்தக் காலத்தில் வழங்கிய பில்களின் தொகை, GST நீங்கலாக. இந்த முதன்மை எண் முன்பு GST உட்பட காட்டியது; அந்த எண் கீழே தொடர்ந்து காட்டப்படுகிறது. |
+| `kpi.collected.title` | Collected so far | இதுவரை வசூலானது |
+| `kpi.collected.sub` | of {{total}} billed | {{total}} பில்லில் |
+| `kpi.collected.help` | Money received so far against this period's bills. It is not the cash received during the period. | இந்தக் காலத்தின் பில்களுக்கு இதுவரை பெற்ற தொகை. இது இந்தக் காலத்தில் கையில் வந்த பணம் அல்ல. |
+| `kpi.outstanding.title` | Outstanding | நிலுவைத் தொகை |
+| `kpi.outstanding.sub` | {{count}} unpaid bills · oldest {{date}} | {{count}} செலுத்தப்படாத பில்கள் · பழையது {{date}} |
+| `kpi.outstanding.help` | Unpaid and part-paid bills of any date, as of now. | எந்தத் தேதியிலுள்ள செலுத்தப்படாத மற்றும் பகுதி செலுத்திய பில்கள், இப்போதைய நிலை. |
+| `kpi.spend.title` | Spend | செலவு |
+| `kpi.spend.sub` | Excluding stock purchases: {{amount}} | பொருள் கொள்முதல் நீங்கலாக: {{amount}} |
+| `kpi.spend.help` | Everything paid out in this period, by the date it was recorded. | இந்தக் காலத்தில் பதிவான அனைத்துச் செலவுகளும். |
+| `kpi.cashProfit.title` | Cash profit | பண லாபம் |
+| `kpi.cashProfit.help` | Money collected (excl. GST) minus spend. Stock purchases count when they are billed, not when the stock is sold. | வசூலான தொகை (GST நீங்கலாக) கழித்தல் செலவு. பொருள் கொள்முதல் பில் செய்த நேரத்தில் கணக்கில் வரும், விற்கும்போது அல்ல. |
+| `kpi.itemMargin.title` | Item margin | பொருள் லாபம் |
+| `kpi.itemMargin.sub` | {{percent}}% margin | {{percent}}% லாப விகிதம் |
+| `kpi.itemMargin.subWithCost` | {{percent}}% on items with a cost | விலை பதிவான பொருட்களில் {{percent}}% |
+| `kpi.itemMargin.help` | Selling price minus the cost price of the items sold. Items with no cost price recorded are left out, not counted as free. | விற்பனை விலை கழித்தல் விற்ற பொருட்களின் கொள்முதல் விலை. கொள்முதல் விலை பதிவாகாத பொருட்கள் சேர்க்கப்படாது, இலவசமாகக் கணக்கிடப்படாது. |
+| `kpi.costMissing.badge` | Cost missing on {{count}} items | {{count}} பொருட்களுக்கு கொள்முதல் விலை இல்லை |
+| `kpi.streams.title` | Where revenue comes from | வருவாய் எங்கிருந்து வருகிறது |
+| `kpi.streams.product` | Products | பொருட்கள் |
+| `kpi.streams.spareCounter` | Spares (counter sales) | உதிரி பாகங்கள் (கவுண்டர் விற்பனை) |
+| `kpi.streams.service` | Service | சேவை |
+| `kpi.streams.amc` | AMC | AMC |
+| `kpi.streams.rental` | Rental | வாடகை |
+| `kpi.streams.gstAdjustments` | GST and adjustments | GST மற்றும் சரிசெய்தல்கள் |
+| `kpi.streams.note` | Spares used on a service visit count as Service. | சேவை வருகையில் பயன்படுத்தும் உதிரி பாகங்கள் சேவையில் கணக்கிடப்படும். |
+| `kpi.unitsSold.title` | Units sold | விற்ற எண்ணிக்கை |
+| `kpi.avgSale.title` | Average sale | சராசரி விற்பனை |
+| `kpi.leadsNew.title` | New leads | புதிய லீட்கள் |
+| `kpi.leadWon.title` | Lead to sale | லீட்டிலிருந்து விற்பனை |
+| `kpi.leadWon.sub` | {{won}} of {{total}} leads | {{total}} லீட்களில் {{won}} |
+| `kpi.leadWon.help` | Of the leads that arrived in this period, the share that became a sale so far. Lost leads count in the total. | இந்தக் காலத்தில் வந்த லீட்களில் இதுவரை விற்பனையாக மாறியவை. இழந்த லீட்களும் மொத்தத்தில் சேரும். |
+| `kpi.openTickets.title` | Open tickets | திறந்த டிக்கெட்டுகள் |
+| `kpi.openTickets.sub` | {{urgent}} urgent · {{past}} past SLA | {{urgent}} அவசரம் · {{past}} SLA கடந்தவை |
+| `kpi.resolved.title` | Fixed within 24 hours | 24 மணி நேரத்தில் தீர்வு |
+| `kpi.resolved.sub` | {{resolved}} of {{completed}} completed | முடிந்த {{completed}} இல் {{resolved}} |
+| `kpi.rating.title` | Customer rating | வாடிக்கையாளர் மதிப்பீடு |
+| `kpi.rating.sub` | {{count}} ratings · {{low}} below 4.5 | {{count}} மதிப்பீடுகள் · {{low}} 4.5 க்குக் கீழ் |
+| `kpi.amc.title` | AMC contracts | AMC ஒப்பந்தங்கள் |
+| `kpi.amc.sub` | {{count}} due for renewal | {{count}} புதுப்பிக்க வேண்டியவை |
+| `kpi.repeat.title` | Repeat buyers | மீண்டும் வாங்குபவர்கள் |
+| `kpi.repeat.sub` | {{repeat}} of {{buying}} buyers | {{buying}} வாங்குபவர்களில் {{repeat}} |
+| `kpi.live` | Live | நேரடி |
+| `kpi.period` | Period: {{from}} – {{to}} (IST) | காலம்: {{from}} – {{to}} (IST) |
+| `kpi.noSales` | No sales in this period yet | இந்தக் காலத்தில் இன்னும் விற்பனை இல்லை |
+| `kpi.noData` | No data yet | இன்னும் தரவு இல்லை |
+| `kpi.error` | Could not load the tiles | டைல்களை ஏற்ற முடியவில்லை |
+| `kpi.helpButton` | What does this mean? | இதன் பொருள் என்ன? |
+| `kpi.updating` | Updating… | புதுப்பிக்கிறது… |
+
+Wording to settle with the reviewer: "லீட்" (transliteration, as the app already uses), "டிக்கெட்", and whether "SLA" stays in
+Latin script. The existing Tamil for "AMC" and "GST" is kept as in `ta.json`.
+
+### 11.7 Mobile layout (Capacitor app)
+
+The admin shell is the same web bundle the Capacitor app loads, so this is responsive web, not a separate screen.
+- Below 640 px: headline tiles in a 2-column grid; group sections are collapsible, collapsed by default except the first;
+  Revenue by stream stacks its rows full width.
+- 640 px and above: 2-3 columns (headline row of 3 x 2), then 3-4 column group grids; desktop keeps the six in one or two rows.
+- Values use the existing compact rupee format on phones (lakh) with the exact amount in the popover; tabular numerals.
+- Tamil strings run longer: no fixed widths, titles may wrap to two lines, no truncation of numbers.
+- Info buttons are at least 44 px touch targets and open a popover anchored to the tile; no hover-only content.
+- Safe-area insets and the existing shell padding are inherited; no new fixed bars.
+
+### 11.8 Build pieces (for the later build step)
+
+| Piece | Notes |
+|---|---|
+| `src/hooks/useKpiTiles.ts` | react-query wrapper over `getKpiTiles`; key includes the range only (the org is the caller's profile) |
+| `src/app/admin/kpi/kpiTilesView.ts` | pure view-model: tiles from the mapper output -> ordered list with value, sub-line, state, badge; no React, unit-testable in Node |
+| `src/app/admin/kpi/KpiTileStrip.tsx` + `KpiTile.tsx` | thin presentation; no business logic |
+| Edits | `OwnerDashboard.tsx`, `OpsDashboard.tsx`, `SalesDashboard.tsx`, three Reports tabs, `en.json`, `ta.json`, `docs/tamil-review-kpi.md` |
+
+### 11.9 Test plan
+
+1. **View-model unit tests (vitest, Node):** role -> visible tile ids and headline order for master / operation_admin /
+   sales_admin; null groups produce no tiles; empty window shows zeros and "—" correctly; cost-missing badge on/off and
+   the "on items with a cost" label; net headline with gross sub-line; live-chip flags; period label formatting.
+2. **i18n:** `parity.test.ts` (en/ta key parity) plus a test that every `kpi.*` key used by the view-model exists.
+3. **Component tests:** the repo has no DOM test environment (`vitest` runs in Node; no jsdom or testing-library installed).
+   Default: keep components logic-free and cover them through the view-model plus the browser run below, adding no new
+   dependency. Open question Q8 asks whether you want `jsdom` + `@testing-library/react` added as devDependencies.
+4. **Browser, faked responses (can run before the Step 2 apply):** Playwright (already a devDependency) against the dev
+   server with `page.route` intercepting `report_kpi_tiles`, using JSON captured from the SQL test: master, operation_admin,
+   sales_admin payloads, an all-zero payload, an error response, and a slow response. Checks: correct tiles per role, empty
+   and error states, cost-missing badge, Tamil toggle, 390 x 844 phone viewport, no horizontal scroll, popover opens.
+5. **Browser, real database (after the Step 2 apply):** a throwaway `__TEST_` org seeded as in the Step 1 driver (normal
+   customer, `is_test` customer, invoices, leads, tickets, AMC, expenses) with three users (master, operation_admin,
+   sales_admin) created through the auth admin API with random passwords held only in memory. Log in through the real login
+   page for each role, assert the tile values equal the hand-computed ones, assert the flagged customer's rows do not move
+   any tile, toggle Tamil, repeat at the phone viewport, capture screenshots. Then purge with `purge_test_organisation`,
+   delete the auth users, and confirm 0 rows remain. The older `__TEST_ GV Mart` org is not touched.
+6. **Regression:** `tsc -b` clean, full vitest, the existing Step 1 exclusion tests still pass, lead hashes unchanged
+   (64 / `7d8cf3fd...` / `3d0efc7a...`), and a before/after check that the Tickets, Leads, AMC and Quotations list pages
+   return the same rows (they are not edited).
+7. **Before any margin tile ships:** re-run the "invoice lines with no cost snapshot" count on the real org and report it.
+
+### 11.10 Open questions for Step 3, with defaults
+
+| # | Question | Default |
+|---|---|---|
+| Q8 | Add `jsdom` and `@testing-library/react` for component tests? | No new dependency; view-model tests + Playwright |
+| Q9 | Show a change versus the previous period on tiles? | Not in Step 3 (needs a second call with shifted dates); add later if wanted |
+| Q10 | Put the tile strip on the three Reports tabs, or only on the dashboards? | Both, as in 11.1 |
+| Q11 | Give Ops dashboard a period filter (it is "today" only now)? | Yes, default current month, live tiles unaffected |
+| Q12 | Tile 6 visible to operation_admin? | No, master only, as Step 2 enforces |
+| Q13 | Server tiles for open-lead count and Quotation to Sale (Step 2b)? | Not now; they stay list-based and test-filtered |
+
+Not part of Step 3: any migration, any change to a list page, any WhatsApp or notification behaviour, push or deploy.
