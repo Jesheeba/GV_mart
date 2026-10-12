@@ -1,9 +1,8 @@
 -- KPI tiles for the master's dashboard (docs/plan-kpi-tiles.md, Step 2). ADDITIVE ONLY, READ ONLY.
 --
--- PLACEHOLDER FILE NAME ON PURPOSE. This file is not a numbered migration yet. At apply time it is renamed to
--- <version>_report_kpi_tiles.sql where <version> is higher than the live max in schema_migrations AND does not collide with
--- anything on origin/main (re-check both then; other branches are adding versions). The supabase CLI skips non-numeric names.
---
+-- Version 20261017110000: chosen above the live max (20261017100000, automation_phase2_foundation) and checked against
+-- origin/main and every local/remote branch at apply time (2026-10-17 session). Re-check if this is applied later.
+
 -- What it adds (nothing existing is replaced or altered):
 --   * public.report_kpi_tiles(p_from date, p_to date) -> jsonb
 --   * a partial index that keeps the live "outstanding receivable" tile cheap
