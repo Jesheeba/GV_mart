@@ -123,5 +123,11 @@ Abort/rollback: switch OFF (UI or SQL); distribution rollback file removes the t
 | Meeting notes visible to customers/technicians | `meeting_logs`, `meeting_issues`, `automation_flows` are readable by any member of the organisation | tighten the four SELECT policies to staff (small separate migration, needs your OK) |
 | ~10 anon-executable write functions with no guard (`run_rental_billing`, `_create_po_from_winning_quote`, ...) | callable with the public anon key plus an organisation id | revoke from PUBLIC/anon/authenticated; their real callers are definer functions and service-role Edge Functions (verified by search) |
 
+## 7a. Standing rule: create tables only through migrations, never in Studio
+Migration `20261016500000_revoke_anon_table_privileges` removes every anon privilege from existing public tables and changes the default privileges so that tables created later by `postgres` (which is what migrations run as) do not inherit them. The default privileges of `supabase_admin` could NOT be changed from the database session available to us (the test reports it as a WARN). A table created in the Studio table editor or SQL editor can be owned by `supabase_admin` and would still be created with anon privileges. So:
+* Create tables, views and sequences only through a migration file applied as `postgres`.
+* If a table is ever created in Studio, immediately run `revoke all on public.<table> from anon;` and `revoke truncate, references, trigger, maintain on public.<table> from authenticated;`, and enable row-level security with a policy.
+* After any schema change, the count of public relations with an anon privilege must be 0 (query in `supabase/tests/anon_table_privileges.test.sql`, check 2).
+
 ## 8. Order at a glance
 1 preconditions `[AUTO]` -> 2.1 secret `[YOU]` -> 2.2 deploy reset `[YOU]` -> 3 tests `[AUTO]` -> 2.3 deploy create `[YOU]` -> 3 tests `[AUTO]` -> (F-08 apply `[YOU]`) -> merge/push `[YOU]` -> 4 create sales persons `[YOU]` -> 5 distribution migration `[YOU]` -> 6 switch ON `[YOU]` -> 6 live verification `[AUTO]` -> (F-07 apply `[YOU]`, later).
