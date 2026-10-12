@@ -7,7 +7,7 @@ Status: DOCUMENT ONLY. Replaces the effort section (section 13) of `docs/plan-au
 1. **Every customer message outside the 24-hour window must be an approved template.** The first estimate assumed free text with templates as a "Phase 0 submission chore". Now no flow can go live until its template (English and Tamil, each a separate name) is approved.
 2. **Templates are submitted by hand in the Wasi dashboard** (no API), Tamil needs a native review first, and Meta reviews can take from minutes to days. The calendar time is dominated by waiting, not coding.
 3. **The first estimate's own arithmetic.** Its phase table sums to about 22 to 30 working days (4-5 + 4-6 + 2-3 + 5-6 + 4-5 + 2-3, plus Phase 0), but its text says "roughly 3-4 weeks". The honest reading is 4 to 6 calendar weeks of focused work. This version keeps the sum, not the summary line.
-4. **Wave 1 is smaller than the full design** (10 names, 20 submissions of 32 names, 64 submissions) and ships first; later waves are an extension.
+4. **Wave 1 is smaller than the full design** (11 names, 22 submissions of 32 names, 64 submissions; `gvm_technician_arrived` was added to Wave 1 on 2026-10-12) and ships first; later waves are an extension.
 
 ## 2. Prerequisite (not part of this estimate)
 
@@ -24,9 +24,9 @@ Removed from the design and from every phase below: any technician incentive per
 | Phase | What ships | Effort (working days) | Depends on | Blocked on owner? |
 |---|---|---|---|---|
 | **0. Dispatcher fix** (separate plan) | Honest send status, delivery tracking, template sending | not estimated here | security branch on `origin/main` | No |
-| **1. Template readiness** | Wave 1 submission sheet used; 10 templates (20 submissions) created in Wasi; approval tracked; template mirror synced; one approved template sent to the test number ending 6740 | 2 to 3 | Phase 0 (for the real send) | **Yes**: owner submits templates; Tamil review; app and Google URLs confirmed |
+| **1. Template readiness** | Wave 1 submission sheet used; 11 templates (22 submissions) created in Wasi; approval tracked; template mirror synced; one approved template sent to the test number ending 6740 | 2 to 3 | Phase 0 (for the real send) | **Yes**: owner submits templates; Tamil review; app and Google URLs confirmed |
 | **2. Foundation** | `automation_emit`, rules and queue tables, append-only audit table, kill switches, opt-out table and STOP handling, allow-list and test-send guard inside `sendMessage`, template resolution gates | 5 to 7 | Phase 0; answers to questions 3, 4, 12 | Partly (answers); build itself is not blocked |
-| **3. Wave 1 flows** | Booked, assigned, completed, invoice issued, feedback, Google review, AMC welcome, AMC visit scheduled, AMC expiring (on the way after the departure signal). Old triggers re-pointed behind a per-event cutover flag, shadow mode, then switch | 6 to 8 | Phases 1 and 2; templates approved | **Yes**: approved templates; questions 2, 5, 6, 9 |
+| **3. Wave 1 flows** | Booked, assigned, arrived, completed, invoice issued, feedback, Google review, AMC welcome, AMC visit scheduled, AMC expiring (on the way after the departure signal). Old triggers re-pointed behind a per-event cutover flag, shadow mode, then switch | 6 to 8 | Phases 1 and 2; templates approved | **Yes**: approved templates; questions 2, 5, 6, 9 |
 | **4. Test fixtures and harness** | Flagged test customer, test technician and sales person, `is_test` filters on reports/KPIs/incentives, CI guard, table-driven end-to-end runner, results document | 4 to 6 | Phase 2; question 10, 11; owner approval of the live fixture writes | **Yes**: fixtures approval |
 | **5. Master flow builder UI** | Triggers tab, rule editor, simulate, audit view, global bar, English and Tamil labels | 5 to 7 | Phase 2 (rules model); Phase 3 for real data | No (Tamil UI labels need a review pass) |
 | **6. Remaining waves and videos** | Waves 2 and 3 (22 names, 44 submissions), keyword-flow videos, staff WhatsApp, payment, warranty, rental, referral scanners | 8 to 12 | Phases 2 to 5; submissions and Tamil review per wave | **Yes**: further submissions and review |
@@ -70,7 +70,7 @@ Phases can overlap: while templates are in Meta review (Phase 1 wait), Phase 2 c
 
 | Blocked on the owner | Why |
 |---|---|
-| Template submission in the Wasi dashboard (20 for Wave 1, 44 more later) | Dashboard only, no API |
+| Template submission in the Wasi dashboard (22 for Wave 1, 42 more later) | Dashboard only, no API |
 | Tamil review of every `_ta` text | Submission waits for it (`docs/tamil-review-wasi-templates.md`) |
 | The two fixed URLs: customer app link and Google review link | Needed inside the templates; cannot be invented |
 | Answers to the 16 questions (`docs/automation-open-questions-plain.md`) | Questions 2, 3, 4, 5, 6, 9, 12 gate Phase 2 and 3 design |
@@ -97,6 +97,7 @@ Rules for every test: the only customer used is the flagged "jeshee test trigger
 |---|---|---|
 | 1 | Book a service via the app | `ticket.created`: one booked message (EN or TA by the customer's language) to the test number; audit `queued` then `sent` |
 | 2 | Auto-assign to the test technician | `ticket.assigned`: one customer message with the technician name and slot; technician row routed to the test number by override |
+| 2b | Technician starts the visit (visit row created) | `technician.arrived`: one customer message (`gvm_technician_arrived_*`), job class, not capped |
 | 3 | Technician starts travel (when the action exists) | `technician.on_the_way`: one message; none emitted by visit start |
 | 4 | Complete the visit with the OTP | `ticket.completed`: one completed message |
 | 5 | Feedback request after the configured delay | `feedback.requested`: one message, only once |

@@ -50,14 +50,14 @@ How to answer: copy the message at the bottom, change only the lines you want to
 ### 6. Which events message the customer?
 - **Question:** For which events should the customer get a WhatsApp message by default, and which are for staff only? For example, telling a customer their lead is "contacted" or "quoted" is unusual.
 - **Why it matters:** Too many messages annoy people; too few leave them guessing.
-- **Recommended default:** Customers get: booked, assigned, on the way, completed, invoice, AMC welcome, AMC visit and AMC expiring, feedback and review. A lead moving to "won" gets a thank-you; "lost" never messages the customer.
+- **Recommended default:** Customers get: booked, assigned, on the way, arrived, completed, invoice, AMC welcome, AMC visit and AMC expiring, feedback and review. A lead moving to "won" gets a thank-you; "lost" never messages the customer.
 - **If different:** Each of these is a switch the master can turn on or off later; nothing is locked.
 
 ### 7. Do staff want WhatsApp too?
 - **Question:** Should technicians, sales people and the master also get WhatsApp messages (new job, new lead, alerts), or stay with in-app notifications only?
 - **Why it matters:** Each staff message needs its own approved template and a working number for every person.
 - **Recommended default:** In-app only for the first release; turn on WhatsApp for "new job" (technician) and "new lead" (sales) in the second wave.
-- **If different:** If you want staff WhatsApp from day one, three more templates (six submissions) must be added to the first wave.
+- **If different:** If you want staff WhatsApp from day one, three more templates (six submissions) must be added to the first wave (which now has 11 customer templates, 22 submissions, since `gvm_technician_arrived` was added).
 
 ## C. Quotes, invoices and customers
 
@@ -133,7 +133,7 @@ Automation answers (defaults pre-filled)
 3  Repeats: never twice for the same job + waiting period; review requests at least 90 days apart
 4  STOP: stops promotions, review requests and renewal reminders; job updates and invoices continue; STOP ALL stops everything
 5  Google review: ask every customer after every completed service, no condition, no staff name, no reward, incentive or quota; QR offered not pushed; record reviews for reporting only; low ratings also alert master and operations
-6  Customer messages by default: booked, assigned, on the way, completed, invoice, AMC welcome/visit/expiring, feedback, review; lead "won" thank-you only
+6  Customer messages by default: booked, assigned, on the way, arrived, completed, invoice, AMC welcome/visit/expiring, feedback, review; lead "won" thank-you only
 7  Staff WhatsApp: in-app only now; add technician "new job" and sales "new lead" WhatsApp in the second wave
 8  Quotations and invoices: send from the system; keep the old button as a backup for now
 9  Language: add a preferred-language field per customer, English if empty
