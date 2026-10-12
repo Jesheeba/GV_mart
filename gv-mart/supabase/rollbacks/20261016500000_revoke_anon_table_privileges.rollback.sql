@@ -1,7 +1,5 @@
--- Rollback for 20261016500000_revoke_anon_table_privileges.sql
--- Restores the exact anon / authenticated / PUBLIC privileges on public relations taken in
--- DesktopGV_mart_acl_backup_2026-10-12_tables_before_anon_revoke.json, and the default privileges.
--- Regenerate from a fresh snapshot immediately before applying if anything changed in between.
+-- Rollback for 20261016500000_revoke_anon_table_privileges.sql, regenerated from the live ACLs immediately before apply (2026-10-12T14:50:22.534Z).
+-- Snapshot: GV_mart_acl_backup_2026-10-12_tables_before_anon_revoke_apply.json
 begin;
 grant DELETE on TABLE public."addresses" to anon;
 grant INSERT on TABLE public."addresses" to anon;
@@ -1893,7 +1891,6 @@ grant TRIGGER on TABLE public."whatsapp_templates" to authenticated;
 grant TRUNCATE on TABLE public."whatsapp_templates" to authenticated;
 grant UPDATE on TABLE public."whatsapp_templates" to authenticated;
 grant SELECT on TABLE public."whatsapp_wasi_templates" to authenticated;
--- default privileges for objects created by postgres in public (as before)
 alter default privileges for role postgres in schema public grant all on tables to anon;
 alter default privileges for role postgres in schema public grant all on sequences to anon;
 alter default privileges for role postgres in schema public grant truncate, references, trigger, maintain on tables to authenticated;
