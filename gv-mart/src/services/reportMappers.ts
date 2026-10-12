@@ -330,3 +330,131 @@ export function mapCoverage(d: CoverageRpc): CoverageReport {
     },
   }
 }
+
+// ── report_kpi_tiles (KPI tiles, Step 2) ─────────────────────────────────
+// A group that the caller's role may not see arrives as JSON null and stays null here (never zeros).
+export type KpiTilesRpc = {
+  window: { from: string; to: string; today_ist: string }
+  role: "master" | "operation_admin" | "sales_admin"
+  sales: {
+    invoiced: { count: number; total: number; gst: number; net: number }
+    collected: { total: number; net: number }
+    outstanding: { amount: number; invoice_count: number; oldest_invoice_date: string | null }
+    streams: { product: number; spare_counter: number; gst_and_adjustments: number; service: number; amc: number; rental: number; note: string }
+    units_sold: number
+    avg_sale_value: number
+    leads: { new: number; won: number; lost: number; won_percent: number | null }
+    repeat_buyers: { buying_customers: number; repeat_buyers: number; new_buyers: number; repeat_rate_percent: number | null }
+  } | null
+  service: {
+    open_tickets: { count: number; urgent: number; past_sla: number }
+    resolved_within_24h: { resolved: number; completed: number; percent: number | null }
+    rating: { average: number | null; count: number; below_4_5: number }
+    amc: { active: number; renewal_window: number; revenue: number }
+  } | null
+  money_out: {
+    spend: { total: number; by_category: { category: Enums<"expense_category">; amount: number }[]; operating_excl_purchase: number }
+    cash_profit: { collected_net: number; spend: number; profit: number }
+    item_margin: { revenue: number; cost: number; gifts_cost: number; profit: number; margin_percent: number | null; missing_cost_count: number; cost_missing: boolean }
+  } | null
+}
+
+export type KpiTiles = {
+  window: { from: string; to: string; todayIst: string }
+  role: KpiTilesRpc["role"]
+  sales: {
+    invoicedTotal: number
+    invoicedGst: number
+    invoicedNet: number
+    invoiceCount: number
+    collectedTotal: number
+    collectedNet: number
+    outstandingAmount: number
+    outstandingInvoiceCount: number
+    oldestOutstandingDate: string | null
+    streams: { product: number; spareCounter: number; gstAndAdjustments: number; service: number; amc: number; rental: number; note: string }
+    unitsSold: number
+    avgSaleValue: number
+    leads: { new: number; won: number; lost: number; wonPercent: number | null }
+    repeatBuyers: { buying: number; repeat: number; new: number; ratePercent: number | null }
+  } | null
+  service: {
+    openTickets: { count: number; urgent: number; pastSla: number }
+    resolvedWithin24h: { resolved: number; completed: number; percent: number | null }
+    rating: { average: number | null; count: number; below45: number }
+    amc: { active: number; renewalWindow: number; revenue: number }
+  } | null
+  moneyOut: {
+    spendTotal: number
+    spendByCategory: { category: Enums<"expense_category">; amount: number }[]
+    operatingSpendExclPurchase: number
+    cashProfit: number
+    itemMargin: { revenue: number; cost: number; giftsCost: number; profit: number; marginPercent: number | null; missingCostCount: number; costMissing: boolean }
+  } | null
+}
+
+export function mapKpiTiles(d: KpiTilesRpc): KpiTiles {
+  const s = d.sales
+  const v = d.service
+  const m = d.money_out
+  return {
+    window: { from: d.window.from, to: d.window.to, todayIst: d.window.today_ist },
+    role: d.role,
+    sales: s
+      ? {
+          invoicedTotal: num(s.invoiced.total),
+          invoicedGst: num(s.invoiced.gst),
+          invoicedNet: num(s.invoiced.net),
+          invoiceCount: num(s.invoiced.count),
+          collectedTotal: num(s.collected.total),
+          collectedNet: num(s.collected.net),
+          outstandingAmount: num(s.outstanding.amount),
+          outstandingInvoiceCount: num(s.outstanding.invoice_count),
+          oldestOutstandingDate: s.outstanding.oldest_invoice_date ?? null,
+          streams: {
+            product: num(s.streams.product),
+            spareCounter: num(s.streams.spare_counter),
+            gstAndAdjustments: num(s.streams.gst_and_adjustments),
+            service: num(s.streams.service),
+            amc: num(s.streams.amc),
+            rental: num(s.streams.rental),
+            note: s.streams.note,
+          },
+          unitsSold: num(s.units_sold),
+          avgSaleValue: num(s.avg_sale_value),
+          leads: { new: num(s.leads.new), won: num(s.leads.won), lost: num(s.leads.lost), wonPercent: numOrNull(s.leads.won_percent) },
+          repeatBuyers: {
+            buying: num(s.repeat_buyers.buying_customers),
+            repeat: num(s.repeat_buyers.repeat_buyers),
+            new: num(s.repeat_buyers.new_buyers),
+            ratePercent: numOrNull(s.repeat_buyers.repeat_rate_percent),
+          },
+        }
+      : null,
+    service: v
+      ? {
+          openTickets: { count: num(v.open_tickets.count), urgent: num(v.open_tickets.urgent), pastSla: num(v.open_tickets.past_sla) },
+          resolvedWithin24h: { resolved: num(v.resolved_within_24h.resolved), completed: num(v.resolved_within_24h.completed), percent: numOrNull(v.resolved_within_24h.percent) },
+          rating: { average: numOrNull(v.rating.average), count: num(v.rating.count), below45: num(v.rating.below_4_5) },
+          amc: { active: num(v.amc.active), renewalWindow: num(v.amc.renewal_window), revenue: num(v.amc.revenue) },
+        }
+      : null,
+    moneyOut: m
+      ? {
+          spendTotal: num(m.spend.total),
+          spendByCategory: (m.spend.by_category ?? []).map((c) => ({ category: c.category, amount: num(c.amount) })),
+          operatingSpendExclPurchase: num(m.spend.operating_excl_purchase),
+          cashProfit: num(m.cash_profit.profit),
+          itemMargin: {
+            revenue: num(m.item_margin.revenue),
+            cost: num(m.item_margin.cost),
+            giftsCost: num(m.item_margin.gifts_cost),
+            profit: num(m.item_margin.profit),
+            marginPercent: numOrNull(m.item_margin.margin_percent),
+            missingCostCount: num(m.item_margin.missing_cost_count),
+            costMissing: m.item_margin.cost_missing === true,
+          },
+        }
+      : null,
+  }
+}

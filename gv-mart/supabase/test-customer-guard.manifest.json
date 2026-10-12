@@ -14,6 +14,7 @@
     "report_coverage",
     "report_customer_totals",
     "report_feedback",
+    "report_kpi_tiles",
     "report_ops_resolution",
     "report_performance",
     "report_pnl",

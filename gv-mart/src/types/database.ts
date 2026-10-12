@@ -7475,6 +7475,10 @@ export type Database = {
         Args: { p_from: string; p_to: string }
         Returns: Json
       }
+      report_kpi_tiles: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       report_pnl: {
         Args: { p_from: string; p_to: string }
         Returns: Json

@@ -4,6 +4,7 @@ import { minutesBetween } from "@/lib/visit-duration"
 import { getIstNow } from "@/lib/ist"
 import {
   mapFeedback,
+  mapKpiTiles,
   mapOpsResolution,
   mapPerformance,
   mapPnl,
@@ -12,6 +13,8 @@ import {
   mapTopCustomers,
   mapYearOverYear,
   type FeedbackRpc,
+  type KpiTiles,
+  type KpiTilesRpc,
   type OpsResolutionRpc,
   type PerformanceRpcRow,
   type PnlRpc,
@@ -834,6 +837,11 @@ async function callReport<T>(fn: string, args: Record<string, unknown>): Promise
 
 export async function getSalesServiceReport(_orgId: string, range: DateRange): Promise<SalesServiceReport> {
   return mapSalesService(await callReport<SalesServiceRpc>("report_sales_service", rpcArgs(range)))
+}
+
+/** KPI tiles (Step 2). One call, one snapshot; groups the caller's role may not see come back null. No org argument by design. */
+export async function getKpiTiles(range: DateRange): Promise<KpiTiles> {
+  return mapKpiTiles(await callReport<KpiTilesRpc>("report_kpi_tiles", rpcArgs(range)))
 }
 
 export async function getPnlReport(_orgId: string, range: DateRange): Promise<PnlReport> {

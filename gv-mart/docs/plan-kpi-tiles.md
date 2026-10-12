@@ -439,3 +439,41 @@ Assertions:
 
 Not part of Step 2: any UI, any WhatsApp or notification path, any change to the older `__TEST_ GV Mart` organisation (its
 purge is approved separately), and any push or deploy.
+
+
+### 10.6 Step 2 build status (built and tested locally; NOT applied)
+
+Files on branch `feat/kpi-step2-report-kpi-tiles`:
+- `supabase/migrations/PENDING_report_kpi_tiles.sql` - placeholder name on purpose (the supabase CLI skips non-numeric names).
+- `supabase/tests/report_kpi_tiles.test.sql` - rolled-back live test, 50 checks.
+- `supabase/test-customer-guard.manifest.json` - `report_kpi_tiles` added to `must_exclude`.
+- `src/services/reportMappers.ts` (+ `getKpiTiles` in `reports.ts`, `database.ts` hand-patched), `kpiTilesMapper.test.ts`.
+
+Security design: `SECURITY DEFINER`, `STABLE`, `search_path = public`; `EXECUTE` revoked from PUBLIC and anon, granted to
+authenticated. DEFINER because expenses / invoices / tickets have row policies that would hide rows from sales_admin and
+operation_admin; the function enforces its own narrower gate instead. The organisation is never a parameter: it comes from
+`_report_org()` -> `current_org_id()` (the caller's profile), which raises for anon, customers, technicians and inactive staff.
+Groups: `sales` (tiles 1, 2, 3, 7, 8, 9, 10, 16) master / operation_admin / sales_admin; `service` (12-15) master /
+operation_admin; `money_out` (4, 5, 6: spend, cash profit, item margin) master only. A group the caller may not see is JSON
+null, not zeros. Tile 6 (item margin) is treated as cost data and is master-only.
+
+Refinement to Q2 found while building: invoice line revenue (qty x price - line discount) excludes GST and invoice-level
+discount, so product + spare lines never equals the invoice total. The `sales` class is therefore reported as
+product lines + spare lines + `gst_and_adjustments` (the remainder), so the streams add up to total invoiced exactly.
+
+### 10.7 Exact apply steps (when approved; nothing below has been run)
+
+1. `git fetch`; list migration versions on `origin/main` and every other open branch; query live
+   `max(version)` from `supabase_migrations.schema_migrations`. Pick `V` strictly greater than all of them and than the
+   versions other tabs have announced. As of this writing live max is `20261016500000` and `20261017100000` is reserved by
+   another tab, so the next free number would be `20261017110000` - re-check, do not trust this line.
+2. Rename the file to `V_report_kpi_tiles.sql`, update the header comment, commit.
+3. Re-run the SQL test with the renamed file concatenated in front (must be all PASS, zero FAIL).
+4. Re-run the "invoice lines with no cost snapshot" count on the real org and report it (condition 4).
+5. Pre-flight: confirm `report_kpi_tiles` does not exist live; ACL snapshot of `report_%`; real-org lead hashes (count 64,
+   identity `7d8cf3fd...`, updated_at `3d0efc7a...`).
+6. Apply the file in one transaction through the Management API; hand-register the `schema_migrations` row for `V`.
+7. Post-apply, read-only: ACL of the new function is `authenticated, postgres, service_role` only; smoke call as the real
+   master in a rolled-back transaction; parity with `report_pnl` / `report_sales_service`; lead hashes unchanged.
+8. Do not deploy the front end (Step 3 is the UI). Rollback: `drop function public.report_kpi_tiles(date, date);`
+   `drop index if exists public.invoices_org_outstanding_idx;` and delete the `schema_migrations` row.
