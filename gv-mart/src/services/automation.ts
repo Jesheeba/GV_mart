@@ -222,12 +222,36 @@ export async function simulateInboundWhatsapp(input: { orgId: string; fromMobile
   return data
 }
 
+/** A row still pending this long after it was created or claimed was never finished: shown to a human, never auto-resent. */
+const STUCK_CLAIM_MINUTES = 15
+
+/** Numbers behind the Failed Sends banner: rows pending for over 15 minutes, skipped_no_template rows since IST midnight, and
+ * the master's per-day threshold (settings.wa_skipped_alert_threshold, default 10, 0 = alert off). */
+export async function getWaDispatchAlertCounts(orgId: string): Promise<{ stuck: number; skippedToday: number; threshold: number }> {
+  const stuckBefore = new Date(Date.now() - STUCK_CLAIM_MINUTES * 60_000).toISOString()
+  const istNow = Date.now() + 5.5 * 3_600_000
+  const dayStart = new Date(istNow - (istNow % 86_400_000) - 5.5 * 3_600_000).toISOString()
+  const base = () => supabase.from("whatsapp_outbox").select("id", { count: "exact", head: true }).eq("org_id", orgId)
+  const [a, b, c, s] = await Promise.all([
+    base().eq("direction", "outbound").eq("status", "pending").lt("claimed_at", stuckBefore),
+    base().eq("direction", "outbound").eq("status", "pending").is("claimed_at", null).lt("created_at", stuckBefore),
+    base().eq("status", "skipped_no_template").gte("created_at", dayStart),
+    supabase.from("settings").select("wa_skipped_alert_threshold").eq("org_id", orgId).maybeSingle(),
+  ])
+  const err = a.error ?? b.error ?? c.error ?? s.error
+  if (err) throw err
+  return { stuck: (a.count ?? 0) + (b.count ?? 0), skippedToday: c.count ?? 0, threshold: s.data?.wa_skipped_alert_threshold ?? 10 }
+}
+
 export async function listFailedWhatsappOutbox(orgId: string, limit = 50): Promise<WhatsappOutboxRow[]> {
+  const stuckBefore = new Date(Date.now() - STUCK_CLAIM_MINUTES * 60_000).toISOString()
   const { data, error } = await supabase
     .from("whatsapp_outbox")
     .select("*")
     .eq("org_id", orgId)
-    .eq("status", "failed")
+    // failed sends, sends skipped for want of an approved template, deliveries Meta later rejected, and
+    // claimed-but-never-finished rows ("stuck sending").
+    .or(`status.in.(failed,skipped_no_template),delivery_status.eq.failed,and(status.eq.pending,claimed_at.lt.${stuckBefore}),and(status.eq.pending,claimed_at.is.null,created_at.lt.${stuckBefore})`)
     .order("created_at", { ascending: false })
     .limit(limit)
   if (error) throw error

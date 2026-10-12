@@ -2179,6 +2179,18 @@ export type Database = {
           error: string | null
           created_at: string
           updated_at: string
+          retried_at: string | null
+          retry_count: number
+          sent_by: string | null
+          wasi_message_id: string | null
+          delivery_status: string | null
+          delivered_at: string | null
+          read_at: string | null
+          failed_at: string | null
+          claimed_at: string | null
+          wasi_response: Json | null
+          template_name: string | null
+          template_params: Json | null
         }
         Insert: {
           id?: string
@@ -2197,6 +2209,18 @@ export type Database = {
           error?: string | null
           created_at?: string
           updated_at?: string
+          retried_at?: string | null
+          retry_count?: number
+          sent_by?: string | null
+          wasi_message_id?: string | null
+          delivery_status?: string | null
+          delivered_at?: string | null
+          read_at?: string | null
+          failed_at?: string | null
+          claimed_at?: string | null
+          wasi_response?: Json | null
+          template_name?: string | null
+          template_params?: Json | null
         }
         Update: {
           id?: string
@@ -2215,6 +2239,18 @@ export type Database = {
           error?: string | null
           created_at?: string
           updated_at?: string
+          retried_at?: string | null
+          retry_count?: number
+          sent_by?: string | null
+          wasi_message_id?: string | null
+          delivery_status?: string | null
+          delivered_at?: string | null
+          read_at?: string | null
+          failed_at?: string | null
+          claimed_at?: string | null
+          wasi_response?: Json | null
+          template_name?: string | null
+          template_params?: Json | null
         }
         Relationships: [
           {
@@ -2232,6 +2268,96 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_contacts: {
+        Row: {
+          org_id: string
+          phone: string
+          last_inbound_at: string
+          updated_at: string
+        }
+        Insert: {
+          org_id: string
+          phone: string
+          last_inbound_at: string
+          updated_at?: string
+        }
+        Update: {
+          org_id?: string
+          phone?: string
+          last_inbound_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_wasi_templates: {
+        Row: {
+          org_id: string
+          wasi_name: string
+          language: string
+          category: string | null
+          status: string
+          header_type: string | null
+          param_keys: string[]
+          synced_at: string
+        }
+        Insert: {
+          org_id: string
+          wasi_name: string
+          language: string
+          category?: string | null
+          status: string
+          header_type?: string | null
+          param_keys?: string[]
+          synced_at?: string
+        }
+        Update: {
+          org_id?: string
+          wasi_name?: string
+          language?: string
+          category?: string | null
+          status?: string
+          header_type?: string | null
+          param_keys?: string[]
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_event_templates: {
+        Row: {
+          id: string
+          org_id: string
+          event_key: string
+          language: string
+          wasi_template_name: string
+          param_map: Json
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          event_key: string
+          language: string
+          wasi_template_name: string
+          param_map?: Json
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          event_key?: string
+          language?: string
+          wasi_template_name?: string
+          param_map?: Json
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       whatsapp_templates: {
         Row: {
@@ -5867,6 +5993,10 @@ export type Database = {
           // whatsapp_bot_enabled — see 20260827120000_wa_answer_layer_kill_switch.sql.
           wa_answer_layer_enabled: boolean
           wa_test_mode_enabled: boolean
+          wa_dispatch_v2_enabled: boolean
+          wa_dispatch_v2_scope: string
+          wa_dispatch_v2_numbers: string[]
+          wa_skipped_alert_threshold: number
           wa_test_allowed_numbers: string[]
           // Phase 5b classify-intent + free-text-relevance kill switch
           // (2026-08-28) — see 20260828100000_wa_classify_intent_kill_switch.sql.
@@ -5949,6 +6079,10 @@ export type Database = {
           whatsapp_bot_enabled?: boolean
           wa_answer_layer_enabled?: boolean
           wa_test_mode_enabled?: boolean
+          wa_dispatch_v2_enabled?: boolean
+          wa_dispatch_v2_scope?: string
+          wa_dispatch_v2_numbers?: string[]
+          wa_skipped_alert_threshold?: number
           wa_test_allowed_numbers?: string[]
           wa_classify_intent_enabled?: boolean
           wa_quote_extraction_enabled?: boolean
@@ -6020,6 +6154,10 @@ export type Database = {
           whatsapp_bot_enabled?: boolean
           wa_answer_layer_enabled?: boolean
           wa_test_mode_enabled?: boolean
+          wa_dispatch_v2_enabled?: boolean
+          wa_dispatch_v2_scope?: string
+          wa_dispatch_v2_numbers?: string[]
+          wa_skipped_alert_threshold?: number
           wa_test_allowed_numbers?: string[]
           wa_classify_intent_enabled?: boolean
           wa_quote_extraction_enabled?: boolean

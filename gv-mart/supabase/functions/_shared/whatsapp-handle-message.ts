@@ -582,6 +582,20 @@ export async function handleMessage(admin: SupabaseClient, orgId: string, msg: N
     throw dedupeError
   }
 
+  // 24 h customer-service window (dispatcher v2): remember when this number last messaged us, keyed on the last 10
+  // digits. System notifications may be sent as free text only inside this window; outside it they need an approved
+  // template. Non-fatal: a failure here must never stop the customer getting an answer (the RPC is created by the
+  // 20261016300000 migration; before it exists the call just logs).
+  {
+    const at = Date.parse(msg.timestamp)
+    const { error: touchError } = await admin.rpc("wa_touch_contact", {
+      p_org_id: orgId,
+      p_phone: msg.phone,
+      p_at: Number.isFinite(at) ? new Date(at).toISOString() : new Date().toISOString(),
+    })
+    if (touchError) console.error("whatsapp-handle-message: wa_touch_contact failed", touchError.message)
+  }
+
   // 2026-08-27 incident: every webhook shell's toNormalized() hands back
   // whatever raw phone format that provider's payload used (Wasi's wa_id,
   // Meta's `from` — both country-code-prefixed, e.g. "917806966124"), but

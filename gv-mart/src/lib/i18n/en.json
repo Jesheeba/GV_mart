@@ -3689,6 +3689,23 @@
       "template": "Template",
       "body": "Message",
       "error": "Error",
+      "state": "State",
+      "stateFailed": "Failed",
+      "stateSkipped": "Not sent: no approved template",
+      "stateDeliveryFailed": "Delivery failed",
+      "stateStuck": "Stuck sending: needs a human",
+
+      "alertStuck": "{{count}} WhatsApp message(s) have been pending for more than 15 minutes. They are not resent automatically: check the dispatcher, then resend or close each one.",
+
+      "alertSkipped": "{{count}} message(s) were not sent today because no approved template exists (alert threshold: {{threshold}} a day).",
+
+      "thresholdLabel": "Skipped messages per day before an alert",
+
+      "thresholdHint": "0 switches the alert off. Default 10.",
+
+      "thresholdSaved": "Alert threshold saved.",
+
+      "thresholdFailed": "Could not save the alert threshold.",
       "empty": "No failed sends — nothing stuck right now."
     }
   },

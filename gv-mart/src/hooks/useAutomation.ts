@@ -123,6 +123,9 @@ export function useSimulateInboundWhatsapp() {
 export function useFailedWhatsappOutbox(orgId: string | undefined) {
   return useQuery({ queryKey: ["whatsappOutbox", "failed", orgId], queryFn: () => automation.listFailedWhatsappOutbox(orgId!), enabled: !!orgId })
 }
+export function useWaDispatchAlertCounts(orgId: string | undefined) {
+  return useQuery({ queryKey: ["whatsappOutbox", "alertCounts", orgId], queryFn: () => automation.getWaDispatchAlertCounts(orgId!), enabled: !!orgId, refetchInterval: 60_000 })
+}
 export function useWhatsappOutboxForCustomer(orgId: string | undefined, mobile: string | undefined) {
   return useQuery({
     queryKey: ["whatsappOutbox", "customer", orgId, mobile],

@@ -39,9 +39,11 @@ export function redactWasiText(input: string): string {
   // JWT-shaped tokens (three base64url segments) and long opaque tokens /
   // hex keys that appear bare, without a key name in front of them.
   s = s.replace(/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/g, REDACTED)
-  // UUIDs and Wasi/WhatsApp message ids ("wamid.…") are identifiers support will ask for, not secrets — kept.
+  // A wamid is base64 of the recipient's WhatsApp id, i.e. it CONTAINS the phone number: never stored or logged.
+  s = s.replace(/wamid\.[A-Za-z0-9=+/_-]+/g, "wamid." + REDACTED)
+  // UUIDs (Wasi message / chat ids) are identifiers support will ask for, not secrets — kept.
   s = s.replace(
-    /(?<!wamid\.)\b(?![0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b)(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{32,}\b/g,
+    /\b(?![0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b)(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{32,}\b/g,
     REDACTED
   )
   s = s.replace(/\b[a-f0-9]{32,}\b/gi, REDACTED)
