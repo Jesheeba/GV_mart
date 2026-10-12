@@ -26,17 +26,17 @@ Prepared 2026-10-12 on branch `fix/staff-security-review`. Project ref `fsunrjit
 | sendMessage test-mode block | in the branch; wa-* functions NOT redeployed (the dispatcher session deploys later) |
 
 **Remaining steps, in order**
-1.  Type the push authorisation. I then push fix/staff-security-review to origin/main (fast-forward), confirm Vercel Production builds from main, and check the live bundle contains Add Staff and the test-mode dialog.
-2.  In the Supabase dashboard: set site_url, set minimum password length 10. Leave disable_signup OFF and jwt_exp 3600.
-3.  Approve batch 2 (anon hygiene + stale-booking guard). I apply it, register the history row, compare baselines.
-4.  Give me the sales persons (name, login email, optional phone, typed or generated password). I create them through Add Staff on production, verify each login, check Receives new leads is ON.
-5.  Approve the lead distribution migration (switch stays OFF, changes nothing visible).
-6.  Approve switching round robin ON (Masters > Settings), then I run the live verification with the flagged test customer only.
-7.  Approve admin-set-staff-active: apply held/20261015150000_*, deploy the function, then merge feat/admin-set-staff-active (HR screen) and push. Order matters: the HR screen calls the function for sales persons.
-8.  Later, when the dispatcher session is ready: redeploy the wa-* functions from a branch that contains the sendMessage block; then you may turn the test-mode allow-list ON while testing.
-9.  Decide about local main: it is untouched; a backup branch backup/local-main-2026-10-12 now points at it. Its only change not on origin/main is the complaint-types re-seed migration (content is already live; file name collides with lead_stage_log version 20261008100000).
+1. `[YOU]` Type the push authorisation. I then push fix/staff-security-review to origin/main (fast-forward), confirm Vercel Production builds from main, and check the live bundle contains Add Staff and the test-mode dialog.
+2. `[YOU]` In the Supabase dashboard: set site_url, set minimum password length 10. Leave disable_signup OFF and jwt_exp 3600.
+3. `[YOU]` Approve batch 2 (anon hygiene + stale-booking guard). I apply it, register the history row, compare baselines.
+4. `[YOU]` Give me the sales persons (name, login email, optional phone, typed or generated password). I create them through Add Staff on production, verify each login, check Receives new leads is ON.
+5. `[YOU]` Approve the lead distribution migration (switch stays OFF, changes nothing visible).
+6. `[YOU]` Approve switching round robin ON (Masters > Settings), then I run the live verification with the flagged test customer only.
+7. `[YOU]` Approve admin-set-staff-active: apply held/20261015150000_*, deploy the function, then merge feat/admin-set-staff-active (HR screen) and push. Order matters: the HR screen calls the function for sales persons.
+8. `[YOU]` Later, when the dispatcher session is ready: redeploy the wa-* functions from a branch that contains the sendMessage block; then you may turn the test-mode allow-list ON while testing.
+9. `[YOU]` Decide about local main: it is untouched; a backup branch backup/local-main-2026-10-12 now points at it. Its only change not on origin/main is the complaint-types re-seed migration (content is already live; file name collides with lead_stage_log version 20261008100000).
 
-## 0. Where things stand (already done, verified live 2026-10-12)
+## 0. Where things stood earlier on 2026-10-12 (historical; superseded by the status table at the top)
 | Item | State |
 |---|---|
 | F-01 `revoke_user_sessions` (service role only) | LIVE |
