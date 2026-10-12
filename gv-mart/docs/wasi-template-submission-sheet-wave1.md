@@ -16,13 +16,13 @@ The design document predates the Wasi API reference. This sheet follows the Wasi
 | 2 | Numbered variables `{{1}}..{{n}}` | Named variables (`{{customer_name}}`) | Wasi passes named variables as an object; order does not matter, so the "variable order caveat" in design 9.3 (items 3 and 11) disappears. |
 | 3 | Variables carrying links (`summary_link`, `rating_link`, `link`, `review_url`) | Fixed URL buttons only | Dynamic button parameters are not supported. Links that would have been variables are now fixed button URLs (customer app, Google review page). |
 | 4 | Google review template is Marketing, shown only to high ratings is an option, technician incentive per verified review | Submitted as Utility, sent to every completed service, no rating condition, no staff name, no incentive or quota | Brief rules (Meta wording, Google policy: no gating, no rewards). Fallback if Meta re-categorises it: section 3.6 and section 2 (`consent_required`). |
-| 5 | Wave 1 = 10 names, but the table marks 11 as Wave 1 | Wave 1 = 10 names. `gvm_amc_visit_reminder` moves to Wave 2 | The dispatcher plan already maps AMC visit reminders to the approved `appointment_reminder` template, so Wave 1 does not need a new one. |
+| 5 | Wave 1 = 10 names, but the table marks 11 as Wave 1 | Wave 1 = **11 names, 22 submissions**: the 10 originally planned plus `gvm_technician_arrived` (owner decision 2026-10-12, because the visit-start event already exists and the dispatcher handoff lists it). `gvm_amc_visit_reminder` stays in Wave 2 | The dispatcher plan already maps AMC visit reminders to the approved `appointment_reminder` template, so Wave 1 does not need a new one. |
 | 6 | Variable names `name`, `technician`, `summary_link`... | `customer_name`, `technician_name`, ... | Matches the already-approved templates (`appointment_reminder`, `invoice_document` use `customer_name`). The dispatcher plan's mapping table should be updated to these keys (it lists `name`). |
 
 ## 1. Conventions used in every template below
 
 - **Language codes.** English submissions use `en`; Tamil submissions use `ta`. Reason: `en` is the generic English code and matches the design document and dispatcher plan; the account's approved `shipping_update` / `appointment_reminder` are `en_US`, and `po_quote_request_doc_v3` exists in both `en_US` and `en`, which is the live example of the ambiguity bug. Because every name here carries its own `_en` / `_ta` suffix and is unique, the English code chosen cannot cause an ambiguity. If the Wasi dashboard only offers "English (US)", pick `en_US`; nothing else changes.
-- **Category.** All 10 names are submitted as **Utility**. Per-template risk notes say where Meta might re-categorise.
+- **Category.** All 11 names are submitted as **Utility**. Per-template risk notes say where Meta might re-categorise.
 - **Variables** are lowercase snake_case, named, never at the very start or very end of the body, never adjacent. Meta requires an example value for each one (listed per template).
 - **Variable value hygiene** (applies to every send): no newlines, no tabs, no run of more than four spaces, trimmed, and a maximum of about 60 characters. Free-text sources such as `name_of_complaint` must be cleaned before sending.
 - **Footer** (optional, all templates): `GV Mart`.
@@ -53,7 +53,7 @@ Every 409 means nothing was sent or charged.
 
 ## 3. Templates
 
-Each section gives the shared facts once (variables, header, buttons, events, rejection risks) and then the two language submissions with their own name, language code, category and body. Total: 10 sections, 20 submissions.
+Each section gives the shared facts once (variables, header, buttons, events, rejection risks) and then the two language submissions with their own name, language code, category and body. Total: 11 sections, 22 submissions.
 
 ### 3.1 `gvm_service_booked` (event: `ticket.created`)
 
@@ -295,9 +295,32 @@ Each section gives the shared facts once (variables, header, buttons, events, re
 
 **Failure behaviour:** section 2. Idempotency key includes the window (30, 15, 7) so a daily scanner never repeats a window. **Rejection risks:** medium; a renewal prompt can be read as Marketing. Wording states the fact first and offers a reply, with no price, discount or urgency. If re-categorised, `consent_required` applies and renewal reminders need customer opt-in.
 
+### 3.11 `gvm_technician_arrived` (event: `technician.arrived`)
+
+**Recipient:** customer. **When:** when the technician starts the visit. This is the event that exists today: the visit row is created on arrival (the existing milestone labelled `on_the_way` actually fires here, see 4.2) and is emitted by the automation as `technician.arrived`. Message class: job (never capped, STOP does not stop it).
+
+| Variable | Source | Example value |
+|---|---|---|
+| `customer_name` | `customers.name` | Priya Raman |
+| `technician_name` | assigned technician's profile display name | Murugan |
+| `ticket_ref` | first 8 chars of `service_tickets.id`, upper case | A1B2C3D4 |
+
+**Header:** none. **Buttons:** none. **Footer:** GV Mart.
+
+**Submission 1 of 2**
+- Name: `gvm_technician_arrived_en`. Language: `en`. Category: Utility.
+- Body: `Hi {{customer_name}}, technician {{technician_name}} has arrived for your service request {{ticket_ref}} and has started the service.`
+
+**Submission 2 of 2** (DRAFT: needs review by a Tamil speaker)
+- Name: `gvm_technician_arrived_ta`. Language: `ta`. Category: Utility.
+- Body: `வணக்கம் {{customer_name}}, உங்கள் சேவை கோரிக்கை {{ticket_ref}}-க்காக தொழில்நுட்பர் {{technician_name}} வந்து சேவையைத் தொடங்கியுள்ளார்.`
+
+**Failure behaviour:** section 2. If the row is older than the master-configured limit (suggested 60 minutes) when picked up, it is skipped as stale rather than announce an arrival long after it happened.
+**Rejection risks:** low; a plain status notice with no offer, link or emoji.
+
 ## 4. Tables
 
-### 4.1 Summary of all 20 submissions
+### 4.1 Summary of all 22 submissions
 
 | # | Name | Lang | Category | Variables | Header | Buttons | Event |
 |---|---|---|---|---|---|---|---|
@@ -321,6 +344,8 @@ Each section gives the shared facts once (variables, header, buttons, events, re
 | 18 | `gvm_amc_visit_scheduled_ta` | ta | Utility | same | none | none | amc.visit_scheduled |
 | 19 | `gvm_amc_expiring_en` | en | Utility | customer_name, product_name, expiry_date, days_left | none | none | amc.expiring |
 | 20 | `gvm_amc_expiring_ta` | ta | Utility | same | none | none | amc.expiring |
+| 21 | `gvm_technician_arrived_en` | en | Utility | customer_name, technician_name, ticket_ref | none | none | technician.arrived |
+| 22 | `gvm_technician_arrived_ta` | ta | Utility | same | none | none | technician.arrived |
 
 ### 4.2 Existing milestone events mapped to templates
 
@@ -328,7 +353,8 @@ Each section gives the shared facts once (variables, header, buttons, events, re
 |---|---|---|---|---|
 | Booked (`milestone.booked`, `_milestone_ticket_notify`) | none | n/a | `gvm_service_booked_*` | No send outside the 24 h window (`skipped_no_template`); free text only inside it |
 | Assigned (`milestone.assigned`) | `appointment_reminder` (`customer_name`, `appointment_time`) | Imperfect: it is worded as an appointment reminder that asks the customer to reply to confirm; it has no technician name or ticket reference, and nothing handles the "reply to confirm" | `gvm_technician_assigned_*` | Owner decides: use `appointment_reminder` as a stop-gap (customer sees "reply to confirm"), or send nothing |
-| On the way (`milestone.on_the_way`, fired by `service_visits` INSERT) | `shipping_update` (`name`) | **Wrong**: it says an order is out for delivery. The trigger fires at arrival, not departure | `gvm_technician_on_the_way_*` (needs a departure signal) | Do not use `shipping_update`. Pause this milestone until the departure signal exists; "arrived" is a Wave 2 template |
+| On the way (`milestone.on_the_way`, fired by `service_visits` INSERT) | `shipping_update` (`name`) | **Wrong**: it says an order is out for delivery. The trigger fires at arrival, not departure | `gvm_technician_on_the_way_*` (needs a departure signal) | Do not use `shipping_update`. The trigger fires at arrival, so its right template is `gvm_technician_arrived_*` (Wave 1, below); the true "on the way" message waits for the departure signal |
+| Arrived (the visit row; labelled `milestone.on_the_way` today, emitted as `technician.arrived`) | none | n/a | `gvm_technician_arrived_*` | No send outside the window |
 | Completed (`milestone.completed`) | none | n/a | `gvm_service_completed_*` | No send outside the window |
 | Invoice issued (`milestone.invoice`, `_milestone_invoice_notify`) | `invoice_document` (`customer_name`, `invoice_number`, `invoice_date`, PDF header) | Good fit, but **blocked**: needs a public invoice PDF URL and no invoice PDF generator exists in the repo | `gvm_invoice_issued_*` (text, with app button) | Use the text template once approved; switch to `invoice_document` when a public PDF URL exists |
 | AMC expiring (`wa-scheduled-tasks`, plain text) | none | n/a | `gvm_amc_expiring_*` | No send outside the window |
@@ -363,7 +389,7 @@ Goal: the first end-to-end test (booking to the test number ending 6740) as earl
 | Batch | Templates | Why this order |
 |---|---|---|
 | 1 | `gvm_service_booked_en`, `gvm_service_completed_en` | No variables beyond name and reference, no button except one fixed URL; unlock the first real test: book a ticket as the test customer, complete it |
-| 2 | `gvm_technician_assigned_en`, `gvm_invoice_issued_en` | Completes the visible service journey; need `<CUSTOMER_APP_URL>` confirmed |
+| 2 | `gvm_technician_assigned_en`, `gvm_technician_arrived_en`, `gvm_invoice_issued_en` | Completes the visible service journey; need `<CUSTOMER_APP_URL>` confirmed |
 | 3 | `gvm_amc_welcome_en`, `gvm_amc_visit_scheduled_en`, `gvm_amc_expiring_en` | AMC set; no button, no URL dependency |
 | 4 | `gvm_feedback_request_en`, `gvm_google_review_en` | Highest rejection risk; needs `<GOOGLE_REVIEW_URL>` confirmed. Submit early enough that a rejection can be reworded while batches 1 to 3 are being tested |
 | 5 | `gvm_technician_on_the_way_en` | Can be approved now, but cannot be used until the departure signal exists |
