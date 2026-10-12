@@ -6757,6 +6757,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      set_customer_preferred_language: {
+        Args: { p_customer_id: string; p_language: string | null }
+        Returns: undefined
+      }
       log_confirmed_availability: {
         Args: {
           p_appointment_id: string

@@ -8,7 +8,7 @@
 --   S4   quiet hours (settings, default 21:00 to 08:00 IST): fire_at is pushed to the end of the window. Events flagged
 --        quiet_hours_exempt (technician.on_the_way, otp.issued) and rules with respect_quiet_hours = false are not held.
 --   S5   daily cap (settings, default 3) for NON-JOB messages per customer per IST day. Class comes from the rule, else the
---        template class table, else the event default, else non_job. Job and invoice messages are never counted or capped.
+--        template class table (seeded with the owner's 11 Wave 1 names), else non_job. Unclassified = non_job. Job and invoice messages are never counted or capped.
 --        Over the cap: state 'deferred' to next day's window end with an expiry; a deferred row whose window passed is
 --        'expired', never sent. automation_release_deferred() re-checks and releases or expires them.
 --   S6   review requests: event floor of 2160 hours (90 days) between sends to the same customer.
@@ -31,11 +31,8 @@ alter table public.automation_events
   add column quiet_hours_exempt boolean not null default false,
   add column min_cooldown_hours integer not null default 0 check (min_cooldown_hours >= 0);
 
-update public.automation_events set default_message_class = 'job'
- where event_key in ('ticket.created', 'ticket.assigned', 'ticket.completed', 'ticket.cancelled', 'ticket.rescheduled',
-                     'technician.on_the_way', 'technician.arrived', 'otp.issued', 'invoice.issued', 'invoice.partial',
-                     'invoice.paid', 'invoice.due_soon', 'sale.completed', 'amc.joined', 'amc.visit_scheduled',
-                     'amc.visit_reminder', 'warranty.started');
+-- default_message_class stays 'non_job' for every event: an unclassified template counts as non-job (owner decision). A rule can
+-- still set message_class explicitly.
 update public.automation_events set quiet_hours_exempt = true where event_key in ('technician.on_the_way', 'otp.issued');
 update public.automation_events set min_cooldown_hours = 2160 where event_key = 'review.google_requested';
 
@@ -46,32 +43,18 @@ create table public.automation_template_classes (
   note          text
 );
 insert into public.automation_template_classes (template_base, message_class, note) values
-  ('gvm_service_booked',        'job',     'service lifecycle'),
-  ('gvm_technician_assigned',   'job',     'service lifecycle'),
-  ('gvm_technician_on_the_way', 'job',     'service lifecycle, time critical'),
-  ('gvm_technician_arrived',    'job',     'service lifecycle'),
-  ('gvm_service_completed',     'job',     'service lifecycle'),
-  ('gvm_service_cancelled',     'job',     'service lifecycle'),
-  ('gvm_service_rescheduled',   'job',     'service lifecycle'),
-  ('gvm_invoice_issued',        'job',     'invoice: exempt from the cap'),
-  ('invoice_document',          'job',     'invoice: exempt from the cap'),
-  ('gvm_payment_received',      'job',     'invoice'),
-  ('gvm_payment_due',           'job',     'invoice'),
-  ('gvm_payment_overdue',       'job',     'invoice'),
-  ('gvm_amc_welcome',           'job',     'AMC lifecycle'),
-  ('gvm_amc_visit_scheduled',   'job',     'AMC lifecycle'),
-  ('gvm_amc_visit_reminder',    'job',     'AMC lifecycle'),
-  ('gvm_visit_otp',             'job',     'authentication code'),
-  ('gvm_warranty_started',      'job',     'warranty record'),
-  ('gvm_feedback_request',      'non_job', 'feedback: capped, stoppable'),
-  ('gvm_google_review',         'non_job', 'review request: capped, stoppable, 90-day floor'),
-  ('gvm_amc_expiring',          'non_job', 'renewal reminder'),
-  ('gvm_amc_expired',           'non_job', 'renewal reminder'),
-  ('gvm_amc_renewed',           'non_job', 'renewal'),
-  ('gvm_quotation_expiring',    'non_job', 'promotion-like'),
-  ('gvm_warranty_expiring',     'non_job', 'renewal-like'),
-  ('gvm_enquiry_video',         'non_job', 'promotion-like'),
-  ('gvm_referral_points',       'non_job', 'promotion-like');
+  ('gvm_service_booked',        'job',     'owner classification 2026-10-12: job, exempt from the cap'),
+  ('gvm_technician_assigned',   'job',     'owner classification 2026-10-12: job, exempt from the cap'),
+  ('gvm_technician_arrived',    'job',     'owner classification 2026-10-12: job, exempt from the cap'),
+  ('gvm_technician_on_the_way', 'job',     'owner classification 2026-10-12: job, exempt from the cap'),
+  ('gvm_service_completed',     'job',     'owner classification 2026-10-12: job, exempt from the cap'),
+  ('gvm_invoice_issued',        'job',     'owner classification 2026-10-12: job (invoice), exempt from the cap'),
+  ('gvm_amc_welcome',           'job',     'owner classification 2026-10-12: job, exempt from the cap'),
+  ('gvm_amc_visit_scheduled',   'job',     'owner classification 2026-10-12: job, exempt from the cap'),
+  ('gvm_feedback_request',      'non_job', 'owner classification 2026-10-12: capped, stoppable'),
+  ('gvm_google_review',         'non_job', 'owner classification 2026-10-12: capped, stoppable, 90-day floor'),
+  ('gvm_amc_expiring',          'non_job', 'owner classification 2026-10-12: renewal reminder, capped, stoppable');
+-- every other template is unclassified and therefore non_job until it is added here or a rule sets message_class.
 alter table public.automation_template_classes enable row level security;
 revoke all on public.automation_template_classes from public, anon, authenticated;
 grant select on public.automation_template_classes to authenticated, service_role;

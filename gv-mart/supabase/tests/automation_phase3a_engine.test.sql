@@ -70,14 +70,24 @@ begin
     (select column_default from information_schema.columns where table_name = 'settings' and column_name = 'automation_non_job_daily_cap') = '3'
     and (select column_default from information_schema.columns where table_name = 'settings' and column_name = 'automation_quiet_start') like '%21:00%'
     and (select column_default from information_schema.columns where table_name = 'settings' and column_name = 'automation_quiet_end') like '%08:00%');
-  perform pg_temp.chk('classification table: job vs non-job seeds',
-    (select message_class from public.automation_template_classes where template_base = 'gvm_invoice_issued') = 'job'
-    and (select message_class from public.automation_template_classes where template_base = 'gvm_feedback_request') = 'non_job'
-    and (select message_class from public.automation_template_classes where template_base = 'gvm_google_review') = 'non_job'
-    and (select message_class from public.automation_template_classes where template_base = 'gvm_amc_expiring') = 'non_job'
-    and public._automation_class('gvm_service_booked_ta', null, 'non_job') = 'job'
-    and public._automation_class('unknown_tpl_en', null, null) = 'non_job'
-    and public._automation_class('gvm_service_booked_en', 'non_job', 'job') = 'non_job');
+  perform pg_temp.chk('classification seed is exactly the owner list: 8 job, 3 non-job',
+    (select count(*) from public.automation_template_classes where message_class = 'job') = 8
+    and (select count(*) from public.automation_template_classes where message_class = 'non_job') = 3
+    and not exists (select 1 from public.automation_template_classes where template_base in ('invoice_document', 'gvm_service_cancelled', 'gvm_payment_due'))
+    and (select array_agg(template_base order by template_base) from public.automation_template_classes where message_class = 'job')
+        = array['gvm_amc_visit_scheduled','gvm_amc_welcome','gvm_invoice_issued','gvm_service_booked','gvm_service_completed','gvm_technician_arrived','gvm_technician_assigned','gvm_technician_on_the_way']
+    and (select array_agg(template_base order by template_base) from public.automation_template_classes where message_class = 'non_job')
+        = array['gvm_amc_expiring','gvm_feedback_request','gvm_google_review']);
+  perform pg_temp.chk('classification resolution: language suffix ignored, unclassified = non_job, rule override wins',
+    public._automation_class('gvm_service_booked_ta', null, 'non_job') = 'job'
+    and public._automation_class('gvm_invoice_issued_en', null, null) = 'job'
+    and public._automation_class('gvm_feedback_request_en', null, 'job') = 'non_job'
+    and public._automation_class('invoice_document', null, 'non_job') = 'non_job'
+    and public._automation_class('gvm_amc_renewed_en', null, null) = 'non_job'
+    and public._automation_class(null, null, null) = 'non_job'
+    and public._automation_class('gvm_service_booked_en', 'non_job', null) = 'non_job'
+    and public._automation_class('whatever_en', 'job', null) = 'job'
+    and not exists (select 1 from public.automation_events where default_message_class <> 'non_job'));
   perform pg_temp.chk('S2 backfill: no real customer with a login language is left without preferred_language',
     not exists (select 1 from public.customers c join public.profiles p on p.id = c.primary_profile_id
                  where p.language in ('en','ta') and c.preferred_language is null
@@ -389,6 +399,39 @@ begin
   update public.automation_queue set created_at = now() - interval '91 days' where org_id = v_org and rule_id = v_rrev and customer_id = v_c6;
   v_ev := public.automation_emit(v_org, 'review.google_requested', 'ticket', gen_random_uuid(), v_c6, 'r4', '{}');
   perform pg_temp.chk('S6 after 91 days a new request passes again', (select state from public.automation_queue where event_id = v_ev and rule_id = v_rrev) = 'dry_run');
+
+  -- ---------- S2: who can write preferred_language ----------
+  perform pg_temp.as_user(v_m1);
+  perform pg_temp.chk('S2 master sets it through the RPC',
+    pg_temp.raises(format($q$select public.set_customer_preferred_language(%L, 'ta')$q$, v_c_plain)) is null);
+  perform pg_temp.as_user(v_ops);
+  s := pg_temp.raises(format($q$select public.set_customer_preferred_language(%L, 'en')$q$, v_c_plain));
+  perform pg_temp.chk('S2 operations-only staff CAN set it through the RPC (a direct UPDATE would silently change nothing)', s is null, coalesce(s, 'ok'));
+  perform pg_temp.as_user(v_sales);
+  perform pg_temp.chk('S2 sales_admin can set it through the RPC',
+    pg_temp.raises(format($q$select public.set_customer_preferred_language(%L, 'ta')$q$, v_c_plain)) is null);
+  s := pg_temp.raises(format($q$select public.set_customer_preferred_language(%L, 'fr')$q$, v_c_plain));
+  perform pg_temp.chk('S2 an unknown language is refused', s like '%must be en or ta%', coalesce(s, 'accepted'));
+  perform pg_temp.as_user(v_cr);
+  s := pg_temp.raises(format($q$select public.set_customer_preferred_language(%L, 'ta')$q$, v_c_plain));
+  perform pg_temp.chk('S2 the customer role cannot use the staff RPC', s like '%only master, operations or sales%', coalesce(s, 'accepted'));
+  perform pg_temp.as_anon();
+  s := pg_temp.raises(format($q$select public.set_customer_preferred_language(%L, 'ta')$q$, v_c_plain));
+  perform pg_temp.chk('S2 anon cannot call it', s like '%permission denied%', coalesce(s, 'accepted'));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('S2 the value was written (last staff write was ta)',
+    (select preferred_language from public.customers where id = v_c_plain) = 'ta');
+  -- a customer editing their own record: language allowed, anything else still refused
+  update customers set primary_profile_id = v_cr where id = v_c_plain;
+  perform pg_temp.as_user(v_cr);
+  s := pg_temp.raises(format($q$update customers set preferred_language = 'en' where id = %L$q$, v_c_plain));
+  perform pg_temp.chk('S2 a customer can set their own message language', s is null and
+    (select preferred_language from public.customers where id = v_c_plain) = 'en', coalesce(s, 'ok'));
+  s := pg_temp.raises(format($q$update customers set mobile = '9999999999' where id = %L$q$, v_c_plain));
+  perform pg_temp.chk('S2 a customer still cannot change their mobile', s like '%you can only edit your name, profession and message language%', coalesce(s, 'accepted'));
+  s := pg_temp.raises(format($q$update customers set is_test = true where id = %L$q$, v_c_plain));
+  perform pg_temp.chk('S2 a customer still cannot flag themselves as a test customer', s is not null, coalesce(s, 'accepted'));
+  perform pg_temp.as_pg();
 
   -- ---------- nothing sendable ----------
   select count(*) into v_ob2 from public.whatsapp_outbox where org_id = v_org;

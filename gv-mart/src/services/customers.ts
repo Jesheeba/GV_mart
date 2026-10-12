@@ -1084,6 +1084,8 @@ export async function removeExemptionWindow(id: string) {
 
 /** Staff: set or clear the customer's preferred WhatsApp language (null = not set, English). */
 export async function setCustomerPreferredLanguage(customerId: string, language: "en" | "ta" | null) {
-  const { error } = await supabase.from("customers").update({ preferred_language: language }).eq("id", customerId)
+  // RPC, not a table UPDATE: the customers write policy covers master and sales_admin only, so an operations-only
+  // user's direct UPDATE would silently change nothing.
+  const { error } = await supabase.rpc("set_customer_preferred_language", { p_customer_id: customerId, p_language: language })
   if (error) throw error
 }
