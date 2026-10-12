@@ -86,9 +86,24 @@ For every item below: **what it is supposed to guarantee**, then **questions to 
 **Guarantee:** only an active master can deactivate/reactivate a sales person of their own organisation (never a master, never themselves); deactivation cuts data access immediately (database), bans the login, revokes sessions, returns the person's open leads (unassigned, flagged for redistribution), follow-ups and tasks to the acting master, in one transaction, idempotently, with an append-only audit pair; reactivation unbans first then activates and hands nothing back; a client cannot flip a sales person's `is_active` directly; `set_sales_person_active` is callable only by `service_role`.
 **Attack:** the RPC re-validation (actor, target, organisation, role) against a forged `p_actor`; partial failures and their order (is there any state in which a deactivated person keeps access, or a reactivated one is half-active?); concurrency with `assign_lead`, with round-robin inserts and with a second deactivation; moving work into the actor's queue (notification spam, ownership of historical rows); the trigger `guard_sales_active_client` (bypass through another column, a view, upsert, a definer RPC); what happens to leads `status in ('won','lost')`, to rows referencing the person with `ON DELETE SET NULL`; the distribution call at the end (`_lead_distribute_pending`, only if present).
 
+## 8. Table privileges for anon (built and tested, NOT applied)
+**Files (branch `feat/revoke-anon-table-privileges`):** `supabase/migrations/20261016500000_revoke_anon_table_privileges.sql`, `supabase/rollbacks/20261016500000_revoke_anon_table_privileges.rollback.sql`, `supabase/tests/anon_table_privileges.test.sql`; the previous ACLs of every public relation and every default-ACL row are in `Desktop\GV_mart_acl_backup_2026-10-12_tables_before_anon_revoke.json`.
+**Why:** this project's default privileges give the `anon` role every table privilege (SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, MAINTAIN) on every table a migration creates: 117 of 126 public relations carry them. Nothing is exposed today only because row-level security is on everywhere and every policy reachable by anon needs an identity (checked by reading rows as `anon` and by reading the policies). That makes RLS the only gate; the migration removes the privilege layer.
+**Supposed to guarantee**
+- `anon` holds no privilege on any existing public table, view or sequence; a table, view or sequence created later by `postgres` does not inherit one (default privileges changed for `postgres`; for `supabase_admin` they could not be changed from this session and the test reports that as a WARN).
+- `authenticated` loses only TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on tables (existing and new); SELECT/INSERT/UPDATE/DELETE and RLS are unchanged.
+- Untouched: USAGE on schema `public` for anon, every function's EXECUTE (including the 13 that RLS policies call as the invoking role: `current_role`, `current_org_id`, `current_customer_id`, `current_technician_id`, `current_technician_is_active`, `is_master`, `is_ops_staff`, `is_staff`, `is_sales_staff`, `customer_owns_appointment`, `customer_sees_technician`, `customer_sees_technician_profile`, `is_technician_customer`), `service_role`, `postgres`.
+**Attack / check with**
+- Is there any request a signed-out client legitimately makes to `/rest/v1/<table>` (public catalogue, branding, login helpers, the mobile shells, the PWA service worker, Edge Functions that call PostgREST with the anon key instead of the service role)? A refusal is now `42501` instead of `[]`.
+- Does any `SECURITY INVOKER` function or view executed as `anon` read a table (views owned by `postgres` run as the owner unless `security_invoker`; `v_referral_events` is `security_invoker`)?
+- Does anything create tables as a role other than `postgres` (Studio, `supabase_admin`, extensions, the Management API's role)? Those still inherit anon privileges until their default ACL is changed.
+- Are there column-level or sequence grants to anon that `REVOKE ALL ON ALL TABLES` does not remove (live check: none, 0 sequences, 0 column ACL rows)?
+- Do the persona results in the test really cover the app (customer, technician, sales person, operation admin, master)? It compares 27 operations before and after in one transaction; extend it with the screens you consider critical.
+**Report:** `PASS 32 / FAIL 0 / WARN 3` (3 WARN: default ACLs of `supabase_admin`, types S, r, f). Run as a rolled-back transaction on the live database on 2026-10-12.
+
 ---
 
-## 8. Cross-cutting questions
+## 9. Cross-cutting questions
 1. List every function in schema `public` (and `extensions`, `auth`, `storage`, `cron`) executable by `anon` or `authenticated` that writes data without verifying the caller's identity and organisation.
 2. List every table with RLS where an INSERT/UPDATE policy lacks `WITH CHECK`, or a policy depends on a client-controlled column.
 3. Any `SECURITY DEFINER` function whose `search_path` can be hijacked, that builds dynamic SQL from arguments, or that trusts a client-supplied organisation id.
@@ -97,5 +112,5 @@ For every item below: **what it is supposed to guarantee**, then **questions to 
 6. Anything in these changes that works in a throwaway test organisation but behaves differently in the live organisation (name-based exemptions, seeded settings rows, existing data).
 7. Backwards compatibility: which already-deployed client (production web UI before this branch, cached service worker, native shells) calls something whose contract or privileges changed?
 
-## 9. How to report
+## 10. How to report
 For each finding: file and line, a concrete reproduction (role, call, arguments, expected vs actual), severity, and a proposed fix. Please separate "confirmed by running it" from "reasoned from the code". Do not run anything against the live organisation's real data; use a throwaway organisation whose name starts with `__TEST_` and remove it with `select purge_test_organisation('<id>')` (owner role only).
