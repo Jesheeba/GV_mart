@@ -2,18 +2,25 @@
 
 Branch `feat/b17-amc-fix-test-flag` (worktree GV_mart_b17_amcflag). Nothing here has been applied to the live database.
 
-## Order
-1. Backups — already taken: `Desktop\GV_mart_db_backup_2026-10-15_items_1_5` (functions, index, AMC rows).
-2. Apply `20261016100000_amc_cancel_visit_scheduling_overlap.sql` (Management API + migration-history row).
-   Pre-check: no technician holds two overlapping open appointments (the new constraint would refuse). Rolled-back run on live: OK.
-3. Apply `20261016110000_test_customer_flag.sql` (+ history row).
-4. Verify on live (read-only): function hashes vs the migration, constraint present, `select count(*)` of flagged = 0.
-5. Cancel the 8 Oct AMC contract: `cancel_amc_contract('711677e3-…', 'Test contract from 8 Oct referral test')` as master
-   (or one SQL statement through the same code path under the master's profile). Verify: 6 tickets cancelled, both technicians
-   have no open appointment, `get_technician_current_job` empty.
-6. Create customer "jeshee test trigger" (Sirah Digital, Pallavaram, test mobile) with `is_test = true`; verify the existing lead
-   with the same number became `is_test = true`; verify it is absent from customers count, lead funnel, follow-up lists, reports.
-7. Push (fast-forward origin/main only) → Vercel → verify bundle strings ("Test" badge).
+## Versions (renamed 2026-10-15; 20261015100000-130000 belong to the security session)
+* `20261016100000_amc_cancel_visit_scheduling_overlap` (AMC)
+* `20261016110000_test_customer_flag` (flag)
+* Later migrations continue from `20261016120000`; check `schema_migrations` and origin/main before choosing.
+
+## Order (starts only after "cleanup is done")
+1. Backups: taken (`Desktop\GV_mart_db_backup_2026-10-15_items_1_5`: functions, index, AMC rows, `acl_before.json`).
+2. Re-check: drift hash of the 35 live function bodies vs the backup, ACL snapshot, `schema_migrations` versions,
+   new real-organisation baseline; take the two lead hashes (count + md5) before.
+3. Apply `20261016100000_amc_cancel_visit_scheduling_overlap.sql` (Management API + hand-registered history row).
+   Lead hashes after. A rolled-back run on live passed 45/45; ACL compared: nothing widened.
+4. Apply `20261016110000_test_customer_flag.sql` (+ history row). Lead hashes after; ACL compared again.
+5. ~~Cancel the 8 Oct AMC contract~~ **Deleted by the cleanup session** (contract, tickets, appointments). Not part of this change.
+6. Create customer "jeshee test trigger" (Sirah Digital, Pallavaram, test mobile) with `is_test = true`; report which lead
+   shares the number and that it became `is_test = true`; lead hashes after (no real lead's `updated_at` may move).
+   Verify it is absent from customers count, lead funnel, follow-up lists, reports and KPIs. WhatsApp tests only: no invoices,
+   tickets or AMC for it until that is verified. Supplier "PVM" is not touched.
+7. `git fetch`; rebase if origin moved; tsc and tests green; ask for push authorisation; push fast-forward; verify the Vercel
+   Production deployment and the "Test" badge string in the bundle.
 
 ## Rollback
 `supabase/rollbacks/20261016110000_test_customer_flag.rollback.sql`, then `…20261016100000_amc_…rollback.sql`
