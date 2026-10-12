@@ -3,7 +3,7 @@
 Prepared 2026-10-12 on branch `fix/staff-security-review`. Project ref `fsunrjithwcjtsutsgea`.
 **Legend:** `[YOU]` = needs your explicit approval before I run it (real-world effect: deploy, secret, real accounts, merge, switch). `[AUTO]` = read-only check or rolled-back test, I run it without asking. Nothing below runs until you say so.
 
-## Status (2026-10-12, evening) and the remaining steps
+## Status (2026-10-12, night) and the remaining steps
 
 **Live now**
 | Item | State |
@@ -13,28 +13,29 @@ Prepared 2026-10-12 on branch `fix/staff-security-review`. Project ref `fsunrjit
 | F-08 WhatsApp outbound gate (send_staff_whatsapp, no client write on whatsapp_outbox, test-mode columns) | live; allow-list OFF |
 | 10 unguarded write functions revoked from PUBLIC/anon/authenticated (create_purchase_order now definer) | live |
 | meeting_logs / meeting_issues / automation_flows read tightened | live |
+| Batch 2 (20261015140000): resolve_stale_bookings guard + 9 helper/read-only functions revoked | live; customer dashboard re-tested as a customer persona |
+| Complaint-types reseed registered as 20261015145000 (content was already live; file salvaged, idempotence proven) | history row only; file on branch fix/reseed-complaint-types, not pushed |
 | ALLOWED_ORIGINS = vercel + capacitor://localhost + https://localhost | set |
 | admin-reset-staff-password (hardened) and admin-create-staff | deployed, live-tested 26/26 and 24/24 |
 
-**Built, tested, NOT applied / deployed / pushed**
+**Built, tested, NOT applied / deployed**
 | Item | Where |
 |---|---|
-| Branch fix/staff-security-review (rebased on origin/main, tsc + 376 tests green) | local, waiting for your push authorisation |
-| Batch 2: resolve_stale_bookings guard + revoke 9 helper/read-only functions | held/20261015140000_*, ACL backup on Desktop, rollback, test green |
+| Branch fix/staff-security-review (rebased on origin/main, tsc + tests green) | local, waiting for your typed push authorisation |
 | Lead distribution migration | held/20261010120000_*, rollback, test 18/18 |
-| admin-set-staff-active (RPC + side-door trigger + Edge Function + HR screen) | branch feat/admin-set-staff-active, held/20261015150000_*, tests green |
+| admin-set-staff-active (RPC + side-door trigger + Edge Function + HR screen) | branch feat/admin-set-staff-active, held/20261015150000_*; goes live LAST, as one unit (migration + function deploy + HR-screen merge) |
 | sendMessage test-mode block | in the branch; wa-* functions NOT redeployed (the dispatcher session deploys later) |
 
 **Remaining steps, in order**
 1. `[YOU]` Type the push authorisation. I then push fix/staff-security-review to origin/main (fast-forward), confirm Vercel Production builds from main, and check the live bundle contains Add Staff and the test-mode dialog.
 2. `[YOU]` In the Supabase dashboard: set site_url, set minimum password length 10. Leave disable_signup OFF and jwt_exp 3600.
-3. `[YOU]` Approve batch 2 (anon hygiene + stale-booking guard). I apply it, register the history row, compare baselines.
-4. `[YOU]` Give me the sales persons (name, login email, optional phone, typed or generated password). I create them through Add Staff on production, verify each login, check Receives new leads is ON.
-5. `[YOU]` Approve the lead distribution migration (switch stays OFF, changes nothing visible).
-6. `[YOU]` Approve switching round robin ON (Masters > Settings), then I run the live verification with the flagged test customer only.
-7. `[YOU]` Approve admin-set-staff-active: apply held/20261015150000_*, deploy the function, then merge feat/admin-set-staff-active (HR screen) and push. Order matters: the HR screen calls the function for sales persons.
-8. `[YOU]` Later, when the dispatcher session is ready: redeploy the wa-* functions from a branch that contains the sendMessage block; then you may turn the test-mode allow-list ON while testing.
-9. `[YOU]` Decide about local main: it is untouched; a backup branch backup/local-main-2026-10-12 now points at it. Its only change not on origin/main is the complaint-types re-seed migration (content is already live; file name collides with lead_stage_log version 20261008100000).
+3. `[YOU]` Give me the sales persons (name, login email, optional phone, typed or generated password). I create them through Add Staff on production, verify each login, check Receives new leads is ON.
+4. **GATE: independent review.** Hand docs/review-brief-independent.md to a reviewer with no context. Nothing in steps 5 and 6 happens until their findings are triaged (fixed, or accepted by you in writing). Scope includes the round-robin migration 20261010100000, the held distribution migration and its concurrency test.
+5. `[YOU]` After the gate: approve the lead distribution migration (switch stays OFF, changes nothing visible). Re-run its concurrency test on a throwaway organisation first.
+6. `[YOU]` After the gate: approve switching round robin ON (Masters > Settings), then I run the live verification with the flagged test customer only.
+7. `[YOU]` Later, when the dispatcher session is ready: it redeploys the wa-* functions from a branch that contains the sendMessage block; then you may turn the test-mode allow-list ON while testing.
+8. `[YOU]` Local main: realign it to origin/main with the commands I will give you (backups backup/local-main-2026-10-12 and backup-main-20261005 are kept).
+9. `[YOU]` LAST, when you say: admin-set-staff-active as one unit: apply held/20261015150000_*, deploy the function, merge feat/admin-set-staff-active (HR screen) and push. Never split these three.
 
 ## 0. Where things stood earlier on 2026-10-12 (historical; superseded by the status table at the top)
 | Item | State |
