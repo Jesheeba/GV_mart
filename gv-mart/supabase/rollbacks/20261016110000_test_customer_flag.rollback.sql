@@ -1,4 +1,4 @@
--- Rollback for 20261015110000_test_customer_flag.sql: restores the live bodies as they were before the flag.
+-- Rollback for 20261016110000_test_customer_flag.sql: restores the live bodies as they were before the flag.
 
 create or replace function public._report_invoice_base(p_org uuid, p_from_ts timestamp with time zone, p_to_ts timestamp with time zone)
  RETURNS TABLE(invoice_id uuid, class text, invoice_type invoice_type, total numeric, gst numeric, amount_paid numeric, customer_id uuid, created_at timestamp with time zone)

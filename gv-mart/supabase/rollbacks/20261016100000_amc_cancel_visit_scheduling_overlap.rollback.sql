@@ -1,4 +1,4 @@
--- Rollback for 20261015100000_amc_cancel_visit_scheduling_overlap.sql: restores the live bodies, the one-open-per-technician index and drops the additions.
+-- Rollback for 20261016100000_amc_cancel_visit_scheduling_overlap.sql: restores the live bodies, the one-open-per-technician index and drops the additions.
 
 alter table public.appointments drop constraint if exists appointments_technician_no_overlap;
 

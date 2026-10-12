@@ -1,4 +1,4 @@
--- Rolled-back DB tests for migrations 20261015100000_amc_cancel_visit_scheduling_overlap and 20261015110000_test_customer_flag
+-- Rolled-back DB tests for migrations 20261016100000_amc_cancel_visit_scheduling_overlap and 20261016110000_test_customer_flag
 -- (batch-2 items 1 and 5).  Run AFTER both migrations (the runner script concatenates them in front of this file inside one
 -- transaction).  One transaction ending in RAISE; read RESULTS in the error.  A throwaway __TEST_ organisation is created
 -- inside the transaction; the only real-data reads are the "real data unchanged" fingerprints.
