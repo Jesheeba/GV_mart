@@ -5994,6 +5994,7 @@ export type Database = {
           wa_answer_layer_enabled: boolean
           wa_test_mode_enabled: boolean
           wa_dispatch_v2_enabled: boolean
+          wa_skipped_alert_threshold: number
           wa_test_allowed_numbers: string[]
           // Phase 5b classify-intent + free-text-relevance kill switch
           // (2026-08-28) — see 20260828100000_wa_classify_intent_kill_switch.sql.
@@ -6077,6 +6078,7 @@ export type Database = {
           wa_answer_layer_enabled?: boolean
           wa_test_mode_enabled?: boolean
           wa_dispatch_v2_enabled?: boolean
+          wa_skipped_alert_threshold?: number
           wa_test_allowed_numbers?: string[]
           wa_classify_intent_enabled?: boolean
           wa_quote_extraction_enabled?: boolean
@@ -6149,6 +6151,7 @@ export type Database = {
           wa_answer_layer_enabled?: boolean
           wa_test_mode_enabled?: boolean
           wa_dispatch_v2_enabled?: boolean
+          wa_skipped_alert_threshold?: number
           wa_test_allowed_numbers?: string[]
           wa_classify_intent_enabled?: boolean
           wa_quote_extraction_enabled?: boolean

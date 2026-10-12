@@ -16,8 +16,8 @@ export const WINDOW_MS = 24 * 3_600_000
 /** Treat the window as closed 5 minutes early so a send never races the boundary. */
 export const WINDOW_SAFETY_MARGIN_MS = 5 * 60_000
 export const MAX_SEND_ATTEMPTS_V2 = 3
-/** A claimed row still pending after this long is "stuck sending" and is shown to a human, never auto-resent. */
-export const STUCK_CLAIM_MS = 10 * 60_000
+/** A row still pending this long after it was created or claimed is "stuck" and is shown to a human, never auto-resent. */
+export const STUCK_CLAIM_MS = 15 * 60_000
 export const MEDIA_HEADER_TYPES = ["DOCUMENT", "IMAGE", "VIDEO"] as const
 
 /** Wasi 409 codes (Wasi API reference, 2026-10-12). 409 means nothing was sent or charged. */
@@ -114,6 +114,14 @@ export type SendOutcome =
   | { kind: "accepted_no_message_id"; wasiMessageId: string | null; wasiResponse: Record<string, unknown> }
   | { kind: "rejected"; httpStatus: number; code: string; retryable: boolean; error: string; wasiResponse: Record<string, unknown> | null }
   | { kind: "network_error"; message: string; unknownOutcome: boolean }
+
+/** True only for errors that prove the request never left this machine (DNS / TCP connect). Anything else that is not a
+ * timeout (a reset, a TLS or protocol error mid-request, an unknown exception) may have reached Wasi, so it is treated as an
+ * unknown outcome and never resent automatically: Wasi has no idempotency key. */
+export function isPreSendNetworkError(e: unknown): boolean {
+  const text = e instanceof Error ? `${e.name} ${e.message} ${String((e as { cause?: unknown }).cause ?? "")}` : String(e)
+  return /dns error|tcp connect error|client error \(Connect\)|ENOTFOUND|ECONNREFUSED|EAI_AGAIN|Name or service not known|connection refused/i.test(text)
+}
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
@@ -385,8 +393,8 @@ export async function executeSend(deps: SendDeps, input: CoreSendInput): Promise
   } catch (e) {
     const name = e instanceof Error ? e.name : ""
     const message = e instanceof Error ? e.message : String(e)
-    // A timeout means the request may have reached Wasi: outcome unknown, never auto-resent.
-    outcome = { kind: "network_error", message, unknownOutcome: name === "TimeoutError" || name === "AbortError" }
+    // A timeout, or any error that does not PROVE the request never left, may have reached Wasi: outcome unknown, never auto-resent.
+    outcome = { kind: "network_error", message, unknownOutcome: name === "TimeoutError" || name === "AbortError" || !isPreSendNetworkError(e) }
   }
 
   const patch = patchForOutcome(outcome, nowIso(), { retryCount })

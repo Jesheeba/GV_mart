@@ -387,13 +387,24 @@ describe("executeSend", () => {
     expect(stored.metaError).toMatchObject({ code: 131026 })
   })
 
-  it("network error before the request is sent: failed and retryable", async () => {
-    const { deps, rows } = makeDeps({ mapping: mappingShipping, response: new Error("fetch failed") })
+  it("network error before the request is sent (DNS / connect): failed and retryable", async () => {
+    const { deps, rows } = makeDeps({ mapping: mappingShipping, response: new Error("error sending request for url: client error (Connect): dns error: failed to lookup address") })
     const r = await executeSend(deps, { ...base, vars: { name: "A" } })
     expect(r.status).toBe("failed")
     const row = [...rows.values()][0]
     expect(String(row.error).startsWith("network_error")).toBe(true)
     expect(row.retried_at).toBeNull()
+  })
+
+  it("a reset or an unknown exception after the request may have left: unknown outcome, pending, never auto-resent", async () => {
+    for (const msg of ["fetch failed", "connection reset by peer", "unexpected EOF during handshake"]) {
+      const { deps, rows } = makeDeps({ mapping: mappingShipping, response: new Error(msg) })
+      const r = await executeSend(deps, { ...base, vars: { name: "A" } })
+      expect(r.status, msg).toBe("pending")
+      const row = [...rows.values()][0]
+      expect(row.error, msg).toBe("timeout_unknown_outcome")
+      expect(row.retried_at, msg).toBeTruthy()
+    }
   })
 
   it("timeout: outcome unknown, row stays pending and is not auto-resent", async () => {

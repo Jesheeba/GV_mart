@@ -25,6 +25,7 @@ import { markJobRan, shouldRunJob } from "../_shared/wa-job-pacing.ts"
 import { MAX_SEND_ATTEMPTS, MILESTONE_REF_TYPES, notifyGaveUpOnSend } from "../_shared/wa-milestone-dispatch-core.ts"
 import { customerLanguageAndName } from "../_shared/wa-event-context.ts"
 import { mapWasiTemplateList } from "../_shared/wasi-templates.ts"
+import { ALERT_TYPES, istDayStartIso, skippedAlertDue, stuckAlertDue, stuckBeforeIso } from "../_shared/wa-alerts.ts"
 import { checkAndAlertStaleJobs, recordHeartbeat } from "../_shared/cron-heartbeat.ts"
 
 function jsonResponse(body: unknown, status = 200) {
@@ -157,6 +158,50 @@ async function runFeedbackRequests(admin: SupabaseClient, orgId: string, errors:
  * attempts" marker wa-milestone-dispatch-core uses, so a row this pass
  * gives up on is excluded from BOTH loops going forward, not just this
  * one. */
+/** Dispatcher v2 alerts (only when the flag is on): (1) any outbound row still pending 15 minutes after it was created or
+ * claimed, (2) skipped_no_template rows today above settings.wa_skipped_alert_threshold (default 10, 0 = off). Each raises ONE
+ * in-app notification to the master and is not repeated while the previous one is unread; the Failed Sends tab shows the
+ * same rows. Nothing is ever resent by this job. */
+async function runDispatchAlerts(admin: SupabaseClient, orgId: string, errors: string[]): Promise<{ stuck: number; skippedToday: number; alerts: string[] } | { skipped: string }> {
+  if (!(await isDispatchV2Enabled(admin, orgId))) return { skipped: "v2 off" }
+  const nowMs = Date.now()
+  const before = stuckBeforeIso(nowMs)
+  const dayStart = istDayStartIso(nowMs)
+  const alerts: string[] = []
+
+  const stuckA = await admin.from("whatsapp_outbox").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("direction", "outbound").eq("status", "pending").lt("claimed_at", before)
+  const stuckB = await admin.from("whatsapp_outbox").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("direction", "outbound").eq("status", "pending").is("claimed_at", null).lt("created_at", before)
+  const skipped = await admin.from("whatsapp_outbox").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("status", "skipped_no_template").gte("created_at", dayStart)
+  const settings = await admin.from("settings").select("wa_skipped_alert_threshold").eq("org_id", orgId).maybeSingle()
+  const failure = stuckA.error ?? stuckB.error ?? skipped.error
+  if (failure) {
+    errors.push(`[${orgId}] dispatch alerts: ${failure.message}`)
+    return { skipped: "query failed" }
+  }
+  const stuck = (stuckA.count ?? 0) + (stuckB.count ?? 0)
+  const skippedToday = skipped.count ?? 0
+
+  const notifyOnce = async (type: string, title: string, body: string, sinceIso: string | null) => {
+    let q = admin.from("notifications").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("role", "master").eq("type", type).eq("is_read", false)
+    if (sinceIso) q = q.gte("created_at", sinceIso)
+    const { count } = await q
+    if ((count ?? 0) > 0) return
+    const { error } = await admin.from("notifications").insert({ org_id: orgId, role: "master", type, title, body })
+    if (error) errors.push(`[${orgId}] dispatch alert notification: ${error.message}`)
+    else alerts.push(type)
+  }
+
+  if (stuckAlertDue(stuck)) {
+    await notifyOnce(ALERT_TYPES.stuck, "WhatsApp messages are stuck sending",
+      `${stuck} WhatsApp message(s) have been pending for more than 15 minutes. Open Automation > Failed Sends. They are not resent automatically.`, null)
+  }
+  if (skippedAlertDue(skippedToday, (settings.data as { wa_skipped_alert_threshold?: number } | null)?.wa_skipped_alert_threshold)) {
+    await notifyOnce(ALERT_TYPES.skipped, "Many WhatsApp messages were skipped today",
+      `${skippedToday} message(s) were not sent today because no approved WhatsApp template exists for them. Open Automation > Failed Sends.`, dayStart)
+  }
+  return { stuck, skippedToday, alerts }
+}
+
 /** Dispatcher v2 retry pass. A failed row is the SAME row that gets another attempt (never a second row), and only a
  * failure Wasi says is transient is re-queued: 409 `conflict` (once) and a pre-send network error (up to the cap). Every
  * other failure (session_window_closed, consent_required, missing template, blocked by test mode, 502) is terminal and
@@ -424,6 +469,7 @@ Deno.serve(async (req) => {
       continue
     }
     const templateSync = await runWasiTemplateSync(admin, org.id, errors)
+    const dispatchAlerts = await runDispatchAlerts(admin, org.id, errors)
     const amc = await runAmcReminders(admin, org.id, errors)
     const feedback = await runFeedbackRequests(admin, org.id, errors)
     const retries = await runFailedSendRetries(admin, org.id, errors)
@@ -435,7 +481,7 @@ Deno.serve(async (req) => {
     const huddleReminder = await runHuddleReminder(admin, org.id, errors)
     const tierPromotions = await runTierPromotionCheck(admin, org.id, errors)
     await markJobRan(admin, org.id, "scheduled_tasks")
-    results.push({ orgId: org.id, templateSync, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, overdueReminders, recurringTasks, huddleReminder, tierPromotions })
+    results.push({ orgId: org.id, templateSync, dispatchAlerts, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, overdueReminders, recurringTasks, huddleReminder, tierPromotions })
   }
 
   await recordHeartbeat(admin, "wa_scheduled_tasks", errors.length > 0 ? "error" : "ok", errors.join("; "))
