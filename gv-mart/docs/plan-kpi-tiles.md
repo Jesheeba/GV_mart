@@ -713,3 +713,17 @@ Built: `src/app/admin/kpi/` (`kpiTilesView.ts` pure view-model, `KpiTileStrip.ts
 Deviations from 11.x worth knowing: on phone widths the tile grid is one column below 480 px (the admin shell's side rail
 leaves only about 280 px of content width, two columns did not fit Tamil text); the "Live" chip sits next to the sub-line,
 not in the title row; every tile has its own help text (the plan list only drafted some).
+
+
+### 11.12 Step 2 applied live; Step 3 verified against the real database (2026-10-17 session)
+
+- Migration `20261017110000_report_kpi_tiles.sql` applied in one guarded transaction via the Management API; history row
+  registered by hand. Function ACL is `authenticated, postgres, service_role` only (anon refused), DEFINER, STABLE,
+  `search_path = public`. Backups: `Desktop\GV_mart_db_backup_2026-10-17_kpi_tiles`.
+- Real-organisation check after apply: 0 invoices / 0 invoice lines, so every money tile is 0; lead count 64 and hashes unchanged.
+- Step 3 real-database browser run (throwaway `__TEST_` org, three roles, en + ta, desktop 1280 and phone 390): 86 / 86.
+  Org purged afterwards; auth users deleted.
+- Found while testing, outside Step 3's scope: the Ops dashboard "Tickets missing a product" alert lists a flagged test
+  customer's ticket (`listTicketsMissingProduct` has no `is_test` filter). A sales_admin lands on `/admin/my-day` after login,
+  so the KPI dashboard is reached via `/admin`.
+- Push plan: see the hand-off message; nothing has been pushed or deployed.
