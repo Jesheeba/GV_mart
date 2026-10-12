@@ -7,8 +7,10 @@ import { createClient } from "@supabase/supabase-js"
  * master user in it, runs this file, then purges everything. It never runs in the normal suite and never touches the real org.
  * Env: KPI_LIVE, KPI_LIVE_URL, KPI_LIVE_ANON, KPI_LIVE_EMAIL, KPI_LIVE_PASSWORD, KPI_LIVE_ORG.
  */
-const live = process.env.KPI_LIVE === "1"
-const client = live ? createClient(process.env.KPI_LIVE_URL!, process.env.KPI_LIVE_ANON!, { auth: { persistSession: false } }) : null
+// the app tsconfig has no node types; this file only ever runs under vitest (node)
+const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env
+const live = env.KPI_LIVE === "1"
+const client = live ? createClient(env.KPI_LIVE_URL!, env.KPI_LIVE_ANON!, { auth: { persistSession: false } }) : null
 
 vi.mock("@/lib/supabase", () => ({ get supabase() { return client } }))
 
@@ -19,10 +21,10 @@ import { listAmcContracts } from "@/services/amc"
 const names = (rows: { name?: string | null }[]) => rows.map((r) => r.name).sort()
 
 describe.skipIf(!live)("test-customer exclusion, live in a __TEST_ org", () => {
-  const org = process.env.KPI_LIVE_ORG!
+  const org = env.KPI_LIVE_ORG!
 
   it("signs in as the throwaway master", async () => {
-    const { error } = await client!.auth.signInWithPassword({ email: process.env.KPI_LIVE_EMAIL!, password: process.env.KPI_LIVE_PASSWORD! })
+    const { error } = await client!.auth.signInWithPassword({ email: env.KPI_LIVE_EMAIL!, password: env.KPI_LIVE_PASSWORD! })
     expect(error).toBeNull()
   })
 
