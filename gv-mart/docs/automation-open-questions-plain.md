@@ -10,7 +10,7 @@ How to answer: copy the message at the bottom, change only the lines you want to
 1. Every possible business event (a customer joining an AMC, an AMC ending, a spare enquiry, a product enquiry and so on) can be turned into an automatic message trigger, and every trigger leaves an audit entry.
 2. The master builds the flows. Videos and messages can be chosen for each stage. Nothing is fixed in code.
 3. End-to-end testing uses only the one permanent test customer "jeshee test trigger" (the test number ending 6740, Sirah Digital address in Pallavaram). Real WhatsApp messages during tests go only to that number. A test-send allow-list setting (OFF by default) blocks and logs messages to any other number.
-4. Google reviews: the technician has an input box while finishing the service; the customer gets a WhatsApp message after the service and also a QR code on the technician's phone (both). No customer reward is tied to reviews.
+4. Google reviews (updated after Google's April 2026 policy change): every customer is asked after a completed service by one WhatsApp message, and a QR code on the technician's phone is offered, not pushed. No customer reward, no technician incentive, no review target or quota, no staff name in the request, and the technician does not ask customers on the premises. Reviews are recorded for reporting only. (This replaces the earlier decision about a technician input box and a per-review technician incentive.)
 5. The installation cost is bound to the technician incentive; the master can edit the amount.
 
 ## A. Where things stand today
@@ -43,9 +43,9 @@ How to answer: copy the message at the bottom, change only the lines you want to
 
 ### 5. Who gets the Google review request?
 - **Question:** Do we ask every customer after a completed service, or only customers who seem happy?
-- **Why it matters:** Google does not allow asking only the happy customers (check Google's current policy page before launch). Offering gifts for reviews is also not allowed.
-- **Recommended default:** Ask every customer after every completed service, with no condition on how it went. If a customer gives a low rating, the master and operations are alerted in addition, not instead.
-- **If different:** Asking only happy customers risks the reviews being removed or the listing being penalised.
+- **Why it matters:** Google's April 2026 policy update does not allow asking only the happy customers, offering payment, discounts or free goods, setting staff quotas, asking customers to name a staff member, or pressuring customers on the premises.
+- **Recommended default:** Ask every customer after every completed service, with no condition on how it went, no staff name, and no reward or target. The QR code is offered once, never pushed. If a customer gives a low rating, the master and operations are alerted in addition, not instead. Reviews are recorded for reporting only.
+- **If different:** Asking only happy customers, setting technician targets or paying for reviews risks the reviews being removed or the listing being penalised.
 
 ### 6. Which events message the customer?
 - **Question:** For which events should the customer get a WhatsApp message by default, and which are for staff only? For example, telling a customer their lead is "contacted" or "quoted" is unusual.
@@ -132,7 +132,7 @@ Automation answers (defaults pre-filled)
 2  On the way: add a "Start travel" button for the technician; keep the message off until it exists
 3  Repeats: never twice for the same job + waiting period; review requests at least 90 days apart
 4  STOP: stops promotions, review requests and renewal reminders; job updates and invoices continue; STOP ALL stops everything
-5  Google review: ask every customer after every completed service, no condition; low ratings also alert master and operations
+5  Google review: ask every customer after every completed service, no condition, no staff name, no reward, incentive or quota; QR offered not pushed; record reviews for reporting only; low ratings also alert master and operations
 6  Customer messages by default: booked, assigned, on the way, completed, invoice, AMC welcome/visit/expiring, feedback, review; lead "won" thank-you only
 7  Staff WhatsApp: in-app only now; add technician "new job" and sales "new lead" WhatsApp in the second wave
 8  Quotations and invoices: send from the system; keep the old button as a backup for now

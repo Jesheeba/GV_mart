@@ -15,6 +15,10 @@ The dispatcher fix is planned in a separate document, `docs/plan-dispatcher-fix.
 
 Nothing in phases 2 to 6 may be switched on in production before the prerequisite is deployed.
 
+## 2a. Scope change: Google review policy (April 2026)
+
+Removed from the design and from every phase below: any technician incentive per Google review, any review target or quota, and the technician review input box. Replaced by: ask every customer after a completed service by one WhatsApp message (no staff name, no reward), offer the QR code on the technician's phone without pushing, and record reviews for reporting only. Effort effect: slightly lower (no incentive rule, no technician input box, no incentive filter for review events); the numbers below were not reduced, so this saving is treated as contingency.
+
 ## 3. Phases that can ship independently
 
 | Phase | What ships | Effort (working days) | Depends on | Blocked on owner? |
@@ -96,7 +100,7 @@ Rules for every test: the only customer used is the flagged "jeshee test trigger
 | 3 | Technician starts travel (when the action exists) | `technician.on_the_way`: one message; none emitted by visit start |
 | 4 | Complete the visit with the OTP | `ticket.completed`: one completed message |
 | 5 | Feedback request after the configured delay | `feedback.requested`: one message, only once |
-| 6 | Google review rule after the configured delay | `review.google_requested`: one message with the fixed Google button; no reward or rating wording; sent regardless of any rating; the same result with a rating of 5 and a rating of 2 |
+| 6 | Google review rule after the configured delay | `review.google_requested`: one message with the fixed Google button; no reward, staff-name or rating wording; sent regardless of any rating; the same result with a rating of 5 and a rating of 2; no technician incentive, target or quota is created or changed by the review flow |
 | 7 | Create a service-only test sale | `invoice.issued`: one invoice message; no stock movement |
 | 8 | Sell an AMC plan | `amc.joined`: one welcome message |
 | 9 | Create an AMC visit | `amc.visit_scheduled`: one message |
