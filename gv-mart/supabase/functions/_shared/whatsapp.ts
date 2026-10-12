@@ -21,6 +21,8 @@ import type { SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import type { Reply } from "./whatsapp-journeys.ts"
 import { buildWasiErrorDetail } from "./wasi-error-detail.ts"
 import { evaluateTestMode, logBlockedSend } from "./wa-test-mode.ts"
+import { executeSend, last10, type CoreSendInput, type SendDeps } from "./wa-send-core.ts"
+import { redactWasiText } from "./wasi-error-detail.ts"
 
 // 2026-08-25 incident: sendViaWasi's fetch had no timeout at all, so a single
 // slow/hung Wasi request could block a whole Edge Function invocation past
@@ -79,6 +81,16 @@ export type SendMessageInput = {
    * those callers can tell how many attempts a given logical message has
    * already had, across however many outbox rows that history spans. */
   retryCount?: number
+  /** Dispatcher v2 (settings.wa_dispatch_v2_enabled). 'reply' answers something the customer just sent (free text, always
+   * inside the window). 'notification' is system-initiated: an approved template, or free text only inside the 24 h
+   * window; otherwise the row is recorded as skipped_no_template and nothing is sent. Default 'reply'. */
+  purpose?: "reply" | "notification"
+  language?: "en" | "ta"
+  /** Variables available to the event's template mapping (name, ticket_ref, ...). */
+  vars?: Record<string, string | null | undefined>
+  headerMediaUrl?: string | null
+  /** The dispatcher already inserted and claimed this row: update it in place instead of inserting a new one. */
+  outboxId?: string
 }
 
 export type SendMessageResult = {
@@ -95,6 +107,9 @@ export type SendMessageResult = {
    * debugging an unconfirmed payload shape (see templateSend above) can see
    * everything the provider said back, not just a summarized string. */
   rawResponse?: string
+  /** v2 only: the row's final status ('sent' | 'pending' | 'failed' | 'skipped_no_template') and its error text. */
+  status?: string
+  error?: string | null
 }
 
 export type RenderedTemplate = { found: true; body: string } | { found: false }
@@ -249,18 +264,154 @@ async function sendViaWasi(
   }
 
   if (res.status === 201) {
-    console.log("whatsapp.ts: wasi send succeeded, raw response:", rawText)
+    console.log("whatsapp.ts: wasi send succeeded, raw response:", redactWasiText(rawText))
     return { ok: true, waMessageId: extractWasiMessageId(parsed), rawBody: rawText }
   }
 
-  console.error("whatsapp.ts: wasi send failed", res.status, rawText)
+  console.error("whatsapp.ts: wasi send failed", res.status, redactWasiText(rawText))
   // The stored error keeps the short summary first, then a cleaned (tokens stripped, phone numbers
   // masked, ~500 chars) copy of Wasi's own response and a few safe headers — so a rejection can be
   // diagnosed from the outbox row without digging through function logs.
   return { ok: false, error: buildWasiErrorDetail(formatWasiError(res.status, parsed ?? rawText), rawText, res.headers), rawBody: rawText }
 }
 
+// ── dispatcher v2 plumbing (docs/plan-dispatcher-fix.md) ──────────────────────────────────────────────────────────────
+const v2FlagCache = new Map<string, { value: boolean; expiresAt: number }>()
+const V2_FLAG_TTL_MS = 30_000
+
+/** settings.wa_dispatch_v2_enabled, cached 30 s. Any read problem falls back to the legacy path (today's behaviour). */
+export async function isDispatchV2Enabled(admin: SupabaseClient, orgId: string): Promise<boolean> {
+  const cached = v2FlagCache.get(orgId)
+  if (cached && cached.expiresAt > Date.now()) return cached.value
+  const { data, error } = await admin
+    .from("settings")
+    .select("wa_dispatch_v2_enabled")
+    .eq("org_id", orgId)
+    .abortSignal(AbortSignal.timeout(DB_CALL_TIMEOUT_MS))
+    .maybeSingle()
+  const value = !error && (data as { wa_dispatch_v2_enabled?: boolean } | null)?.wa_dispatch_v2_enabled === true
+  v2FlagCache.set(orgId, { value, expiresAt: Date.now() + V2_FLAG_TTL_MS })
+  return value
+}
+
+/** base URL + credentials for an org, or null when this environment is not configured to send (stub mode). */
+export async function resolveWasiTransport(admin: SupabaseClient, orgId: string): Promise<{ baseUrl: string; apiKey: string; clientId: string } | null> {
+  const baseUrl = Deno.env.get("WASI_API_BASE_URL")
+  if (!baseUrl) return null
+  const creds = await resolveWasiCredentials(admin, orgId)
+  return creds ? { baseUrl, apiKey: creds.apiKey, clientId: creds.clientId } : null
+}
+
+/** Test seam, and how a flag flip takes effect immediately inside one warm instance. */
+export function resetDispatchV2FlagCache() {
+  v2FlagCache.clear()
+}
+
+function buildSendDeps(admin: SupabaseClient): SendDeps {
+  return {
+    nowMs: () => Date.now(),
+    async getLastInboundAt(orgId, phone10) {
+      const { data } = await admin
+        .from("whatsapp_contacts")
+        .select("last_inbound_at")
+        .eq("org_id", orgId)
+        .eq("phone", phone10)
+        .abortSignal(AbortSignal.timeout(DB_CALL_TIMEOUT_MS))
+        .maybeSingle()
+      return (data as { last_inbound_at?: string } | null)?.last_inbound_at ?? null
+    },
+    async findApprovedMapping(orgId, eventKey, language) {
+      const { data: m } = await admin
+        .from("whatsapp_event_templates")
+        .select("wasi_template_name, param_map")
+        .eq("org_id", orgId)
+        .eq("event_key", eventKey)
+        .eq("language", language)
+        .eq("is_active", true)
+        .abortSignal(AbortSignal.timeout(DB_CALL_TIMEOUT_MS))
+        .maybeSingle()
+      const mapping = m as { wasi_template_name: string; param_map: Record<string, string> | null } | null
+      if (!mapping) return null
+      const { data: t } = await admin
+        .from("whatsapp_wasi_templates")
+        .select("status, header_type, param_keys")
+        .eq("org_id", orgId)
+        .eq("wasi_name", mapping.wasi_template_name)
+        .abortSignal(AbortSignal.timeout(DB_CALL_TIMEOUT_MS))
+      const copies = (t ?? []) as { status: string; header_type: string | null; param_keys: string[] | null }[]
+      // Wasi picks arbitrarily when one name exists in several languages (their known bug), so a duplicated name is
+      // never used; a name that is not approved behaves exactly like "no template".
+      if (copies.length !== 1) return null
+      const mirror = copies[0].status === "approved" ? copies[0] : null
+      if (!mirror) return null
+      return {
+        wasiTemplateName: mapping.wasi_template_name,
+        paramMap: mapping.param_map ?? {},
+        paramKeys: mirror.param_keys ?? null,
+        headerType: mirror.header_type ?? null,
+      }
+    },
+    async insertRow(row) {
+      const { data, error } = await admin.from("whatsapp_outbox").insert(row).select("id").single()
+      if (error) throw error
+      return (data as { id: string }).id
+    },
+    async updateRow(id, patch) {
+      const { error } = await admin.from("whatsapp_outbox").update(patch).eq("id", id)
+      if (error) throw error
+    },
+    evaluateTestMode: (orgId, to) => evaluateTestMode(admin, orgId, to),
+    logBlocked: (info) => logBlockedSend(admin, info),
+    async getTransport(orgId) {
+      const baseUrl = Deno.env.get("WASI_API_BASE_URL")
+      if (!baseUrl) return null
+      const creds = await resolveWasiCredentials(admin, orgId)
+      return creds ? { baseUrl, apiKey: creds.apiKey, clientId: creds.clientId } : null
+    },
+    async post(url, apiKey, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(WASI_REQUEST_TIMEOUT_MS),
+      })
+      return { status: res.status, text: await res.text(), headers: res.headers }
+    },
+  }
+}
+
+async function sendMessageV2(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
+  const core: CoreSendInput = {
+    orgId: input.orgId,
+    to: last10(input.to),
+    customerId: input.customerId,
+    template: input.template,
+    body: input.body,
+    interactive: input.interactive as Record<string, unknown> | undefined,
+    type: input.type,
+    refType: input.refType ?? null,
+    refId: input.refId ?? null,
+    retryCount: input.retryCount ?? 0,
+    purpose: input.purpose ?? "reply",
+    language: input.language,
+    vars: input.vars,
+    headerMediaUrl: input.headerMediaUrl ?? null,
+    outboxId: input.outboxId,
+    templateSend: input.templateSend
+      ? { templateName: input.templateSend.templateName, headerMediaUrl: input.templateSend.headerMediaUrl, params: input.templateSend.params }
+      : undefined,
+  }
+  const r = await executeSend(buildSendDeps(admin), core)
+  return { outboxId: r.outboxId, waMessageId: r.waMessageId, dispatched: r.dispatched, status: r.status, error: r.error }
+}
+
 export async function sendMessage(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
+  if (await isDispatchV2Enabled(admin, input.orgId)) return sendMessageV2(admin, input)
+  return sendMessageLegacy(admin, input)
+}
+
+/** The pre-v2 path, unchanged: insert after the send, optimistic stub 'sent'. Kept so the flag can be switched off. */
+async function sendMessageLegacy(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
   // Test-mode allow-list (review F-08, settings.wa_test_mode_enabled, ships OFF): the one place every real send passes
   // through. A blocked message is recorded as a failed row that no retry loop will pick up (retried_at set) and logged.
   const verdict = await evaluateTestMode(admin, input.orgId, input.to)

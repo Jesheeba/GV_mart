@@ -41,10 +41,11 @@ describe("buildWasiErrorDetail", () => {
     expect(out).toContain("1234567")
   })
 
-  it("keeps UUIDs and wamid message ids, which support needs", () => {
-    const out = redactWasiText('{"ref":"c26def1e-a050-49ee-a876-d73033a2a287","id":"wamid.HBgMOTE5MDkyNzY2NzQwFQIAEhggQUNDNzVCNkEwQTQ2N0ZFRUYzRDc3QzNGN0Y4RjFBOTUA"}')
+  it("keeps UUIDs but strips wamid ids, which embed the recipient number", () => {
+    const out = redactWasiText('{"ref":"c26def1e-a050-49ee-a876-d73033a2a287","id":"wamid.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}')
     expect(out).toContain("c26def1e-a050-49ee-a876-d73033a2a287")
-    expect(out).toContain("wamid.HBgMOTE5MDkyNzY2NzQwFQIAEhggQUNDNzVCNkEwQTQ2N0ZFRUYzRDc3QzNGN0Y4RjFBOTUA")
+    expect(out).not.toContain("AAAAAAAA")
+    expect(out).toContain("wamid.[redacted]")
   })
 
   it("truncates the body to the cap with an ellipsis", () => {

@@ -20,9 +20,11 @@
 // webhook's own signature check one layer up (a different mechanism
 // because the caller is different, not because this is less careful about it).
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
-import { sendMessage } from "../_shared/whatsapp.ts"
+import { isDispatchV2Enabled, resolveWasiTransport, sendMessage } from "../_shared/whatsapp.ts"
 import { markJobRan, shouldRunJob } from "../_shared/wa-job-pacing.ts"
-import { MAX_SEND_ATTEMPTS, notifyGaveUpOnSend } from "../_shared/wa-milestone-dispatch-core.ts"
+import { MAX_SEND_ATTEMPTS, MILESTONE_REF_TYPES, notifyGaveUpOnSend } from "../_shared/wa-milestone-dispatch-core.ts"
+import { customerLanguageAndName } from "../_shared/wa-event-context.ts"
+import { mapWasiTemplateList } from "../_shared/wasi-templates.ts"
 import { checkAndAlertStaleJobs, recordHeartbeat } from "../_shared/cron-heartbeat.ts"
 
 function jsonResponse(body: unknown, status = 200) {
@@ -75,6 +77,7 @@ async function runAmcReminders(admin: SupabaseClient, orgId: string, errors: str
         continue
       }
       const body = `Hi ${customer.name}, your AMC for ${product?.name ?? "your product"} expires on ${contract.expiry_date} (in ${days} days). Reply to renew or talk to our team.`
+      const { language } = await customerLanguageAndName(admin, contract.customer_id)
       await sendMessage(admin, {
         orgId,
         to: customer.mobile,
@@ -83,6 +86,10 @@ async function runAmcReminders(admin: SupabaseClient, orgId: string, errors: str
         body,
         refType: "amc_contracts",
         refId: contract.id,
+        // Dispatcher v2: a system notification — approved template, or free text only inside the 24 h window.
+        purpose: "notification",
+        language,
+        vars: { name: customer.name, customer_name: customer.name, product: product?.name ?? null, expiry_date: String(contract.expiry_date), days: String(days) },
       })
       sent++
     }
@@ -113,6 +120,8 @@ async function runFeedbackRequests(admin: SupabaseClient, orgId: string, errors:
       continue
     }
     const body = `Hi ${customer.name}, thanks for choosing GV Mart! How was your recent service (${ticket.name_of_complaint})? We'd love your feedback.`
+    const { language } = await customerLanguageAndName(admin, ticket.customer_id)
+    const appUrl = Deno.env.get("WA_PUBLIC_APP_URL")?.replace(/\/+$/, "") ?? null
     await sendMessage(admin, {
       orgId,
       to: customer.mobile,
@@ -121,6 +130,15 @@ async function runFeedbackRequests(admin: SupabaseClient, orgId: string, errors:
       body,
       refType: "service_tickets",
       refId: ticket.id,
+      purpose: "notification",
+      language,
+      vars: {
+        name: customer.name,
+        customer_name: customer.name,
+        ticket_ref: ticket.id.replace(/-/g, "").slice(0, 8).toUpperCase(),
+        complaint: ticket.name_of_complaint,
+        rating_link: appUrl ? `${appUrl}/customer/bookings/${ticket.id}` : null,
+      },
     })
     sent++
   }
@@ -139,7 +157,91 @@ async function runFeedbackRequests(admin: SupabaseClient, orgId: string, errors:
  * attempts" marker wa-milestone-dispatch-core uses, so a row this pass
  * gives up on is excluded from BOTH loops going forward, not just this
  * one. */
+/** Dispatcher v2 retry pass. A failed row is the SAME row that gets another attempt (never a second row), and only a
+ * failure Wasi says is transient is re-queued: 409 `conflict` (once) and a pre-send network error (up to the cap). Every
+ * other failure (session_window_closed, consent_required, missing template, blocked by test mode, 502) is terminal and
+ * stays in Failed Sends for a human; resending those unchanged would only fail the same way. Re-queued rows go back to
+ * status 'pending' with claimed_at cleared, so the milestone dispatcher's claim-before-send picks them up. Only
+ * dispatcher-owned reference types are re-queued: other rows have no loop that would send them. */
+async function runFailedSendRetriesV2(admin: SupabaseClient, orgId: string, errors: string[]): Promise<{ retried: number; gaveUp: number }> {
+  const { data: failed, error } = await admin
+    .from("whatsapp_outbox")
+    .select("id, error, retry_count, ref_type")
+    .eq("org_id", orgId)
+    .eq("direction", "outbound")
+    .eq("status", "failed")
+    .is("retried_at", null)
+    .in("ref_type", MILESTONE_REF_TYPES)
+  if (error) {
+    console.error("wa-scheduled-tasks: failed-outbox query failed (v2)", error)
+    errors.push(`[${orgId}] failed-outbox query failed: ${error.message}`)
+    return { retried: 0, gaveUp: 0 }
+  }
+  let retried = 0
+  let gaveUp = 0
+  for (const row of failed ?? []) {
+    const text = String(row.error ?? "")
+    const isConflict = text.startsWith("409: conflict")
+    const isNetwork = text.startsWith("network_error")
+    const cap = isConflict ? 1 : MAX_SEND_ATTEMPTS
+    if (!(isConflict || isNetwork) || row.retry_count >= cap) {
+      // Close it out so this pass stops selecting it; it stays visible in Failed Sends.
+      await admin.from("whatsapp_outbox").update({ retried_at: new Date().toISOString() }).eq("id", row.id).is("retried_at", null)
+      if (isConflict || isNetwork) gaveUp++
+      continue
+    }
+    const { error: requeueError } = await admin
+      .from("whatsapp_outbox")
+      .update({ status: "pending", claimed_at: null, retry_count: row.retry_count + 1 })
+      .eq("id", row.id)
+      .eq("status", "failed")
+    if (requeueError) errors.push(`[${orgId}] requeue failed: ${requeueError.message}`)
+    else retried++
+  }
+  return { retried, gaveUp }
+}
+
+/** Mirrors Wasi's template list (name, language, status, header type, exact param names) into whatsapp_wasi_templates so
+ * a send only uses a template that is approved, and builds its params from Wasi's own names. Read-only toward Wasi.
+ * Errors count against the heartbeat only when dispatcher v2 is on (before that the table may not exist yet). */
+async function runWasiTemplateSync(admin: SupabaseClient, orgId: string, errors: string[]): Promise<{ synced: number; duplicates: string[] } | { skipped: string }> {
+  const v2 = await isDispatchV2Enabled(admin, orgId)
+  const fail = (msg: string) => {
+    console.error("wa-scheduled-tasks: wasi template sync:", msg)
+    if (v2) errors.push(`[${orgId}] wasi template sync: ${msg}`)
+  }
+  const transport = await resolveWasiTransport(admin, orgId)
+  if (!transport) return { skipped: "no transport configured" }
+  let res: Response
+  try {
+    res = await fetch(`${transport.baseUrl}/api/v1/templates`, {
+      headers: { Authorization: `Bearer ${transport.apiKey}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+    })
+  } catch (e) {
+    fail(e instanceof Error ? e.message : "request failed")
+    return { skipped: "request failed" }
+  }
+  if (res.status !== 200) {
+    fail(`GET /templates returned ${res.status}`)
+    return { skipped: `http ${res.status}` }
+  }
+  const rows = mapWasiTemplateList(await res.json().catch(() => null))
+  if (rows.length === 0) return { skipped: "empty list" }
+  const { error } = await admin
+    .from("whatsapp_wasi_templates")
+    .upsert(rows.map((r) => ({ ...r, org_id: orgId, synced_at: new Date().toISOString() })), { onConflict: "org_id,wasi_name,language" })
+  if (error) {
+    fail(error.message)
+    return { skipped: "upsert failed" }
+  }
+  const seen = new Map<string, number>()
+  for (const r of rows) seen.set(r.wasi_name, (seen.get(r.wasi_name) ?? 0) + 1)
+  return { synced: rows.length, duplicates: [...seen.entries()].filter(([, n]) => n > 1).map(([n]) => n) }
+}
+
 async function runFailedSendRetries(admin: SupabaseClient, orgId: string, errors: string[]): Promise<{ retried: number; gaveUp: number }> {
+  if (await isDispatchV2Enabled(admin, orgId)) return runFailedSendRetriesV2(admin, orgId, errors)
   const { data: failed, error } = await admin
     .from("whatsapp_outbox")
     .select("id, org_id, to_mobile, customer_id, template, type, payload, ref_type, ref_id, retry_count")
@@ -321,6 +423,7 @@ Deno.serve(async (req) => {
       results.push({ orgId: org.id, skipped: true })
       continue
     }
+    const templateSync = await runWasiTemplateSync(admin, org.id, errors)
     const amc = await runAmcReminders(admin, org.id, errors)
     const feedback = await runFeedbackRequests(admin, org.id, errors)
     const retries = await runFailedSendRetries(admin, org.id, errors)
@@ -332,7 +435,7 @@ Deno.serve(async (req) => {
     const huddleReminder = await runHuddleReminder(admin, org.id, errors)
     const tierPromotions = await runTierPromotionCheck(admin, org.id, errors)
     await markJobRan(admin, org.id, "scheduled_tasks")
-    results.push({ orgId: org.id, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, overdueReminders, recurringTasks, huddleReminder, tierPromotions })
+    results.push({ orgId: org.id, templateSync, amc, feedback, retries, monthlyRfq, resolvedQuotes, rentalBilling, overdueReminders, recurringTasks, huddleReminder, tierPromotions })
   }
 
   await recordHeartbeat(admin, "wa_scheduled_tasks", errors.length > 0 ? "error" : "ok", errors.join("; "))
