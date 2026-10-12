@@ -1,0 +1,38 @@
+{
+  "_comment": "Test-customer guard (batch-2 item 5). Every SQL function whose name looks like a report/KPI/count/incentive/lead-queue function must be listed in exactly one of: must_exclude (its latest migration definition must reference is_test / is_test_customer / _invoice_is_test / _ticket_is_test / _visit_is_test) or exempt (with a reason). Checked by src/lib/testCustomerGuard.test.ts so a new aggregating function cannot ship without an explicit decision.",
+  "must_exclude": [
+    "_report_invoice_base",
+    "_technician_paid_earning",
+    "_trg_lead_auto_assign",
+    "compute_incentives",
+    "followup_counts",
+    "get_lead_funnel",
+    "get_technician_public_stats",
+    "list_followups",
+    "list_leads_without_followup",
+    "list_post_service_followups",
+    "report_coverage",
+    "report_customer_totals",
+    "report_feedback",
+    "report_ops_resolution",
+    "report_performance",
+    "report_pnl",
+    "report_product_sales",
+    "report_sales_service",
+    "reward_candidates",
+    "run_lead_followup_notifications",
+    "technician_attributed_revenue",
+    "technician_attributed_sales",
+    "technician_finder_conversions",
+    "technician_installation_count",
+    "technician_kpi_summary"
+  ],
+  "exempt": {
+    "report_top_customers": "reads only through _report_invoice_base, which excludes flagged customers",
+    "compute_salary": "sums incentives_earned and salary rows only; no customer-linked data",
+    "report_expenses_salary_by_staff": "expenses/salary ledger; no customer-linked data",
+    "report_expenses_year_over_year": "expenses ledger; no customer-linked data",
+    "_report_ist_start": "date helper",
+    "_report_org": "org helper"
+  }
+}

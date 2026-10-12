@@ -35,3 +35,4 @@ English is approved; Tamil is a draft until a Tamil speaker signs it off. Delete
 | `service.detail.postServiceCalls` | Post-service calls | சேவைக்குப் பிந்தைய அழைப்புகள் | 13 |
 | seed outcomes (`post_service_outcomes.label_ta`) | Satisfied — all good / Problem not solved / Could not reach — try again / Asked to call later / No call needed | திருப்தி — எல்லாம் சரி / பிரச்சனை தீரவில்லை / தொடர்பு கொள்ள முடியவில்லை — மீண்டும் முயற்சி / பிறகு அழைக்கச் சொன்னார் / அழைப்பு தேவையில்லை | 13 |
 | digest text (database) | …N post-service call(s) due. | (English only, like the rest of the digest body) | 13 |
+| `customers.testBadge` | Test | சோதனை | batch-2 item 5 |

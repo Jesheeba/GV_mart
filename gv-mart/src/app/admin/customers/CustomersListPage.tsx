@@ -177,6 +177,11 @@ export function CustomersListPage() {
             <div className="leading-tight">
               <div className="flex items-center gap-1.5 font-semibold text-text">
                 {c.name}
+                {c.is_test ? (
+                  <span className="rounded-full bg-surface-alt px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted">
+                    {t("customers.testBadge")}
+                  </span>
+                ) : null}
                 {c.needs_setup ? (
                   <span
                     role="img"

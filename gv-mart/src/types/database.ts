@@ -215,6 +215,7 @@ export type Database = {
       }
       customers: {
         Row: {
+          is_test: boolean
           id: string
           org_id: string
           primary_profile_id: string | null
@@ -232,6 +233,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          is_test?: boolean
           id?: string
           org_id: string
           primary_profile_id?: string | null
@@ -246,6 +248,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          is_test?: boolean
           id?: string
           org_id?: string
           primary_profile_id?: string | null
@@ -3001,6 +3004,7 @@ export type Database = {
       }
       appointments: {
         Row: {
+          ends_at: string | null
           id: string
           org_id: string
           ticket_id: string
@@ -3022,6 +3026,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ends_at?: string | null
           id?: string
           org_id: string
           ticket_id: string
@@ -3041,6 +3046,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ends_at?: string | null
           id?: string
           org_id?: string
           ticket_id?: string
@@ -3756,6 +3762,9 @@ export type Database = {
       }
       amc_contracts: {
         Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancel_reason: string | null
           id: string
           org_id: string
           customer_id: string
@@ -3770,6 +3779,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancel_reason?: string | null
           id?: string
           org_id: string
           customer_id: string
@@ -3784,6 +3796,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancel_reason?: string | null
           id?: string
           org_id?: string
           customer_id?: string
@@ -4638,6 +4653,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          is_test: boolean
           id: string
           org_id: string
           customer_id: string | null
@@ -4679,6 +4695,7 @@ export type Database = {
           auto_assign_pending: boolean
         }
         Insert: {
+          is_test?: boolean
           id?: string
           org_id: string
           customer_id?: string | null
@@ -4709,6 +4726,7 @@ export type Database = {
           auto_assign_pending?: boolean
         }
         Update: {
+          is_test?: boolean
           id?: string
           org_id?: string
           customer_id?: string | null
@@ -7293,6 +7311,10 @@ export type Database = {
       }
       report_sales_service: {
         Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      cancel_amc_contract: {
+        Args: { p_contract_id: string; p_reason: string }
         Returns: Json
       }
       report_top_customers: {

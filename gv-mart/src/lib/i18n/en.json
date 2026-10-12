@@ -216,6 +216,7 @@
     "sourceConversion": "Source Conversion"
   },
   "customers": {
+    "testBadge": "Test",
     "delete": {
       "title": "Delete customer",
       "warning": "This permanently deletes {{name}}. This cannot be undone.",

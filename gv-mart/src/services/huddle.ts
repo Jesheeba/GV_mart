@@ -184,7 +184,7 @@ export async function getHuddlePerformance(orgId: string, meetingDate: string): 
   const [sales, ops, open] = await Promise.all([
     getSalesServiceReport(orgId, range),
     getOpsResolutionKpi(orgId, range),
-    supabase.from("service_tickets").select("id", { count: "exact", head: true }).eq("org_id", orgId).in("status", ["open", "assigned", "in_progress"]),
+    supabase.from("service_tickets").select("id, customers!inner(is_test)", { count: "exact", head: true }).eq("org_id", orgId).eq("customers.is_test", false).in("status", ["open", "assigned", "in_progress"]),
   ])
   if (open.error) throw open.error
   return {

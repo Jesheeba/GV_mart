@@ -145,7 +145,8 @@ export type CustomerFilterCounts = { total: number; hasAmc: number; amcDueSoon: 
 /** Real counts for the quick-filter chip row — no fabricated numbers. */
 export async function getCustomerFilterCounts(orgId: string): Promise<CustomerFilterCounts> {
   const [totalRes, amcIds, dueSoonIds, dormantIds] = await Promise.all([
-    supabase.from("customers").select("id", { count: "exact", head: true }).eq("org_id", orgId),
+    // flagged test customers are never counted (batch-2 item 5)
+    supabase.from("customers").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("is_test", false),
     idsWithAmc(orgId),
     idsByAmcStatus(orgId, "due_soon"),
     idsDormant(orgId),
