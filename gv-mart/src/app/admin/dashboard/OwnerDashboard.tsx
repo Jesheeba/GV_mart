@@ -55,13 +55,13 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
   const { data: pnl, isLoading: pnlLoading } = usePnlReport(orgId, range)
   const { data: salesService, isLoading: ssLoading } = useSalesServiceReport(orgId, range)
   const { data: todaySales } = useSalesServiceReport(orgId, todayRange())
-  const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, {})
+  const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, { excludeTest: true })
   // Lead→Sale Conversion is genuinely period-shaped (a cohort's conversion
   // rate, not a live count) — scoped to `range` via the new optional
   // LeadFilters.dateRange, unlike Open Tickets below.
-  const { data: leads } = useLeads(orgId, { dateRange: range })
+  const { data: leads } = useLeads(orgId, { dateRange: range, excludeTest: true })
   const { data: spares } = useInventoryList(orgId, "spare")
-  const { data: amcContracts } = useAmcContracts(orgId)
+  const { data: amcContracts } = useAmcContracts(orgId, { excludeTest: true })
 
   const monthlyPnl = useQueries({
     queries: months.map((m) => ({

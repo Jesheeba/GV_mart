@@ -39,6 +39,9 @@ export type LeadFilters = {
    *  combined with source: "referral". */
   ownerId?: string
   customerId?: string
+  /** KPI step 1: dashboards pass true so tiles never count a lead flagged `is_test` (customer flagged, or mobile
+   *  shared with a flagged customer — the DB trigger keeps leads.is_test in step). Opt-in: list pages show all. */
+  excludeTest?: boolean
 }
 
 /**
@@ -60,6 +63,7 @@ export async function listLeads(orgId: string, filters: LeadFilters = {}): Promi
   if (filters.kind) query = query.eq("kind_key", filters.kind)
   if (filters.ownerId) query = query.eq("owner_id", filters.ownerId)
   if (filters.customerId) query = query.eq("customer_id", filters.customerId)
+  if (filters.excludeTest) query = query.eq("is_test", false)
   if (filters.dateRange) {
     query = query.gte("created_at", istDayStartIso(filters.dateRange.from)).lte("created_at", istDayEndIso(filters.dateRange.to))
   }

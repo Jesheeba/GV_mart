@@ -70,6 +70,9 @@ export type TicketFiltersInput = {
   date?: string
   area?: string
   search?: string
+  /** KPI step 1: dashboards pass true so tiles never count tickets of a customer flagged `is_test`.
+   *  Opt-in on purpose: the Tickets list page itself keeps showing every ticket. */
+  excludeTest?: boolean
 }
 
 export function isUnassignedRow(r: TicketListItem) {
@@ -93,7 +96,10 @@ const TICKET_SELECT = `
 `
 
 export async function listTickets(orgId: string, filters: TicketFiltersInput): Promise<TicketListItem[]> {
-  let query = supabase.from("service_tickets").select(TICKET_SELECT).eq("org_id", orgId).order("created_at", { ascending: false })
+  // excludeTest: inner-join the customer so the `is_test` predicate drops flagged customers' tickets (every ticket has a customer).
+  const select = filters.excludeTest ? TICKET_SELECT.replace("customers(name, mobile)", "customers!inner(name, mobile)") : TICKET_SELECT
+  let query = supabase.from("service_tickets").select(select).eq("org_id", orgId).order("created_at", { ascending: false })
+  if (filters.excludeTest) query = query.eq("customers.is_test", false)
 
   if (filters.status) query = query.eq("status", filters.status as TicketStatus)
   if (filters.priority) query = query.eq("priority", filters.priority as PriorityLevel)

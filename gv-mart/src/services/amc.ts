@@ -16,12 +16,16 @@ export type WarrantyListItem = WarrantyRow & {
   products: { name: string } | null
 }
 
-export async function listAmcContracts(orgId: string): Promise<AmcContractListItem[]> {
-  const { data, error } = await supabase
+/** `excludeTest` (KPI step 1): dashboards pass true so tiles skip contracts of a customer flagged `is_test`. */
+export async function listAmcContracts(orgId: string, opts: { excludeTest?: boolean } = {}): Promise<AmcContractListItem[]> {
+  const customers = opts.excludeTest ? "customers!inner(name, mobile)" : "customers(name, mobile)"
+  let query = supabase
     .from("amc_contracts")
-    .select("*, customers(name, mobile), products(name), amc_plans(name, years, price, price_per_year)")
+    .select(`*, ${customers}, products(name), amc_plans(name, years, price, price_per_year)`)
     .eq("org_id", orgId)
     .order("expiry_date")
+  if (opts.excludeTest) query = query.eq("customers.is_test", false)
+  const { data, error } = await query
   if (error) throw error
   return (data ?? []) as unknown as AmcContractListItem[]
 }

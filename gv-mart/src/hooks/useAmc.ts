@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as amc from "@/services/amc"
 import type { SellAmcInput } from "@/services/amc"
 
-export function useAmcContracts(orgId: string | undefined) {
+export function useAmcContracts(orgId: string | undefined, opts: { excludeTest?: boolean } = {}) {
   return useQuery({
-    queryKey: ["amc_contracts", "list", orgId],
-    queryFn: () => amc.listAmcContracts(orgId!),
+    queryKey: ["amc_contracts", "list", orgId, opts],
+    queryFn: () => amc.listAmcContracts(orgId!, opts),
     enabled: !!orgId,
   })
 }

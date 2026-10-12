@@ -33,12 +33,12 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
   const range = periodToRange(period)
 
   const { data: salesService, isLoading: ssLoading } = useSalesServiceReport(orgId, range)
-  const { data: leads, isLoading: leadsLoading } = useLeads(orgId, { dateRange: range })
+  const { data: leads, isLoading: leadsLoading } = useLeads(orgId, { dateRange: range, excludeTest: true })
   // Open Leads / Lead Pipeline are a live queue-depth signal ("what's still
   // open right now"), not a historical metric — filtering them to "created
   // during period" would silently hide older still-open leads, so they stay
   // unfiltered regardless of `period` (matches OwnerDashboard's Open Tickets).
-  const { data: allLeads, isLoading: allLeadsLoading } = useLeads(orgId)
+  const { data: allLeads, isLoading: allLeadsLoading } = useLeads(orgId, { excludeTest: true })
   const { data: quotations } = useQuotationsList(orgId, range)
 
   const openLeads = allLeads?.filter((l) => l.status !== "won" && l.status !== "lost") ?? []
