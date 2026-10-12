@@ -3,8 +3,38 @@
 Prepared 2026-10-12 on branch `fix/staff-security-review`. Project ref `fsunrjithwcjtsutsgea`.
 **Legend:** `[YOU]` = needs your explicit approval before I run it (real-world effect: deploy, secret, real accounts, merge, switch). `[AUTO]` = read-only check or rolled-back test, I run it without asking. Nothing below runs until you say so.
 
-## Status update (2026-10-12, later)
-Done live: ALLOWED_ORIGINS set (Vercel + capacitor://localhost + https://localhost, the two defaults of Capacitor 8 that the app config does not override); both Edge Functions deployed and live-tested (reset 26/26, create 24/24); F-07, F-08, the unguarded-function revoke and the internal-tables read tightening applied. Still to do from this list: 4 (create the real sales persons), 5, 6, the merge/push (waiting for your explicit push). Sections below are kept as written for reference.
+## Status (2026-10-12, evening) and the remaining steps
+
+**Live now**
+| Item | State |
+|---|---|
+| F-01 revoke_user_sessions, F-03 append-only audit + purge_test_organisation, F-06 no client master grant | live |
+| F-07 inactive staff have no role (strict-boolean helpers, last-master trigger) | live |
+| F-08 WhatsApp outbound gate (send_staff_whatsapp, no client write on whatsapp_outbox, test-mode columns) | live; allow-list OFF |
+| 10 unguarded write functions revoked from PUBLIC/anon/authenticated (create_purchase_order now definer) | live |
+| meeting_logs / meeting_issues / automation_flows read tightened | live |
+| ALLOWED_ORIGINS = vercel + capacitor://localhost + https://localhost | set |
+| admin-reset-staff-password (hardened) and admin-create-staff | deployed, live-tested 26/26 and 24/24 |
+
+**Built, tested, NOT applied / deployed / pushed**
+| Item | Where |
+|---|---|
+| Branch fix/staff-security-review (rebased on origin/main, tsc + 376 tests green) | local, waiting for your push authorisation |
+| Batch 2: resolve_stale_bookings guard + revoke 9 helper/read-only functions | held/20261015140000_*, ACL backup on Desktop, rollback, test green |
+| Lead distribution migration | held/20261010120000_*, rollback, test 18/18 |
+| admin-set-staff-active (RPC + side-door trigger + Edge Function + HR screen) | branch feat/admin-set-staff-active, held/20261015150000_*, tests green |
+| sendMessage test-mode block | in the branch; wa-* functions NOT redeployed (the dispatcher session deploys later) |
+
+**Remaining steps, in order**
+1.  Type the push authorisation. I then push fix/staff-security-review to origin/main (fast-forward), confirm Vercel Production builds from main, and check the live bundle contains Add Staff and the test-mode dialog.
+2.  In the Supabase dashboard: set site_url, set minimum password length 10. Leave disable_signup OFF and jwt_exp 3600.
+3.  Approve batch 2 (anon hygiene + stale-booking guard). I apply it, register the history row, compare baselines.
+4.  Give me the sales persons (name, login email, optional phone, typed or generated password). I create them through Add Staff on production, verify each login, check Receives new leads is ON.
+5.  Approve the lead distribution migration (switch stays OFF, changes nothing visible).
+6.  Approve switching round robin ON (Masters > Settings), then I run the live verification with the flagged test customer only.
+7.  Approve admin-set-staff-active: apply held/20261015150000_*, deploy the function, then merge feat/admin-set-staff-active (HR screen) and push. Order matters: the HR screen calls the function for sales persons.
+8.  Later, when the dispatcher session is ready: redeploy the wa-* functions from a branch that contains the sendMessage block; then you may turn the test-mode allow-list ON while testing.
+9.  Decide about local main: it is untouched; a backup branch backup/local-main-2026-10-12 now points at it. Its only change not on origin/main is the complaint-types re-seed migration (content is already live; file name collides with lead_stage_log version 20261008100000).
 
 ## 0. Where things stand (already done, verified live 2026-10-12)
 | Item | State |
