@@ -73,3 +73,24 @@ Facts checked against the live database that the eight steps above depend on:
 Open decisions (unchanged from above, plus one): operation_admin in scope for v1? (recommended: no, sales persons only); remove from `lead_rotation`? (recommended: no, eligibility already needs `is_active`); in-app notification to the master on `partial`? (recommended: yes); **new:** when auto-assign is ON, should the person's unassigned leads be flagged `auto_assign_pending` so the next distribution spreads them, or stay unassigned for the master to hand out? (recommended: stay unassigned, as in the reviewer's step 3).
 
 Test plan additions: a deactivated person's open post-service follow-up is cleared; `tasks` rows are listed, not changed; the HR screen's old direct update is refused with the documented message; a master cannot be deactivated through any path.
+
+---
+
+## Decisions 2026-10-12 (owner) - design only, still not built
+
+Replaces the "recommended" answers above. What happens to a deactivated sales person's work, all inside the single database transaction of step 3 (`set_sales_person_active`, service-role only):
+
+| Their work | Decision | How |
+|---|---|---|
+| Open leads (`leads.assigned_to`, status not won/lost) | Return to the unassigned pool, flagged **needs reassignment** for the next distribution | `assigned_to = NULL` and `auto_assign_pending = true` under `app.lead_assign_ok = '1'`; one `lead_assignments` row per lead (`from_user` = the person, `to_user` NULL, `assigned_by` = the acting master, reason `deactivated`). Won/lost leads are untouched. |
+| Open follow-ups (`lead_followups.assigned_to`, open, includes post-service calls) | Go to the master queue | `assigned_to` set to the acting master; due times and history untouched; a completion-row count. |
+| Open tasks (`tasks.assignee_id`, status open) | Reassigned to a master | `assignee_id` = the acting master; `assigned_by` unchanged; recurring-series rows included. Done tasks untouched. |
+| `leads.owner_id`, `invoices.sold_by`, history | Untouched | They record who did something, not who owes work. |
+
+Consequences to be aware of (found while reading the distribution migration):
+1. **The distribution only runs on two triggers**: a sales person becoming eligible, and `auto_assign_leads` going OFF -> ON. Flagged leads would otherwise wait indefinitely. So step 3 ends with a call to `_lead_distribute_pending(org)` (wrapped in the same exception block that logs a WARNING and swallows, F-12) when the switch is ON: the flagged leads are spread over the remaining eligible people immediately, and the master gets the existing `lead_auto_assign_waiting` notice if nobody is eligible. With the switch OFF they simply stay unassigned + flagged, and the master assigns by hand; a hand-assigned lead keeps the flag until the next distribution run, which only clears the flag on it and does not move it (verified in the distribution function).
+2. If NOBODY is eligible (deactivating the last sales person), the flagged leads wait for the next person who becomes eligible: expected, and visible to the master as the waiting notice.
+3. Reactivation gives nothing back (as before); the person is simply eligible for new/flagged leads again.
+4. Step 3 now writes to four tables instead of one (leads, lead_assignments, lead_followups, tasks) plus a notification; the completion audit row records the four counts. All still one transaction, so a failure leaves nothing half-moved.
+
+Test plan additions: 3 open + 1 won lead, 2 open follow-ups (one post-service), 3 open + 1 done task, one recurring task: afterwards leads unassigned and flagged (won untouched), follow-ups on the master, open tasks on the master, done task untouched, counts in the completion row; with the switch ON and a second eligible person the flagged leads are spread within the same call; with the switch OFF they stay flagged; a lead of someone else is never touched.

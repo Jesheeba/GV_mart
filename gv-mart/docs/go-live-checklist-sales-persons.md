@@ -3,6 +3,9 @@
 Prepared 2026-10-12 on branch `fix/staff-security-review`. Project ref `fsunrjithwcjtsutsgea`.
 **Legend:** `[YOU]` = needs your explicit approval before I run it (real-world effect: deploy, secret, real accounts, merge, switch). `[AUTO]` = read-only check or rolled-back test, I run it without asking. Nothing below runs until you say so.
 
+## Status update (2026-10-12, later)
+Done live: ALLOWED_ORIGINS set (Vercel + capacitor://localhost + https://localhost, the two defaults of Capacitor 8 that the app config does not override); both Edge Functions deployed and live-tested (reset 26/26, create 24/24); F-07, F-08, the unguarded-function revoke and the internal-tables read tightening applied. Still to do from this list: 4 (create the real sales persons), 5, 6, the merge/push (waiting for your explicit push). Sections below are kept as written for reference.
+
 ## 0. Where things stand (already done, verified live 2026-10-12)
 | Item | State |
 |---|---|
