@@ -18,7 +18,7 @@ For every item below: **what it is supposed to guarantee**, then **questions to 
 ---
 
 ## 1. Round-robin lead assignment
-**Files:** `supabase/migrations/20261010100000_lead_round_robin.sql` (applied, switch OFF); `supabase/held/20261010120000_lead_distribute_pending.sql` (NOT applied); `supabase/held/lead_distribute_concurrency.test.mjs` (two parallel connections, commits throwaway data); `supabase/tests/lead_round_robin.test.sql`, `supabase/tests/lead_distribute_pending.test.sql`; design `docs/round-robin-lead-assignment.md`. Related earlier migration: `supabase/migrations/20261008130000_lead_assignment.sql` (`assign_lead`, `_trg_lead_assigned_guard`).
+**Files:** `supabase/migrations/20261010100000_lead_round_robin.sql` (applied, switch OFF); `supabase/held/20261016400000_lead_distribute_pending.sql` (NOT applied); `supabase/held/lead_distribute_concurrency.test.mjs` (two parallel connections, commits throwaway data); `supabase/tests/lead_round_robin.test.sql`, `supabase/tests/lead_distribute_pending.test.sql`; design `docs/round-robin-lead-assignment.md`. Related earlier migration: `supabase/migrations/20261008130000_lead_assignment.sql` (`assign_lead`, `_trg_lead_assigned_guard`).
 
 **Supposed to guarantee**
 - With `settings.auto_assign_leads` OFF nothing changes. With it ON, each new lead (INSERT only) goes to exactly one eligible person (role sales_admin, active, `receives_new_leads`, same organisation), least-recently-assigned first; masters are never auto-assigned.

@@ -1,5 +1,8 @@
 -- Distribute waiting leads (auto_assign_pending) round robin, oldest first, when a sales
 -- person becomes eligible or the switch is turned ON. Approved design 2026-10-07.
+-- Re-versioned 2026-10-16 (was 20261010120000) and made aware of the test-customer flag
+-- (leads.is_test, migration 20261016110000): a flagged lead is NEVER assigned, never moves the rotation,
+-- never counts as waiting, and is not touched at all (not even its flag).
 --
 --   * Only leads flagged auto_assign_pending are ever touched. Leads that existed before
 --     auto-assign went live are never flagged, so they are never touched.
@@ -29,13 +32,13 @@ begin
 
   -- nothing to assign for these: just clear the flag
   update public.leads set auto_assign_pending = false
-   where org_id = p_org and auto_assign_pending
+   where org_id = p_org and auto_assign_pending and not is_test
      and (assigned_to is not null or status in ('won', 'lost'));
 
   for r in
     select l.id, l.name, l.mobile
       from public.leads l
-     where l.org_id = p_org and l.auto_assign_pending and l.assigned_to is null
+     where l.org_id = p_org and l.auto_assign_pending and l.assigned_to is null and not l.is_test
      order by l.created_at, l.id
        for update
   loop
@@ -60,7 +63,7 @@ begin
     v_n := v_n + 1;
   end loop;
 
-  if not exists (select 1 from public.leads where org_id = p_org and auto_assign_pending) then
+  if not exists (select 1 from public.leads where org_id = p_org and auto_assign_pending and not is_test) then
     update public.notifications set is_read = true
      where org_id = p_org and role = 'master' and type = 'lead_auto_assign_waiting' and not is_read;
   end if;

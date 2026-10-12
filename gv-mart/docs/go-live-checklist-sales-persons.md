@@ -22,7 +22,7 @@ Prepared 2026-10-12 on branch `fix/staff-security-review`. Project ref `fsunrjit
 | Item | Where |
 |---|---|
 | Branch fix/staff-security-review (rebased on origin/main, tsc + tests green) | local, waiting for your typed push authorisation |
-| Lead distribution migration | held/20261010120000_*, rollback, test 18/18 |
+| Lead distribution migration | held/20261016400000_*, rollback, test 18/18 |
 | admin-set-staff-active (RPC + side-door trigger + Edge Function + HR screen) | branch feat/admin-set-staff-active, held/20261015150000_*; goes live LAST, as one unit (migration + function deploy + HR-screen merge) |
 | sendMessage test-mode block | in the branch; wa-* functions NOT redeployed (the dispatcher session deploys later) |
 
@@ -47,7 +47,7 @@ Prepared 2026-10-12 on branch `fix/staff-security-review`. Project ref `fsunrjit
 | Edge Functions `admin-create-staff`, hardened `admin-reset-staff-password` | **built, NOT deployed** (live reset is still the OLD v1) |
 | F-08 WhatsApp outbound gate (`held/20261015100000_...`) | built, tested, NOT applied |
 | F-07 current_role() active gate (`held/20261015110000_...`) | built, tested, NOT applied |
-| Lead distribution (`held/20261010120000_lead_distribute_pending.sql`) | built, rolled-back test 18/18 green today, NOT applied; rollback file written |
+| Lead distribution (`held/20261016400000_lead_distribute_pending.sql`) | built, rolled-back test 18/18 green today, NOT applied; rollback file written |
 | Round-robin switch `settings.auto_assign_leads` | OFF (live) |
 
 ## 1. Before anything: preconditions `[AUTO]`
@@ -99,7 +99,7 @@ Needs from you: for each person full name, login email, optional phone, and who 
 4. Do NOT create test leads on the real organisation except against the flagged "jeshee test trigger" customer.
 
 ## 5. `[YOU]` Apply the distribution migration
-`supabase/held/20261010120000_lead_distribute_pending.sql` (moved to `migrations/` and registered in `schema_migrations` by hand, never `db push`; rollback file in `supabase/rollbacks/`).
+`supabase/held/20261016400000_lead_distribute_pending.sql` (moved to `migrations/` and registered in `schema_migrations` by hand, never `db push`; rollback file in `supabase/rollbacks/`).
 * With the switch OFF it changes nothing visible: it only adds the function and two triggers.
 * Before: baseline from 1.2. After: baseline unchanged, plus `select count(*) from leads where auto_assign_pending` = 0.
 

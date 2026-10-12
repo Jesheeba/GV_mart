@@ -1,4 +1,4 @@
-// HELD with 20261010120000_lead_distribute_pending.sql. Run: node supabase/held/lead_distribute_concurrency.test.mjs (needs SUPABASE_ACCESS_TOKEN). Result 2026-10-07: S1 8/8, S2 ok.
+// HELD with 20261016400000_lead_distribute_pending.sql. Run: node supabase/held/lead_distribute_concurrency.test.mjs (needs SUPABASE_ACCESS_TOKEN). Result 2026-10-07: S1 8/8, S2 ok.
 // Concurrency test for the round-robin insert trigger and the (held) waiting-lead distribution function.
 // Uses two parallel Management API connections against throwaway __TEST_ data that is COMMITTED for the
 // duration of the test and removed afterwards. The held distribution migration is NOT applied: a test-only copy
@@ -18,7 +18,7 @@ async function q(sql) {
 const out = []
 const log = (s) => { out.push(s); console.log(s) }
 
-const migration = fs.readFileSync("C:/Users/JESHEEBA/Desktop/GV_mart_salesperson/gv-mart/supabase/held/20261010120000_lead_distribute_pending.sql", "utf8")
+const migration = fs.readFileSync("C:/Users/JESHEEBA/Desktop/GV_mart_secfix/gv-mart/supabase/held/20261016400000_lead_distribute_pending.sql", "utf8")
 // test-only copy of just the function, in its own schema; no triggers on profiles/settings are created
 const fnOnly = migration.slice(migration.indexOf("create or replace function public._lead_distribute_pending"), migration.indexOf("-- a person becomes eligible"))
   .replace("public._lead_distribute_pending", "__test_dp._lead_distribute_pending")

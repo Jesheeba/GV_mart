@@ -1,4 +1,4 @@
--- Rolled-back test for 20261010120000_lead_distribute_pending.sql. To test BEFORE applying, the runner
+-- Rolled-back test for held/20261016400000_lead_distribute_pending.sql. To test BEFORE applying, the runner
 -- concatenates the migration file in front of this block in one transaction (all rolled back by the RAISE).
 do $t$
 declare
@@ -6,6 +6,7 @@ declare
   v_m uuid := gen_random_uuid(); v_a uuid := gen_random_uuid(); v_b uuid := gen_random_uuid();
   v_m2 uuid := gen_random_uuid(); v_s2 uuid := gen_random_uuid();
   l1 uuid; l2 uuid; l3 uuid; l4 uuid; l_closed uuid; l_manual uuid; l_old uuid; l_o2 uuid;
+  v_tc uuid; l_t1 uuid; l_t2 uuid;
   v_real_assigned int; v_real int;
 begin
   select count(*) into v_real from leads; select count(*) into v_real_assigned from leads where assigned_to is not null or auto_assign_pending;
@@ -38,6 +39,14 @@ begin
   insert into leads(org_id,name,mobile,created_at) values (v_org2,'__TEST_o2wait','9400000017', now()-interval '3 hours') returning id into l_o2;
   select count(*) into n from leads where org_id in (v_org,v_org2) and auto_assign_pending;
   res := res || E'\n' || case when n=7 then 'ok   setup: 7 waiting leads flagged' else 'FAIL setup n='||n end;
+  -- test-customer flag: two flagged leads forced into the waiting state (a lead can become test AFTER it started waiting)
+  insert into customers(org_id,name,mobile) values (v_org,'__TEST_flagged_cust','9400000099') returning id into v_tc;
+  insert into leads(org_id,name,mobile,customer_id,created_at) values (v_org,'__TEST_flag1','9400000021',v_tc, now()-interval '6 hours') returning id into l_t1;
+  insert into leads(org_id,name,mobile,created_at) values (v_org,'__TEST_flag2','9400000099', now()-interval '5 hours') returning id into l_t2;
+  update customers set is_test = true where id = v_tc;   -- cascades leads.is_test (also to the lead that shares the number)
+  update leads set auto_assign_pending = true where id in (l_t1, l_t2);
+  select count(*) into n from leads where id in (l_t1,l_t2) and is_test and auto_assign_pending and assigned_to is null;
+  res := res || E'\n' || case when n=2 then 'ok   T0 two flagged leads sit in the waiting state (the oldest of all)' else 'FAIL T0 n='||n end;
 
   -- closed + manually assigned while waiting
   update leads set status='lost' where id=l_closed;
@@ -57,6 +66,18 @@ begin
   select count(*) into n from leads where id in (l1,l2,l3,l4) and auto_assign_pending;
   res := res || E'\n' || case when n=0 then 'ok   D1d flags cleared' else 'FAIL D1d' end;
 
+  -- T flagged (is_test) leads: untouched by the distribution; the rotation only served the real leads
+  select count(*) into n from leads where id in (l_t1,l_t2) and is_test and assigned_to is null and auto_assign_pending;
+  res := res || E'\n' || case when n=2 then 'ok   T1 flagged leads: still unassigned, flag untouched' else 'FAIL T1 n='||n end;
+  select count(*) into n from lead_assignments where lead_id in (l_t1,l_t2);
+  res := res || E'\n' || case when n=0 then 'ok   T2 no assignment row for a flagged lead' else 'FAIL T2 n='||n end;
+  select count(*) into n from notifications where ref_id in (l_t1,l_t2) and type='lead_assigned';
+  res := res || E'\n' || case when n=0 then 'ok   T3 no assignee notification for a flagged lead' else 'FAIL T3 n='||n end;
+  select count(*) into n from lead_assignments where org_id=v_org and reason='auto round-robin (waiting lead)';
+  res := res || E'\n' || case when n=4 then 'ok   T4 the rotation served only the 4 real waiting leads (per-person totals exclude flagged leads)' else 'FAIL T4 n='||n end;
+  select count(*) into n from lead_rotation where org_id=v_org;
+  res := res || E'\n' || case when n=2 then 'ok   T5 rotation rows exist only for the two real recipients' else 'FAIL T5 n='||n end;
+
   -- D3 closed / manual: flag cleared, nothing else changed
   select count(*) into n from leads where id=l_closed and not auto_assign_pending and assigned_to is null and status='lost';
   res := res || E'\n' || case when n=1 then 'ok   D3a closed lead: flag cleared, unassigned, still lost' else 'FAIL D3a' end;
@@ -73,7 +94,7 @@ begin
 
   -- D6 master notice
   select count(*) into n from notifications where org_id=v_org and type='lead_auto_assign_waiting' and not is_read;
-  res := res || E'\n' || case when n=0 then 'ok   D6a master waiting notice marked read' else 'FAIL D6a unread='||n end;
+  res := res || E'\n' || case when n=0 then 'ok   D6a master waiting notice marked read (flagged leads do not keep it open)' else 'FAIL D6a unread='||n end;
   select count(*) into n from notifications where org_id=v_org2 and type='lead_auto_assign_waiting' and not is_read;
   res := res || E'\n' || case when n=1 then 'ok   D6b other org notice still unread' else 'FAIL D6b n='||n end;
 
