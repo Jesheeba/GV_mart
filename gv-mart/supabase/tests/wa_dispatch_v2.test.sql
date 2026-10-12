@@ -51,7 +51,7 @@ begin
   res := res || E'\n' || case when v_st = 'sent' then 'ok   flag off: a milestone row is left exactly as written' else 'FAIL flag off changed status to ' || v_st end;
 
   -- flag ON
-  update settings set wa_dispatch_v2_enabled = true where org_id = v_org;
+  update settings set wa_dispatch_v2_enabled = true, wa_dispatch_v2_scope = 'org' where org_id = v_org;  -- organisation-wide, explicit since 20261016330000
   insert into whatsapp_outbox(org_id, direction, template, status, ref_type, ref_id)
     values (v_org, 'outbound', 'milestone.booked', 'sent', 'service_ticket', gen_random_uuid()) returning id into v_id;
   select status into v_st from whatsapp_outbox where id = v_id;
