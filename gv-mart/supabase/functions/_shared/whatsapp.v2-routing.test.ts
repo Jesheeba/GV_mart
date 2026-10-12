@@ -8,13 +8,13 @@ const ORG = "org-1"
 type Row = Record<string, unknown>
 
 /** A tiny chainable stand-in for the supabase-js query builder, covering exactly the shapes whatsapp.ts uses. */
-function fakeAdmin(cfg: { v2: boolean; testMode?: boolean; allowed?: string[]; lastInbound?: string | null; templates?: Row[]; mapping?: Row | null; creds?: boolean }) {
+function fakeAdmin(cfg: { v2: boolean; scope?: "numbers" | "org"; numbers?: string[]; testMode?: boolean; allowed?: string[]; lastInbound?: string | null; templates?: Row[]; mapping?: Row | null; creds?: boolean }) {
   const outbox = new Map<string, Row>()
   const ops: { op: string; table: string; detail?: unknown }[] = []
   let seq = 0
 
   const reads: Record<string, () => unknown> = {
-    settings: () => ({ wa_dispatch_v2_enabled: cfg.v2, wa_test_mode_enabled: cfg.testMode ?? false, wa_test_allowed_numbers: cfg.allowed ?? [] }),
+    settings: () => ({ wa_dispatch_v2_enabled: cfg.v2, wa_dispatch_v2_scope: cfg.scope ?? "org", wa_dispatch_v2_numbers: cfg.numbers ?? [], wa_test_mode_enabled: cfg.testMode ?? false, wa_test_allowed_numbers: cfg.allowed ?? [] }),
     whatsapp_contacts: () => (cfg.lastInbound ? { last_inbound_at: cfg.lastInbound } : null),
     whatsapp_event_templates: () => cfg.mapping ?? null,
     whatsapp_wasi_templates: () => cfg.templates ?? [],
@@ -160,5 +160,72 @@ describe("sendMessage routing by settings.wa_dispatch_v2_enabled", () => {
     expect([...outbox.values()][0].status).toBe("failed")
     expect(String([...outbox.values()][0].error)).toBe("blocked: test_mode_not_allow_listed")
     expect(r.dispatched).toBe(false)
+  })
+})
+
+describe("per-number scope (wa_dispatch_v2_scope / wa_dispatch_v2_numbers)", () => {
+  const LISTED = "9000000001"
+  const OTHER = "9000000002"
+
+  it("scope numbers: a listed number goes through v2 (row pending first), an unlisted one stays on the legacy path", async () => {
+    const a = fakeAdmin({ v2: true, scope: "numbers", numbers: [LISTED] })
+    const rA = await sendMessage(a.admin, { ...input, to: LISTED, purpose: "reply" })
+    expect([...a.outbox.values()][0].status).toBe("pending")
+    expect([...a.outbox.values()][0].error).toBe("not_dispatched_stub")
+    expect(rA.status).toBe("pending")
+
+    resetDispatchV2FlagCache()
+    const b = fakeAdmin({ v2: true, scope: "numbers", numbers: [LISTED] })
+    const rB = await sendMessage(b.admin, { ...input, to: OTHER })
+    expect([...b.outbox.values()][0].status).toBe("sent") // legacy optimistic stub row, exactly as today
+    expect(rB.status).toBeUndefined()
+  })
+
+  it("an EMPTY list means nobody uses v2, even with the flag ON", async () => {
+    const { admin, outbox } = fakeAdmin({ v2: true, scope: "numbers", numbers: [] })
+    expect(await isDispatchV2Enabled(admin, ORG)).toBe(false)
+    const r = await sendMessage(admin, { ...input, purpose: "notification" })
+    expect([...outbox.values()][0].status).toBe("sent")
+    expect(r.status).toBeUndefined()
+  })
+
+  it("scope org is explicit: everyone uses v2", async () => {
+    const { admin, outbox } = fakeAdmin({ v2: true, scope: "org", numbers: [] })
+    expect(await isDispatchV2Enabled(admin, ORG)).toBe(true)
+    await sendMessage(admin, { ...input, to: OTHER })
+    expect([...outbox.values()][0].status).toBe("pending")
+  })
+
+  it("flag OFF wins over a populated list", async () => {
+    const { admin, outbox } = fakeAdmin({ v2: false, scope: "numbers", numbers: [LISTED] })
+    await sendMessage(admin, { ...input, to: LISTED })
+    expect([...outbox.values()][0].status).toBe("sent")
+  })
+
+  it("a non-listed number is UNTOUCHED when the flag is ON for the organisation: identical operations to flag OFF", async () => {
+    const off = fakeAdmin({ v2: false })
+    await sendMessage(off.admin, { ...input, to: OTHER })
+    resetDispatchV2FlagCache()
+    const on = fakeAdmin({ v2: true, scope: "numbers", numbers: [LISTED] })
+    await sendMessage(on.admin, { ...input, to: OTHER })
+    const strip = (ops: { op: string; table: string; detail?: unknown }[]) => ops.filter((o) => o.table === "whatsapp_outbox")
+    expect(strip(on.ops)).toEqual(strip(off.ops))
+    expect([...on.outbox.values()]).toEqual([...off.outbox.values()])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("matches on the last ten digits, so +91 / 91 / bare forms are the same number", async () => {
+    const { admin, outbox } = fakeAdmin({ v2: true, scope: "numbers", numbers: [LISTED] })
+    await sendMessage(admin, { ...input, to: "91" + LISTED, purpose: "reply" })
+    expect([...outbox.values()][0].status).toBe("pending")
+  })
+
+  it("a settings row without the scope columns (migration not applied) fails closed to legacy", async () => {
+    const old = {
+      from: () => ({
+        select: () => ({ eq: () => ({ abortSignal: () => ({ maybeSingle: async () => ({ data: { wa_dispatch_v2_enabled: true }, error: null }) }) }) }),
+      }),
+    } as never
+    expect(await isDispatchV2Enabled(old, ORG)).toBe(false)
   })
 })

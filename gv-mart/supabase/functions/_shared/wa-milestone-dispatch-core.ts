@@ -21,7 +21,8 @@
 // bookkeeping below (the retried_at stamp) can never drift between the two
 // callers — whichever one runs first "claims" a row the same way.
 import { type SupabaseClient } from "jsr:@supabase/supabase-js@2"
-import { isDispatchV2Enabled, sendMessage } from "./whatsapp.ts"
+import { getDispatchV2Scope, sendMessage } from "./whatsapp.ts"
+import { v2Active, v2AppliesTo, type DispatchV2Scope } from "./wa-dispatch-scope.ts"
 import { runDispatchV2, type DispatchDeps, type PendingRow } from "./wa-dispatch-v2.ts"
 import { resolveEventContext } from "./wa-event-context.ts"
 
@@ -70,7 +71,7 @@ export async function notifyGaveUpOnSend(
 
 /** Dispatcher v2 (settings.wa_dispatch_v2_enabled): claim-before-send over status='pending' rows, update in place.
  * See _shared/wa-dispatch-v2.ts and docs/plan-dispatcher-fix.md. */
-async function runMilestoneDispatchV2(admin: SupabaseClient, orgId: string): Promise<{ dispatched: number; skippedNoBody: number; gaveUp: number; queryError?: string }> {
+async function runMilestoneDispatchV2(admin: SupabaseClient, orgId: string, scope: DispatchV2Scope): Promise<{ dispatched: number; skippedNoBody: number; gaveUp: number; queryError?: string }> {
   const deps: DispatchDeps = {
     async listPending(org) {
       const { data, error } = await admin
@@ -84,7 +85,8 @@ async function runMilestoneDispatchV2(admin: SupabaseClient, orgId: string): Pro
         .order("created_at", { ascending: true })
         .limit(100)
       if (error) throw error
-      return (data ?? []) as PendingRow[]
+      // only the recipients v2 applies to; everyone else is handled by the legacy half of the dispatcher
+      return ((data ?? []) as PendingRow[]).filter((r) => v2AppliesTo(scope, r.to_mobile))
     },
     async claim(id) {
       const { data, error } = await admin
@@ -134,9 +136,28 @@ export async function runMilestoneDispatch(
   admin: SupabaseClient,
   orgId: string
 ): Promise<{ dispatched: number; skippedNoBody: number; gaveUp: number; queryError?: string }> {
-  if (await isDispatchV2Enabled(admin, orgId)) return runMilestoneDispatchV2(admin, orgId)
+  const scope = await getDispatchV2Scope(admin, orgId)
+  if (!v2Active(scope)) return runLegacyMilestoneDispatch(admin, orgId, null)
+  const v2 = await runMilestoneDispatchV2(admin, orgId, scope)
+  if (scope.scope === "org") return v2
+  // scope "numbers": the listed recipients went through v2 above; everyone else stays on the legacy loop exactly as before
+  const legacy = await runLegacyMilestoneDispatch(admin, orgId, scope)
+  return {
+    dispatched: v2.dispatched + legacy.dispatched,
+    skippedNoBody: v2.skippedNoBody + legacy.skippedNoBody,
+    gaveUp: v2.gaveUp + legacy.gaveUp,
+    queryError: v2.queryError ?? legacy.queryError,
+  }
+}
 
-  const { data: rows, error } = await admin
+/** The pre-v2 loop, unchanged. `scope` is null when v2 is off. In partial mode (scope "numbers") it leaves v2 rows alone:
+ * status pending, and any recipient v2 applies to. */
+async function runLegacyMilestoneDispatch(
+  admin: SupabaseClient,
+  orgId: string,
+  scope: DispatchV2Scope | null
+): Promise<{ dispatched: number; skippedNoBody: number; gaveUp: number; queryError?: string }> {
+  let query = admin
     .from("whatsapp_outbox")
     .select("id, org_id, to_mobile, customer_id, template, type, payload, ref_type, ref_id, retry_count")
     .eq("org_id", orgId)
@@ -144,6 +165,8 @@ export async function runMilestoneDispatch(
     .is("wa_message_id", null)
     .is("retried_at", null)
     .in("ref_type", MILESTONE_REF_TYPES)
+  if (scope) query = query.neq("status", "pending")
+  const { data: rows, error } = await query
 
   if (error) {
     console.error("wa-milestone-dispatch-core: whatsapp_outbox query failed", error)
@@ -155,6 +178,7 @@ export async function runMilestoneDispatch(
   let gaveUp = 0
 
   for (const row of (rows ?? []) as StuckOutboxRow[]) {
+    if (scope && v2AppliesTo(scope, row.to_mobile)) continue // v2 owns this recipient
     const body = row.payload?.body
     // No whatsapp_templates row exists for this milestone name yet (see
     // _wa_render_template's found:false path) — there's nothing readable

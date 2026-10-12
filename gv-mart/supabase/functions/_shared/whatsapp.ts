@@ -21,6 +21,7 @@ import type { SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import type { Reply } from "./whatsapp-journeys.ts"
 import { buildWasiErrorDetail } from "./wasi-error-detail.ts"
 import { evaluateTestMode, logBlockedSend } from "./wa-test-mode.ts"
+import { DISPATCH_V2_OFF, parseDispatchV2Scope, v2Active, v2AppliesTo, type DispatchV2Scope } from "./wa-dispatch-scope.ts"
 import { executeSend, last10, type CoreSendInput, type SendDeps } from "./wa-send-core.ts"
 import { redactWasiText } from "./wasi-error-detail.ts"
 
@@ -276,22 +277,33 @@ async function sendViaWasi(
 }
 
 // ── dispatcher v2 plumbing (docs/plan-dispatcher-fix.md) ──────────────────────────────────────────────────────────────
-const v2FlagCache = new Map<string, { value: boolean; expiresAt: number }>()
+const v2ScopeCache = new Map<string, { value: DispatchV2Scope; expiresAt: number }>()
 const V2_FLAG_TTL_MS = 30_000
 
-/** settings.wa_dispatch_v2_enabled, cached 30 s. Any read problem falls back to the legacy path (today's behaviour). */
-export async function isDispatchV2Enabled(admin: SupabaseClient, orgId: string): Promise<boolean> {
-  const cached = v2FlagCache.get(orgId)
+/** settings.wa_dispatch_v2_enabled + _scope + _numbers, cached 30 s. Any read problem (including a missing column) means
+ * "nobody": the legacy path, today's behaviour. */
+export async function getDispatchV2Scope(admin: SupabaseClient, orgId: string): Promise<DispatchV2Scope> {
+  const cached = v2ScopeCache.get(orgId)
   if (cached && cached.expiresAt > Date.now()) return cached.value
   const { data, error } = await admin
     .from("settings")
-    .select("wa_dispatch_v2_enabled")
+    .select("wa_dispatch_v2_enabled, wa_dispatch_v2_scope, wa_dispatch_v2_numbers")
     .eq("org_id", orgId)
     .abortSignal(AbortSignal.timeout(DB_CALL_TIMEOUT_MS))
     .maybeSingle()
-  const value = !error && (data as { wa_dispatch_v2_enabled?: boolean } | null)?.wa_dispatch_v2_enabled === true
-  v2FlagCache.set(orgId, { value, expiresAt: Date.now() + V2_FLAG_TTL_MS })
+  const value = error ? DISPATCH_V2_OFF : parseDispatchV2Scope(data)
+  v2ScopeCache.set(orgId, { value, expiresAt: Date.now() + V2_FLAG_TTL_MS })
   return value
+}
+
+/** True when v2 is on for at least one recipient of this organisation (the dispatcher loops then run their v2 half). */
+export async function isDispatchV2Enabled(admin: SupabaseClient, orgId: string): Promise<boolean> {
+  return v2Active(await getDispatchV2Scope(admin, orgId))
+}
+
+/** True when THIS recipient is sent through v2: flag on and (scope org, or the number is on the list). */
+export async function isDispatchV2For(admin: SupabaseClient, orgId: string, to: string | null | undefined): Promise<boolean> {
+  return v2AppliesTo(await getDispatchV2Scope(admin, orgId), to)
 }
 
 /** base URL + credentials for an org, or null when this environment is not configured to send (stub mode). */
@@ -304,7 +316,7 @@ export async function resolveWasiTransport(admin: SupabaseClient, orgId: string)
 
 /** Test seam, and how a flag flip takes effect immediately inside one warm instance. */
 export function resetDispatchV2FlagCache() {
-  v2FlagCache.clear()
+  v2ScopeCache.clear()
 }
 
 function buildSendDeps(admin: SupabaseClient): SendDeps {
@@ -406,7 +418,7 @@ async function sendMessageV2(admin: SupabaseClient, input: SendMessageInput): Pr
 }
 
 export async function sendMessage(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
-  if (await isDispatchV2Enabled(admin, input.orgId)) return sendMessageV2(admin, input)
+  if (await isDispatchV2For(admin, input.orgId, input.to)) return sendMessageV2(admin, input)
   return sendMessageLegacy(admin, input)
 }
 

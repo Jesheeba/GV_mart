@@ -20,7 +20,8 @@
 // webhook's own signature check one layer up (a different mechanism
 // because the caller is different, not because this is less careful about it).
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
-import { isDispatchV2Enabled, resolveWasiTransport, sendMessage } from "../_shared/whatsapp.ts"
+import { getDispatchV2Scope, isDispatchV2Enabled, resolveWasiTransport, sendMessage } from "../_shared/whatsapp.ts"
+import { v2Active, v2AppliesTo, type DispatchV2Scope } from "../_shared/wa-dispatch-scope.ts"
 import { markJobRan, shouldRunJob } from "../_shared/wa-job-pacing.ts"
 import { MAX_SEND_ATTEMPTS, MILESTONE_REF_TYPES, notifyGaveUpOnSend } from "../_shared/wa-milestone-dispatch-core.ts"
 import { customerLanguageAndName } from "../_shared/wa-event-context.ts"
@@ -208,10 +209,10 @@ async function runDispatchAlerts(admin: SupabaseClient, orgId: string, errors: s
  * stays in Failed Sends for a human; resending those unchanged would only fail the same way. Re-queued rows go back to
  * status 'pending' with claimed_at cleared, so the milestone dispatcher's claim-before-send picks them up. Only
  * dispatcher-owned reference types are re-queued: other rows have no loop that would send them. */
-async function runFailedSendRetriesV2(admin: SupabaseClient, orgId: string, errors: string[]): Promise<{ retried: number; gaveUp: number }> {
+async function runFailedSendRetriesV2(admin: SupabaseClient, orgId: string, errors: string[], scope: DispatchV2Scope): Promise<{ retried: number; gaveUp: number }> {
   const { data: failed, error } = await admin
     .from("whatsapp_outbox")
-    .select("id, error, retry_count, ref_type")
+    .select("id, error, retry_count, ref_type, to_mobile")
     .eq("org_id", orgId)
     .eq("direction", "outbound")
     .eq("status", "failed")
@@ -225,6 +226,7 @@ async function runFailedSendRetriesV2(admin: SupabaseClient, orgId: string, erro
   let retried = 0
   let gaveUp = 0
   for (const row of failed ?? []) {
+    if (!v2AppliesTo(scope, (row as { to_mobile?: string | null }).to_mobile)) continue // legacy owns this recipient
     const text = String(row.error ?? "")
     const isConflict = text.startsWith("409: conflict")
     const isNetwork = text.startsWith("network_error")
@@ -286,7 +288,16 @@ async function runWasiTemplateSync(admin: SupabaseClient, orgId: string, errors:
 }
 
 async function runFailedSendRetries(admin: SupabaseClient, orgId: string, errors: string[]): Promise<{ retried: number; gaveUp: number }> {
-  if (await isDispatchV2Enabled(admin, orgId)) return runFailedSendRetriesV2(admin, orgId, errors)
+  const scope = await getDispatchV2Scope(admin, orgId)
+  if (!v2Active(scope)) return runLegacyFailedSendRetries(admin, orgId, errors, null)
+  const v2 = await runFailedSendRetriesV2(admin, orgId, errors, scope)
+  if (scope.scope === "org") return v2
+  // scope "numbers": listed recipients were handled above; everyone else keeps the legacy pass exactly as before
+  const legacy = await runLegacyFailedSendRetries(admin, orgId, errors, scope)
+  return { retried: v2.retried + legacy.retried, gaveUp: v2.gaveUp + legacy.gaveUp }
+}
+
+async function runLegacyFailedSendRetries(admin: SupabaseClient, orgId: string, errors: string[], scope: DispatchV2Scope | null): Promise<{ retried: number; gaveUp: number }> {
   const { data: failed, error } = await admin
     .from("whatsapp_outbox")
     .select("id, org_id, to_mobile, customer_id, template, type, payload, ref_type, ref_id, retry_count")
@@ -303,6 +314,7 @@ async function runFailedSendRetries(admin: SupabaseClient, orgId: string, errors
   let gaveUp = 0
   for (const row of failed ?? []) {
     if (!row.to_mobile) continue
+    if (scope && v2AppliesTo(scope, row.to_mobile)) continue // v2 owns this recipient
     if (row.retry_count >= MAX_SEND_ATTEMPTS) {
       await notifyGaveUpOnSend(admin, row, "Follow up with them directly instead.")
       gaveUp++
