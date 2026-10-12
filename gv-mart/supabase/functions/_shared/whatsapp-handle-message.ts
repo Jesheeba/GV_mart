@@ -10,6 +10,7 @@ import { checkFreeTextRelevance, classifyWithClaude } from "./whatsapp-classify-
 import { extractQuoteDeterministic } from "./whatsapp-extract-quote-deterministic.ts"
 import { answerCustomerQuestion } from "./whatsapp-answer-layer.ts"
 import { answerStatusTrigger, matchStatusTrigger } from "./whatsapp-status-answers.ts"
+import { handleOptOutKeyword } from "./wa-opt-out.ts"
 import {
   buildMenuReply,
   containsPaymentRedFlag,
@@ -644,6 +645,14 @@ export async function handleMessage(admin: SupabaseClient, orgId: string, msg: N
   if (supplierIdentifyError) throw supplierIdentifyError
   if (supplierIdentity?.found) {
     await handleSupplierReply(admin, orgId, msg, { supplier_id: supplierIdentity.supplier_id as string, name: supplierIdentity.name as string })
+    return
+  }
+
+  // STOP / STOP ALL / START (automation Phase 3, S3). Handled before the kill switch on purpose: an opt-out must be
+  // honoured even when the bot is switched off. Whole-message keyword match only; START is honoured only for a number that
+  // currently has an opt-out. One confirmation reply (inside the 24 h window, because the customer just wrote), then the
+  // message goes no further.
+  if (msg.intent.kind === "text" && (await handleOptOutKeyword(admin, orgId, msg.phone, msg.intent.text, (m) => sendMessage(admin, m)))) {
     return
   }
 

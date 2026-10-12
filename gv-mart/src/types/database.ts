@@ -222,6 +222,7 @@ export type Database = {
           name: string
           mobile: string
           profession: string | null
+          preferred_language: string | null
           source: string | null
           tags: string[]
           notes: string | null
@@ -240,6 +241,7 @@ export type Database = {
           name: string
           mobile: string
           profession?: string | null
+          preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
@@ -255,6 +257,7 @@ export type Database = {
           name?: string
           mobile?: string
           profession?: string | null
+          preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null

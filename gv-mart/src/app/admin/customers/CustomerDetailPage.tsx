@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
+import { useToast } from "@/components/ui/toast-context"
 import {
   useCustomer,
   useCustomerExemptionWindows,
@@ -17,6 +19,7 @@ import {
   useCustomerProducts,
   useCustomerTdsSuggestion,
   useCustomerTimeline,
+  useSetCustomerPreferredLanguage,
 } from "@/hooks/useCustomers"
 import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
@@ -106,6 +109,8 @@ export function CustomerDetailPage() {
   const exemptionWindows = useCustomerExemptionWindows(customer?.id)
   const rentals = useCustomerRentalContracts(customer?.id)
   const markRentalReturned = useMarkRentalReturned()
+  const { toast } = useToast()
+  const setPreferredLanguage = useSetCustomerPreferredLanguage(customer?.id)
   const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile)
   const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
   const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
@@ -325,6 +330,15 @@ export function CustomerDetailPage() {
               <div>
                 <h1 className="mb-1 text-[23px] font-extrabold tracking-tight text-text">{customer.name}</h1>
                 <p className="mb-2.5 text-sm font-medium text-text-muted">{subtitleParts.join(" · ")}</p>
+                <div className="mb-2.5 max-w-xs">
+                  <PreferredLanguageSelect
+                    id="customer-preferred-language"
+                    i18nPrefix="customers.form"
+                    value={(customer.preferred_language as "en" | "ta" | null | undefined) ?? null}
+                    disabled={setPreferredLanguage.isPending}
+                    onChange={(next) => setPreferredLanguage.mutate(next, { onError: () => toast.error(t("common.actionFailed")) })}
+                  />
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {primaryAddress ? (
                     <>

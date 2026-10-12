@@ -69,8 +69,8 @@ begin
     and not exists (select 1 from unnest(array['automation_events','automation_flow_defs','automation_rules','automation_event_log','automation_audit','automation_queue','automation_errors']) t
                 where has_table_privilege('anon', 'public.' || t, 'SELECT')));
   perform pg_temp.chk('automation_rule_save: authenticated + service_role only',
-    has_function_privilege('authenticated', 'public.automation_rule_save(uuid,text,text,text,jsonb,text,text,integer,integer,integer,text,uuid,text)', 'execute')
-    and not has_function_privilege('anon', 'public.automation_rule_save(uuid,text,text,text,jsonb,text,text,integer,integer,integer,text,uuid,text)', 'execute'));
+    has_function_privilege('authenticated', 'public.automation_rule_save(uuid,text,text,text,jsonb,text,text,integer,integer,integer,text,uuid,text,text,boolean,integer)', 'execute')
+    and not has_function_privilege('anon', 'public.automation_rule_save(uuid,text,text,text,jsonb,text,text,integer,integer,integer,text,uuid,text,text,boolean,integer)', 'execute'));
   perform pg_temp.chk('catalogue holds the events the owner named (AMC join/end, spare + product enquiry) and every group',
     (select count(*) from public.automation_events where event_key in ('amc.joined','amc.expired','amc.expiring','spare_enquiry.submitted','product_enquiry.submitted','review.google_requested')) = 6
     and (select count(distinct group_key) from public.automation_events) >= 8
@@ -260,7 +260,7 @@ begin
     coalesce(s,'-'));
   v_ev := public.automation_emit(v_org, 'ticket.completed', 'ticket', v_ticket, v_cust, 'completed', jsonb_build_object('ticket_type', 'paid'));
   perform pg_temp.chk('a flip-flopped status (trigger fires again) cannot re-notify either',
-    (select count(*) from public.automation_queue where org_id = v_org and subject_id = v_ticket and rule_id = v_rule_c and idempotency_key like '%|completed') = 1);
+    (select count(*) from public.automation_queue where org_id = v_org and subject_id = v_ticket and rule_id = v_rule_c and idempotency_key like '%|completed|live|-') = 1);
 
   -- ---------- rule versions: an edit never re-fires old occurrences ----------
   perform pg_temp.as_user(v_master);

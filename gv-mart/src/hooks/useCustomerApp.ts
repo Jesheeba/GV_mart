@@ -50,6 +50,14 @@ export function useUpdateMyProfession(customerId: string | undefined) {
   })
 }
 
+export function useUpdateMyPreferredLanguage(customerId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (language: "en" | "ta" | null) => api.updateMyPreferredLanguage(customerId!, language),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customerApp", "record", customerId] }),
+  })
+}
+
 // ── Addresses ──────────────────────────────────────────────────────────────
 
 export function useMyAddresses(customerId: string | undefined) {

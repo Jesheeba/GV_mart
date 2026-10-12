@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { AddressForm } from "@/components/shared/AddressForm"
 import { useToast } from "@/components/ui/toast-context"
+import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
 import { useProfile } from "@/hooks/useProfile"
 import { signOut } from "@/services/auth"
 import {
@@ -22,6 +23,7 @@ import {
   useRemoveMyMember,
   useSetMyPrimaryAddress,
   useUpdateMyAddress,
+  useUpdateMyPreferredLanguage,
   useUpdateMyProfession,
 } from "@/hooks/useCustomerApp"
 import { customerMemberSchema, type CustomerMemberInput } from "@/lib/validation/customerApp"
@@ -288,6 +290,21 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
   )
 }
 
+function PreferredLanguageField({ customerId, value }: { customerId: string; value: "en" | "ta" | null }) {
+  const { t } = useTranslation()
+  const { toast } = useToast()
+  const update = useUpdateMyPreferredLanguage(customerId)
+  return (
+    <PreferredLanguageSelect
+      id="preferred-language"
+      i18nPrefix="customerApp.profile"
+      value={value}
+      disabled={update.isPending}
+      onChange={(next) => update.mutate(next, { onError: () => toast.error(t("common.actionFailed")) })}
+    />
+  )
+}
+
 function ProfessionField({ customerId, profession }: { customerId: string; profession: string | null }) {
   const { t } = useTranslation()
   const { toast } = useToast()
@@ -397,6 +414,7 @@ export function CustomerProfilePage() {
           </div>
         </div>
         {customerId ? <ProfessionField customerId={customerId} profession={record?.profession ?? null} /> : null}
+        {customerId ? <PreferredLanguageField customerId={customerId} value={(record?.preferred_language as "en" | "ta" | null | undefined) ?? null} /> : null}
       </Card>
 
       {customerId ? <ReferralWalletCard customerId={customerId} /> : null}

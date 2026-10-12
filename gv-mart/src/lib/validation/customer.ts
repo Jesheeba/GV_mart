@@ -46,6 +46,8 @@ export const peopleStepSchema = z.object({
   members: z.array(memberSchema).min(1, "customers.errors.memberRequired").max(5, "customers.errors.memberMax"),
   primaryIndex: z.number().int().min(0),
   profession: z.string().trim().max(80).optional().or(z.literal("")),
+  // WhatsApp message language (customers.preferred_language); "" = not set (English).
+  preferredLanguage: z.union([z.enum(["en", "ta"]), z.literal("")]).optional(),
 })
 // Same reasoning as MemberInput above: this schema embeds memberSchema
 // (which transforms relation), so useForm needs the input shape.
