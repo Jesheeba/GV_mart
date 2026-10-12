@@ -94,3 +94,8 @@ Consequences to be aware of (found while reading the distribution migration):
 4. Step 3 now writes to four tables instead of one (leads, lead_assignments, lead_followups, tasks) plus a notification; the completion audit row records the four counts. All still one transaction, so a failure leaves nothing half-moved.
 
 Test plan additions: 3 open + 1 won lead, 2 open follow-ups (one post-service), 3 open + 1 done task, one recurring task: afterwards leads unassigned and flagged (won untouched), follow-ups on the master, open tasks on the master, done task untouched, counts in the completion row; with the switch ON and a second eligible person the flagged leads are spread within the same call; with the switch OFF they stay flagged; a lead of someone else is never touched.
+
+---
+
+## Test-customer flag (2026-10-16)
+`leads.is_test` / `customers.is_test` (migration 20261016110000) are live. On deactivation, `set_sales_person_active` now leaves flagged leads exactly as they are (still assigned, no flag, no `lead_assignments` row), leaves open follow-ups that belong to a flagged lead or a flagged customer where they are, and excludes flagged leads from `leads_waiting` and from the distribution that follows. Tasks carry no customer link and are moved as before. The distribution migration (now 20261016400000) applies the same rule. Tests: `supabase/tests/set_sales_person_active.test.sql` F1-F4 (they fail on the pre-flag file).

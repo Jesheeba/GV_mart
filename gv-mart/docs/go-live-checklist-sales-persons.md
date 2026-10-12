@@ -3,39 +3,37 @@
 Prepared 2026-10-12 on branch `fix/staff-security-review`. Project ref `fsunrjithwcjtsutsgea`.
 **Legend:** `[YOU]` = needs your explicit approval before I run it (real-world effect: deploy, secret, real accounts, merge, switch). `[AUTO]` = read-only check or rolled-back test, I run it without asking. Nothing below runs until you say so.
 
-## Status (2026-10-12, night) and the remaining steps
+## Status (2026-10-16) and the remaining steps, given the test-customer flag
+
+**What the flag changes (live since migration 20261016110000: customers.is_test, leads.is_test)**
+* A lead of a flagged customer, or one that shares a flagged customer's mobile, is flagged too. The round-robin insert trigger already skips it: it stays unassigned, does not advance the rotation and is not counted.
+* The two held migrations are now flag-aware: the distribution migration (re-versioned **20261016400000**, was 20261010120000) never assigns, flags, counts or moves a flagged lead; admin-set-staff-active (20261015150000) never moves a flagged lead or a follow-up that belongs to a flagged lead/customer on deactivation. Both have tests that fail on the old files and pass on the new ones (distribution 24/24, set-active 26/26 and 30/30 with the distribution in front).
+* **Consequence for live verification:** a lead created for the flagged "jeshee test trigger" customer will NOT be assigned, by design. It can prove the exclusion, not the assignment. See step 8.
 
 **Live now**
-| Item | State |
-|---|---|
-| F-01 revoke_user_sessions, F-03 append-only audit + purge_test_organisation, F-06 no client master grant | live |
-| F-07 inactive staff have no role (strict-boolean helpers, last-master trigger) | live |
-| F-08 WhatsApp outbound gate (send_staff_whatsapp, no client write on whatsapp_outbox, test-mode columns) | live; allow-list OFF |
-| 10 unguarded write functions revoked from PUBLIC/anon/authenticated (create_purchase_order now definer) | live |
-| meeting_logs / meeting_issues / automation_flows read tightened | live |
-| Batch 2 (20261015140000): resolve_stale_bookings guard + 9 helper/read-only functions revoked | live; customer dashboard re-tested as a customer persona |
-| Complaint-types reseed registered as 20261015145000 (content was already live; file salvaged, idempotence proven) | history row only; file on branch fix/reseed-complaint-types, not pushed |
-| ALLOWED_ORIGINS = vercel + capacitor://localhost + https://localhost | set |
-| admin-reset-staff-password (hardened) and admin-create-staff | deployed, live-tested 26/26 and 24/24 |
+F-01, F-03, F-06, F-07, F-08; revoke of the 10 unguarded write functions; meeting/automation read tightening; batch 2 (resolve_stale_bookings guard + 9 functions revoked); the reseed history row (20261015145000); ALLOWED_ORIGINS; admin-reset-staff-password and admin-create-staff deployed; the Production UI with Add Staff and the WhatsApp test-mode dialog (origin/main c88a8d2 and later); test-customer flag 20261016110000 and AMC cancel 20261016100000 (other session).
 
 **Built, tested, NOT applied / deployed**
 | Item | Where |
 |---|---|
-| Branch fix/staff-security-review (rebased on origin/main, tsc + tests green) | local, waiting for your typed push authorisation |
-| Lead distribution migration | held/20261016400000_*, rollback, test 18/18 |
-| admin-set-staff-active (RPC + side-door trigger + Edge Function + HR screen) | branch feat/admin-set-staff-active, held/20261015150000_*; goes live LAST, as one unit (migration + function deploy + HR-screen merge) |
-| sendMessage test-mode block | in the branch; wa-* functions NOT redeployed (the dispatcher session deploys later) |
+| Distribution migration, flag-aware, version 20261016400000 | held/20261016400000_lead_distribute_pending.sql, rollback, tests/lead_distribute_pending.test.sql (24/24); branch feat/distribution-test-flag |
+| admin-set-staff-active (RPC, side-door trigger, Edge Function, HR screen), flag-aware | held/20261015150000_set_sales_person_active.sql, branch feat/admin-set-staff-active (contains the distribution commit) |
+| Reseed file | branch fix/reseed-complaint-types (pushed), you merge it with the next push |
+| sendMessage test-mode block | on main; the wa-* functions are NOT redeployed (the dispatcher session does it) |
 
 **Remaining steps, in order**
-1. `[YOU]` Type the push authorisation. I then push fix/staff-security-review to origin/main (fast-forward), confirm Vercel Production builds from main, and check the live bundle contains Add Staff and the test-mode dialog.
-2. `[YOU]` In the Supabase dashboard: set site_url, set minimum password length 10. Leave disable_signup OFF and jwt_exp 3600.
-3. `[YOU]` Give me the sales persons (name, login email, optional phone, typed or generated password). I create them through Add Staff on production, verify each login, check Receives new leads is ON.
-4. **GATE: independent review.** Hand docs/review-brief-independent.md to a reviewer with no context. Nothing in steps 5 and 6 happens until their findings are triaged (fixed, or accepted by you in writing). Scope includes the round-robin migration 20261010100000, the held distribution migration and its concurrency test.
-5. `[YOU]` After the gate: approve the lead distribution migration (switch stays OFF, changes nothing visible). Re-run its concurrency test on a throwaway organisation first.
-6. `[YOU]` After the gate: approve switching round robin ON (Masters > Settings), then I run the live verification with the flagged test customer only.
-7. `[YOU]` Later, when the dispatcher session is ready: it redeploys the wa-* functions from a branch that contains the sendMessage block; then you may turn the test-mode allow-list ON while testing.
-8. `[YOU]` Local main: realign it to origin/main with the commands I will give you (backups backup/local-main-2026-10-12 and backup-main-20261005 are kept).
-9. `[YOU]` LAST, when you say: admin-set-staff-active as one unit: apply held/20261015150000_*, deploy the function, merge feat/admin-set-staff-active (HR screen) and push. Never split these three.
+1. `[YOU]` Dashboard: set site_url and the minimum password length 10. Leave disable_signup OFF and jwt_exp 3600.
+2. `[YOU]` **Approve** creating the sales persons, and send me name, login email, optional phone, typed or generated password for each. I create them through Add Staff on production, check each login, check "Receives new leads" is ON. (Switch is OFF, so nobody receives leads yet.)
+3. `[YOU]` **GATE: independent review.** Hand docs/review-brief-independent.md to the reviewer. Tell them the distribution file is now held/20261016400000_lead_distribute_pending.sql. Steps 4 and 5 wait for their findings to be triaged (fixed or accepted by you in writing).
+4. `[YOU]` **Approve** applying the distribution migration. Before: baseline, re-run its tests and its concurrency test on a throwaway organisation (`[AUTO]`). Apply from migrations/ as 20261016400000, hand-registered, no db push; add _lead_distribute_pending to must_exclude in supabase/test-customer-guard.manifest.json in the same commit (the CI guard scans migrations/). With the switch OFF it changes nothing visible. Baseline after must be identical.
+5. `[YOU]` **Approve** switching round robin ON (Masters > Settings > Auto-assign leads).
+6. `[AUTO]` Right after step 5: verify on a throwaway __TEST_ organisation inside production (real GoTrue users) that a new lead is assigned to the right person, the rotation alternates, and a flagged lead is not assigned. Real-organisation leads are not touched.
+7. `[YOU]` **Decide** how to see a real assignment on the real organisation, since the flagged customer's lead will not be assigned: (a) accept the throwaway-organisation proof plus watching the first genuine new lead, or (b) you clear the flag on the test customer for a few minutes, I create one lead, you set the flag again. (b) briefly lets that lead count in reports and advances the rotation once; (a) is my recommendation.
+8. `[YOU]` Later, when the dispatcher session is ready: it redeploys the wa-* functions from main (the sendMessage test-mode block is already there); then you may switch the WhatsApp test-mode allow-list ON while testing.
+9. `[YOU]` Local main: realign to origin/main (backups backup/local-main-2026-10-12 and backup-main-20261005 are kept). Commands are in my earlier report; I do not run them until you say.
+10. `[YOU]` LAST, one unit: apply held/20261015150000_set_sales_person_active.sql (renamed into migrations/, hand-registered), deploy the admin-set-staff-active function, merge the HR screen and push. Never split these three. Then `[AUTO]` verify on a throwaway organisation: deactivate a throwaway sales person (3 open leads, a flagged lead, follow-ups, tasks), check the login is banned and old tokens are refused.
+
+**Which steps are yours to approve:** 1 (you do it), 2, 3 (you hand it on), 4, 5, 7, 8, 9, 10. Step 6 and the verifications inside 4 and 10 are mine and run without further questions, on throwaway data only.
 
 ## 0. Where things stood earlier on 2026-10-12 (historical; superseded by the status table at the top)
 | Item | State |

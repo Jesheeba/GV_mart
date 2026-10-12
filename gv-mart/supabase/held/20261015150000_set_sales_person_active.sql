@@ -13,6 +13,9 @@
 --       - when settings.auto_assign_leads is ON and the distribution function exists, the flagged leads are spread over
 --         the remaining eligible people immediately (an exception there is logged as a WARNING and swallowed, F-12);
 --   * activation only flips the flag: nothing is handed back.
+-- Test-customer flag (leads.is_test / customers.is_test, migration 20261016110000): flagged leads are never moved,
+-- never get an assignment row and are not counted (as waiting or otherwise); follow-ups that belong to a flagged lead or a
+-- flagged customer stay where they are. Tasks carry no customer link and are moved as before.
 -- A trigger additionally refuses a CLIENT-side change of is_active on a sales_admin row, so the Edge Function (login
 -- ban + session revocation + audit) is the only way. Masters, operation_admins and technicians are not affected by it.
 
@@ -63,7 +66,7 @@ begin
     with moved as (
       update public.leads
          set assigned_to = null, auto_assign_pending = true
-       where org_id = v_target.org_id and assigned_to = p_profile_id and status not in ('won', 'lost')
+       where org_id = v_target.org_id and assigned_to = p_profile_id and status not in ('won', 'lost') and not is_test
       returning id
     )
     insert into public.lead_assignments (org_id, lead_id, from_user, to_user, assigned_by, reason)
@@ -73,7 +76,9 @@ begin
 
     update public.lead_followups
        set assigned_to = p_actor
-     where org_id = v_target.org_id and assigned_to = p_profile_id and status = 'open';
+     where org_id = v_target.org_id and assigned_to = p_profile_id and status = 'open'
+       and not coalesce(public.is_test_customer(customer_id), false)
+       and not exists (select 1 from public.leads fl where fl.id = lead_followups.lead_id and fl.is_test);
     get diagnostics v_follow = row_count;
 
     update public.tasks
@@ -89,7 +94,7 @@ begin
         raise warning 'set_sales_person_active: distribution failed for org % (%): %', v_target.org_id, sqlstate, sqlerrm;
       end;
     end if;
-    select count(*) into v_waiting from public.leads where org_id = v_target.org_id and auto_assign_pending and assigned_to is null;
+    select count(*) into v_waiting from public.leads where org_id = v_target.org_id and auto_assign_pending and assigned_to is null and not is_test;
   end if;
 
   return jsonb_build_object('changed', true, 'active', p_active, 'leads_unassigned', v_leads, 'followups_to_master', v_follow,

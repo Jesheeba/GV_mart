@@ -1,10 +1,10 @@
--- Rolled-back test for held/20261015150000_set_sales_person_active.sql. Runner: [optional held/20261010120000_lead_distribute_pending.sql],
+-- Rolled-back test for held/20261015150000_set_sales_person_active.sql. Runner: [optional held/20261016400000_lead_distribute_pending.sql],
 -- the migration, then this block. Throwaway __TEST_ organisations only. The distribution assertions run only when that function exists.
 do $t$
 declare
   res text := ''; v_org uuid; v_org2 uuid; v_m uuid := gen_random_uuid(); v_a uuid := gen_random_uuid(); v_b uuid := gen_random_uuid();
   v_o uuid := gen_random_uuid(); v_tech uuid := gen_random_uuid(); v_f uuid := gen_random_uuid(); v_m2 uuid := gen_random_uuid();
-  v_cust uuid; v_l1 uuid; v_l2 uuid; v_l3 uuid; v_won uuid; v_lb uuid; j jsonb; n int; v_task_done uuid; v_task_b uuid; v_lead_f uuid;
+  v_tc uuid; v_lflag uuid; v_cust uuid; v_l1 uuid; v_l2 uuid; v_l3 uuid; v_won uuid; v_lb uuid; j jsonb; n int; v_task_done uuid; v_task_b uuid; v_lead_f uuid;
   has_dist boolean := to_regprocedure('public._lead_distribute_pending(uuid)') is not null;
 begin
   insert into organizations(name) values ('__TEST_setactive') returning id into v_org;
@@ -26,11 +26,18 @@ begin
   insert into leads(org_id,name,mobile,source,status,assigned_to) values (v_org2,'__TEST_lf','9000000016','walk_in','new',v_f) returning id into v_lead_f;
   perform set_config('app.lead_assign_ok','',true);
 
+  -- test-customer flag: a flagged customer, a flagged lead assigned to A, and an open follow-up on it assigned to A
+  insert into customers(org_id,name,mobile,is_test) values (v_org,'__TEST_flagged','9000000088',true) returning id into v_tc;
+  perform set_config('app.lead_assign_ok','1',true);
+  insert into leads(org_id,name,mobile,source,status,assigned_to,customer_id) values (v_org,'__TEST_flaglead','9000000088','walk_in','new',v_a,v_tc) returning id into v_lflag;
+  perform set_config('app.lead_assign_ok','',true);
+
   -- follow-ups: two open for A (one on a lead, one post-service-style on a lead too: lead XOR ticket), one done for A, one open for B
   delete from lead_followups where lead_id in (v_l1,v_l2,v_l3,v_won,v_lb,v_lead_f);
   insert into lead_followups(org_id,lead_id,due_at,type,status,assigned_to) values
     (v_org,v_l1,now()+interval '1 day','call','open',v_a),(v_org,v_l2,now()+interval '1 day','call','open',v_a),
     (v_org,v_lb,now()+interval '1 day','call','open',v_b);
+  update lead_followups set assigned_to = v_a where lead_id = v_lflag and status = 'open';
   insert into lead_followups(org_id,lead_id,due_at,type,status,assigned_to,completed_at) values (v_org,v_l3,now(),'call','done',v_a,now());
   -- tasks: 2 open + 1 rolled + 1 recurring for A, 1 done for A, 1 open for B
   insert into tasks(org_id,assignee_id,title,status,due_date) values
@@ -90,6 +97,15 @@ begin
                          then 'ok   D8 open/rolled/recurring tasks on the master; done task and B''s untouched' else 'FAIL D8 n='||n end;
   res := res || E'\n' || case when not (select is_active from profiles where id=v_a) then 'ok   D9 profile is inactive' else 'FAIL D9' end;
 
+  -- ===== flagged (is_test) work is untouched =====
+  res := res || E'\n' || case when (select is_test from leads where id=v_lflag) and (select assigned_to from leads where id=v_lflag)=v_a and not (select auto_assign_pending from leads where id=v_lflag)
+                         then 'ok   F1 flagged lead: still assigned to the deactivated person, not flagged for reassignment (untouched)' else 'FAIL F1' end;
+  select count(*) into n from lead_assignments where lead_id = v_lflag and reason = 'deactivated';
+  res := res || E'\n' || case when n=0 then 'ok   F2 no assignment row for the flagged lead' else 'FAIL F2 n='||n end;
+  res := res || E'\n' || case when (select assigned_to from lead_followups where lead_id=v_lflag)=v_a then 'ok   F3 follow-up of a flagged lead stays where it was' else 'FAIL F3' end;
+  res := res || E'\n' || case when (j->>'leads_unassigned')::int = 3 and (j->>'leads_waiting')::int = 3 and (j->>'followups_to_master')::int = 2
+                         then 'ok   F4 the counts exclude the flagged lead and its follow-up' else 'FAIL F4 '||j::text end;
+
   -- idempotent
   execute 'set local role service_role';
   j := set_sales_person_active(v_m, v_a, false);
@@ -138,7 +154,7 @@ begin
                            and (select count(*) from leads where org_id=v_org and auto_assign_pending and assigned_to is null) = (j->>'leads_waiting')::int
                            then 'ok   X2 nobody eligible: the leads wait, flagged ('||(j->>'leads_waiting')||')' else 'FAIL X2 '||j::text end;
   else
-    res := res || E'\nINFO X distribution function not present in this run (run again with held/20261010120000 in front)';
+    res := res || E'\nINFO X distribution function not present in this run (run again with held/20261016400000 in front)';
   end if;
 
   raise exception E'RESULTS:%', res;
