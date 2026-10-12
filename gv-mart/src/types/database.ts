@@ -5814,6 +5814,8 @@ export type Database = {
           // Answer Layer kill switch (2026-08-27), independent of
           // whatsapp_bot_enabled — see 20260827120000_wa_answer_layer_kill_switch.sql.
           wa_answer_layer_enabled: boolean
+          wa_test_mode_enabled: boolean
+          wa_test_allowed_numbers: string[]
           // Phase 5b classify-intent + free-text-relevance kill switch
           // (2026-08-28) — see 20260828100000_wa_classify_intent_kill_switch.sql.
           wa_classify_intent_enabled: boolean
@@ -5893,6 +5895,8 @@ export type Database = {
           emi_disclaimer?: string | null
           whatsapp_bot_enabled?: boolean
           wa_answer_layer_enabled?: boolean
+          wa_test_mode_enabled?: boolean
+          wa_test_allowed_numbers?: string[]
           wa_classify_intent_enabled?: boolean
           wa_quote_extraction_enabled?: boolean
           milestone_dispatch_enabled?: boolean
@@ -5961,6 +5965,8 @@ export type Database = {
           emi_disclaimer?: string | null
           whatsapp_bot_enabled?: boolean
           wa_answer_layer_enabled?: boolean
+          wa_test_mode_enabled?: boolean
+          wa_test_allowed_numbers?: string[]
           wa_classify_intent_enabled?: boolean
           wa_quote_extraction_enabled?: boolean
           milestone_dispatch_enabled?: boolean

@@ -14,6 +14,7 @@ import { TemplatesTab } from "./TemplatesTab"
 import { FailedSendsTab } from "./FailedSendsTab"
 import { AutomationJobsTab } from "./AutomationJobsTab"
 import { PhraseManagerTab } from "./PhraseManagerTab"
+import { WaTestModeSwitch } from "./WaTestModeSwitch"
 
 /** Prominently placed, not buried in a tab — visible and one click,
  * regardless of which tab is open, per the plan's "bot kill switch,
@@ -149,6 +150,7 @@ export function AutomationPage() {
           <AnswerLayerKillSwitch />
           <ClassifyIntentKillSwitch />
           <QuoteExtractionKillSwitch />
+          <WaTestModeSwitch />
         </div>
       </div>
 

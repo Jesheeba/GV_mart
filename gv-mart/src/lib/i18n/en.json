@@ -3506,6 +3506,20 @@
   "automation": {
     "subtitle": "Map enquiry triggers to WhatsApp/AI responses, manage the video library, and test inbound messages.",
     "loadFailed": "Could not load automation data.",
+    "testMode": {
+      "on": "WA test mode: On",
+      "off": "WA test mode: Off",
+      "title": "WhatsApp test mode",
+      "description": "While this is on, WhatsApp messages are sent ONLY to the numbers listed below. Every other message is blocked and recorded in the audit log. Turn it on before testing so no real customer or supplier is messaged.",
+      "enable": "Test mode is on (send only to the numbers below)",
+      "numbersLabel": "Allowed numbers",
+      "numbersPlaceholder": "One 10-digit mobile number per line",
+      "numbersHint": "{{count}} number(s) listed. +91 and spaces are fine.",
+      "invalid": "Not a valid mobile number: {{list}}",
+      "emptyWhileOn": "Add at least one number before turning test mode on, or every message will be blocked.",
+      "saved": "WhatsApp test mode saved.",
+      "saveFailed": "Could not save the WhatsApp test mode."
+    },
     "killSwitch": {
       "on": "Bot: On",
       "off": "Bot: Off"

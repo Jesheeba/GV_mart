@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import type { Reply } from "./whatsapp-journeys.ts"
 import { buildWasiErrorDetail } from "./wasi-error-detail.ts"
+import { evaluateTestMode, logBlockedSend } from "./wa-test-mode.ts"
 
 // 2026-08-25 incident: sendViaWasi's fetch had no timeout at all, so a single
 // slow/hung Wasi request could block a whole Edge Function invocation past
@@ -260,6 +261,43 @@ async function sendViaWasi(
 }
 
 export async function sendMessage(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
+  // Test-mode allow-list (review F-08, settings.wa_test_mode_enabled, ships OFF): the one place every real send passes
+  // through. A blocked message is recorded as a failed row that no retry loop will pick up (retried_at set) and logged.
+  const verdict = await evaluateTestMode(admin, input.orgId, input.to)
+  if (verdict.blocked) {
+    const { data: blockedRow, error: blockedError } = await admin
+      .from("whatsapp_outbox")
+      .insert({
+        org_id: input.orgId,
+        direction: "outbound",
+        to_mobile: input.to,
+        customer_id: input.customerId,
+        template: input.template,
+        type: input.type ?? "text",
+        payload: { body: input.body },
+        ref_type: input.refType ?? null,
+        ref_id: input.refId ?? null,
+        status: "failed",
+        wa_message_id: null,
+        error: `blocked: ${verdict.reason}`,
+        retried_at: new Date().toISOString(),
+        retry_count: input.retryCount ?? 0,
+      })
+      .select("id")
+      .single()
+    if (blockedError) throw blockedError
+    await logBlockedSend(admin, {
+      orgId: input.orgId,
+      to: input.to,
+      template: input.template,
+      refType: input.refType ?? null,
+      refId: input.refId ?? null,
+      reason: verdict.reason,
+      outboxId: blockedRow.id,
+    })
+    return { outboxId: blockedRow.id, waMessageId: null, dispatched: false }
+  }
+
   const baseUrl = Deno.env.get("WASI_API_BASE_URL")
   const creds = baseUrl ? await resolveWasiCredentials(admin, input.orgId) : null
 
