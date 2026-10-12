@@ -16,6 +16,7 @@ export type SalaryRow = Tables<"salaries">
 export type IncentiveEarnedRow = Tables<"incentives_earned">
 export type IncentiveRuleRow = Tables<"incentive_rules">
 export type RewardRow = Tables<"rewards">
+export type InstallationCreditRow = Tables<"installation_incentive_credits">
 
 /** Cast helper for RPC names added after the last `database.ts` regen. */
 function rpc(name: string, args: Record<string, unknown>) {
@@ -207,4 +208,42 @@ export type CreateStaffInput = {
 /** Master-only: create an office-staff login (email = login). The password is shared in person; a generated one is returned once. */
 export async function createStaff(input: CreateStaffInput): Promise<{ id: string; email: string; generated: boolean; password?: string }> {
   return invokeStaffFunction("admin-create-staff", { ...input })
+}
+
+// ── Installation-ticket credits (batch-2 item 3) ───────────────────────────
+// One credit per completed installation ticket: charge snapshot x units logged. Created pending by create_service_invoice;
+// the master approves or voids each one, and Compute counts only approved credits.
+
+export type InstallationCreditListItem = InstallationCreditRow & {
+  technicians: { id: string; profiles: { full_name: string } | null } | null
+  products: { name: string } | null
+}
+
+export async function listInstallationCredits(orgId: string, status?: InstallationCreditRow["status"]): Promise<InstallationCreditListItem[]> {
+  let q = supabase
+    .from("installation_incentive_credits")
+    .select("*, technicians(id, profiles(full_name)), products(name)")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(200)
+  if (status) q = q.eq("status", status)
+  const { data, error } = await q
+  if (error) throw error
+  return (data ?? []) as unknown as InstallationCreditListItem[]
+}
+
+export async function approveInstallationCredit(creditId: string) {
+  const { error } = await rpc("approve_installation_credit", { p_credit_id: creditId })
+  if (error) throw error
+}
+
+export async function voidInstallationCredit(creditId: string, reason: string) {
+  const { error } = await rpc("void_installation_credit", { p_credit_id: creditId, p_reason: reason })
+  if (error) throw error
+}
+
+/** Master only; installation tickets that are not yet completed/cancelled. `null` clears the charge. */
+export async function setTicketInstallationCharge(ticketId: string, amount: number | null) {
+  const { error } = await rpc("set_ticket_installation_charge", { p_ticket_id: ticketId, p_amount: amount })
+  if (error) throw error
 }

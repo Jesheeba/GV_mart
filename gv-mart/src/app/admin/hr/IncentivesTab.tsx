@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useComputeIncentives, useIncentivesEarned } from "@/hooks/useHr"
+import { InstallationCreditsPanel } from "./InstallationCreditsPanel"
 import type { IncentiveEarnedListItem } from "@/services/hr"
 
 function currentMonthIso() {
@@ -45,7 +46,9 @@ export function IncentivesTab() {
           ? t(`masters.incentives.types.${r.incentive_rules.type}`)
           : r.installation_incentive_rates
             ? `${t("hr.incentives.perUnitInstall")}${[r.installation_incentive_rates.category, r.installation_incentive_rates.capacity, r.installation_incentive_rates.configuration].filter(Boolean).length ? ` (${[r.installation_incentive_rates.category, r.installation_incentive_rates.capacity, r.installation_incentive_rates.configuration].filter(Boolean).join(" · ")})` : ""}`
-            : "—",
+            : r.credit_source === "installation_ticket"
+              ? t("hr.incentives.creditsEarned")
+              : "—",
     },
     {
       key: "threshold",
@@ -80,6 +83,8 @@ export function IncentivesTab() {
           {computeMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("hr.incentives.compute")}
         </Button>
       </div>
+
+      <InstallationCreditsPanel orgId={orgId} />
 
       {rows && rows.length > 0 ? (
         <p className="text-sm text-text-muted">{t("hr.incentives.totalEarned", { amount: money(totalEarned) })}</p>

@@ -36,3 +36,7 @@ English is approved; Tamil is a draft until a Tamil speaker signs it off. Delete
 | seed outcomes (`post_service_outcomes.label_ta`) | Satisfied — all good / Problem not solved / Could not reach — try again / Asked to call later / No call needed | திருப்தி — எல்லாம் சரி / பிரச்சனை தீரவில்லை / தொடர்பு கொள்ள முடியவில்லை — மீண்டும் முயற்சி / பிறகு அழைக்கச் சொன்னார் / அழைப்பு தேவையில்லை | 13 |
 | digest text (database) | …N post-service call(s) due. | (English only, like the rest of the digest body) | 13 |
 | `customers.testBadge` | Test | சோதனை | batch-2 item 5 |
+| `masters.products.installationCharge` / `...Hint` | Installation charge (technician incentive per unit) / Not billed to the customer | நிறுவல் கட்டணம் (ஒரு யூனிட்டிற்கு தொழில்நுட்பர் ஊக்கத்தொகை) / வாடிக்கையாளரிடம் வசூலிக்கப்படாது | batch-2 item 3 |
+| `service.detail.installCharge.*` | Installation incentive (per unit); Not set; internal, not billed; invalid amount | நிறுவல் ஊக்கத்தொகை (ஒரு யூனிட்டிற்கு); அமைக்கப்படவில்லை; உள் பயன்பாடு… | batch-2 item 3 |
+| `technician.onsite.installIncentive` | Installation incentive: {{amount}} per unit (needs the master's approval) | நிறுவல் ஊக்கத்தொகை: ஒரு யூனிட்டிற்கு {{amount}} (மாஸ்டரின் ஒப்புதல் தேவை) | batch-2 item 3 |
+| `hr.incentives.credits.*`, `hr.incentives.creditsEarned` | Installation incentives to approve; Approve; Void; Reason for voiding; Installation (per ticket) | ஒப்புதலுக்கான நிறுவல் ஊக்கத்தொகைகள்; ஒப்புதல்; ரத்து செய்; ரத்து செய்வதற்கான காரணம்; நிறுவல் (டிக்கெட்டிற்கு) | batch-2 item 3 |

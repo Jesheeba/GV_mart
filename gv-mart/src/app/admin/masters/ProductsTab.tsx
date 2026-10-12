@@ -31,6 +31,8 @@ type ProductWithRefs = {
   warranty_months: number
   // GV.md 1.1 — same admin-set standard time as spares (SparesTab.tsx).
   standard_time_minutes: number | null
+  // Batch-2 item 3 - per-unit technician incentive for installing this product (never billed). Master-only via RLS.
+  installation_charge: number | null
   // Task 6 (2026-07-30) — enable/disable, see
   // 20260730170000_product_spare_mapping_and_active_flags.sql.
   is_active: boolean
@@ -119,6 +121,7 @@ export function ProductsTab() {
     { key: "hsn_code", label: t("masters.products.hsn"), type: "text", pattern: "\\d{4,8}", patternMessage: t("masters.errors.hsnInvalid") },
     { key: "warranty_months", label: t("masters.products.warrantyMonths"), type: "number", step: "1", min: 0 },
     { key: "standard_time_minutes", label: t("masters.products.standardTime"), type: "number", step: "1", min: 0 },
+    { key: "installation_charge", label: t("masters.products.installationCharge"), type: "number", step: "0.01", min: 0, placeholder: t("masters.products.installationChargeHint") },
     { key: "description", label: t("masters.products.description"), type: "textarea", placeholder: t("masters.products.descriptionPlaceholder") },
   ]
 
@@ -161,6 +164,7 @@ export function ProductsTab() {
           hsn_code: r.hsn_code ?? "",
           warranty_months: String(r.warranty_months),
           standard_time_minutes: r.standard_time_minutes != null ? String(r.standard_time_minutes) : "",
+          installation_charge: r.installation_charge != null ? String(r.installation_charge) : "",
           description: r.description ?? "",
         })}
         columns={[
@@ -269,6 +273,7 @@ export function ProductsTab() {
             hsn_code: v.hsn_code || null,
             warranty_months: Number(v.warranty_months) || 12,
             standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
+            installation_charge: v.installation_charge ? Number(v.installation_charge) : null,
             description: v.description || null,
           })
         }
@@ -285,6 +290,7 @@ export function ProductsTab() {
               hsn_code: v.hsn_code || null,
               warranty_months: Number(v.warranty_months) || 12,
               standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
+              installation_charge: v.installation_charge ? Number(v.installation_charge) : null,
               description: v.description || null,
             },
           })

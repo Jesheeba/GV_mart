@@ -553,6 +553,7 @@ export type Database = {
       }
       products: {
         Row: {
+          installation_charge: number | null
           id: string
           org_id: string
           brand_id: string
@@ -579,6 +580,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          installation_charge?: number | null
           id?: string
           org_id: string
           brand_id: string
@@ -598,6 +600,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          installation_charge?: number | null
           id?: string
           org_id?: string
           brand_id?: string
@@ -2777,6 +2780,7 @@ export type Database = {
       }
       service_tickets: {
         Row: {
+          installation_charge_snapshot: number | null
           id: string
           org_id: string
           customer_id: string
@@ -2808,6 +2812,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          installation_charge_snapshot?: number | null
           id?: string
           org_id: string
           customer_id: string
@@ -2839,6 +2844,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          installation_charge_snapshot?: number | null
           id?: string
           org_id?: string
           customer_id?: string
@@ -5348,6 +5354,30 @@ export type Database = {
           },
         ]
       }
+      installation_incentive_credits: {
+        Row: {
+          id: string
+          org_id: string
+          ticket_id: string
+          visit_id: string
+          technician_id: string
+          product_id: string | null
+          qty: number
+          unit_amount: number
+          amount: number
+          status: "pending" | "approved" | "void"
+          approved_by: string | null
+          approved_at: string | null
+          voided_by: string | null
+          voided_at: string | null
+          void_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       incentive_rules: {
         Row: {
           id: string
@@ -5442,6 +5472,7 @@ export type Database = {
       }
       incentives_earned: {
         Row: {
+          credit_source: string | null
           id: string
           org_id: string
           technician_id: string
@@ -5453,6 +5484,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          credit_source?: string | null
           id?: string
           org_id: string
           technician_id: string
@@ -5464,6 +5496,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          credit_source?: string | null
           id?: string
           org_id?: string
           technician_id?: string
@@ -7316,6 +7349,18 @@ export type Database = {
       cancel_amc_contract: {
         Args: { p_contract_id: string; p_reason: string }
         Returns: Json
+      }
+      approve_installation_credit: {
+        Args: { p_credit_id: string }
+        Returns: undefined
+      }
+      void_installation_credit: {
+        Args: { p_credit_id: string; p_reason: string }
+        Returns: undefined
+      }
+      set_ticket_installation_charge: {
+        Args: { p_ticket_id: string; p_amount: number | null }
+        Returns: undefined
       }
       report_top_customers: {
         Args: { p_from: string; p_to: string; p_limit?: number }

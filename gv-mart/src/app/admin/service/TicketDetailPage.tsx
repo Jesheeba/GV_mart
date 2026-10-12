@@ -43,6 +43,7 @@ import { resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
 import { ChannelBadge, PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
+import { InstallationChargeRow } from "./InstallationChargeRow"
 
 function TicketPhotoThumb({ storagePath }: { storagePath: string }) {
   const { data: url } = useQuery({
@@ -966,6 +967,15 @@ export function TicketDetailPage() {
             </div>
           )}
         </div>
+
+        {ticket.type === "installation" ? (
+          <InstallationChargeRow
+            ticketId={ticket.id}
+            amount={ticket.installation_charge_snapshot}
+            status={ticket.status}
+            isMaster={profile?.role === "master"}
+          />
+        ) : null}
       </Card>
 
       <Card className="gap-3 px-5">

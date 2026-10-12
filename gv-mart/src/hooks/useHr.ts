@@ -108,3 +108,40 @@ export function useLogReward() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["rewards"] }),
   })
 }
+
+// ── Installation-ticket credits ────────────────────────────────────────────
+
+export function useInstallationCredits(orgId: string | undefined, status?: hr.InstallationCreditRow["status"]) {
+  return useQuery({
+    queryKey: ["installation_credits", "list", orgId, status ?? "all"],
+    queryFn: () => hr.listInstallationCredits(orgId!, status),
+    enabled: !!orgId,
+  })
+}
+
+export function useApproveInstallationCredit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (creditId: string) => hr.approveInstallationCredit(creditId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["installation_credits"] }),
+  })
+}
+
+export function useVoidInstallationCredit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ creditId, reason }: { creditId: string; reason: string }) => hr.voidInstallationCredit(creditId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["installation_credits"] })
+      qc.invalidateQueries({ queryKey: ["incentives_earned"] })
+    },
+  })
+}
+
+export function useSetTicketInstallationCharge() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, amount }: { ticketId: string; amount: number | null }) => hr.setTicketInstallationCharge(ticketId, amount),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["service_tickets"] }),
+  })
+}

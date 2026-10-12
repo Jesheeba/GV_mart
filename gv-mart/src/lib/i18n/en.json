@@ -595,6 +595,8 @@
       "hsn": "HSN code",
       "warrantyMonths": "Warranty (months)",
       "standardTime": "Standard time (min)",
+      "installationCharge": "Installation charge (technician incentive per unit)",
+      "installationChargeHint": "Not billed to the customer",
       "description": "Description",
       "descriptionPlaceholder": "Shown to customers in Product Enquiry",
       "add": "Add product",
@@ -1849,6 +1851,12 @@
       "estimatedDuration": "Estimated duration",
       "estimateNotSet": "Not set",
       "estimateInvalid": "Enter a whole number of minutes greater than 0, or leave it blank.",
+      "installCharge": {
+        "label": "Installation incentive (per unit)",
+        "none": "Not set",
+        "internal": "internal, not billed",
+        "invalid": "Enter an amount of 0 or more, or leave it blank."
+      },
       "overrunBy": "Overrun by {{count}} min",
       "allowedDuration": "(allowed: {{count}} min)",
       "beforeImage": "Before photo",
@@ -2861,6 +2869,7 @@
         "payment": "Payment"
       },
       "beforeImage": "Before photo",
+      "installIncentive": "Installation incentive: {{amount}} per unit (needs the master's approval)",
       "afterImage": "After photo",
       "afterImageHint": "Take this once the repair, spares, and RO checklist (if applicable) are done — it should show the completed work.",
       "afterPhotoLocked": {
@@ -4113,6 +4122,17 @@
       "empty": "No incentives earned for this month yet",
       "loadFailed": "Failed to load incentives",
       "perUnitInstall": "Installations (per unit)",
+      "creditsEarned": "Installation (per ticket)",
+      "credits": {
+        "title": "Installation incentives to approve",
+        "hint": "Created when a technician completes an installation: charge x units. Only approved credits are counted by Compute.",
+        "line": "{{qty}} unit(s) x {{unit}} = {{amount}}",
+        "ticket": "Open ticket",
+        "approve": "Approve",
+        "void": "Void",
+        "reason": "Reason for voiding",
+        "reasonRequired": "Enter a reason to void this credit."
+      },
       "perUnit": "per unit"
     },
     "rewards": {

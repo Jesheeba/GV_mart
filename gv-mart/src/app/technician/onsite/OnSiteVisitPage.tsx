@@ -1240,6 +1240,11 @@ export function OnSiteVisitPage() {
         <div className="space-y-4">
           <PhotoCapture label={t("technician.onsite.beforeImage")} dataUrl={beforeImage} onCaptured={handleBeforeImage} />
           <SpareSelectStep orgId={profile?.org_id} complaintTypeId={ticket.complaint_type_id} selected={selectedSpares} onChange={setSelectedSpares} />
+          {ticket.type === "installation" && (ticket.installation_charge_snapshot ?? 0) > 0 ? (
+            <p className="rounded-xl bg-surface-alt px-3 py-2 text-sm text-text">
+              {t("technician.onsite.installIncentive", { amount: `₹${ticket.installation_charge_snapshot!.toLocaleString("en-IN")}` })}
+            </p>
+          ) : null}
           <InstallationSelectStep orgId={profile?.org_id} selected={selectedInstallations} onChange={setSelectedInstallations} />
         </div>
       ) : null}
