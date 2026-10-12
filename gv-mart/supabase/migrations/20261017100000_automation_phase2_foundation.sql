@@ -6,6 +6,7 @@
 --   * automation_rules       master-edited rules, immutable versions (an edit inserts version n+1, old row is_current=false)
 --   * automation_event_log   APPEND-ONLY: one row for every automation_emit() call, whether or not a rule matched
 --   * automation_audit       APPEND-ONLY: one row per rule decision (dry_run, skipped_*, blocked_*, config_changed)
+--   * automation_errors      APPEND-ONLY: failures inside the emit triggers (no personal data); the business write goes on
 --   * automation_queue       work the engine WOULD do. State is CHECK-limited to 'dry_run' / 'blocked_not_allowlisted':
 --                            nothing here is deliverable, and no sender reads this table in this migration.
 --   * automation_emit()      the single entry point. SECURITY DEFINER, search_path fixed, EXECUTE revoked from PUBLIC, anon
@@ -286,6 +287,48 @@ create policy automation_audit_select on public.automation_audit for select to a
   using (org_id = public.current_org_id() and public.is_ops_staff());
 create policy automation_queue_select on public.automation_queue for select to authenticated
   using (org_id = public.current_org_id() and public.is_ops_staff());
+
+-- ── failure isolation: emit failures are logged here, never raised into the business write ───────────────────────────
+-- No personal data: only the table/operation, event key, subject id, SQLSTATE and a scrubbed message (digit runs of 7+,
+-- e-mail-like tokens removed, 300 chars max).
+create table public.automation_errors (
+  id           uuid primary key default gen_random_uuid(),
+  org_id       uuid not null references public.organizations(id) on delete cascade,
+  occurred_at  timestamptz not null default now(),
+  source       text not null,
+  event_key    text,
+  subject_type text,
+  subject_id   uuid,
+  sqlstate     text,
+  message      text
+);
+create index automation_errors_org_time on public.automation_errors (org_id, occurred_at desc);
+alter table public.automation_errors enable row level security;
+revoke all on public.automation_errors from public, anon, authenticated;
+grant select on public.automation_errors to authenticated, service_role;
+create policy automation_errors_select on public.automation_errors for select to authenticated
+  using (org_id = public.current_org_id() and public.is_ops_staff());
+create trigger automation_errors_append_only before update or delete on public.automation_errors
+  for each row execute function public._trg_automation_append_only();
+create trigger automation_errors_no_truncate before truncate on public.automation_errors
+  for each statement execute function public._trg_automation_append_only();
+
+create function public._automation_log_error(
+  p_org uuid, p_source text, p_event_key text, p_subject_type text, p_subject_id uuid, p_sqlstate text, p_message text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  begin
+    insert into public.automation_errors (org_id, source, event_key, subject_type, subject_id, sqlstate, message)
+    values (p_org, p_source, p_event_key, p_subject_type, p_subject_id, p_sqlstate,
+            left(regexp_replace(regexp_replace(coalesce(p_message, ''), '[0-9]{7,}', '#', 'g'), '\S+@\S+', '#', 'g'), 300));
+  exception when others then
+    -- the error log itself must never block a business write either
+    raise warning 'automation error log failed (%)', sqlstate;
+  end;
+end;
+$$;
+revoke all on function public._automation_log_error(uuid, text, text, text, uuid, text, text) from public, anon, authenticated;
+grant execute on function public._automation_log_error(uuid, text, text, text, uuid, text, text) to service_role;
 
 -- ── helpers ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 -- conditions: {"key": "value"} equality on payload text; {"key": ["a","b"]} any-of; {"min_total": 1000} / {"max_total": 5000}
@@ -609,7 +652,8 @@ grant execute on function public.automation_rule_save(uuid, text, text, text, js
 
 -- ── emit hooks for events that already exist in the code ───────────────────────────────────────────────────────────────
 -- Each trigger function is SECURITY DEFINER (the signed-in session has no EXECUTE on automation_emit), early-exits on
--- no-op updates, and can never fail the business statement: any error becomes a WARNING.
+-- no-op updates, and can never fail the business statement: any error (EXCEPTION WHEN OTHERS) is written to
+-- automation_errors and swallowed. (Only QUERY_CANCELED, i.e. a statement timeout, is not catchable in PL/pgSQL.)
 
 create function public._trg_automation_emit_ticket()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -628,7 +672,7 @@ begin
                            'has_lead', new.lead_id is not null));
     end if;
   exception when others then
-    raise warning 'automation emit (ticket) failed: %', sqlerrm;
+    perform public._automation_log_error(new.org_id, tg_table_name || ':' || tg_op, null, 'ticket', new.id, sqlstate, sqlerrm);
   end;
   return null;
 end;
@@ -648,7 +692,7 @@ begin
     perform public.automation_emit(new.org_id, 'technician.arrived', 'visit', new.id, v_cust, 'arrived',
       jsonb_build_object('ticket_id', new.ticket_id, 'technician_id', new.technician_id));
   exception when others then
-    raise warning 'automation emit (visit) failed: %', sqlerrm;
+    perform public._automation_log_error(new.org_id, tg_table_name || ':' || tg_op, null, 'visit', new.id, sqlstate, sqlerrm);
   end;
   return null;
 end;
@@ -675,7 +719,7 @@ begin
       end if;
     end if;
   exception when others then
-    raise warning 'automation emit (invoice) failed: %', sqlerrm;
+    perform public._automation_log_error(new.org_id, tg_table_name || ':' || tg_op, null, 'invoice', new.id, sqlstate, sqlerrm);
   end;
   return null;
 end;
@@ -718,7 +762,7 @@ begin
       end if;
     end if;
   exception when others then
-    raise warning 'automation emit (lead) failed: %', sqlerrm;
+    perform public._automation_log_error(new.org_id, tg_table_name || ':' || tg_op, null, 'lead', new.id, sqlstate, sqlerrm);
   end;
   return null;
 end;
@@ -740,7 +784,7 @@ begin
         jsonb_build_object('plan_id', new.plan_id, 'product_id', new.product_id, 'expiry_date', new.expiry_date::text));
     end if;
   exception when others then
-    raise warning 'automation emit (amc) failed: %', sqlerrm;
+    perform public._automation_log_error(new.org_id, tg_table_name || ':' || tg_op, null, 'amc_contract', new.id, sqlstate, sqlerrm);
   end;
   return null;
 end;
@@ -756,7 +800,7 @@ begin
     perform public.automation_emit(new.org_id, 'warranty.started', 'warranty', new.id, new.customer_id, 'started',
       jsonb_build_object('product_id', new.product_id, 'expiry_date', new.expiry_date::text));
   exception when others then
-    raise warning 'automation emit (warranty) failed: %', sqlerrm;
+    perform public._automation_log_error(new.org_id, tg_table_name || ':' || tg_op, null, 'warranty', new.id, sqlstate, sqlerrm);
   end;
   return null;
 end;
@@ -777,7 +821,7 @@ begin
         new.status::text, jsonb_build_object('total', new.total, 'lead_id', new.lead_id));
     end if;
   exception when others then
-    raise warning 'automation emit (quotation) failed: %', sqlerrm;
+    perform public._automation_log_error(new.org_id, tg_table_name || ':' || tg_op, null, 'quotation', new.id, sqlstate, sqlerrm);
   end;
   return null;
 end;

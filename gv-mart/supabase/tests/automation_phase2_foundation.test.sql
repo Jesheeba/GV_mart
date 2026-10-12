@@ -40,15 +40,15 @@ declare
   v_inv uuid; v_lead uuid; v_lead_t uuid; v_rule_c uuid; v_rule_n uuid; v_rule_k uuid; v_rule_paused uuid; v_rk uuid;
   v_ev uuid; v_mob text := '9400000077'; v_real text := '9400000066';
   n int; n2 int; s text; b boolean; rec record; fp_cust text; fp_out int; v_ver int; v_cur int;
-  v_ob1 int; v_ob2 int;
+  v_ob1 int; v_ob2 int; v_e1 int; v_e2 int; v_l uuid; v_tk2 uuid;
 begin
   select md5(coalesce(string_agg(id::text||name||coalesce(mobile,''), ',' order by id),'')) into fp_cust
     from public.customers where org_id not in (select id from organizations where name like '\_\_TEST\_%');
 
   -- ---------- schema / privileges ----------
-  perform pg_temp.chk('six automation tables exist and have RLS enabled',
+  perform pg_temp.chk('seven automation tables exist and have RLS enabled',
     (select count(*) from pg_class c where c.relnamespace = 'public'::regnamespace and c.relrowsecurity
-       and c.relname in ('automation_events','automation_flow_defs','automation_rules','automation_event_log','automation_audit','automation_queue')) = 6);
+       and c.relname in ('automation_events','automation_flow_defs','automation_rules','automation_event_log','automation_audit','automation_queue','automation_errors')) = 7);
   perform pg_temp.chk('automation_emit: not executable by PUBLIC / anon / authenticated, executable by service_role',
     not has_function_privilege('anon', 'public.automation_emit(uuid,text,text,uuid,uuid,text,jsonb)', 'execute')
     and not has_function_privilege('authenticated', 'public.automation_emit(uuid,text,text,uuid,uuid,text,jsonb)', 'execute')
@@ -63,10 +63,10 @@ begin
         and not has_function_privilege('anon', p.oid, 'execute') and not has_function_privilege('authenticated', p.oid, 'execute'))
        from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname like '\_trg\_automation\_emit\_%'));
   perform pg_temp.chk('no client write privilege on any automation table; anon cannot read them',
-    not exists (select 1 from unnest(array['automation_events','automation_flow_defs','automation_rules','automation_event_log','automation_audit','automation_queue']) t,
+    not exists (select 1 from unnest(array['automation_events','automation_flow_defs','automation_rules','automation_event_log','automation_audit','automation_queue','automation_errors']) t,
                      unnest(array['anon','authenticated']) r, unnest(array['INSERT','UPDATE','DELETE','TRUNCATE']) pr
                 where has_table_privilege(r, 'public.' || t, pr))
-    and not exists (select 1 from unnest(array['automation_events','automation_flow_defs','automation_rules','automation_event_log','automation_audit','automation_queue']) t
+    and not exists (select 1 from unnest(array['automation_events','automation_flow_defs','automation_rules','automation_event_log','automation_audit','automation_queue','automation_errors']) t
                 where has_table_privilege('anon', 'public.' || t, 'SELECT')));
   perform pg_temp.chk('automation_rule_save: authenticated + service_role only',
     has_function_privilege('authenticated', 'public.automation_rule_save(uuid,text,text,text,jsonb,text,text,integer,integer,integer,text,uuid,text)', 'execute')
@@ -350,6 +350,44 @@ begin
   perform pg_temp.chk('payload VALUES are never stored in the event log (keys only)',
     not exists (select 1 from public.automation_event_log where org_id = v_org and payload_keys::text ~ '[0-9]{7,}'));
 
+  -- ---------- triggers fire only on the intended changes ----------
+  perform pg_temp.chk('trigger definitions: column-limited UPDATE OF, and insert-only where intended',
+    (select count(*) = 7 from pg_trigger where tgname like 'zz\_automation\_emit\_%' and not tgisinternal)
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_ticket')) ~ 'AFTER INSERT OR UPDATE OF status ON'
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_invoice')) ~ 'AFTER INSERT OR UPDATE OF payment_status ON'
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_lead')) ~ 'AFTER INSERT OR UPDATE OF status, assigned_to ON'
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_amc')) ~ 'AFTER INSERT OR UPDATE OF status ON'
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_quotation')) ~ 'AFTER INSERT OR UPDATE OF status ON'
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_visit')) !~ 'UPDATE'
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_warranty')) !~ 'UPDATE');
+  insert into leads (org_id, customer_id, name, mobile, source, status, kind) values (v_org, v_cust, '__TEST_ L specificity', '9400000052', 'customer_app', 'new', 'service') returning id into v_l;
+  insert into service_tickets (org_id, customer_id, type, name_of_complaint) values (v_org, v_cust, 'paid', '__TEST_ specificity') returning id into v_tk2;
+  select count(*) into v_e1 from public.automation_event_log where org_id = v_org;
+  update leads set notes = '__TEST_ note' where id = v_l;
+  update leads set name = name, mobile = mobile, status = status where id = v_l;
+  update service_tickets set name_of_complaint = '__TEST_ renamed' where id = v_tk2;
+  update service_tickets set status = status, priority = priority where id = v_tk2;
+  update invoices set total = total, discount = discount, payment_status = payment_status where id = v_inv;
+  update customers set name = name where id = v_cust;
+  update amc_contracts set next_service_date = next_service_date, status = status where org_id = v_org;
+  select count(*) into v_e2 from public.automation_event_log where org_id = v_org;
+  perform pg_temp.chk('updates that change no emitting column, and repeated no-op UPDATEs, emit nothing', v_e1 = v_e2, v_e1::text || ' -> ' || v_e2::text);
+  update leads set status = 'contacted' where id = v_l;
+  select count(*) into v_e1 from public.automation_event_log where org_id = v_org;
+  perform pg_temp.chk('a real stage change emits exactly one event',
+    v_e1 = v_e2 + 1 and (select count(*) from public.automation_event_log where org_id = v_org and subject_id = v_l and event_key = 'lead.stage.contacted') = 1);
+  update leads set status = 'contacted' where id = v_l;
+  update leads set status = 'contacted', notes = '__TEST_ again' where id = v_l;
+  select count(*) into v_e2 from public.automation_event_log where org_id = v_org;
+  perform pg_temp.chk('repeating the same stage UPDATE emits nothing', v_e1 = v_e2, v_e1::text || ' -> ' || v_e2::text);
+  update service_tickets set status = 'assigned' where id = v_tk2;
+  update service_tickets set status = 'assigned' where id = v_tk2;
+  perform pg_temp.chk('a repeated ticket status UPDATE emits once',
+    (select count(*) from public.automation_event_log where org_id = v_org and subject_id = v_tk2 and event_key = 'ticket.assigned') = 1);
+  update service_tickets set status = 'in_progress' where id = v_tk2;
+  perform pg_temp.chk('a status the catalogue has no event for (in_progress) emits nothing',
+    (select count(*) from public.automation_event_log where org_id = v_org and subject_id = v_tk2) = 2);
+
   -- ---------- nothing delivered: the engine never touches the outbox ----------
   select count(*) into v_ob1 from public.whatsapp_outbox where org_id = v_org;
   perform public.automation_emit(v_org, 'ticket.completed', 'ticket', gen_random_uuid(), v_cust, 'outbox-probe', jsonb_build_object('ticket_type', 'paid'));
@@ -431,6 +469,79 @@ begin
   -- ---------- an emit failure never fails the business statement ----------
   s := pg_temp.raises(format($q$insert into service_tickets (org_id, customer_id, type, name_of_complaint) values (%L, %L, 'paid', '__TEST_ after kill')$q$, v_org, v_cust));
   perform pg_temp.chk('business insert still succeeds', s is null, coalesce(s,'ok'));
+
+  -- ---------- failure isolation: automation can never block a business write ----------
+  -- scenario 1: the engine's own log table is unreachable, so every automation_emit raises
+  alter table public.automation_event_log rename to automation_event_log_x;
+  select count(*) into v_e1 from public.automation_errors where org_id = v_org;
+  s := pg_temp.raises(format($q$insert into service_tickets (org_id, customer_id, type, name_of_complaint) values (%L, %L, 'paid', '__TEST_ iso ticket')$q$, v_org, v_cust));
+  perform pg_temp.chk('S1 ticket insert succeeds although automation_emit raises', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into invoices (org_id, customer_id, type, subtotal, total, payment_status) values (%L, %L, 'product', 10, 10, 'due')$q$, v_org, v_cust));
+  perform pg_temp.chk('S1 invoice insert succeeds', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into leads (org_id, customer_id, name, mobile, source, status, kind) values (%L, %L, '__TEST_ iso lead', '9400000051', 'customer_app', 'new', 'service')$q$, v_org, v_cust));
+  perform pg_temp.chk('S1 lead insert succeeds', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into quotations (org_id, customer_id, status, total) values (%L, %L, 'open', 5)$q$, v_org, v_cust));
+  perform pg_temp.chk('S1 quotation insert succeeds', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into service_visits (org_id, ticket_id, technician_id) values (%L, (select id from service_tickets where org_id = %L and name_of_complaint = '__TEST_ iso ticket'), %L)$q$, v_org, v_org, v_tech));
+  perform pg_temp.chk('S1 visit insert succeeds', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into amc_contracts (org_id, customer_id, product_id, plan_id, start_date, expiry_date, status) values (%L, %L, %L, %L, current_date, current_date + 30, 'active')$q$, v_org, v_cust, v_prod, v_plan));
+  perform pg_temp.chk('S1 AMC contract insert succeeds', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into warranties (org_id, customer_id, product_id, start_date, expiry_date) values (%L, %L, %L, current_date, current_date + 30)$q$, v_org, v_cust, v_prod));
+  perform pg_temp.chk('S1 warranty insert succeeds', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$update service_tickets set status = 'completed' where org_id = %L and name_of_complaint = '__TEST_ iso ticket'$q$, v_org));
+  perform pg_temp.chk('S1 ticket status UPDATE succeeds', s is null, coalesce(s,'ok'));
+  perform pg_temp.chk('S1 the business rows really exist',
+    exists (select 1 from service_tickets where org_id = v_org and name_of_complaint = '__TEST_ iso ticket' and status = 'completed')
+    and exists (select 1 from leads where org_id = v_org and name = '__TEST_ iso lead')
+    and exists (select 1 from quotations where org_id = v_org and total = 5)
+    and exists (select 1 from invoices where org_id = v_org and total = 10));
+  select count(*) into v_e2 from public.automation_errors where org_id = v_org;
+  perform pg_temp.chk('S1 every failure was logged to automation_errors (>= 8 emitting writes)', v_e2 - v_e1 >= 8, (v_e2 - v_e1)::text);
+  perform pg_temp.chk('S1 logged sources cover ticket, invoice, lead, visit, quotation, AMC and warranty tables',
+    (select count(distinct source) from public.automation_errors where org_id = v_org
+        and source in ('service_tickets:INSERT','invoices:INSERT','leads:INSERT','service_visits:INSERT','quotations:INSERT','amc_contracts:INSERT','warranties:INSERT')) = 7);
+  perform pg_temp.chk('S1 error rows hold an sqlstate',
+    (select bool_and(sqlstate is not null) from public.automation_errors where org_id = v_org));
+  alter table public.automation_event_log_x rename to automation_event_log;
+
+  -- scenario 2: automation_emit replaced by a function that raises with a phone number and e-mail in the message
+  create or replace function public.automation_emit(p_org_id uuid, p_event_key text, p_subject_type text, p_subject_id uuid,
+    p_customer_id uuid default null, p_occurrence_key text default '', p_payload jsonb default '{}'::jsonb)
+  returns uuid language plpgsql security definer set search_path = public as $f$
+  begin raise exception 'forced failure for 9400000066 and someone@example.com'; end $f$;
+  select count(*) into v_e1 from public.automation_errors where org_id = v_org;
+  s := pg_temp.raises(format($q$insert into service_tickets (org_id, customer_id, type, name_of_complaint) values (%L, %L, 'paid', '__TEST_ iso 2')$q$, v_org, v_cust));
+  perform pg_temp.chk('S2 ticket insert succeeds with a hostile automation_emit', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into leads (org_id, customer_id, name, mobile, source, status, kind) values (%L, %L, '__TEST_ iso lead 2', '9400000050', 'customer_app', 'new', 'service')$q$, v_org, v_cust));
+  perform pg_temp.chk('S2 lead insert succeeds', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into quotations (org_id, customer_id, status, total) values (%L, %L, 'open', 6)$q$, v_org, v_cust));
+  perform pg_temp.chk('S2 quotation insert succeeds', s is null, coalesce(s,'ok'));
+  s := pg_temp.raises(format($q$insert into invoices (org_id, customer_id, type, subtotal, total, payment_status) values (%L, %L, 'product', 11, 11, 'due')$q$, v_org, v_cust));
+  perform pg_temp.chk('S2 invoice insert succeeds', s is null, coalesce(s,'ok'));
+  select count(*) into v_e2 from public.automation_errors where org_id = v_org;
+  perform pg_temp.chk('S2 four more errors logged', v_e2 - v_e1 >= 4, (v_e2 - v_e1)::text);
+  perform pg_temp.chk('S2 logged messages are scrubbed (no 7+ digit run, no e-mail)',
+    not exists (select 1 from public.automation_errors where org_id = v_org and (message ~ '[0-9]{7,}' or message ~ '@'))
+    and exists (select 1 from public.automation_errors where org_id = v_org and message like 'forced failure%'));
+  perform pg_temp.chk('S2 the error table has no customer, mobile, name or payload column',
+    not exists (select 1 from information_schema.columns where table_name = 'automation_errors' and column_name in ('mobile','customer_id','payload','name','phone')));
+
+  -- scenario 3: the error log itself is broken too: the business write still goes through
+  alter table public.automation_errors rename to automation_errors_x;
+  s := pg_temp.raises(format($q$insert into service_tickets (org_id, customer_id, type, name_of_complaint) values (%L, %L, 'paid', '__TEST_ iso 3')$q$, v_org, v_cust));
+  perform pg_temp.chk('S3 ticket insert succeeds even when the error log is unavailable', s is null, coalesce(s,'ok'));
+  alter table public.automation_errors_x rename to automation_errors;
+
+  -- errors table is append-only and not client-writable; readable by ops only
+  s := pg_temp.raises(format($q$delete from public.automation_errors where org_id = %L$q$, v_org));
+  perform pg_temp.chk('errors: DELETE refused', s like '%append-only%', coalesce(s,'accepted'));
+  perform pg_temp.as_user(v_sales);
+  perform pg_temp.chk('sales_admin sees no automation_errors', (select count(*) from public.automation_errors) = 0);
+  s := pg_temp.raises(format($q$insert into public.automation_errors (org_id, source) values (%L, 'x')$q$, v_org));
+  perform pg_temp.chk('authenticated cannot write automation_errors', s like '%permission denied%', coalesce(s,'accepted'));
+  perform pg_temp.as_user(v_master);
+  perform pg_temp.chk('master reads automation_errors of own org', (select count(*) from public.automation_errors) > 0);
+  perform pg_temp.as_pg();
 
   -- ---------- real data unchanged ----------
   perform pg_temp.chk('real customers unchanged',

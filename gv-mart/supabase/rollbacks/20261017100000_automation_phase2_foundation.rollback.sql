@@ -20,7 +20,9 @@ drop function if exists public._trg_automation_emit_quotation();
 drop function if exists public.automation_rule_save(uuid, text, text, text, jsonb, text, text, integer, integer, integer, text, uuid, text);
 drop function if exists public.automation_emit(uuid, text, text, uuid, uuid, text, jsonb);
 drop function if exists public._automation_conditions_match(jsonb, jsonb);
+drop function if exists public._automation_log_error(uuid, text, text, text, uuid, text, text);
 -- the append-only triggers refuse DELETE/TRUNCATE; DROP TABLE removes the triggers with the table
+drop table if exists public.automation_errors;
 drop table if exists public.automation_queue;
 drop table if exists public.automation_audit;
 drop table if exists public.automation_event_log;
