@@ -39,7 +39,7 @@ export function SalesDashboard({ orgId, firstName }: { orgId: string; firstName:
   // during period" would silently hide older still-open leads, so they stay
   // unfiltered regardless of `period` (matches OwnerDashboard's Open Tickets).
   const { data: allLeads, isLoading: allLeadsLoading } = useLeads(orgId, { excludeTest: true })
-  const { data: quotations } = useQuotationsList(orgId, range)
+  const { data: quotations } = useQuotationsList(orgId, range, { excludeTest: true })
 
   const openLeads = allLeads?.filter((l) => l.status !== "won" && l.status !== "lost") ?? []
   const wonLeads = leads?.filter((l) => l.status === "won").length ?? 0

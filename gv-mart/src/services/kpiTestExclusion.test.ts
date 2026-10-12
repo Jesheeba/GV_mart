@@ -6,13 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
  * service builds; the live behaviour against real PostgREST is covered by the throwaway-org check in the PR notes.
  */
 type Call = { method: string; args: unknown[] }
-const state: { table: string; calls: Call[] } = { table: "", calls: [] }
+const state: { table: string; calls: Call[]; data: unknown[] } = { table: "", calls: [], data: [] }
 
 function builder(): unknown {
   const handler: ProxyHandler<object> = {
     get(_t, prop: string) {
       if (prop === "then") {
-        return (resolve: (v: unknown) => void) => resolve({ data: [], error: null })
+        return (resolve: (v: unknown) => void) => resolve({ data: state.data, error: null })
       }
       return (...args: unknown[]) => {
         state.calls.push({ method: prop, args })
@@ -37,12 +37,14 @@ vi.mock("@/lib/supabase", () => ({
 import { listTickets } from "@/services/service"
 import { listLeads } from "@/services/automation"
 import { listAmcContracts } from "@/services/amc"
+import { listQuotations } from "@/services/quotations"
 
 const selectArg = () => String(state.calls.find((c) => c.method === "select")?.args[0] ?? "")
 const eqCalls = () => state.calls.filter((c) => c.method === "eq").map((c) => [c.args[0], c.args[1]])
 
 beforeEach(() => {
   state.calls = []
+  state.data = []
 })
 
 describe("listTickets excludeTest", () => {
@@ -83,5 +85,29 @@ describe("listAmcContracts excludeTest", () => {
     await listAmcContracts("org-1")
     expect(selectArg()).toContain("customers(name, mobile)")
     expect(eqCalls().some(([c]) => c === "customers.is_test")).toBe(false)
+  })
+})
+
+describe("listQuotations excludeTest", () => {
+  it("selects is_test on both embeds so a flagged customer or flagged lead can be recognised", async () => {
+    await listQuotations("org-1", undefined, { excludeTest: true })
+    expect(state.table).toBe("quotations")
+    expect(selectArg()).toContain("customers(name,mobile,is_test)")
+    expect(selectArg()).toContain("leads(name,is_test)")
+  })
+  const row = (id: string, customer: boolean | null, lead: boolean | null) => ({
+    id,
+    status: "converted",
+    customers: customer === null ? null : { name: "c", mobile: "m", is_test: customer },
+    leads: lead === null ? null : { name: "l", is_test: lead },
+  })
+  it("drops a flagged customer's and a flagged lead's quotations, keeps normal ones", async () => {
+    state.data = [row("normal-customer", false, null), row("flagged-customer", true, null), row("flagged-lead-only", null, true), row("normal-lead", null, false), row("both-normal", false, false), row("customer-ok-lead-flagged", false, true)]
+    const kept = await listQuotations("org-1", undefined, { excludeTest: true })
+    expect(kept.map((q) => q.id)).toEqual(["normal-customer", "normal-lead", "both-normal"])
+  })
+  it("returns everything when excludeTest is off", async () => {
+    state.data = [row("a", true, null), row("b", false, null)]
+    expect((await listQuotations("org-1")).length).toBe(2)
   })
 })

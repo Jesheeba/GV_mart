@@ -24,7 +24,7 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
   const navigate = useNavigate()
   const today = todayRange().from
 
-  const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, {})
+  const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, { excludeTest: true })
   const { data: technicians } = useTechnicians(orgId)
   const { data: appointments, isLoading: apptLoading } = useAppointmentsRange(orgId, istDayStartIso(today), istDayEndIso(today))
   const { data: attendance, isLoading: attendanceLoading } = useAttendanceForDate(orgId, today)

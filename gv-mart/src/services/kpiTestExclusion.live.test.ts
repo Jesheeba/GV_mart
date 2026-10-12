@@ -17,6 +17,7 @@ vi.mock("@/lib/supabase", () => ({ get supabase() { return client } }))
 import { listTickets } from "@/services/service"
 import { listLeads } from "@/services/automation"
 import { listAmcContracts } from "@/services/amc"
+import { listQuotations } from "@/services/quotations"
 
 const names = (rows: { name?: string | null }[]) => rows.map((r) => r.name).sort()
 
@@ -60,5 +61,20 @@ describe.skipIf(!live)("test-customer exclusion, live in a __TEST_ org", () => {
     expect(kept.length).toBe(1)
     expect(kept[0].customers?.name).toBe("__TEST_ Normal")
     expect(kept.filter((c) => c.status === "due_soon").length).toBe(1)
+  })
+
+  it("quotations: flagged customer's and flagged lead's quotations are dropped from Quotation→Sale, normal ones still count", async () => {
+    const all = await listQuotations(org)
+    const kept = await listQuotations(org, undefined, { excludeTest: true })
+    expect(all.length).toBe(4)
+    expect(all.filter((q) => q.status === "converted").length).toBe(3)
+    expect(kept.length).toBe(2)
+    expect(kept.filter((q) => q.status === "converted").length).toBe(1)
+    expect(kept.every((q) => !q.customers?.is_test && !q.leads?.is_test)).toBe(true)
+  })
+
+  it("ops dashboard source: excludeTest ticket list has the one normal open ticket and no completed-today leak", async () => {
+    const kept = await listTickets(org, { excludeTest: true })
+    expect(kept.map((t) => t.customers?.name)).toEqual(["__TEST_ Normal"])
   })
 })

@@ -6,15 +6,18 @@ import type { DateRange } from "./reports"
 export type QuotationRow = Tables<"quotations">
 export type QuotationItemRow = Tables<"quotation_items">
 
-export type QuotationListItem = QuotationRow & { customers: { name: string; mobile: string } | null; leads: { name: string } | null }
+export type QuotationListItem = QuotationRow & {
+  customers: { name: string; mobile: string; is_test?: boolean } | null
+  leads: { name: string; is_test?: boolean } | null
+}
 
 /** `dateRange` is optional and additive (Owner request 2026-07-29, Sales
  *  Dashboard's period-filtered quotation stats) — every existing caller
  *  (QuotationsListPage, SalesListPage) keeps getting all-time quotations. */
-export async function listQuotations(orgId: string, dateRange?: DateRange): Promise<QuotationListItem[]> {
+export async function listQuotations(orgId: string, dateRange?: DateRange, opts: { excludeTest?: boolean } = {}): Promise<QuotationListItem[]> {
   let query = supabase
     .from("quotations")
-    .select("*, customers(name,mobile), leads(name)")
+    .select("*, customers(name,mobile,is_test), leads(name,is_test)")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
   if (dateRange) {
@@ -22,7 +25,10 @@ export async function listQuotations(orgId: string, dateRange?: DateRange): Prom
   }
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []) as QuotationListItem[]
+  const rows = (data ?? []) as QuotationListItem[]
+  // KPI step 1b: `excludeTest` (dashboards only) drops quotations of a flagged customer or of a flagged lead. Done after the
+  // fetch because a quotation can hang off either a customer or a lead (or both), so no single PostgREST predicate covers it.
+  return opts.excludeTest ? rows.filter((r) => !r.customers?.is_test && !r.leads?.is_test) : rows
 }
 
 export type QuotationDetail = QuotationRow & {
