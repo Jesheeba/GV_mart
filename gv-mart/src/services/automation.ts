@@ -222,12 +222,18 @@ export async function simulateInboundWhatsapp(input: { orgId: string; fromMobile
   return data
 }
 
+/** A claimed row still pending after this long was never finished by its worker: shown to a human, never auto-resent. */
+const STUCK_CLAIM_MINUTES = 10
+
 export async function listFailedWhatsappOutbox(orgId: string, limit = 50): Promise<WhatsappOutboxRow[]> {
+  const stuckBefore = new Date(Date.now() - STUCK_CLAIM_MINUTES * 60_000).toISOString()
   const { data, error } = await supabase
     .from("whatsapp_outbox")
     .select("*")
     .eq("org_id", orgId)
-    .eq("status", "failed")
+    // failed sends, sends skipped for want of an approved template, deliveries Meta later rejected, and
+    // claimed-but-never-finished rows ("stuck sending").
+    .or(`status.in.(failed,skipped_no_template),delivery_status.eq.failed,and(status.eq.pending,claimed_at.lt.${stuckBefore})`)
     .order("created_at", { ascending: false })
     .limit(limit)
   if (error) throw error

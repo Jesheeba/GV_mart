@@ -3689,6 +3689,11 @@
       "template": "Template",
       "body": "Message",
       "error": "Error",
+      "state": "State",
+      "stateFailed": "Failed",
+      "stateSkipped": "Not sent: no approved template",
+      "stateDeliveryFailed": "Delivery failed",
+      "stateStuck": "Stuck sending: needs a human",
       "empty": "No failed sends — nothing stuck right now."
     }
   },

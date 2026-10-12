@@ -4,6 +4,14 @@ import { useFailedWhatsappOutbox } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import type { WhatsappOutboxRow } from "@/services/automation"
 
+/** Why a row is on this list, in words ops can act on (dispatcher v2 states). */
+function stateLabelKey(r: WhatsappOutboxRow): string {
+  if (r.status === "skipped_no_template") return "automation.failedSends.stateSkipped"
+  if (r.status === "pending") return "automation.failedSends.stateStuck"
+  if (r.delivery_status === "failed") return "automation.failedSends.stateDeliveryFailed"
+  return "automation.failedSends.stateFailed"
+}
+
 /** Read-only — retries themselves happen automatically in the daily
  * wa-scheduled-tasks pass (see its runFailedSendRetries), not from a
  * button here. This view exists so ops can see what's currently stuck,
@@ -20,6 +28,7 @@ export function FailedSendsTab() {
     { key: "to", header: t("automation.failedSends.contact"), render: (r) => r.to_mobile ?? "—" },
     { key: "template", header: t("automation.failedSends.template"), render: (r) => <span className="font-mono text-xs">{r.template}</span> },
     { key: "body", header: t("automation.failedSends.body"), render: (r) => <span className="line-clamp-1 max-w-70 text-xs text-text-muted">{(r.payload as { body?: string })?.body ?? "—"}</span> },
+    { key: "state", header: t("automation.failedSends.state"), render: (r) => <span className="text-xs">{t(stateLabelKey(r))}</span> },
     { key: "error", header: t("automation.failedSends.error"), render: (r) => <span className="text-xs text-danger">{r.error ?? "—"}</span> },
   ]
 
