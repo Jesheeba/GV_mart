@@ -48,12 +48,9 @@ export function CustomerBookingDetailPage() {
   const isTrackable = (appt?.status === "scheduled" || appt?.status === "in_progress") && !!technician?.id
 
   const settings = useCustomerAppSettings(ticket?.org_id)
-  // v2.2 Design Deltas #3 / settings.review_link_min_stars, same threshold
-  // the technician's in-person RatingPage uses — admin-set in Masters &
-  // Settings, not hardcoded.
-  const reviewLinkMinStars = settings.data?.review_link_min_stars ?? 5
+  // The review link is offered to every customer who has rated, whatever the stars (no review gating).
   const reviewUrl = settings.data?.google_review_url || null
-  const showReviewLink = !!rating && rating.stars >= reviewLinkMinStars
+  const showReviewLink = !!rating
 
   const destination = useMemo(
     () => (ticket?.addresses?.lat != null && ticket?.addresses?.lng != null ? { lat: ticket.addresses.lat, lng: ticket.addresses.lng } : null),

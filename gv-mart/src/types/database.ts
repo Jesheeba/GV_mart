@@ -5806,6 +5806,7 @@ export type Database = {
       }
       settings: {
         Row: {
+          review_incentives_enabled: boolean
           id: string
           org_id: string
           per_km_minutes: number
@@ -5895,6 +5896,7 @@ export type Database = {
           auto_assign_leads: boolean
         }
         Insert: {
+          review_incentives_enabled?: boolean
           id?: string
           org_id: string
           per_km_minutes?: number
@@ -5965,6 +5967,7 @@ export type Database = {
           auto_assign_leads?: boolean
         }
         Update: {
+          review_incentives_enabled?: boolean
           id?: string
           org_id?: string
           per_km_minutes?: number

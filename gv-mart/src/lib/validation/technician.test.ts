@@ -6,7 +6,6 @@ import {
   ratingSchema,
   roChecklistSchema,
   servicePaymentSchema,
-  showsGoogleReviewLink,
 } from "./technician"
 
 describe("isDiscountBlocked", () => {
@@ -45,18 +44,6 @@ describe("discountNeedsApproval", () => {
     // is isDiscountBlocked's job, but the band function shouldn't claim
     // "needs approval" once out of its own range either.
     expect(discountNeedsApproval(15, 5, 10)).toBe(false)
-  })
-})
-
-describe("showsGoogleReviewLink", () => {
-  it("shows at exactly minStars", () => {
-    expect(showsGoogleReviewLink(4, 4)).toBe(true)
-  })
-  it("shows above minStars", () => {
-    expect(showsGoogleReviewLink(5, 4)).toBe(true)
-  })
-  it("hides below minStars", () => {
-    expect(showsGoogleReviewLink(3, 4)).toBe(false)
   })
 })
 

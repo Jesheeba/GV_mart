@@ -557,7 +557,7 @@ export function OnSiteVisitPage() {
   const allowedDuration = computeAllowedDurationMinutes({
     itemsStandardMinutesSum: sumItemStandardMinutes(selectedSpares.map((s) => ({ qty: s.qty, standardTimeMinutes: s.standardTimeMinutes }))),
     ticketEstimatedDurationMinutes: ticket?.estimated_duration_minutes ?? null,
-    reviewAllowanceMinutes: settings.data?.review_time_allowance_minutes ?? 0,
+    reviewAllowanceMinutes: settings.data?.review_incentives_enabled ? (settings.data?.review_time_allowance_minutes ?? 0) : 0,
     enquiryAllowanceMinutes: settings.data?.enquiry_time_allowance_minutes ?? 0,
     // A review can only be collected after the visit closes (RatingPage runs
     // post-completion) — always false for a still-open visit, same rule

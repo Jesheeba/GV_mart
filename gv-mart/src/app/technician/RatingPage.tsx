@@ -9,7 +9,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useMarkGoogleReviewClicked, useSubmitRating, useTechnicianSettings } from "@/hooks/useTechnician"
-import { ratingSchema, showsGoogleReviewLink } from "@/lib/validation/technician"
+import { ratingSchema } from "@/lib/validation/technician"
 
 const textareaClass =
   "w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
@@ -49,9 +49,9 @@ export function RatingPage() {
     )
   }
 
-  const minStars = settings.data.review_link_min_stars
   const parsed = ratingSchema.safeParse({ stars, review, lowRatingReason })
-  const showReviewLink = showsGoogleReviewLink(stars, minStars)
+  // The review link is shown to every customer after rating, whatever the stars (no review gating).
+  const showReviewLink = true
   // Admin-set in Masters & Settings (settings.google_review_url) — until an
   // org configures its own listing's review link, fall back to the same
   // disabled-button-with-note state this page always had.

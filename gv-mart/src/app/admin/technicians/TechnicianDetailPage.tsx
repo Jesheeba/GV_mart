@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { DOT_TONE_CLASS, StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
+import { useSettings } from "@/hooks/useMasters"
 import { useTechnicianTierProgress, useTechnicianTiers } from "@/hooks/useTechnicianTiers"
 import { formatCurrency } from "@/lib/sale-calc"
 import {
@@ -918,6 +919,10 @@ function ReferralsTab({
  */
 function KpisTab({ loading, summary }: { loading: boolean; summary: TechnicianKpiSummary | null | undefined }) {
   const { t } = useTranslation()
+  const { data: profile } = useProfile()
+  const { data: orgSettings } = useSettings(profile?.org_id)
+  // claim-rate flags and the rate footnote exist only while review incentives are switched on
+  const showClaimRate = orgSettings?.review_incentives_enabled === true
   if (loading) return <Skeleton className="h-32 w-full" />
   if (!summary) return <EmptyState label={t("technicians.detail.kpi.unavailable")} />
   return (
@@ -950,9 +955,11 @@ function KpisTab({ loading, summary }: { loading: boolean; summary: TechnicianKp
         </div>
       </div>
 
-      <p className="px-1 text-xs text-text-muted">
-        {t("technicians.detail.kpi.reviewRateFootnote", { rate: summary.review_claim_rate_percent, visits: summary.completed_visit_count })}
-      </p>
+      {showClaimRate ? (
+        <p className="px-1 text-xs text-text-muted">
+          {t("technicians.detail.kpi.reviewRateFootnote", { rate: summary.review_claim_rate_percent, visits: summary.completed_visit_count })}
+        </p>
+      ) : null}
     </div>
   )
 }

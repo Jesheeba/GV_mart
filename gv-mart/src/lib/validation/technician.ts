@@ -110,7 +110,3 @@ export const ratingSchema = z
   })
 export type RatingInput = z.infer<typeof ratingSchema>
 
-/** v2.2 Design Deltas #3 / settings.review_link_min_stars: Google review link shows only at/above the admin-set threshold. */
-export function showsGoogleReviewLink(stars: number, minStars: number) {
-  return stars >= minStars
-}

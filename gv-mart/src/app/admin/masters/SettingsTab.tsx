@@ -81,6 +81,7 @@ export function SettingsTab() {
         review_time_allowance_minutes: settings.review_time_allowance_minutes,
         enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
         emi_enabled: settings.emi_enabled,
+        review_incentives_enabled: settings.review_incentives_enabled,
         emi_tenure_months: (Array.isArray(settings.emi_tenure_months) ? settings.emi_tenure_months : []).join(","),
         emi_disclaimer: settings.emi_disclaimer ?? "",
       })
@@ -215,6 +216,13 @@ export function SettingsTab() {
           {field("review_flag_min_visits", t("settings.reviewFlagMinVisits"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.reviewFlagHint")}</p>
+        <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
+          <input type="checkbox" className="size-4 accent-accent" {...register("review_incentives_enabled")} />
+          <span>
+            <span className="block font-medium">{t("settings.reviewIncentivesEnabled")}</span>
+            <span className="block text-xs text-text-muted">{t("settings.reviewIncentivesEnabledHint")}</span>
+          </span>
+        </label>
       </Card>
 
       <Card className="gap-4">

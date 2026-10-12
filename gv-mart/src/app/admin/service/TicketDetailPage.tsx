@@ -230,7 +230,7 @@ export function TicketDetailPage() {
       (openVisitFull?.service_spares_used ?? []).map((s) => ({ qty: s.qty, standardTimeMinutes: s.spares?.standard_time_minutes }))
     ),
     ticketEstimatedDurationMinutes: ticket.estimated_duration_minutes,
-    reviewAllowanceMinutes: settings?.review_time_allowance_minutes ?? 0,
+    reviewAllowanceMinutes: settings?.review_incentives_enabled ? (settings?.review_time_allowance_minutes ?? 0) : 0,
     enquiryAllowanceMinutes: settings?.enquiry_time_allowance_minutes ?? 0,
     reviewCollected: openVisitFull?.ratings?.google_review_clicked ?? false,
     enquiryLoggedThisVisit: (openVisitFull?.leads?.length ?? 0) > 0,

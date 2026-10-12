@@ -63,6 +63,7 @@ export const settingsSchema = z
     // comma-separated string in the form, transformed to a number[] for
     // the jsonb column on submit.
     emi_enabled: z.boolean(),
+    review_incentives_enabled: z.boolean(),
     emi_tenure_months: z
       .string()
       .transform((s) =>
