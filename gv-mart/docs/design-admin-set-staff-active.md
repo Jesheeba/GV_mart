@@ -56,3 +56,20 @@ URLs already issued, and any Edge Function that trusts only `auth.getUser`.
 * Is operation_admin in scope for the first version? (Recommended: sales persons only.)
 * Should deactivation also remove the person from `lead_rotation`? (Recommended: no, harmless; eligibility already requires `is_active`.)
 * Notification to the deactivated person is impossible (no channel); do you want one to the master on partial failures? (Recommended: yes, in-app.)
+
+---
+
+## Revision 2026-10-12 (design only, after the live catalog read; nothing built)
+
+Facts checked against the live database that the eight steps above depend on:
+
+* `profiles.is_active` today: a master can flip any staff row's `is_active` straight from the client (`setStaffActive` in `src/services/hr.ts`); the only client rule is "nobody changes their own is_active" (`guard_profile_privileged_columns`). Step 8's trigger is therefore a real behaviour change for the HR screen, which must call the Edge Function instead.
+* Leads: `leads.assigned_to` is written only under `app.lead_assign_ok = '1'` (see `assign_lead`); `lead_assignments` has `from_user, to_user, assigned_by, reason, created_at` and no CHECK on `reason`, so the reason `'deactivated'` needs no schema change. `assign_lead` itself cannot be reused (it needs a caller role); the RPC does its own `update leads` under the flag.
+* **Other places a deactivated person still owns work** (not covered by the first draft): `lead_followups.assigned_to` (post-service follow-ups, item 13), `tasks.assignee_id` (including the recurring PO payment reminders, whose owner is a master), `leads.owner_id`. Decision needed per table: leave, clear to unassigned, or reassign to the master. Recommended: clear `lead_followups.assigned_to` (the existing "unassigned = all sales staff" rule applies), leave `tasks` and `leads.owner_id` untouched and list them in the completion row.
+* F-07 is a prerequisite for non-sales roles only; for `sales_admin` the data cut-off in step 3 already works through `is_staff()` / `is_sales_staff()`.
+* The F-07 last-master trigger never blocks a sales_admin deactivation; masters are not valid targets.
+* `revoke_user_sessions` is live (2026-10-12) and `staff-auth.ts` already calls it after a reset.
+
+Open decisions (unchanged from above, plus one): operation_admin in scope for v1? (recommended: no, sales persons only); remove from `lead_rotation`? (recommended: no, eligibility already needs `is_active`); in-app notification to the master on `partial`? (recommended: yes); **new:** when auto-assign is ON, should the person's unassigned leads be flagged `auto_assign_pending` so the next distribution spreads them, or stay unassigned for the master to hand out? (recommended: stay unassigned, as in the reviewer's step 3).
+
+Test plan additions: a deactivated person's open post-service follow-up is cleared; `tasks` rows are listed, not changed; the HR screen's old direct update is refused with the documented message; a master cannot be deactivated through any path.

@@ -78,3 +78,33 @@ for an inactive staff profile, so the residual window for database access is abo
 or the session is revoked: Realtime sockets already subscribed, signed Storage URLs already issued, and Edge Functions that only
 call `auth.getUser` without reading the profile. `supabase/config.toml` says `jwt_expiry = 3600` with refresh-token rotation on;
 **the live project value is unverified** (dashboard setting): confirm it, and consider 900-1800 seconds.
+
+---
+
+## 7. Revision 2026-10-12 (live catalog read, migration built and tested - NOT applied)
+Built as `supabase/held/20261015110000_current_role_active_gate.sql` (rollback in `supabase/rollbacks/`), tests
+`supabase/tests/current_role_active_gate_1_before.sql` + `..._2_after.sql` (run as one rolled-back transaction: matrix before, migration, matrix after).
+
+### 7.1 What the live catalog changed in the design above
+1. **`is_staff()` and `is_sales_staff()` do not call `current_role()`.** They read `profiles` directly. Section 2 alone would have left an inactive master / operation_admin with `is_staff()` = true. Both are rewritten (every office role must be `is_active`).
+2. **Fail-open guards.** `is_master()` and `is_ops_staff()` return NULL for a NULL role, and about 40 functions guard with `if not public.is_master() then raise ...` or `if not (is_ops_staff() or is_sales_staff()) then raise ...`. NULL makes the IF skip: the guard passes. Changing `current_role()` first would have opened them to every inactive staff member. The helpers are now `coalesce(..., false)` in the same migration (this also closes the same hole for a signed-in user with no profile, which exists today).
+3. **`settings_select_org`** used `IS DISTINCT FROM 'customer'` (the only policy with that pattern): fixed to `current_role() IS NOT NULL AND <> 'customer'`.
+4. **Last-master protection** is a `BEFORE UPDATE OF is_active, role, org_id OR DELETE` trigger. Exemptions: organisation already gone (cascade), `__TEST_` organisations (so throwaway cleanup keeps working), and DBA break-glass (`postgres` + `set local app.allow_last_master_change = '1'`).
+
+### 7.2 Every place that changes if `current_role()` returns NULL
+Functions that call it directly: `is_master`, `is_ops_staff` (rewritten); `_lead_resolve_scope`, `_lead_set_followup_allowed`, `assign_lead`, `followup_counts` (all reached only after an `is_sales_staff()` gate, which is boolean and now requires active; `_lead_set_followup_allowed` has `else false`; tested in the matrix: refused at the guard). Policies that call it directly: `notifications_select_own_role` and `notifications_update_own_role` (`role = current_role()` is NULL, no match, and `is_master()` is now false: nothing visible), `settings_select_org` (fixed). The 34 org-only SELECT policies (catalogues etc.) do not use a role helper and are unchanged: an inactive person reads them exactly like a customer does.
+Separately found (not part of this migration, needs a decision): `meeting_logs`, `meeting_issues`, `automation_flows`, `payment_settings` are in that org-only group, so any customer or technician of the organisation can read internal meeting notes and automation rows.
+
+### 7.3 Matrix result (live functions before, migration, after; throwaway `__TEST_` organisation)
+* Active master / operation_admin / sales_admin / technician / customer: every helper, every visible row count and every RPC result **identical** before and after.
+* Inactive master, before -> after: `current_role` master -> NULL, all four helpers true -> false, every table count (leads, customers, invoices, tickets, settings, audit_log, purchase orders, suppliers, notifications) 1 -> 0 (profiles 8 -> 1, own row), and RPCs that **succeeded before** (`assign_lead`, `delete_lead`, `mark_po_paid`, `refresh_amc_statuses`, `followup_counts`, `list_followups`) now refused at the guard (`create_sale`, `delete_customer`, `compute_salary`, `sell_amc_plan`, `set_item_standard_time` refused by the guard instead of a later validation).
+* Inactive operation_admin: same, for the ops-guarded functions and ops-visible tables. Inactive sales_admin: only `current_role` and `settings` change (already gated by the sales helpers since 2026-10-07).
+* Signed in, no profile: helpers NULL -> false; the guards that used to fall through (`delete_lead`, `mark_po_paid`, `compute_salary`, `refresh_amc_statuses`, `set_item_standard_time`, `sell_amc_plan`, `delete_customer`) now refuse at the guard.
+* Last-master tests: owner cannot deactivate, demote, move or delete the only active master; a master cannot deactivate themselves; the break-glass flag does nothing for a client session; with two active masters the first can go and the second is protected; re-activation (recovery) works; `postgres` + flag works; `__TEST_` organisations exempt.
+
+### 7.4 Rollout and rollback
+1. Confirm the live organisation has at least one ACTIVE master (it has exactly one today: report it to the owner; consider a second master for recovery).
+2. Apply the migration (one transaction), then run the matrix live read-only for the same personas and diff against the table above.
+3. The UI shows empty lists for a deactivated person; a "your account is inactive" screen is a follow-up.
+4. Rollback file restores the exact 2026-10-12 bodies. Recovery for a locked-out organisation: owner SQL `update public.profiles set is_active = true where id = '<master id>';` then, if banned, `update auth.users set banned_until = null where id = '<master id>';`.
+5. Residual: `jwt_exp` is 3600 s (read live). Database access of an inactive person is cut immediately; what remains until the token expires or `revoke_user_sessions` runs: Realtime sockets already subscribed, signed Storage URLs already issued, and Edge Functions that trust only `auth.getUser`.
