@@ -1279,6 +1279,7 @@
     "standardTimePlaceholder": "min",
     "standardTimeValue": "{{minutes}} min standard time",
     "standardTimeNotSet": "Set standard time",
+    "installationCharge": "Installation charge",
     "status": {
       "label": "Status",
       "in": "In stock",

@@ -42,3 +42,4 @@ English is approved; Tamil is a draft until a Tamil speaker signs it off. Delete
 | `hr.incentives.credits.*`, `hr.incentives.creditsEarned` | Installation incentives to approve; Approve; Void; Reason for voiding; Installation (per ticket) | ஒப்புதலுக்கான நிறுவல் ஊக்கத்தொகைகள்; ஒப்புதல்; ரத்து செய்; ரத்து செய்வதற்கான காரணம்; நிறுவல் (டிக்கெட்டிற்கு) | batch-2 item 3 |
 | `settings.reviewIncentivesEnabled` / `...Hint` | Review incentives (OFF by default) / Off: no review incentive rule, no review-time allowance, no claim-rate flags... | மதிப்புரை ஊக்கத்தொகை (இயல்பாக நிறுத்தம்) / … (see ta.json) | batch-2 item 6 |
 | `settings.reviewLinkMinStars` (relabelled) | Low-rating alert below (stars) | குறைந்த மதிப்பீட்டு எச்சரிக்கை (நட்சத்திரங்களுக்கு கீழ்) | batch-2 item 6 |
+| `inventory.installationCharge` | Installation charge | நிறுவல் கட்டணம் | batch-2 item 3 (read-only Inventory column) |

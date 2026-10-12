@@ -18,6 +18,9 @@ import type { InventoryListItem, ItemType } from "@/services/inventory"
 // express; mirrors the grid-div pattern TicketsListPage/SalesListPage use.
 const TABLE_GRID_COLS =
   "grid-cols-[minmax(170px,2fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(120px,0.9fr)_minmax(120px,1.4fr)_minmax(90px,1fr)]"
+// Products tab only: one extra read-only track (installation charge) before Status.
+const TABLE_GRID_COLS_PRODUCT =
+  "grid-cols-[minmax(170px,2fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(120px,0.9fr)_minmax(120px,1.4fr)_minmax(110px,0.9fr)_minmax(90px,1fr)]"
 
 type StatusKey = "in" | "low" | "out"
 
@@ -157,6 +160,8 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
     )
   }
 
+  const showInstallCharge = itemType === "product"
+  const gridCols = showInstallCharge ? TABLE_GRID_COLS_PRODUCT : TABLE_GRID_COLS
   const headers = [
     t("inventory.item"),
     t("inventory.brand"),
@@ -164,6 +169,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
     t("inventory.stock"),
     t("inventory.thresholds"),
     t("inventory.level"),
+    ...(showInstallCharge ? [t("inventory.installationCharge")] : []),
     t("inventory.status.label"),
   ]
 
@@ -179,7 +185,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
       ) : null}
 
       <div className="overflow-x-auto">
-      <div className={cn("grid items-center border-t border-b border-border bg-surface-alt px-5.5 py-2.5", TABLE_GRID_COLS)}>
+      <div className={cn("grid items-center border-t border-b border-border bg-surface-alt px-5.5 py-2.5", gridCols)}>
         {headers.map((h) => (
           <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
             {h}
@@ -197,7 +203,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
         </div>
       ) : isLoading ? (
         Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={cn("grid items-center border-b border-border px-5.5 py-3.5", TABLE_GRID_COLS)}>
+          <div key={i} className={cn("grid items-center border-b border-border px-5.5 py-3.5", gridCols)}>
             {headers.map((h) => (
               <Skeleton key={h} className="h-4 w-3/4 max-w-32" />
             ))}
@@ -216,7 +222,7 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
           return (
             <div
               key={r.id}
-              className={cn("grid items-center border-b border-border px-5.5 py-3.5 last:border-b-0 hover:bg-surface-alt", TABLE_GRID_COLS)}
+              className={cn("grid items-center border-b border-border px-5.5 py-3.5 last:border-b-0 hover:bg-surface-alt", gridCols)}
             >
               <div className="min-w-0 pr-2">
                 <div className="flex items-center gap-1">
@@ -344,6 +350,12 @@ export function InventoryTable({ itemType, search }: { itemType: ItemType; searc
                   </span>
                 </>
               )}
+
+              {showInstallCharge ? (
+                <span className="pr-2 text-[13px] font-medium tabular-nums text-text-muted">
+                  {r.installationCharge != null && r.installationCharge > 0 ? `₹${r.installationCharge.toLocaleString("en-IN")}` : "—"}
+                </span>
+              ) : null}
 
               <span>
                 <span className={cn("w-fit rounded-full px-2.5 py-1 text-[11px] font-bold", style.text, style.bg)}>

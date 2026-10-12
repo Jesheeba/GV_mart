@@ -1279,6 +1279,7 @@
     "standardTimePlaceholder": "நிமி",
     "standardTimeValue": "{{minutes}} நிமிட நிலையான நேரம்",
     "standardTimeNotSet": "நிலையான நேரத்தை அமைக்கவும்",
+    "installationCharge": "நிறுவல் கட்டணம்",
     "status": {
       "label": "நிலை",
       "in": "கையிருப்பில் உள்ளது",

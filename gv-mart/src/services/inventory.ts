@@ -12,16 +12,18 @@ export type InventoryListItem = InventoryRow & {
   // see set_item_standard_time's migration comment) can view/edit it from
   // the one screen that role already reaches.
   standardTimeMinutes: number | null
+  // Read-only here (batch-2 item 3): the technician incentive per installed unit; edited on the product record in Masters.
+  installationCharge: number | null
 }
 
 async function nameLookup(orgId: string, itemType: ItemType) {
   if (itemType === "product") {
     const { data, error } = await supabase
       .from("products")
-      .select("id,name,brands(name),standard_time_minutes")
+      .select("id,name,brands(name),standard_time_minutes,installation_charge")
       .eq("org_id", orgId)
     if (error) throw error
-    return new Map((data ?? []).map((p) => [p.id, { name: p.name, brand: p.brands?.name ?? null, standardTimeMinutes: p.standard_time_minutes }]))
+    return new Map((data ?? []).map((p) => [p.id, { name: p.name, brand: p.brands?.name ?? null, standardTimeMinutes: p.standard_time_minutes, installationCharge: p.installation_charge }]))
   }
   if (itemType === "gift") {
     // Gifts have no brand or admin-set standard time (set_item_standard_time
@@ -29,11 +31,11 @@ async function nameLookup(orgId: string, itemType: ItemType) {
     // simply null here, same as a spare's brand.
     const { data, error } = await supabase.from("gifts").select("id,name").eq("org_id", orgId)
     if (error) throw error
-    return new Map((data ?? []).map((g) => [g.id, { name: g.name, brand: null, standardTimeMinutes: null }]))
+    return new Map((data ?? []).map((g) => [g.id, { name: g.name, brand: null, standardTimeMinutes: null, installationCharge: null }]))
   }
   const { data, error } = await supabase.from("spares").select("id,name,standard_time_minutes").eq("org_id", orgId)
   if (error) throw error
-  return new Map((data ?? []).map((s) => [s.id, { name: s.name, brand: null, standardTimeMinutes: s.standard_time_minutes }]))
+  return new Map((data ?? []).map((s) => [s.id, { name: s.name, brand: null, standardTimeMinutes: s.standard_time_minutes, installationCharge: null }]))
 }
 
 export async function listInventory(orgId: string, itemType: ItemType): Promise<InventoryListItem[]> {
@@ -53,7 +55,7 @@ export async function listInventory(orgId: string, itemType: ItemType): Promise<
     // here), but its quantity is repointed to a live sum across
     // technicians instead of the frozen column value.
     const stock_qty = row.location === "van" ? vanTotals.get(row.item_id) ?? 0 : row.stock_qty
-    return { ...row, stock_qty, itemName: info?.name ?? "—", itemBrand: info?.brand ?? null, standardTimeMinutes: info?.standardTimeMinutes ?? null }
+    return { ...row, stock_qty, itemName: info?.name ?? "—", itemBrand: info?.brand ?? null, standardTimeMinutes: info?.standardTimeMinutes ?? null, installationCharge: info?.installationCharge ?? null }
   })
 }
 
