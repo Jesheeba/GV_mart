@@ -7,7 +7,15 @@ declare
   A text := '9000000001'; B text := '9000000002';
   v_id uuid; v_st text;
   function_ok boolean;
+  -- the real organisation's dispatcher settings, saved before anything runs and restored at the end: live may legitimately
+  -- hold a canary configuration (flag off, the test number listed), so nothing here assumes an empty list
+  v_real_org uuid; v_s_flag boolean; v_s_scope text; v_s_nums text[];
 begin
+  select s.org_id, s.wa_dispatch_v2_enabled, s.wa_dispatch_v2_scope, s.wa_dispatch_v2_numbers
+    into v_real_org, v_s_flag, v_s_scope, v_s_nums
+    from settings s join organizations o on o.id = s.org_id
+   where o.name not like '\_\_TEST\_%' escape '\'
+   order by o.created_at limit 1;
   insert into organizations(name) values ('__TEST_wa_scope') returning id into v_org;
   insert into settings(org_id) values (v_org) on conflict (org_id) do nothing;
 
@@ -77,10 +85,19 @@ begin
                               and has_function_privilege('service_role', 'public.wa_dispatch_v2_applies(uuid,text)', 'execute')
                          then 'ok   applies() is service_role only' else 'FAIL applies() acl' end;
 
-  -- 8. the real organisation is untouched by the migration: flag off, scope numbers, empty list
-  select count(*) into n from settings s join organizations o on o.id = s.org_id
-   where o.name not like '\_\_TEST\_%' escape '\' and (s.wa_dispatch_v2_enabled or s.wa_dispatch_v2_scope <> 'numbers' or s.wa_dispatch_v2_numbers <> '{}');
-  res := res || E'\n' || case when n = 0 then 'ok   real organisation: flag off, scope numbers, list empty (no change in behaviour)' else 'FAIL real org settings changed' end;
+  -- 8. the real organisation's settings are exactly what they were before the migration ran (whatever they are: the
+  --    migration only ADDS the two columns and must not change the flag, the scope or the list), then restored
+  res := res || E'\n' || case when v_real_org is null then 'INFO no real organisation row to compare'
+    when (select (s.wa_dispatch_v2_enabled, s.wa_dispatch_v2_scope, s.wa_dispatch_v2_numbers) is not distinct from (v_s_flag, v_s_scope, v_s_nums)
+            from settings s where s.org_id = v_real_org)
+      then 'ok   real organisation settings unchanged by the migration (flag ' || v_s_flag || ', scope ' || v_s_scope || ', ' || coalesce(cardinality(v_s_nums), 0) || ' number(s) listed)'
+    else 'FAIL real organisation settings changed' end;
+  if v_real_org is not null then
+    update settings set wa_dispatch_v2_enabled = v_s_flag, wa_dispatch_v2_scope = v_s_scope, wa_dispatch_v2_numbers = v_s_nums where org_id = v_real_org;
+    res := res || E'\n' || case when (select (s.wa_dispatch_v2_enabled, s.wa_dispatch_v2_scope, s.wa_dispatch_v2_numbers) is not distinct from (v_s_flag, v_s_scope, v_s_nums)
+                                       from settings s where s.org_id = v_real_org)
+                           then 'ok   real organisation settings restored to the saved values' else 'FAIL restore' end;
+  end if;
 
   raise exception E'RESULTS:%', res;
 end
