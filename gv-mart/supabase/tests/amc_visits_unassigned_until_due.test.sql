@@ -218,6 +218,29 @@ begin
                                 where t.contract_id in (v_contract2, v_contract3) or t.id = any (v_ids)))));
 
   -- ---------- 7. heartbeat and dead-man ----------
+  -- 7a. the very first dead-man run, BEFORE any tick has written a heartbeat: the migration's baseline row must keep it quiet
+  select count(*) into n from public.notifications where type = 'cron_job_stale' and body like 'amc_assign_due_visits%';
+  perform pg_temp.chk('7a baseline heartbeat from the migration: fresh (within 2 minutes), status ok, never alerted',
+    (select last_status = 'ok' and last_run_at > now() - interval '2 minutes' and last_stale_alert_at is null
+       from public.cron_job_heartbeats where job_key = 'amc_assign_due_visits'));
+  perform public._amc_assign_deadman_check();
+  perform pg_temp.chk('7a FIRST dead-man run before any tick raises NO alert',
+    (select count(*) from public.notifications where type = 'cron_job_stale' and body like 'amc_assign_due_visits%') = n);
+  -- 7b. no heartbeat row at all (nothing to judge): quiet
+  delete from public.cron_job_heartbeats where job_key = 'amc_assign_due_visits';
+  perform public._amc_assign_deadman_check();
+  perform pg_temp.chk('7b no heartbeat row at all raises NO alert',
+    (select count(*) from public.notifications where type = 'cron_job_stale' and body like 'amc_assign_due_visits%') = n);
+  -- 7c. thresholds: a 25 hour old ok heartbeat is fine (a daily job plus slack), a 27 hour old one is not
+  insert into public.cron_job_heartbeats (job_key, last_run_at, last_status) values ('amc_assign_due_visits', now() - interval '25 hours', 'ok');
+  perform public._amc_assign_deadman_check();
+  perform pg_temp.chk('7c a 25-hour-old ok heartbeat raises NO alert',
+    (select count(*) from public.notifications where type = 'cron_job_stale' and body like 'amc_assign_due_visits%') = n);
+  update public.cron_job_heartbeats set last_run_at = now() - interval '27 hours' where job_key = 'amc_assign_due_visits';
+  perform public._amc_assign_deadman_check();
+  perform pg_temp.chk('7c a 27-hour-old heartbeat raises an alert',
+    (select count(*) from public.notifications where type = 'cron_job_stale' and body like 'amc_assign_due_visits%') > n);
+  update public.cron_job_heartbeats set last_run_at = now(), last_status = 'ok', last_stale_alert_at = null where job_key = 'amc_assign_due_visits';
   perform public.amc_assign_cron_tick();
   perform pg_temp.chk('7 the tick writes an ok heartbeat',
     (select last_status from public.cron_job_heartbeats where job_key = 'amc_assign_due_visits') = 'ok');
