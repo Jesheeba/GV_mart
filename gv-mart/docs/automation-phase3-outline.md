@@ -1,5 +1,7 @@
 # Automation Phase 3 outline: Wave 1 flows (read-only outline, 2026-10-12)
 
+**Superseded by docs/automation-phase3-plan-revised.md (2026-10-12), which includes the owner answers.**
+
 Status: OUTLINE ONLY. No code, no migration, no apply, nothing sendable. Phase 2 (migration `20261017100000`) is built and tested but not applied; apply is on hold until the dispatcher track finishes.
 
 Sources: Phase 2 migration and its tests; `docs/wasi-template-submission-sheet-wave1.md` and `docs/automation-effort-estimate-v2.md` (branch `docs/automation-wave1-templates`); `docs/plan-dispatcher-fix.md` (branch `docs/dispatcher-fix-plan`).

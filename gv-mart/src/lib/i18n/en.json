@@ -539,6 +539,11 @@
       "memberRelationPlaceholder": "Relation to primary contact",
       "memberProfession": "Profession (e.g. Teacher, Shop Owner)",
       "memberEmail": "Email (optional)",
+      "preferredLanguage": "Message language (optional)",
+      "preferredLanguageHint": "WhatsApp messages are sent in this language. Leave empty for English.",
+      "languageEnglish": "English",
+      "languageTamil": "Tamil (தமிழ்)",
+      "languageNotSet": "Not set (English)",
       "relation": {
         "spouse": "Spouse",
         "son": "Son",
@@ -2285,6 +2290,11 @@
       "memberName": "Name",
       "memberProfession": "Profession (optional)",
       "memberEmail": "Email (optional)",
+      "preferredLanguage": "Message language (optional)",
+      "preferredLanguageHint": "WhatsApp messages are sent in this language. Leave empty for English.",
+      "languageEnglish": "English",
+      "languageTamil": "Tamil (தமிழ்)",
+      "languageNotSet": "Not set (English)",
       "memberMobile": "Mobile number"
     },
     "addressPicker": {

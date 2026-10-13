@@ -14,6 +14,7 @@ import { Autocomplete } from "@/components/shared/Autocomplete"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
+import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import {
   addressStepSchema,
@@ -26,7 +27,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
-import { getPrimaryAddressId, setAddressZone } from "@/services/customers"
+import { getPrimaryAddressId, setAddressZone, setCustomerPreferredLanguage } from "@/services/customers"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
@@ -399,6 +400,15 @@ export function CustomerFormPage() {
           lng: addressValues.lng,
         },
       })
+      // The create RPC has no language argument: a small follow-up write, like the zone below. The customer already exists, so a
+      // failure only warns and can be re-entered from the customer page.
+      if (peopleValues.preferredLanguage === "en" || peopleValues.preferredLanguage === "ta") {
+        try {
+          await setCustomerPreferredLanguage(newId, peopleValues.preferredLanguage)
+        } catch {
+          toast.error(t("common.actionFailed"))
+        }
+      }
       // create_customer_with_details (RPC) doesn't accept a zone — set it as
       // a small direct follow-up write on the primary address it just created.
       // The customer itself is already created at this point, so a failure
@@ -481,6 +491,12 @@ export function CustomerFormPage() {
               {peopleForm.formState.errors.members?.message ? (
                 <p className="text-xs text-danger">{t(peopleForm.formState.errors.members.message)}</p>
               ) : null}
+              <PreferredLanguageSelect
+                id="new-customer-preferred-language"
+                i18nPrefix="customers.form"
+                value={(peopleForm.watch("preferredLanguage") || null) as "en" | "ta" | null}
+                onChange={(next) => peopleForm.setValue("preferredLanguage", next ?? "")}
+              />
             </div>
           ) : (
             <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />

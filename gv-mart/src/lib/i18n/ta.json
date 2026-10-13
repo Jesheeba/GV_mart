@@ -539,6 +539,11 @@
       "memberRelationPlaceholder": "முதன்மை தொடர்புக்கான உறவு முறை",
       "memberProfession": "தொழில் (எ.கா. ஆசிரியர், கடை உரிமையாளர்)",
       "memberEmail": "மின்னஞ்சல் (விருப்பம்)",
+      "preferredLanguage": "செய்தி மொழி (விருப்பம்)",
+      "preferredLanguageHint": "WhatsApp செய்திகள் இந்த மொழியில் அனுப்பப்படும். காலியாக விட்டால் ஆங்கிலம்.",
+      "languageEnglish": "ஆங்கிலம்",
+      "languageTamil": "தமிழ்",
+      "languageNotSet": "அமைக்கப்படவில்லை (ஆங்கிலம்)",
       "relation": {
         "spouse": "வாழ்க்கை துணை",
         "son": "மகன்",
@@ -2285,6 +2290,11 @@
       "memberName": "பெயர்",
       "memberProfession": "தொழில் (விருப்பம்)",
       "memberEmail": "மின்னஞ்சல் (விருப்பம்)",
+      "preferredLanguage": "செய்தி மொழி (விருப்பம்)",
+      "preferredLanguageHint": "WhatsApp செய்திகள் இந்த மொழியில் அனுப்பப்படும். காலியாக விட்டால் ஆங்கிலம்.",
+      "languageEnglish": "ஆங்கிலம்",
+      "languageTamil": "தமிழ்",
+      "languageNotSet": "அமைக்கப்படவில்லை (ஆங்கிலம்)",
       "memberMobile": "மொபைல் எண்"
     },
     "addressPicker": {

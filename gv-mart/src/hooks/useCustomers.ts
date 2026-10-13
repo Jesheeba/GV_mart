@@ -300,3 +300,11 @@ export function useUpsertPrimaryAddress(orgId: string | undefined, customerId: s
     },
   })
 }
+
+export function useSetCustomerPreferredLanguage(customerId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (language: "en" | "ta" | null) => customers.setCustomerPreferredLanguage(customerId!, language),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers"] }),
+  })
+}

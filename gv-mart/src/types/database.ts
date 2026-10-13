@@ -222,6 +222,7 @@ export type Database = {
           name: string
           mobile: string
           profession: string | null
+          preferred_language: string | null
           source: string | null
           tags: string[]
           notes: string | null
@@ -240,6 +241,7 @@ export type Database = {
           name: string
           mobile: string
           profession?: string | null
+          preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
@@ -255,6 +257,7 @@ export type Database = {
           name?: string
           mobile?: string
           profession?: string | null
+          preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
@@ -6754,6 +6757,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      set_customer_preferred_language: {
+        Args: { p_customer_id: string; p_language: string | null }
+        Returns: undefined
+      }
       log_confirmed_availability: {
         Args: {
           p_appointment_id: string

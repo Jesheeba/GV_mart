@@ -44,6 +44,11 @@ export async function updateMyProfession(customerId: string, profession: string)
   if (error) throw error
 }
 
+export async function updateMyPreferredLanguage(customerId: string, language: "en" | "ta" | null) {
+  const { error } = await supabase.from("customers").update({ preferred_language: language }).eq("id", customerId)
+  if (error) throw error
+}
+
 // ── Addresses (CUST-01 fill/confirm, CUST-08 multiple addresses) ─────────
 
 export async function listMyAddresses(customerId: string) {

@@ -10,6 +10,7 @@ import { checkFreeTextRelevance, classifyWithClaude } from "./whatsapp-classify-
 import { extractQuoteDeterministic } from "./whatsapp-extract-quote-deterministic.ts"
 import { answerCustomerQuestion } from "./whatsapp-answer-layer.ts"
 import { answerStatusTrigger, matchStatusTrigger } from "./whatsapp-status-answers.ts"
+import { handleOptOutKeyword } from "./wa-opt-out.ts"
 import {
   buildMenuReply,
   containsPaymentRedFlag,
@@ -614,6 +615,15 @@ export async function handleMessage(admin: SupabaseClient, orgId: string, msg: N
   // patching each one individually. The wa_* RPCs below all normalize
   // p_phone internally too, so this is a no-op for them either way.
   msg.phone = _wa_normalizeInboundPhone(msg.phone)
+
+  // STOP / STOP ALL / START (automation Phase 3, S3). Handled before the supplier branch AND the kill switch on purpose: an
+  // opt-out must be honoured even when the bot is switched off, and a number registered as both a customer and a supplier
+  // (the owner's test phone is) would otherwise be claimed by the supplier path and never reach this. Whole-message keyword match only; START is honoured only for a number that
+  // currently has an opt-out. One confirmation reply (inside the 24 h window, because the customer just wrote), then the
+  // message goes no further.
+  if (msg.intent.kind === "text" && (await handleOptOutKeyword(admin, orgId, msg.phone, msg.intent.text, (m) => sendMessage(admin, m)))) {
+    return
+  }
 
   // Gap A — check supplier before the kill switch and before falling
   // through to the customer-only identify/conversation machinery below.
