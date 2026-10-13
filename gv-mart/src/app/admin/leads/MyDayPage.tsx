@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Inbox, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useFollowups, useLeadAssignees, useLeadsWithoutFollowup } from "@/hooks/useLeadFollowups"
+import { useFollowups, useLeadAssignees, useLeadTechnicianNames, useLeadsWithoutFollowup } from "@/hooks/useLeadFollowups"
 import { useProfile } from "@/hooks/useProfile"
 import { AssignLeadDialog } from "./AssignLeadDialog"
 import { assignActionFor, canScheduleLead } from "@/lib/lead-assign"
@@ -75,6 +75,8 @@ export function MyDayPage() {
   // nothing due, but leads waiting to be scheduled: land on them so they are never out of sight
   const tab: MyDayTab = chosenTab ?? (byBucket.overdue.length > 0 ? "overdue" : byBucket.today.length > 0 ? "today" : noneRows.length > 0 ? "none" : "today")
   const rows = tab === "none" ? [] : byBucket[tab]
+  // Item 3: "Referred by X" / "Technician X" chip on each lead card (names for the leads currently listed).
+  const technicianNames = useLeadTechnicianNames((list.data ?? []).map((i) => i.lead_id))
   const selectedIds = noneRows.filter((r) => selected.has(r.lead_id)).map((r) => r.lead_id)
   const schedulable = (r: LeadWithoutFollowup) => canScheduleLead(role, profile?.id, r.assignee_id, assignees)
   const filtersActive = !!(stage || source || kind || stuckOnly || scope !== "auto")
@@ -271,6 +273,7 @@ export function MyDayPage() {
               <FollowupCard
                 key={r.item.followup_id}
                 item={r.item}
+                technicianName={technicianNames.data?.get(r.item.lead_id) ?? null}
                 onLogOutcome={setOutcomeFor}
                 onReschedule={setRescheduleFor}
                 onAssign={assignActionFor(role, profile?.id, r.item.assignee_id, assignees) ? setAssignFor : undefined}

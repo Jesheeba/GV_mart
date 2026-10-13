@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import type { Database, Enums, Tables, TablesInsert, TablesUpdate } from "@/types/database"
+import { LEAD_OWNER_CHUNK, buildLeadTechnicianNames, chunk, type LeadOwnerRow } from "@/lib/leadReferrers"
 
 // Lead follow-ups (Phase 1). Reads go through list_followups / lead_timeline
 // (SECURITY DEFINER, master + sales_admin only); every write is an RPC —
@@ -92,6 +93,17 @@ export async function listFollowups(filters: FollowupFilters = {}): Promise<Foll
   })
   if (error) throw error
   return data ?? []
+}
+
+/** Daily Follow Up cards: name of the technician on each lead (leads.owner_id). One extra read, list_followups itself is unchanged. */
+export async function getLeadTechnicianNames(leadIds: string[]): Promise<Map<string, string>> {
+  const rows: LeadOwnerRow[] = []
+  for (const ids of chunk(leadIds, LEAD_OWNER_CHUNK)) {
+    const { data, error } = await supabase.from("leads").select("id, owner_id, technicians(profiles(full_name))").in("id", ids)
+    if (error) throw error
+    rows.push(...((data ?? []) as unknown as LeadOwnerRow[]))
+  }
+  return buildLeadTechnicianNames(rows)
 }
 
 export async function getFollowupCounts(): Promise<FollowupCounts> {

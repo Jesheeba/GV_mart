@@ -55,6 +55,17 @@ export function useFollowups(filters: FollowupFilters, enabled = true) {
   })
 }
 
+/** lead id -> technician name for the follow-up cards on screen (item 3: "Referred by X" / "Technician X"). */
+export function useLeadTechnicianNames(leadIds: string[]) {
+  const key = [...leadIds].sort()
+  return useQuery({
+    queryKey: ["followups", "technician-names", key],
+    queryFn: () => svc.getLeadTechnicianNames(key),
+    enabled: key.length > 0,
+    staleTime: 60_000,
+  })
+}
+
 /** Open leads nobody has scheduled (My Day "No follow-up" tab). */
 export function useLeadsWithoutFollowup(filters: svc.NoFollowupFilters, enabled = true) {
   return useQuery({
