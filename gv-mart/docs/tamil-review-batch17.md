@@ -43,3 +43,4 @@ English is approved; Tamil is a draft until a Tamil speaker signs it off. Delete
 | `settings.reviewIncentivesEnabled` / `...Hint` | Review incentives (OFF by default) / Off: no review incentive rule, no review-time allowance, no claim-rate flags... | மதிப்புரை ஊக்கத்தொகை (இயல்பாக நிறுத்தம்) / … (see ta.json) | batch-2 item 6 |
 | `settings.reviewLinkMinStars` (relabelled) | Low-rating alert below (stars) | குறைந்த மதிப்பீட்டு எச்சரிக்கை (நட்சத்திரங்களுக்கு கீழ்) | batch-2 item 6 |
 | `inventory.installationCharge` | Installation charge | நிறுவல் கட்டணம் | batch-2 item 3 (read-only Inventory column) |
+| `masters.groups.dailyFollowup` | Daily Followup (heading above the Lead Sources, Kinds, Product Types, Post-service calls and Outcomes cards) | தினசரி பின்தொடர்தல் | DRAFT, not reviewed - batch-17 item 5 |
