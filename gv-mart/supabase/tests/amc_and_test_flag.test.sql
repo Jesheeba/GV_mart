@@ -95,11 +95,11 @@ begin
   perform pg_temp.chk('no visit falls on a non-working day',
     not exists (select 1 from appointments a join service_tickets t on t.id = a.ticket_id where t.contract_id = v_contract
       and not public._lead_is_working_day(v_org, (a.scheduled_at at time zone 'Asia/Kolkata')::date)));
-  perform pg_temp.chk('first visit is the first working day on/after start + 6 months (rolled forward, never back)',
+  perform pg_temp.chk('first visit is the first working day on/after the plan START date (rolled forward, never back)',
     (select (min(a.scheduled_at) at time zone 'Asia/Kolkata')::date from appointments a join service_tickets t on t.id = a.ticket_id where t.contract_id = v_contract)
-      between (v_start + interval '6 months')::date and (v_start + interval '6 months')::date + 7,
+      between v_start and v_start + 7,
     (select (min(a.scheduled_at) at time zone 'Asia/Kolkata')::date::text from appointments a join service_tickets t on t.id = a.ticket_id where t.contract_id = v_contract)
-      || ' vs ' || (v_start + interval '6 months')::date::text || case when v_sunday_working then ' (no non-working day in default week)' else '' end);
+      || ' vs ' || v_start::text || case when v_sunday_working then ' (no non-working day in default week)' else '' end);
   perform pg_temp.chk('visits are 6 months apart in sequence (monotonic)',
     (select bool_and(d > lag_d) from (select a.scheduled_at d, lag(a.scheduled_at) over (order by a.scheduled_at) lag_d
       from appointments a join service_tickets t on t.id = a.ticket_id where t.contract_id = v_contract) q where lag_d is not null));

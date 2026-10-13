@@ -1,25 +1,35 @@
--- AMC visits are created UNASSIGNED and assigned when they fall due (owner decisions 2026-10-13).
+-- AMC visit schedule rule, and who gets a visit assigned when (owner decisions 2026-10-13, revised 2026-10-14).
 --
 -- BEFORE: every AMC generator (sell_amc_plan, sell_amc_plan_onsite, renew_amc_plan, the AMC add-on in create_sale) called the
--- assignment engine for every visit at purchase time. With the date-aware busy test every future date looks free, attendance is
+-- assignment engine for EVERY visit at purchase time. With the date-aware busy test every future date looks free, attendance is
 -- skipped for future dates, and the tie-break is "oldest technician", so one technician got all six visits of a 3-year plan,
 -- months or years ahead, without leave, attendance or capacity ever being looked at (test contract e13bcc7c, 13 Oct 2026).
+-- The same generators also put visit 1 at start + gap and the last visit ON the expiry day (13 Apr 2027 ... 13 Oct 2029).
 --
 -- AFTER:
---   1. one shared helper, _schedule_amc_visits(), creates the visit tickets + appointments OPEN and UNASSIGNED, no SLA, with
---      visit_no (unique per contract). The four generators call it; their bodies are otherwise the live bodies.
---   2. assign_due_amc_visits(p_now) assigns every open unassigned contract visit whose date is within
---      settings.amc_assign_window_days (default 7) through the SAME engine (_auto_assign_ticket_internal), one ticket at a time,
---      each isolated so one failure never stops the rest. Repeat "needs manual assignment" alerts for the same ticket are
---      collapsed to the oldest unread one.
---   3. it runs from pg_cron daily at 06:30 IST (01:00 UTC), pure SQL, no HTTP, independent of the GitHub schedules; a heartbeat
+--   1. SCHEDULE RULE. visits = visits per year x plan years; gap = 12 months / visits per year; visit 1 is on the plan START date
+--      and visit k on start + (k - 1) x gap, so the last visit falls one gap before expiry. Plan values come from the Masters plan.
+--      Every date is then rolled forward to a working day (settings.lead_work_days) exactly as before. A visit that would be
+--      dated before today (back-dated sale) is not created (its visit number is kept); a visit dated today starts at the next
+--      quarter hour, or on the next working day if the shop is already closed.
+--   2. one shared helper, _schedule_amc_visits(), creates the visit tickets + appointments (visit_no unique per contract). The
+--      four generators call it; their bodies are otherwise the live bodies.
+--   3. ASSIGNMENT. A visit dated within settings.amc_assign_window_days (default 7) of today, including one dated today, is
+--      assigned AT SALE by the same engine (_auto_assign_ticket_internal): attendance for today, leave, capacity, busy time and
+--      location are respected. If nobody is free or checked in, the engine's normal "needs manual assignment" alert fires
+--      (operation_admin). Visits beyond the window stay open and unassigned, with no SLA, and wait for the daily job.
+--   4. assign_due_amc_visits(p_now) is that daily job: it assigns every open unassigned contract visit whose date is within the
+--      window, one ticket at a time, each isolated so one failure never stops the rest. Repeat "needs manual assignment" alerts
+--      for the same ticket are collapsed to the oldest unread one.
+--   5. it runs from pg_cron daily at 06:30 IST (01:00 UTC), pure SQL, no HTTP, independent of the GitHub schedules; a heartbeat
 --      row (cron_job_heartbeats.job_key = 'amc_assign_due_visits') and a 08:30 IST dead-man check raise a master notification
 --      if it has not run in 26 hours.
---   4. an AFTER UPDATE OF scheduled_at trigger re-checks a single visit when it is rescheduled.
---   5. _ticket_is_future_amc_visit() is the one definition of "not yet due": visits beyond the window are excluded from the
+--   6. an AFTER UPDATE OF scheduled_at trigger re-checks a single visit when it is rescheduled.
+--   7. _ticket_is_future_amc_visit() is the one definition of "not yet due": visits beyond the window are excluded from the
 --      report_kpi_tiles open_tickets tile here and from the Unassigned / Pending counts in the app (src/lib/ticketFilters.ts).
---   6. legacy milestone 'booked' (INSERT trigger gets a WHEN contract_id is null; the function is not re-issued) and the
+--   8. legacy milestone 'booked' (INSERT trigger gets a WHEN contract_id is null; the function is not re-issued) and the
 --      automation ticket.created emit are skipped for contract visit tickets.
+--   9. amc_contracts.next_service_date is set to the date of the first visit that was created.
 -- Nothing is deleted. The existing contract's visits are untouched (they are assigned today; cancelling that contract is a
 -- separate, supported action).
 
@@ -81,9 +91,26 @@ $$;
 revoke all on function public._ticket_is_future_amc_visit(uuid) from public, anon, authenticated;
 grant execute on function public._ticket_is_future_amc_visit(uuid) to service_role;
 
--- ── the shared helper: visit tickets + appointments, OPEN and UNASSIGNED ─────────────────────────────────────────────────
--- Dates exactly as the live generators compute them (month offset, working-day roll, slot start and window); the only change
--- is that no assignment is attempted. Returns the new ticket ids in visit order.
+-- ── visit date: start + (k - 1) x (12 months / visits per year) ────────────────────────────────────────────────────────
+-- Whole months are added to the START date (never cumulatively, so a 31 January start does not drift), and the fractional
+-- part of the gap is added as days at 30.4375 days a month. Plans of 1, 2, 3, 4, 6 or 12 visits a year have no fractional part.
+create or replace function public._amc_visit_date(p_start date, p_visits_per_year integer, p_k integer)
+returns date
+language sql
+immutable
+set search_path = public
+as $$
+  select ((p_start + make_interval(months => b.m))::date + b.d)
+    from (
+      select floor(a.x)::integer as m, round((a.x - floor(a.x)) * 30.4375)::integer as d
+        from (select 12.0 * (p_k - 1) / greatest(coalesce(p_visits_per_year, 1), 1) as x) a
+    ) b
+$$;
+revoke all on function public._amc_visit_date(date, integer, integer) from public, anon, authenticated;
+grant execute on function public._amc_visit_date(date, integer, integer) to service_role;
+
+-- ── the shared helper: visit tickets + appointments, assigned at sale when inside the window ───────────────────────────────
+-- Returns the new ticket ids in visit order. p_now exists so tests can fix the clock; callers never pass it.
 create or replace function public._schedule_amc_visits(
   p_org_id          uuid,
   p_customer_id     uuid,
@@ -96,7 +123,8 @@ create or replace function public._schedule_amc_visits(
   p_expiry          date,
   p_address_id      uuid,
   p_lead_id         uuid,
-  p_channel         text
+  p_channel         text,
+  p_now             timestamptz default now()
 )
 returns uuid[]
 language plpgsql
@@ -104,18 +132,47 @@ security definer
 set search_path = public
 as $$
 declare
-  v_ids     uuid[] := '{}';
-  v_ticket  uuid;
-  v_date    date;
-  v_base    integer;
-  i         integer;
+  v_ids      uuid[] := '{}';
+  v_ticket   uuid;
+  v_date     date;
+  v_ts       timestamptz;
+  v_local    timestamp;
+  v_base     integer;
+  v_today    date := (p_now at time zone 'Asia/Kolkata')::date;
+  v_window   integer;
+  v_work_end time;
+  v_first    date;
+  i          integer;
 begin
+  select s.amc_assign_window_days, s.work_end into v_window, v_work_end from public.settings s where s.org_id = p_org_id;
+  v_window   := coalesce(v_window, 7);
+  v_work_end := coalesce(v_work_end, time '17:30');
+
   select coalesce(max(t.visit_no), 0) into v_base from public.service_tickets t where t.contract_id = p_contract_id;
 
   for i in 1..coalesce(p_total_visits, 0) loop
-    v_date := p_start_date + make_interval(months => public._visit_month_offset(p_visits_per_year, i));
+    -- visit 1 is the start date; visit k is start + (k - 1) x gap
+    v_date := public._amc_visit_date(p_start_date, p_visits_per_year, i);
     exit when v_date > p_expiry;
     v_date := public._visit_working_day(p_org_id, v_date);
+
+    -- a visit that would already be in the past cannot be serviced: its number is kept, no ticket is made
+    continue when v_date < v_today;
+
+    v_ts := public._visit_start_ts(p_org_id, v_date);
+    if v_date = v_today and v_ts <= p_now then
+      if (p_now at time zone 'Asia/Kolkata')::time >= v_work_end then
+        -- sold after closing time: the visit moves to the next working day
+        v_date := public.lead_next_working_day(p_org_id, v_today);
+        v_ts   := public._visit_start_ts(p_org_id, v_date);
+      else
+        -- sold during the working day: the visit starts at the next quarter hour, never in the past
+        v_local := p_now at time zone 'Asia/Kolkata';
+        v_ts := least(
+                  (date_trunc('hour', v_local) + ceil(extract(epoch from (v_local - date_trunc('hour', v_local))) / 900.0) * interval '15 minutes') at time zone 'Asia/Kolkata',
+                  (v_today + v_work_end) at time zone 'Asia/Kolkata');
+      end if;
+    end if;
 
     insert into public.service_tickets (
       org_id, customer_id, address_id, product_id, name_of_complaint, nature_of_complaint,
@@ -129,15 +186,36 @@ begin
     v_ids := array_append(v_ids, v_ticket);
 
     insert into public.appointments (org_id, ticket_id, mode, scheduled_at, available_from, available_to, status)
-    values (p_org_id, v_ticket, 'datetime', public._visit_start_ts(p_org_id, v_date),
-            public._visit_window_from(p_org_id), public._visit_window_to(p_org_id), 'scheduled');
+    values (p_org_id, v_ticket, 'datetime', v_ts, public._visit_window_from(p_org_id), public._visit_window_to(p_org_id), 'scheduled');
+
+    if v_first is null or v_date < v_first then
+      v_first := v_date;
+    end if;
+
+    -- inside the window (including today): the engine assigns it now (attendance for today, leave, capacity, busy time,
+    -- location). Nobody free or checked in -> the engine raises its normal "needs manual assignment" alert. A visit beyond the
+    -- window waits for assign_due_amc_visits().
+    if v_date <= v_today + v_window then
+      begin
+        perform public._auto_assign_ticket_internal(v_ticket, p_org_id, p_skip_rating_logic => true);
+      exception when others then
+        insert into public.notifications (org_id, role, type, title, body, ref_id)
+        values (p_org_id, 'operation_admin', 'ticket_unassigned', 'Ticket needs manual assignment',
+                format('AMC visit %s of %s could not be auto-assigned at sale (%s). Please assign it.', i, p_total_visits, left(sqlerrm, 120)),
+                v_ticket);
+      end;
+    end if;
   end loop;
+
+  if v_first is not null then
+    update public.amc_contracts set next_service_date = v_first where id = p_contract_id;
+  end if;
 
   return v_ids;
 end;
 $$;
-revoke all on function public._schedule_amc_visits(uuid, uuid, uuid, uuid, text, integer, integer, date, date, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function public._schedule_amc_visits(uuid, uuid, uuid, uuid, text, integer, integer, date, date, uuid, uuid, text) to service_role;
+revoke all on function public._schedule_amc_visits(uuid, uuid, uuid, uuid, text, integer, integer, date, date, uuid, uuid, text, timestamptz) from public, anon, authenticated;
+grant execute on function public._schedule_amc_visits(uuid, uuid, uuid, uuid, text, integer, integer, date, date, uuid, uuid, text, timestamptz) to service_role;
 
 -- ── the four generators now call the helper (bodies are the LIVE bodies; only the visit loop changed) ─────────────────
 
@@ -207,8 +285,8 @@ begin
 
   select a.id into v_address_id from public.addresses a where a.customer_id = p_customer_id and a.is_primary = true limit 1;
 
-  -- Visits are created OPEN and UNASSIGNED; assign_due_amc_visits() assigns each one when its date is within
-  -- settings.amc_assign_window_days (migration 20261020100000), so attendance, leave and capacity are checked then.
+  -- The helper creates the visits (visit 1 on the start date, then every 12 / visits-per-year months) and assigns the ones
+  -- inside settings.amc_assign_window_days now; later ones are assigned by assign_due_amc_visits() when they fall due.
   v_ticket_ids := v_ticket_ids || public._schedule_amc_visits(p_org_id, p_customer_id, v_contract_id, p_product_id, v_plan.name,
     v_plan.visits_per_year, v_total_visits, p_start_date, v_expiry, v_address_id, v_lead_id, 'call');
 
