@@ -26,7 +26,8 @@ import { v2Active, v2AppliesTo, type DispatchV2Scope } from "./wa-dispatch-scope
 import { runDispatchV2, type DispatchDeps, type PendingRow } from "./wa-dispatch-v2.ts"
 import { resolveEventContext } from "./wa-event-context.ts"
 
-export const MILESTONE_REF_TYPES = ["service_ticket", "service_visit", "invoice", "purchase_quote_request"] as const
+// "amc_contract": hand-off rows from the automation engine (migration 20261018160000 adds it to the hand-off whitelist).
+export const MILESTONE_REF_TYPES = ["service_ticket", "service_visit", "invoice", "purchase_quote_request", "amc_contract"] as const
 
 // 2026-09-08 incident: a Wasi-side 409 for one supplier's number retried
 // every 5 minutes forever (each attempt inserting a fresh failed row that

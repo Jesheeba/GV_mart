@@ -3,6 +3,7 @@
 // null so the template request fails with missing_param:<name> (visible in Failed Sends) instead of sending a blank.
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import { formatIstDate, formatIstSlot, formatRupees, shortRef } from "./wa-event-format.ts"
+import { amcContractVars, automationPayloadLanguage, automationPayloadVars, isAutomationRow } from "./wa-automation-vars.ts"
 import type { DispatchContext, PendingRow } from "./wa-dispatch-v2.ts"
 
 const DB_TIMEOUT_MS = 5_000
@@ -13,12 +14,16 @@ export async function customerLanguageAndName(admin: SupabaseClient, customerId:
   if (!customerId) return { language: "en", name: null }
   const { data: c } = await admin
     .from("customers")
-    .select("name, primary_profile_id")
+    .select("name, primary_profile_id, preferred_language")
     .eq("id", customerId)
     .abortSignal(AbortSignal.timeout(DB_TIMEOUT_MS))
     .maybeSingle()
-  const cust = c as { name: string; primary_profile_id: string | null } | null
+  const cust = c as { name: string; primary_profile_id: string | null; preferred_language: string | null } | null
   let language: "en" | "ta" = "en"
+  // customers.preferred_language (migration 20261018110000) wins; otherwise the login's language, otherwise English.
+  if (cust?.preferred_language === "ta" || cust?.preferred_language === "en") {
+    return { language: cust.preferred_language, name: cust.name ?? null }
+  }
   if (cust?.primary_profile_id) {
     const { data: p } = await admin.from("profiles").select("language").eq("id", cust.primary_profile_id).abortSignal(AbortSignal.timeout(DB_TIMEOUT_MS)).maybeSingle()
     if ((p as { language?: string } | null)?.language === "ta") language = "ta"
@@ -56,6 +61,7 @@ async function ticketVars(admin: SupabaseClient, ticketId: string, technicianIdH
   return {
     ticket_ref: shortRef(ticket?.id ?? ticketId),
     complaint: ticket?.name_of_complaint ?? null,
+    service: ticket?.name_of_complaint ?? null,
     technician: await technicianName(admin, technicianIdHint ?? appt?.technician_id ?? null),
     slot,
     appointment_time: slot,
@@ -63,7 +69,11 @@ async function ticketVars(admin: SupabaseClient, ticketId: string, technicianIdH
 }
 
 export async function resolveEventContext(admin: SupabaseClient, row: PendingRow): Promise<DispatchContext> {
-  const { language, name } = await customerLanguageAndName(admin, row.customer_id)
+  const resolved = await customerLanguageAndName(admin, row.customer_id)
+  const { name } = resolved
+  // A hand-off row from the automation engine already carries the language it resolved (preferred, login, rule, English).
+  const payload = row.payload as Record<string, unknown> | null
+  const language = (isAutomationRow(payload) ? automationPayloadLanguage(payload) : null) ?? resolved.language
   const vars: Vars = { name, customer_name: name }
   const appUrl = Deno.env.get("WA_PUBLIC_APP_URL")?.replace(/\/+$/, "") ?? null
 
@@ -86,6 +96,26 @@ export async function resolveEventContext(admin: SupabaseClient, row: PendingRow
         // There is no per-invoice customer page or PDF yet (plan open item 4): the link is the customer app home.
         if (appUrl) vars.link = `${appUrl}/customer`
       }
+    } else if (row.ref_type === "amc_contract" && row.ref_id) {
+      // AMC messages from the automation hand-off: product, plan, expiry and (for visit messages) the visit date.
+      const { data: c } = await admin
+        .from("amc_contracts")
+        .select("expiry_date, next_service_date, product_id, plan_id")
+        .eq("id", row.ref_id)
+        .abortSignal(AbortSignal.timeout(DB_TIMEOUT_MS))
+        .maybeSingle()
+      const contract = c as { expiry_date: string | null; next_service_date: string | null; product_id: string | null; plan_id: string | null } | null
+      let productName: string | null = null
+      let planName: string | null = null
+      if (contract?.product_id) {
+        const { data: p } = await admin.from("products").select("name").eq("id", contract.product_id).abortSignal(AbortSignal.timeout(DB_TIMEOUT_MS)).maybeSingle()
+        productName = (p as { name?: string } | null)?.name ?? null
+      }
+      if (contract?.plan_id) {
+        const { data: pl } = await admin.from("amc_plans").select("name").eq("id", contract.plan_id).abortSignal(AbortSignal.timeout(DB_TIMEOUT_MS)).maybeSingle()
+        planName = (pl as { name?: string } | null)?.name ?? null
+      }
+      Object.assign(vars, amcContractVars(contract, productName, planName, null))
     } else if (row.ref_type === "purchase_quote_request" && row.ref_id) {
       const { data: q } = await admin.from("purchase_quote_requests").select("pdf_url").eq("id", row.ref_id).abortSignal(AbortSignal.timeout(DB_TIMEOUT_MS)).maybeSingle()
       vars.pdf_url = (q as { pdf_url?: string | null } | null)?.pdf_url ?? null
@@ -95,6 +125,8 @@ export async function resolveEventContext(admin: SupabaseClient, row: PendingRow
         vars.supplier_name = (s as { name?: string } | null)?.name ?? null
       }
     }
+    // context the automation hand-off stored with the queue row (eta, days left, expiry and visit dates): wins over the record
+    if (isAutomationRow(payload)) Object.assign(vars, automationPayloadVars(payload))
   } catch (e) {
     // A failed lookup must not stop the send path; unresolved variables surface as missing_param on the row.
     console.error("wa-event-context: variable lookup failed", row.ref_type, e instanceof Error ? e.message : "unknown error")
