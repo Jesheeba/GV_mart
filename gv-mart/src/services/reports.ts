@@ -106,6 +106,10 @@ export function defaultPeriodValue(): PeriodValue {
 // "No. of sales calls" reads the real `call_logs` table (added in
 // 20260702170500_lunch_and_calls.sql, populated by every tap-to-call in the
 // technician app — v2.2 §6.5 "calls are tracked and recorded").
+/** Sales & Invoices tiles (batch-17 item 7): one entry per kind of invoice. Technician service invoices are `service`, never `spareCounter`. */
+export type SalesKindStats = { count: number; total: number; gst: number; collected: number; avgTicket: number | null }
+export type SalesByKind = Record<"product" | "spareCounter" | "service" | "amc" | "rental", SalesKindStats>
+
 export type SalesServiceReport = {
   salesCallsCount: number
   invoiceTypeRatio: { type: Enums<"invoice_type">; count: number; total: number; percent: number }[]
@@ -163,10 +167,12 @@ export type SalesServiceReport = {
   totalGst: number
   /** Service visits in the period, shown next to (not instead of) the service-invoice count. */
   serviceVisitCount: number
+  /** null until report_sales_service has the by_kind key (migration 20261019100000). */
+  byKind: SalesByKind | null
 }
 
-/** The browser-side implementation predates totalGst / serviceVisitCount. */
-export type LegacySalesServiceReport = Omit<SalesServiceReport, "totalGst" | "serviceVisitCount">
+/** The browser-side implementation predates totalGst / serviceVisitCount / byKind. */
+export type LegacySalesServiceReport = Omit<SalesServiceReport, "totalGst" | "serviceVisitCount" | "byKind">
 
 /** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
 export async function getSalesServiceReportLegacy(orgId: string, range: DateRange): Promise<LegacySalesServiceReport> {

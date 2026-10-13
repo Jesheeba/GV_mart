@@ -121,7 +121,7 @@ export function MastersPage() {
   // card's number would silently drift from the table beneath it.
   const complaintTypeDefaultsCount = (complaintTypes ?? []).filter((c) => c.product_id === null).length
 
-  const modules: { id: ModuleId; icon: typeof Tag; swatch: keyof typeof SWATCH; title: string; desc: string }[] = [
+  const modules: { id: ModuleId; icon: typeof Tag; swatch: keyof typeof SWATCH; title: string; desc: string; group?: "dailyFollowup" }[] = [
     { id: "brands", icon: Tag, swatch: "ink", title: t("masters.tabs.brands"), desc: t("masters.overview.brandsDesc", { count: brands?.length ?? 0 }) },
     { id: "models", icon: Layers, swatch: "info", title: t("masters.tabs.models"), desc: t("masters.overview.modelsDesc", { count: models?.length ?? 0 }) },
     { id: "products", icon: Package, swatch: "accent", title: t("masters.tabs.products"), desc: t("masters.overview.productsDesc", { count: products?.length ?? 0 }) },
@@ -156,20 +156,41 @@ export function MastersPage() {
       title: t("masters.tabs.waterQuality"),
       desc: t("masters.overview.waterQualityDesc", { count: waterQualityDistricts?.length ?? 0 }),
     },
-    { id: "leadSources", icon: Megaphone, swatch: "accent", title: t("masters.tabs.leadSources"), desc: t("masters.overview.leadSourcesDesc", { count: leadSources?.length ?? 0 }) },
-    { id: "leadKinds", icon: Tag, swatch: "info", title: t("masters.tabs.leadKinds"), desc: t("masters.overview.leadKindsDesc", { count: leadKinds?.length ?? 0 }) },
+    { id: "leadSources", group: "dailyFollowup", icon: Megaphone, swatch: "accent", title: t("masters.tabs.leadSources"), desc: t("masters.overview.leadSourcesDesc", { count: leadSources?.length ?? 0 }) },
+    { id: "leadKinds", group: "dailyFollowup", icon: Tag, swatch: "info", title: t("masters.tabs.leadKinds"), desc: t("masters.overview.leadKindsDesc", { count: leadKinds?.length ?? 0 }) },
     {
       id: "leadProductTypes",
+      group: "dailyFollowup",
       icon: Package,
       swatch: "info",
       title: t("masters.tabs.leadProductTypes"),
       desc: t("masters.overview.leadProductTypesDesc", { count: leadProductTypes?.length ?? 0 }),
     },
-    { id: "postService", icon: PhoneCall, swatch: "info", title: t("masters.tabs.postService"), desc: t("masters.overview.postServiceDesc") },
-    { id: "leadOutcomes", icon: PhoneCall, swatch: "green", title: t("masters.tabs.leadOutcomes"), desc: t("masters.overview.leadOutcomesDesc", { count: leadOutcomes?.length ?? 0 }) },
+    { id: "postService", group: "dailyFollowup", icon: PhoneCall, swatch: "info", title: t("masters.tabs.postService"), desc: t("masters.overview.postServiceDesc") },
+    { id: "leadOutcomes", group: "dailyFollowup", icon: PhoneCall, swatch: "green", title: t("masters.tabs.leadOutcomes"), desc: t("masters.overview.leadOutcomesDesc", { count: leadOutcomes?.length ?? 0 }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
     { id: "paymentSettings", icon: QrCode, swatch: "green", title: t("masters.tabs.paymentSettings"), desc: t("masters.overview.paymentSettingsDesc") },
   ]
+
+  const firstGrouped = modules.findIndex((m) => m.group)
+  const renderCard = (m: (typeof modules)[number]) => (
+    <button
+      key={m.id}
+      type="button"
+      onClick={() => setActiveTab(m.id)}
+      aria-pressed={activeTab === m.id}
+      className={cn(
+        "flex flex-col items-start rounded-card border bg-surface p-5.5 text-left shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)] transition-colors",
+        activeTab === m.id ? "border-ink" : "border-border hover:border-[#DAD5CC]"
+      )}
+    >
+      <span className={cn("mb-3.5 flex size-10.5 items-center justify-center rounded-[13px]", SWATCH[m.swatch])}>
+        <m.icon className="size-5.5" strokeWidth={1.6} />
+      </span>
+      <h3 className="mb-1 text-[15px] font-bold text-text">{m.title}</h3>
+      <p className="text-xs font-medium text-text-muted">{m.desc}</p>
+    </button>
+  )
 
   return (
     <div className="space-y-4 pt-2">
@@ -182,24 +203,19 @@ export function MastersPage() {
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ModuleId)}>
         <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-3">
-          {modules.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setActiveTab(m.id)}
-              aria-pressed={activeTab === m.id}
-              className={cn(
-                "flex flex-col items-start rounded-card border bg-surface p-5.5 text-left shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)] transition-colors",
-                activeTab === m.id ? "border-ink" : "border-border hover:border-[#DAD5CC]"
-              )}
-            >
-              <span className={cn("mb-3.5 flex size-10.5 items-center justify-center rounded-[13px]", SWATCH[m.swatch])}>
-                <m.icon className="size-5.5" strokeWidth={1.6} />
-              </span>
-              <h3 className="mb-1 text-[15px] font-bold text-text">{m.title}</h3>
-              <p className="text-xs font-medium text-text-muted">{m.desc}</p>
-            </button>
-          ))}
+          {modules.filter((m, i) => !m.group && i < firstGrouped).map(renderCard)}
+        </div>
+
+        {/* Batch 17 item 5: the lead / follow-up masters sit together under one heading. Same cards, same tabs, no new screen. */}
+        <section className="mt-4.5 rounded-card border border-border p-4.5" aria-labelledby="masters-group-daily-followup" data-testid="masters-group-daily-followup">
+          <h2 id="masters-group-daily-followup" className="mb-3.5 text-[13px] font-bold tracking-wide text-text-muted uppercase">
+            {t("masters.groups.dailyFollowup")}
+          </h2>
+          <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-3">{modules.filter((m) => m.group === "dailyFollowup").map(renderCard)}</div>
+        </section>
+
+        <div className="mt-4.5 grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-3">
+          {modules.filter((m, i) => !m.group && i > firstGrouped).map(renderCard)}
         </div>
 
         <Card size="default" className="mt-4.5">

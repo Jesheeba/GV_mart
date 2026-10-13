@@ -7,6 +7,7 @@ import { StatusDot } from "@/components/shared/StatusDot"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeadKindOptions } from "@/hooks/useLeadLists"
 import { FollowupChip, PostponeBadge, StuckBadge } from "./FollowupBadges"
+import { TechnicianChip } from "./LeadBadges"
 import { rememberCall } from "@/lib/call-return"
 import { telHref } from "@/lib/lead-followups"
 import { toWhatsappLink } from "@/lib/whatsapp-link"
@@ -16,11 +17,14 @@ import type { FollowupListItem } from "@/services/leadFollowups"
 /** One row of the My Day list: who, what they want, what happened last, when it is due, and one-tap Call / WhatsApp / Log outcome. */
 export function FollowupCard({
   item,
+  technicianName,
   onLogOutcome,
   onReschedule,
   onAssign,
 }: {
   item: FollowupListItem
+  /** The lead's technician (leads.owner_id): "Referred by X" for referral leads, "Technician X" otherwise. */
+  technicianName?: string | null
   onLogOutcome: (item: FollowupListItem) => void
   onReschedule: (item: FollowupListItem) => void
   /** Set only when the signed-in person may assign this lead (see assignActionFor). */
@@ -54,6 +58,7 @@ export function FollowupCard({
         {item.kind ? <span>{kindLabel(item.kind)}</span> : null}
         {item.product_name ? <span className="font-medium text-text">{item.product_name}</span> : null}
         <span>{sourceLabel(item.source)}</span>
+        {technicianName ? <TechnicianChip source={item.source} name={technicianName} /> : null}
         <span className="inline-flex items-center gap-1" data-testid="assignee-chip">
           <UserRound className="size-3" />
           {item.assignee_name ?? t("leads.assign.unassigned")}

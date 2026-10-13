@@ -7,6 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
 import { useInvoicesList } from "@/hooks/useSales"
 import { useQuotationsList } from "@/hooks/useQuotations"
+import { useSalesServiceReport } from "@/hooks/useReports"
+import { getIstNow } from "@/lib/ist"
+import { currentIstMonth, monthRange, previousDay } from "@/lib/salesKpi"
+import type { SalesKindStats } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
@@ -25,12 +29,8 @@ const PAYMENT_METHOD_KEY: Record<Enums<"payment_method">, string> = {
 
 type TypeFilter = "all" | Enums<"invoice_type">
 
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-}
-
 export function SalesListPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
@@ -43,54 +43,27 @@ export function SalesListPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [search, setSearch] = useState("")
 
-  // All figures below are derived from the real invoices/quotations already
-  // fetched for this org — nothing here is mock data. The design's "Today's
-  // Sales / Product Sales / Avg Ticket Value / Quotation → Sale" KPI row is
-  // reproduced with honest equivalents: today vs. yesterday and this-month
-  // vs. last-month deltas are computed from actual created_at timestamps,
-  // and the conversion rate uses the same converted/(converted+lost) formula
-  // QuotationsListPage already established.
+  // Tiles come from report_sales_service (the same numbers as Reports): IST day and month windows, the report's invoice set
+  // (flagged test customers excluded) and no 1,000-row cap. The type chips and the search below narrow the TABLE only.
+  const todayIst = getIstNow().date
+  const thisMonth = currentIstMonth()
+  const [month, setMonth] = useState(thisMonth)
+  const todayRange = useMemo(() => ({ from: todayIst, to: todayIst }), [todayIst])
+  const yesterdayRange = useMemo(() => ({ from: previousDay(todayIst), to: previousDay(todayIst) }), [todayIst])
+  const monthRng = useMemo(() => monthRange(month), [month])
+  const thisMonthRng = useMemo(() => monthRange(thisMonth), [thisMonth])
+  const todayQ = useSalesServiceReport(orgId, todayRange)
+  const yesterdayQ = useSalesServiceReport(orgId, yesterdayRange)
+  const monthQ = useSalesServiceReport(orgId, monthRng)
+  const thisMonthQ = useSalesServiceReport(orgId, thisMonthRng)
+
   const stats = useMemo(() => {
-    const now = new Date()
-    const todayStart = startOfDay(now)
-    const yesterdayStart = new Date(todayStart)
-    yesterdayStart.setDate(yesterdayStart.getDate() - 1)
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-
-    let todayTotal = 0
-    let todayCollected = 0
-    let yesterdayTotal = 0
-    let monthTotal = 0
-    let monthCollected = 0
-    let monthCount = 0
-    let monthProductTotal = 0
-    let lastMonthTotal = 0
-    let lastMonthCount = 0
-
-    for (const inv of rows) {
-      const created = new Date(inv.created_at)
-      if (created >= todayStart) {
-        todayTotal += inv.total
-        todayCollected += inv.amount_paid
-      } else if (created >= yesterdayStart) yesterdayTotal += inv.total
-
-      if (created >= monthStart) {
-        monthTotal += inv.total
-        monthCollected += inv.amount_paid
-        monthCount += 1
-        if (inv.type === "product") monthProductTotal += inv.total
-      } else if (created >= lastMonthStart) {
-        lastMonthTotal += inv.total
-        lastMonthCount += 1
-      }
-    }
-
-    const avgTicket = monthCount > 0 ? monthTotal / monthCount : 0
-    const lastAvgTicket = lastMonthCount > 0 ? lastMonthTotal / lastMonthCount : 0
-    const avgTicketDeltaPct = lastAvgTicket > 0 ? Math.round(((avgTicket - lastAvgTicket) / lastAvgTicket) * 1000) / 10 : null
+    const todayTotal = todayQ.data?.totalRevenue ?? 0
+    const todayCollected = todayQ.data?.totalCollected ?? 0
+    const yesterdayTotal = yesterdayQ.data?.totalRevenue ?? 0
     const vsYesterdayPct = yesterdayTotal > 0 ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 1000) / 10 : null
-    const productPct = monthTotal > 0 ? Math.round((monthProductTotal / monthTotal) * 100) : 0
+    const monthCount = (thisMonthQ.data?.revenueByType ?? []).reduce((n, r) => n + r.count, 0)
+    const monthTotal = thisMonthQ.data?.totalRevenue ?? 0
 
     const openQuotations = quotations.filter((q) => q.status === "open").length
     const convertedQuotations = quotations.filter((q) => q.status === "converted").length
@@ -98,23 +71,16 @@ export function SalesListPage() {
     const decidedQuotations = convertedQuotations + lostQuotations
     const conversionRate = decidedQuotations > 0 ? Math.round((convertedQuotations / decidedQuotations) * 100) : 0
 
-    return {
-      todayTotal,
-      todayCollected,
-      vsYesterdayPct,
-      monthTotal,
-      monthCollected,
-      monthCount,
-      monthProductTotal,
-      productPct,
-      avgTicket,
-      avgTicketDeltaPct,
-      openQuotations,
-      convertedQuotations,
-      decidedQuotations,
-      conversionRate,
-    }
-  }, [rows, quotations])
+    return { todayTotal, todayCollected, vsYesterdayPct, monthTotal, monthCount, openQuotations, convertedQuotations, decidedQuotations, conversionRate }
+  }, [todayQ.data, yesterdayQ.data, thisMonthQ.data, quotations])
+  const monthLabel = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(i18n.language.startsWith("ta") ? "ta-IN" : "en-IN", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+  const kpiLoading = todayQ.isLoading || monthQ.isLoading
+  const kpiError = todayQ.isError || monthQ.isError
+  const kindUnavailable = !kpiLoading && !kpiError && !!todayQ.data && !todayQ.data.byKind
 
   const searchTerm = search.trim().toLowerCase()
   const visibleRows = useMemo(
@@ -153,23 +119,40 @@ export function SalesListPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <label htmlFor="sales-kpi-month" className="text-xs font-semibold text-text-muted">
+          {t("sales.list.kpi.monthPicker")}
+        </label>
+        <input
+          id="sales-kpi-month"
+          type="month"
+          value={month}
+          max={thisMonth}
+          onChange={(e) => e.target.value && setMonth(e.target.value)}
+          className="h-9 rounded-lg border border-border bg-surface px-2.5 text-sm font-medium text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 xl:grid-cols-5">
         <div className="relative flex flex-col gap-4 overflow-hidden rounded-card bg-gradient-to-br from-accent to-[#FF7E47] p-5.5 text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,0.65)]">
           <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
-          <span className="relative text-[13px] font-semibold text-white/90">{t("sales.list.kpi.todaySales")}</span>
-          {isLoading ? (
+          <span className="relative flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-white/90">
+            {t("sales.list.kpi.todaySales")}
+            <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold">{t("sales.list.kpi.allTypes")}</span>
+          </span>
+          {kpiLoading ? (
             <Skeleton className="relative h-8 w-28 bg-white/25" />
           ) : (
             <div className="relative text-[30px] font-extrabold tabular-nums leading-none tracking-tight">
-              {isError ? "—" : formatCurrency(stats.todayTotal)}
+              {kpiError ? "—" : formatCurrency(stats.todayTotal)}
             </div>
           )}
-          {isLoading ? (
+          {kpiLoading ? (
             <Skeleton className="relative h-5 w-32 bg-white/25" />
           ) : (
             <div className="relative flex flex-wrap items-center gap-2">
               <span className="inline-flex w-fit items-center gap-1 rounded-full bg-white/25 px-2.5 py-1 text-xs font-bold">
-                {isError
+                {kpiError
                   ? t("sales.list.error.loadFailed")
                   : stats.vsYesterdayPct === null
                   ? stats.todayTotal > 0
@@ -177,7 +160,7 @@ export function SalesListPage() {
                     : t("sales.list.kpi.noSalesToday")
                   : `${stats.vsYesterdayPct >= 0 ? "▲" : "▼"} ${Math.abs(stats.vsYesterdayPct)}% ${t("sales.list.kpi.vsYesterday")}`}
               </span>
-              {!isError ? (
+              {!kpiError ? (
                 <span className="text-xs font-semibold text-white/90">
                   {t("reports.collectedLabel")}: {formatCurrency(stats.todayCollected)}
                 </span>
@@ -186,47 +169,43 @@ export function SalesListPage() {
           )}
         </div>
 
-        <SalesKpiCard
-          label={t("sales.list.kpi.productSales")}
-          loading={isLoading}
-          value={isError ? "—" : formatCurrency(stats.monthProductTotal)}
-          note={
-            isError ? (
-              <span className="text-xs font-semibold text-danger">{t("sales.list.error.loadFailed")}</span>
-            ) : (
-              <span className="text-xs font-semibold text-text-muted">{t("sales.list.kpi.ofRevenue", { pct: stats.productPct })}</span>
-            )
-          }
+        <KindKpiCard
+          label={t("sales.list.kpi.kind.product")}
+          loading={kpiLoading}
+          error={kpiError}
+          today={todayQ.data?.byKind?.product}
+          month={monthQ.data?.byKind?.product}
+          unavailable={kindUnavailable}
+          monthLabel={monthLabel}
         />
 
-        <SalesKpiCard
-          label={t("sales.list.kpi.avgTicket")}
-          loading={isLoading}
-          value={isError ? "—" : formatCurrency(stats.avgTicket)}
-          note={
-            isError ? (
-              <span className="text-xs font-semibold text-danger">{t("sales.list.error.loadFailed")}</span>
-            ) : stats.avgTicketDeltaPct === null ? (
-              <span className="text-xs font-semibold text-text-muted">{t("sales.list.kpi.invoicesThisMonth", { count: stats.monthCount })}</span>
-            ) : (
-              <span
-                className={cn(
-                  "inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold",
-                  stats.avgTicketDeltaPct >= 0 ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
-                )}
-              >
-                {stats.avgTicketDeltaPct >= 0 ? "▲" : "▼"} {Math.abs(stats.avgTicketDeltaPct)}%
-              </span>
-            )
-          }
+        <KindKpiCard
+          label={t("sales.list.kpi.kind.spare")}
+          loading={kpiLoading}
+          error={kpiError}
+          today={todayQ.data?.byKind?.spareCounter}
+          month={monthQ.data?.byKind?.spareCounter}
+          unavailable={kindUnavailable}
+          monthLabel={monthLabel}
+          serviceNote={monthQ.data?.byKind?.service}
+        />
+
+        <KindKpiCard
+          label={t("sales.list.kpi.kind.amc")}
+          loading={kpiLoading}
+          error={kpiError}
+          today={todayQ.data?.byKind?.amc}
+          month={monthQ.data?.byKind?.amc}
+          unavailable={kindUnavailable}
+          monthLabel={monthLabel}
         />
 
         <SalesKpiCard
           label={t("sales.list.kpi.quotationToSale")}
-          loading={isLoading}
-          value={isError ? "—" : `${stats.conversionRate}%`}
+          loading={kpiLoading}
+          value={kpiError ? "—" : `${stats.conversionRate}%`}
           note={
-            isError ? (
+            kpiError ? (
               <span className="text-xs font-semibold text-danger">{t("sales.list.error.loadFailed")}</span>
             ) : (
               <span className="text-xs font-semibold text-text-muted">
@@ -354,6 +333,60 @@ export function SalesListPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Product / Spares / AMC tile: today's invoiced value with invoice count and average ticket, then the selected month the same way. */
+function KindKpiCard({
+  label,
+  today,
+  month,
+  monthLabel,
+  loading,
+  error,
+  unavailable,
+  serviceNote,
+}: {
+  label: string
+  today: SalesKindStats | undefined
+  month: SalesKindStats | undefined
+  monthLabel: string
+  loading: boolean
+  error: boolean
+  /** report_sales_service has no by_kind yet (migration not applied): show dashes, never wrong numbers. */
+  unavailable: boolean
+  /** Spares only: technician service invoices, shown beside (never inside) the spares figures. */
+  serviceNote?: SalesKindStats
+}) {
+  const { t } = useTranslation()
+  const dash = "—"
+  const avg = (k: SalesKindStats | undefined) => (k && k.avgTicket != null ? formatCurrency(k.avgTicket) : dash)
+  const note = error ? (
+    <span className="text-xs font-semibold text-danger">{t("sales.list.error.loadFailed")}</span>
+  ) : unavailable ? (
+    <span className="text-xs font-semibold text-text-muted">{t("sales.list.kpi.unavailable")}</span>
+  ) : (
+    <div className="flex flex-col gap-2 text-xs font-semibold text-text-muted">
+      <div>
+        {t("sales.list.kpi.invoiceCount", { count: today?.count ?? 0 })} · {t("sales.list.kpi.avgTicketShort", { amount: avg(today) })}
+        {today && today.count > 0 ? ` · ${t("reports.collectedLabel")}: ${formatCurrency(today.collected)}` : ""}
+      </div>
+      <div className="border-t border-border pt-2">
+        <span className="text-text">{monthLabel}</span>: {formatCurrency(month?.total ?? 0)} · {t("sales.list.kpi.invoiceCount", { count: month?.count ?? 0 })} ·{" "}
+        {t("sales.list.kpi.avgTicketShort", { amount: avg(month) })}
+      </div>
+      {serviceNote ? (
+        <div className="font-medium">{t("sales.list.kpi.serviceNote", { count: serviceNote.count, amount: formatCurrency(serviceNote.total) })}</div>
+      ) : null}
+    </div>
+  )
+  return (
+    <SalesKpiCard
+      label={`${label} · ${t("sales.list.kpi.today")}`}
+      loading={loading}
+      value={error || unavailable ? dash : formatCurrency(today?.total ?? 0)}
+      note={note}
+    />
   )
 }
 
