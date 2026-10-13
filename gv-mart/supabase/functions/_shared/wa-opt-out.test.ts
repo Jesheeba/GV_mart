@@ -1,5 +1,15 @@
 import { describe, expect, it, vi } from "vitest"
-import { detectOptOutKeyword, foldKeyword, handleOptOutKeyword, optOutLanguage, optOutReply } from "./wa-opt-out"
+import {
+  ALREADY_SUBSCRIBED_REPLY_EN,
+  ALREADY_SUBSCRIBED_REPLY_TA_DRAFT_NOT_REVIEWED,
+  alreadySubscribedReply,
+  detectOptOutKeyword,
+  foldKeyword,
+  handleOptOutKeyword,
+  isPlainStartKeyword,
+  optOutLanguage,
+  optOutReply,
+} from "./wa-opt-out"
 
 type Row = { opt_out_non_job: boolean; opt_out_all: boolean } | null
 
@@ -89,22 +99,71 @@ describe("handleOptOutKeyword", () => {
     expect(/[஀-௿]/.test(sent.body)).toBe(true)
   })
 
-  it("START resubscribes only when an opt-out is on record", async () => {
+  it("START resubscribes a number that has an opt-out on record", async () => {
     const opted = fakeAdmin({ opt_out_non_job: true, opt_out_all: false })
     const send = vi.fn(async () => undefined)
     expect(await handleOptOutKeyword(opted.admin, "org1", "9400000061", "START", send)).toBe(true)
     expect(opted.rpc).toHaveBeenCalledWith("wa_record_opt_out", expect.objectContaining({ p_action: "start" }))
     expect(send).toHaveBeenCalledTimes(1)
+    const sent = (send.mock.calls[0] as unknown[])[0] as { template: string; body: string }
+    expect(sent.template).toBe("wa.opt_out.start")
+    expect(sent.body).toBe("You are subscribed again. Thank you.")
+  })
 
-    const clean = fakeAdmin({ opt_out_non_job: false, opt_out_all: false })
-    const send2 = vi.fn(async () => undefined)
-    expect(await handleOptOutKeyword(clean.admin, "org1", "9400000061", "start", send2)).toBe(false)
-    expect(clean.rpc).not.toHaveBeenCalled()
-    expect(send2).not.toHaveBeenCalled()
+  it("START with no opt-out gets ONE friendly reply and writes nothing", async () => {
+    const exact =
+      "You are already receiving messages from GV Mart. Reply STOP to stop reminders and offers, or STOP ALL to stop everything. Type MENU to see how we can help."
+    for (const word of ["START", "start", "Start!", "  subscribe ", "RESUME", "Resume."]) {
+      for (const prefs of [null, { opt_out_non_job: false, opt_out_all: false }] as const) {
+        const { admin, rpc } = fakeAdmin(prefs)
+        const send = vi.fn(async () => undefined)
+        expect(await handleOptOutKeyword(admin, "org1", "919400000061", word, send), `${word} / ${JSON.stringify(prefs)}`).toBe(true)
+        expect(rpc).not.toHaveBeenCalled()
+        expect(send).toHaveBeenCalledTimes(1)
+        const sent = (send.mock.calls[0] as unknown[])[0] as { to: string; template: string; body: string; customerId: string | null }
+        expect(sent.to).toBe("9400000061")
+        expect(sent.template).toBe("wa.opt_out.already_subscribed")
+        expect(sent.body).toBe(exact)
+        expect(sent.customerId).toBeNull()
+      }
+    }
+    expect(ALREADY_SUBSCRIBED_REPLY_EN).toBe(exact)
+  })
 
-    const none = fakeAdmin(null)
-    expect(await handleOptOutKeyword(none.admin, "org1", "9400000061", "start", send2)).toBe(false)
-    expect(none.rpc).not.toHaveBeenCalled()
+  it("the other restart words and free text containing start still go to the bot untouched", async () => {
+    for (const text of ["unstop", "start again", "தொடங்கு", "தொடங்குங்கள்", "start the service", "please start my AMC", "I want to start", "restart", "starting"]) {
+      const { admin, rpc } = fakeAdmin(null)
+      const send = vi.fn(async () => undefined)
+      expect(await handleOptOutKeyword(admin, "org1", "9400000061", text, send), text).toBe(false)
+      expect(rpc).not.toHaveBeenCalled()
+      expect(send).not.toHaveBeenCalled()
+    }
+  })
+
+  it("an opted-out number still resubscribes with the other restart words (only the plain-word reply is new)", async () => {
+    const opted = fakeAdmin({ opt_out_non_job: true, opt_out_all: true })
+    const send = vi.fn(async () => undefined)
+    expect(await handleOptOutKeyword(opted.admin, "org1", "9400000061", "unstop", send)).toBe(true)
+    expect(opted.rpc).toHaveBeenCalledWith("wa_record_opt_out", expect.objectContaining({ p_action: "start" }))
+  })
+
+  it("English only: the reply is English even for Tamil script input, and the Tamil draft is never returned", () => {
+    expect(alreadySubscribedReply("en")).toBe(ALREADY_SUBSCRIBED_REPLY_EN)
+    expect(alreadySubscribedReply("ta")).toBe(ALREADY_SUBSCRIBED_REPLY_EN)
+    expect(/[\u0B80-\u0BFF]/.test(alreadySubscribedReply("ta"))).toBe(false)
+    expect(/[\u0B80-\u0BFF]/.test(ALREADY_SUBSCRIBED_REPLY_TA_DRAFT_NOT_REVIEWED)).toBe(true)
+    expect(ALREADY_SUBSCRIBED_REPLY_TA_DRAFT_NOT_REVIEWED).toContain("MENU")
+  })
+
+  it("isPlainStartKeyword matches only start, subscribe and resume (whole message)", () => {
+    expect(isPlainStartKeyword("START")).toBe(true)
+    expect(isPlainStartKeyword("Subscribe")).toBe(true)
+    expect(isPlainStartKeyword("resume")).toBe(true)
+    expect(isPlainStartKeyword("unstop")).toBe(false)
+    expect(isPlainStartKeyword("start again")).toBe(false)
+    expect(isPlainStartKeyword("start now")).toBe(false)
+    expect(isPlainStartKeyword("")).toBe(false)
+    expect(isPlainStartKeyword(null)).toBe(false)
   })
 
   it("an ordinary message is not handled and nothing is written or sent", async () => {

@@ -5,6 +5,9 @@
 //   START     -> resubscribe. Only honoured when the number currently has an opt-out on record, so a customer typing
 //                "start" to the bot is never hijacked.
 //
+// START with NO opt-out on record: the exact words START, SUBSCRIBE and RESUME get ONE friendly "already receiving" reply
+// (English only until the Tamil line is reviewed). Any other text, including sentences containing "start", and the
+// other restart words (unstop, start again, Tamil) go to the bot untouched.
 // Whole-message match only (after trimming punctuation/emoji and folding case): "please stop the leak" is NOT an opt-out.
 // The record is written through the service-role RPC wa_record_opt_out(); this module never sends outside the 24 h window
 // (the confirmation is a reply to a message the customer has just sent, so it is inside the window).
@@ -68,6 +71,30 @@ export function optOutReply(action: OptOutAction, lang: OptOutLang): string {
   return (lang === "ta" ? ta : en)[action]
 }
 
+/** The only words that get the "already subscribed" reply when there is nothing to resubscribe (owner decision 2026-10-13). */
+const PLAIN_START = ["start", "subscribe", "resume"]
+
+export function isPlainStartKeyword(text: string | null | undefined): boolean {
+  if (!text) return false
+  return PLAIN_START.includes(foldKeyword(text))
+}
+
+/** Sent when a number that is not opted out writes START / SUBSCRIBE / RESUME. English only until the Tamil review. */
+export const ALREADY_SUBSCRIBED_REPLY_EN =
+  "You are already receiving messages from GV Mart. Reply STOP to stop reminders and offers, or STOP ALL to stop everything. Type MENU to see how we can help."
+
+/**
+ * DRAFT, NOT REVIEWED, NOT SENT: needs review by a Tamil speaker. Kept here so the review has something to check; no code path
+ * returns it. Tamil-preference customers receive the English line until this is signed off.
+ */
+export const ALREADY_SUBSCRIBED_REPLY_TA_DRAFT_NOT_REVIEWED =
+  "நீங்கள் ஏற்கனவே GV Mart செய்திகளைப் பெறுகிறீர்கள். நினைவூட்டல்கள் மற்றும் விளம்பரங்களை நிறுத்த STOP, அனைத்தையும் நிறுத்த STOP ALL என்று பதிலளிக்கவும். உதவிக்கு MENU என்று தட்டச்சு செய்யவும்."
+
+/** The reply for an already-subscribed number. The language argument is accepted for the future; today it is always English. */
+export function alreadySubscribedReply(_lang: OptOutLang): string {
+  return ALREADY_SUBSCRIBED_REPLY_EN
+}
+
 export type OptOutSend = (input: {
   orgId: string
   to: string
@@ -102,7 +129,18 @@ export async function handleOptOutKeyword(
       .eq("mobile_key", key)
       .maybeSingle()
     const row = data as { opt_out_non_job: boolean; opt_out_all: boolean } | null
-    if (!row || (!row.opt_out_non_job && !row.opt_out_all)) return false // not opted out: let the bot see "start"
+    if (!row || (!row.opt_out_non_job && !row.opt_out_all)) {
+      // Nothing to resubscribe. The plain words get one friendly reply; anything else goes to the bot untouched.
+      if (!isPlainStartKeyword(text)) return false
+      await send({
+        orgId,
+        to: key,
+        customerId: null,
+        template: "wa.opt_out.already_subscribed",
+        body: alreadySubscribedReply(optOutLanguage(text ?? "")),
+      })
+      return true
+    }
   }
 
   const { error } = await admin.rpc("wa_record_opt_out", { p_org: orgId, p_mobile: key, p_action: action, p_source: "whatsapp" })
