@@ -399,6 +399,8 @@ export type JobDetail = ServiceTicketRow & {
     mode: Enums<"appointment_mode">
     status: Enums<"appointment_status">
     technician_id: string | null
+    /** Set once by start_travel (migration 20261018150000): the technician has left for this job. */
+    travel_started_at: string | null
     // Task 5 (2026-07-30/31) — admin-logged, phone-confirmed availability
     // (exception path on top of unchanged auto-assignment); most recent
     // entry is what the technician needs to see. See
@@ -444,7 +446,7 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
     const { data, error } = await supabase
       .from("service_tickets")
       .select(
-        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
+        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, travel_started_at, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
       )
       .eq("id", ticketId)
       .single()
@@ -1265,4 +1267,14 @@ export async function getTechnicianStats(technicianId: string, orgId: string, ra
 
   void orgId
   return { periodRevenue, periodJobs, avgRating, ratingCount: ratings.length }
+}
+
+/**
+ * "Start travel": the technician's departure signal (migration 20261018150000). Server-checked: only the technician the job is
+ * assigned to, only while it is assigned, once per visit (a repeat tap returns the original time).
+ */
+export async function startTravel(ticketId: string): Promise<{ started_at: string; already_started: boolean }> {
+  const { data, error } = await supabase.rpc("start_travel", { p_ticket_id: ticketId })
+  if (error) throw error
+  return data as unknown as { started_at: string; already_started: boolean }
 }

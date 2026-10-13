@@ -3205,6 +3205,7 @@ export type Database = {
           ticket_id: string
           technician_id: string | null
           scheduled_at: string | null
+          travel_started_at: string | null
           mode: Database["public"]["Enums"]["appointment_mode"]
           status: Database["public"]["Enums"]["appointment_status"]
           confirmation_called_at: string | null
@@ -3227,6 +3228,7 @@ export type Database = {
           ticket_id: string
           technician_id?: string | null
           scheduled_at?: string | null
+          travel_started_at?: string | null
           mode?: Database["public"]["Enums"]["appointment_mode"]
           status?: Database["public"]["Enums"]["appointment_status"]
           confirmation_called_at?: string | null
@@ -3247,6 +3249,7 @@ export type Database = {
           ticket_id?: string
           technician_id?: string | null
           scheduled_at?: string | null
+          travel_started_at?: string | null
           mode?: Database["public"]["Enums"]["appointment_mode"]
           status?: Database["public"]["Enums"]["appointment_status"]
           confirmation_called_at?: string | null
@@ -6830,6 +6833,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      start_travel: {
+        Args: { p_ticket_id: string }
+        Returns: Json
+      }
       set_customer_preferred_language: {
         Args: { p_customer_id: string; p_language: string | null }
         Returns: undefined

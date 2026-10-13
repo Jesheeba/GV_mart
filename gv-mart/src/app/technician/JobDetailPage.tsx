@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
-import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
+import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useStartTravel, useTechnicianSettings } from "@/hooks/useTechnician"
+import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { cn } from "@/lib/utils"
@@ -44,6 +45,8 @@ export function JobDetailPage() {
   const logCall = useLogCall()
 
   const openVisit = jobDetail.data ? findOpenVisit(jobDetail.data.service_visits) : null
+  const { toast } = useToast()
+  const startTravel = useStartTravel(ticketId)
   const now = useNowTick(!!openVisit)
 
   if (jobDetail.isLoading) return <FullPageLoader label={t("common.loading")} />
@@ -275,6 +278,30 @@ export function JobDetailPage() {
         </Card>
       ) : (
         <>
+          {/* Start travel: the departure signal (one customer message, once per visit). Only while the job is assigned and no
+              visit has started; the server enforces the same rules, so a stale screen cannot send a second message. */}
+          {!openVisit && ticket.status === "assigned" ? (
+            appointment?.travel_started_at ? (
+              <p className="text-center text-xs font-medium text-text-muted">
+                {t("technician.jobDetail.travelStarted", {
+                  time: new Date(appointment.travel_started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                })}
+              </p>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={startTravel.isPending}
+                onClick={() => {
+                  if (!window.confirm(t("technician.jobDetail.startTravelConfirm"))) return
+                  startTravel.mutate(undefined, { onError: () => toast.error(t("technician.jobDetail.startTravelFailed")) })
+                }}
+              >
+                <Route className="size-4" />
+                {t("technician.jobDetail.startTravel")}
+              </Button>
+            )
+          ) : null}
           {/* Task 4 — arrival confirmation is mandatory. If no visit has been
               started yet (openVisit null), a service_visits row can only be
               created by MapPage's geofence-confirmed arrival flow, so both

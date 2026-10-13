@@ -333,6 +333,14 @@ export function useTodaysVisitTimings(technicianId: string | undefined) {
  * a duplicate visit once the confirm window re-ran. The optimistic patch
  * above is already the correct state; nothing needs to re-fetch it.
  */
+export function useStartTravel(ticketId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => tech.startTravel(ticketId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobDetail", ticketId] }),
+  })
+}
+
 export function useStartVisit() {
   const qc = useQueryClient()
   return useMutation({

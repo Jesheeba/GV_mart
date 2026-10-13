@@ -59,7 +59,7 @@ begin
     (select p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%')
        from pg_proc p where p.oid = 'public.automation_emit(uuid,text,text,uuid,uuid,text,jsonb)'::regprocedure));
   perform pg_temp.chk('every emit trigger function is SECURITY DEFINER, fixed search_path, not executable by anon/authenticated',
-    (select count(*) = 7 and bool_and(p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%')
+    (select count(*) = 8 and bool_and(p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c like 'search_path=%')
         and not has_function_privilege('anon', p.oid, 'execute') and not has_function_privilege('authenticated', p.oid, 'execute'))
        from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname like '\_trg\_automation\_emit\_%'));
   perform pg_temp.chk('no client write privilege on any automation table; anon cannot read them',
@@ -75,9 +75,12 @@ begin
     (select count(*) from public.automation_events where event_key in ('amc.joined','amc.expired','amc.expiring','spare_enquiry.submitted','product_enquiry.submitted','review.google_requested')) = 6
     and (select count(distinct group_key) from public.automation_events) >= 8
     and (select count(*) from public.automation_events) >= 60);
-  perform pg_temp.chk('technician.on_the_way has NO emitter (no departure signal); technician.arrived has one',
-    not (select has_emitter from public.automation_events where event_key = 'technician.on_the_way')
-    and (select has_emitter from public.automation_events where event_key = 'technician.arrived'));
+  -- Phase 2 asserted that technician.on_the_way had NO emitter. Stage B (migration 20261018150000, start_travel) adds the
+  -- departure signal, so the visit-start event is still technician.arrived and on_the_way now has its own emitter.
+  perform pg_temp.chk('technician.arrived has an emitter (visit start); on_the_way is emitted only by start_travel, never by the visit insert',
+    (select has_emitter from public.automation_events where event_key = 'technician.arrived')
+    and (select prosrc ~ 'automation_emit\(new\.org_id, ''technician\.arrived''' and prosrc !~ 'automation_emit\([^;]*''technician\.on_the_way'''
+           from pg_proc where proname = '_trg_automation_emit_visit' and pronamespace = 'public'::regnamespace));
   perform pg_temp.chk('automation is enabled by default and the F-08 allow-list is OFF by default',
     (select column_default from information_schema.columns where table_name = 'settings' and column_name = 'automation_enabled') = 'true'
     and (select column_default from information_schema.columns where table_name = 'settings' and column_name = 'wa_test_mode_enabled') = 'false');
@@ -361,14 +364,15 @@ begin
 
   -- ---------- triggers fire only on the intended changes ----------
   perform pg_temp.chk('trigger definitions: column-limited UPDATE OF, and insert-only where intended',
-    (select count(*) = 7 from pg_trigger where tgname like 'zz\_automation\_emit\_%' and not tgisinternal)
+    (select count(*) = 8 from pg_trigger where tgname like 'zz\_automation\_emit\_%' and not tgisinternal)
     and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_ticket')) ~ 'AFTER INSERT OR UPDATE OF status ON'
     and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_invoice')) ~ 'AFTER INSERT OR UPDATE OF payment_status ON'
     and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_lead')) ~ 'AFTER INSERT OR UPDATE OF status, assigned_to ON'
     and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_amc')) ~ 'AFTER INSERT OR UPDATE OF status ON'
     and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_quotation')) ~ 'AFTER INSERT OR UPDATE OF status ON'
     and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_visit')) !~ 'UPDATE'
-    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_warranty')) !~ 'UPDATE');
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_warranty')) !~ 'UPDATE'
+    and pg_get_triggerdef((select oid from pg_trigger where tgname = 'zz_automation_emit_amc_visit')) !~ 'UPDATE');
   insert into leads (org_id, customer_id, name, mobile, source, status, kind) values (v_org, v_cust, '__TEST_ L specificity', '9400000052', 'customer_app', 'new', 'service') returning id into v_l;
   insert into service_tickets (org_id, customer_id, type, name_of_complaint) values (v_org, v_cust, 'paid', '__TEST_ specificity') returning id into v_tk2;
   select count(*) into v_e1 from public.automation_event_log where org_id = v_org;
