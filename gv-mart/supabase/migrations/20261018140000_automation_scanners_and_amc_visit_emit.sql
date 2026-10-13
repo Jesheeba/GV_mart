@@ -6,7 +6,9 @@
 --   automation_scan_feedback(p_now, delay, lookback)  tickets completed (delay .. delay+lookback) hours ago
 --   automation_scan_review(p_now, delay, lookback)    same selection, event review.google_requested: EVERY completed service,
 --                                                     no rating condition (the 90-day cooldown floor is in the engine)
---   appointments AFTER INSERT trigger                 amc.visit_scheduled when the appointment belongs to an AMC visit ticket
+--   appointments AFTER INSERT trigger                 amc.visit_scheduled for an AMC visit ticket, ONLY when it is the nearest
+--                                                     open visit of the contract (owner decision 2026-10-13): at sale time the
+--                                                     contract's other visits are left for the Wave 2 visit reminders
 -- Window safety: each emit carries payload.window_end, so a deferred (over the daily cap) message that outlives its window is
 -- dropped, never sent late (S5). Idempotency: the engine's key (rule | customer | subject | occurrence | mode), so re-running a
 -- scanner adds nothing.
@@ -127,7 +129,18 @@ begin
   begin
     select st.id, st.org_id, st.customer_id, st.contract_id, st.product_id into t
       from public.service_tickets st where st.id = new.ticket_id;
-    if t.contract_id is not null and new.scheduled_at is not null then
+    -- Only the nearest open visit is announced. The generators insert visits in date order, so the first insert is the
+    -- nearest and every later one finds an earlier (or equal) open visit and stays silent. A renewal, whose earlier
+    -- visits are completed or cancelled, announces its own first visit.
+    if t.contract_id is not null and new.scheduled_at is not null and not exists (
+         select 1
+           from public.appointments a2
+           join public.service_tickets t2 on t2.id = a2.ticket_id
+          where t2.contract_id = t.contract_id
+            and a2.id <> new.id
+            and a2.status = 'scheduled'
+            and a2.scheduled_at is not null
+            and a2.scheduled_at <= new.scheduled_at) then
       perform public.automation_emit(t.org_id, 'amc.visit_scheduled', 'amc_contract', t.contract_id, t.customer_id,
         'visit@' || t.id::text,
         jsonb_build_object('visit_date', public._automation_ist_date(new.scheduled_at)::text,

@@ -350,14 +350,36 @@ begin
   v_pid := (public.sell_amc_plan(v_org, v_c_nomap, v_prod, v_plan, current_date + 5, null, null) ->> 'contract_id')::uuid;
   perform pg_temp.as_pg();
   select count(*) into n2 from public.automation_event_log where org_id = v_org and event_key = 'amc.visit_scheduled' and subject_id = v_pid;
-  perform pg_temp.chk('VISIT selling a 1-year plan with 1 visit a year emits amc.visit_scheduled once per generated visit',
-    n2 = (select count(*) from public.service_tickets where contract_id = v_pid) and n2 >= 1, n2::text);
+  perform pg_temp.chk('VISIT a sale emits amc.visit_scheduled exactly ONCE for the contract, however many visits it generated',
+    n2 = 1 and (select count(*) from public.service_tickets where contract_id = v_pid) >= 1, n2::text);
+  perform pg_temp.chk('VISIT the announced visit is the nearest one (its ticket has the earliest scheduled appointment)',
+    (select e.occurrence_key from public.automation_event_log e where e.event_key = 'amc.visit_scheduled' and e.subject_id = v_pid)
+      = 'visit@' || (select t.id::text from public.service_tickets t join public.appointments a on a.ticket_id = t.id
+                      where t.contract_id = v_pid order by a.scheduled_at, a.created_at limit 1));
   perform pg_temp.chk('VISIT the event carries visit_date and days_left, and the subject is the contract',
     exists (select 1 from public.automation_event_log where event_key = 'amc.visit_scheduled' and subject_id = v_pid and 'visit_date' = any (payload_keys) and 'days_left' = any (payload_keys)));
+  -- ordering rule, built by hand on a fresh contract: a later visit and an equal-date visit stay silent; an earlier visit
+  -- inserted afterwards is the new nearest and is announced (the generators insert in date order, so this does not happen in practice)
+  insert into amc_contracts (org_id, customer_id, product_id, plan_id, start_date, expiry_date, status)
+  values (v_org, v_c, v_prod, v_plan, current_date, current_date + 365, 'active') returning id into v_contract;
+  insert into service_tickets (org_id, customer_id, type, name_of_complaint, contract_id) values (v_org, v_c, 'amc', '__TEST_ visit A', v_contract) returning id into v_t;
+  insert into appointments (org_id, ticket_id, scheduled_at, mode, status) values (v_org, v_t, now() + interval '10 days', 'datetime', 'scheduled');
+  perform pg_temp.chk('VISIT first visit of a contract is announced',
+    (select count(*) from public.automation_event_log where event_key = 'amc.visit_scheduled' and subject_id = v_contract) = 1);
+  insert into service_tickets (org_id, customer_id, type, name_of_complaint, contract_id) values (v_org, v_c, 'amc', '__TEST_ visit B', v_contract) returning id into v_t2;
+  insert into appointments (org_id, ticket_id, scheduled_at, mode, status) values (v_org, v_t2, now() + interval '20 days', 'datetime', 'scheduled');
+  insert into service_tickets (org_id, customer_id, type, name_of_complaint, contract_id) values (v_org, v_c, 'amc', '__TEST_ visit C', v_contract) returning id into v_t3;
+  insert into appointments (org_id, ticket_id, scheduled_at, mode, status) values (v_org, v_t3, (select scheduled_at from appointments where ticket_id = v_t), 'datetime', 'scheduled');
+  perform pg_temp.chk('VISIT a later visit and an equal-date visit stay silent',
+    (select count(*) from public.automation_event_log where event_key = 'amc.visit_scheduled' and subject_id = v_contract) = 1);
+  insert into service_tickets (org_id, customer_id, type, name_of_complaint, contract_id) values (v_org, v_c, 'amc', '__TEST_ visit D', v_contract) returning id into v_t3;
+  insert into appointments (org_id, ticket_id, scheduled_at, mode, status) values (v_org, v_t3, now() + interval '5 days', 'datetime', 'scheduled');
+  perform pg_temp.chk('VISIT an earlier visit inserted afterwards is the new nearest and is announced',
+    (select count(*) from public.automation_event_log where event_key = 'amc.visit_scheduled' and subject_id = v_contract) = 2);
   insert into service_tickets (org_id, customer_id, type, name_of_complaint) values (v_org, v_c, 'paid', '__TEST_ plain ticket') returning id into v_t;
   insert into appointments (org_id, ticket_id, technician_id, scheduled_at, mode, status) values (v_org, v_t, v_tech1, now() + interval '2 days', 'datetime', 'scheduled');
   perform pg_temp.chk('VISIT an ordinary (non-AMC) appointment emits no amc.visit_scheduled',
-    not exists (select 1 from public.automation_event_log where event_key = 'amc.visit_scheduled' and customer_id = v_c));
+    not exists (select 1 from public.automation_event_log where event_key = 'amc.visit_scheduled' and occurrence_key = 'visit@' || v_t::text));
 
   -- ---------- start_travel ----------
   insert into service_tickets (org_id, customer_id, type, name_of_complaint) values (v_org, v_c, 'paid', '__TEST_ travel') returning id into v_tk;
