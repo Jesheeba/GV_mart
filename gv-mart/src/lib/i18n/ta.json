@@ -2099,7 +2099,11 @@
       "plan": "திட்டம்",
       "startDate": "தொடக்க தேதி",
       "submit": "திட்டத்தை விற்க",
-      "years": "ஆண்டுகள்",
+      "planDuration": "திட்ட காலம்: {{years}}, காலாவதி {{expiry}}, {{visits}}",
+      "yearsCount_one": "{{count}} ஆண்டு",
+      "yearsCount_other": "{{count}} ஆண்டுகள்",
+      "visitsCount_one": "{{count}} வருகை",
+      "visitsCount_other": "{{count}} வருகைகள்",
       "totalPrice": "மொத்தம்: {{amount}}"
     },
     "errors": {

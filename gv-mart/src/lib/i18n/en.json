@@ -2099,7 +2099,11 @@
       "plan": "Plan",
       "startDate": "Start date",
       "submit": "Sell plan",
-      "years": "Years",
+      "planDuration": "Plan duration: {{years}}, expires {{expiry}}, {{visits}}",
+      "yearsCount_one": "{{count}} year",
+      "yearsCount_other": "{{count}} years",
+      "visitsCount_one": "{{count}} visit",
+      "visitsCount_other": "{{count}} visits",
       "totalPrice": "Total: {{amount}}"
     },
     "errors": {

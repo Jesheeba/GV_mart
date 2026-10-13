@@ -3,7 +3,10 @@ import {
   PRIMARY_FILTERS,
   countByPrimaryFilter,
   filterTickets,
+  isFutureAmcVisit,
   isMissingProduct,
+  isPending,
+  matchesPrimaryFilter,
   type FilterableTicket,
 } from "./ticketFilters"
 
@@ -88,5 +91,61 @@ describe("service page primary filters", () => {
     expect(isMissingProduct(withMissing.find((r) => r.id === "pending-unlisted")!)).toBe(false)
     expect(ids(filterTickets(withMissing, "pending", NOW, { missingProductOnly: true }))).toEqual(["pending-missing"])
     expect(ids(filterTickets(withMissing, "completed", NOW, { missingProductOnly: true }))).toEqual(["completed-missing"])
+  })
+})
+
+describe("AMC visits that are not yet due (migration 20261020100000)", () => {
+  // 13 Oct 2026, 10:00 IST
+  const NOW = Date.parse("2026-10-13T04:30:00Z")
+  const base = {
+    status: "open" as const,
+    sla_due_at: null,
+    product_id: "p",
+    unlisted_product_name: null,
+    contract_id: "c1",
+    type: "amc",
+  }
+  const far = { ...base, appointments: [{ technician_id: null, scheduled_at: "2027-04-13T03:45:00Z", status: "scheduled" }] }
+  const near = { ...base, appointments: [{ technician_id: null, scheduled_at: "2026-10-18T03:45:00Z", status: "scheduled" }] }
+  const edge = { ...base, appointments: [{ technician_id: null, scheduled_at: "2026-10-20T03:45:00Z", status: "scheduled" }] } // today + 7
+  const justPast = { ...base, appointments: [{ technician_id: null, scheduled_at: "2026-10-21T03:45:00Z", status: "scheduled" }] } // today + 8
+
+  it("a visit months away is not pending and not unassigned", () => {
+    expect(isFutureAmcVisit(far, NOW)).toBe(true)
+    expect(matchesPrimaryFilter(far, "unassigned", NOW)).toBe(false)
+    expect(matchesPrimaryFilter(far, "pending", NOW)).toBe(false)
+  })
+
+  it("inside the window (today + 7 included) it counts again", () => {
+    expect(isFutureAmcVisit(near, NOW)).toBe(false)
+    expect(matchesPrimaryFilter(near, "unassigned", NOW)).toBe(true)
+    expect(isFutureAmcVisit(edge, NOW)).toBe(false)
+    expect(isFutureAmcVisit(justPast, NOW)).toBe(true)
+  })
+
+  it("the window is a parameter", () => {
+    expect(isFutureAmcVisit(justPast, NOW, 30)).toBe(false)
+    expect(matchesPrimaryFilter(justPast, "unassigned", NOW, 30)).toBe(true)
+  })
+
+  it("assigned, non-AMC, non-open and contract-less tickets are never 'not yet due'", () => {
+    expect(isFutureAmcVisit({ ...far, appointments: [{ technician_id: "t1", scheduled_at: "2027-04-13T03:45:00Z", status: "scheduled" }] }, NOW)).toBe(false)
+    expect(isFutureAmcVisit({ ...far, type: "paid" }, NOW)).toBe(false)
+    expect(isFutureAmcVisit({ ...far, contract_id: null }, NOW)).toBe(false)
+    expect(isFutureAmcVisit({ ...far, status: "assigned" as const }, NOW)).toBe(false)
+    expect(isFutureAmcVisit({ ...far, appointments: [] }, NOW)).toBe(false)
+  })
+
+  it("chip counts and lists agree and the far visit disappears from both", () => {
+    const rows = [far, near]
+    const counts = countByPrimaryFilter(rows, NOW)
+    expect(counts.unassigned).toBe(1)
+    expect(counts.pending).toBe(1)
+    expect(filterTickets(rows, "unassigned", NOW)).toEqual([near])
+  })
+
+  it("old callers (no 'now') behave exactly as before", () => {
+    expect(isPending({ status: "open" })).toBe(true)
+    expect(isPending({ status: "completed" })).toBe(false)
   })
 })

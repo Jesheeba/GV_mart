@@ -84,6 +84,9 @@ begin
   v_r := public.sell_amc_plan(v_org, v_cust, v_prod, v_plan, v_start, null, null);
   perform pg_temp.as_pg();
   v_contract := (v_r ->> 'contract_id')::uuid;
+  -- Since migration 20261020100000 a sale creates its visits UNASSIGNED and the daily job assigns them when due. These
+  -- assertions are about scheduling and overlap once visits are assigned, so run the job as if every visit were due.
+  perform public.assign_due_amc_visits(now() + interval '5 years');
   select count(*) into n from service_tickets where contract_id = v_contract;
   perform pg_temp.chk('3y x 2 visits = 6 visit tickets', n = 6, n::text);
   perform pg_temp.chk('all visits start at the master working-hours start, not a hard-coded 09:00 (and carry the window)',

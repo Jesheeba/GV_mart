@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isAmcRenewalOpen, pricePerYearOf } from "./amc-window"
+import { amcPlanSummary, isAmcRenewalOpen, pricePerYearOf } from "./amc-window"
 
 const NOW = new Date("2026-07-10T00:00:00.000Z")
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -72,5 +72,23 @@ describe("pricePerYearOf", () => {
 
   it("never divides by zero for a malformed years value", () => {
     expect(pricePerYearOf({ price: 5000, years: 0, price_per_year: null })).toBe(5000)
+  })
+})
+
+describe("amcPlanSummary", () => {
+  it("3 years, 2 visits a year, started 13 Oct 2026: expires 13 Oct 2029 with 6 visits", () => {
+    expect(amcPlanSummary({ years: 3, visits_per_year: 2 }, "2026-10-13")).toEqual({
+      years: 3,
+      visits: 6,
+      expiryDate: "2029-10-13",
+      expiryLabel: "13 Oct 2029",
+    })
+  })
+  it("a 29 February start clamps to the last day of February in a non-leap year", () => {
+    expect(amcPlanSummary({ years: 1, visits_per_year: 4 }, "2028-02-29").expiryDate).toBe("2029-02-28")
+    expect(amcPlanSummary({ years: 4, visits_per_year: 1 }, "2028-02-29").expiryDate).toBe("2032-02-29")
+  })
+  it("no start date: counts still work, no expiry", () => {
+    expect(amcPlanSummary({ years: 2, visits_per_year: 3 }, "")).toEqual({ years: 2, visits: 6, expiryDate: null, expiryLabel: null })
   })
 })
