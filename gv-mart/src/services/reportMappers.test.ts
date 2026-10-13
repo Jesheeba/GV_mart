@@ -224,3 +224,43 @@ describe("customers, product sales, coverage", () => {
     expect(r.installation.byTechnician).toEqual([{ technicianId: "t2", name: "Tech Two", installs: 3, perMonth: 1.5 }])
   })
 })
+
+describe("mapSalesService by_kind (Sales & Invoices tiles)", () => {
+  const withKind: SalesServiceRpc = {
+    ...salesServiceRpc,
+    by_kind: {
+      product: { count: 2, total: 17110, gst: 2610, collected: 13210 },
+      spare_counter: { count: 1, total: 1180, gst: 180, collected: 1180 },
+      service: { count: 1, total: 1062, gst: 162, collected: 1062 },
+      amc: { count: 1, total: 2360, gst: 360, collected: 2360 },
+      rental: { count: 0, total: 0, gst: 0, collected: 0 },
+    },
+  }
+
+  it("maps each kind with its average ticket (total / invoices)", () => {
+    const k = mapSalesService(withKind).byKind!
+    expect(k.product).toMatchObject({ count: 2, total: 17110, collected: 13210, avgTicket: 8555 })
+    expect(k.spareCounter).toMatchObject({ count: 1, total: 1180, avgTicket: 1180 })
+    expect(k.amc.avgTicket).toBe(2360)
+  })
+
+  it("keeps technician service invoices out of spareCounter", () => {
+    const k = mapSalesService(withKind).byKind!
+    expect(k.service.total).toBe(1062)
+    expect(k.spareCounter.total).toBe(1180)
+  })
+
+  it("average is null (not 0, not NaN) when a kind has no invoices", () => {
+    expect(mapSalesService(withKind).byKind!.rental.avgTicket).toBeNull()
+  })
+
+  it("byKind is null while the function has no by_kind key (migration not applied)", () => {
+    expect(mapSalesService(salesServiceRpc).byKind).toBeNull()
+  })
+
+  it("tolerates numeric strings from the wire", () => {
+    const k = mapSalesService({ ...withKind, by_kind: { product: { count: "3" as unknown as number, total: "300.50" as unknown as number, gst: 0, collected: 0 } } }).byKind!
+    expect(k.product.avgTicket).toBe(100.17)
+    expect(k.amc).toMatchObject({ count: 0, total: 0, avgTicket: null })
+  })
+})

@@ -1557,7 +1557,20 @@
         "invoicesThisMonth": "{{count}} invoices this month",
         "vsLastMonth": "vs last month",
         "quotationToSale": "Quotation → Sale",
-        "convertedOf": "{{converted}} of {{decided}} decided"
+        "convertedOf": "{{converted}} of {{decided}} decided",
+        "allTypes": "All types",
+        "today": "Today",
+        "monthPicker": "Month",
+        "kind": {
+          "product": "Product sales",
+          "spare": "Spares sales",
+          "amc": "AMC sales"
+        },
+        "invoiceCount_one": "{{count}} invoice",
+        "invoiceCount_other": "{{count}} invoices",
+        "avgTicketShort": "Avg {{amount}}",
+        "serviceNote": "Technician service invoices (not in Spares): {{count}} · {{amount}}",
+        "unavailable": "Totals not available yet"
       },
       "table": {
         "heading": "Recent Invoices",

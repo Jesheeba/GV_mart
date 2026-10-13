@@ -6,6 +6,7 @@ import type {
   FeedbackReport,
   PerformanceRow,
   PnlReport,
+  SalesByKind,
   SalesServiceReport,
   StaffSalaryTotal,
   TopCustomerRow,
@@ -19,6 +20,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 
 // ── report_sales_service ─────────────────────────────────────────────────
 type ClassRpc = { count: number; qty: number; total: number; gst: number; net: number; collected: number }
+type KindRpc = { count: number; total: number; gst: number; collected: number }
 export type SalesServiceRpc = {
   by_class: { sales: ClassRpc; service: ClassRpc; amc: ClassRpc; rental: ClassRpc }
   totals: { count: number; total: number; gst: number; net: number; collected: number }
@@ -27,6 +29,29 @@ export type SalesServiceRpc = {
   calls: number
   technicians: { technician_id: string; name: string; count: number; revenue: number }[]
   avg_value_per_service_call: number
+  /** Added by migration 20261019100000; absent until that is applied. */
+  by_kind?: Partial<Record<"product" | "spare_counter" | "service" | "amc" | "rental", KindRpc>>
+}
+
+const KIND_KEYS = [
+  ["product", "product"],
+  ["spareCounter", "spare_counter"],
+  ["service", "service"],
+  ["amc", "amc"],
+  ["rental", "rental"],
+] as const
+
+/** by_kind -> tiles. null when the function has no by_kind yet (migration not applied): the page shows "-" instead of wrong numbers. */
+function mapByKind(d: SalesServiceRpc): SalesByKind | null {
+  if (!d.by_kind) return null
+  const out = {} as SalesByKind
+  for (const [key, rpcKey] of KIND_KEYS) {
+    const k = d.by_kind[rpcKey]
+    const count = num(k?.count)
+    const total = num(k?.total)
+    out[key] = { count, total, gst: num(k?.gst), collected: num(k?.collected), avgTicket: count > 0 ? round2(total / count) : null }
+  }
+  return out
 }
 
 export function mapSalesService(d: SalesServiceRpc): SalesServiceReport {
@@ -69,6 +94,7 @@ export function mapSalesService(d: SalesServiceRpc): SalesServiceReport {
     revenueByType: [typeRow("sales"), typeRow("service"), typeRow("amc"), typeRow("rental")],
     totalGst: num(d.totals.gst),
     serviceVisitCount: num(d.service_visits),
+    byKind: mapByKind(d),
   }
 }
 

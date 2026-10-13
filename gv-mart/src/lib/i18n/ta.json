@@ -1557,7 +1557,20 @@
         "invoicesThisMonth": "இந்த மாதம் {{count}} இன்வாய்ஸ்கள்",
         "vsLastMonth": "கடந்த மாதத்துடன் ஒப்பிடும்போது",
         "quotationToSale": "மேற்கோள் → விற்பனை",
-        "convertedOf": "{{decided}} இல் {{converted}} மாற்றப்பட்டது"
+        "convertedOf": "{{decided}} இல் {{converted}} மாற்றப்பட்டது",
+        "allTypes": "அனைத்து வகைகள்",
+        "today": "இன்று",
+        "monthPicker": "மாதம்",
+        "kind": {
+          "product": "பொருள் விற்பனை",
+          "spare": "உதிரிபாக விற்பனை",
+          "amc": "AMC விற்பனை"
+        },
+        "invoiceCount_one": "{{count}} இன்வாய்ஸ்",
+        "invoiceCount_other": "{{count}} இன்வாய்ஸ்கள்",
+        "avgTicketShort": "சராசரி {{amount}}",
+        "serviceNote": "டெக்னீசியன் சேவை இன்வாய்ஸ்கள் (உதிரிபாகங்களில் சேர்க்கப்படவில்லை): {{count}} · {{amount}}",
+        "unavailable": "மொத்தங்கள் இன்னும் கிடைக்கவில்லை"
       },
       "table": {
         "heading": "சமீபத்திய இன்வாய்ஸ்கள்",
