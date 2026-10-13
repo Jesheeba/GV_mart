@@ -2919,6 +2919,7 @@ export type Database = {
           model_id: string | null
           unlisted_product_name: string | null
           name_of_complaint: string | null
+          visit_no: number | null
           nature_of_complaint: string | null
           complaint_type_id: string | null
           type: Database["public"]["Enums"]["ticket_type"] | null
@@ -2951,6 +2952,7 @@ export type Database = {
           model_id?: string | null
           unlisted_product_name?: string | null
           name_of_complaint?: string | null
+          visit_no?: number | null
           nature_of_complaint?: string | null
           complaint_type_id?: string | null
           type?: Database["public"]["Enums"]["ticket_type"] | null
@@ -2983,6 +2985,7 @@ export type Database = {
           model_id?: string | null
           unlisted_product_name?: string | null
           name_of_complaint?: string | null
+          visit_no?: number | null
           nature_of_complaint?: string | null
           complaint_type_id?: string | null
           type?: Database["public"]["Enums"]["ticket_type"] | null
@@ -5964,6 +5967,7 @@ export type Database = {
           discount_tech_max: number
           discount_admin_max: number
           amc_book_window_days: number
+          amc_assign_window_days: number
           referral_point_value: number
           review_link_min_stars: number
           google_review_url: string | null
@@ -6056,6 +6060,7 @@ export type Database = {
           discount_tech_max?: number
           discount_admin_max?: number
           amc_book_window_days?: number
+          amc_assign_window_days?: number
           referral_point_value?: number
           review_link_min_stars?: number
           google_review_url?: string | null
@@ -6131,6 +6136,7 @@ export type Database = {
           discount_tech_max?: number
           discount_admin_max?: number
           amc_book_window_days?: number
+          amc_assign_window_days?: number
           referral_point_value?: number
           review_link_min_stars?: number
           google_review_url?: string | null

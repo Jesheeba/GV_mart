@@ -6,7 +6,6 @@ import { Controller, useForm } from "react-hook-form"
 import { Loader2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Autocomplete } from "@/components/shared/Autocomplete"
@@ -21,7 +20,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 // before that column existed) drives the live total below — shared with
 // CustomerAmcPage/AmcWarrantyListPage so every screen agrees (see the
 // single-source-of-truth note on this function's real definition).
-import { pricePerYearOf } from "@/lib/amc-window"
+import { amcPlanSummary, pricePerYearOf } from "@/lib/amc-window"
 
 /** Inline "Sell AMC" panel (ADM-12) — no modal primitive in this codebase
  * yet, so this follows the same inline-expand pattern EntityCrudTable uses
@@ -43,12 +42,13 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   const form = useForm<SellAmcFormInput, unknown, SellAmcInput>({
     resolver: zodResolver(sellAmcSchema),
     mode: "onChange",
-    defaultValues: { customerId: "", productId: "", planId: "", startDate: getIstNow().date, years: 1 },
+    defaultValues: { customerId: "", productId: "", planId: "", startDate: getIstNow().date },
   })
 
   const selectedPlan = (plans ?? []).find((p) => p.id === form.watch("planId"))
-  const selectedYears = Number(form.watch("years")) || 0
-  const computedTotal = selectedPlan ? pricePerYearOf(selectedPlan) * selectedYears : 0
+  const startDate = form.watch("startDate")
+  const summary = selectedPlan ? amcPlanSummary(selectedPlan, startDate ?? "") : null
+  const computedTotal = selectedPlan ? pricePerYearOf(selectedPlan) * selectedPlan.years : 0
 
   async function onSubmit(values: SellAmcInput) {
     await sellAmc.mutateAsync({
@@ -57,7 +57,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
       productId: values.productId,
       planId: values.planId,
       startDate: values.startDate,
-      years: values.years,
+      // no years: the server uses the plan's own duration
       referredByTechnicianId: referredByTechnicianId || null,
     })
     onSold()
@@ -98,7 +98,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
         {form.formState.errors.customerId ? <p className="text-xs text-danger">{t(form.formState.errors.customerId.message!)}</p> : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label>{t("amc.sellAmc.roProduct")}</Label>
           <select
@@ -118,12 +118,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
         <div className="space-y-1.5">
           <Label>{t("amc.sellAmc.plan")}</Label>
           <select
-            {...form.register("planId", {
-              onChange: (e) => {
-                const plan = (plans ?? []).find((p) => p.id === e.target.value)
-                if (plan) form.setValue("years", plan.years, { shouldValidate: true })
-              },
-            })}
+            {...form.register("planId")}
             className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
             <option value="">{t("service.filters.all")}</option>
@@ -136,18 +131,22 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
           {form.formState.errors.planId ? <p className="text-xs text-danger">{t(form.formState.errors.planId.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
-          <Label>{t("amc.sellAmc.years")}</Label>
-          <Input type="number" min={1} step="1" {...form.register("years")} />
-          {form.formState.errors.years ? <p className="text-xs text-danger">{t(form.formState.errors.years.message!)}</p> : null}
-        </div>
-        <div className="space-y-1.5">
           <Label>{t("amc.sellAmc.startDate")}</Label>
           <Controller control={form.control} name="startDate" render={({ field }) => <DatePicker value={field.value ?? ""} onChange={field.onChange} />} />
         </div>
       </div>
 
-      {selectedPlan ? (
-        <p className="px-1 text-sm font-medium text-text">{t("amc.sellAmc.totalPrice", { amount: formatCurrency(computedTotal) })}</p>
+      {selectedPlan && summary ? (
+        <div className="space-y-0.5 px-1">
+          <p className="text-sm text-text">
+            {t("amc.sellAmc.planDuration", {
+              years: t("amc.sellAmc.yearsCount", { count: summary.years }),
+              expiry: summary.expiryLabel ?? "-",
+              visits: t("amc.sellAmc.visitsCount", { count: summary.visits }),
+            })}
+          </p>
+          <p className="text-sm font-medium text-text">{t("amc.sellAmc.totalPrice", { amount: formatCurrency(computedTotal) })}</p>
+        </div>
       ) : null}
 
       <div className="space-y-1.5">

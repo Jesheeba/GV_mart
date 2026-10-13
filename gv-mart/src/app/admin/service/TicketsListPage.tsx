@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
 import { useRepeatComplaintCustomers, useTicketsList } from "@/hooks/useService"
 import type { TicketFiltersInput, TicketListItem } from "@/services/service"
-import { PRIMARY_FILTERS, countByPrimaryFilter, filterTickets, isMissingProduct, type PrimaryFilter } from "@/lib/ticketFilters"
+import { DEFAULT_AMC_ASSIGN_WINDOW_DAYS, PRIMARY_FILTERS, countByPrimaryFilter, filterTickets, isMissingProduct, type PrimaryFilter } from "@/lib/ticketFilters"
+import { useSettings } from "@/hooks/useMasters"
 import { cn } from "@/lib/utils"
 import { SlaCountdown } from "./SlaCountdown"
 import { ChannelBadge, PriorityText, TicketTypeBadge } from "./TicketBadges"
@@ -47,18 +48,21 @@ export function TicketsListPage() {
 
   const { data: rows, isLoading, isError, refetch } = useTicketsList(orgId, NO_SERVER_FILTERS)
   const { data: repeatCustomers } = useRepeatComplaintCustomers(orgId)
+  // AMC visits beyond this many days are not "waiting for a technician" yet (settings.amc_assign_window_days)
+  const { data: orgSettings } = useSettings(orgId)
+  const amcWindowDays = (orgSettings as { amc_assign_window_days?: number } | undefined)?.amc_assign_window_days ?? DEFAULT_AMC_ASSIGN_WINDOW_DAYS
 
   const allRows = useMemo(() => rows ?? [], [rows])
   const now = Date.now()
 
   // Chip counts and the visible list come from the same predicates
   // (ticketFilters.ts), so a chip's number always equals its list length.
-  const counts = countByPrimaryFilter(allRows, now)
+  const counts = countByPrimaryFilter(allRows, now, amcWindowDays)
   const missingProductCount = allRows.filter(isMissingProduct).length
 
   const visibleRows = useMemo(
-    () => filterTickets(allRows, primaryFilter, now, { missingProductOnly }),
-    [allRows, primaryFilter, missingProductOnly, now]
+    () => filterTickets(allRows, primaryFilter, now, { missingProductOnly, windowDays: amcWindowDays }),
+    [allRows, primaryFilter, missingProductOnly, now, amcWindowDays]
   )
 
   const hasActiveFilters = primaryFilter !== "pending" || missingProductOnly

@@ -30,3 +30,26 @@ export function isAmcRenewalOpen(
 export function pricePerYearOf(plan: { price: number; years: number; price_per_year?: number | null }): number {
   return plan.price_per_year ?? Math.round((plan.price / Math.max(plan.years, 1)) * 100) / 100
 }
+
+const SUMMARY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/**
+ * What a plan sale will do, from the plan alone (the Sell AMC form shows this as text; the years are NOT editable, the
+ * server uses the plan's own). Expiry = start + plan years, clamped to the month's last day like Postgres does for a
+ * 29 February start; visits = years x visits per year. Independent of the machine's timezone.
+ */
+export function amcPlanSummary(
+  plan: { years: number; visits_per_year: number },
+  startDate: string
+): { years: number; visits: number; expiryDate: string | null; expiryLabel: string | null } {
+  const years = plan.years
+  const visits = plan.years * plan.visits_per_year
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(startDate ?? "")
+  if (!m) return { years, visits, expiryDate: null, expiryLabel: null }
+  const y = Number(m[1]) + years
+  const mo = Number(m[2])
+  const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate()
+  const d = Math.min(Number(m[3]), lastDay)
+  const expiryDate = `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+  return { years, visits, expiryDate, expiryLabel: `${d} ${SUMMARY_MONTHS[mo - 1]} ${y}` }
+}
