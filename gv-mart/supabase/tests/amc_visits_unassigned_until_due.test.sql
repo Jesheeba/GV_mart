@@ -1,4 +1,5 @@
--- Rolled-back DB test for 20261020100000_amc_visits_unassigned_until_due.sql.
+-- Rolled-back DB test for 20261020100000_amc_visits_unassigned_until_due.sql (assignment window, daily job, cron).
+-- The visit schedule rule and assignment at sale have their own file: amc_visit_schedule_rule.test.sql.
 -- Runner: BEGIN; the migration; this block (ends in RAISE; read RESULTS in the error). A throwaway __TEST_ organisation with
 -- unroutable 555 numbers is created inside the transaction and vanishes with the rollback (nothing is committed, so there is
 -- nothing to purge). No real customer, number, message or technician is touched; nothing is sent.
@@ -39,18 +40,20 @@ begin
     not has_function_privilege('anon', 'public.assign_due_amc_visits(timestamptz)', 'execute')
     and not has_function_privilege('authenticated', 'public.assign_due_amc_visits(timestamptz)', 'execute')
     and has_function_privilege('service_role', 'public.assign_due_amc_visits(timestamptz)', 'execute')
-    and not has_function_privilege('authenticated', 'public._schedule_amc_visits(uuid,uuid,uuid,uuid,text,integer,integer,date,date,uuid,uuid,text)', 'execute')
+    and not has_function_privilege('authenticated', 'public._schedule_amc_visits(uuid,uuid,uuid,uuid,text,integer,integer,date,date,uuid,uuid,text,timestamptz)', 'execute')
+    and not has_function_privilege('authenticated', 'public._amc_visit_date(date,integer,integer)', 'execute')
     and not has_function_privilege('authenticated', 'public._ticket_is_future_amc_visit(uuid)', 'execute')
     and not has_function_privilege('anon', 'public.amc_assign_cron_tick(text)', 'execute')
     and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a where p.pronamespace = 'public'::regnamespace and a.grantee = 0
-                     and p.proname in ('assign_due_amc_visits', '_schedule_amc_visits', '_ticket_is_future_amc_visit', 'amc_assign_cron_tick', '_amc_assign_deadman_check')));
+                     and p.proname in ('assign_due_amc_visits', '_schedule_amc_visits', '_amc_visit_date', '_ticket_is_future_amc_visit', 'amc_assign_cron_tick', '_amc_assign_deadman_check')));
   perform pg_temp.chk('cron: daily job at 06:30 IST (01:00 UTC) and dead-man at 08:30 IST (03:00 UTC), exact commands',
     (select count(*) from cron.job where jobname = 'amc-assign-due-visits' and schedule = '0 1 * * *' and command = 'select public.amc_assign_cron_tick()' and active) = 1
     and (select count(*) from cron.job where jobname = 'amc-assign-deadman' and schedule = '0 3 * * *' and command = 'select public._amc_assign_deadman_check()' and active) = 1);
   perform pg_temp.chk('the existing lead follow-up cron job is untouched',
     (select count(*) from cron.job where jobname = 'lead-followup-notifications' and schedule = '*/5 * * * *') = 1);
   perform pg_temp.chk('a heartbeat baseline exists', exists (select 1 from public.cron_job_heartbeats where job_key = 'amc_assign_due_visits'));
-  perform pg_temp.chk('the four generators and the helper: no generator calls the engine for its AMC visits any more',
+  perform pg_temp.chk('the four generators call the helper, and only the helper calls the engine for AMC visits',
+    (select prosrc ~ '_auto_assign_ticket_internal' from pg_proc where proname = '_schedule_amc_visits' and pronamespace = 'public'::regnamespace) and
     (select prosrc !~ '_auto_assign_ticket_internal' and prosrc ~ '_schedule_amc_visits' from pg_proc where proname = 'sell_amc_plan' and pronamespace = 'public'::regnamespace)
     and (select prosrc !~ '_auto_assign_ticket_internal' and prosrc ~ '_schedule_amc_visits' from pg_proc where proname = 'sell_amc_plan_onsite' and pronamespace = 'public'::regnamespace)
     and (select prosrc !~ '_auto_assign_ticket_internal' and prosrc ~ '_schedule_amc_visits' from pg_proc where proname = 'renew_amc_plan' and pronamespace = 'public'::regnamespace)
@@ -76,7 +79,7 @@ begin
 
   -- ---------- 1. sale: six visits, all open and unassigned ----------
   perform pg_temp.as_user(v_master);
-  v_r := public.sell_amc_plan(v_org, v_c, v_prod, v_plan, current_date, null, null);
+  v_r := public.sell_amc_plan(v_org, v_c, v_prod, v_plan, v_today + 30, null, null);   -- visit 1 is 30 days out: nothing inside the window at sale
   perform pg_temp.as_pg();
   v_contract := (v_r ->> 'contract_id')::uuid;
   select count(*) into n from public.service_tickets where contract_id = v_contract;
@@ -88,8 +91,8 @@ begin
     (select array_agg(visit_no order by visit_no) from public.service_tickets where contract_id = v_contract) = array[1, 2, 3, 4, 5, 6]);
   perform pg_temp.chk('1 the unique index refuses a duplicate visit_no',
     pg_temp.raises(format($q$update public.service_tickets set visit_no = 1 where contract_id = %L and visit_no = 2$q$, v_contract)) like '%duplicate key%');
-  perform pg_temp.chk('1 dates are the unchanged rule: month offsets from the start, rolled to a working day, at the slot start',
-    (select bool_and((a.scheduled_at) = public._visit_start_ts(v_org, public._visit_working_day(v_org, (current_date + make_interval(months => public._visit_month_offset(2, t.visit_no)))::date)))
+  perform pg_temp.chk('1 dates follow the rule: visit k = start + (k - 1) x 6 months, rolled to a working day, at the slot start',
+    (select bool_and((a.scheduled_at) = public._visit_start_ts(v_org, public._visit_working_day(v_org, (v_today + 30 + make_interval(months => 6 * (t.visit_no - 1)))::date)))
        from public.service_tickets t join public.appointments a on a.ticket_id = t.id where t.contract_id = v_contract));
   perform pg_temp.chk('1 no technician notification and no auto-assignment alert was raised at sale',
     not exists (select 1 from public.notifications n where n.org_id = v_org and n.type in ('ticket_auto_assigned', 'appointment_assigned', 'ticket_unassigned')));
@@ -186,36 +189,37 @@ begin
   v_r := public.sell_amc_plan_onsite(v_org, v_c3, v_prod, v_plan, 'cash');
   perform pg_temp.as_pg();
   v_contract2 := (v_r ->> 'contract_id')::uuid;
-  perform pg_temp.chk('6a on-site sale: six visits, all open and unassigned, visit_no 1..6',
+  perform pg_temp.chk('6a on-site sale: six visits, visit_no 1..6',
     (select count(*) from public.service_tickets where contract_id = v_contract2) = 6
-    and not exists (select 1 from public.appointments a join public.service_tickets t on t.id = a.ticket_id where t.contract_id = v_contract2 and a.technician_id is not null)
     and (select array_agg(visit_no order by visit_no) from public.service_tickets where contract_id = v_contract2) = array[1, 2, 3, 4, 5, 6]);
   -- customer self-service renewal (needs a payment reference)
   perform pg_temp.as_user(v_custu);
   v_r := public.renew_amc_plan(v_org, v_prod, v_plan, 'TEST-REF-1');
   perform pg_temp.as_pg();
   v_contract3 := (v_r ->> 'contract_id')::uuid;
-  perform pg_temp.chk('6b customer renewal: six visits, open, unassigned',
+  perform pg_temp.chk('6b customer renewal: six visits, visit_no 1..6',
     (select count(*) from public.service_tickets where contract_id = v_contract3) = 6
-    and not exists (select 1 from public.appointments a join public.service_tickets t on t.id = a.ticket_id where t.contract_id = v_contract3 and a.technician_id is not null));
+    and (select array_agg(visit_no order by visit_no) from public.service_tickets where contract_id = v_contract3) = array[1, 2, 3, 4, 5, 6]);
   -- create_sale AMC add-on
   perform pg_temp.as_user(v_master);
   v_r := public.create_sale(v_org, v_c3, jsonb_build_object('amc', jsonb_build_object('product_id', v_prod, 'plan_id', v_plan), 'payment_method', 'cash'));
   perform pg_temp.as_pg();
   v_ids := array(select jsonb_array_elements_text(v_r -> 'ticket_ids')::uuid);
   select count(*) into n from public.service_tickets t where t.id = any (v_ids) and t.type = 'amc' and t.contract_id is not null;
-  perform pg_temp.chk('6c create_sale AMC add-on: six visits, open, unassigned, with visit numbers',
-    n = 6
-    and not exists (select 1 from public.service_tickets t where t.id = any (v_ids) and t.type = 'amc' and (t.status <> 'open' or t.visit_no is null))
-    and not exists (select 1 from public.appointments a join public.service_tickets t on t.id = a.ticket_id
-                     where t.id = any (v_ids) and t.type = 'amc' and a.technician_id is not null), n::text);
-  perform pg_temp.chk('6 no generator raised an assignment alert or a technician notification for its visits',
-    not exists (
-      select 1 from public.notifications nn
-       where nn.type in ('ticket_auto_assigned', 'ticket_unassigned', 'appointment_assigned')
-         and (nn.ref_id in (select t.id from public.service_tickets t where t.contract_id in (v_contract2, v_contract3) or t.id = any (v_ids))
-              or nn.ref_id in (select a.id from public.appointments a join public.service_tickets t on t.id = a.ticket_id
-                                where t.contract_id in (v_contract2, v_contract3) or t.id = any (v_ids)))));
+  perform pg_temp.chk('6c create_sale AMC add-on: six visits with visit numbers', n = 6
+    and not exists (select 1 from public.service_tickets t where t.id = any (v_ids) and t.type = 'amc' and t.visit_no is null), n::text);
+  -- These sales start today, so only visit 1 is inside the window: it was attempted at sale (assigned, or one "needs manual
+  -- assignment" alert - which of the two depends on whether the test runs before or after closing time, because after closing
+  -- the visit moves to tomorrow where attendance is not required). Visits 2..6 are months away: untouched, no alert.
+  perform pg_temp.chk('6 for all three generators visit 1 was attempted at sale and visits 2..6 are untouched',
+    (select bool_and(
+        (a1.technician_id is not null or exists (select 1 from public.notifications nn where nn.type = 'ticket_unassigned' and nn.ref_id = t1.id))
+        and not exists (select 1 from public.appointments ax join public.service_tickets tx on tx.id = ax.ticket_id
+                         where tx.contract_id = t1.contract_id and tx.visit_no > 1 and ax.technician_id is not null)
+        and not exists (select 1 from public.notifications nn join public.service_tickets tx on tx.id = nn.ref_id
+                         where tx.contract_id = t1.contract_id and tx.visit_no > 1 and nn.type = 'ticket_unassigned'))
+       from public.service_tickets t1 join public.appointments a1 on a1.ticket_id = t1.id
+      where t1.visit_no = 1 and (t1.contract_id in (v_contract2, v_contract3) or t1.id = any (v_ids))));
 
   -- ---------- 7. heartbeat and dead-man ----------
   -- 7a. the very first dead-man run, BEFORE any tick has written a heartbeat: the migration's baseline row must keep it quiet

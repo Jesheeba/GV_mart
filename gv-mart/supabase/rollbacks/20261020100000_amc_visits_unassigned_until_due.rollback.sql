@@ -1019,7 +1019,9 @@ drop trigger if exists service_tickets_milestone_notify on public.service_ticket
 create trigger service_tickets_milestone_notify
   after insert or update of status on public.service_tickets
   for each row execute function public._milestone_ticket_notify();
+drop function if exists public._schedule_amc_visits(uuid, uuid, uuid, uuid, text, integer, integer, date, date, uuid, uuid, text, timestamptz);
 drop function if exists public._schedule_amc_visits(uuid, uuid, uuid, uuid, text, integer, integer, date, date, uuid, uuid, text);
+drop function if exists public._amc_visit_date(date, integer, integer);
 drop function if exists public._ticket_is_future_amc_visit(uuid);
 drop index if exists public.service_tickets_contract_visit_no_uniq;
 alter table public.service_tickets drop column if exists visit_no;
