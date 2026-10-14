@@ -1047,7 +1047,8 @@
     "spareVideos": {
       "column": "Videos",
       "manage": "Manage videos",
-      "title": "Spare videos"
+      "title": "Spare videos",
+      "httpsOnly": "The video link must start with https://"
     },
     "productAttributes": {
       "manage": "Manage attributes",

@@ -62,6 +62,27 @@ begin
   begin update video_library set language = 'EN' where org_id = v_org; exception when check_violation then v_ok := true; end;
   perform pg_temp.chk('video_library rejects a wrong-case language', v_ok);
 
+  -- https-only URL rule on the new table
+  v_ok := false;
+  begin insert into spare_videos (org_id, spare_id, url) values (v_org, v_spare, 'http://youtu.be/x'); exception when check_violation then v_ok := true; end;
+  perform pg_temp.chk('spare_videos rejects an http URL', v_ok);
+  v_ok := false;
+  begin insert into spare_videos (org_id, spare_id, url) values (v_org, v_spare, 'javascript:alert(1)'); exception when check_violation then v_ok := true; end;
+  perform pg_temp.chk('spare_videos rejects a javascript: URL', v_ok);
+  v_ok := false;
+  begin insert into spare_videos (org_id, spare_id, url) values (v_org, v_spare, 'https://youtu.be/a b'); exception when check_violation then v_ok := true; end;
+  perform pg_temp.chk('spare_videos rejects a URL containing a space', v_ok);
+  v_ok := false;
+  begin insert into spare_videos (org_id, spare_id, url) values (v_org, v_spare, 'https://'); exception when check_violation then v_ok := true; end;
+  perform pg_temp.chk('spare_videos rejects a bare https:// with no host', v_ok);
+
+  -- explicit grants: the API roles have the four privileges, anon has none
+  perform pg_temp.chk('authenticated and service_role have select, insert, update, delete on spare_videos',
+    has_table_privilege('authenticated', 'public.spare_videos', 'select') and has_table_privilege('authenticated', 'public.spare_videos', 'insert')
+    and has_table_privilege('authenticated', 'public.spare_videos', 'update') and has_table_privilege('authenticated', 'public.spare_videos', 'delete')
+    and has_table_privilege('service_role', 'public.spare_videos', 'select') and has_table_privilege('service_role', 'public.spare_videos', 'insert')
+    and has_table_privilege('service_role', 'public.spare_videos', 'update') and has_table_privilege('service_role', 'public.spare_videos', 'delete'));
+
   -- RLS: master writes, sales_admin reads, other org sees nothing, anon has no table privilege
   perform pg_temp.as_user(v_master);
   insert into spare_videos (org_id, spare_id, url, language) values (v_org, v_spare, 'https://youtu.be/d', 'ta');
@@ -82,18 +103,18 @@ begin
   perform pg_temp.chk('master cannot write another org''s spare_videos', v_ok);
   perform pg_temp.as_pg();
 
-  -- RESTRICT: a spare that still has videos cannot be deleted; once its videos are gone it can
+  -- ON DELETE NO ACTION: a spare that still has videos cannot be deleted; once its videos are gone it can
   v_ok := false;
   begin delete from spares where id = v_spare; exception when foreign_key_violation then v_ok := true; end;
-  perform pg_temp.chk('a spare with videos cannot be deleted (ON DELETE RESTRICT)', v_ok);
+  perform pg_temp.chk('a spare with videos cannot be deleted (ON DELETE NO ACTION)', v_ok);
   perform pg_temp.chk('the spare and its videos are intact after the refused delete',
     exists (select 1 from spares where id = v_spare) and (select count(*) = 2 from spare_videos where spare_id = v_spare));
   delete from spare_videos where spare_id = v_spare;
   delete from spares where id = v_spare;
   perform pg_temp.chk('a spare with no videos can be deleted', not exists (select 1 from spares where id = v_spare));
 
-  -- Organisation delete while a spare has videos. RESTRICT is checked immediately, NO ACTION at end of statement, so this
-  -- can fail with RESTRICT when the organisation cascade reaches spares before spare_videos. Recorded as PASS or FAIL.
+  -- Organisation delete while a spare has videos. NO ACTION is checked at the end of the statement, so the organisation
+  -- cascade may remove spares and spare_videos in either order. Recorded as PASS or FAIL.
   insert into spares (org_id, name, price) values (v_org2, '__TEST_ spare 2', 10) returning id into v_spare2;
   insert into spare_videos (org_id, spare_id, url) values (v_org2, v_spare2, 'https://youtu.be/g');
   v_ok := false;

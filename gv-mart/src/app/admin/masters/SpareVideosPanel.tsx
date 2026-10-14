@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { VideoLanguageSelect } from "@/components/shared/VideoLanguageSelect"
 import { useCreateSpareVideo, useDeleteSpareVideo, useSpareVideos, useUpdateSpareVideo } from "@/hooks/useMasters"
+import { isHttpsUrl } from "@/lib/httpsUrl"
 import type { VideoLanguage } from "@/lib/videoLanguage"
 
 // Supabase/PostgREST rejections are not `instanceof Error` — same helper as ProductMediaPanel, duplicated for the same
@@ -45,6 +46,10 @@ export function SpareVideosPanel({
   async function handleAdd() {
     if (!url.trim() || !orgId) return
     setError(null)
+    if (!isHttpsUrl(url.trim())) {
+      setError(t("masters.spareVideos.httpsOnly"))
+      return
+    }
     try {
       await createMut.mutateAsync({ org_id: orgId, spare_id: spareId, url: url.trim(), title: title.trim() || null, language })
       setUrl("")

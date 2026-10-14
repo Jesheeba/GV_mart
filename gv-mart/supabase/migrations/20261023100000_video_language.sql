@@ -9,9 +9,13 @@
 -- Not in this migration (engine side, owned by the automation work): the resolver that picks a video by language, the item
 -- key, the cooldown, the hand-off. Nothing reads language yet except the admin forms.
 --
--- A spare that still has videos cannot be deleted (spare_id is ON DELETE RESTRICT): remove its videos first. spare_videos is
--- NOT added to spare_has_references, because that function is also redefined on other branches; until it is, a spare delete
--- from the admin UI with videos present fails with the database's foreign-key error rather than the friendly in-use message.
+-- A spare that still has videos cannot be deleted (spare_id is ON DELETE NO ACTION: the delete is refused at the end of the
+-- statement, and an organisation delete is still allowed to cascade through both tables). Remove its videos first.
+-- spare_videos is NOT added to spare_has_references, because that function is also redefined on other branches; until it is,
+-- a spare delete from the admin UI with videos present fails with the database's foreign-key error rather than the friendly
+-- in-use message (follow-up in docs/backlog-product-gaps.md).
+--
+-- url must be an https link (product_videos has no URL rule; the new table does, and so does the admin form).
 
 alter table public.product_videos
   add column if not exists language text check (language is null or language in ('en', 'ta'));
@@ -22,8 +26,8 @@ alter table public.video_library
 create table public.spare_videos (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations (id) on delete cascade,
-  spare_id uuid not null references public.spares (id) on delete restrict,
-  url text not null,
+  spare_id uuid not null references public.spares (id) on delete no action,
+  url text not null constraint spare_videos_url_https_check check (url ~* '^https://[^[:space:]]+$'),
   title text,
   language text check (language is null or language in ('en', 'ta')),
   sort_order integer not null default 0,
@@ -46,5 +50,9 @@ create trigger audit_spare_videos after insert or update or delete on public.spa
 create trigger set_updated_at before update on public.spare_videos
   for each row execute function public.set_updated_at();
 
--- Same privilege posture as product_videos after 20261016500000 (anon has no table privileges).
+-- Same privilege posture as product_videos after 20261016500000 (anon has no table privileges); the grants the API roles
+-- need are explicit, row access is still decided by the RLS policies above.
 revoke all on public.spare_videos from anon;
+grant select, insert, update, delete on public.spare_videos to authenticated, service_role;
+
+notify pgrst, 'reload schema';
