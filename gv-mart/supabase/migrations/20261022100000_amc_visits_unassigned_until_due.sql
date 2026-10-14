@@ -173,7 +173,7 @@ begin
 
     -- a visit that would already be in the past cannot be serviced: its number is kept, no ticket is made
     if v_date < v_today then
-      v_skipped := array_append(v_skipped, i);
+      v_skipped := array_append(v_skipped, v_base + i);
       continue;
     end if;
 
@@ -295,17 +295,6 @@ begin
     raise exception 'sell_amc_plan: years must be greater than zero';
   end if;
 
-  if p_referred_by_technician_id is not null
-     and exists (select 1 from public.technicians where id = p_referred_by_technician_id and org_id = p_org_id) then
-    select name into v_customer_name from public.customers where id = p_customer_id;
-    insert into public.leads (org_id, customer_id, name, source, status, owner_id)
-    values (p_org_id, p_customer_id, coalesce(v_customer_name, 'AMC customer'), 'referral', 'won', p_referred_by_technician_id)
-    returning id into v_lead_id;
-
-    insert into public.lead_activities (org_id, lead_id, type, note)
-    values (p_org_id, v_lead_id, 'converted', 'AMC sale, referred by technician');
-  end if;
-
   -- back-dated start: refused beyond the threshold unless a master confirms it explicitly
   select coalesce(s.amc_backdate_max_days, 7) into v_max_back from public.settings s where s.org_id = p_org_id;
   v_max_back := coalesce(v_max_back, 7);
@@ -316,6 +305,17 @@ begin
         p_start_date, v_days_back, v_max_back using errcode = 'P0001';
     end if;
     v_confirmed := auth.uid();
+  end if;
+
+  if p_referred_by_technician_id is not null
+     and exists (select 1 from public.technicians where id = p_referred_by_technician_id and org_id = p_org_id) then
+    select name into v_customer_name from public.customers where id = p_customer_id;
+    insert into public.leads (org_id, customer_id, name, source, status, owner_id)
+    values (p_org_id, p_customer_id, coalesce(v_customer_name, 'AMC customer'), 'referral', 'won', p_referred_by_technician_id)
+    returning id into v_lead_id;
+
+    insert into public.lead_activities (org_id, lead_id, type, note)
+    values (p_org_id, v_lead_id, 'converted', 'AMC sale, referred by technician');
   end if;
 
   v_expiry := p_start_date + (v_years || ' years')::interval;
@@ -1386,3 +1386,5 @@ begin
   perform cron.schedule('amc-assign-deadman',     '0 3 * * *', 'select public._amc_assign_deadman_check()');
 end
 $cron$;
+
+notify pgrst, 'reload schema';
