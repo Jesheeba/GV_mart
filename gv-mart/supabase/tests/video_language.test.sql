@@ -24,7 +24,7 @@ do $t$
 declare
   v_brand uuid; v_model uuid; v_spare2 uuid;
   v_org uuid; v_org2 uuid; v_master uuid; v_sales uuid; v_spare uuid; v_prod uuid; v_v uuid;
-  v_rows_pv int; v_rows_vl int; n int; v_ok boolean;
+  v_rows_pv int; v_rows_vl int; n int; v_ok boolean; v_err text;
 begin
   select count(*) into v_rows_pv from public.product_videos where org_id not in (select id from organizations where name like '\_\_TEST\_%');
   select count(*) into v_rows_vl from public.video_library where org_id not in (select id from organizations where name like '\_\_TEST\_%');
@@ -113,18 +113,25 @@ begin
   delete from spares where id = v_spare;
   perform pg_temp.chk('a spare with no videos can be deleted', not exists (select 1 from spares where id = v_spare));
 
-  -- Organisation delete while a spare has videos. NO ACTION is checked at the end of the statement, so the organisation
-  -- cascade may remove spares and spare_videos in either order. Recorded as PASS or FAIL.
+  -- Organisation removal while a spare has videos. A bare "delete from organizations" is refused for ANY organisation that has
+  -- audit rows (audit_log is append-only; its DELETE trigger only lets purge_test_organisation() through), so that is not a
+  -- meaningful check of spare_videos. The supported cleanup route is purge_test_organisation(), which removes the audit rows
+  -- first and then the organisation, cascading spares and spare_videos. NO ACTION is checked at the end of the statement,
+  -- so the cascade may remove the spare and its video in either order. The error text is recorded in the result line.
   insert into spares (org_id, name, price) values (v_org2, '__TEST_ spare 2', 10) returning id into v_spare2;
   insert into spare_videos (org_id, spare_id, url) values (v_org2, v_spare2, 'https://youtu.be/g');
   v_ok := false;
+  v_err := null;
   begin
-    delete from organizations where id = v_org2;
-    v_ok := true;
+    perform public.purge_test_organisation(v_org2);
+    v_ok := not exists (select 1 from organizations where id = v_org2)
+        and not exists (select 1 from spares where id = v_spare2)
+        and not exists (select 1 from spare_videos where org_id = v_org2);
   exception when others then
     v_ok := false;
+    v_err := sqlerrm;
   end;
-  perform pg_temp.chk('deleting an organisation that has spare videos still works', v_ok);
+  perform pg_temp.chk('purge_test_organisation removes an organisation whose spare has videos (spare and video gone)', v_ok, coalesce(v_err, ''));
 
   perform pg_temp.chk('real product_videos and video_library rows unchanged',
     v_rows_pv = (select count(*) from public.product_videos where org_id not in (select id from organizations where name like '\_\_TEST\_%'))
