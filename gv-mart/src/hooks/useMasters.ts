@@ -392,6 +392,35 @@ export function useDeleteProductVideo(productId: string | undefined) {
   })
 }
 
+export function useSpareVideos(spareId: string | undefined) {
+  return useQuery({
+    queryKey: ["spare_videos", "list", spareId],
+    queryFn: () => productMedia.listSpareVideos(spareId!),
+    enabled: !!spareId,
+  })
+}
+export function useCreateSpareVideo(spareId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (row: TablesInsert<"spare_videos">) => productMedia.createSpareVideo(row),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["spare_videos", "list", spareId] }),
+  })
+}
+export function useUpdateSpareVideo(spareId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: TablesUpdate<"spare_videos"> }) => productMedia.updateSpareVideo(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["spare_videos", "list", spareId] }),
+  })
+}
+export function useDeleteSpareVideo(spareId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => productMedia.deleteSpareVideo(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["spare_videos", "list", spareId] }),
+  })
+}
+
 export function useSetProductCustomAttribute() {
   const qc = useQueryClient()
   return useMutation({

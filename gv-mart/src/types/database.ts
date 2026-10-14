@@ -1097,6 +1097,7 @@ export type Database = {
           product_id: string
           url: string
           title: string | null
+          language: string | null
           sort_order: number
           is_active: boolean
           created_at: string
@@ -1108,6 +1109,7 @@ export type Database = {
           product_id: string
           url: string
           title?: string | null
+          language?: string | null
           sort_order?: number
           is_active?: boolean
           created_at?: string
@@ -1119,6 +1121,7 @@ export type Database = {
           product_id?: string
           url?: string
           title?: string | null
+          language?: string | null
           sort_order?: number
           is_active?: boolean
           created_at?: string
@@ -1677,6 +1680,60 @@ export type Database = {
             columns: ["technician_id"]
             isOneToOne: false
             referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spare_videos: {
+        Row: {
+          id: string
+          org_id: string
+          spare_id: string
+          url: string
+          title: string | null
+          language: string | null
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          spare_id: string
+          url: string
+          title?: string | null
+          language?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          spare_id?: string
+          url?: string
+          title?: string | null
+          language?: string | null
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spare_videos_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spare_videos_spare_id_fkey"
+            columns: ["spare_id"]
+            isOneToOne: false
+            referencedRelation: "spares"
             referencedColumns: ["id"]
           },
         ]
@@ -5406,6 +5463,7 @@ export type Database = {
           org_id: string
           topic: Database["public"]["Enums"]["enquiry_type"]
           url: string
+          language: string | null
           created_at: string
           updated_at: string
         }
@@ -5414,6 +5472,7 @@ export type Database = {
           org_id: string
           topic: Database["public"]["Enums"]["enquiry_type"]
           url: string
+          language?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5422,6 +5481,7 @@ export type Database = {
           org_id?: string
           topic?: Database["public"]["Enums"]["enquiry_type"]
           url?: string
+          language?: string | null
           created_at?: string
           updated_at?: string
         }

@@ -1038,6 +1038,17 @@
       "videoUrlPlaceholder": "Video URL",
       "addVideo": "Add"
     },
+    "videoLanguage": {
+      "label": "Language",
+      "any": "Any language",
+      "en": "English",
+      "ta": "Tamil"
+    },
+    "spareVideos": {
+      "column": "Videos",
+      "manage": "Manage videos",
+      "title": "Spare videos"
+    },
     "productAttributes": {
       "manage": "Manage attributes",
       "title": "Custom Attributes",

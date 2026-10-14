@@ -140,3 +140,27 @@ export async function deleteProductVideo(id: string) {
   const { error } = await supabase.from("product_videos").delete().eq("id", id)
   if (error) throw error
 }
+
+// ── Spare videos (2026-10-14, migration 20261023100000) ──────────────────
+export async function listSpareVideos(spareId: string) {
+  const { data, error } = await supabase.from("spare_videos").select("*").eq("spare_id", spareId).order("sort_order")
+  if (error) throw error
+  return data
+}
+
+export async function createSpareVideo(row: TablesInsert<"spare_videos">) {
+  const { data, error } = await supabase.from("spare_videos").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateSpareVideo(id: string, patch: TablesUpdate<"spare_videos">) {
+  const { data, error } = await supabase.from("spare_videos").update(patch).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteSpareVideo(id: string) {
+  const { error } = await supabase.from("spare_videos").delete().eq("id", id)
+  if (error) throw error
+}

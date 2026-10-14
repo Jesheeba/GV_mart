@@ -190,12 +190,12 @@ export async function listVideoLibrary(orgId: string): Promise<VideoLibraryRow[]
   if (error) throw error
   return data ?? []
 }
-export async function createVideoLibraryEntry(row: { org_id: string; topic: Enums<"enquiry_type">; url: string }) {
+export async function createVideoLibraryEntry(row: { org_id: string; topic: Enums<"enquiry_type">; url: string; language?: string | null }) {
   const { data, error } = await supabase.from("video_library").insert(row).select().single()
   if (error) throw error
   return data
 }
-export async function updateVideoLibraryEntry(id: string, patch: Partial<{ topic: Enums<"enquiry_type">; url: string }>) {
+export async function updateVideoLibraryEntry(id: string, patch: Partial<{ topic: Enums<"enquiry_type">; url: string; language: string | null }>) {
   const { data, error } = await supabase.from("video_library").update(patch).eq("id", id).select().single()
   if (error) throw error
   return data

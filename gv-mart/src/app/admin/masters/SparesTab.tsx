@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, Upload } from "lucide-react"
+import { Loader2, Upload, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
@@ -8,6 +8,7 @@ import { sparesHooks, useBulkSetSparesActive } from "@/hooks/useMasters"
 import { spareHasReferences, type SpareRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
 import { SpareBulkImportPanel } from "./SpareBulkImportPanel"
+import { SpareVideosPanel } from "./SpareVideosPanel"
 
 type StatusFilter = "all" | "active" | "inactive"
 
@@ -30,6 +31,8 @@ export function SparesTab() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [importOpen, setImportOpen] = useState(false)
+  const [videosSpareId, setVideosSpareId] = useState<string | null>(null)
+  const videosSpare = ((rows ?? []) as SpareRow[]).find((r) => r.id === videosSpareId)
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -147,6 +150,15 @@ export function SparesTab() {
             render: (r) => (r.standard_time_minutes != null ? t("masters.spares.standardTimeValue", { minutes: r.standard_time_minutes }) : "—"),
           },
           {
+            key: "videos",
+            header: t("masters.spareVideos.column"),
+            render: (r) => (
+              <Button size="icon-xs" variant="ghost" title={t("masters.spareVideos.manage")} onClick={() => setVideosSpareId(r.id)}>
+                <Video className="size-3.5" />
+              </Button>
+            ),
+          },
+          {
             key: "is_active",
             header: t("masters.spares.status"),
             render: (r) => (
@@ -193,6 +205,10 @@ export function SparesTab() {
       />
 
       {importOpen ? <SpareBulkImportPanel orgId={orgId} onClose={() => setImportOpen(false)} /> : null}
+
+      {videosSpare ? (
+        <SpareVideosPanel key={videosSpare.id} orgId={orgId} spareId={videosSpare.id} spareName={videosSpare.name} onClose={() => setVideosSpareId(null)} />
+      ) : null}
     </div>
   )
 }
