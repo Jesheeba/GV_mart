@@ -1028,9 +1028,8 @@ drop index if exists public.service_tickets_contract_visit_no_uniq;
 alter table public.service_tickets drop column if exists visit_no;
 alter table public.settings drop constraint if exists settings_amc_assign_window_check;
 alter table public.settings drop column if exists amc_assign_window_days;
-commit;
-
 alter table public.amc_contracts drop column if exists backdated_confirmed_by;
 alter table public.amc_contracts drop column if exists visits_skipped;
 alter table public.settings drop constraint if exists settings_amc_backdate_max_check;
 alter table public.settings drop column if exists amc_backdate_max_days;
+commit;
