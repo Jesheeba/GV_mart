@@ -151,3 +151,17 @@ posted for review first; no apply and no push without the owner naming it:
 
 Standing rules for all of the above: no database write unless the owner names it in the chat; never concatenate a migration with a test
 file against the live database; do not re-run anything "to check" without asking.
+
+## Follow-up: friendly "in use" message for spares that have videos (2026-10-14, from feat/video-language)
+
+**Status:** not built. Small, no database change beyond one function body.
+
+**Problem:** `spare_videos.spare_id` is `ON DELETE NO ACTION`, so deleting a spare that still has videos is refused by the database. The
+Masters > Spares delete check uses `spare_has_references`, which does not know about `spare_videos`, so the admin sees the raw
+foreign-key error instead of the usual "in use" message.
+
+**Fix:** add `exists (select 1 from public.spare_videos where spare_id = p_id)` to `spare_has_references` (migration
+`20260923100100_inventory_reference_check_functions.sql` is its latest definition on main; other branches redefine it, so build it
+on the merged function, not on a stale copy), and add `spare_videos` to any spare soft-delete reference list that mirrors it.
+Alternatively check `spare_videos` client-side in `SparesTab` `checkCanDelete` as a stop-gap. One rolled-back test: a spare with a
+video reports in use, and without one does not. Builds after the migration `20261023100000_video_language` is applied.
