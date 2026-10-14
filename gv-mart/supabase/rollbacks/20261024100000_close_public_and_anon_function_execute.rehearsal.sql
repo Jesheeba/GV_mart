@@ -1,19 +1,26 @@
--- REHEARSAL of 20261024100000_close_public_and_anon_function_execute, one request, never commits.
--- Contains the migration's own DO block verbatim (below), bracketed by a before/after count block.
--- Expected outcome: the request fails with an error whose text starts REHEARSAL_OK followed by counts.
--- Any other error text means the migration's own assertion (or a statement) failed; the transaction is rolled back either way.
-create temp table rehearsal_before as
+-- REHEARSAL of 20261024100000_close_public_and_anon_function_execute: ONE request, never commits.
+-- Layout: (1) before-state capture, (2) the migration's own DO block, verbatim, (3) an after-state block that raises.
+-- Expected outcome: the request FAILS with an error whose text starts REHEARSAL_OK followed by counts.
+-- Any other error text means one of the migration's own assertions (or a statement) failed. Either way the whole
+-- transaction is rolled back and nothing is changed.
+create temp table rehearsal_acl_before as
+select p.oid::regprocedure::text as sig, coalesce(p.proacl::text, 'NULL') as acl
+  from pg_proc p
+ where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f', 'p');
+
+create temp table rehearsal_counts_before as
 select
-  (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f','p')
-     and (p.proacl is null or exists (select 1 from aclexplode(p.proacl) a
-            where a.privilege_type = 'EXECUTE' and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))))) as open_before,
-  (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f','p')) as functions_total,
-  (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prorettype = 'trigger'::regtype
-     and has_function_privilege('authenticated', p.oid, 'execute')) as trigger_auth_before,
-  (select count(*) from pg_default_acl where defaclrole = 'postgres'::regrole and defaclnamespace = 0 and defaclobjtype = 'f') as global_default_rows_before,
-  (select string_agg(p.oid::regprocedure::text || '=' || coalesce(p.proacl::text, 'NULL'), E'
-' order by p.oid::regprocedure::text)
-     from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f','p')) as acl_text_before;
+  (select count(*) from pg_proc p
+    where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f', 'p')
+      and (p.proacl is null
+           or exists (select 1 from aclexplode(p.proacl) a
+                       where a.privilege_type = 'EXECUTE'
+                         and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))))) as open_before,
+  (select count(*) from pg_proc p
+    where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prorettype = 'trigger'::regtype
+      and has_function_privilege('authenticated', p.oid, 'execute')) as trigger_auth_before,
+  (select count(*) from pg_default_acl
+    where defaclrole = 'postgres'::regrole and defaclnamespace = 0 and defaclobjtype = 'f') as global_default_rows_before;
 
 do $mig$
 declare
@@ -140,39 +147,49 @@ $mig$;
 do $rehearsal$
 declare
   b record;
-  v_open_after int; v_trigger_auth_after int; v_callable_auth int; v_service int; v_global_rows int; v_changed int;
+  v_total int; v_open_after int; v_trigger_auth_after int; v_callable_auth int; v_service int; v_global_rows int; v_changed int;
 begin
-  select * into b from rehearsal_before;
+  select * into b from rehearsal_counts_before;
+  select count(*) into v_total from rehearsal_acl_before;
+
   select count(*) into v_open_after from pg_proc p
-   where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f','p')
-     and (p.proacl is null or exists (select 1 from aclexplode(p.proacl) a
-            where a.privilege_type = 'EXECUTE' and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))));
+   where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f', 'p')
+     and (p.proacl is null
+          or exists (select 1 from aclexplode(p.proacl) a
+                      where a.privilege_type = 'EXECUTE'
+                        and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))));
   select count(*) into v_trigger_auth_after from pg_proc p
    where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prorettype = 'trigger'::regtype
      and has_function_privilege('authenticated', p.oid, 'execute');
   select count(*) into v_callable_auth from pg_proc p
-   where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f','p')
+   where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f', 'p')
      and p.prorettype <> 'trigger'::regtype and has_function_privilege('authenticated', p.oid, 'execute');
   select count(*) into v_service from pg_proc p
-   where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f','p')
+   where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f', 'p')
      and has_function_privilege('service_role', p.oid, 'execute');
-  select count(*) into v_global_rows from pg_default_acl where defaclrole = 'postgres'::regrole and defaclnamespace = 0 and defaclobjtype = 'f';
-  select count(*) into v_changed from (
-    select p.oid::regprocedure::text as sig, coalesce(p.proacl::text, 'NULL') as acl
-      from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proowner = 'postgres'::regrole and p.prokind in ('f','p')) cur
-   where not exists (select 1 from regexp_split_to_table(b.acl_text_before, E'
-') l where l = cur.sig || '=' || cur.acl);
+  select count(*) into v_global_rows from pg_default_acl
+   where defaclrole = 'postgres'::regrole and defaclnamespace = 0 and defaclobjtype = 'f';
+  select count(*) into v_changed
+    from pg_proc p join rehearsal_acl_before r on r.sig = p.oid::regprocedure::text
+   where coalesce(p.proacl::text, 'NULL') <> r.acl;
 
-  if v_open_after <> 0 then raise exception 'REHEARSAL_FAILED open functions remain: %', v_open_after; end if;
-  if v_trigger_auth_after <> 0 then raise exception 'REHEARSAL_FAILED trigger functions still executable by authenticated: %', v_trigger_auth_after; end if;
+  if v_open_after <> 0 then
+    raise exception 'REHEARSAL_FAILED open functions remain: %', v_open_after;
+  end if;
+  if v_trigger_auth_after <> 0 then
+    raise exception 'REHEARSAL_FAILED trigger functions still executable by authenticated: %', v_trigger_auth_after;
+  end if;
+  if v_changed <> b.open_before then
+    raise exception 'REHEARSAL_FAILED changed % functions but % were open', v_changed, b.open_before;
+  end if;
 
   raise exception 'REHEARSAL_OK %', jsonb_build_object(
-    'functions_total', b.functions_total,
+    'functions_total', v_total,
     'open_before', b.open_before, 'open_after', v_open_after,
     'functions_whose_acl_changed', v_changed,
-    'trigger_functions_executable_by_authenticated_before', b.trigger_auth_before, 'after', v_trigger_auth_after,
+    'trigger_functions_executable_by_authenticated', jsonb_build_object('before', b.trigger_auth_before, 'after', v_trigger_auth_after),
     'non_trigger_functions_executable_by_authenticated_after', v_callable_auth,
     'functions_executable_by_service_role_after', v_service,
-    'global_default_rows_before', b.global_default_rows_before, 'after', v_global_rows)::text;
+    'global_default_rows', jsonb_build_object('before', b.global_default_rows_before, 'after', v_global_rows))::text;
 end
 $rehearsal$;
