@@ -30,6 +30,11 @@
 --   8. legacy milestone 'booked' (INSERT trigger gets a WHEN contract_id is null; the function is not re-issued) and the
 --      automation ticket.created emit are skipped for contract visit tickets.
 --   9. amc_contracts.next_service_date is set to the date of the first visit that was created.
+--  10. BACK-DATED SALES (owner decision 2026-10-14). A sale whose start date is more than settings.amc_backdate_max_days (default 7)
+--      in the past is REFUSED unless a master passes p_confirm_backdated = true (sell_amc_plan only: it is the only generator that
+--      takes a start date from the user). Inside the threshold, visits dated before today are still not created, but this is now
+--      recorded and shown: amc_contracts.visits_skipped (the skipped visit numbers), a master notification at sale, and the
+--      skipped visits named in the sale response. A gap in visit_no alone is not a record. The term is NOT shifted.
 -- Nothing is deleted. The existing contract's visits are untouched (they are assigned today; cancelling that contract is a
 -- separate, supported action).
 
@@ -38,6 +43,15 @@ alter table public.settings
   add column if not exists amc_assign_window_days integer not null default 7;
 alter table public.settings drop constraint if exists settings_amc_assign_window_check;
 alter table public.settings add constraint settings_amc_assign_window_check check (amc_assign_window_days between 1 and 90);
+
+alter table public.settings
+  add column if not exists amc_backdate_max_days integer not null default 7;
+alter table public.settings drop constraint if exists settings_amc_backdate_max_check;
+alter table public.settings add constraint settings_amc_backdate_max_check check (amc_backdate_max_days between 0 and 90);
+
+-- the record of a back-dated sale: which visit numbers were not created, and the master who confirmed a start beyond the threshold
+alter table public.amc_contracts add column if not exists visits_skipped integer[] not null default '{}';
+alter table public.amc_contracts add column if not exists backdated_confirmed_by uuid references public.profiles(id) on delete set null;
 
 -- ── visit_no, unique per contract ───────────────────────────────────────────────────────────────────────────────────────
 alter table public.service_tickets add column if not exists visit_no integer;
@@ -142,6 +156,7 @@ declare
   v_window   integer;
   v_work_end time;
   v_first    date;
+  v_skipped  integer[] := '{}';
   i          integer;
 begin
   select s.amc_assign_window_days, s.work_end into v_window, v_work_end from public.settings s where s.org_id = p_org_id;
@@ -157,7 +172,10 @@ begin
     v_date := public._visit_working_day(p_org_id, v_date);
 
     -- a visit that would already be in the past cannot be serviced: its number is kept, no ticket is made
-    continue when v_date < v_today;
+    if v_date < v_today then
+      v_skipped := array_append(v_skipped, i);
+      continue;
+    end if;
 
     v_ts := public._visit_start_ts(p_org_id, v_date);
     if v_date = v_today and v_ts <= p_now then
@@ -211,6 +229,16 @@ begin
     update public.amc_contracts set next_service_date = v_first where id = p_contract_id;
   end if;
 
+  -- a back-dated sale: record what was not created and tell the master. The visits are NOT silently dropped.
+  if array_length(v_skipped, 1) is not null then
+    update public.amc_contracts set visits_skipped = v_skipped where id = p_contract_id;
+    insert into public.notifications (org_id, role, type, title, body, ref_id)
+    values (p_org_id, 'master', 'amc_visits_skipped', 'AMC sold with back-dated visits not scheduled',
+            format('Start date %s is in the past, so %s of %s visits (visit %s) were not created. Review this contract with the customer.',
+                   p_start_date, array_length(v_skipped, 1), p_total_visits, array_to_string(v_skipped, ', ')),
+            p_contract_id);
+  end if;
+
   return v_ids;
 end;
 $$;
@@ -219,7 +247,10 @@ grant execute on function public._schedule_amc_visits(uuid, uuid, uuid, uuid, te
 
 -- ── the four generators now call the helper (bodies are the LIVE bodies; only the visit loop changed) ─────────────────
 
-CREATE OR REPLACE FUNCTION public.sell_amc_plan(p_org_id uuid, p_customer_id uuid, p_product_id uuid, p_plan_id uuid, p_start_date date DEFAULT ((now() AT TIME ZONE 'Asia/Kolkata'::text))::date, p_years integer DEFAULT NULL::integer, p_referred_by_technician_id uuid DEFAULT NULL::uuid)
+-- a new optional argument changes the signature: the 7-argument overload is dropped so the two never coexist
+drop function if exists public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid);
+
+CREATE OR REPLACE FUNCTION public.sell_amc_plan(p_org_id uuid, p_customer_id uuid, p_product_id uuid, p_plan_id uuid, p_start_date date DEFAULT ((now() AT TIME ZONE 'Asia/Kolkata'::text))::date, p_years integer DEFAULT NULL::integer, p_referred_by_technician_id uuid DEFAULT NULL::uuid, p_confirm_backdated boolean DEFAULT false)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -239,6 +270,10 @@ declare
   v_address_id uuid;
   v_lead_id uuid; -- REFERRAL (new): resolved technician referral, if any
   v_customer_name text;
+  v_days_back integer;
+  v_max_back integer;
+  v_confirmed uuid;
+  v_skipped integer[];
 begin
   if not (public.is_ops_staff() or public.is_sales_staff()) then
     raise exception 'sell_amc_plan: only master, operation_admin, or sales_admin may sell an AMC plan';
@@ -271,12 +306,24 @@ begin
     values (p_org_id, v_lead_id, 'converted', 'AMC sale, referred by technician');
   end if;
 
+  -- back-dated start: refused beyond the threshold unless a master confirms it explicitly
+  select coalesce(s.amc_backdate_max_days, 7) into v_max_back from public.settings s where s.org_id = p_org_id;
+  v_max_back := coalesce(v_max_back, 7);
+  v_days_back := (now() at time zone 'Asia/Kolkata')::date - p_start_date;
+  if v_days_back > v_max_back then
+    if not (coalesce(p_confirm_backdated, false) and public.is_master()) then
+      raise exception 'AMC_BACKDATED: start date % is % days in the past (limit % days). A master must confirm a back-dated sale.',
+        p_start_date, v_days_back, v_max_back using errcode = 'P0001';
+    end if;
+    v_confirmed := auth.uid();
+  end if;
+
   v_expiry := p_start_date + (v_years || ' years')::interval;
   v_interval_months := greatest(1, round(12.0 / v_plan.visits_per_year)::integer);
   v_total_visits := v_years * v_plan.visits_per_year;
 
-  insert into public.amc_contracts (org_id, customer_id, product_id, plan_id, start_date, expiry_date, status, next_service_date)
-  values (p_org_id, p_customer_id, p_product_id, p_plan_id, p_start_date, v_expiry, 'active', p_start_date + make_interval(months => v_interval_months))
+  insert into public.amc_contracts (org_id, customer_id, product_id, plan_id, start_date, expiry_date, status, next_service_date, backdated_confirmed_by)
+  values (p_org_id, p_customer_id, p_product_id, p_plan_id, p_start_date, v_expiry, 'active', p_start_date + make_interval(months => v_interval_months), v_confirmed)
   returning id into v_contract_id;
 
   if v_plan.gift_id is not null then
@@ -293,9 +340,20 @@ begin
   insert into public.notifications (org_id, role, type, title, body, ref_id)
   values (p_org_id, 'operation_admin', 'amc_sold', 'AMC plan sold', format('%s AMC contract created with %s scheduled visits.', v_plan.name, array_length(v_ticket_ids, 1)), v_contract_id);
 
-  return jsonb_build_object('contract_id', v_contract_id, 'ticket_ids', to_jsonb(v_ticket_ids), 'expiry_date', v_expiry);
+  select c.visits_skipped into v_skipped from public.amc_contracts c where c.id = v_contract_id;
+  return jsonb_build_object(
+    'contract_id', v_contract_id, 'ticket_ids', to_jsonb(v_ticket_ids), 'expiry_date', v_expiry,
+    'visits_expected', v_total_visits,
+    'visits_created', coalesce(array_length(v_ticket_ids, 1), 0),
+    -- the skipped visits, named: number and the date each would have been on
+    'visits_skipped', coalesce((
+      select jsonb_agg(jsonb_build_object('visit_no', k, 'would_have_been_on', public._amc_visit_date(p_start_date, v_plan.visits_per_year, k)) order by k)
+        from unnest(v_skipped) as k), '[]'::jsonb),
+    'backdated_confirmed', v_confirmed is not null);
 end;
 $function$;
+revoke all on function public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid, boolean) from public, anon;
+grant execute on function public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid, boolean) to authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.sell_amc_plan_onsite(p_org_id uuid, p_customer_id uuid, p_product_id uuid, p_plan_id uuid, p_payment_method payment_method, p_txn_id text DEFAULT NULL::text, p_payment_description text DEFAULT NULL::text, p_amount_paid numeric DEFAULT NULL::numeric)
  RETURNS jsonb

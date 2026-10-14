@@ -2104,7 +2104,15 @@
       "yearsCount_other": "{{count}} years",
       "visitsCount_one": "{{count}} visit",
       "visitsCount_other": "{{count}} visits",
-      "totalPrice": "Total: {{amount}}"
+      "totalPrice": "Total: {{amount}}",
+      "backdatedWarning": "This start date is {{days}} days in the past (limit {{limit}} days). Visits already past will not be scheduled.",
+      "backdatedConfirm": "I confirm this back-dated sale",
+      "backdatedMasterOnly": "Only a master can confirm a start date this far in the past.",
+      "skippedTitle": "Sold: some visits were not scheduled",
+      "skippedBody": "{{created}} of {{expected}} visits were scheduled. The following were already in the past and were NOT created:",
+      "skippedItem": "Visit {{no}} (would have been on {{date}})",
+      "skippedHint": "The master has been notified and the contract is marked. Agree with the customer how these visits are handled.",
+      "skippedAck": "Understood"
     },
     "errors": {
       "customerRequired": "Customer is required",

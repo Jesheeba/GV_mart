@@ -17,6 +17,7 @@ drop function if exists public._amc_assign_deadman_check(text);
 drop function if exists public.amc_assign_cron_tick(text);
 drop function if exists public.assign_due_amc_visits(timestamptz);
 
+drop function if exists public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid, boolean);
 CREATE OR REPLACE FUNCTION public.sell_amc_plan(p_org_id uuid, p_customer_id uuid, p_product_id uuid, p_plan_id uuid, p_start_date date DEFAULT ((now() AT TIME ZONE 'Asia/Kolkata'::text))::date, p_years integer DEFAULT NULL::integer, p_referred_by_technician_id uuid DEFAULT NULL::uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1028,3 +1029,8 @@ alter table public.service_tickets drop column if exists visit_no;
 alter table public.settings drop constraint if exists settings_amc_assign_window_check;
 alter table public.settings drop column if exists amc_assign_window_days;
 commit;
+
+alter table public.amc_contracts drop column if exists backdated_confirmed_by;
+alter table public.amc_contracts drop column if exists visits_skipped;
+alter table public.settings drop constraint if exists settings_amc_backdate_max_check;
+alter table public.settings drop column if exists amc_backdate_max_days;

@@ -13,8 +13,9 @@ import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useRoProducts, useSellAmcPlan } from "@/hooks/useAmc"
 import { useTechnicians } from "@/hooks/useService"
-import { amcPlansHooks } from "@/hooks/useMasters"
+import { amcPlansHooks, useSettings } from "@/hooks/useMasters"
 import { sellAmcSchema, type SellAmcFormInput, type SellAmcInput } from "@/lib/validation/amc"
+import type { SellAmcResult } from "@/services/amc"
 import { formatCurrency } from "@/lib/sale-calc"
 // Fix 1: price_per_year (falling back to price/years for any plan created
 // before that column existed) drives the live total below — shared with
@@ -38,6 +39,11 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   const { data: technicians } = useTechnicians(orgId)
   const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
   const sellAmc = useSellAmcPlan()
+  const { data: orgSettings } = useSettings(orgId)
+  // a start date more than this many days in the past needs a master's explicit confirmation (server enforces it too)
+  const backdateMaxDays = (orgSettings as { amc_backdate_max_days?: number } | undefined)?.amc_backdate_max_days ?? 7
+  const [confirmBackdated, setConfirmBackdated] = useState(false)
+  const [sold, setSold] = useState<SellAmcResult | null>(null)
 
   const form = useForm<SellAmcFormInput, unknown, SellAmcInput>({
     resolver: zodResolver(sellAmcSchema),
@@ -49,9 +55,12 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   const startDate = form.watch("startDate")
   const summary = selectedPlan ? amcPlanSummary(selectedPlan, startDate ?? "") : null
   const computedTotal = selectedPlan ? pricePerYearOf(selectedPlan) * selectedPlan.years : 0
+  const daysBack = startDate ? Math.round((Date.parse(getIstNow().date) - Date.parse(startDate)) / 86_400_000) : 0
+  const needsBackdateConfirm = daysBack > backdateMaxDays
+  const isMaster = profile?.role === "master"
 
   async function onSubmit(values: SellAmcInput) {
-    await sellAmc.mutateAsync({
+    const result = await sellAmc.mutateAsync({
       orgId: orgId!,
       customerId: values.customerId,
       productId: values.productId,
@@ -59,8 +68,31 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
       startDate: values.startDate,
       // no years: the server uses the plan's own duration
       referredByTechnicianId: referredByTechnicianId || null,
+      confirmBackdated: needsBackdateConfirm && isMaster && confirmBackdated,
     })
-    onSold()
+    // visits that were not created are shown, never dropped silently: the user acknowledges them before the panel closes
+    if (result.visits_skipped.length > 0) setSold(result)
+    else onSold()
+  }
+
+  if (sold) {
+    return (
+      <Card className="gap-3 px-5">
+        <h2 className="text-sm font-semibold text-text">{t("amc.sellAmc.skippedTitle")}</h2>
+        <p className="text-sm text-text">
+          {t("amc.sellAmc.skippedBody", { created: sold.visits_created, expected: sold.visits_expected })}
+        </p>
+        <ul className="list-disc space-y-0.5 pl-5 text-sm text-text">
+          {sold.visits_skipped.map((v) => (
+            <li key={v.visit_no}>{t("amc.sellAmc.skippedItem", { no: v.visit_no, date: v.would_have_been_on })}</li>
+          ))}
+        </ul>
+        <p className="text-xs text-text-muted">{t("amc.sellAmc.skippedHint")}</p>
+        <div className="flex justify-end">
+          <Button onClick={onSold}>{t("amc.sellAmc.skippedAck")}</Button>
+        </div>
+      </Card>
+    )
   }
 
   return (
@@ -165,10 +197,24 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
         </select>
       </div>
 
+      {needsBackdateConfirm ? (
+        <div className="space-y-1.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5">
+          <p className="text-sm text-text">{t("amc.sellAmc.backdatedWarning", { days: daysBack, limit: backdateMaxDays })}</p>
+          {isMaster ? (
+            <label className="flex items-center gap-2 text-sm text-text">
+              <input type="checkbox" checked={confirmBackdated} onChange={(e) => setConfirmBackdated(e.target.checked)} />
+              {t("amc.sellAmc.backdatedConfirm")}
+            </label>
+          ) : (
+            <p className="text-xs text-danger">{t("amc.sellAmc.backdatedMasterOnly")}</p>
+          )}
+        </div>
+      ) : null}
+
       {sellAmc.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(sellAmc.error as Error).message}</p> : null}
 
       <div className="flex justify-end">
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={sellAmc.isPending}>
+        <Button onClick={form.handleSubmit(onSubmit)} disabled={sellAmc.isPending || (needsBackdateConfirm && !(isMaster && confirmBackdated))}>
           {sellAmc.isPending ? <Loader2 className="size-4 animate-spin" /> : t("amc.sellAmc.submit")}
         </Button>
       </div>

@@ -3909,6 +3909,8 @@ export type Database = {
           product_id: string
           plan_id: string
           start_date: string
+          visits_skipped: number[]
+          backdated_confirmed_by: string | null
           expiry_date: string
           status: Database["public"]["Enums"]["amc_status"]
           next_service_date: string | null
@@ -3943,6 +3945,8 @@ export type Database = {
           product_id?: string
           plan_id?: string
           start_date?: string
+          visits_skipped?: number[]
+          backdated_confirmed_by?: string | null
           expiry_date?: string
           status?: Database["public"]["Enums"]["amc_status"]
           next_service_date?: string | null
@@ -5968,6 +5972,7 @@ export type Database = {
           discount_admin_max: number
           amc_book_window_days: number
           amc_assign_window_days: number
+          amc_backdate_max_days: number
           referral_point_value: number
           review_link_min_stars: number
           google_review_url: string | null
@@ -6061,6 +6066,7 @@ export type Database = {
           discount_admin_max?: number
           amc_book_window_days?: number
           amc_assign_window_days?: number
+          amc_backdate_max_days?: number
           referral_point_value?: number
           review_link_min_stars?: number
           google_review_url?: string | null
@@ -6137,6 +6143,7 @@ export type Database = {
           discount_admin_max?: number
           amc_book_window_days?: number
           amc_assign_window_days?: number
+          amc_backdate_max_days?: number
           referral_point_value?: number
           review_link_min_stars?: number
           google_review_url?: string | null
