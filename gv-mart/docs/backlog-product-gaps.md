@@ -131,3 +131,23 @@ reassigns the visit, because `assign_due_amc_visits` only selects unassigned vis
 free, idempotent, failure isolation, notice written, in-progress visit left alone). No UI. About half a day to a day including
 tests. Open exposure until it ships: a visit assigned at sale to a technician who then leaves is not taken back for up to the
 window (7 days).
+
+## Queue order for the automation work (owner, 2026-10-14). Nothing here is built; no migration is applied without the owner naming it
+
+Status of the AMC visits migration (20261022100000): approved in text only; the "GO APPLY" instruction was WITHDRAWN on 2026-10-14,
+so nothing waits for it. It is under owner review (file, sha256 and the delta against the reviewed text were posted in chat).
+
+Build order, each item a separate migration where it touches the database, each with tests, a branch and a report; migration text is
+posted for review first; no apply and no push without the owner naming it:
+
+0. **AMC visit release path (decision 3)**, a separate follow-up migration, AHEAD of everything below. Specification: the section
+   "AMC visit release path" above (extend `assign_due_amc_visits`; withdraw and notify, then reassign).
+1. `enquiry.item_added` event and the per-item cooldown: `item_key`, `cooldown_per_item`, and the lead payload fields `product_id`,
+   `spare_id`, `has_item`, `item_key`. Spec: `docs/automations-flows-design.md` at ab9f54b (branch `docs/automations-flows-design`).
+2. Emit refuses a rule with no customer record, as `skipped_no_recipient` / `no_customer_record`, for EVERY customer rule. The Phase 2
+   and Phase 3A tests are re-run only inside a transaction the builder opens and rolls back itself.
+3. Enquiry-video resolver, the lead hand-off type and `skipped_no_video`, per the same spec including its language-column section.
+4. LATER: WhatsApp bot item capture from a product list.
+
+Standing rules for all of the above: no database write unless the owner names it in the chat; never concatenate a migration with a test
+file against the live database; do not re-run anything "to check" without asking.
