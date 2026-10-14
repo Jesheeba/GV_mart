@@ -20,19 +20,23 @@
 --        - writes an audit_log row (action 'amc_visit_released', actor null: it is a system action) naming the reason,
 --        - inside the assignment window: runs the SAME engine (_auto_assign_ticket_internal) at once. The ticket status is
 --          not flipped first, so a successful hand-over fires no new customer milestone. If nobody is free the ticket goes
---          back to open (assigned_at and sla_due_at cleared) and the engine's usual "needs manual assignment" alert is raised
---          once for it.
+--          back to open (assigned_at and sla_due_at cleared). The engine raises its "needs manual assignment" alert on every
+--          attempt, so repeat UNREAD alerts for the same ticket are deleted here, keeping the oldest unread one: exactly the
+--          collapse assign_due_amc_visits() already does. Nothing else is deleted.
 --        - beyond the window: the ticket goes back to open and the daily assign_due_amc_visits() picks it up when due.
 --      A failure in one visit never stops the others and leaves that visit untouched (it is retried on the next run).
 --      Idempotent: a released visit has no technician and is not selected again. Returns counts.
---   3. amc_assign_cron_tick() runs release_unavailable_amc_visits() BEFORE assign_due_amc_visits() in the same daily run, and
---      records an 'error' heartbeat if any visit failed to release (the existing dead-man check then alerts the master).
+--   3. amc_assign_cron_tick() runs release_unavailable_amc_visits() BEFORE assign_due_amc_visits() in the same daily run, each
+--      in its OWN exception block: a failure of the release never prevents the due-visit assignment from running (and the
+--      other way round). Either failure, or any visit that could not be released, leaves an 'error' heartbeat naming it, which
+--      the existing dead-man check turns into a master alert.
 --   4. Two triggers run the same release immediately, scoped to the one technician (and date), so a visit dated today is not
 --      left on someone until the next morning:
 --        technicians: is_active true -> false
 --        technician_availability: a row becomes status 'leave' (insert or update of status / date)
 --      Both swallow any error: they must never block the deactivation or the leave entry itself.
--- Nothing is deleted. Visits in progress, completed, cancelled, already past, or not belonging to a contract are never touched.
+-- The only rows this migration's functions ever delete are the repeat unread "needs manual assignment" alerts described in 2.
+-- Visits in progress, completed, cancelled, already past, or not belonging to a contract are never touched.
 
 -- ── the one definition of "unavailable on that date" ─────────────────────────────────────────────────────────────────────
 create or replace function public._amc_visit_unavailable_reason(p_technician_id uuid, p_date date)
@@ -193,25 +197,33 @@ set search_path = public
 as $$
 declare
   v_rel jsonb;
+  v_err text;
 begin
+  -- 1. take visits back from unavailable technicians. Its own block: a failure here must not stop the assignment below.
   begin
     v_rel := public.release_unavailable_amc_visits();
+    if coalesce((v_rel ->> 'errors')::integer, 0) > 0 then
+      v_err := format('release path: %s visit(s) could not be released', v_rel ->> 'errors');
+    end if;
+  exception when others then
+    v_err := 'release path: ' || left(sqlerrm, 400);
+  end;
+
+  -- 2. assign what is due (also for visits just released). Its own block, so a failure here is reported but does not undo 1.
+  begin
     perform public.assign_due_amc_visits();
   exception when others then
-    insert into public.cron_job_heartbeats (job_key, last_run_at, last_status, last_error)
-    values (p_job_key, clock_timestamp(), 'error', left(sqlerrm, 500))
-    on conflict (job_key) do update
-      set last_run_at = excluded.last_run_at, last_status = 'error', last_error = excluded.last_error;
-    return;
+    v_err := coalesce(v_err || '; ', '') || 'assign due: ' || left(sqlerrm, 400);
   end;
-  if coalesce((v_rel ->> 'errors')::integer, 0) > 0 then
-    -- some visits could not be taken back from an unavailable technician: the dead-man check alerts the master
+
+  if v_err is not null then
     insert into public.cron_job_heartbeats (job_key, last_run_at, last_status, last_error)
-    values (p_job_key, clock_timestamp(), 'error', format('release path: %s visit(s) could not be released', v_rel ->> 'errors'))
+    values (p_job_key, clock_timestamp(), 'error', left(v_err, 500))
     on conflict (job_key) do update
       set last_run_at = excluded.last_run_at, last_status = 'error', last_error = excluded.last_error;
     return;
   end if;
+
   insert into public.cron_job_heartbeats (job_key, last_run_at, last_status, last_error, last_stale_alert_at)
   values (p_job_key, clock_timestamp(), 'ok', null, null)
   on conflict (job_key) do update

@@ -1,4 +1,4 @@
--- Rolled-back DB test for 20261024100000_amc_release_unavailable_visits.sql (AMC visit release path).
+-- Rolled-back DB test for 20261025100000_amc_release_unavailable_visits.sql (AMC visit release path).
 -- NOT RUN: written with the migration for review; run it only on explicit approval.
 -- Runner: BEGIN; the migration (already applied live, then nothing to prepend); this file as its OWN transaction. It ends in
 -- RAISE EXCEPTION 'RESULTS...', so it can never commit. Never concatenate it with the migration file. A throwaway __TEST_

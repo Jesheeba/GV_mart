@@ -1,4 +1,4 @@
--- Rollback for 20261024100000_amc_release_unavailable_visits.sql.
+-- Rollback for 20261025100000_amc_release_unavailable_visits.sql.
 -- Restores amc_assign_cron_tick() to the body from 20261022100000 (assign only, no release step) and drops the release function,
 -- the unavailability helper and the two triggers. Visits already released stay released (open / unassigned or re-assigned);
 -- withdrawal notifications and audit rows already written are not removed (audit_log is append-only).
