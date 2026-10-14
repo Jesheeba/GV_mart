@@ -1,6 +1,6 @@
--- Rollback for 20261023100000_close_public_and_anon_function_execute.sql
+-- Rollback for 20261024100000_close_public_and_anon_function_execute.sql
 -- Restores the EXACT prior ACLs recorded in the snapshot file next to this one
--- (20261023100000_close_public_and_anon_function_execute.acl_snapshot.json, taken 2026-10-14 before the migration), then the prior default privileges.
+-- (20261024100000_close_public_and_anon_function_execute.acl_snapshot.json, taken 2026-10-14 before the migration), then the prior default privileges.
 -- WARNING: this re-opens PUBLIC and anon EXECUTE on 97 functions and re-opens the PUBLIC default
 -- for new functions. It is a restore-the-prior-state tool, not a routine undo.
 -- Functions created after the snapshot (for example AMC helpers) are not in it and are left as the

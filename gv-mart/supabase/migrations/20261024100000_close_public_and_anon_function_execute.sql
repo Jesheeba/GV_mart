@@ -1,4 +1,4 @@
--- 20261023100000_close_public_and_anon_function_execute.sql
+-- 20261024100000_close_public_and_anon_function_execute.sql
 --
 -- Closes EXECUTE for PUBLIC and anon on every postgres-owned function in schema public, and
 -- makes the closure the default for functions created from now on.
@@ -25,8 +25,8 @@
 -- applies to functions that postgres creates in other schemas later (for example `create extension`).
 -- Such functions will need an explicit grant where authenticated/anon callers must use them.
 --
--- Exact rollback: supabase/rollbacks/20261023100000_close_public_and_anon_function_execute.rollback.sql, driven by the ACL snapshot
--- supabase/rollbacks/20261023100000_close_public_and_anon_function_execute.acl_snapshot.json taken before this migration.
+-- Exact rollback: supabase/rollbacks/20261024100000_close_public_and_anon_function_execute.rollback.sql, driven by the ACL snapshot
+-- supabase/rollbacks/20261024100000_close_public_and_anon_function_execute.acl_snapshot.json taken before this migration.
 
 do $mig$
 declare
@@ -60,7 +60,6 @@ declare
   ];
   r record;
   v_touched int := 0;
-  v_unnamed text[] := '{}';
 begin
   -- A rebuild from migrations must never leave the retired linking function open.
   if to_regprocedure('public.link_customer_google_account(text)') is not null then

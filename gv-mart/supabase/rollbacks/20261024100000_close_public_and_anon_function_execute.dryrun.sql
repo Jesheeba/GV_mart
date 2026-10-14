@@ -1,4 +1,4 @@
--- DRY RUN for 20261023100000_close_public_and_anon_function_execute: lists every function the migration will touch and what it will do.
+-- DRY RUN for 20261024100000_close_public_and_anon_function_execute: lists every function the migration will touch and what it will do.
 -- Read-only. Run it immediately before GO APPLY; any row marked "UNLISTED" was created after the audit
 -- (for example by the AMC migration) and gets the same rule: PUBLIC and anon closed, authenticated kept only if it had it.
 with trigger_group(name) as (values
