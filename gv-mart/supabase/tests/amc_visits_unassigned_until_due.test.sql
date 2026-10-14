@@ -1,4 +1,4 @@
--- Rolled-back DB test for 20261020100000_amc_visits_unassigned_until_due.sql (assignment window, daily job, cron).
+-- Rolled-back DB test for 20261022100000_amc_visits_unassigned_until_due.sql (assignment window, daily job, cron).
 -- The visit schedule rule and assignment at sale have their own file: amc_visit_schedule_rule.test.sql.
 -- Runner: BEGIN; the migration; this block (ends in RAISE; read RESULTS in the error). A throwaway __TEST_ organisation with
 -- unroutable 555 numbers is created inside the transaction and vanishes with the rollback (nothing is committed, so there is

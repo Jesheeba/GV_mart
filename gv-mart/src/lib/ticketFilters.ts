@@ -14,7 +14,7 @@ export type FilterableTicket = {
   sla_due_at: string | null
   product_id: string | null
   unlisted_product_name: string | null
-  /** AMC visits (migration 20261020100000): only needed to tell "not yet due" visits apart; optional so other callers are unaffected. */
+  /** AMC visits (migration 20261022100000): only needed to tell "not yet due" visits apart; optional so other callers are unaffected. */
   contract_id?: string | null
   type?: Enums<"ticket_type"> | string | null
   appointments: { technician_id: string | null; scheduled_at?: string | null; status?: string }[]

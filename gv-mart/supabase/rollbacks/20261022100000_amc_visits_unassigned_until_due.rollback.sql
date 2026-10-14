@@ -1,4 +1,4 @@
--- Rollback for 20261020100000_amc_visits_unassigned_until_due.sql
+-- Rollback for 20261022100000_amc_visits_unassigned_until_due.sql
 -- Restores the replaced functions to their bodies from before this migration (assign-at-purchase generators, automation
 -- ticket.created for contract tickets, report_kpi_tiles open_tickets) and the original single milestone trigger,
 -- unschedules the two cron jobs, drops the new functions/trigger/index/columns. Visits already created unassigned stay
