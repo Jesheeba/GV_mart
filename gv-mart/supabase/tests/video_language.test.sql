@@ -1,5 +1,6 @@
--- Rolled-back DB tests for migration 20261023100000_video_language. NOT RUN (the migration is not applied).
--- Run with the migration applied in the same transaction. One transaction ending in RAISE; throwaway __TEST_ org only.
+-- DB tests for migration 20261023100000_video_language. NOT RUN.
+-- Run ONLY after the migration has been applied (never concatenated with it), in its own transaction, and only when told.
+-- The script ends in RAISE, so the transaction always rolls back; it touches throwaway __TEST_ organisations only.
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
@@ -21,7 +22,7 @@ begin execute 'reset role'; perform set_config('request.jwt.claims', '', true); 
 
 do $t$
 declare
-  v_brand uuid; v_model uuid;
+  v_brand uuid; v_model uuid; v_spare2 uuid;
   v_org uuid; v_org2 uuid; v_master uuid; v_sales uuid; v_spare uuid; v_prod uuid; v_v uuid;
   v_rows_pv int; v_rows_vl int; n int; v_ok boolean;
 begin
@@ -81,10 +82,28 @@ begin
   perform pg_temp.chk('master cannot write another org''s spare_videos', v_ok);
   perform pg_temp.as_pg();
 
-  -- cascade: deleting the spare removes its videos
-  delete from spare_videos where org_id = v_org and url = 'https://youtu.be/d';
+  -- RESTRICT: a spare that still has videos cannot be deleted; once its videos are gone it can
+  v_ok := false;
+  begin delete from spares where id = v_spare; exception when foreign_key_violation then v_ok := true; end;
+  perform pg_temp.chk('a spare with videos cannot be deleted (ON DELETE RESTRICT)', v_ok);
+  perform pg_temp.chk('the spare and its videos are intact after the refused delete',
+    exists (select 1 from spares where id = v_spare) and (select count(*) = 2 from spare_videos where spare_id = v_spare));
+  delete from spare_videos where spare_id = v_spare;
   delete from spares where id = v_spare;
-  perform pg_temp.chk('deleting a spare removes its videos', (select count(*) = 0 from spare_videos where org_id = v_org));
+  perform pg_temp.chk('a spare with no videos can be deleted', not exists (select 1 from spares where id = v_spare));
+
+  -- Organisation delete while a spare has videos. RESTRICT is checked immediately, NO ACTION at end of statement, so this
+  -- can fail with RESTRICT when the organisation cascade reaches spares before spare_videos. Recorded as PASS or FAIL.
+  insert into spares (org_id, name, price) values (v_org2, '__TEST_ spare 2', 10) returning id into v_spare2;
+  insert into spare_videos (org_id, spare_id, url) values (v_org2, v_spare2, 'https://youtu.be/g');
+  v_ok := false;
+  begin
+    delete from organizations where id = v_org2;
+    v_ok := true;
+  exception when others then
+    v_ok := false;
+  end;
+  perform pg_temp.chk('deleting an organisation that has spare videos still works', v_ok);
 
   perform pg_temp.chk('real product_videos and video_library rows unchanged',
     v_rows_pv = (select count(*) from public.product_videos where org_id not in (select id from organizations where name like '\_\_TEST\_%'))
