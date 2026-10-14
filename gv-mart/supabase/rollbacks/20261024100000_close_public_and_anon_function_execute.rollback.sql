@@ -88,7 +88,7 @@ begin
     execute format('revoke execute on function %s from public, anon, authenticated, service_role', v_sig);
     execute format('grant execute on function %s to anon, authenticated, public, service_role', v_sig);
   end loop;
-  -- prior ACL grantees (besides postgres): public,service_role; 14 functions
+  -- prior ACL grantees (besides postgres): public,service_role; 13 functions
   foreach v_sig in array array[
     '_notify_task_assigned()',
     '_notify_technician_low_stock()',
@@ -102,7 +102,6 @@ begin
     'guard_profile_privileged_columns()',
     'guard_profile_staff_role_key()',
     'guard_technician_tier_change()',
-    'sell_amc_plan(uuid,uuid,uuid,uuid,date,integer,uuid)',
     'stamp_technician_tier_changed_at()'
   ] loop
     execute format('revoke execute on function %s from public, anon, authenticated, service_role', v_sig);

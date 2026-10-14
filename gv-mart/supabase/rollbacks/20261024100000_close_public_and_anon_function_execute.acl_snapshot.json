@@ -1,5 +1,5 @@
 {
- "taken_at": "2026-10-14T17:00:27+05:30",
+ "taken_at": "2026-10-14T18:28:09+05:30",
  "note": "ACLs of every postgres-owned function in schema public (proacl text) and pg_default_acl, read via the Management API before the migration. Contains no secrets.",
  "default_acl": [
   {
@@ -166,6 +166,18 @@
   }
  ],
  "functions": [
+  {
+   "signature": "_amc_assign_deadman_check(text)",
+   "security_definer": true,
+   "returns": "void",
+   "acl": "{postgres=X/postgres,service_role=X/postgres}"
+  },
+  {
+   "signature": "_amc_visit_date(date,integer,integer)",
+   "security_definer": false,
+   "returns": "date",
+   "acl": "{postgres=X/postgres,service_role=X/postgres}"
+  },
   {
    "signature": "_appt_range(timestamp with time zone,timestamp with time zone)",
    "security_definer": false,
@@ -503,6 +515,12 @@
    "acl": "{postgres=X/postgres,service_role=X/postgres}"
   },
   {
+   "signature": "_schedule_amc_visits(uuid,uuid,uuid,uuid,text,integer,integer,date,date,uuid,uuid,text,timestamp with time zone)",
+   "security_definer": true,
+   "returns": "uuid[]",
+   "acl": "{postgres=X/postgres,service_role=X/postgres}"
+  },
+  {
    "signature": "_service_tickets_derive_skill_and_duration()",
    "security_definer": true,
    "returns": "trigger",
@@ -539,6 +557,12 @@
    "acl": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
   },
   {
+   "signature": "_ticket_is_future_amc_visit(uuid)",
+   "security_definer": true,
+   "returns": "boolean",
+   "acl": "{postgres=X/postgres,service_role=X/postgres}"
+  },
+  {
    "signature": "_ticket_is_test(uuid)",
    "security_definer": true,
    "returns": "boolean",
@@ -554,6 +578,12 @@
    "signature": "_tier_window_start(uuid,timestamp with time zone,integer)",
    "security_definer": true,
    "returns": "timestamp with time zone",
+   "acl": "{postgres=X/postgres,service_role=X/postgres}"
+  },
+  {
+   "signature": "_trg_amc_visit_rescheduled()",
+   "security_definer": true,
+   "returns": "trigger",
    "acl": "{postgres=X/postgres,service_role=X/postgres}"
   },
   {
@@ -881,6 +911,12 @@
    "acl": "{postgres=X/postgres,service_role=X/postgres}"
   },
   {
+   "signature": "amc_assign_cron_tick(text)",
+   "security_definer": true,
+   "returns": "void",
+   "acl": "{postgres=X/postgres,service_role=X/postgres}"
+  },
+  {
    "signature": "approve_installation_credit(uuid)",
    "security_definer": true,
    "returns": "void",
@@ -897,6 +933,12 @@
    "security_definer": true,
    "returns": "void",
    "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}"
+  },
+  {
+   "signature": "assign_due_amc_visits(timestamp with time zone)",
+   "security_definer": true,
+   "returns": "jsonb",
+   "acl": "{postgres=X/postgres,service_role=X/postgres}"
   },
   {
    "signature": "assign_lead(uuid,uuid,text)",
@@ -1649,10 +1691,10 @@
    "acl": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}"
   },
   {
-   "signature": "sell_amc_plan(uuid,uuid,uuid,uuid,date,integer,uuid)",
+   "signature": "sell_amc_plan(uuid,uuid,uuid,uuid,date,integer,uuid,boolean)",
    "security_definer": true,
    "returns": "jsonb",
-   "acl": "{=X/postgres,postgres=X/postgres,service_role=X/postgres}"
+   "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}"
   },
   {
    "signature": "send_staff_whatsapp(uuid,text,uuid,text,text,jsonb,text,uuid)",
