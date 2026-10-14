@@ -4798,7 +4798,9 @@
       "lead_callback_reminder": "Callback reminder",
       "enquiry_lead": "New enquiry",
       "callback_requested": "Callback requested",
-      "wa_lead_captured": "New WhatsApp lead"
+      "wa_lead_captured": "New WhatsApp lead",
+      "amc_visit_withdrawn": "AMC visit withdrawn",
+      "amc_visits_skipped": "AMC visits not scheduled"
     }
   },
   "approvals": {

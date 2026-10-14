@@ -4793,7 +4793,9 @@
       "lead_callback_reminder": "அழைப்பு நினைவூட்டல்",
       "enquiry_lead": "புதிய விசாரணை",
       "callback_requested": "அழைப்பு கோரிக்கை",
-      "wa_lead_captured": "புதிய வாட்ஸ்அப் லீட்"
+      "wa_lead_captured": "புதிய வாட்ஸ்அப் லீட்",
+      "amc_visit_withdrawn": "AMC வருகை திரும்பப் பெறப்பட்டது",
+      "amc_visits_skipped": "AMC வருகைகள் திட்டமிடப்படவில்லை"
     }
   },
   "approvals": {
