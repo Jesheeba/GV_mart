@@ -115,6 +115,10 @@ begin
 end;
 $function$;
 
+-- the 7-argument function was dropped and re-created above, so it gets no ACL from the old one: restate it
+revoke all on function public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid) from public, anon;
+grant execute on function public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid) to authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.sell_amc_plan_onsite(p_org_id uuid, p_customer_id uuid, p_product_id uuid, p_plan_id uuid, p_payment_method payment_method, p_txn_id text DEFAULT NULL::text, p_payment_description text DEFAULT NULL::text, p_amount_paid numeric DEFAULT NULL::numeric)
  RETURNS jsonb
  LANGUAGE plpgsql
