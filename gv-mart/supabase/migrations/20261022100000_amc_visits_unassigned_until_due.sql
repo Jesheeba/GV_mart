@@ -35,6 +35,9 @@
 --      takes a start date from the user). Inside the threshold, visits dated before today are still not created, but this is now
 --      recorded and shown: amc_contracts.visits_skipped (the skipped visit numbers), a master notification at sale, and the
 --      skipped visits named in the sale response. A gap in visit_no alone is not a record. The term is NOT shifted.
+--      visits_skipped holds the plan's visit numbers exactly as they would have been stored (v_base + i). The response's
+--      would_have_been_on is the UNROLLED date, public._amc_visit_date(start, visits per year, k), i.e. BEFORE the weekend /
+--      non-working-day roll-forward, so for a skipped visit it can name a day the shop is closed.
 -- Nothing is deleted. The existing contract's visits are untouched (they are assigned today; cancelling that contract is a
 -- separate, supported action).
 
