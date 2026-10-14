@@ -94,7 +94,7 @@ describe("service page primary filters", () => {
   })
 })
 
-describe("AMC visits that are not yet due (migration 20261020100000)", () => {
+describe("AMC visits that are not yet due (migration 20261022100000)", () => {
   // 13 Oct 2026, 10:00 IST
   const NOW = Date.parse("2026-10-13T04:30:00Z")
   const base = {

@@ -1,5 +1,5 @@
 -- Rolled-back DB test for the AMC visit schedule rule and assignment at sale
--- (migration 20261020100000_amc_visits_unassigned_until_due.sql: _amc_visit_date, _schedule_amc_visits).
+-- (migration 20261022100000_amc_visits_unassigned_until_due.sql: _amc_visit_date, _schedule_amc_visits).
 -- Runner: BEGIN; the migration; this block (ends in RAISE; read RESULTS in the error). A throwaway __TEST_ organisation with
 -- unroutable 555 numbers is created inside the transaction and vanishes with the rollback; nothing is sent, no real data touched.
 -- Time-of-day cases call the helper directly with a fixed p_now so the test does not depend on when it runs.
