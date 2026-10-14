@@ -2,6 +2,20 @@
 
 Specification only. Nothing here is built. Recorded 2026-10-14.
 
+## PATTERN (above the individual fixes): work is given to a person and nothing ever takes it back
+
+Three instances in one week, all the same shape: work is assigned to a technician, the assignment is later wrong, and no process
+withdraws it or tells the person.
+
+1. The cancelled test contract's six appointments sat on one technician after the contract was cancelled (Gap A).
+2. A cancellation sends the technician no notice and leaves the old "New job assigned" unread (Gap C).
+3. AMC visits assigned at sale (migration 20261022100000) are never re-checked if the technician is deactivated, goes on leave or
+   becomes unavailable, because the daily job only looks at UNASSIGNED visits.
+
+**Rule to design against:** every place that assigns work to a person needs a defined way to take it back and tell them: when the
+work is cancelled, when the person becomes unavailable, and when it is reassigned. Assignment without a release path is not finished.
+Review every assignment path (tickets, AMC visits, tasks, leads) against this rule.
+
 ## Gap A: an AMC contract cannot be cancelled from the app (priority: high)
 
 **Found:** 2026-10-13/14, test contract e13bcc7c. The owner cancelled "in the app" and nothing persisted on the contract.
@@ -80,3 +94,40 @@ cancelled visit.
 - **Still open:** the replacement (decided 2026-10-14: option 1b, Supabase phone verification with the Send SMS hook over WhatsApp;
   spec `docs/spec-link-customer-login-phone-otp.md` on that branch, awaiting owner security review) is specified, not built, and must exist before Google login is switched on
   (until then the link card would fail with permission denied). Open question: should public sign-up be open at all.
+
+## Visit dates: two known gaps (not blockers; decision 2026-10-14)
+
+- Roll-forward via `_visit_working_day` is accepted. Gap 1: confirm whether `_lead_is_working_day` consults any public-holiday
+  calendar. Today it is a weekday list from settings, so a public holiday probably lands on the day.
+- Gap 2: there is no mechanism for "the customer cannot do that date" (no customer-side date choice or advance confirmation). Staff
+  can reschedule a visit by hand afterwards.
+
+## AMC back-dated sales (decision 2026-10-14: refuse beyond a threshold unless a master confirms, plus visibility): BUILT, ACCEPTED, NOT APPLIED
+
+- Threshold: `settings.amc_backdate_max_days`, default 7, range 0..90.
+- Beyond it, `sell_amc_plan` raises `AMC_BACKDATED` unless `p_confirm_backdated = true` AND the caller is a master.
+- Inside it: skipped visit numbers stored on `amc_contracts.visits_skipped`, master notification `amc_visits_skipped`, response lists
+  each skipped visit with the date it would have been on, and the Sell AMC panel shows them and requires acknowledgement.
+- The term is NOT shifted (a different contract is a commercial conversation).
+
+## AMC visit release path: SEPARATE FOLLOW-UP MIGRATION, QUEUED AHEAD OF THE ENQUIRY WORK, NOT BUILT
+
+**Status (owner decision):** this is a separate follow-up migration, not part of 20261022100000. Do not build yet. Kept in the
+queue ahead of the enquiry work.
+
+**Problem:** visits inside the window are assigned at sale. If the technician is later deactivated, on leave or unavailable, nothing
+reassigns the visit, because `assign_due_amc_visits` only selects unassigned visits.
+
+**Specification** (extend `assign_due_amc_visits`, same daily 06:30 IST run):
+1. Select AMC visit tickets (contract_id not null, type amc, status open/assigned) with a future scheduled appointment whose
+   technician is now: inactive (`technicians.is_active = false`), on leave on that date, or at capacity for that date.
+2. For each, in its own sub-transaction (one failure never stops the rest): clear the technician on the appointment, set the ticket
+   back to open, clear assigned_at and SLA, **notify the old technician that the visit is withdrawn** (a notice, not just a read
+   mark), then run the same engine to reassign; if nobody is free, the normal "needs manual assignment" alert fires once.
+3. Idempotent: a visit already released/reassigned is not touched again; report counts in the heartbeat row.
+4. Optionally also fire on `technicians.is_active -> false` so it does not wait for the next morning.
+
+**Size:** one function change of roughly 80-120 lines of SQL plus about 10 rolled-back tests (inactive, on leave, capacity, none
+free, idempotent, failure isolation, notice written, in-progress visit left alone). No UI. About half a day to a day including
+tests. Open exposure until it ships: a visit assigned at sale to a technician who then leaves is not taken back for up to the
+window (7 days).
