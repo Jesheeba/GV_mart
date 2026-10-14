@@ -261,6 +261,77 @@ begin
   perform pg_temp.chk('D6 next_service_date is the first visit that exists (1 Jun 2027)',
     (select c.next_service_date from public.amc_contracts c where c.id = v_k) = date '2027-06-01');
 
+  -- ---------- F. back-dated sales: refused beyond the threshold unless a master confirms; visible inside it ----------
+  declare v_ops uuid; v_cf uuid[] := '{}'; v_sk jsonb; v_cnt int; v_bd uuid;
+  begin
+    v_ops := pg_temp.mkuser('operation_admin', v_org);
+    for ci in 1..6 loop
+      insert into customers (org_id, name, mobile) values (v_org, '__TEST_ back ' || ci, '55503' || lpad(ci::text, 5, '0')) returning id into v_cx;
+      v_cf := array_append(v_cf, v_cx);
+    end loop;
+    perform pg_temp.chk('F0 the threshold setting defaults to 7 days', (select amc_backdate_max_days from settings where org_id = v_org) = 7);
+
+    -- F1: 20 days back, master but no confirmation
+    perform pg_temp.as_user(v_master);
+    s := pg_temp.raises(format($q$select public.sell_amc_plan(%L, %L, %L, %L, %L::date, null, null)$q$, v_org, v_cf[1], v_prod, v_p2x3, v_today - 20));
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('F1 20 days back without confirmation is refused with AMC_BACKDATED, naming the days and the limit',
+      s like 'AMC_BACKDATED:%20 days%limit 7%', coalesce(s, 'no error'));
+    perform pg_temp.chk('F1 nothing was created', not exists (select 1 from amc_contracts where customer_id = v_cf[1]));
+
+    -- F2: a non-master cannot confirm
+    perform pg_temp.as_user(v_ops);
+    s := pg_temp.raises(format($q$select public.sell_amc_plan(%L, %L, %L, %L, %L::date, null, null, true)$q$, v_org, v_cf[2], v_prod, v_p2x3, v_today - 20));
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('F2 operation_admin passing confirm = true is still refused', s like 'AMC_BACKDATED:%', coalesce(s, 'no error'));
+
+    -- F3: a master confirms
+    perform pg_temp.as_user(v_master);
+    v_r := public.sell_amc_plan(v_org, v_cf[3], v_prod, v_p2x3, v_today - 20, null, null, true);
+    perform pg_temp.as_pg();
+    v_k := (v_r ->> 'contract_id')::uuid;
+    perform pg_temp.chk('F3 master confirm = true: sale accepted, response says confirmed, expected 6 / created 5',
+      (v_r ->> 'backdated_confirmed')::boolean and (v_r ->> 'visits_expected')::int = 6 and (v_r ->> 'visits_created')::int = 5, v_r::text);
+    perform pg_temp.chk('F3 the skipped visit is NAMED in the response with the date it would have been on',
+      (v_r -> 'visits_skipped' -> 0 ->> 'visit_no') = '1' and jsonb_array_length(v_r -> 'visits_skipped') = 1
+      and (v_r -> 'visits_skipped' -> 0 ->> 'would_have_been_on')::date < v_today);
+    perform pg_temp.chk('F3 the contract carries the marker: visits_skipped = {1} and who confirmed it',
+      (select c.visits_skipped = array[1] and c.backdated_confirmed_by = v_master from amc_contracts c where c.id = v_k));
+    perform pg_temp.chk('F3 a master notification was written at sale, naming the visit',
+      exists (select 1 from notifications n where n.ref_id = v_k and n.type = 'amc_visits_skipped' and n.role = 'master' and n.body like '%visit 1%'));
+
+    -- F4: 5 days back, inside the threshold, by operation_admin, no confirmation needed - and still visible
+    perform pg_temp.as_user(v_ops);
+    v_r := public.sell_amc_plan(v_org, v_cf[4], v_prod, v_p2x3, v_today - 5, null, null);
+    perform pg_temp.as_pg();
+    v_k := (v_r ->> 'contract_id')::uuid;
+    perform pg_temp.chk('F4 5 days back needs no confirmation, is not marked confirmed, and still names the skipped visit',
+      not (v_r ->> 'backdated_confirmed')::boolean and (v_r -> 'visits_skipped' -> 0 ->> 'visit_no') = '1'
+      and (select c.visits_skipped = array[1] and c.backdated_confirmed_by is null from amc_contracts c where c.id = v_k));
+    perform pg_temp.chk('F4 and the master is notified',
+      exists (select 1 from notifications n where n.ref_id = v_k and n.type = 'amc_visits_skipped' and n.role = 'master'));
+
+    -- F5: exactly at the threshold is allowed, one day more is not
+    perform pg_temp.as_user(v_ops);
+    v_r := public.sell_amc_plan(v_org, v_cf[5], v_prod, v_p2x3, v_today - 7, null, null);
+    s := pg_temp.raises(format($q$select public.sell_amc_plan(%L, %L, %L, %L, %L::date, null, null)$q$, v_org, v_cf[6], v_prod, v_p2x3, v_today - 8));
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('F5 exactly 7 days back is allowed; 8 days back is refused', (v_r ->> 'contract_id') is not null and s like 'AMC_BACKDATED:%');
+
+    -- F6: a normal sale starting today has no marker and no notification
+    perform pg_temp.as_user(v_master);
+    v_r := public.sell_amc_plan(v_org, v_cs[15], v_prod, v_p2x3, v_today, null, null);
+    perform pg_temp.as_pg();
+    v_k := (v_r ->> 'contract_id')::uuid;
+    perform pg_temp.chk('F6 a sale starting today: no skipped visits, no marker, no notification',
+      jsonb_array_length(v_r -> 'visits_skipped') = 0 and (select c.visits_skipped = '{}' from amc_contracts c where c.id = v_k)
+      and not exists (select 1 from notifications n where n.ref_id = v_k and n.type = 'amc_visits_skipped'));
+
+    -- F7: the dropped 7-argument overload does not coexist
+    perform pg_temp.chk('F7 only the 8-argument sell_amc_plan exists (no ambiguous overload)',
+      (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname = 'sell_amc_plan') = 1);
+  end;
+
   -- ---------- E. real data untouched ----------
   perform pg_temp.chk('E no real organisation row was touched',
     not exists (select 1 from public.service_tickets t join public.organizations o on o.id = t.org_id

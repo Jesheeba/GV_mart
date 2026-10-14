@@ -57,6 +57,19 @@ export type SellAmcInput = {
   years?: number
   /** Rewards spec (2026-08-04) — optional finder-credit referral. Ignored server-side if the id doesn't resolve to a technician in this org. */
   referredByTechnicianId?: string | null
+  /** Only a master's confirmation is honoured server-side; a start date beyond amc_backdate_max_days is refused without it. */
+  confirmBackdated?: boolean
+}
+
+export type SellAmcResult = {
+  contract_id: string
+  ticket_ids: string[]
+  expiry_date: string
+  visits_expected: number
+  visits_created: number
+  /** Visits that were NOT created because their date was already past: number and the date each would have been on. */
+  visits_skipped: { visit_no: number; would_have_been_on: string }[]
+  backdated_confirmed: boolean
 }
 
 export async function sellAmcPlan(input: SellAmcInput) {
@@ -68,9 +81,10 @@ export async function sellAmcPlan(input: SellAmcInput) {
     p_start_date: input.startDate,
     p_years: input.years ?? null,
     p_referred_by_technician_id: input.referredByTechnicianId ?? null,
+    p_confirm_backdated: input.confirmBackdated ?? false,
   })
   if (error) throw error
-  return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }
+  return data as unknown as SellAmcResult
 }
 
 export type AmcContractDetail = AmcContractListItem
