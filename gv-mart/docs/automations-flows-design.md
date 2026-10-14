@@ -8,6 +8,18 @@ Related: `docs/plan-automation-flows.md` (the wider event/rule design), `docs/au
 
 Naming: the new screen is **Automations**. The existing keyword bot screen keeps the name **Flows** and is unchanged.
 
+## Two questions only the client can answer
+
+Nothing is built or submitted until these are answered. Please answer each with yes or no, plus the detail asked.
+
+1. **Have your customers agreed to receive promotions from you?** Yes or no. (For example: do they tick a box, sign a form, or tell you in person that you may send them offers and product information on WhatsApp?)
+   - If **yes**: we submit the message as a Marketing template and send it to customers who agreed.
+   - If **no**, or you are not sure: we cannot send it as a promotion. We would have to reword it as a plain reply to the enquiry the customer themselves made, and Meta may still treat it as a promotion and refuse it. Nothing is sent until this is settled.
+
+2. **Who supplies the product and spare videos, and in which languages?** Please tell us (a) who makes and uploads them, (b) whether you have one video per product and per spare, and (c) the language: **English only, Tamil only, or both Tamil and English?**
+   - If **English only** or **Tamil only**: no change to the design below.
+   - If **both**: the design changes (section 9). Today there is no language column on any video table, so a second video for the same item is indistinguishable from the first, and a Tamil customer could be sent the English video or the other way round.
+
 ## 1. One-page design summary
 
 **Idea.** The master picks a trigger from the code-owned catalogue, adds an optional condition, and the action sends one approved WhatsApp template. Each automation is a named wrapper (`automation_flow_defs`) around one `automation_rules` row. The screen sits on the engine that already exists; there is no engine rewrite.
@@ -49,14 +61,16 @@ Naming: the new screen is **Automations**. The existing keyword bot screen keeps
 | Spare | none | needs `spare_videos` (or a `video_url` column) |
 | Topic video | `video_library` (keyed by `enquiry_type`, not by item) | empty |
 
-Which item the enquiry is about:
-- App and WhatsApp enquiries go through `_submit_customer_enquiry_internal`, which writes `leads.product_id` or `leads.spare_id` (the first item) in the same INSERT, so the AFTER INSERT trigger sees them.
-- Staff-typed leads (New Lead form) have only a product type and free-text notes, no item. Version 1 skips them (decision, section 7).
+Which item the enquiry is about (**corrected 2026-10-14, see section 8.2**):
+- The customer app calls `submit_customer_enquiry`, which goes through `_submit_customer_enquiry_internal`. It writes `leads.product_id` or `leads.spare_id` (the first item) in the same INSERT, so the AFTER INSERT trigger sees them.
+- The WhatsApp bot's spare enquiry goes through the same internal function but passes `p_items = []`, so it carries **no item**. It also writes the source `customer_app`, not `whatsapp`.
+- A raw WhatsApp "sales" entry (`_whatsapp_lead_upsert`) writes source `whatsapp`, kind NULL and no item.
+- Staff-typed leads (New Lead form) have a product type, free-text notes and a chosen source and kind, but no item. Version 1 skips them (decision, section 7).
 - When an enquiry merges into an existing open lead, no new lead is created and `lead.created` does not fire (known edge case; the customer is not messaged for the merged item).
 
 ### 2.3 How the link reaches the message
 
-1. Trigger: `lead.created`, condition kind in (`product`, `spare`), source in (`customer_app`, WhatsApp).
+1. Trigger: `lead.created`, condition kind in (`product`, `spare`) and `has_item` is true (section 8.2: the source value cannot tell the channel apart, the item can).
 2. At hand-off, a SQL helper reads the lead's `product_id` or `spare_id` (first item only).
 3. It picks the first active video by `sort_order` from `product_videos` or `spare_videos`, otherwise the `video_library` row for the lead's `enquiry_type`.
 4. It validates `https`, trimmed, no whitespace, short (template hygiene: about 60 characters per variable, so short links such as youtu.be).
@@ -155,7 +169,7 @@ Decisions recorded 2026-10-13 (owner), with the answer to each of the 13 questio
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Staff-typed leads have no item. Send only for app and WhatsApp enquiries, or restore an item picker? | **Version 1 sends only for app and WhatsApp enquiries. Staff-typed leads are skipped.** |
+| 1 | Staff-typed leads have no item. Send only for app and WhatsApp enquiries, or restore an item picker? | **Version 1 sends only for app and WhatsApp enquiries. Staff-typed leads are skipped.** *Finding 2026-10-14: WhatsApp enquiries currently carry no item, so in practice version 1 reaches app enquiries only (section 8.2).* |
 | 2 | Item has no video: skip, send a general topic video, or alert? | **Skip and alert the master in the app.** (No topic-video fallback is sent as a message.) |
 | 3 | Enquiry with several items: first only, or one per item? | **First item only.** |
 | 4 | Is the video promotional? Have customers agreed to receive promotional messages? (Decides Marketing or Utility, and whether opt-in is needed.) | **OPEN, with the client.** |
@@ -177,7 +191,105 @@ Still open for the client:
 
 ### Consequences of the decisions for the build
 
-- Condition on source: the trigger fires only for `source` values of the app and WhatsApp (the exact `leads.source` values must be confirmed in the code before the build, since `submit_customer_enquiry` writes `customer_app`).
-- The "no customer record" rule means the hand-off must refuse a lead whose `customer_id` is null (audited as `skipped_no_recipient`), not fall back to the payload mobile.
-- The per-item 30-day cooldown needs the cooldown scoped to customer and item (`product_id` or `spare_id`), not customer alone, so the occurrence key and cooldown lookup must include the item. The Stage A cooldown counts per customer across subjects, so this needs a small engine change or a per-item occurrence key.
-- The in-app notes (master alert on no video, sales person note on send) use the existing `notifications` table.
+Superseded by sections 8 and 9, which specify each one exactly. In short: the source condition is replaced by an item condition (8.2); the no-customer-record refusal moves to emit time (8.3); the 30-day cooldown becomes per customer and per item (8.1); the in-app notes use the existing `notifications` table.
+
+## 8. Specifications (added 2026-10-14)
+
+Nothing here is built or applied. References are to the migrations on `origin/main` (Stage A, `20261018120000`) and `feat/automation-phase3b` (hand-off, `20261018130000`). The live database was not queried and no test was run.
+
+### 8.1 The 30-day cooldown, per customer AND per item
+
+**Today.** In `automation_emit` the cooldown (S6) is: a queue row exists with the same `rule_key`, the same `customer_id`, the same `mode`, a counted state, and `created_at` inside the window. It is scoped to rule and customer only. The idempotency key is `rule_key | customer | subject | occurrence | mode | recipient`; the subject is the lead, so the key only stops a replay for the same lead.
+
+**Why the occurrence key is not the answer.** The key still contains the lead id, so a second lead for the same item gets a different key and is never suppressed. The cooldown is the place for it.
+
+**What changes** (one new migration, replacing `automation_emit` and `automation_rule_save` again, as Stage A did):
+
+| # | Where | Change |
+|---|---|---|
+| 1 | `automation_queue` | new nullable `item_key text`; index on `(org_id, rule_key, customer_id, item_key, created_at)` |
+| 2 | `automation_rules` | new `cooldown_per_item boolean not null default false`, so the review and AMC rules are untouched |
+| 3 | `automation_rule_save` | new parameter `p_cooldown_per_item`; the old signature is dropped and recreated with the same grants in the same transaction, as 3A did |
+| 4 | `_trg_automation_emit_lead` | payload gains `product_id`, `spare_id`, `has_item` and `item_key = coalesce(product_id, spare_id)::text` |
+| 5 | `automation_emit`, cooldown query | add `and (not r.cooldown_per_item or v_item is null or q.item_key = v_item)`, with `v_item := nullif(v_payload ->> 'item_key', '')` |
+| 6 | `automation_emit`, every `insert into automation_queue` (three sites: normal, deferred, shadow path) | store `item_key = v_item` |
+| 7 | the counted-state lists | add the new state `skipped_no_video` to every excluded list (section 8.4) |
+| 8 | the rule | `dedupe_cooldown_hours = 720`, `cooldown_per_item = true` |
+
+**When the item is unknown.** Per-item with no item falls back to customer-wide, so it is never weaker than today. In version 1 an item-less lead does not reach the cooldown (condition `has_item`).
+
+**What breaks if it is wrong:**
+- Cooldown left customer-wide: a customer who enquires about a second, different item inside 30 days gets no video for it, silently.
+- Cooldown too narrow, or `item_key` not stored at one of the three insert sites: the same item's video goes out again, and each one uses a slot of the daily cap of 3.
+- `skipped_no_video` not excluded from the counted states: a lead with no video blocks that item for 30 days even after the master uploads the video, and the master's alert never clears. A missing exclusion in the daily-cap count burns a slot for a message that was never sent.
+- `item_key` read from `leads.product_id` at count time instead of stored at queue time: a staff edit of the lead rewrites history. Hence it is stored.
+- A failed Wasi send still counts toward the cooldown (existing behaviour for every rule, because the row was handed over). A video that failed delivery is not retried for 30 days. Not changed here; the master should know.
+
+**A finding that matters more than the cooldown.** `_find_recent_open_lead` merges a customer's new enquiry into their open lead (status not won or lost, created in the last 30 days). A merge creates no new lead, so `lead.created` does not fire and no video goes out. A customer who enquires about product A and then product B within 30 days gets a video for A only. The per-item cooldown is therefore reachable only when the earlier lead was already won or lost. If the client wants a video for the second item, the design needs a new event, for example `enquiry.item_added`, emitted when a merge adds a line item (section 10, item A).
+
+### 8.2 `leads.source`: the exact values, and why the condition changes
+
+Confirmed from the migrations and the bot code:
+
+| Fact | Evidence |
+|---|---|
+| `leads.source` is plain text holding a key from `lead_sources`; seeded system keys: `field`, `customer_app`, `whatsapp`, `walk_in`, `referral`, `other` | `20261005130000_dynamic_lead_sources.sql` |
+| Customer app product or spare enquiry: source `customer_app`, kind `product` or `spare`, item set | `_submit_customer_enquiry_internal` (`20260819130000`) |
+| **WhatsApp bot spare enquiry: source `customer_app`** (hard-coded in the shared function), kind `spare`, **`p_items = []`, so no item** | `wa_create_spare_enquiry`; `whatsapp-handle-message.ts` action `create_spare_enquiry` |
+| WhatsApp sales entry: source **`whatsapp`**, kind NULL, no item | `_whatsapp_lead_upsert` (`20260831120000`), called by `wa_create_lead` |
+| Staff-typed lead: source chosen by the staff member (default `other`, but `customer_app` or `whatsapp` can be picked), kind chosen, no item | `NewLeadForm.tsx` |
+| The bot never creates a `product` kind enquiry | `whatsapp-handle-message.ts` passes `p_kind: "spare"` only |
+
+**Consequences:**
+1. `source = 'whatsapp'` never carries kind `product` or `spare`, so a condition on it matches nothing.
+2. `source = 'customer_app'` cannot tell an app enquiry from a WhatsApp one, and staff can type it by hand.
+3. The source value is not a usable test for "app or WhatsApp, not staff-typed". The reliable test is the item: only the customer-facing enquiry functions write `product_id` or `spare_id`, and the New Lead form has no picker.
+4. **Version 1 therefore reaches app enquiries that name an item.** WhatsApp enquiries reach no one, because the bot does not capture an item. A video for a WhatsApp enquiry needs the bot to resolve a product or spare from the customer's words, which the zero-AI keyword bot does not do. That is new bot work and is not in this design (section 10, item B).
+
+**Condition to build against:** kind in (`product`, `spare`) and `has_item` is true. `source` is left out of the rule. Nothing is built against a guessed source value.
+
+### 8.3 The no-customer-record refusal
+
+**Today.**
+- Emit (`automation_emit`): for a customer recipient with no customer record, the payload `mobile` is used (the S7 fallback). A queue row is created and audited `dry_run` with a masked number.
+- Hand-off (`automation_handoff_due`): already refuses it. A null `customer_id` gives no mobile, so the row becomes `skipped_no_recipient`, and test H7 covers it.
+- So nothing can be sent, but the row looks like a would-send, and a shadow period would overstate reach.
+
+**Specification.**
+1. **Emit, customer recipient, no customer record** (null customer id, or the customer row not found for the org): no queue row; audit `skipped_no_recipient` with `detail = {"reason": "no_customer_record"}`. The payload `mobile` is not used. `skipped_no_recipient` is already allowed by the CHECK lists, so there is no new decision value.
+2. The `_mobile_key(v_payload ->> 'mobile')` branch for `recipient_role = 'customer'` is removed. The main-number-only rule (S7) is unchanged.
+3. **Hand-off:** unchanged. It stays as the second, independent refusal.
+4. **Scope:** every rule with a customer recipient, not only this one. That is a deliberate behaviour change (the hand-off already behaves this way), so the Phase 2 and 3A engine tests must be re-run. I did not run them. Any test that emits with a null customer and relies on the payload number must be reviewed; S7 in `automation_phase3a_engine.test.sql` and H7 in `automation_phase3b.test.sql` do not depend on the fallback.
+5. **Reach in version 1:** an app enquiry always has a customer, so this rarely triggers. It protects against future sources and against a customer row removed after the lead was created.
+6. **Visible to the master:** shown in the history drawer as "No customer record" and counted under why-skipped. No alert, because it is not actionable per lead.
+
+**What breaks if wrong:** left as today, a shadow period shows sends that can never happen; done at emit but removed from the hand-off, a queue row created before the change can reach the dispatcher. Both stay.
+
+### 8.4 State lists that must change together
+
+The excluded-state list is a literal array repeated in at least four places in the hand-off version of the engine (max-fires count, cooldown, daily-cap count, deferred release). Adding `skipped_no_video` to one and missing another is the failure in section 8.1. Specification: one helper `_automation_state_is_counted(text)`, and every site calls it. If that is judged too large, all four sites are updated in one migration and a test asserts all four.
+
+## 9. If the videos are in both Tamil and English
+
+The answer to client question 2 changes the design. There is no language column on `product_videos` or `video_library`, and `spare_videos` does not exist yet.
+
+| Area | Change |
+|---|---|
+| Storage | New nullable `language text check (language in ('en','ta'))` on `product_videos`, `spare_videos` and `video_library`. NULL means "any language", so every existing row keeps working. |
+| Admin forms | A language selector on each video form; the list shows the language; one item can have an English and a Tamil video at the same time. |
+| Resolver | The hand-off helper takes the message language (already resolved: preferred language, then login language, then rule language, then English) and picks, in order: the video in that language, a language-neutral (NULL) video, the English one. It never skips just because the Tamil video is missing. |
+| Master alert | Distinguishes "no video" from "no Tamil video, English sent". |
+| Customer app | The product page lists all active videos today. Existing rows are NULL, so nothing changes; showing only the customer's language is a separate, optional choice. |
+| Template | No change: the same `gvm_enquiry_video_en` / `_ta` pair. The video language is independent of the body language but should match. |
+| Tests | One Tamil-customer case and one fallback case added. |
+| Size | About +1 working day on the 8 to 10 day estimate. |
+
+If the answer is English only or Tamil only, none of this is built.
+
+## 10. Needs a decision that is not the client's
+
+| | Question | Why it matters |
+|---|---|---|
+| A | A customer's second enquiry within 30 days merges into the open lead and sends no video (section 8.1). Accept it, or add an `enquiry.item_added` event? | Accepting keeps version 1 simpler, and makes the per-item cooldown nearly unreachable. |
+| B | The WhatsApp bot captures no item (section 8.2). Accept "app only in version 1", or add item capture to the bot? | The decision "app and WhatsApp" cannot be met without bot work. |
+| C | Apply the no-customer-record refusal to every customer rule (section 8.3)? | A deliberate behaviour change; the Phase 2 and 3A tests must be re-run. |
