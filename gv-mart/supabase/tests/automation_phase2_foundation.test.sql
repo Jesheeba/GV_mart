@@ -215,13 +215,22 @@ begin
   perform pg_temp.as_user(v_master);
   v_rk := public.automation_rule_save(null, 'lead.created', 'customer', 'whatsapp', '{}', 'gvm_lead_welcome_en', 'en', 0, 0, null, 'live');
   perform pg_temp.as_pg();
-  v_ev := public.automation_emit(v_org, 'lead.created', 'lead', v_lead_t, null, 'probe-real-dest', jsonb_build_object('mobile', v_real));
+  -- (changed for migration 20261026110000: a customer rule needs a customer record, so the probes now pass one. The lead is the
+  -- flagged test lead; the customer is the real-number one, then the flagged test one)
+  v_ev := public.automation_emit(v_org, 'lead.created', 'lead', v_lead_t, v_cust, 'probe-real-dest', jsonb_build_object('mobile', v_real));
   select decision, detail ->> 'reason' as reason into rec from public.automation_audit where event_id = v_ev and rule_id = v_rk;
   perform pg_temp.chk('test subject aimed at a NON-test number is blocked (hard stop, test mode OFF)',
     rec.decision = 'blocked_not_allowlisted' and rec.reason = 'test_subject_destination_not_a_test_number', coalesce(rec.decision,'-') || '/' || coalesce(rec.reason,'-'));
-  v_ev := public.automation_emit(v_org, 'lead.created', 'lead', v_lead_t, null, 'probe-test-dest', jsonb_build_object('mobile', v_mob));
+  v_ev := public.automation_emit(v_org, 'lead.created', 'lead', v_lead_t, v_cust_t, 'probe-test-dest', jsonb_build_object('mobile', v_mob));
   select decision into s from public.automation_audit where event_id = v_ev and rule_id = v_rk;
   perform pg_temp.chk('test subject aimed at the test number is allowed (dry_run)', s = 'dry_run', coalesce(s,'-'));
+  -- migration 20261026110000: a customer rule with no customer record is refused, and the payload number is not used
+  v_ev := public.automation_emit(v_org, 'lead.created', 'lead', v_lead_t, null, 'probe-no-customer', jsonb_build_object('mobile', v_mob));
+  select decision, detail ->> 'reason' as reason into rec from public.automation_audit where event_id = v_ev and rule_id = v_rk;
+  perform pg_temp.chk('customer rule with no customer record is skipped_no_recipient / no_customer_record (payload number not used)',
+    rec.decision = 'skipped_no_recipient' and rec.reason = 'no_customer_record', coalesce(rec.decision,'-') || '/' || coalesce(rec.reason,'-'));
+  perform pg_temp.chk('and no queue row was written for it',
+    not exists (select 1 from public.automation_queue where event_id = v_ev));
 
   -- ---------- allow-list (F-08 setting, reused) ----------
   select count(*) into n from public.audit_log where org_id = v_org and action = 'WA_SEND_BLOCKED';
