@@ -114,6 +114,8 @@ begin
   return jsonb_build_object('contract_id', v_contract_id, 'ticket_ids', to_jsonb(v_ticket_ids), 'expiry_date', v_expiry);
 end;
 $function$;
+revoke all on function public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid) from public, anon;
+grant execute on function public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid) to authenticated, service_role;
 
 -- the 7-argument function was dropped and re-created above, so it gets no ACL from the old one: restate it
 revoke all on function public.sell_amc_plan(uuid, uuid, uuid, uuid, date, integer, uuid) from public, anon;
@@ -1036,4 +1038,5 @@ alter table public.amc_contracts drop column if exists backdated_confirmed_by;
 alter table public.amc_contracts drop column if exists visits_skipped;
 alter table public.settings drop constraint if exists settings_amc_backdate_max_check;
 alter table public.settings drop column if exists amc_backdate_max_days;
+notify pgrst, 'reload schema';
 commit;
