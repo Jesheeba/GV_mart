@@ -9,8 +9,9 @@
 -- Not in this migration (engine side, owned by the automation work): the resolver that picks a video by language, the item
 -- key, the cooldown, the hand-off. Nothing reads language yet except the admin forms.
 --
--- Deleting a spare removes its videos (ON DELETE CASCADE). Unlike products, spare_videos is NOT added to
--- spare_has_references: videos are configuration, not history, and that function is also redefined on other branches.
+-- A spare that still has videos cannot be deleted (spare_id is ON DELETE RESTRICT): remove its videos first. spare_videos is
+-- NOT added to spare_has_references, because that function is also redefined on other branches; until it is, a spare delete
+-- from the admin UI with videos present fails with the database's foreign-key error rather than the friendly in-use message.
 
 alter table public.product_videos
   add column if not exists language text check (language is null or language in ('en', 'ta'));
@@ -21,7 +22,7 @@ alter table public.video_library
 create table public.spare_videos (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations (id) on delete cascade,
-  spare_id uuid not null references public.spares (id) on delete cascade,
+  spare_id uuid not null references public.spares (id) on delete restrict,
   url text not null,
   title text,
   language text check (language is null or language in ('en', 'ta')),
