@@ -19,6 +19,8 @@ import {
   useUploadProductDocument,
   useUploadProductImage,
 } from "@/hooks/useMasters"
+import { VideoLanguageSelect } from "@/components/shared/VideoLanguageSelect"
+import type { VideoLanguage } from "@/lib/videoLanguage"
 import { productDocumentPublicUrl, productImagePublicUrl } from "@/services/productMedia"
 import type { Tables, TablesInsert } from "@/types/database"
 
@@ -267,15 +269,17 @@ function VideosTab({ orgId, productId }: { orgId: string | undefined; productId:
   const deleteMut = useDeleteProductVideo(productId)
   const [url, setUrl] = useState("")
   const [title, setTitle] = useState("")
+  const [language, setLanguage] = useState<VideoLanguage | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleAdd() {
     if (!url.trim() || !orgId) return
     setError(null)
     try {
-      await createMut.mutateAsync({ org_id: orgId, product_id: productId, url: url.trim(), title: title.trim() || null })
+      await createMut.mutateAsync({ org_id: orgId, product_id: productId, url: url.trim(), title: title.trim() || null, language })
       setUrl("")
       setTitle("")
+      setLanguage(null)
     } catch (e) {
       setError(extractErrorMessage(e))
     }
@@ -296,6 +300,12 @@ function VideosTab({ orgId, productId }: { orgId: string | undefined; productId:
                 {v.title || v.url}
               </a>
               <div className="flex shrink-0 items-center gap-1">
+                <VideoLanguageSelect
+                  value={v.language}
+                  disabled={updateMut.isPending}
+                  className="h-7 rounded-lg border border-border bg-surface px-1.5 text-xs text-text outline-none"
+                  onChange={(next) => updateMut.mutate({ id: v.id, patch: { language: next } })}
+                />
                 <button
                   type="button"
                   onClick={() => updateMut.mutate({ id: v.id, patch: { is_active: !v.is_active } })}
@@ -318,6 +328,7 @@ function VideosTab({ orgId, productId }: { orgId: string | undefined; productId:
           placeholder={t("masters.productMedia.videoTitlePlaceholder")}
           className="h-9 w-2/5 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
         />
+        <VideoLanguageSelect value={language} onChange={setLanguage} />
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}

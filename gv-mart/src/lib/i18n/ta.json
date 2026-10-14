@@ -1038,6 +1038,17 @@
       "videoUrlPlaceholder": "வீடியோ URL",
       "addVideo": "சேர்"
     },
+    "videoLanguage": {
+      "label": "மொழி",
+      "any": "எந்த மொழியும்",
+      "en": "ஆங்கிலம்",
+      "ta": "தமிழ்"
+    },
+    "spareVideos": {
+      "column": "வீடியோக்கள்",
+      "manage": "வீடியோக்களை நிர்வகி",
+      "title": "உதிரி பாக வீடியோக்கள்"
+    },
     "productAttributes": {
       "manage": "பண்புகளை நிர்வகி",
       "title": "தனிப்பயன் பண்புகள்",
