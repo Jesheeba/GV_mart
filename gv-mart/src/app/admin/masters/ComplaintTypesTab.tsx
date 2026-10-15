@@ -48,6 +48,14 @@ export function ComplaintTypesTab() {
       options: CATEGORIES.map((c) => ({ value: c, label: t(`masters.categories.${c}`) })),
     },
     { key: "label", label: t("masters.complaintTypes.label"), type: "text", placeholder: t("masters.complaintTypes.labelPlaceholder"), required: true },
+    {
+      key: "standard_minutes",
+      label: t("masters.complaintTypes.standardMinutes"),
+      type: "number",
+      step: "1",
+      min: 0,
+      placeholder: t("masters.complaintTypes.standardMinutesHint"),
+    },
   ]
 
   return (
@@ -63,10 +71,15 @@ export function ComplaintTypesTab() {
         isMutating={createMut.isPending || updateMut.isPending}
         addLabel={t("masters.complaintTypes.add")}
         emptyMessage={t("masters.complaintTypes.empty")}
-        toFormValues={(r) => ({ product_category: r.product_category, label: r.label })}
+        toFormValues={(r) => ({ product_category: r.product_category, label: r.label, standard_minutes: r.standard_minutes != null ? String(r.standard_minutes) : "" })}
         columns={[
           { key: "category", header: t("masters.complaintTypes.category"), render: (r) => t(`masters.categories.${r.product_category}`) },
           { key: "label", header: t("masters.complaintTypes.label"), render: (r) => <span className="font-medium text-text">{r.label}</span> },
+          {
+            key: "standard_minutes",
+            header: t("masters.complaintTypes.standardMinutes"),
+            render: (r) => (r.standard_minutes != null ? t("masters.spares.standardTimeValue", { minutes: r.standard_minutes }) : "—"),
+          },
           {
             key: "spares",
             header: "",
@@ -84,12 +97,17 @@ export function ComplaintTypesTab() {
             product_category: v.product_category as ComplaintTypeRow["product_category"],
             label: v.label,
             product_id: null,
+            standard_minutes: v.standard_minutes ? Number(v.standard_minutes) : null,
           })
         }
         onUpdate={(id, v) =>
           updateMut.mutateAsync({
             id,
-            patch: { product_category: v.product_category as ComplaintTypeRow["product_category"], label: v.label },
+            patch: {
+              product_category: v.product_category as ComplaintTypeRow["product_category"],
+              label: v.label,
+              standard_minutes: v.standard_minutes ? Number(v.standard_minutes) : null,
+            },
           })
         }
         onDelete={(id) => deleteMut.mutateAsync(id)}

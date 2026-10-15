@@ -237,7 +237,8 @@ export function TicketDetailPage() {
   })
   const overrun = computeJobOverrun(
     { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
-    now
+    now,
+    settings?.job_overrun_buffer_minutes
   )
 
   function startEditingEstimate() {

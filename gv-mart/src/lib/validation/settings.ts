@@ -57,6 +57,10 @@ export const settingsSchema = z
     // GV.md 1.2: "admin also sets a review time and a new-enquiry time allowance."
     review_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     enquiry_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    // P5 (20261105100000) — previously hard-coded constants: OVERRUN_BUFFER_MINUTES in src/lib/job-overrun.ts,
+    // and the 24h window inside report_ops_resolution.
+    job_overrun_buffer_minutes: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
+    ops_resolution_sla_hours: z.coerce.number().int().positive("settings.errors.positive"),
     // Product Enquiry rebuild (2026-08-04) Phase 2 — EMI is purely
     // illustrative display config (see 20260804100000_product_enquiry_
     // config.sql), not a real financing product: tenures held as a

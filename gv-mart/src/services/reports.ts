@@ -7,6 +7,7 @@ import {
   mapKpiTiles,
   mapOpsResolution,
   mapPerformance,
+  mergePerformanceEfficiency,
   mapPnl,
   mapSalaryByStaff,
   mapSalesService,
@@ -16,6 +17,7 @@ import {
   type KpiTiles,
   type KpiTilesRpc,
   type OpsResolutionRpc,
+  type PerformanceEfficiencyRpcRow,
   type PerformanceRpcRow,
   type PnlRpc,
   type SalaryByStaffRpcRow,
@@ -512,6 +514,15 @@ export type PerformanceRow = {
   productivityJobsPerHour: number | null
   /** Units logged in installations_logged in range (sum of qty). */
   installations: number
+  /**
+   * P5 (20261105100000) — INFORMATIONAL ONLY: sum(standard minutes) ÷ sum(actual minutes) × 100, over visits
+   * whose standard could be resolved (complaint_types.standard_minutes, else the ticket type's
+   * settings.default_duration_* default). Null when no visit in range had a resolvable standard. Not read by
+   * compute_incentives or any review/flag logic — see report_performance_efficiency's own migration comment.
+   */
+  efficiencyPercent: number | null
+  /** How many of this technician's visits in range contributed to efficiencyPercent. */
+  efficiencySampleCount: number
 }
 
 /** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
@@ -586,6 +597,8 @@ export async function getPerformanceReportLegacy(orgId: string, range: DateRange
       avgCompletionMinutes: null,
       productivityJobsPerHour: null,
       installations: 0,
+      efficiencyPercent: null,
+      efficiencySampleCount: 0,
     }
     row.jobsDone += 1
     row.revenue += v.service_charge ?? 0
@@ -659,6 +672,8 @@ export async function getPerformanceReportLegacy(orgId: string, range: DateRange
         avgCompletionMinutes: null,
         productivityJobsPerHour: null,
         installations: 0,
+        efficiencyPercent: null,
+        efficiencySampleCount: 0,
       })
     }
   }
@@ -855,7 +870,11 @@ export async function getPnlReport(_orgId: string, range: DateRange): Promise<Pn
 }
 
 export async function getPerformanceReport(_orgId: string, range: DateRange): Promise<PerformanceRow[]> {
-  return mapPerformance(await callReport<PerformanceRpcRow[]>("report_performance", rpcArgs(range)))
+  const [perf, efficiency] = await Promise.all([
+    callReport<PerformanceRpcRow[]>("report_performance", rpcArgs(range)),
+    callReport<PerformanceEfficiencyRpcRow[]>("report_performance_efficiency", rpcArgs(range)),
+  ])
+  return mergePerformanceEfficiency(mapPerformance(perf), efficiency)
 }
 
 /** Operation-admin KPI: % of tickets in range resolved (completed) within 24h of creation. */

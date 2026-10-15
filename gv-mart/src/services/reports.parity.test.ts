@@ -73,14 +73,16 @@ describe.skipIf(!email || !password || !org)("legacy vs SQL (live throwaway org)
     expect(np.map((r) => [r.itemType, r.itemId, r.qty, r.revenue, r.cost, r.profit])).toEqual(op.map((r) => [r.itemType, r.itemId, r.qty, r.revenue, r.cost, r.profit]))
   })
 
-  it("Performance matches except a lead owner with no visits now has a real name", async () => {
+  it("Performance matches except a lead owner with no visits now has a real name, and efficiency (P5, new-path only)", async () => {
     const [o, n] = await Promise.all([getPerformanceReportLegacy(org, oct), getPerformanceReport(org, oct)])
     expect(n.length).toBe(o.length)
     for (const row of n) {
       const old = o.find((x) => x.id === row.id)!
       expect(old).toBeTruthy()
-      const { name, ...rest } = row
-      const { name: oldName, ...oldRest } = old
+      // efficiencyPercent/efficiencySampleCount come from report_performance_efficiency, a SEPARATE RPC the legacy
+      // browser-side path never had and never will — excluded from parity on purpose, not a regression.
+      const { name, efficiencyPercent: _ep, efficiencySampleCount: _esc, ...rest } = row
+      const { name: oldName, efficiencyPercent: _oep, efficiencySampleCount: _oesc, ...oldRest } = old
       expect(rest).toEqual(oldRest)
       if (oldName === "—") expect(name).not.toBe("—")
       else expect(name).toBe(oldName)

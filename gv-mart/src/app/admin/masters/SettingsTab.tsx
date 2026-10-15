@@ -80,6 +80,8 @@ export function SettingsTab() {
         po_quote_day_of_month: settings.po_quote_day_of_month ?? "",
         review_time_allowance_minutes: settings.review_time_allowance_minutes,
         enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
+        job_overrun_buffer_minutes: settings.job_overrun_buffer_minutes,
+        ops_resolution_sla_hours: settings.ops_resolution_sla_hours,
         emi_enabled: settings.emi_enabled,
         review_incentives_enabled: settings.review_incentives_enabled,
         emi_tenure_months: (Array.isArray(settings.emi_tenure_months) ? settings.emi_tenure_months : []).join(","),
@@ -187,6 +189,11 @@ export function SettingsTab() {
           {field("enquiry_time_allowance_minutes", t("settings.enquiryTimeAllowance"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.allowanceHint")}</p>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("job_overrun_buffer_minutes", t("settings.jobOverrunBuffer"), "number", "1")}
+          {field("ops_resolution_sla_hours", t("settings.opsResolutionSla"), "number", "1")}
+        </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.overrunSlaHint")}</p>
       </Card>
 
       <Card className="gap-4">

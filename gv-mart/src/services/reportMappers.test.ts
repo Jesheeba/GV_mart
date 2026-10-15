@@ -5,6 +5,7 @@ import {
   mapFeedback,
   mapOpsResolution,
   mapPerformance,
+  mergePerformanceEfficiency,
   mapPnl,
   mapProductSales,
   mapSalaryByStaff,
@@ -134,13 +135,41 @@ describe("mapPerformance / mapOpsResolution", () => {
       { id: "a", name: "Tech One", role: "technician", jobs_done: 3, on_time_percent: 66.7, revenue: 800, avg_rating: 4.5, review_count: 2, conversion_percent: 50, avg_completion_minutes: 60, productivity_jobs_per_hour: 0.19, installations: 2 },
       { id: "c", name: "Lead Only", role: "technician", jobs_done: 0, on_time_percent: null, revenue: 0, avg_rating: null, review_count: 0, conversion_percent: 33.3, avg_completion_minutes: null, productivity_jobs_per_hour: null, installations: 0 },
     ])
-    expect(rows[0]).toEqual({ id: "a", name: "Tech One", role: "technician", jobsDone: 3, onTimePercent: 66.7, revenue: 800, avgRating: 4.5, reviewCount: 2, conversionPercent: 50, avgCompletionMinutes: 60, productivityJobsPerHour: 0.19, installations: 2 })
+    expect(rows[0]).toEqual({
+      id: "a",
+      name: "Tech One",
+      role: "technician",
+      jobsDone: 3,
+      onTimePercent: 66.7,
+      revenue: 800,
+      avgRating: 4.5,
+      reviewCount: 2,
+      conversionPercent: 50,
+      avgCompletionMinutes: 60,
+      productivityJobsPerHour: 0.19,
+      installations: 2,
+      efficiencyPercent: null,
+      efficiencySampleCount: 0,
+    })
     expect(rows[1].name).toBe("Lead Only")
     expect(rows[1].onTimePercent).toBeNull()
     expect(rows[1].avgRating).toBeNull()
     expect(rows[1].avgCompletionMinutes).toBeNull()
     expect(rows[1].productivityJobsPerHour).toBeNull()
     expect(rows[1].conversionPercent).toBe(33.3)
+    // P5: efficiency is merged separately (mergePerformanceEfficiency), mapPerformance alone always defaults it.
+    expect(rows[1].efficiencyPercent).toBeNull()
+    expect(rows[1].efficiencySampleCount).toBe(0)
+  })
+
+  it("mergePerformanceEfficiency fills in only the technicians report_performance_efficiency returned a row for", () => {
+    const base = mapPerformance([
+      { id: "a", name: "Tech One", role: "technician", jobs_done: 3, on_time_percent: 66.7, revenue: 800, avg_rating: 4.5, review_count: 2, conversion_percent: 50, avg_completion_minutes: 60, productivity_jobs_per_hour: 0.19, installations: 2 },
+      { id: "b", name: "Tech Two", role: "technician", jobs_done: 1, on_time_percent: 100, revenue: 100, avg_rating: null, review_count: 0, conversion_percent: null, avg_completion_minutes: 90, productivity_jobs_per_hour: 0.1, installations: 0 },
+    ])
+    const merged = mergePerformanceEfficiency(base, [{ id: "a", efficiency_percent: 66.7, efficiency_sample_count: 2 }])
+    expect(merged.find((r) => r.id === "a")).toMatchObject({ efficiencyPercent: 66.7, efficiencySampleCount: 2 })
+    expect(merged.find((r) => r.id === "b")).toMatchObject({ efficiencyPercent: null, efficiencySampleCount: 0 })
   })
 
   it("maps the 24h resolution KPI, including no completed tickets", () => {

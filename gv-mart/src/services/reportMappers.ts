@@ -152,6 +152,27 @@ export type PerformanceRpcRow = {
   installations: number
 }
 
+/**
+ * P5 (20261105100000) — a SEPARATE RPC (report_performance_efficiency), merged client-side into PerformanceRow
+ * rather than added to report_performance's own body. Informational only: see getPerformanceReport.
+ */
+export type PerformanceEfficiencyRpcRow = {
+  id: string
+  efficiency_percent: number | null
+  efficiency_sample_count: number
+}
+
+/** Merges report_performance_efficiency's rows into an already-mapped PerformanceRow[] by technician id. A
+ * technician with no row (no resolvable standard for any of their visits) keeps the null/0 default. */
+export function mergePerformanceEfficiency(rows: PerformanceRow[], efficiencyRows: PerformanceEfficiencyRpcRow[]): PerformanceRow[] {
+  const byId = new Map(efficiencyRows.map((r) => [r.id, r]))
+  return rows.map((row) => {
+    const e = byId.get(row.id)
+    if (!e) return row
+    return { ...row, efficiencyPercent: numOrNull(e.efficiency_percent), efficiencySampleCount: num(e.efficiency_sample_count) }
+  })
+}
+
 export function mapPerformance(rows: PerformanceRpcRow[]): PerformanceRow[] {
   return (rows ?? []).map((r) => ({
     id: r.id,
@@ -166,6 +187,8 @@ export function mapPerformance(rows: PerformanceRpcRow[]): PerformanceRow[] {
     avgCompletionMinutes: numOrNull(r.avg_completion_minutes),
     productivityJobsPerHour: numOrNull(r.productivity_jobs_per_hour),
     installations: num(r.installations),
+    efficiencyPercent: null,
+    efficiencySampleCount: 0,
   }))
 }
 

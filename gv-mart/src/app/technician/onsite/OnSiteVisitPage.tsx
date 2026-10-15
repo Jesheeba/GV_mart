@@ -567,7 +567,8 @@ export function OnSiteVisitPage() {
   })
   const overrun = computeJobOverrun(
     { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
-    nowMs
+    nowMs,
+    settings.data?.job_overrun_buffer_minutes
   )
 
   // Fires the one-time acknowledge-required popup the instant the visit

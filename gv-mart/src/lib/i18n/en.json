@@ -966,6 +966,8 @@
       "category": "Category (applies to all its products)",
       "label": "Complaint type",
       "labelPlaceholder": "e.g. Not Cooling, No Water",
+      "standardMinutes": "Standard time (min)",
+      "standardMinutesHint": "Expected minutes for this complaint type",
       "add": "Add complaint type",
       "empty": "No category defaults yet — add your first one."
     },
@@ -1323,6 +1325,9 @@
     "reviewTimeAllowance": "Review time allowance (minutes)",
     "enquiryTimeAllowance": "Enquiry time allowance (minutes)",
     "allowanceHint": "Added to a job's allowed time only when this visit actually collected a Google review click or logged a new enquiry.",
+    "jobOverrunBuffer": "Overrun alert buffer (minutes)",
+    "opsResolutionSla": "Resolution SLA (hours)",
+    "overrunSlaHint": "The overrun buffer delays the on-site overrun alert past a job's allowed time. The resolution SLA is the window a completed ticket must land inside to count as \"resolved on time\" in reports.",
     "narrowWindowThreshold": "Narrow-window threshold (minutes)",
     "narrowWindowThresholdHint": "If a customer's unavailable-window marks leave only this many minutes (or less) free in the day, it's treated as a specific-time booking instead of a flexible day booking.",
     "appointmentSlots": {
@@ -4490,7 +4495,8 @@
       "legendStrong": "≥ 90% strong",
       "legendWatch": "80–89% watch",
       "legendCoach": "< 80% coach",
-      "installations": "Installations"
+      "installations": "Installations",
+      "efficiency": "Efficiency (standard vs actual)"
     },
     "feedback": {
       "starsDistribution": "Star Rating Distribution",

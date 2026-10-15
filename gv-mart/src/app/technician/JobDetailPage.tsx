@@ -61,7 +61,8 @@ export function JobDetailPage() {
   const allowedDuration = openVisit ? computeTicketAllowedDuration(ticket, openVisit, settings.data) : null
   const overrun = computeJobOverrun(
     { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
-    now
+    now,
+    settings.data?.job_overrun_buffer_minutes
   )
   // Display-only version of the same figure, shown even before a visit
   // starts (GV.md 1.2: "on each job, the technician sees the estimated

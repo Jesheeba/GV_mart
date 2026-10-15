@@ -11,6 +11,7 @@ import { CallReturnPrompt } from "./leads/CallReturnPrompt"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useTicketSearch, useServiceTicketsRealtimeInvalidate } from "@/hooks/useService"
 import { useTechniciansOpenVisits, useTechniciansWithLocation } from "@/hooks/useTechniciansAdmin"
+import { useSettings } from "@/hooks/useMasters"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useToast } from "@/components/ui/toast-context"
 import { Autocomplete } from "@/components/shared/Autocomplete"
@@ -101,6 +102,7 @@ export function AdminShell() {
   const { toast } = useToast()
   const { data: openVisits } = useTechniciansOpenVisits(profile?.org_id)
   const { data: techniciansWithLocation } = useTechniciansWithLocation(profile?.org_id)
+  const { data: settings } = useSettings(profile?.org_id)
   const notifiedVisitIdsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     const orgId = profile?.org_id
@@ -110,7 +112,8 @@ export function AdminShell() {
       for (const [techId, visit] of openVisits!) {
         const overrun = computeJobOverrun(
           { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.allowedDurationMinutes },
-          nowMs
+          nowMs,
+          settings?.job_overrun_buffer_minutes
         )
         if (!overrun.isOverrun || notifiedVisitIdsRef.current.has(visit.visitId)) continue
         notifiedVisitIdsRef.current.add(visit.visitId)
