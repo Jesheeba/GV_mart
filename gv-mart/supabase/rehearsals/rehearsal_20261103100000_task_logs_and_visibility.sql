@@ -7,13 +7,12 @@
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   62f71209e07c637401a6ee35ce30a3ba3a14d02429d4400ce4ce531b4403efa7  gv-mart/supabase/migrations/20261103100000_task_logs_and_visibility.sql
---   29e3e039211c24e1c276790fe9c5a783465a272b4d69ab967130f76de3636090  gv-mart/supabase/tests/task_logs_and_visibility.test.sql
+--   829a386c162421a33f869476bc588292b1ec13b2c018ae87d5b24bbf983acef0  gv-mart/supabase/tests/task_logs_and_visibility.test.sql
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
 --                      from public.tasks t where t.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%')), ''))
 --          || '|' || (select count(*)::text from public.tasks t where t.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%'))
---          || '|' || (select count(*)::text from public.task_logs l where l.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%'))
 
 do $rehearsal$
 declare
@@ -29,7 +28,6 @@ begin
 select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
                    from public.tasks t where t.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%')), ''))
        || '|' || (select count(*)::text from public.tasks t where t.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%'))
-       || '|' || (select count(*)::text from public.task_logs l where l.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%'))
 $fpb$$gvfp$;
   perform set_config('gv.baseline', pg_temp.gv_fingerprint(), true);
 
@@ -410,6 +408,10 @@ begin
   perform pg_temp.chk('REGRESSION P1a: operations still cannot finish a task assigned to a technician', s like '%only the person a task is assigned to%', coalesce(s, 'accepted'));
 
   -- ---------- real data: relative to the baseline the wrapper took before the migration ----------
+  -- (task_logs does not exist yet when the baseline is taken, so it cannot be part of the fingerprint; no real task is touched here,
+  -- therefore no real organisation may have a log entry)
+  perform pg_temp.chk('no log entry exists for any REAL organisation',
+    not exists (select 1 from public.task_logs l where l.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%')));
   begin
     v_base := current_setting('gv.baseline', true);
     v_now := pg_temp.gv_fingerprint();
@@ -423,7 +425,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '29e3e039211c24e1c276790fe9c5a783465a272b4d69ab967130f76de3636090' then
+  if v_hash <> '829a386c162421a33f869476bc588292b1ec13b2c018ae87d5b24bbf983acef0' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_logs_and_visibility.test.sql: %', v_hash;
   end if;
   execute v_text;
