@@ -8,6 +8,7 @@ import type { EventClickArg, EventInput } from "@fullcalendar/core"
 import { useTranslation } from "react-i18next"
 import type { OrgTask } from "@/services/tasks"
 import "./task-calendar.css"
+import { isTaskOverdue } from "@/lib/task-overdue"
 
 const PRIORITY_EVENT_COLOR: Record<OrgTask["priority"], string> = {
   very_urgent: "var(--danger)",
@@ -26,9 +27,9 @@ function taskToEvent(task: OrgTask): EventInput | null {
     title: task.is_recurring ? `↻ ${task.title}` : task.title,
     start,
     allDay: !task.due_at,
-    backgroundColor: PRIORITY_EVENT_COLOR[task.priority],
+    backgroundColor: isTaskOverdue(task) ? "var(--danger)" : PRIORITY_EVENT_COLOR[task.priority],
     textColor: "#fff",
-    classNames: task.status === "done" ? ["gv-event-done"] : [],
+    classNames: task.status === "done" ? ["gv-event-done"] : isTaskOverdue(task) ? ["gv-event-overdue"] : [],
   }
 }
 

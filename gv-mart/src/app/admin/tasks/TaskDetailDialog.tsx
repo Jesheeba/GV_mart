@@ -10,6 +10,8 @@ import { useToast } from "@/components/ui/toast-context"
 import { useAssignableProfiles, useDeleteTask, useSetOrgTaskStatus, useUpdateTask } from "@/hooks/useTasks"
 import type { OrgTask, PriorityLevel } from "@/services/tasks"
 import { cn } from "@/lib/utils"
+import { useProfile } from "@/hooks/useProfile"
+import { canToggleTaskStatus } from "@/lib/task-permissions"
 
 const PRIORITIES: PriorityLevel[] = ["normal", "urgent", "very_urgent"]
 
@@ -39,6 +41,7 @@ export function TaskDetailDialog({
   const { data: assignableProfiles } = useAssignableProfiles(orgId)
   const updateTask = useUpdateTask()
   const setStatus = useSetOrgTaskStatus()
+  const { data: profile } = useProfile()
   const deleteTask = useDeleteTask()
 
   const [title, setTitle] = useState(task.title)
@@ -50,6 +53,7 @@ export function TaskDetailDialog({
   const [isRecurring, setIsRecurring] = useState(task.is_recurring)
 
   const isDone = task.status === "done"
+  const canToggle = canToggleTaskStatus(task, userId, profile?.role)
   const canSubmit = title.trim().length > 0 && assigneeId.length > 0 && !updateTask.isPending
 
   function handleSave() {
@@ -86,10 +90,12 @@ export function TaskDetailDialog({
           <button
             type="button"
             onClick={() => setStatus.mutate({ id: task.id, status: isDone ? "open" : "done" })}
-            disabled={setStatus.isPending}
+            disabled={setStatus.isPending || !canToggle}
+            title={canToggle ? undefined : t("tasks.cannotToggle")}
             className={cn(
               "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
-              isDone ? "border-success bg-success text-white" : "border-border text-transparent hover:border-ink"
+              isDone ? "border-success bg-success text-white" : "border-border text-transparent hover:border-ink",
+              !canToggle && "cursor-not-allowed opacity-40"
             )}
             aria-label={t(isDone ? "workspace.markOpen" : "workspace.markDone")}
           >

@@ -73,6 +73,14 @@
   text-decoration: line-through;
 }
 
+/* Open and past its deadline: danger fill plus an outline, so it is not
+   confused with a very_urgent task, which uses the same colour. */
+.gv-calendar .fc-event.gv-event-overdue {
+  outline: 2px solid var(--danger);
+  outline-offset: 1px;
+  font-weight: 700;
+}
+
 .gv-calendar a {
   color: inherit;
 }

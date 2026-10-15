@@ -16,6 +16,8 @@ import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { AssignTaskDialog } from "@/app/admin/tasks/AssignTaskDialog"
 import { TaskDetailDialog } from "@/app/admin/tasks/TaskDetailDialog"
 import { cn } from "@/lib/utils"
+import { isTaskOverdue, sortOverdueFirst } from "@/lib/task-overdue"
+import { canToggleTaskStatus } from "@/lib/task-permissions"
 
 type PrimaryFilter = "open" | "mine" | "done" | "all"
 
@@ -43,10 +45,11 @@ export function TasksPage() {
   const doneCount = allTasks.filter((tsk) => tsk.status === "done").length
 
   const visibleTasks = useMemo(() => {
-    if (filter === "open") return allTasks.filter((tsk) => tsk.status !== "done")
-    if (filter === "mine") return allTasks.filter((tsk) => tsk.assignee_id === userId)
-    if (filter === "done") return allTasks.filter((tsk) => tsk.status === "done")
-    return allTasks
+    let list = allTasks
+    if (filter === "open") list = allTasks.filter((tsk) => tsk.status !== "done")
+    else if (filter === "mine") list = allTasks.filter((tsk) => tsk.assignee_id === userId)
+    else if (filter === "done") list = allTasks.filter((tsk) => tsk.status === "done")
+    return sortOverdueFirst(list)
   }, [allTasks, filter, userId])
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
@@ -107,6 +110,7 @@ export function TasksPage() {
               key={tsk.id}
               task={tsk}
               isMutating={setStatus.isPending && setStatus.variables?.id === tsk.id}
+              canToggle={canToggleTaskStatus(tsk, userId, profile?.role)}
               onToggle={() => setStatus.mutate({ id: tsk.id, status: tsk.status === "done" ? "open" : "done" })}
               onOpen={() => setSelectedTask(tsk)}
             />
@@ -137,9 +141,10 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   )
 }
 
-function TaskCard({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onToggle: () => void; isMutating: boolean; onOpen: () => void }) {
+function TaskCard({ task, onToggle, isMutating, canToggle, onOpen }: { task: OrgTask; onToggle: () => void; isMutating: boolean; canToggle: boolean; onOpen: () => void }) {
   const { t } = useTranslation()
   const isDone = task.status === "done"
+  const overdue = isTaskOverdue(task)
   const dueLabel = task.due_at
     ? new Date(task.due_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : task.due_date
@@ -148,23 +153,26 @@ function TaskCard({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTog
 
   return (
     <button type="button" onClick={onOpen} className="block w-full text-left">
-      <Card className={cn("flex-row items-start gap-2.5 transition-colors hover:bg-surface-alt", isDone && "opacity-60")}>
+      <Card className={cn("flex-row items-start gap-2.5 transition-colors hover:bg-surface-alt", overdue && "border-danger bg-danger/5", isDone && "opacity-60")}>
         <span
           role="button"
           tabIndex={0}
+          aria-disabled={!canToggle}
+          title={canToggle ? undefined : t("tasks.cannotToggle")}
           onClick={(e) => {
             e.stopPropagation()
-            onToggle()
+            if (canToggle) onToggle()
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.stopPropagation()
-              onToggle()
+              if (canToggle) onToggle()
             }
           }}
           className={cn(
             "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
-            isDone ? "border-success bg-success text-white" : "border-border text-transparent"
+            isDone ? "border-success bg-success text-white" : "border-border text-transparent",
+            !canToggle && "cursor-not-allowed opacity-40"
           )}
           aria-label={t(isDone ? "workspace.markOpen" : "workspace.markDone")}
         >
@@ -176,6 +184,7 @@ function TaskCard({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTog
             <p className={cn("text-sm font-semibold text-text", isDone && "text-text-muted line-through")}>{task.title}</p>
             <PriorityBadge priority={task.priority} />
             {task.is_recurring ? <Repeat className="size-3.5 text-text-muted" aria-label={t("tasks.recurring")} /> : null}
+            {overdue ? <span className="rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold uppercase text-white">{t("tasks.overdue")}</span> : null}
           </div>
           {task.description ? <p className="truncate text-xs text-text-muted">{task.description}</p> : null}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-muted">
@@ -183,7 +192,7 @@ function TaskCard({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTog
               <User className="size-3" />
               {task.assignee?.full_name ?? t("tasks.unknownUser")}
             </span>
-            {dueLabel ? <span>{t("tasks.due", { date: dueLabel })}</span> : null}
+            {dueLabel ? <span className={cn(overdue && "font-semibold text-danger")}>{t("tasks.due", { date: dueLabel })}</span> : null}
           </div>
         </div>
       </Card>

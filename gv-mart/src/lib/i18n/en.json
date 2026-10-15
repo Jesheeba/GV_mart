@@ -4722,6 +4722,8 @@
     "recentMeetings": "Recent meetings"
   },
   "tasks": {
+    "overdue": "Overdue",
+    "cannotToggle": "Only the person it is assigned to can mark this task done.",
     "subtitle": "Assign and track tasks across the whole team.",
     "assignTask": "Assign Task",
     "loadFailed": "Could not load tasks.",
