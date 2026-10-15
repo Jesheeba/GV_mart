@@ -220,6 +220,10 @@ begin
   perform pg_temp.chk('REGRESSION P1a: operations still cannot finish a task assigned to a technician', s like '%only the person a task is assigned to%', coalesce(s, 'accepted'));
 
   -- ---------- real data: relative to the baseline the wrapper took before the migration ----------
+  -- (task_logs does not exist yet when the baseline is taken, so it cannot be part of the fingerprint; no real task is touched here,
+  -- therefore no real organisation may have a log entry)
+  perform pg_temp.chk('no log entry exists for any REAL organisation',
+    not exists (select 1 from public.task_logs l where l.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%')));
   begin
     v_base := current_setting('gv.baseline', true);
     v_now := pg_temp.gv_fingerprint();
