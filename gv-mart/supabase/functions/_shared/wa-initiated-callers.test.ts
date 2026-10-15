@@ -18,7 +18,7 @@ function walk(dir: string, out: string[] = []): string[] {
   }
   return out
 }
-const rel = (p: string) => p.slice(ROOT.length + 1).replace(/\/g, "/")
+const rel = (p: string) => p.slice(ROOT.length + 1).split("\\").join("/")
 const callBlocks = (src: string) => [...src.matchAll(/sendMessage\(\s*admin,\s*\{([\s\S]*?)\n\s*\}\)/g)].map((m) => m[1])
 
 describe("sendMessage callers are classified (design B)", () => {
