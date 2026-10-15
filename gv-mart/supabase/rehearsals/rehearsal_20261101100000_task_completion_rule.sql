@@ -6,8 +6,8 @@
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   2bdfe062bc8594c970fb3a919741750d20db8a9a3ab7733266b01b4afa8c7eb9  gv-mart/supabase/migrations/20261101100000_task_completion_rule.sql
---   b97e202118e1d118e625cb3c12414c534ff1a314eaa1c1cacacfc6f82305be98  gv-mart/supabase/tests/task_completion_rule.test.sql
+--   da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb  gv-mart/supabase/migrations/20261101100000_task_completion_rule.sql
+--   d441e5854b91f3c781aa346c85dad9580e272502b0b9ab37a8a1cbf00d662805  gv-mart/supabase/tests/task_completion_rule.test.sql
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
@@ -94,7 +94,8 @@ begin
     elsif not public.is_ops_staff() then
       raise exception 'tasks: only operations can finish a task that has no assignee';
     end if;
-    if old.ref_type = 'purchase_order' and not public.is_master() then
+    -- both the old and the NEW ref_type: changing a task's ref_type in the same update must not slip past the rule
+    if (old.ref_type = 'purchase_order' or new.ref_type = 'purchase_order') and not public.is_master() then
       raise exception 'tasks: only a master can finish a purchase-order task';
     end if;
   elsif old.status = 'done' and new.status is distinct from 'done' then
@@ -152,7 +153,7 @@ create policy tasks_update_assign on public.tasks
 notify pgrst, 'reload schema';
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '2bdfe062bc8594c970fb3a919741750d20db8a9a3ab7733266b01b4afa8c7eb9' then
+  if v_hash <> 'da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101100000_task_completion_rule.sql: %', v_hash;
   end if;
   execute v_text;
@@ -325,6 +326,15 @@ begin
   perform pg_temp.chk('mark_po_paid by the master still marks the PO paid and closes the task',
     s is null and (select status::text from purchase_orders where id = v_po) = 'paid' and (select status::text from tasks where id = t5) = 'done', coalesce(s, 'ok'));
 
+  -- ref_type escalation: an assignee who is not a master sets ref_type = 'purchase_order' on an ordinary task and finishes it in one update
+  insert into purchase_orders (org_id, supplier_id, status, total) values (v_org, v_sup, 'sent', 30) returning id into v_po2;
+  t7 := pg_temp.mk(v_org, v_ops, v_master);
+  perform pg_temp.as_user(v_ops);
+  s := pg_temp.raises(format($q$update tasks set ref_type = 'purchase_order', ref_id = %L, status = 'done' where id = %L$q$, v_po2, t7));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('REGRESSION (ref_type escalation): switching a task to purchase_order and finishing it in one update is refused, PO untouched',
+    s like '%only a master%' and (select status::text from purchase_orders where id = v_po2) = 'sent', coalesce(s, 'accepted'));
+
   -- ---------- system paths are exempt ----------
   t1 := pg_temp.mk(v_org, v_tp, v_sales);
   s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t1));
@@ -419,7 +429,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'b97e202118e1d118e625cb3c12414c534ff1a314eaa1c1cacacfc6f82305be98' then
+  if v_hash <> 'd441e5854b91f3c781aa346c85dad9580e272502b0b9ab37a8a1cbf00d662805' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_completion_rule.test.sql: %', v_hash;
   end if;
   execute v_text;
