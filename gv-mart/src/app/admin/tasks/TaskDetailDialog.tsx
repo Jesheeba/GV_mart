@@ -12,6 +12,7 @@ import type { OrgTask, PriorityLevel } from "@/services/tasks"
 import { cn } from "@/lib/utils"
 import { useProfile } from "@/hooks/useProfile"
 import { canCompleteTask, completeBlockReason } from "@/lib/task-rules"
+import { TaskWorkLog } from "@/app/admin/tasks/TaskWorkLog"
 
 const PRIORITIES: PriorityLevel[] = ["normal", "urgent", "very_urgent"]
 
@@ -190,6 +191,8 @@ export function TaskDetailDialog({
           <span className="font-medium">{t("tasks.assignDialog.repeatMonthly")}</span>
         </label>
         {!dueDate ? <p className="text-xs text-text-muted">{t("tasks.assignDialog.repeatMonthlyHint")}</p> : null}
+
+        <TaskWorkLog orgId={orgId} taskId={task.id} />
 
         <div className="flex items-center justify-between gap-2 pt-1">
           {canDelete ? (

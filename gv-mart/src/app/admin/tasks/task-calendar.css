@@ -68,6 +68,10 @@
   cursor: pointer;
 }
 
+.gv-calendar .fc-event {
+  border-left: 5px solid transparent;
+}
+
 .gv-calendar .fc-event.gv-event-done {
   opacity: 0.5;
   text-decoration: line-through;

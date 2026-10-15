@@ -21,7 +21,7 @@ export async function listAssignableProfiles(orgId: string): Promise<AssignableP
 }
 
 export type OrgTask = TaskRow & {
-  assignee: { id: string; full_name: string; role: Enums<"user_role"> } | null
+  assignee: { id: string; full_name: string; role: Enums<"user_role">; task_color: string | null } | null
   assigner: { id: string; full_name: string } | null
 }
 
@@ -33,7 +33,7 @@ export type OrgTask = TaskRow & {
 export async function listOrgTasks(orgId: string): Promise<OrgTask[]> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, role), assigner:profiles!tasks_assigned_by_fkey(id, full_name)")
+    .select("*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, role, task_color), assigner:profiles!tasks_assigned_by_fkey(id, full_name)")
     .eq("org_id", orgId)
     .order("due_date", { ascending: true, nullsFirst: false })
   if (error) throw error

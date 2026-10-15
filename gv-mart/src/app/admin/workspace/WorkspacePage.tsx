@@ -11,6 +11,7 @@ import {
   useCompletedWorkspaceTasks,
   useCreateTask,
   useMarkAppointmentConfirmed,
+  useMoveTaskToToday,
   useMyNotificationsFeed,
   useMyWorkspaceTasks,
   useSetTaskStatus,
@@ -20,6 +21,7 @@ import {
 import type { TaskRow, UpcomingAppointmentForConfirmation } from "@/services/workspace"
 import { createTaskSchema } from "@/lib/validation/systemPages"
 import { cn } from "@/lib/utils"
+import { isTaskOverdue } from "@/lib/task-rules"
 
 function todayIso() {
   return getIstNow().date
@@ -31,18 +33,20 @@ function todayIso() {
 // treats them as optional rather than requiring every caller to supply them.
 type WorkspaceTask = TaskRow & { original_due_date?: string | null; rolled_count?: number }
 
-function TaskItem({ task, onToggle, isMutating }: { task: WorkspaceTask; onToggle: () => void; isMutating: boolean }) {
+function TaskItem({ task, onToggle, onMoveToToday, isMutating }: { task: WorkspaceTask; onToggle: () => void; onMoveToToday?: () => void; isMutating: boolean }) {
   const { t } = useTranslation()
   const isDone = task.status === "done"
   const rolledCount = task.rolled_count ?? 0
   const isRolled = !isDone && rolledCount > 0
+  const overdue = isTaskOverdue(task, todayIso())
   const daysOverdue =
-    isRolled && task.original_due_date
-      ? Math.max(1, Math.round((new Date(todayIso()).getTime() - new Date(task.original_due_date).getTime()) / 86_400_000))
-      : null
+    overdue && task.due_date ? Math.max(1, Math.round((new Date(todayIso()).getTime() - new Date(task.due_date).getTime()) / 86_400_000)) : null
 
   return (
-    <div className={cn("flex items-center gap-3 rounded-xl border border-border px-3 py-2.5", isRolled && "border-warning/40 bg-warning/5")}>
+    <div
+      className={cn("flex items-center gap-3 rounded-xl border border-border px-3 py-2.5", isRolled && "border-warning/40 bg-warning/5", overdue && "border-danger bg-danger/5")}
+      data-overdue={overdue ? "true" : undefined}
+    >
       <button
         type="button"
         onClick={onToggle}
@@ -56,19 +60,24 @@ function TaskItem({ task, onToggle, isMutating }: { task: WorkspaceTask; onToggl
         <CheckCircle2 className="size-3.5" />
       </button>
       <div className="min-w-0 flex-1">
-        <p className={cn("truncate text-sm font-medium text-text", isDone && "text-text-muted line-through")}>{task.title}</p>
-        <div className="flex items-center gap-2 text-xs text-text-muted">
-          {task.due_date ? <span>{task.due_date}</span> : null}
+        <p className={cn("truncate text-sm font-medium text-text", overdue && "text-danger", isDone && "text-text-muted line-through")}>{task.title}</p>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+          {task.due_date ? <span className={cn(overdue && "font-semibold text-danger")}>{task.due_date}</span> : null}
+          {overdue && daysOverdue ? <span className="font-semibold text-danger">{t("workspace.daysOverdue", { count: daysOverdue })}</span> : null}
           {isRolled ? (
             <span className="flex items-center gap-1 text-warning">
               <RotateCcw className="size-3" />
               {t("workspace.rolledOverCount", { count: rolledCount })}
-              {daysOverdue ? ` · ${t("workspace.daysOverdue", { count: daysOverdue })}` : null}
             </span>
           ) : null}
           {task.source && task.source !== "manual" ? <span>· {task.source}</span> : null}
         </div>
       </div>
+      {overdue && onMoveToToday ? (
+        <Button type="button" size="sm" variant="outline" disabled={isMutating} onClick={onMoveToToday} className="shrink-0">
+          {t("workspace.moveToToday")}
+        </Button>
+      ) : null}
     </div>
   )
 }
@@ -87,6 +96,7 @@ export function WorkspacePage() {
 
   const createTask = useCreateTask()
   const setTaskStatus = useSetTaskStatus()
+  const moveToToday = useMoveTaskToToday()
   const markConfirmed = useMarkAppointmentConfirmed()
 
   const [newTitle, setNewTitle] = useState("")
@@ -152,7 +162,13 @@ export function WorkspacePage() {
             ) : (
               <div className="space-y-2">
                 {todaysTasks.data!.map((task) => (
-                  <TaskItem key={task.id} task={task} onToggle={() => handleToggle(task)} isMutating={setTaskStatus.isPending} />
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    onToggle={() => handleToggle(task)}
+                    onMoveToToday={() => moveToToday.mutate(task)}
+                    isMutating={setTaskStatus.isPending || moveToToday.isPending}
+                  />
                 ))}
               </div>
             )}

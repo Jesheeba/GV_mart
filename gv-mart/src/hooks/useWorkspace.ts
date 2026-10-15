@@ -36,6 +36,16 @@ export function useCreateTask() {
   })
 }
 
+export function useMoveTaskToToday() {
+  const qc = useQueryClient()
+  const { toast } = useToast()
+  return useMutation({
+    mutationFn: (task: Parameters<typeof workspace.moveTaskToToday>[0]) => workspace.moveTaskToToday(task),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onError: (e) => toast.error(e instanceof Error && e.message ? e.message : "Could not move the task"),
+  })
+}
+
 export function useSetTaskStatus() {
   const qc = useQueryClient()
   const { toast } = useToast()

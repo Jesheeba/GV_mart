@@ -30,6 +30,8 @@ function taskToEvent(task: OrgTask, today: string): EventInput | null {
     // overdue = red regardless of priority colour, with its own class so the stylesheet can mark it
     backgroundColor: isTaskOverdue(task, today) ? "var(--danger)" : PRIORITY_EVENT_COLOR[task.priority],
     textColor: "#fff",
+    // the assignee's own colour as a thick left edge, so a person's tasks can be picked out on a crowded month
+    borderColor: task.assignee?.task_color ?? undefined,
     classNames: task.status === "done" ? ["gv-event-done"] : isTaskOverdue(task, today) ? ["gv-event-overdue"] : [],
   }
 }
