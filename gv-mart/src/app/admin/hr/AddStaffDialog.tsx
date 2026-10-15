@@ -38,7 +38,17 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
   const emailOk = EMAIL_RE.test(email.trim())
   const typedOk = mode === "generate" || new TextEncoder().encode(typed).length >= 10
-  const canSubmit = fullName.trim().length >= 2 && emailOk && typedOk && !create.isPending
+  // name, email, password, designation, full address and mobile are ALL required (owner decision, 2026-10) —
+  // mirrors validateCreateStaffInput in supabase/functions/_shared/staff-auth.ts.
+  const phoneOk = phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").length === 10
+  const canSubmit =
+    fullName.trim().length >= 2 &&
+    emailOk &&
+    phoneOk &&
+    designation.trim().length > 0 &&
+    address.trim().length > 0 &&
+    typedOk &&
+    !create.isPending
 
   function reset() {
     setFullName("")
@@ -59,10 +69,10 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       {
         fullName: name,
         email: email.trim(),
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
         role,
-        designation: designation.trim() || undefined,
-        address: address.trim() || undefined,
+        designation: designation.trim(),
+        address: address.trim(),
         password: mode === "type" ? typed : undefined,
         reason: reason.trim() || undefined,
       },
@@ -106,9 +116,9 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="staff-phone" className="block text-xs font-medium text-text-muted">
-                  {t("hr.staffSalary.phone")}
+                  {t("hr.staffSalary.phone")} <span className="text-danger">*</span>
                 </Label>
-                <Input id="staff-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
+                <Input id="staff-phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="staff-role" className="block text-xs font-medium text-text-muted">
@@ -126,16 +136,17 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
             <div className="space-y-1">
               <Label htmlFor="staff-designation" className="block text-xs font-medium text-text-muted">
-                {t("hr.staffSalary.designation")}
+                {t("hr.staffSalary.designation")} <span className="text-danger">*</span>
               </Label>
-              <Input id="staff-designation" value={designation} maxLength={80} onChange={(e) => setDesignation(e.target.value)} autoComplete="off" />
+              <Input id="staff-designation" required value={designation} maxLength={80} onChange={(e) => setDesignation(e.target.value)} autoComplete="off" />
             </div>
             <div className="space-y-1">
               <Label htmlFor="staff-address" className="block text-xs font-medium text-text-muted">
-                {t("hr.staffSalary.address")}
+                {t("hr.staffSalary.address")} <span className="text-danger">*</span>
               </Label>
               <textarea
                 id="staff-address"
+                required
                 value={address}
                 maxLength={300}
                 rows={2}

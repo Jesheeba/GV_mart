@@ -208,13 +208,30 @@ describe("validateTypedPassword (bytes, deny-list)", () => {
 })
 
 describe("validateCreateStaffInput", () => {
-  const good = { fullName: "  Priya Dharshini ", email: " Priya@Example.COM ", role: "sales_admin" }
+  // name, email, password, designation, full address and mobile are ALL required (owner decision, 2026-10).
+  const good = {
+    fullName: "  Priya Dharshini ",
+    email: " Priya@Example.COM ",
+    role: "sales_admin",
+    phone: "98765 43210",
+    designation: " Service desk lead ",
+    address: " 12 Test Street\nCoimbatore ",
+  }
 
-  it("accepts the minimum (name, email, role) and normalises it", () => {
+  it("accepts the full required set and normalises it; password omitted means generated, not absent", () => {
     const r = validateCreateStaffInput(good)
     expect(r).toEqual({
       ok: true,
-      value: { fullName: "Priya Dharshini", email: "priya@example.com", phone: null, role: "sales_admin", designation: null, address: null, password: null, reason: null },
+      value: {
+        fullName: "Priya Dharshini",
+        email: "priya@example.com",
+        phone: "9876543210",
+        role: "sales_admin",
+        designation: "Service desk lead",
+        address: "12 Test Street\nCoimbatore",
+        password: null,
+        reason: null,
+      },
     })
   })
   it("accepts operation_admin, a phone in common formats, a typed password and a reason", () => {
@@ -231,12 +248,18 @@ describe("validateCreateStaffInput", () => {
     expect(r.ok).toBe(true)
     if (r.ok) expect(Object.keys(r.value).sort()).toEqual(["address", "designation", "email", "fullName", "password", "phone", "reason", "role"])
   })
-  it("accepts a designation and a multi-line address, trimmed; blank means null", () => {
+  it("requires phone, designation and address — none may be omitted or blank", () => {
+    for (const field of ["phone", "designation", "address"]) {
+      expect(validateCreateStaffInput({ ...good, [field]: undefined }).ok, `${field} undefined`).toBe(false)
+      expect(validateCreateStaffInput({ ...good, [field]: "" }).ok, `${field} empty`).toBe(false)
+      expect(validateCreateStaffInput({ ...good, [field]: "   " }).ok, `${field} blank`).toBe(false)
+    }
+  })
+  it("trims the designation and the (possibly multi-line) address", () => {
     const r = validateCreateStaffInput({ ...good, designation: "  Service desk lead ", address: " 12 Test Street\nCoimbatore " })
     expect(r).toMatchObject({ ok: true, value: { designation: "Service desk lead", address: "12 Test Street\nCoimbatore" } })
-    expect(validateCreateStaffInput({ ...good, designation: "   ", address: "" })).toMatchObject({ ok: true, value: { designation: null, address: null } })
   })
-  it("rejects an over-long or control-character designation and an over-long address", () => {
+  it("rejects an over-long or control-character designation and an over-long or control-character address", () => {
     expect(validateCreateStaffInput({ ...good, designation: "x".repeat(81) }).ok).toBe(false)
     expect(validateCreateStaffInput({ ...good, designation: "two\nlines" }).ok).toBe(false)
     expect(validateCreateStaffInput({ ...good, address: "x".repeat(301) }).ok).toBe(false)

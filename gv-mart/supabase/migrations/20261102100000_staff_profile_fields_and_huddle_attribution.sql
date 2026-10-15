@@ -19,6 +19,37 @@
 -- 4. raise_huddle_issue(p_description): an ACTIVE technician or staff member raises an issue for today's huddle. The table's
 --    insert/update policies are unchanged (staff only); a technician has no UPDATE path, so cannot edit anyone's issue.
 --
+-- 5. profiles.address visibility. RLS on `profiles` is ROW-level only: profiles_select_staff (org_id match + is_staff(),
+--    which is master/operation_admin/SALES_ADMIN) already lets ANY staff role read every column of every profile in the
+--    org, and profiles_select_by_customer already lets a customer read their assigned TECHNICIAN's profile row. Both
+--    policies pre-date this migration and are correctly scoped for the columns that existed before address — but address
+--    is a home/postal address, and Postgres RLS cannot mask one column while allowing the rest of the same row (only a
+--    full row match/no-match). The smallest fix that doesn't touch either policy or the single shared `authenticated`
+--    client role's access to every other column: REVOKE the `address` column itself from anon/authenticated outright
+--    (closing both leaks — sales_admin's broad profile read and the customer-sees-technician read — for every viewer,
+--    including the row's own owner and master), then hand it back ONLY to the person themselves and ops (master /
+--    operation_admin) through a SECURITY DEFINER function. Nothing today reads `.address` off a bare `select("*")` on
+--    `profiles` (P2 only writes it, through the two staff Edge Functions as service_role, which this revoke does not
+--    touch), so this closes the leak with no client code to migrate; a future staff-detail/edit screen reads the
+--    address through get_profile_address() instead of the base table.
+
+revoke select (address) on public.profiles from anon, authenticated;
+
+create or replace function public.get_profile_address(p_profile_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select address from public.profiles
+   where id = p_profile_id
+     and org_id = public.current_org_id()
+     and (id = auth.uid() or public.is_ops_staff())
+$$;
+revoke all on function public.get_profile_address(uuid) from public, anon;
+grant execute on function public.get_profile_address(uuid) to authenticated;
+--
 -- RLS stays org-scoped; no policy is added or loosened. Not touched: compute_incentives, any review column.
 
 -- 1. profiles ---------------------------------------------------------------------------------------------------------

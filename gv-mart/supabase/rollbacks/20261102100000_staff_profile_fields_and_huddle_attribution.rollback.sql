@@ -1,6 +1,9 @@
 -- Rollback for 20261102100000_staff_profile_fields_and_huddle_attribution.sql
 -- Drops the new objects and columns. Data written to the dropped columns is lost; the notifications rows already
 -- written stay (they are ordinary rows).
+drop function if exists public.get_profile_address(uuid);
+-- dropping the address column below removes the REVOKE with it; no explicit re-grant needed.
+
 drop function if exists public.raise_huddle_issue(text);
 
 drop trigger if exists meeting_issue_notify_master_upd on public.meeting_issues;
