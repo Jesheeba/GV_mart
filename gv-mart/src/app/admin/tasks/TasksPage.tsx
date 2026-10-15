@@ -9,7 +9,7 @@ import { useOrgTasks, useSetOrgTaskStatus } from "@/hooks/useTasks"
 import type { OrgTask } from "@/services/tasks"
 import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { cn } from "@/lib/utils"
-import { canCompleteTask, compareTasksOverdueFirst, isTaskOverdue } from "@/lib/task-rules"
+import { type CompleteBlockReason, canCompleteTask, compareTasksOverdueFirst, completeBlockReason, isTaskOverdue } from "@/lib/task-rules"
 import { getIstNow } from "@/lib/ist"
 import { AssignTaskDialog } from "./AssignTaskDialog"
 import { TaskDetailDialog } from "./TaskDetailDialog"
@@ -116,6 +116,7 @@ export function TasksPage() {
               isMutating={setStatus.isPending && setStatus.variables?.id === tsk.id}
               overdue={isTaskOverdue(tsk, today)}
               canComplete={canCompleteTask(tsk, profile ? { id: profile.id, role: profile.role } : null)}
+              blockReason={completeBlockReason(tsk, profile ? { id: profile.id, role: profile.role } : null)}
               onToggle={() => setStatus.mutate({ id: tsk.id, status: tsk.status === "done" ? "open" : "done" })}
               onOpen={() => setSelectedTask(tsk)}
             />
@@ -170,6 +171,7 @@ function TaskRow({
   onOpen,
   overdue,
   canComplete,
+  blockReason,
 }: {
   task: OrgTask
   onToggle: () => void
@@ -177,6 +179,7 @@ function TaskRow({
   onOpen: () => void
   overdue: boolean
   canComplete: boolean
+  blockReason: CompleteBlockReason | null
 }) {
   const { t } = useTranslation()
   const isDone = task.status === "done"
@@ -208,7 +211,7 @@ function TaskRow({
           onToggle()
         }}
         disabled={isMutating || !canComplete}
-        title={!canComplete && !isDone ? t("tasks.onlyAssigneeFinishes", { name: task.assignee?.full_name ?? t("tasks.unknownUser") }) : undefined}
+        title={!canComplete && !isDone ? t(`tasks.cannotFinish.${blockReason ?? "not_assignee"}`, { name: task.assignee?.full_name ?? t("tasks.unknownUser") }) : undefined}
         className={cn(
           !canComplete && "cursor-not-allowed opacity-40",
           "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
@@ -235,6 +238,7 @@ function TaskRow({
           {task.assigner ? <span>{t("tasks.assignedBy", { name: task.assigner.full_name })}</span> : null}
           {dueLabel ? <span className={cn(overdue && "font-semibold text-danger")}>{t("tasks.due", { date: dueLabel })}</span> : null}
         </div>
+        {!isDone && blockReason === "po_needs_master" ? <p className="text-xs font-medium text-warning">{t("tasks.cannotFinish.po_needs_master")}</p> : null}
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { canCompleteTask, compareTasksOverdueFirst, isTaskOverdue, taskDueDay, type TaskLike } from "./task-rules"
+import { canCompleteTask, compareTasksOverdueFirst, completeBlockReason, isTaskOverdue, taskDueDay, type TaskLike } from "./task-rules"
 
 const task = (p: Partial<TaskLike> = {}): TaskLike => ({ status: "open", due_date: null, due_at: null, assignee_id: "u1", ref_type: null, ...p })
 
@@ -38,6 +38,14 @@ describe("task rules", () => {
     expect(canCompleteTask({ assignee_id: null, ref_type: null }, { id: "u2", role: "operation_admin" })).toBe(true)
     expect(canCompleteTask({ assignee_id: null, ref_type: null }, { id: "u2", role: "sales_admin" })).toBe(false)
     expect(canCompleteTask({ assignee_id: "u1", ref_type: null }, null)).toBe(false)
+  })
+
+  it("says why a task cannot be finished", () => {
+    expect(completeBlockReason({ assignee_id: "u1", ref_type: null }, { id: "u2", role: "master" })).toBe("not_assignee")
+    expect(completeBlockReason({ assignee_id: null, ref_type: null }, { id: "u2", role: "sales_admin" })).toBe("unassigned")
+    expect(completeBlockReason({ assignee_id: "u1", ref_type: "purchase_order" }, { id: "u1", role: "operation_admin" })).toBe("po_needs_master")
+    expect(completeBlockReason({ assignee_id: "u1", ref_type: "purchase_order" }, { id: "u1", role: "master" })).toBeNull()
+    expect(completeBlockReason({ assignee_id: "u1", ref_type: null }, { id: "u1", role: "technician" })).toBeNull()
   })
 
   it("a purchase-order task needs a master", () => {

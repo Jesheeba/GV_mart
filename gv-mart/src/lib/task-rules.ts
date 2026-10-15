@@ -42,6 +42,21 @@ export function compareTasksOverdueFirst(a: TaskLike, b: TaskLike, todayIst: str
   return da < db ? -1 : da > db ? 1 : 0
 }
 
+export type CompleteBlockReason = "not_assignee" | "po_needs_master" | "unassigned"
+
+/** Why the finish control is disabled for this person (null when they may finish it), so the screen can explain instead of failing silently. */
+export function completeBlockReason(task: Pick<TaskLike, "assignee_id" | "ref_type">, actor: ActorLike | null | undefined): CompleteBlockReason | null {
+  if (!actor) return "not_assignee"
+  const isOps = actor.role === "master" || actor.role === "operation_admin"
+  if (task.assignee_id) {
+    if (task.assignee_id !== actor.id) return "not_assignee"
+  } else if (!isOps) {
+    return "unassigned"
+  }
+  if (task.ref_type === "purchase_order" && actor.role !== "master") return "po_needs_master"
+  return null
+}
+
 /** Mirrors guard_task_completion: only the assignee finishes a task (operations, when it has no assignee);
  *  a purchase-order task additionally needs a master. Master and operations may reassign but never finish for someone else. */
 export function canCompleteTask(task: Pick<TaskLike, "assignee_id" | "ref_type">, actor: ActorLike | null | undefined): boolean {

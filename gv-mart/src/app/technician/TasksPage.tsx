@@ -16,7 +16,7 @@ import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { AssignTaskDialog } from "@/app/admin/tasks/AssignTaskDialog"
 import { TaskDetailDialog } from "@/app/admin/tasks/TaskDetailDialog"
 import { cn } from "@/lib/utils"
-import { canCompleteTask, compareTasksOverdueFirst, isTaskOverdue } from "@/lib/task-rules"
+import { type CompleteBlockReason, canCompleteTask, compareTasksOverdueFirst, completeBlockReason, isTaskOverdue } from "@/lib/task-rules"
 import { getIstNow } from "@/lib/ist"
 
 type PrimaryFilter = "open" | "mine" | "done" | "all"
@@ -113,6 +113,7 @@ export function TasksPage() {
               isMutating={setStatus.isPending && setStatus.variables?.id === tsk.id}
               overdue={isTaskOverdue(tsk, today)}
               canComplete={canCompleteTask(tsk, profile ? { id: profile.id, role: profile.role } : null)}
+              blockReason={completeBlockReason(tsk, profile ? { id: profile.id, role: profile.role } : null)}
               onToggle={() => setStatus.mutate({ id: tsk.id, status: tsk.status === "done" ? "open" : "done" })}
               onOpen={() => setSelectedTask(tsk)}
             />
@@ -150,6 +151,7 @@ function TaskCard({
   onOpen,
   overdue,
   canComplete,
+  blockReason,
 }: {
   task: OrgTask
   onToggle: () => void
@@ -157,6 +159,7 @@ function TaskCard({
   onOpen: () => void
   overdue: boolean
   canComplete: boolean
+  blockReason: CompleteBlockReason | null
 }) {
   const { t } = useTranslation()
   const isDone = task.status === "done"
@@ -183,7 +186,7 @@ function TaskCard({
             }
           }}
           aria-disabled={!canComplete}
-          title={!canComplete && !isDone ? t("tasks.onlyAssigneeFinishes", { name: task.assignee?.full_name ?? t("tasks.unknownUser") }) : undefined}
+          title={!canComplete && !isDone ? t(`tasks.cannotFinish.${blockReason ?? "not_assignee"}`, { name: task.assignee?.full_name ?? t("tasks.unknownUser") }) : undefined}
           className={cn(
             !canComplete && "cursor-not-allowed opacity-40",
             "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
@@ -209,6 +212,7 @@ function TaskCard({
             </span>
             {dueLabel ? <span className={cn(overdue && "font-semibold text-danger")}>{t("tasks.due", { date: dueLabel })}</span> : null}
           </div>
+          {!isDone && blockReason === "po_needs_master" ? <p className="text-xs font-medium text-warning">{t("tasks.cannotFinish.po_needs_master")}</p> : null}
         </div>
       </Card>
     </button>
