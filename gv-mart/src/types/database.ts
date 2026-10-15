@@ -2597,6 +2597,9 @@ export type Database = {
           item_id: string
           qty: number
           price: number
+          // Hand-patched, see 20261104110000_invoice_quotation_item_code_snapshot.sql. Stamped by a BEFORE INSERT
+          // trigger from the catalog at line-creation time; a client-supplied value is ignored.
+          item_code: string | null
           created_at: string
           updated_at: string
         }
@@ -2608,6 +2611,7 @@ export type Database = {
           item_id: string
           qty: number
           price: number
+          item_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2619,6 +2623,7 @@ export type Database = {
           item_id?: string
           qty?: number
           price?: number
+          item_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2870,6 +2875,9 @@ export type Database = {
           price: number
           discount: number
           cost: number | null
+          // Hand-patched, see 20261104110000_invoice_quotation_item_code_snapshot.sql. Stamped by a BEFORE INSERT
+          // trigger from the catalog at line-creation time; a client-supplied value is ignored.
+          item_code: string | null
           created_at: string
           updated_at: string
         }
@@ -2883,6 +2891,7 @@ export type Database = {
           price: number
           discount?: number
           cost?: number | null
+          item_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2896,6 +2905,7 @@ export type Database = {
           price?: number
           discount?: number
           cost?: number | null
+          item_code?: string | null
           created_at?: string
           updated_at?: string
         }

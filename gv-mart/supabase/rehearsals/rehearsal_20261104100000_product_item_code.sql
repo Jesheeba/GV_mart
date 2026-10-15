@@ -1,21 +1,38 @@
--- REHEARSAL (NOT RUN; for the owner's approval of this exact text): product item code (P4): migration 20261104100000 + its tests
--- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()), (2) recomputes
--- the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) executes the migration text(s) and then the
--- test file in order, (4) always ends in an unconditional RAISE EXCEPTION, so nothing is ever committed.
--- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
--- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): product item code, with unique index (P4): migration 20261104100000 + its tests
+-- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
+-- (2) recomputes the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) recomputes
+-- a RELATIVE fingerprint of the real organisation (its id + name, picking the earliest non-__TEST-named row — not an
+-- exact snapshot of the whole table, so it survives new test orgs being added later) and refuses on any mismatch,
+-- confirming this rehearsal is pointed at the real project,
+-- (4) executes the migration text(s) and then the test file in order, (5) always ends in an unconditional RAISE
+-- EXCEPTION, so nothing is ever committed.
+-- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with
+-- test code outside this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure
+-- and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   b23520e1fb2b11e0d5b159d88814f402d31a19047555734eae4d32d4917364c8  gv-mart/supabase/migrations/20261104100000_product_item_code.sql
---   36070201943e49c5bd03677a97ce98b03ed39f59dfd6449aff29215f1ecf2e6c  gv-mart/supabase/tests/product_item_code.test.sql
+--   117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c  gv-mart/supabase/migrations/20261104100000_product_item_code.sql
+--   4dd53e550b2dd1d03ad728aecbdbbfc93dc4cef082996974f633224f823b24a0  gv-mart/supabase/tests/product_item_code.test.sql
+-- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
+--   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
 
 do $rehearsal$
 declare
   v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   v_text text;
   v_hash text;
+  v_check text;
 begin
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  end if;
+
+  select md5(o.id::text || '|' || o.name) into v_check
+    from public.organizations o
+   where o.name not like '\_\_TEST%'
+   order by o.created_at asc
+   limit 1;
+  if v_check is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch (expected the real GV Mart org, got %)', coalesce(v_check, 'null');
   end if;
 
   v_text := $rh0$-- P4: an identification code per PRODUCT (spares already have one — `spares.sku`, 20260701090300). This is a
@@ -26,15 +43,21 @@ begin
 -- Same shape as spares.sku: plain nullable text, no DB-level check — sku itself has none either; the
 -- alphanumeric/hyphen/underscore format is validated client-side only (ProductsTab.tsx), matching SparesTab.tsx's
 -- own sku field exactly. Master-write only (products_write_master already covers this column — no RLS change).
+--
+-- A case-insensitive PARTIAL unique index: two products in the same org cannot share a code, but any number may
+-- leave it null (not yet coded). Safe to add in this same migration — item_code is a brand-new column with no
+-- existing rows to conflict (no backfill), so there is nothing for the index to reject at creation time.
 
 alter table public.products
   add column item_code text;
 
 comment on column public.products.item_code is
   'Master-set identification code for the product (not a per-unit serial). Printed on invoice/quotation lines alongside the item name.';
+
+create unique index products_item_code_unique_idx on public.products (org_id, lower(item_code)) where item_code is not null;
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'b23520e1fb2b11e0d5b159d88814f402d31a19047555734eae4d32d4917364c8' then
+  if v_hash <> '117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261104100000_product_item_code.sql: %', v_hash;
   end if;
   execute v_text;
@@ -125,11 +148,34 @@ begin
   x := pg_temp.act(m, format('update public.products set item_code = null where id = %L', v_product));
   perform pg_temp.chk('W5 master can clear it back to null', x = 'ok:1', x);
 
+  -- U: the partial unique index
+  declare
+    v_product2 uuid; v_product3 uuid;
+  begin
+    insert into public.products(org_id, brand_id, model_id, name, category, price) values (v_org, v_brand, v_model, '__TEST_product2', 'ro', 1000) returning id into v_product2;
+    insert into public.products(org_id, brand_id, model_id, name, category, price) values (v_org, v_brand, v_model, '__TEST_product3', 'ro', 1000) returning id into v_product3;
+    x := pg_temp.act(m, format('update public.products set item_code = ''RO-STD-01'' where id = %L', v_product2));
+    perform pg_temp.chk('U1 setting a first product''s code succeeds', x = 'ok:1', x);
+    x := pg_temp.act(m, format('update public.products set item_code = ''ro-std-01'' where id = %L', v_product3));
+    perform pg_temp.chk('U2 a different-case duplicate in the SAME org is refused (case-insensitive unique)', x like 'err:%', x);
+    perform pg_temp.chk('U3 multiple products with item_code still null is fine (partial index)',
+      (select count(*) from public.products where org_id = v_org and item_code is null) >= 1);
+  end;
+
+  declare
+    v_org2 uuid; v_other_product uuid;
+  begin
+    insert into public.organizations(name) values ('__TEST_p4_other') returning id into v_org2;
+    insert into public.products(org_id, brand_id, model_id, name, category, price, item_code) values (v_org2, v_brand, v_model, '__TEST_other_org', 'ro', 1000, 'RO-STD-01') returning id into v_other_product;
+    perform pg_temp.chk('U4 the SAME code in a DIFFERENT org is fine (index is org-scoped)',
+      (select count(*) from public.products where item_code is not null and lower(item_code) = 'ro-std-01') = 2);
+  end;
+
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '36070201943e49c5bd03677a97ce98b03ed39f59dfd6449aff29215f1ecf2e6c' then
+  if v_hash <> '4dd53e550b2dd1d03ad728aecbdbbfc93dc4cef082996974f633224f823b24a0' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for product_item_code.test.sql: %', v_hash;
   end if;
   execute v_text;
