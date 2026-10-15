@@ -1,4 +1,4 @@
--- Rollback for 20261018150000_start_travel.sql. Drops the stamp column: the record of when each technician started travel is lost.
+-- Rollback for 20261029120000_start_travel.sql. Drops the stamp column: the record of when each technician started travel is lost.
 begin;
 drop function if exists public.start_travel(uuid);
 alter table public.appointments drop column if exists travel_started_at;

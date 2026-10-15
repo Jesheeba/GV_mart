@@ -399,7 +399,7 @@ export type JobDetail = ServiceTicketRow & {
     mode: Enums<"appointment_mode">
     status: Enums<"appointment_status">
     technician_id: string | null
-    /** Set once by start_travel (migration 20261018150000): the technician has left for this job. */
+    /** Set once by start_travel (migration 20261029120000): the technician has left for this job. */
     travel_started_at: string | null
     // Task 5 (2026-07-30/31) — admin-logged, phone-confirmed availability
     // (exception path on top of unchanged auto-assignment); most recent
@@ -1270,7 +1270,7 @@ export async function getTechnicianStats(technicianId: string, orgId: string, ra
 }
 
 /**
- * "Start travel": the technician's departure signal (migration 20261018150000). Server-checked: only the technician the job is
+ * "Start travel": the technician's departure signal (migration 20261029120000). Server-checked: only the technician the job is
  * assigned to, only while it is assigned, once per visit (a repeat tap returns the original time).
  */
 export async function startTravel(ticketId: string): Promise<{ started_at: string; already_started: boolean }> {

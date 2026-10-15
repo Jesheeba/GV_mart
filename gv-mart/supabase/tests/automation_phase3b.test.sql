@@ -1,6 +1,6 @@
 -- Rolled-back DB tests for Automation Phase 3 / Stage B:
---   20261018130000_automation_handoff, 20261018140000_automation_scanners_and_amc_visit_emit, 20261018150000_start_travel
--- (the dispatcher-side migration 20261018160000 has its own test). Run AFTER the three migrations (the runner concatenates
+--   20261029100000_automation_handoff, 20261029110000_automation_scanners_and_amc_visit_emit, 20261029120000_start_travel
+-- (the dispatcher-side migration 20261029130000 has its own test). Run AFTER the three migrations (the runner concatenates
 -- them in front, inside ONE transaction). Ends in RAISE; read RESULTS in the error. Throwaway __TEST_ organisation only;
 -- nothing is sent (there is no sender); no real customer, number or message is touched.
 create temp table res (n serial, line text);

@@ -1,5 +1,5 @@
--- Rolled-back test for 20261018160000_automation_handoff_amc_ref_type.sql (dispatcher side of the AMC hand-off).
--- Runner: BEGIN; 20261018130000 (hand-off) ; 20261018160000 ; this block (ends in RAISE). Throwaway organisation only.
+-- Rolled-back test for 20261029130000_automation_handoff_amc_ref_type.sql (dispatcher side of the AMC hand-off).
+-- Runner: BEGIN; 20261029100000 (hand-off) ; 20261029130000 ; this block (ends in RAISE). Throwaway organisation only.
 create temp table res (n serial, line text);
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;

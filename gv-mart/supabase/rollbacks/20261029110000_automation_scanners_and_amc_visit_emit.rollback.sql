@@ -1,4 +1,4 @@
--- Rollback for 20261018140000_automation_scanners_and_amc_visit_emit.sql.
+-- Rollback for 20261029110000_automation_scanners_and_amc_visit_emit.sql.
 begin;
 drop trigger if exists zz_automation_emit_amc_visit on public.appointments;
 drop function if exists public._trg_automation_emit_amc_visit();

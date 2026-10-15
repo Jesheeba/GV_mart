@@ -75,7 +75,7 @@ begin
     (select count(*) from public.automation_events where event_key in ('amc.joined','amc.expired','amc.expiring','spare_enquiry.submitted','product_enquiry.submitted','review.google_requested')) = 6
     and (select count(distinct group_key) from public.automation_events) >= 8
     and (select count(*) from public.automation_events) >= 60);
-  -- Phase 2 asserted that technician.on_the_way had NO emitter. Stage B (migration 20261018150000, start_travel) adds the
+  -- Phase 2 asserted that technician.on_the_way had NO emitter. Stage B (migration 20261029120000, start_travel) adds the
   -- departure signal, so the visit-start event is still technician.arrived and on_the_way now has its own emitter.
   perform pg_temp.chk('technician.arrived has an emitter (visit start); on_the_way is emitted only by start_travel, never by the visit insert',
     (select has_emitter from public.automation_events where event_key = 'technician.arrived')

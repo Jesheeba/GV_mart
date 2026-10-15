@@ -195,7 +195,7 @@ Superseded by sections 8 and 9, which specify each one exactly. In short: the so
 
 ## 8. Specifications (added 2026-10-14)
 
-Nothing here is built or applied. References are to the migrations on `origin/main` (Stage A, `20261018120000`) and `feat/automation-phase3b` (hand-off, `20261018130000`). The live database was not queried and no test was run.
+Nothing here is built or applied. References are to the migrations on `origin/main` (Stage A, `20261018120000`) and `feat/automation-phase3b` (hand-off, `20261029100000`). The live database was not queried and no test was run.
 
 ### 8.1 The 30-day cooldown, per customer AND per item
 
