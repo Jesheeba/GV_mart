@@ -59,6 +59,11 @@ export type Database = {
           photo_url: string | null
           language: string
           is_active: boolean
+          designation: string | null
+          address: string | null
+          must_change_password: boolean
+          password_marker: string | null
+          task_color: string | null
           staff_role_key: string | null
           created_at: string
           updated_at: string
@@ -73,6 +78,9 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          designation?: string | null
+          address?: string | null
+          task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
@@ -87,6 +95,9 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          designation?: string | null
+          address?: string | null
+          task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
@@ -5965,6 +5976,8 @@ export type Database = {
           owner_id: string | null
           date_raised: string
           date_solved: string | null
+          solution_by: string | null
+          solved_by: string | null
           created_at: string
           updated_at: string
         }
@@ -5980,6 +5993,8 @@ export type Database = {
           owner_id?: string | null
           date_raised: string
           date_solved?: string | null
+          solution_by?: string | null
+          solved_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5995,6 +6010,8 @@ export type Database = {
           owner_id?: string | null
           date_raised?: string
           date_solved?: string | null
+          solution_by?: string | null
+          solved_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -7324,6 +7341,18 @@ export type Database = {
       // 20260925100100_po_paid_functions.sql; Docker-based `supabase gen
       // types` isn't available in this environment (see memory: hand-patch
       // instead).
+      raise_huddle_issue: {
+        Args: { p_description: string }
+        Returns: string
+      }
+      propose_huddle_solution: {
+        Args: { p_issue_id: string; p_solution: string }
+        Returns: undefined
+      }
+      complete_forced_password_change: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       mark_po_paid: {
         Args: { p_po_id: string }
         Returns: Database["public"]["Tables"]["purchase_orders"]["Row"]

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { CheckCircle2, ListPlus, Pencil, RotateCcw, User } from "lucide-react"
+import { CheckCircle2, Lightbulb, ListPlus, Pencil, RotateCcw, User } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -13,15 +13,20 @@ export type IssueCardProps = {
   onEdit?: () => void
   onToggleStatus?: () => void
   onCreateTask?: () => void
+  /** Offered to technicians (and staff) while the problem is open and has no solution yet. */
+  onProposeSolution?: () => void
   busy?: boolean
 }
 
-export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreateTask, busy }: IssueCardProps) {
+export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreateTask, onProposeSolution, busy }: IssueCardProps) {
   const { t } = useTranslation()
   const solved = issue.status === "solved"
   const owner = issue.owner_id ? names.get(issue.owner_id) : null
   const raisedBy = issue.raised_by ? names.get(issue.raised_by) : null
-  const editable = !!(onEdit || onToggleStatus || onCreateTask)
+  const solutionBy = issue.solution_by ? names.get(issue.solution_by) : null
+  const solvedBy = issue.solved_by ? names.get(issue.solved_by) : null
+  const canPropose = !!onProposeSolution && !solved && !issue.solution
+  const editable = !!(onEdit || onToggleStatus || onCreateTask || canPropose)
 
   return (
     <Card className="gap-2.5" data-testid="huddle-issue">
@@ -40,6 +45,7 @@ export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreat
           </span>
         )}
         {solved && issue.date_solved && <span>{t("huddle.solvedOn", { date: issue.date_solved })}</span>}
+        {solved && solvedBy && <span className="font-medium text-success">{t("huddle.solvedBy", { name: solvedBy })}</span>}
       </p>
 
       {issue.root_cause && (
@@ -52,6 +58,7 @@ export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreat
         <div className="text-sm">
           <span className="font-medium text-text">{t("huddle.solution")}: </span>
           <span className="text-text-muted">{issue.solution}</span>
+          {solutionBy ? <span className="ml-1 text-xs text-text-muted">({t("huddle.solutionBy", { name: solutionBy })})</span> : null}
         </div>
       )}
 
@@ -74,6 +81,12 @@ export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreat
             <Button type="button" size="sm" variant="outline" onClick={onEdit}>
               <Pencil className="size-3.5" />
               {t("huddle.edit")}
+            </Button>
+          )}
+          {canPropose && (
+            <Button type="button" size="sm" variant="outline" onClick={onProposeSolution}>
+              <Lightbulb className="size-3.5" />
+              {t("huddle.proposeSolution")}
             </Button>
           )}
           {onCreateTask && (

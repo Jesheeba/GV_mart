@@ -52,6 +52,13 @@ function client() {
           const p = table === "profiles" && filterId ? db.profiles[filterId] : undefined
           return p ? { data: { id: filterId, ...p }, error: null } : { data: null, error: { message: "not found" } }
         },
+        update: (row: Row) => ({
+          eq: async (_c: string, v: string) => {
+            db.calls.push("forceChange")
+            if (table === "profiles" && db.profiles[v]) db.profiles[v] = { ...db.profiles[v], ...row }
+            return { error: null }
+          },
+        }),
         insert: async (row: Row) => {
           db.calls.push("insertAudit")
           if (db.failAuditInsert) return { error: { message: "denied" } }
@@ -144,8 +151,8 @@ describe("admin-reset-staff-password handler (hardened)", () => {
   it("resets a sales_admin with a typed password: audit start FIRST, update, sessions revoked, completion row; password not echoed or audited", async () => {
     const res = await call({ profileId: "u-sales", password: "typed phrase 4271" })
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, generated: false, sessionsRevoked: true })
-    expect(db.calls).toEqual(["insertAudit", "updateUser", "rpc:revoke_user_sessions", "insertAudit"])
+    expect(await res.json()).toEqual({ ok: true, generated: false, sessionsRevoked: true, forcedChange: true })
+    expect(db.calls).toEqual(["insertAudit", "updateUser", "forceChange", "rpc:revoke_user_sessions", "insertAudit"])
     expect(db.passwords["u-sales"]).toBe("typed phrase 4271")
     expect(db.revoked).toEqual(["u-sales"]) // F-01
     expect(db.audit).toHaveLength(2)

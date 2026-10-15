@@ -4,6 +4,7 @@ import { LoginPage } from "@/app/auth/LoginPage"
 import { NotFoundPage } from "@/app/NotFoundPage"
 import { RouteFallback } from "@/components/shared/RouteFallback"
 import { RequireAuth, RequireRole } from "@/lib/guards"
+import { ChangePasswordPage } from "@/app/auth/ChangePasswordPage"
 import { STAFF_ROLES } from "@/lib/roles"
 
 /**
@@ -119,6 +120,7 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      { path: "/change-password", element: <ChangePasswordPage /> },
       {
         path: "/admin",
         element: <RequireRole roles={[...STAFF_ROLES]} />,

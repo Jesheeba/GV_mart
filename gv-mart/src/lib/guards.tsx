@@ -37,6 +37,10 @@ export function RequireRole({ roles }: { roles: UserRole[] }) {
       />
     )
   }
+  // a new account (or one whose password was just reset) must choose its own password before anything else
+  if (profile.must_change_password) {
+    return <Navigate to="/change-password" replace />
+  }
   if (!roles.includes(profile.role)) {
     return <Navigate to={roleHomePath(profile.role)} replace />
   }

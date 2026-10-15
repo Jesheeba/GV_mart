@@ -109,7 +109,14 @@ const call = (body: unknown, token: string | null = "master-jwt", method = "POST
       body: method === "POST" ? JSON.stringify(body) : undefined,
     })
   )
-const good = { fullName: "Priya Dharshini", email: "priya@example.com", role: "sales_admin" }
+const good = {
+  fullName: "Priya Dharshini",
+  email: "priya@example.com",
+  role: "sales_admin",
+  phone: "9876543210",
+  designation: "Sales executive",
+  address: "12 Main Road, Anna Nagar, Chennai 600040",
+}
 const startRow = () => db.audit.find((r) => (r.after as Row).phase === "start")!
 const resultRow = () => db.audit.find((r) => (r.after as Row).phase === "result")!
 
@@ -168,7 +175,17 @@ describe("admin-create-staff handler", () => {
     expect(typeof body.password).toBe("string")
     expect(body.password).toHaveLength(14)
     expect(db.calls).toEqual(["insertAudit", "createUser", "insertProfile", "insertAudit"]) // audit FIRST, completion last
-    expect(db.profiles[body.id]).toEqual({ id: body.id, org_id: "org-1", full_name: "Priya Dharshini", phone: null, role: "sales_admin", is_active: true })
+    expect(db.profiles[body.id]).toEqual({
+      id: body.id,
+      org_id: "org-1",
+      full_name: "Priya Dharshini",
+      phone: "9876543210",
+      designation: "Sales executive",
+      address: "12 Main Road, Anna Nagar, Chennai 600040",
+      role: "sales_admin",
+      is_active: true,
+      must_change_password: true,
+    })
     expect(db.authUsers[0]).toMatchObject({ email: "priya@example.com", email_confirm: true })
     expect(db.audit).toHaveLength(2) // never updated: two rows
     expect(startRow()).toMatchObject({ org_id: "org-1", actor_id: "u-master", action: "STAFF_CREATE", table_name: "profiles", row_id: null })

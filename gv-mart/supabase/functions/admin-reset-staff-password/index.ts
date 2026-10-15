@@ -79,10 +79,15 @@ Deno.serve(async (req) => {
     return json({ error: "Could not reset the password" }, 400)
   }
 
+  // The new password was just shared in person: the person must choose their own at next login. The marker is cleared so the
+  // database records the NEW hash. If this write fails the password is still reset; the response says the change is not forced.
+  const { error: flagErr } = await admin.from("profiles").update({ must_change_password: true, password_marker: null }).eq("id", target!.id)
+  const forcedChange = !flagErr
+
   // A reset must also evict anyone already signed in with the old password.
   const sessionsRevoked = await revokeUserSessions(admin, target!.id)
-  await finishStaffAudit(admin, audit, true, { sessions_revoked: sessionsRevoked })
+  await finishStaffAudit(admin, audit, true, { sessions_revoked: sessionsRevoked, forced_change: forcedChange })
 
   console.log(`admin-reset-staff-password: master ${caller.userId} reset ${target!.id} sessions_revoked=${sessionsRevoked}`)
-  return json({ ok: true, generated: !typed, password: typed ? undefined : password, sessionsRevoked })
+  return json({ ok: true, generated: !typed, password: typed ? undefined : password, sessionsRevoked, forcedChange })
 })

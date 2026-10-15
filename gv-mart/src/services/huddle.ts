@@ -138,6 +138,19 @@ export async function listRecentMeetings(orgId: string, limit = 14): Promise<Mee
   return data ?? []
 }
 
+/** Staff or an active technician raises a problem; the database attaches it to today's huddle and tells the master. Returns the issue id. */
+export async function raiseHuddleIssue(description: string): Promise<string> {
+  const { data, error } = await supabase.rpc("raise_huddle_issue", { p_description: description })
+  if (error) throw error
+  return data as string
+}
+
+/** Staff or an active technician proposes a solution for an open problem (only when none is recorded yet). */
+export async function proposeHuddleSolution(issueId: string, solution: string): Promise<void> {
+  const { error } = await supabase.rpc("propose_huddle_solution", { p_issue_id: issueId, p_solution: solution })
+  if (error) throw error
+}
+
 export type IssueTask = {
   id: string
   title: string

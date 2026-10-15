@@ -1,6 +1,6 @@
 // Master-only: create an office-staff login (operation_admin or sales_admin).
 //
-//   POST { fullName, email, phone?, role, password?, reason? }
+//   POST { fullName, email, phone, designation, address, role, password?, reason? }
 //   -> { ok: true, id, email, generated, password? }   (password is returned ONCE, only when generated)
 //
 // Guarded by _shared/staff-auth.ts and written to be reviewed as a unit:
@@ -75,8 +75,13 @@ Deno.serve(async (req) => {
     org_id: caller.orgId,
     full_name: input.fullName,
     phone: input.phone,
+    designation: input.designation,
+    address: input.address,
     role: input.role,
     is_active: true,
+    // the first password is shared in person, so the person must choose their own at first login; the database records a
+    // marker of this password's hash and only clears the flag once the hash has changed
+    must_change_password: true,
   })
   if (profileErr) {
     // roll the login back: an auth user without a profile cannot sign in usefully and would block re-using the email
