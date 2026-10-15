@@ -39,7 +39,7 @@ end $f$;
 do $t$
 declare
   v_org uuid; m uuid; o uuid; s uuid; t1 uuid; t2 uuid; c uuid;
-  v_sup uuid; v_po uuid; v_t uuid; v_tpo uuid; x text; v_status text;
+  v_sup uuid; v_po uuid; v_t uuid; v_tpo uuid; x text; v_status text; v_po2 uuid; v_tpo2 uuid;
 begin
   insert into public.organizations(name) values ('__TEST_task_guard') returning id into v_org;
   m := pg_temp.mkuser('master', v_org); o := pg_temp.mkuser('operation_admin', v_org); s := pg_temp.mkuser('sales_admin', v_org);
@@ -136,6 +136,50 @@ begin
   perform pg_temp.chk('P4 the existing trigger marked the purchase order paid', v_status = 'paid', v_status);
   x := pg_temp.act(s, format('insert into public.tasks(org_id,assignee_id,title,status,ref_type,ref_id) values (%L,%L,''__TEST_po ins'',''done'',''purchase_order'',%L)', v_org, s, v_po));
   perform pg_temp.chk('P5 a non-master cannot insert an already-done purchase-order task for themselves', x like 'err:tasks: only a user who may approve%', x);
+
+  -- P6: escalation closed. tasks_update_assign RLS lets any staff/technician write ref_type/ref_id on any task, so a
+  -- non-master assignee could otherwise set ref_type -> 'purchase_order' (from null) and status -> 'done' in the
+  -- SAME statement: OLD.ref_type wasn't 'purchase_order', so a guard that tested only OLD.ref_type would miss it.
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po2;
+  insert into public.tasks(org_id, assignee_id, title) values (v_org, t1, '__TEST_escalation') returning id into v_tpo2;
+  x := pg_temp.act(t1, format('update public.tasks set ref_type=''purchase_order'', ref_id=%L, status=''done'' where id=%L', v_po2, v_tpo2));
+  perform pg_temp.chk('P6 a non-master assignee cannot escalate ref_type to purchase_order while completing',
+    x like 'err:tasks: only a user who may approve%', x);
+  select status::text into v_status from public.purchase_orders where id = v_po2;
+  perform pg_temp.chk('P6b the purchase order the escalation targeted is untouched', v_status = 'sent', v_status);
+
+  -- H: the PO-paid trigger's own hardening (defense in depth — this must hold even if the guard above did not).
+  -- The guard above requires 'authenticated'/'anon' to apply at all, so these cases run as the migration/superuser
+  -- role (always exempt from the column guard) and vary only auth.uid() via request.jwt.claims, to isolate
+  -- _po_task_completed_marks_paid's own check from guard_task_status_change's.
+  perform set_config('request.jwt.claims', '', true);  -- H1: no signed-in user at all (a true system job)
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po2;
+  insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, o, '__TEST_h1', 'purchase_order', v_po2) returning id into v_tpo2;
+  update public.tasks set status = 'done' where id = v_tpo2;
+  select status::text into v_status from public.purchase_orders where id = v_po2;
+  perform pg_temp.chk('H1 no signed-in user (system job): the purchase order IS marked paid', v_status = 'paid', v_status);
+
+  perform set_config('request.jwt.claims', json_build_object('sub', o, 'role', 'authenticated')::text, true);  -- H2: signed-in, non-master
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po2;
+  insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, o, '__TEST_h2', 'purchase_order', v_po2) returning id into v_tpo2;
+  update public.tasks set status = 'done' where id = v_tpo2;  -- current_user is still not 'authenticated' here: the column guard is exempt either way
+  select status::text into v_status from public.purchase_orders where id = v_po2;
+  perform pg_temp.chk('H2 a signed-in NON-master (auth.uid() = operation_admin): the purchase order is NOT marked paid', v_status = 'sent', v_status);
+  select status::text into v_status from public.tasks where id = v_tpo2;
+  perform pg_temp.chk('H2b ...the task itself still goes to done (the trigger only skips the PO side-effect)', v_status = 'done', v_status);
+
+  perform set_config('request.jwt.claims', json_build_object('sub', m, 'role', 'authenticated')::text, true);  -- H3: signed-in master
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po2;
+  insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, m, '__TEST_h3', 'purchase_order', v_po2) returning id into v_tpo2;
+  update public.tasks set status = 'done' where id = v_tpo2;
+  select status::text into v_status from public.purchase_orders where id = v_po2;
+  perform pg_temp.chk('H3 a signed-in master: the purchase order IS marked paid', v_status = 'paid', v_status);
+  perform pg_temp.chk('H4 the trigger function itself is not callable by anon / authenticated / PUBLIC',
+    not has_function_privilege('anon', 'public._po_task_completed_marks_paid()', 'execute')
+    and not has_function_privilege('authenticated', 'public._po_task_completed_marks_paid()', 'execute')
+    and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
+                     where p.pronamespace = 'public'::regnamespace and p.proname = '_po_task_completed_marks_paid' and a.grantee = 0));
+  perform set_config('request.jwt.claims', '', true);
 
   -- S: exempt paths
   insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'received') returning id into v_po;

@@ -65,7 +65,9 @@ export function TaskDetailDialog({
         title: title.trim(),
         description: description.trim() || null,
         assigneeId,
-        assignedBy: userId,
+        // Only set assigned_by when the assignee is actually changing — editing title/priority/due date on an
+        // otherwise-unchanged task must not rewrite who "assigned" it.
+        ...(assigneeId !== (task.assignee_id ?? "") ? { assignedBy: userId } : {}),
         priority,
         dueDate: dueDate || null,
         dueAt,

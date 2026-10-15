@@ -1,12 +1,12 @@
--- REHEARSAL (NOT RUN; for the owner's approval of this exact text): task status guard (P1a): migration 20261101100000 + its tests
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): task status guard, hardened (P1a): migration 20261101100000 + its tests
 -- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()), (2) recomputes
 -- the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) executes the migration text(s) and then the
 -- test file in order, (4) always ends in an unconditional RAISE EXCEPTION, so nothing is ever committed.
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   6aaceec1f2b573fc80f083c4565f42f3971772654349e0d4d350321c75db40bd  gv-mart/supabase/migrations/20261101100000_task_status_guard.sql
---   a50e8fb6420dfa50aeeac9d8cb8e8844d625346538ed19c637b4789fcfa6ed6d  gv-mart/supabase/tests/task_status_guard.test.sql
+--   71e7638143d89b89a0758831deb6881935731b722648f33caf09217831fd4142  gv-mart/supabase/migrations/20261101100000_task_status_guard.sql
+--   36c4e43ea7bf1d8b1f409315435cd311bb3d57ec3ccacee99dbd08d25570fab2  gv-mart/supabase/tests/task_status_guard.test.sql
 
 do $rehearsal$
 declare
@@ -42,6 +42,15 @@ begin
 -- cannot be completed until someone reassigns them; reassignment stays open to every staff role.
 --
 -- current_technician_id() is NOT changed here; see 20261101110000.
+--
+-- Found while hardening _po_task_completed_marks_paid below: the ref_type check above tests OLD.ref_type (as it
+-- must, for the same reason OLD.assignee_id is tested — the UPDATE that flips status is the one we're guarding, and
+-- its own ref_type edit must not let it escape the check it is changing INTO). tasks_update_assign RLS already lets
+-- any staff/technician write ref_type/ref_id on any task, so a non-master assignee could otherwise set
+-- ref_type='purchase_order' + ref_id=<any PO> AND status='done' in one statement: OLD.ref_type wasn't
+-- 'purchase_order', so this guard's PO branch was skipped, and the PO-paid trigger (keyed on NEW.ref_type) would
+-- have marked that PO paid. Closed two ways, belt and suspenders: this guard now also tests NEW.ref_type, and
+-- _po_task_completed_marks_paid independently requires auth.uid() is null (a system job) or is_master().
 
 create or replace function public.guard_task_status_change()
 returns trigger
@@ -75,7 +84,7 @@ begin
     if old.assignee_id is null or old.assignee_id is distinct from auth.uid() then
       raise exception 'tasks: only the assignee can mark a task done' using errcode = '42501';
     end if;
-    if old.ref_type = 'purchase_order' and not public.is_master() then
+    if (old.ref_type = 'purchase_order' or new.ref_type = 'purchase_order') and not public.is_master() then
       raise exception 'tasks: only a user who may approve purchase orders can complete a purchase-order task' using errcode = '42501';
     end if;
   elsif old.status = 'done' then
@@ -95,9 +104,33 @@ drop trigger if exists aa_guard_task_status_change on public.tasks;
 create trigger aa_guard_task_status_change
   before insert or update on public.tasks
   for each row execute function public.guard_task_status_change();
+
+-- Hardening (builder review): mark a purchase order paid only when there is no signed-in user at all (a system job —
+-- auth.uid() reads the JWT claim and is null outside a client request, regardless of this function's own
+-- SECURITY DEFINER) or the signed-in user is master. Everything else this function already did is unchanged: it
+-- still only fires on a genuine open-or-rolled -> done transition (tg_op + old.status check), still only touches a
+-- PO that is 'sent' or 'received', and is still idempotent.
+create or replace function public._po_task_completed_marks_paid()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.ref_type = 'purchase_order' and new.status = 'done' and (old.status is distinct from 'done')
+     and (auth.uid() is null or public.is_master()) then
+    update public.purchase_orders
+      set status = 'paid'
+      where id = new.ref_id and org_id = new.org_id and status in ('sent', 'received');
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public._po_task_completed_marks_paid() from public, anon, authenticated;
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '6aaceec1f2b573fc80f083c4565f42f3971772654349e0d4d350321c75db40bd' then
+  if v_hash <> '71e7638143d89b89a0758831deb6881935731b722648f33caf09217831fd4142' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101100000_task_status_guard.sql: %', v_hash;
   end if;
   execute v_text;
@@ -143,7 +176,7 @@ end $f$;
 do $t$
 declare
   v_org uuid; m uuid; o uuid; s uuid; t1 uuid; t2 uuid; c uuid;
-  v_sup uuid; v_po uuid; v_t uuid; v_tpo uuid; x text; v_status text;
+  v_sup uuid; v_po uuid; v_t uuid; v_tpo uuid; x text; v_status text; v_po2 uuid; v_tpo2 uuid;
 begin
   insert into public.organizations(name) values ('__TEST_task_guard') returning id into v_org;
   m := pg_temp.mkuser('master', v_org); o := pg_temp.mkuser('operation_admin', v_org); s := pg_temp.mkuser('sales_admin', v_org);
@@ -241,6 +274,50 @@ begin
   x := pg_temp.act(s, format('insert into public.tasks(org_id,assignee_id,title,status,ref_type,ref_id) values (%L,%L,''__TEST_po ins'',''done'',''purchase_order'',%L)', v_org, s, v_po));
   perform pg_temp.chk('P5 a non-master cannot insert an already-done purchase-order task for themselves', x like 'err:tasks: only a user who may approve%', x);
 
+  -- P6: escalation closed. tasks_update_assign RLS lets any staff/technician write ref_type/ref_id on any task, so a
+  -- non-master assignee could otherwise set ref_type -> 'purchase_order' (from null) and status -> 'done' in the
+  -- SAME statement: OLD.ref_type wasn't 'purchase_order', so a guard that tested only OLD.ref_type would miss it.
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po2;
+  insert into public.tasks(org_id, assignee_id, title) values (v_org, t1, '__TEST_escalation') returning id into v_tpo2;
+  x := pg_temp.act(t1, format('update public.tasks set ref_type=''purchase_order'', ref_id=%L, status=''done'' where id=%L', v_po2, v_tpo2));
+  perform pg_temp.chk('P6 a non-master assignee cannot escalate ref_type to purchase_order while completing',
+    x like 'err:tasks: only a user who may approve%', x);
+  select status::text into v_status from public.purchase_orders where id = v_po2;
+  perform pg_temp.chk('P6b the purchase order the escalation targeted is untouched', v_status = 'sent', v_status);
+
+  -- H: the PO-paid trigger's own hardening (defense in depth — this must hold even if the guard above did not).
+  -- The guard above requires 'authenticated'/'anon' to apply at all, so these cases run as the migration/superuser
+  -- role (always exempt from the column guard) and vary only auth.uid() via request.jwt.claims, to isolate
+  -- _po_task_completed_marks_paid's own check from guard_task_status_change's.
+  perform set_config('request.jwt.claims', '', true);  -- H1: no signed-in user at all (a true system job)
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po2;
+  insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, o, '__TEST_h1', 'purchase_order', v_po2) returning id into v_tpo2;
+  update public.tasks set status = 'done' where id = v_tpo2;
+  select status::text into v_status from public.purchase_orders where id = v_po2;
+  perform pg_temp.chk('H1 no signed-in user (system job): the purchase order IS marked paid', v_status = 'paid', v_status);
+
+  perform set_config('request.jwt.claims', json_build_object('sub', o, 'role', 'authenticated')::text, true);  -- H2: signed-in, non-master
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po2;
+  insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, o, '__TEST_h2', 'purchase_order', v_po2) returning id into v_tpo2;
+  update public.tasks set status = 'done' where id = v_tpo2;  -- current_user is still not 'authenticated' here: the column guard is exempt either way
+  select status::text into v_status from public.purchase_orders where id = v_po2;
+  perform pg_temp.chk('H2 a signed-in NON-master (auth.uid() = operation_admin): the purchase order is NOT marked paid', v_status = 'sent', v_status);
+  select status::text into v_status from public.tasks where id = v_tpo2;
+  perform pg_temp.chk('H2b ...the task itself still goes to done (the trigger only skips the PO side-effect)', v_status = 'done', v_status);
+
+  perform set_config('request.jwt.claims', json_build_object('sub', m, 'role', 'authenticated')::text, true);  -- H3: signed-in master
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po2;
+  insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, m, '__TEST_h3', 'purchase_order', v_po2) returning id into v_tpo2;
+  update public.tasks set status = 'done' where id = v_tpo2;
+  select status::text into v_status from public.purchase_orders where id = v_po2;
+  perform pg_temp.chk('H3 a signed-in master: the purchase order IS marked paid', v_status = 'paid', v_status);
+  perform pg_temp.chk('H4 the trigger function itself is not callable by anon / authenticated / PUBLIC',
+    not has_function_privilege('anon', 'public._po_task_completed_marks_paid()', 'execute')
+    and not has_function_privilege('authenticated', 'public._po_task_completed_marks_paid()', 'execute')
+    and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
+                     where p.pronamespace = 'public'::regnamespace and p.proname = '_po_task_completed_marks_paid' and a.grantee = 0));
+  perform set_config('request.jwt.claims', '', true);
+
   -- S: exempt paths
   insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'received') returning id into v_po;
   insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, o, '__TEST_po pay 2', 'purchase_order', v_po) returning id into v_tpo;
@@ -272,7 +349,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'a50e8fb6420dfa50aeeac9d8cb8e8844d625346538ed19c637b4789fcfa6ed6d' then
+  if v_hash <> '36c4e43ea7bf1d8b1f409315435cd311bb3d57ec3ccacee99dbd08d25570fab2' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_status_guard.test.sql: %', v_hash;
   end if;
   execute v_text;

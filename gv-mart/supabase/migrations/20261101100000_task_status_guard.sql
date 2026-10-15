@@ -22,6 +22,15 @@
 -- cannot be completed until someone reassigns them; reassignment stays open to every staff role.
 --
 -- current_technician_id() is NOT changed here; see 20261101110000.
+--
+-- Found while hardening _po_task_completed_marks_paid below: the ref_type check above tests OLD.ref_type (as it
+-- must, for the same reason OLD.assignee_id is tested — the UPDATE that flips status is the one we're guarding, and
+-- its own ref_type edit must not let it escape the check it is changing INTO). tasks_update_assign RLS already lets
+-- any staff/technician write ref_type/ref_id on any task, so a non-master assignee could otherwise set
+-- ref_type='purchase_order' + ref_id=<any PO> AND status='done' in one statement: OLD.ref_type wasn't
+-- 'purchase_order', so this guard's PO branch was skipped, and the PO-paid trigger (keyed on NEW.ref_type) would
+-- have marked that PO paid. Closed two ways, belt and suspenders: this guard now also tests NEW.ref_type, and
+-- _po_task_completed_marks_paid independently requires auth.uid() is null (a system job) or is_master().
 
 create or replace function public.guard_task_status_change()
 returns trigger
@@ -55,7 +64,7 @@ begin
     if old.assignee_id is null or old.assignee_id is distinct from auth.uid() then
       raise exception 'tasks: only the assignee can mark a task done' using errcode = '42501';
     end if;
-    if old.ref_type = 'purchase_order' and not public.is_master() then
+    if (old.ref_type = 'purchase_order' or new.ref_type = 'purchase_order') and not public.is_master() then
       raise exception 'tasks: only a user who may approve purchase orders can complete a purchase-order task' using errcode = '42501';
     end if;
   elsif old.status = 'done' then
@@ -75,3 +84,27 @@ drop trigger if exists aa_guard_task_status_change on public.tasks;
 create trigger aa_guard_task_status_change
   before insert or update on public.tasks
   for each row execute function public.guard_task_status_change();
+
+-- Hardening (builder review): mark a purchase order paid only when there is no signed-in user at all (a system job —
+-- auth.uid() reads the JWT claim and is null outside a client request, regardless of this function's own
+-- SECURITY DEFINER) or the signed-in user is master. Everything else this function already did is unchanged: it
+-- still only fires on a genuine open-or-rolled -> done transition (tg_op + old.status check), still only touches a
+-- PO that is 'sent' or 'received', and is still idempotent.
+create or replace function public._po_task_completed_marks_paid()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.ref_type = 'purchase_order' and new.status = 'done' and (old.status is distinct from 'done')
+     and (auth.uid() is null or public.is_master()) then
+    update public.purchase_orders
+      set status = 'paid'
+      where id = new.ref_id and org_id = new.org_id and status in ('sent', 'received');
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public._po_task_completed_marks_paid() from public, anon, authenticated;

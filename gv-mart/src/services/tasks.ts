@@ -88,10 +88,11 @@ export type UpdateTaskInput = {
   title: string
   description: string | null
   assigneeId: string
-  // Set whenever assigneeId changes, so the tasks_notify_assigned trigger
-  // (UPDATE OF assignee_id) attributes the reassignment to whoever made it
-  // and skips the notification if they reassigned it to themselves.
-  assignedBy: string
+  // Pass ONLY when assigneeId is actually changing (reassignment) — every save otherwise re-wrote assigned_by to
+  // whoever last edited a wholly unrelated field (e.g. priority), which corrupted the "assigned by" attribution and
+  // (via the tasks_notify_assigned trigger's self-assign check) could wrongly suppress or send a notification. The
+  // caller supplies the acting user's id here; omitted, assigned_by is left untouched.
+  assignedBy?: string
   priority: PriorityLevel
   dueDate: string | null
   dueAt: string | null
@@ -105,7 +106,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskRow> {
       title: input.title,
       description: input.description,
       assignee_id: input.assigneeId,
-      assigned_by: input.assignedBy,
+      ...(input.assignedBy !== undefined ? { assigned_by: input.assignedBy } : {}),
       priority: input.priority,
       due_date: input.dueDate,
       due_at: input.dueAt,
