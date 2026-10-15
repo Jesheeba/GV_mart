@@ -293,3 +293,14 @@ If the answer is English only or Tamil only, none of this is built.
 | A | A customer's second enquiry within 30 days merges into the open lead and sends no video (section 8.1). Accept it, or add an `enquiry.item_added` event? | Accepting keeps version 1 simpler, and makes the per-item cooldown nearly unreachable. |
 | B | The WhatsApp bot captures no item (section 8.2). Accept "app only in version 1", or add item capture to the bot? | The decision "app and WhatsApp" cannot be met without bot work. |
 | C | Apply the no-customer-record refusal to every customer rule (section 8.3)? | A deliberate behaviour change; the Phase 2 and 3A tests must be re-run. |
+
+## 11. Note for the Automations screen (queue item 4): editing a rule must pass the cooldown flag explicitly (added 2026-10-15)
+
+`automation_rule_save` writes a NEW immutable rule version on every edit and takes every setting as an argument. The per-item
+cooldown flag (`p_cooldown_per_item`, migration 20261026100000) defaults to **false**. A screen that edits a rule and does not pass
+`p_cooldown_per_item` explicitly will silently save the new version with the flag OFF, and the 30-day per-item cooldown stops
+applying with no error. The same is true of `p_message_class`, `p_respect_quiet_hours` and `p_max_defer_hours`.
+
+Requirement for item 4: the edit form loads the current version's value of every argument, sends all of them on save, and a test
+asserts that saving an unchanged rule produces a version that differs only in `version` and `created_at`. A per-item rule must
+also show the flag in its summary ("once per item per 30 days") so a reset is visible.
