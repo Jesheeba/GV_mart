@@ -566,6 +566,8 @@ export type Database = {
           price: number
           cost_price: number | null
           hsn_code: string | null
+          // Hand-patched, see 20261104100000_product_item_code.sql
+          item_code: string | null
           warranty_months: number
           standard_time_minutes: number | null
           // Task 6 (2026-07-30) — see 20260730170000_product_spare_mapping_and_active_flags.sql.
@@ -593,6 +595,7 @@ export type Database = {
           price: number
           cost_price?: number | null
           hsn_code?: string | null
+          item_code?: string | null
           warranty_months?: number
           standard_time_minutes?: number | null
           is_active?: boolean
@@ -613,6 +616,7 @@ export type Database = {
           price?: number
           cost_price?: number | null
           hsn_code?: string | null
+          item_code?: string | null
           warranty_months?: number
           standard_time_minutes?: number | null
           is_active?: boolean
