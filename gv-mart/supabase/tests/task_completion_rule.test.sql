@@ -34,7 +34,7 @@ do $t$
 declare
   v_org uuid; v_org2 uuid; v_master uuid; v_ops uuid; v_sales uuid; v_sales2 uuid; v_tp uuid; v_tp2 uuid; v_tech uuid; v_tech2 uuid; v_m2 uuid;
   t1 uuid; t2 uuid; t3 uuid; t4 uuid; t5 uuid; t6 uuid; t7 uuid; v_sup uuid; v_po uuid; v_po2 uuid;
-  s text; n int; st text; x uuid;
+  s text; n int; st text; x uuid; v_base text; v_now text;
 begin
   insert into organizations (name) values ('__TEST_taskrule') returning id into v_org;
   insert into organizations (name) values ('__TEST_taskrule_other') returning id into v_org2;
@@ -245,6 +245,16 @@ begin
   select count(*) into n from tasks where org_id = v_org;
   perform pg_temp.as_pg();
   perform pg_temp.chk('another organisation''s master sees none of these tasks', n = 0, n::text);
+
+  -- ---------- real data: relative to the baseline the wrapper took before the migration ----------
+  begin
+    v_base := current_setting('gv.baseline', true);
+    v_now := pg_temp.gv_fingerprint();
+    perform pg_temp.chk('the REAL organisations are unchanged by the migration and these tests (fingerprint equals the pre-migration baseline)',
+      v_base is not null and v_base = v_now, coalesce(left(v_base, 40), 'no baseline') || ' / ' || coalesce(left(v_now, 40), '-'));
+  exception when undefined_function then
+    perform pg_temp.chk('real-data fingerprint skipped: this file was not run through the wrapper (no baseline)', true);
+  end;
 
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;

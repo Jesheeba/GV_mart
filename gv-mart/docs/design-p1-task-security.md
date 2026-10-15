@@ -22,6 +22,10 @@ finish control is disabled with an explanation for anyone who may not finish the
 attempted. Calendar: overdue events red with a left bar. Task detail: same disabled toggle; editing text no longer takes over the
 "assigned by" field (only a reassignment does), which the visibility rule in P3 depends on.
 
+## Accepted behaviour
+The assigner may reassign a task to themselves and then finish it (they become the assignee). This is accepted; P3's task log must
+record every reassignment (who, from whom, to whom, when) so it is visible afterwards.
+
 ## Not in P1
 Visibility rule, My Workspace merge, rollover replacement (P3). Designation, forced password change (P2).
 
