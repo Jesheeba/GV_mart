@@ -84,5 +84,28 @@ begin
   x := pg_temp.act(m, format('update public.products set item_code = null where id = %L', v_product));
   perform pg_temp.chk('W5 master can clear it back to null', x = 'ok:1', x);
 
+  -- U: the partial unique index
+  declare
+    v_product2 uuid; v_product3 uuid;
+  begin
+    insert into public.products(org_id, brand_id, model_id, name, category, price) values (v_org, v_brand, v_model, '__TEST_product2', 'ro', 1000) returning id into v_product2;
+    insert into public.products(org_id, brand_id, model_id, name, category, price) values (v_org, v_brand, v_model, '__TEST_product3', 'ro', 1000) returning id into v_product3;
+    x := pg_temp.act(m, format('update public.products set item_code = ''RO-STD-01'' where id = %L', v_product2));
+    perform pg_temp.chk('U1 setting a first product''s code succeeds', x = 'ok:1', x);
+    x := pg_temp.act(m, format('update public.products set item_code = ''ro-std-01'' where id = %L', v_product3));
+    perform pg_temp.chk('U2 a different-case duplicate in the SAME org is refused (case-insensitive unique)', x like 'err:%', x);
+    perform pg_temp.chk('U3 multiple products with item_code still null is fine (partial index)',
+      (select count(*) from public.products where org_id = v_org and item_code is null) >= 1);
+  end;
+
+  declare
+    v_org2 uuid; v_other_product uuid;
+  begin
+    insert into public.organizations(name) values ('__TEST_p4_other') returning id into v_org2;
+    insert into public.products(org_id, brand_id, model_id, name, category, price, item_code) values (v_org2, v_brand, v_model, '__TEST_other_org', 'ro', 1000, 'RO-STD-01') returning id into v_other_product;
+    perform pg_temp.chk('U4 the SAME code in a DIFFERENT org is fine (index is org-scoped)',
+      (select count(*) from public.products where item_code is not null and lower(item_code) = 'ro-std-01') = 2);
+  end;
+
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;

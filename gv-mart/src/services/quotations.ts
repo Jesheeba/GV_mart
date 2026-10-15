@@ -34,6 +34,8 @@ export async function listQuotations(orgId: string, dateRange?: DateRange, opts:
 export type QuotationDetail = QuotationRow & {
   customers: { name: string; mobile: string } | null
   leads: { name: string } | null
+  // itemCode: a camelCase alias of quotation_items.item_code (20261104110000), stamped by a BEFORE INSERT
+  // trigger at line-creation time — read straight off the row, not looked up from the live catalog.
   quotation_items: (QuotationItemRow & { itemName: string; itemCode: string | null })[]
 }
 
@@ -58,25 +60,6 @@ async function itemNameLookup(orgId: string, items: { item_type: Enums<"item_typ
   return names
 }
 
-// P4: same code lookup as services/sales.ts's itemCodeLookup (products.item_code or spares.sku) — kept as a
-// separate local copy because this file already duplicates itemNameLookup rather than importing the sales.ts
-// version; not fixing that pre-existing duplication here.
-async function itemCodeLookup(orgId: string, items: { item_type: Enums<"item_type">; item_id: string }[]) {
-  const productIds = [...new Set(items.filter((i) => i.item_type === "product").map((i) => i.item_id))]
-  const spareIds = [...new Set(items.filter((i) => i.item_type === "spare").map((i) => i.item_id))]
-  const [productsRes, sparesRes] = await Promise.all([
-    productIds.length ? supabase.from("products").select("id,item_code").eq("org_id", orgId).in("id", productIds) : Promise.resolve({ data: [], error: null }),
-    spareIds.length ? supabase.from("spares").select("id,sku").eq("org_id", orgId).in("id", spareIds) : Promise.resolve({ data: [], error: null }),
-  ])
-  if (productsRes.error) throw productsRes.error
-  if (sparesRes.error) throw sparesRes.error
-
-  const codes = new Map<string, string | null>()
-  for (const p of productsRes.data ?? []) codes.set((p as { id: string; item_code: string | null }).id, (p as { item_code: string | null }).item_code)
-  for (const s of sparesRes.data ?? []) codes.set((s as { id: string; sku: string | null }).id, (s as { sku: string | null }).sku)
-  return codes
-}
-
 export async function getQuotation(orgId: string, id: string): Promise<QuotationDetail> {
   const { data, error } = await supabase
     .from("quotations")
@@ -85,10 +68,10 @@ export async function getQuotation(orgId: string, id: string): Promise<Quotation
     .single()
   if (error) throw error
 
-  const [names, codes] = await Promise.all([itemNameLookup(orgId, data.quotation_items), itemCodeLookup(orgId, data.quotation_items)])
+  const names = await itemNameLookup(orgId, data.quotation_items)
   return {
     ...data,
-    quotation_items: data.quotation_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—", itemCode: codes.get(it.item_id) ?? null })),
+    quotation_items: data.quotation_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—", itemCode: it.item_code ?? null })),
   } as QuotationDetail
 }
 
