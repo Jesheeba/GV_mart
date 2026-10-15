@@ -35,6 +35,37 @@ export async function evaluateTestMode(admin: SupabaseClient, orgId: string, to:
   return allowed.has(toBareMobile(to)) ? { blocked: false } : { blocked: true, reason: "test_mode_not_allow_listed" }
 }
 
+/**
+ * Design B: a gate on INITIATED sends only (milestone dispatch, scheduled tasks, failed-send retries). A message the
+ * system starts on its own may only go to a number on settings.wa_test_allowed_numbers while
+ * settings.wa_initiated_allowlist_only is true (the column defaults to true; setting it to false is the go-live switch).
+ * Replies to an inbound message never call this. Fails CLOSED on every doubt: a read error, a missing row, a missing
+ * column (migration not applied) or a flag that is not exactly false all block.
+ */
+export type InitiatedGateVerdict =
+  | { blocked: false }
+  | { blocked: true; reason: "initiated_not_allow_listed" | "initiated_settings_unreadable" }
+
+export async function evaluateInitiatedGate(admin: SupabaseClient, orgId: string, to: string): Promise<InitiatedGateVerdict> {
+  const { data, error } = await admin
+    .from("settings")
+    .select("wa_initiated_allowlist_only, wa_test_allowed_numbers")
+    .eq("org_id", orgId)
+    .abortSignal(AbortSignal.timeout(5_000))
+    .maybeSingle()
+
+  if (error || !data) {
+    console.error("wa-initiated-gate: settings unreadable, blocking this send", error?.message ?? "no settings row")
+    return { blocked: true, reason: "initiated_settings_unreadable" }
+  }
+  if (data.wa_initiated_allowlist_only === false) return { blocked: false }
+
+  const list = Array.isArray(data.wa_test_allowed_numbers) ? (data.wa_test_allowed_numbers as unknown[]) : []
+  const allowed = new Set(list.map((n) => toBareMobile(typeof n === "string" ? n : "")).filter((n) => /^[0-9]{10}$/.test(n)))
+  const bare = toBareMobile(to)
+  return /^[0-9]{10}$/.test(bare) && allowed.has(bare) ? { blocked: false } : { blocked: true, reason: "initiated_not_allow_listed" }
+}
+
 /** audit_log is append-only; this only ever INSERTs. Keeps just the last four digits of the number. */
 export async function logBlockedSend(
   admin: SupabaseClient,

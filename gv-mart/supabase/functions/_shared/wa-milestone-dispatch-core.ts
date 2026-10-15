@@ -106,6 +106,7 @@ async function runMilestoneDispatchV2(admin: SupabaseClient, orgId: string, scop
     resolveContext: (row) => resolveEventContext(admin, row),
     async send(row, ctx) {
       const r = await sendMessage(admin, {
+        initiated: true,
         orgId: row.org_id,
         to: row.to_mobile as string,
         customerId: row.customer_id,
@@ -203,6 +204,7 @@ async function runLegacyMilestoneDispatch(
     }
 
     await sendMessage(admin, {
+      initiated: true,
       orgId,
       to: row.to_mobile,
       customerId: row.customer_id,

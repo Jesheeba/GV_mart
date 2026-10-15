@@ -20,7 +20,7 @@
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2"
 import type { Reply } from "./whatsapp-journeys.ts"
 import { buildWasiErrorDetail } from "./wasi-error-detail.ts"
-import { evaluateTestMode, logBlockedSend } from "./wa-test-mode.ts"
+import { evaluateInitiatedGate, evaluateTestMode, logBlockedSend } from "./wa-test-mode.ts"
 import { DISPATCH_V2_OFF, parseDispatchV2Scope, v2Active, v2AppliesTo, type DispatchV2Scope } from "./wa-dispatch-scope.ts"
 import { executeSend, last10, type CoreSendInput, type SendDeps } from "./wa-send-core.ts"
 import { redactWasiText } from "./wasi-error-detail.ts"
@@ -86,6 +86,9 @@ export type SendMessageInput = {
    * inside the window). 'notification' is system-initiated: an approved template, or free text only inside the 24 h
    * window; otherwise the row is recorded as skipped_no_template and nothing is sent. Default 'reply'. */
   purpose?: "reply" | "notification"
+  /** Design B: true when the system started this send on its own (milestone dispatch, scheduled tasks, failed-send
+   * retries). Such a send is gated by evaluateInitiatedGate. Replies to an inbound message leave this unset. */
+  initiated?: boolean
   language?: "en" | "ta"
   /** Variables available to the event's template mapping (name, ticket_ref, ...). */
   vars?: Record<string, string | null | undefined>
@@ -418,8 +421,62 @@ async function sendMessageV2(admin: SupabaseClient, input: SendMessageInput): Pr
 }
 
 export async function sendMessage(admin: SupabaseClient, input: SendMessageInput): Promise<SendMessageResult> {
+  if (input.initiated) {
+    const gate = await evaluateInitiatedGate(admin, input.orgId, input.to)
+    if (gate.blocked) return recordInitiatedBlock(admin, input, gate.reason)
+  }
   if (await isDispatchV2For(admin, input.orgId, input.to)) return sendMessageV2(admin, input)
   return sendMessageLegacy(admin, input)
+}
+
+/** A blocked initiated send is closed out exactly like an F-08 block: failed, retried_at set (no loop picks it up again),
+ * one WA_SEND_BLOCKED audit row with the last four digits only. If the dispatcher already holds a row it is updated in
+ * place, otherwise one row is inserted. */
+async function recordInitiatedBlock(admin: SupabaseClient, input: SendMessageInput, reason: string): Promise<SendMessageResult> {
+  const error = `blocked: ${reason}`
+  const nowIso = new Date().toISOString()
+  let outboxId: string
+  if (input.outboxId) {
+    const { error: updateError } = await admin
+      .from("whatsapp_outbox")
+      .update({ status: "failed", error, retried_at: nowIso, retry_count: input.retryCount ?? 0 })
+      .eq("id", input.outboxId)
+    if (updateError) throw updateError
+    outboxId = input.outboxId
+  } else {
+    const { data, error: insertError } = await admin
+      .from("whatsapp_outbox")
+      .insert({
+        org_id: input.orgId,
+        direction: "outbound",
+        to_mobile: input.to,
+        customer_id: input.customerId,
+        template: input.template,
+        type: input.type ?? "text",
+        payload: { body: input.body },
+        ref_type: input.refType ?? null,
+        ref_id: input.refId ?? null,
+        status: "failed",
+        wa_message_id: null,
+        error,
+        retried_at: nowIso,
+        retry_count: input.retryCount ?? 0,
+      })
+      .select("id")
+      .single()
+    if (insertError) throw insertError
+    outboxId = (data as { id: string }).id
+  }
+  await logBlockedSend(admin, {
+    orgId: input.orgId,
+    to: input.to,
+    template: input.template,
+    refType: input.refType ?? null,
+    refId: input.refId ?? null,
+    reason,
+    outboxId,
+  })
+  return { outboxId, waMessageId: null, dispatched: false, status: "failed", error }
 }
 
 /** The pre-v2 path, unchanged: insert after the send, optimistic stub 'sent'. Kept so the flag can be switched off. */

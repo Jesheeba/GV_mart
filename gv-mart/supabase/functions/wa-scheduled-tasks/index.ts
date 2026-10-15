@@ -81,6 +81,7 @@ async function runAmcReminders(admin: SupabaseClient, orgId: string, errors: str
       const body = `Hi ${customer.name}, your AMC for ${product?.name ?? "your product"} expires on ${contract.expiry_date} (in ${days} days). Reply to renew or talk to our team.`
       const { language } = await customerLanguageAndName(admin, contract.customer_id)
       await sendMessage(admin, {
+        initiated: true,
         orgId,
         to: customer.mobile,
         customerId: contract.customer_id,
@@ -125,6 +126,7 @@ async function runFeedbackRequests(admin: SupabaseClient, orgId: string, errors:
     const { language } = await customerLanguageAndName(admin, ticket.customer_id)
     const appUrl = Deno.env.get("WA_PUBLIC_APP_URL")?.replace(/\/+$/, "") ?? null
     await sendMessage(admin, {
+      initiated: true,
       orgId,
       to: customer.mobile,
       customerId: ticket.customer_id,
@@ -322,6 +324,7 @@ async function runLegacyFailedSendRetries(admin: SupabaseClient, orgId: string, 
     }
     const body = (row.payload as { body?: string } | null)?.body ?? ""
     await sendMessage(admin, {
+      initiated: true,
       orgId,
       to: row.to_mobile,
       customerId: row.customer_id,
