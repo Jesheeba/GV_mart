@@ -186,6 +186,15 @@ begin
   perform pg_temp.chk('arming an unknown profile is refused',
     pg_temp.raises(format($q$select public.arm_forced_password_change(%L)$q$, gen_random_uuid())) like '%not found%');
   perform pg_temp.as_user(v_cr);
+  -- flag on but no marker row (cannot happen through the system paths): never cleared on a guess
+  perform pg_temp.as_pg();
+  delete from profile_password_markers where profile_id = v_staff;
+  perform pg_temp.as_user(v_staff);
+  s := pg_temp.raises($q$select public.complete_forced_password_change()$q$);
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('flag on and NO marker row: refused with "ask your administrator", flag NOT cleared',
+    s like '%ask your administrator to reset your password%' and (select must_change_password from profiles where id = v_staff), coalesce(s, 'accepted'));
+  perform pg_temp.as_user(v_cr);
   perform pg_temp.chk('a user with the flag off can call complete harmlessly', public.complete_forced_password_change() is true);
   perform pg_temp.as_pg();
   perform pg_temp.as_anon();
@@ -262,6 +271,40 @@ begin
   insert into meeting_issues (org_id, meeting_id, description, date_raised, solution) values (v_org, v_meet, 'Printer jam at counter', v_today, 'Replace the roller') returning id into v_issue2;
   perform pg_temp.as_pg();
   perform pg_temp.chk('a staff insert stamps raised_by and solution_by', (select raised_by from meeting_issues where id = v_issue2) = v_sales and (select solution_by from meeting_issues where id = v_issue2) = v_sales);
+  -- insert path: a client cannot choose the three names
+  perform pg_temp.as_user(v_sales);
+  insert into meeting_issues (org_id, meeting_id, description, date_raised, raised_by, solution, solution_by, status, solved_by, date_solved)
+  values (v_org, v_meet, 'Forged names attempt one', v_today, v_master, 'Some solution', v_master, 'solved', v_master, v_today) returning id into v_issue2;
+  perform pg_temp.chk('INSERT: a client passing someone else''s raised_by / solution_by / solved_by gets its own id',
+    (select raised_by from meeting_issues where id = v_issue2) = v_sales and (select solution_by from meeting_issues where id = v_issue2) = v_sales
+    and (select solved_by from meeting_issues where id = v_issue2) = v_sales);
+  insert into meeting_issues (org_id, meeting_id, description, date_raised, raised_by, solution_by, solved_by)
+  values (v_org, v_meet, 'Forged names attempt two', v_today, v_master, v_master, v_master) returning id into v_issue2;
+  perform pg_temp.chk('INSERT: with no solution and status open, solution_by and solved_by are NULL whatever the client sent',
+    (select raised_by from meeting_issues where id = v_issue2) = v_sales and (select solution_by from meeting_issues where id = v_issue2) is null
+    and (select solved_by from meeting_issues where id = v_issue2) is null);
+  -- update path: editing an existing solution keeps the original name
+  update meeting_issues set solution = 'Replace the roller and clean the feed path' where id = v_issue2;
+  perform pg_temp.as_user(v_ops);
+  update meeting_issues set solution = 'Replace the roller and clean the feed path, then test' where id = v_issue2;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('UPDATE: blank -> non-blank stamps the writer; a later edit by someone else keeps the ORIGINAL name',
+    (select solution_by from meeting_issues where id = v_issue2) = v_sales);
+  perform pg_temp.as_user(v_ops);
+  update meeting_issues set solution = '' where id = v_issue2;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('UPDATE: clearing the solution clears solution_by', (select solution_by from meeting_issues where id = v_issue2) is null);
+  perform pg_temp.as_user(v_ops);
+  update meeting_issues set solution = 'Fresh solution after clearing' where id = v_issue2;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('UPDATE: blank -> non-blank again stamps the new writer', (select solution_by from meeting_issues where id = v_issue2) = v_ops);
+  -- staff path of the screen: the log a technician created has recorded_by NULL; staff taking it over sets recorded_by (huddle.ts ensureMeetingLog)
+  update meeting_logs set recorded_by = null where id = v_meet;
+  perform pg_temp.as_user(v_ops);
+  update meeting_logs set recorded_by = v_ops where id = v_meet and recorded_by is null;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('STAFF PATH: staff can claim a technician-created log (recorded_by NULL -> themselves) through the normal update policy',
+    (select recorded_by from meeting_logs where id = v_meet) = v_ops);
 
   -- ---------- 10 problems a day for a technician ----------
   perform pg_temp.as_user(v_tp2);

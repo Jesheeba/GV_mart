@@ -159,7 +159,11 @@ begin
   end if;
   select m.marker into v_marker from public.profile_password_markers m where m.profile_id = auth.uid();
   select pg_catalog.md5(coalesce(u.encrypted_password, '')) into v_now from auth.users u where u.id = auth.uid();
-  if v_marker is not null and v_now = v_marker then
+  if v_marker is null then
+    -- the flag is on but nothing was recorded to compare with: never clear it on a guess
+    raise exception 'ask your administrator to reset your password';
+  end if;
+  if v_now = v_marker then
     raise exception 'the password has not been changed yet';
   end if;
   update public.profiles set must_change_password = false where id = auth.uid();
@@ -241,9 +245,16 @@ declare
   v_client boolean := current_user in ('authenticated', 'anon');
 begin
   if tg_op = 'INSERT' then
-    if new.raised_by is null then new.raised_by := auth.uid(); end if;
-    if btrim(coalesce(new.solution, '')) <> '' and new.solution_by is null then new.solution_by := auth.uid(); end if;
-    if new.status = 'solved' and new.solved_by is null then new.solved_by := auth.uid(); end if;
+    if v_client then
+      -- a client's own values are ignored: the three columns are what the database observed
+      new.raised_by := auth.uid();
+      new.solution_by := case when btrim(coalesce(new.solution, '')) <> '' then auth.uid() else null end;
+      new.solved_by := case when new.status = 'solved' then auth.uid() else null end;
+    else
+      if new.raised_by is null then new.raised_by := auth.uid(); end if;
+      if btrim(coalesce(new.solution, '')) <> '' and new.solution_by is null then new.solution_by := auth.uid(); end if;
+      if new.status = 'solved' and new.solved_by is null then new.solved_by := auth.uid(); end if;
+    end if;
     return new;
   end if;
 
@@ -252,12 +263,11 @@ begin
     new.solution_by := old.solution_by;
     new.solved_by := old.solved_by;
   end if;
-  if new.solution is distinct from old.solution then
-    if btrim(coalesce(new.solution, '')) <> '' then
-      new.solution_by := coalesce(auth.uid(), new.solution_by);
-    else
-      new.solution_by := null;
-    end if;
+  -- solution_by is stamped only when the solution goes from blank to non-blank; editing an existing solution keeps the original name
+  if btrim(coalesce(new.solution, '')) = '' then
+    new.solution_by := null;
+  elsif btrim(coalesce(old.solution, '')) = '' then
+    new.solution_by := coalesce(auth.uid(), new.solution_by);
   end if;
   if new.status = 'solved' and old.status is distinct from 'solved' then
     new.solved_by := coalesce(auth.uid(), new.solved_by);

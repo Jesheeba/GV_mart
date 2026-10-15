@@ -63,6 +63,17 @@ Built: DB 0.75 day, Edge Functions + tests 0.5, dialog + gate + change-password 
 Remaining **0.5 day** = 0.25 rehearsal run and fixes from its output (the rehearsal itself has not been run) + 0.25 device pass of the
 first-login gate and the technician Huddle screen on the Capacitor build, which cannot be done from this machine.
 
+## Rollback
+After go-live the rollback is unusable, because it refuses while any designation, forced-change flag, `staff_private` row,
+`solution_by` or `solved_by` value exists. A forward fix migration is the only way back.
+
+## Names stamped by the database (v3)
+`raised_by`, `solution_by` and `solved_by` are what the database observed, on insert as well as update: a client's own values are
+ignored. `solution_by` is stamped only when a solution goes from blank to non-blank; editing an existing solution keeps the original
+name. A staff member recording the huddle takes over a log a technician created (`recorded_by` NULL -> themselves), so the reminder
+stops firing. If the forced-change flag is on and no marker row exists, `complete_forced_password_change` refuses ("ask your
+administrator to reset your password") and does not clear the flag.
+
 ## Risks
 A reset clears nothing the user typed; if the flag write fails after the password was changed the function reports `forcedChange: false`.
 A user who closes the app on the change-password screen is returned to it at next login (intended).

@@ -23,7 +23,15 @@ export async function getMeetingLog(orgId: string, date: string): Promise<Meetin
  * we fall back to reading the winner's row. */
 export async function ensureMeetingLog(orgId: string, date: string, userId: string): Promise<MeetingLog> {
   const existing = await getMeetingLog(orgId, date)
-  if (existing) return existing
+  if (existing) {
+    // a technician raising a problem creates the day's log with recorded_by NULL; staff recording the huddle takes it over, so the
+    // reminder (which ignores a log nobody on staff recorded) stops firing
+    if (!existing.recorded_by) {
+      const { data } = await supabase.from("meeting_logs").update({ recorded_by: userId }).eq("id", existing.id).is("recorded_by", null).select().maybeSingle()
+      if (data) return data
+    }
+    return existing
+  }
   const { data, error } = await supabase.from("meeting_logs").insert({ org_id: orgId, meeting_date: date, recorded_by: userId }).select().single()
   if (error) {
     const raced = await getMeetingLog(orgId, date)
