@@ -10,6 +10,8 @@ import { useToast } from "@/components/ui/toast-context"
 import { useAssignableProfiles, useDeleteTask, useSetOrgTaskStatus, useUpdateTask } from "@/hooks/useTasks"
 import type { OrgTask, PriorityLevel } from "@/services/tasks"
 import { cn } from "@/lib/utils"
+import { useProfile } from "@/hooks/useProfile"
+import { canCompleteTask } from "@/lib/task-rules"
 
 const PRIORITIES: PriorityLevel[] = ["normal", "urgent", "very_urgent"]
 
@@ -50,6 +52,8 @@ export function TaskDetailDialog({
   const [isRecurring, setIsRecurring] = useState(task.is_recurring)
 
   const isDone = task.status === "done"
+  const { data: me } = useProfile()
+  const canFinish = canCompleteTask(task, me ? { id: me.id, role: me.role } : null)
   const canSubmit = title.trim().length > 0 && assigneeId.length > 0 && !updateTask.isPending
 
   function handleSave() {
@@ -61,7 +65,8 @@ export function TaskDetailDialog({
         title: title.trim(),
         description: description.trim() || null,
         assigneeId,
-        assignedBy: userId,
+        // only a reassignment changes who assigned it; editing the text must not take the assigner role
+        assignedBy: assigneeId !== (task.assignee_id ?? "") ? userId : (task.assigned_by ?? userId),
         priority,
         dueDate: dueDate || null,
         dueAt,
@@ -86,7 +91,8 @@ export function TaskDetailDialog({
           <button
             type="button"
             onClick={() => setStatus.mutate({ id: task.id, status: isDone ? "open" : "done" })}
-            disabled={setStatus.isPending}
+            disabled={setStatus.isPending || (!isDone && !canFinish)}
+            title={!isDone && !canFinish ? t("tasks.onlyAssigneeFinishes", { name: task.assignee?.full_name ?? t("tasks.unknownUser") }) : undefined}
             className={cn(
               "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
               isDone ? "border-success bg-success text-white" : "border-border text-transparent hover:border-ink"

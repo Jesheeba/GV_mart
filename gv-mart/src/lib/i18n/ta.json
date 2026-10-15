@@ -4717,6 +4717,8 @@
     "recentMeetings": "சமீபத்திய கூட்டங்கள்"
   },
   "tasks": {
+    "overdue": "Overdue",
+    "onlyAssigneeFinishes": "Only {{name}} can mark this finished",
     "subtitle": "முழு குழுவிலும் பணிகளை ஒதுக்கி கண்காணிக்கவும்.",
     "assignTask": "பணி ஒதுக்கு",
     "loadFailed": "பணிகளை ஏற்ற முடியவில்லை.",
