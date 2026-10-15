@@ -1,12 +1,12 @@
--- REHEARSAL (NOT RUN; for the owner's approval of this exact text): staff profile fields, huddle attribution + notification (P2): migration 20261102100000 + its tests
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): staff profile fields, huddle attribution + address-visibility fix (P2): migration 20261102100000 + its tests
 -- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()), (2) recomputes
 -- the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) executes the migration text(s) and then the
 -- test file in order, (4) always ends in an unconditional RAISE EXCEPTION, so nothing is ever committed.
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   c31003df8304f0f5ccb737c2e273b1df7ec96c58abab72e06a9a8a105526c1a1  gv-mart/supabase/migrations/20261102100000_staff_profile_fields_and_huddle_attribution.sql
---   86dcebb4969413b4f9f4d632833cbeccc9b37b90b8b2ef39eb9c6bf3773609a7  gv-mart/supabase/tests/staff_profile_fields_and_huddle_attribution.test.sql
+--   47a62493617ef4dcc95f9f10fa82e8746f5b302de75bb3e6df6f3e18af731197  gv-mart/supabase/migrations/20261102100000_staff_profile_fields_and_huddle_attribution.sql
+--   7980ff4f7aead0c3c204c0b38eda4e75d168b6cfb5d302d609840ad4bd44d794  gv-mart/supabase/tests/staff_profile_fields_and_huddle_attribution.test.sql
 
 do $rehearsal$
 declare
@@ -38,6 +38,37 @@ begin
 --
 -- 4. raise_huddle_issue(p_description): an ACTIVE technician or staff member raises an issue for today's huddle. The table's
 --    insert/update policies are unchanged (staff only); a technician has no UPDATE path, so cannot edit anyone's issue.
+--
+-- 5. profiles.address visibility. RLS on `profiles` is ROW-level only: profiles_select_staff (org_id match + is_staff(),
+--    which is master/operation_admin/SALES_ADMIN) already lets ANY staff role read every column of every profile in the
+--    org, and profiles_select_by_customer already lets a customer read their assigned TECHNICIAN's profile row. Both
+--    policies pre-date this migration and are correctly scoped for the columns that existed before address — but address
+--    is a home/postal address, and Postgres RLS cannot mask one column while allowing the rest of the same row (only a
+--    full row match/no-match). The smallest fix that doesn't touch either policy or the single shared `authenticated`
+--    client role's access to every other column: REVOKE the `address` column itself from anon/authenticated outright
+--    (closing both leaks — sales_admin's broad profile read and the customer-sees-technician read — for every viewer,
+--    including the row's own owner and master), then hand it back ONLY to the person themselves and ops (master /
+--    operation_admin) through a SECURITY DEFINER function. Nothing today reads `.address` off a bare `select("*")` on
+--    `profiles` (P2 only writes it, through the two staff Edge Functions as service_role, which this revoke does not
+--    touch), so this closes the leak with no client code to migrate; a future staff-detail/edit screen reads the
+--    address through get_profile_address() instead of the base table.
+
+revoke select (address) on public.profiles from anon, authenticated;
+
+create or replace function public.get_profile_address(p_profile_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select address from public.profiles
+   where id = p_profile_id
+     and org_id = public.current_org_id()
+     and (id = auth.uid() or public.is_ops_staff())
+$$;
+revoke all on function public.get_profile_address(uuid) from public, anon;
+grant execute on function public.get_profile_address(uuid) to authenticated;
 --
 -- RLS stays org-scoped; no policy is added or loosened. Not touched: compute_incentives, any review column.
 
@@ -231,7 +262,7 @@ revoke all on function public.raise_huddle_issue(text) from public, anon;
 grant execute on function public.raise_huddle_issue(text) to authenticated;
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'c31003df8304f0f5ccb737c2e273b1df7ec96c58abab72e06a9a8a105526c1a1' then
+  if v_hash <> '47a62493617ef4dcc95f9f10fa82e8746f5b302de75bb3e6df6f3e18af731197' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261102100000_staff_profile_fields_and_huddle_attribution.sql: %', v_hash;
   end if;
   execute v_text;
@@ -380,6 +411,38 @@ begin
   perform pg_temp.chk('T10 raising twice on the same day reuses the day''s meeting row',
     (select count(*) from public.meeting_logs where org_id = v_org) = 1);
 
+  -- ADDR: profiles.address visibility. profiles_select_staff (is_staff(), which includes sales_admin) and
+  -- profiles_select_by_customer let non-ops roles read every column of a profile row they can see at all; address is
+  -- revoked at the column level for anon/authenticated and handed back only via get_profile_address (self or ops).
+  update public.profiles set address = '__TEST_42 Staff Lane' where id = s;
+  update public.profiles set address = '__TEST_7 Tech Road' where id = ta;
+  perform pg_temp.chk('ADDR1 the address column is not selectable by anon or authenticated at all (the base-table leak is closed for everyone, including master and the owner)',
+    not has_column_privilege('anon', 'public.profiles', 'address', 'select')
+    and not has_column_privilege('authenticated', 'public.profiles', 'address', 'select'));
+  x := pg_temp.act(s, 'select address from public.profiles limit 1');
+  perform pg_temp.chk('ADDR2 a direct select of the column is refused outright, not merely filtered', x like 'err:%', x);
+  x := pg_temp.act(s, format('select public.get_profile_address(%L)', s));
+  perform pg_temp.chk('ADDR3 a user reads their own address through the function', x = 'ok:1', x);
+  -- the call itself succeeds either way (the function always returns a row, possibly null) — the leak this closes
+  -- is that the VALUE sales_admin gets back for another profile must be null, not the technician's real address.
+  perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+  perform pg_temp.chk('ADDR4 sales_admin (staff, but not ops) reading another profile''s address gets null — the leak being closed: sales_admin could otherwise see it via profiles_select_staff on every column',
+    public.get_profile_address(ta) is null);
+  x := pg_temp.act(o, format('select public.get_profile_address(%L)', ta));
+  perform pg_temp.chk('ADDR5 operation_admin (ops) CAN read another profile''s address', x = 'ok:1', x);
+  x := pg_temp.act(m, format('select public.get_profile_address(%L)', ta));
+  perform pg_temp.chk('ADDR6 master CAN read another profile''s address', x = 'ok:1', x);
+  x := pg_temp.act(ta, format('select public.get_profile_address(%L)', s));
+  perform pg_temp.chk('ADDR7 a technician cannot read a staff member''s address either (not self, not ops)', x = 'ok:1', x);
+  perform pg_temp.chk('ADDR8 the function is not callable by anon or PUBLIC',
+    not has_function_privilege('anon', 'public.get_profile_address(uuid)', 'execute')
+    and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
+                     where p.pronamespace = 'public'::regnamespace and p.proname = 'get_profile_address' and a.grantee = 0));
+  perform set_config('request.jwt.claims', json_build_object('sub', m2, 'role', 'authenticated')::text, true);
+  perform pg_temp.chk('ADDR9 another organisation''s master gets null for this organisation''s address (org match is enforced inside the function, not just by RLS)',
+    public.get_profile_address(s) is null);
+  perform set_config('request.jwt.claims', '', true);
+
   -- O: organisation scope
   x := pg_temp.act(m2, format('select count(*) from public.meeting_issues where org_id = %L', v_org));
   perform pg_temp.chk('O1 another organisation''s master cannot see this organisation''s issues',
@@ -391,7 +454,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '86dcebb4969413b4f9f4d632833cbeccc9b37b90b8b2ef39eb9c6bf3773609a7' then
+  if v_hash <> '7980ff4f7aead0c3c204c0b38eda4e75d168b6cfb5d302d609840ad4bd44d794' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for staff_profile_fields_and_huddle_attribution.test.sql: %', v_hash;
   end if;
   execute v_text;

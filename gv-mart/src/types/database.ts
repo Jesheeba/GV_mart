@@ -7185,6 +7185,10 @@ export type Database = {
         Args: { p_description: string }
         Returns: string
       }
+      get_profile_address: {
+        Args: { p_profile_id: string }
+        Returns: string | null
+      }
       // Hand-patched, see 20260922120000_technician_kpi_review_attribution.sql
       // (Docker-based `supabase gen types` isn't available in this environment).
       log_technician_google_review: {

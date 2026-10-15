@@ -109,7 +109,8 @@ const call = (body: unknown, token: string | null = "master-jwt", method = "POST
       body: method === "POST" ? JSON.stringify(body) : undefined,
     })
   )
-const good = { fullName: "Priya Dharshini", email: "priya@example.com", role: "sales_admin" }
+// phone, designation and address are required (owner decision, 2026-10): all three are present on every fixture below.
+const good = { fullName: "Priya Dharshini", email: "priya@example.com", role: "sales_admin", phone: "9876543210", designation: "Service desk", address: "12 Test Street" }
 const startRow = () => db.audit.find((r) => (r.after as Row).phase === "start")!
 const resultRow = () => db.audit.find((r) => (r.after as Row).phase === "result")!
 
@@ -152,6 +153,14 @@ describe("admin-create-staff handler", () => {
     expect(db.calls).toEqual([])
   })
 
+  it("400 when phone, designation or address is missing or blank — all three are required", async () => {
+    for (const field of ["phone", "designation", "address"]) {
+      expect((await call({ ...good, [field]: undefined })).status, `${field} missing`).toBe(400)
+      expect((await call({ ...good, [field]: "" })).status, `${field} empty`).toBe(400)
+    }
+    expect(db.calls).toEqual([])
+  })
+
   it("F-04: a weak typed password is refused before anything is audited or created", async () => {
     for (const password of ["short1", "12345678", "password1234", "qwertyuiop", "aaaaaaaaaaaa", "Zx9!".repeat(19)]) {
       const res = await call({ ...good, password })
@@ -172,10 +181,10 @@ describe("admin-create-staff handler", () => {
       id: body.id,
       org_id: "org-1",
       full_name: "Priya Dharshini",
-      phone: null,
+      phone: "9876543210",
       role: "sales_admin",
-      designation: null,
-      address: null,
+      designation: "Service desk",
+      address: "12 Test Street",
       must_change_password: true,
       is_active: true,
     })

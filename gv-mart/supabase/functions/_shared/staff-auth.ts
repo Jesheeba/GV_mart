@@ -171,13 +171,16 @@ export type CreatableStaffRole = (typeof CREATABLE_STAFF_ROLES)[number]
 export type CreateStaffInput = {
   fullName: string
   email: string
-  phone: string | null
+  /** Required: a 10-digit mobile number. */
+  phone: string
   role: CreatableStaffRole
-  /** Free-text job title shown in staff lists (1-80 chars), or null. */
-  designation: string | null
-  /** Postal address, up to 300 characters, or null. */
-  address: string | null
-  /** Typed password, or null when the server should generate one. */
+  /** Required: free-text job title shown in staff lists (1-80 chars). */
+  designation: string
+  /** Required: postal address, 1-300 characters. */
+  address: string
+  /** Typed password, or null when the server should generate one. Either way the staff member leaves with a
+   * real password — "null" here means "generated", never "none": password is as required as everything else,
+   * it just has two ways to be supplied. */
   password: string | null
   reason: string | null
 }
@@ -209,14 +212,13 @@ export function validateCreateStaffInput(body: unknown): CreateStaffValidation {
     return { ok: false, error: "Role must be operation_admin or sales_admin" }
   }
 
-  let phone: string | null = null
+  // Required (owner decision, 2026-10): name, email, password, designation, full address and mobile are all
+  // mandatory for a staff login. Phone, designation and address were previously optional; they no longer are.
   const rawPhone = str(b.phone)
-  if (rawPhone) {
-    let digits = rawPhone.replace(/\D/g, "")
-    if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2)
-    if (digits.length !== 10) return { ok: false, error: "Phone must be a 10-digit mobile number" }
-    phone = digits
-  }
+  let digits = rawPhone.replace(/\D/g, "")
+  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2)
+  if (digits.length !== 10) return { ok: false, error: "Phone must be a 10-digit mobile number" }
+  const phone = digits
 
   let password: string | null = null
   if (b.password !== undefined && b.password !== null && b.password !== "") {
@@ -226,18 +228,22 @@ export function validateCreateStaffInput(body: unknown): CreateStaffValidation {
   }
 
   const designation = str(b.designation)
-  if (designation.length > 80 || hasControlChars(designation)) return { ok: false, error: "Designation must be a single line of at most 80 characters" }
+  if (designation.length < 1 || designation.length > 80 || hasControlChars(designation)) {
+    return { ok: false, error: "Designation is required (at most 80 characters, one line)" }
+  }
 
   // an address may span lines (newline is allowed), but no other control characters
   const address = typeof b.address === "string" ? b.address.trim() : ""
-  if (address.length > 300 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(address)) return { ok: false, error: "Address must be at most 300 characters" }
+  if (address.length < 1 || address.length > 300 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(address)) {
+    return { ok: false, error: "Address is required (at most 300 characters)" }
+  }
 
   const rawReason = str(b.reason)
   if (rawReason.length > 200 || hasControlChars(rawReason)) return { ok: false, error: "Reason must be a single line of at most 200 characters" }
 
   return {
     ok: true,
-    value: { fullName, email, phone, role: role as CreatableStaffRole, designation: designation || null, address: address || null, password, reason: rawReason || null },
+    value: { fullName, email, phone, role: role as CreatableStaffRole, designation, address, password, reason: rawReason || null },
   }
 }
 

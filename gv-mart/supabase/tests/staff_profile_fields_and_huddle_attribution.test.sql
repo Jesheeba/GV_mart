@@ -142,6 +142,38 @@ begin
   perform pg_temp.chk('T10 raising twice on the same day reuses the day''s meeting row',
     (select count(*) from public.meeting_logs where org_id = v_org) = 1);
 
+  -- ADDR: profiles.address visibility. profiles_select_staff (is_staff(), which includes sales_admin) and
+  -- profiles_select_by_customer let non-ops roles read every column of a profile row they can see at all; address is
+  -- revoked at the column level for anon/authenticated and handed back only via get_profile_address (self or ops).
+  update public.profiles set address = '__TEST_42 Staff Lane' where id = s;
+  update public.profiles set address = '__TEST_7 Tech Road' where id = ta;
+  perform pg_temp.chk('ADDR1 the address column is not selectable by anon or authenticated at all (the base-table leak is closed for everyone, including master and the owner)',
+    not has_column_privilege('anon', 'public.profiles', 'address', 'select')
+    and not has_column_privilege('authenticated', 'public.profiles', 'address', 'select'));
+  x := pg_temp.act(s, 'select address from public.profiles limit 1');
+  perform pg_temp.chk('ADDR2 a direct select of the column is refused outright, not merely filtered', x like 'err:%', x);
+  x := pg_temp.act(s, format('select public.get_profile_address(%L)', s));
+  perform pg_temp.chk('ADDR3 a user reads their own address through the function', x = 'ok:1', x);
+  -- the call itself succeeds either way (the function always returns a row, possibly null) — the leak this closes
+  -- is that the VALUE sales_admin gets back for another profile must be null, not the technician's real address.
+  perform set_config('request.jwt.claims', json_build_object('sub', s, 'role', 'authenticated')::text, true);
+  perform pg_temp.chk('ADDR4 sales_admin (staff, but not ops) reading another profile''s address gets null — the leak being closed: sales_admin could otherwise see it via profiles_select_staff on every column',
+    public.get_profile_address(ta) is null);
+  x := pg_temp.act(o, format('select public.get_profile_address(%L)', ta));
+  perform pg_temp.chk('ADDR5 operation_admin (ops) CAN read another profile''s address', x = 'ok:1', x);
+  x := pg_temp.act(m, format('select public.get_profile_address(%L)', ta));
+  perform pg_temp.chk('ADDR6 master CAN read another profile''s address', x = 'ok:1', x);
+  x := pg_temp.act(ta, format('select public.get_profile_address(%L)', s));
+  perform pg_temp.chk('ADDR7 a technician cannot read a staff member''s address either (not self, not ops)', x = 'ok:1', x);
+  perform pg_temp.chk('ADDR8 the function is not callable by anon or PUBLIC',
+    not has_function_privilege('anon', 'public.get_profile_address(uuid)', 'execute')
+    and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
+                     where p.pronamespace = 'public'::regnamespace and p.proname = 'get_profile_address' and a.grantee = 0));
+  perform set_config('request.jwt.claims', json_build_object('sub', m2, 'role', 'authenticated')::text, true);
+  perform pg_temp.chk('ADDR9 another organisation''s master gets null for this organisation''s address (org match is enforced inside the function, not just by RLS)',
+    public.get_profile_address(s) is null);
+  perform set_config('request.jwt.claims', '', true);
+
   -- O: organisation scope
   x := pg_temp.act(m2, format('select count(*) from public.meeting_issues where org_id = %L', v_org));
   perform pg_temp.chk('O1 another organisation''s master cannot see this organisation''s issues',

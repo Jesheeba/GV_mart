@@ -197,16 +197,30 @@ export async function resetStaffPassword(profileId: string, password?: string): 
 export type CreateStaffInput = {
   fullName: string
   email: string
-  phone?: string
+  /** Required: a 10-digit mobile number. */
+  phone: string
   role: "sales_admin" | "operation_admin"
-  /** Optional job title (1-80 characters). */
-  designation?: string
-  /** Optional postal address (up to 300 characters). */
-  address?: string
-  /** Typed password; omit to have the server generate one (returned once). */
+  /** Required: job title (1-80 characters). */
+  designation: string
+  /** Required: full postal address (1-300 characters). */
+  address: string
+  /** Typed password; omit to have the server generate one (returned once). Omitting it chooses generation — it is
+   * never optional in the sense of "skipped". */
   password?: string
   /** Optional one-line reason, stored in the audit row. */
   reason?: string
+}
+
+/**
+ * profiles.address is revoked at the column level from anon/authenticated (20261102100000) — a plain
+ * `.from("profiles").select("address")` is refused outright, even for your own row. This is the only read path.
+ * Returns null when the caller is neither the profile's owner nor master/operation_admin, or the profile is in a
+ * different organisation; never throws for that reason.
+ */
+export async function getProfileAddress(profileId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc("get_profile_address", { p_profile_id: profileId })
+  if (error) throw error
+  return data
 }
 
 /** Master-only: create an office-staff login (email = login). The password is shared in person; a generated one is returned once. */
