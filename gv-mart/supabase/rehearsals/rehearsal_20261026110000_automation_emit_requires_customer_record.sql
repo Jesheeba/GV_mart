@@ -1,13 +1,25 @@
--- REHEARSAL (NOT RUN, for owner review): item 2: no customer record.
--- ONE request, never commits. Layout: (1) migration 20261026100000_automation_item_added_and_per_item_cooldown verbatim, (2) migration 20261026110000_automation_emit_requires_customer_record verbatim,
--- (3) automation_emit_requires_customer_record.test.sql verbatim. The test file ends in an unconditional RAISE EXCEPTION, so the whole request fails and
--- everything above it, DDL included, is rolled back.
--- Expected outcome: an error whose text starts RESULTS (or TIMING for the timing test) followed by one PASS/FAIL line per
--- check. Any other error text is a statement failure; nothing is committed either way.
--- Do NOT register a schema_migrations version here. Do NOT run this against the database without the owner's approval of this text.
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): item 2 stack: automation_emit_requires_customer_record
+-- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()), (2) recomputes
+-- the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) executes the migration text(s) and then the
+-- test file in order, (4) always ends in an unconditional RAISE EXCEPTION, so nothing is ever committed.
+-- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
+-- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
+-- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
+--   b7380711bd3c2e00f6565edbb707ad5324a5f9de54b1790585cdd7708083ca2b  gv-mart/supabase/migrations/20261026100000_automation_item_added_and_per_item_cooldown.sql
+--   36fb993672ca65aa0a5b77ff3a892e3d04d38ab7b88aa580bc5653b5622772e9  gv-mart/supabase/migrations/20261026110000_automation_emit_requires_customer_record.sql
+--   bb248d7385d53a073df7acb1dbfe211516ab917e1499bcab76635149ee8fb4f4  gv-mart/supabase/tests/automation_emit_requires_customer_record.test.sql
 
--- ===== (1) 20261026100000_automation_item_added_and_per_item_cooldown.sql =====
--- Automation: enquiry.item_added event and the per-item cooldown (design: docs/automations-flows-design.md sections 8.1 and 10 item A;
+do $rehearsal$
+declare
+  v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
+  v_text text;
+  v_hash text;
+begin
+  if v_ist < time '18:00' then
+    raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  end if;
+
+  v_text := $rh0$-- Automation: enquiry.item_added event and the per-item cooldown (design: docs/automations-flows-design.md sections 8.1 and 10 item A;
 -- queue item 1 of docs/backlog-product-gaps.md). STILL DRY RUN ONLY: nothing here sends a message, adds a queue state or touches
 -- whatsapp_outbox, the dispatcher flag or any template. No rule is created (rules are created by the master).
 --
@@ -508,9 +520,14 @@ $$;
 revoke all on function public._trg_automation_emit_lead_item() from public, anon, authenticated;
 create trigger zz_automation_emit_lead_item after insert on public.lead_items
   for each row execute function public._trg_automation_emit_lead_item();
+$rh0$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> 'b7380711bd3c2e00f6565edbb707ad5324a5f9de54b1790585cdd7708083ca2b' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261026100000_automation_item_added_and_per_item_cooldown.sql: %', v_hash;
+  end if;
+  execute v_text;
 
--- ===== (2) 20261026110000_automation_emit_requires_customer_record.sql =====
--- Automation: emit refuses a customer rule that has no customer record (design: docs/automations-flows-design.md section 8.3,
+  v_text := $rh1$-- Automation: emit refuses a customer rule that has no customer record (design: docs/automations-flows-design.md section 8.3,
 -- decision C; queue item 2 of docs/backlog-product-gaps.md). STILL DRY RUN ONLY: nothing here sends a message.
 --
 -- Before: for a customer-recipient rule with no customer record the engine fell back to the number typed into the event payload
@@ -827,9 +844,14 @@ end;
 $$;
 revoke all on function public.automation_emit(uuid, text, text, uuid, uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function public.automation_emit(uuid, text, text, uuid, uuid, text, jsonb) to service_role;
+$rh1$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> '36fb993672ca65aa0a5b77ff3a892e3d04d38ab7b88aa580bc5653b5622772e9' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261026110000_automation_emit_requires_customer_record.sql: %', v_hash;
+  end if;
+  execute v_text;
 
--- ===== (3) automation_emit_requires_customer_record.test.sql =====
--- Rolled-back DB tests for 20261026110000_automation_emit_requires_customer_record.
+  v_text := $rh2$-- Rolled-back DB tests for 20261026110000_automation_emit_requires_customer_record.
 -- NOT RUN (written for review). Run only through the rehearsal wrapper the owner approves: it applies 20261026100000 and
 -- 20261026110000 in ONE request and then this file, which ends in an unconditional RAISE, so nothing is committed.
 -- Throwaway __TEST_ organisations only; nothing is sent; no real customer or number is touched.
@@ -950,3 +972,13 @@ begin
 
   raise exception 'RESULTS%', E'\n' || (select string_agg(r.line, E'\n' order by r.n) from pg_temp.res r);
 end $t$;
+$rh2$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> 'bb248d7385d53a073df7acb1dbfe211516ab917e1499bcab76635149ee8fb4f4' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for automation_emit_requires_customer_record.test.sql: %', v_hash;
+  end if;
+  execute v_text;
+
+  raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
+end
+$rehearsal$;
