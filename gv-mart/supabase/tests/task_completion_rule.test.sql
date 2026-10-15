@@ -166,6 +166,15 @@ begin
   perform pg_temp.chk('mark_po_paid by the master still marks the PO paid and closes the task',
     s is null and (select status::text from purchase_orders where id = v_po) = 'paid' and (select status::text from tasks where id = t5) = 'done', coalesce(s, 'ok'));
 
+  -- ref_type escalation: an assignee who is not a master sets ref_type = 'purchase_order' on an ordinary task and finishes it in one update
+  insert into purchase_orders (org_id, supplier_id, status, total) values (v_org, v_sup, 'sent', 30) returning id into v_po2;
+  t7 := pg_temp.mk(v_org, v_ops, v_master);
+  perform pg_temp.as_user(v_ops);
+  s := pg_temp.raises(format($q$update tasks set ref_type = 'purchase_order', ref_id = %L, status = 'done' where id = %L$q$, v_po2, t7));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('REGRESSION (ref_type escalation): switching a task to purchase_order and finishing it in one update is refused, PO untouched',
+    s like '%only a master%' and (select status::text from purchase_orders where id = v_po2) = 'sent', coalesce(s, 'accepted'));
+
   -- ---------- system paths are exempt ----------
   t1 := pg_temp.mk(v_org, v_tp, v_sales);
   s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t1));

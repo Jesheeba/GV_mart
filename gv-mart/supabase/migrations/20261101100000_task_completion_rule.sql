@@ -57,7 +57,8 @@ begin
     elsif not public.is_ops_staff() then
       raise exception 'tasks: only operations can finish a task that has no assignee';
     end if;
-    if old.ref_type = 'purchase_order' and not public.is_master() then
+    -- both the old and the NEW ref_type: changing a task's ref_type in the same update must not slip past the rule
+    if (old.ref_type = 'purchase_order' or new.ref_type = 'purchase_order') and not public.is_master() then
       raise exception 'tasks: only a master can finish a purchase-order task';
     end if;
   elsif old.status = 'done' and new.status is distinct from 'done' then
