@@ -212,7 +212,10 @@ describe("validateCreateStaffInput", () => {
 
   it("accepts the minimum (name, email, role) and normalises it", () => {
     const r = validateCreateStaffInput(good)
-    expect(r).toEqual({ ok: true, value: { fullName: "Priya Dharshini", email: "priya@example.com", phone: null, role: "sales_admin", password: null, reason: null } })
+    expect(r).toEqual({
+      ok: true,
+      value: { fullName: "Priya Dharshini", email: "priya@example.com", phone: null, role: "sales_admin", designation: null, address: null, password: null, reason: null },
+    })
   })
   it("accepts operation_admin, a phone in common formats, a typed password and a reason", () => {
     const r = validateCreateStaffInput({ ...good, role: "operation_admin", phone: "+91 98765-43210", password: "correct horse", reason: "covers Coimbatore" })
@@ -226,7 +229,18 @@ describe("validateCreateStaffInput", () => {
   it("ignores fields the client must not control (org, id, is_active)", () => {
     const r = validateCreateStaffInput({ ...good, org_id: "other-org", id: "x", is_active: false, orgId: "other-org" })
     expect(r.ok).toBe(true)
-    if (r.ok) expect(Object.keys(r.value).sort()).toEqual(["email", "fullName", "password", "phone", "reason", "role"])
+    if (r.ok) expect(Object.keys(r.value).sort()).toEqual(["address", "designation", "email", "fullName", "password", "phone", "reason", "role"])
+  })
+  it("accepts a designation and a multi-line address, trimmed; blank means null", () => {
+    const r = validateCreateStaffInput({ ...good, designation: "  Service desk lead ", address: " 12 Test Street\nCoimbatore " })
+    expect(r).toMatchObject({ ok: true, value: { designation: "Service desk lead", address: "12 Test Street\nCoimbatore" } })
+    expect(validateCreateStaffInput({ ...good, designation: "   ", address: "" })).toMatchObject({ ok: true, value: { designation: null, address: null } })
+  })
+  it("rejects an over-long or control-character designation and an over-long address", () => {
+    expect(validateCreateStaffInput({ ...good, designation: "x".repeat(81) }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, designation: "two\nlines" }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, address: "x".repeat(301) }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, address: "bell\u0007" }).ok).toBe(false)
   })
   it("requires a valid email", () => {
     for (const email of ["", "no-at-sign", "a@b", "a b@c.com", undefined, 12, "x".repeat(250) + "@a.co"]) {

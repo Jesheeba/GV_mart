@@ -141,6 +141,8 @@ Deno.serve(async (req) => {
         phone: body.phone.trim(),
         role: "technician",
         photo_url: body.photoUrl ?? null,
+        // first sign-in forces a password change
+        must_change_password: true,
       })
       if (profileErr) {
         await admin.auth.admin.deleteUser(userId)
@@ -185,6 +187,9 @@ Deno.serve(async (req) => {
       if (technician.org_id !== orgId) return jsonError("Technician not found", 404)
 
       const password = generatePassword()
+      // flag first: a failure here changes nothing; a later password failure only asks for a new password at next sign-in
+      const { error: flagErr } = await admin.from("profiles").update({ must_change_password: true }).eq("id", technician.profile_id)
+      if (flagErr) return jsonError(flagErr.message, 400)
       const { error: updateErr } = await admin.auth.admin.updateUserById(technician.profile_id, { password })
       if (updateErr) return jsonError(updateErr.message, 400)
 

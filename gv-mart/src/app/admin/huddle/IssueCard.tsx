@@ -21,6 +21,8 @@ export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreat
   const solved = issue.status === "solved"
   const owner = issue.owner_id ? names.get(issue.owner_id) : null
   const raisedBy = issue.raised_by ? names.get(issue.raised_by) : null
+  const solutionBy = issue.solution_by ? names.get(issue.solution_by) : null
+  const solvedBy = issue.solved_by ? names.get(issue.solved_by) : null
   const editable = !!(onEdit || onToggleStatus || onCreateTask)
 
   return (
@@ -40,6 +42,7 @@ export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreat
           </span>
         )}
         {solved && issue.date_solved && <span>{t("huddle.solvedOn", { date: issue.date_solved })}</span>}
+        {solved && solvedBy && <span>{t("huddle.solvedBy", { name: solvedBy })}</span>}
       </p>
 
       {issue.root_cause && (
@@ -52,6 +55,7 @@ export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreat
         <div className="text-sm">
           <span className="font-medium text-text">{t("huddle.solution")}: </span>
           <span className="text-text-muted">{issue.solution}</span>
+          {solutionBy && <span className="text-xs text-text-muted"> ({t("huddle.solutionBy", { name: solutionBy })})</span>}
         </div>
       )}
 

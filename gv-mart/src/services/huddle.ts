@@ -84,6 +84,14 @@ export async function createIssue(orgId: string, date: string, userId: string, i
   return data
 }
 
+/** An active technician (or staff member) raises an issue for today's huddle. Goes through the definer RPC; a technician has no
+ * direct write access to meeting_issues. The master is notified by a database trigger. */
+export async function raiseIssue(description: string): Promise<string> {
+  const { data, error } = await supabase.rpc("raise_huddle_issue", { p_description: description.trim() })
+  if (error) throw error
+  return data
+}
+
 export async function updateIssue(id: string, input: IssueInput): Promise<MeetingIssue> {
   const { data, error } = await supabase
     .from("meeting_issues")

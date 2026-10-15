@@ -183,6 +183,18 @@
     "myDay": "Daily Follow Up"
   },
   "auth": {
+    "forcePassword": {
+      "title": "Choose a new password",
+      "body": "Your password was set by an administrator. Choose your own password to continue.",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm new password",
+      "tooShort": "Use at least 10 characters.",
+      "mismatch": "The two passwords do not match.",
+      "submit": "Save and continue",
+      "saving": "Saving…",
+      "failed": "Could not change the password. Choose a different one and try again.",
+      "signOut": "Sign out"
+    },
     "heroTitle": "Sign in to your workspace",
     "heroSubtitle": "Each role has its own secure login. You'll only see the dashboard and tools your role allows — nothing more.",
     "secureAccessBadge": "Role-based secure access",
@@ -4243,6 +4255,8 @@
       "logged": "Logged"
     },
     "staffSalary": {
+      "designation": "Designation",
+      "address": "Address",
       "inactive": "Inactive",
       "activate": "Activate",
       "deactivate": "Deactivate",
@@ -4652,6 +4666,14 @@
     "daysOverdue_other": "{{count}} days overdue"
   },
   "huddle": {
+    "solutionBy": "solution by {{name}}",
+    "solvedBy": "closed by {{name}}",
+    "raiseTitle": "Raise a problem",
+    "raiseHint": "Tell the team about a problem you have seen. The owner is notified; you cannot edit other people's items.",
+    "raisePlaceholder": "What is the problem?",
+    "raiseButton": "Raise problem",
+    "raised": "Problem raised.",
+    "raiseFailed": "Could not raise the problem.",
     "subtitle": "Record the daily meeting: problems, root causes, solutions and action items. Open problems carry forward until solved.",
     "technicianSubtitle": "Read-only view of the daily meeting notes and open problems.",
     "view": {

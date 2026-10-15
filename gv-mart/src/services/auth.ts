@@ -104,6 +104,18 @@ export async function signOut() {
   if (error) throw error
 }
 
+/**
+ * First-login gate: set the new password, then clear the caller's own must_change_password flag through the definer
+ * RPC (a direct client update of the flag is refused by guard_profile_staff_fields). Throws the Auth error on a weak or
+ * unchanged password so the screen can show it.
+ */
+export async function changeOwnPasswordAndAcknowledge(newPassword: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
+  const { error: ackError } = await supabase.rpc("acknowledge_password_change")
+  if (ackError) throw ackError
+}
+
 export async function fetchProfile(userId: string) {
   const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
   if (error) throw error
