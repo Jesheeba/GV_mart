@@ -173,6 +173,10 @@ export type CreateStaffInput = {
   email: string
   phone: string | null
   role: CreatableStaffRole
+  /** Free-text job title shown in staff lists (1-80 chars), or null. */
+  designation: string | null
+  /** Postal address, up to 300 characters, or null. */
+  address: string | null
   /** Typed password, or null when the server should generate one. */
   password: string | null
   reason: string | null
@@ -221,10 +225,20 @@ export function validateCreateStaffInput(body: unknown): CreateStaffValidation {
     password = b.password as string
   }
 
+  const designation = str(b.designation)
+  if (designation.length > 80 || hasControlChars(designation)) return { ok: false, error: "Designation must be a single line of at most 80 characters" }
+
+  // an address may span lines (newline is allowed), but no other control characters
+  const address = typeof b.address === "string" ? b.address.trim() : ""
+  if (address.length > 300 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(address)) return { ok: false, error: "Address must be at most 300 characters" }
+
   const rawReason = str(b.reason)
   if (rawReason.length > 200 || hasControlChars(rawReason)) return { ok: false, error: "Reason must be a single line of at most 200 characters" }
 
-  return { ok: true, value: { fullName, email, phone, role: role as CreatableStaffRole, password, reason: rawReason || null } }
+  return {
+    ok: true,
+    value: { fullName, email, phone, role: role as CreatableStaffRole, designation: designation || null, address: address || null, password, reason: rawReason || null },
+  }
 }
 
 /** 14 chars, at least one of each class, drawn from crypto randomness. */

@@ -71,6 +71,14 @@ Deno.serve(async (req) => {
   })
   if (!audit) return json({ error: "Could not record the audit entry; nothing was changed" }, 500)
 
+  // Flag first: if this fails nothing was changed; if the password update below then fails the person is merely
+  // asked to choose a new password at next sign-in, which is harmless.
+  const { error: flagErr } = await admin.from("profiles").update({ must_change_password: true }).eq("id", target!.id)
+  if (flagErr) {
+    await finishStaffAudit(admin, audit, false, { error: "flag_failed" })
+    return json({ error: "Could not reset the password" }, 500)
+  }
+
   const { error } = await admin.auth.admin.updateUserById(target!.id, { password })
   if (error) {
     const kind = classifyAuthError(error)

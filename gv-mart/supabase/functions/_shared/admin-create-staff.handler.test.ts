@@ -168,7 +168,17 @@ describe("admin-create-staff handler", () => {
     expect(typeof body.password).toBe("string")
     expect(body.password).toHaveLength(14)
     expect(db.calls).toEqual(["insertAudit", "createUser", "insertProfile", "insertAudit"]) // audit FIRST, completion last
-    expect(db.profiles[body.id]).toEqual({ id: body.id, org_id: "org-1", full_name: "Priya Dharshini", phone: null, role: "sales_admin", is_active: true })
+    expect(db.profiles[body.id]).toEqual({
+      id: body.id,
+      org_id: "org-1",
+      full_name: "Priya Dharshini",
+      phone: null,
+      role: "sales_admin",
+      designation: null,
+      address: null,
+      must_change_password: true,
+      is_active: true,
+    })
     expect(db.authUsers[0]).toMatchObject({ email: "priya@example.com", email_confirm: true })
     expect(db.audit).toHaveLength(2) // never updated: two rows
     expect(startRow()).toMatchObject({ org_id: "org-1", actor_id: "u-master", action: "STAFF_CREATE", table_name: "profiles", row_id: null })
@@ -187,6 +197,13 @@ describe("admin-create-staff handler", () => {
     expect(typed.password).toBeUndefined()
     expect(JSON.stringify(db.audit)).not.toContain("my typed pass 99")
     expect(db.authUsers.at(-1)).toMatchObject({ password: "my typed pass 99" })
+  })
+
+  it("stores designation and address, and always sets the change-password flag", async () => {
+    const res = await call({ ...good, email: "desk@example.com", designation: "Service desk", address: "12 Test Street" })
+    expect(res.status).toBe(200)
+    const { id } = await res.json()
+    expect(db.profiles[id]).toMatchObject({ designation: "Service desk", address: "12 Test Street", must_change_password: true })
   })
 
   it("creates an operation_admin too", async () => {

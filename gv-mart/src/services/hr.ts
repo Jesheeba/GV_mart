@@ -199,6 +199,10 @@ export type CreateStaffInput = {
   email: string
   phone?: string
   role: "sales_admin" | "operation_admin"
+  /** Optional job title (1-80 characters). */
+  designation?: string
+  /** Optional postal address (up to 300 characters). */
+  address?: string
   /** Typed password; omit to have the server generate one (returned once). */
   password?: string
   /** Optional one-line reason, stored in the audit row. */

@@ -29,6 +29,8 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [role, setRole] = useState<StaffRole>("sales_admin")
+  const [designation, setDesignation] = useState("")
+  const [address, setAddress] = useState("")
   const [mode, setMode] = useState<"generate" | "type">("generate")
   const [typed, setTyped] = useState("")
   const [reason, setReason] = useState("")
@@ -43,6 +45,8 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setEmail("")
     setPhone("")
     setRole("sales_admin")
+    setDesignation("")
+    setAddress("")
     setMode("generate")
     setTyped("")
     setReason("")
@@ -57,6 +61,8 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         email: email.trim(),
         phone: phone.trim() || undefined,
         role,
+        designation: designation.trim() || undefined,
+        address: address.trim() || undefined,
         password: mode === "type" ? typed : undefined,
         reason: reason.trim() || undefined,
       },
@@ -116,6 +122,27 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="staff-designation" className="block text-xs font-medium text-text-muted">
+                {t("hr.staffSalary.designation")}
+              </Label>
+              <Input id="staff-designation" value={designation} maxLength={80} onChange={(e) => setDesignation(e.target.value)} autoComplete="off" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="staff-address" className="block text-xs font-medium text-text-muted">
+                {t("hr.staffSalary.address")}
+              </Label>
+              <textarea
+                id="staff-address"
+                value={address}
+                maxLength={300}
+                rows={2}
+                onChange={(e) => setAddress(e.target.value)}
+                autoComplete="off"
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+              />
             </div>
 
             <fieldset className="space-y-1.5">

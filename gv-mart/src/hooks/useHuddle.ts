@@ -4,6 +4,14 @@ import type { IssueInput, IssueSearch, IssueStatus } from "@/services/huddle"
 
 const KEY = ["huddle"] as const
 
+export function useRaiseIssue() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (description: string) => huddle.raiseIssue(description),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  })
+}
+
 export function useMeetingLog(orgId: string | undefined, date: string) {
   return useQuery({ queryKey: [...KEY, "log", orgId, date], queryFn: () => huddle.getMeetingLog(orgId!, date), enabled: !!orgId })
 }

@@ -63,6 +63,11 @@ export type Database = {
           created_at: string
           updated_at: string
           receives_new_leads: boolean
+          // 20261102100000_staff_profile_fields_and_huddle_attribution.sql
+          designation: string | null
+          address: string | null
+          must_change_password: boolean
+          colour: string | null
         }
         Insert: {
           id: string
@@ -77,6 +82,10 @@ export type Database = {
           created_at?: string
           updated_at?: string
           receives_new_leads?: boolean
+          designation?: string | null
+          address?: string | null
+          must_change_password?: boolean
+          colour?: string | null
         }
         Update: {
           id?: string
@@ -91,6 +100,10 @@ export type Database = {
           created_at?: string
           updated_at?: string
           receives_new_leads?: boolean
+          designation?: string | null
+          address?: string | null
+          must_change_password?: boolean
+          colour?: string | null
         }
         Relationships: [
           {
@@ -5981,6 +5994,9 @@ export type Database = {
           date_solved: string | null
           created_at: string
           updated_at: string
+          // 20261102100000: maintained by a trigger from the session user
+          solution_by: string | null
+          solved_by: string | null
         }
         Insert: {
           id?: string
@@ -5996,6 +6012,8 @@ export type Database = {
           date_solved?: string | null
           created_at?: string
           updated_at?: string
+          solution_by?: string | null
+          solved_by?: string | null
         }
         Update: {
           id?: string
@@ -6011,6 +6029,8 @@ export type Database = {
           date_solved?: string | null
           created_at?: string
           updated_at?: string
+          solution_by?: string | null
+          solved_by?: string | null
         }
         Relationships: []
       }
@@ -7155,6 +7175,15 @@ export type Database = {
       mark_google_review_clicked: {
         Args: { p_org_id: string; p_visit_id: string }
         Returns: undefined
+      }
+      // Hand-patched, see 20261102100000_staff_profile_fields_and_huddle_attribution.sql
+      acknowledge_password_change: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      raise_huddle_issue: {
+        Args: { p_description: string }
+        Returns: string
       }
       // Hand-patched, see 20260922120000_technician_kpi_review_attribution.sql
       // (Docker-based `supabase gen types` isn't available in this environment).
