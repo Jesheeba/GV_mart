@@ -605,6 +605,15 @@
     }
   },
   "masters": {
+      "holidays": {
+        "title": "Holidays",
+        "hint": "Days that are not working days when absent days are counted (Monday to Saturday are working days). Leave empty if there are none.",
+        "add": "Add holiday",
+        "empty": "No holidays added.",
+        "date": "Date",
+        "name": "Name",
+        "badDate": "Enter the date as YYYY-MM-DD."
+      },
     "pageTitle": "Masters & Settings",
     "groups": {
       "dailyFollowup": "Daily Followup"
@@ -649,6 +658,7 @@
       "postServiceDesc": "Call the customer after a job; outcomes",
       "settingsDesc": "Discount, travel, hours & SLA",
       "paymentSettingsDesc": "UPI merchant details for customer QR payments",
+      "holidaysDesc": "Days off for the technician absent-day count",
       "installationRatesDesc": "{{count}} per-unit rates",
       "leadOutcomesDesc": "{{count}} outcomes + working schedule"
     },
@@ -674,6 +684,7 @@
       "postService": "Post-service calls",
       "settings": "Settings",
       "paymentSettings": "Payment Settings",
+      "holidays": "Holidays",
       "installationRates": "Installation Rates",
       "leadOutcomes": "Lead Outcomes"
     },
@@ -3957,6 +3968,26 @@
     }
   },
   "technicians": {
+      "performance": {
+        "title": "Technician performance (invoice basis)",
+        "basis": "Revenue = invoice totals of completed jobs. Absent days = working days (Monday to Saturday, minus holidays) minus days present minus leave days. Referral revenue is counted from the day this was switched on (earlier invoices are not back-filled). Not the same figure as the Revenue column above, which is the visit service charge.",
+        "empty": "No technician activity in this period.",
+        "technician": "Technician",
+        "jobs": "Jobs",
+        "revenue": "Revenue",
+        "avgCall": "Avg call value",
+        "rating": "Rating (app)",
+        "workingDays": "Working days",
+        "present": "Present",
+        "leave": "Leave",
+        "absent": "Absent",
+        "referralService": "Referral: service",
+        "referralSales": "Referral: sales",
+        "referralAmc": "Referral: AMC",
+        "referralTotal": "Referral: total",
+        "inactive": "inactive",
+        "footnote": "Days are counted from the technician's start date up to today. A day marked both present and leave counts once. Customer-app rating only; no Google review figures are shown here."
+      },
     "list": {
       "title": "Technicians",
       "subtitle": "Field technicians, duty status and today's performance",

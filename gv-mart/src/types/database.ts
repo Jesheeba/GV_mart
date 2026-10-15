@@ -2766,6 +2766,29 @@ export type Database = {
           },
         ]
       }
+      org_holidays: {
+        Row: {
+          id: string
+          org_id: string
+          holiday_date: string
+          name: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          holiday_date: string
+          name: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          holiday_date?: string
+          name?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           id: string
@@ -2783,6 +2806,7 @@ export type Database = {
           amount_paid: number
           gift_id: string | null
           sold_by: string | null
+          referred_by_technician_id: string | null
           created_at: string
           updated_at: string
         }
@@ -2802,6 +2826,7 @@ export type Database = {
           amount_paid?: number
           gift_id?: string | null
           sold_by?: string | null
+          referred_by_technician_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2821,6 +2846,7 @@ export type Database = {
           amount_paid?: number
           gift_id?: string | null
           sold_by?: string | null
+          referred_by_technician_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -7550,6 +7576,29 @@ export type Database = {
       report_ops_resolution: {
         Args: { p_from: string; p_to: string }
         Returns: Json
+      }
+      report_technician_table: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          technician_id: string
+          name: string
+          is_active: boolean
+          jobs_completed: number
+          jobs_invoiced: number
+          revenue: number
+          avg_call_value: number | null
+          avg_rating: number | null
+          rating_count: number
+          working_days: number
+          holidays: number
+          present_days: number
+          leave_days: number
+          absent_days: number
+          referral_service: number
+          referral_sales: number
+          referral_amc: number
+          referral_total: number
+        }[]
       }
       report_performance: {
         Args: { p_from: string; p_to: string }

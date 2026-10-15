@@ -21,6 +21,7 @@ import { fileToDataUrl } from "@/lib/offline/capture"
 import { PeriodFilter } from "@/app/admin/reports/PeriodFilter"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocumentUpload"
+import { TechnicianPerformanceTable } from "@/app/admin/technicians/TechnicianPerformanceTable"
 
 // Matches the design's 6-column table grid (design-template-decoded.html
 // line 1139): Technician / Phone / Status / Jobs / Revenue / Rating. The
@@ -203,6 +204,8 @@ export function TechniciansListPage() {
         onRowClick={(row) => navigate(`/admin/technicians/${row.id}`)}
         onAddClick={() => setShowAddPanel(true)}
       />
+
+      <TechnicianPerformanceTable from={range.from} to={range.to} />
 
       <PasswordRevealDialog password={revealed?.password ?? null} phone={revealed?.phone} onClose={() => setRevealed(null)} />
     </div>

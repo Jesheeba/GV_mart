@@ -49,6 +49,7 @@ import { LeadSourcesTab } from "./LeadSourcesTab"
 import { LeadKindsTab } from "./LeadKindsTab"
 import { LeadProductTypesTab } from "./LeadProductTypesTab"
 import { PostServiceCallsTab } from "./PostServiceCallsTab"
+import { HolidaysTab } from "./HolidaysTab"
 import { LeadOutcomesTab } from "./LeadOutcomesTab"
 import { useLeadOutcomes } from "@/hooks/useLeadFollowups"
 
@@ -76,6 +77,7 @@ type ModuleId =
   | "leadOutcomes"
   | "settings"
   | "paymentSettings"
+  | "holidays"
 
 // Icon-swatch colors cycle through the design's palette (design-template-decoded.html
 // line 1273-1278: orange / blue / green / amber / ink) — a presentational rotation,
@@ -169,6 +171,7 @@ export function MastersPage() {
     { id: "postService", group: "dailyFollowup", icon: PhoneCall, swatch: "info", title: t("masters.tabs.postService"), desc: t("masters.overview.postServiceDesc") },
     { id: "leadOutcomes", group: "dailyFollowup", icon: PhoneCall, swatch: "green", title: t("masters.tabs.leadOutcomes"), desc: t("masters.overview.leadOutcomesDesc", { count: leadOutcomes?.length ?? 0 }) },
     { id: "settings", icon: SlidersHorizontal, swatch: "warning", title: t("masters.tabs.settings"), desc: t("masters.overview.settingsDesc") },
+    { id: "holidays", icon: CalendarClock, swatch: "info", title: t("masters.tabs.holidays"), desc: t("masters.overview.holidaysDesc") },
     { id: "paymentSettings", icon: QrCode, swatch: "green", title: t("masters.tabs.paymentSettings"), desc: t("masters.overview.paymentSettingsDesc") },
   ]
 
@@ -281,6 +284,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="leadOutcomes">
             <LeadOutcomesTab />
+          </TabsContent>
+          <TabsContent value="holidays">
+            <HolidaysTab />
           </TabsContent>
           <TabsContent value="settings">
             <SettingsTab />

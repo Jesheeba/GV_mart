@@ -605,6 +605,15 @@
     }
   },
   "masters": {
+      "holidays": {
+        "title": "Holidays",
+        "hint": "Days that are not working days when absent days are counted (Monday to Saturday are working days). Leave empty if there are none.",
+        "add": "Add holiday",
+        "empty": "No holidays added.",
+        "date": "Date",
+        "name": "Name",
+        "badDate": "Enter the date as YYYY-MM-DD."
+      },
     "pageTitle": "மாஸ்டர்ஸ் & அமைப்புகள்",
     "groups": {
       "dailyFollowup": "தினசரி பின்தொடர்தல்"
@@ -649,6 +658,7 @@
       "postServiceDesc": "வேலைக்குப் பிறகு வாடிக்கையாளரை அழைக்க; முடிவுகள்",
       "settingsDesc": "தள்ளுபடி, பயணம், நேரங்கள் & SLA",
       "paymentSettingsDesc": "வாடிக்கையாளர் QR பணம் செலுத்துவதற்கான யுபிஐ விவரங்கள்",
+      "holidaysDesc": "Days off for the technician absent-day count",
       "installationRatesDesc": "{{count}} அலகு விகிதங்கள்",
       "leadOutcomesDesc": "{{count}} முடிவுகள் + வேலை நேரம்"
     },
@@ -674,6 +684,7 @@
       "postService": "சேவைக்குப் பிந்தைய அழைப்புகள்",
       "settings": "அமைப்புகள்",
       "paymentSettings": "பணம் செலுத்தும் அமைப்புகள்",
+      "holidays": "Holidays",
       "installationRates": "நிறுவல் விகிதங்கள்",
       "leadOutcomes": "லீட் முடிவுகள்"
     },
@@ -3952,6 +3963,26 @@
     }
   },
   "technicians": {
+      "performance": {
+        "title": "Technician performance (invoice basis)",
+        "basis": "Revenue = invoice totals of completed jobs. Absent days = working days (Monday to Saturday, minus holidays) minus days present minus leave days. Referral revenue is counted from the day this was switched on (earlier invoices are not back-filled). Not the same figure as the Revenue column above, which is the visit service charge.",
+        "empty": "No technician activity in this period.",
+        "technician": "Technician",
+        "jobs": "Jobs",
+        "revenue": "Revenue",
+        "avgCall": "Avg call value",
+        "rating": "Rating (app)",
+        "workingDays": "Working days",
+        "present": "Present",
+        "leave": "Leave",
+        "absent": "Absent",
+        "referralService": "Referral: service",
+        "referralSales": "Referral: sales",
+        "referralAmc": "Referral: AMC",
+        "referralTotal": "Referral: total",
+        "inactive": "inactive",
+        "footnote": "Days are counted from the technician's start date up to today. A day marked both present and leave counts once. Customer-app rating only; no Google review figures are shown here."
+      },
     "list": {
       "title": "தொழிலாளர்கள்",
       "subtitle": "களப் பணியாளர்கள், பணி நிலை மற்றும் இன்றைய செயல்திறன்",
