@@ -239,10 +239,10 @@ function Body({ item, onClose }: { item: PostServiceFollowupItem; onClose: () =>
 
       {/* Buttons stay visible at the bottom while the sheet scrolls (6 questions on a small screen). */}
       <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 bg-surface px-1 pb-1 pt-2">
-        <Button variant="ghost" onClick={onClose} disabled={logCall.isPending}>
+        <Button variant="ghost" className="h-11 px-4" onClick={onClose} disabled={logCall.isPending}>
           {t("common.cancel")}
         </Button>
-        <Button variant="accent" onClick={save} disabled={!canSave || logCall.isPending}>
+        <Button variant="accent" className="h-11 px-5" onClick={save} disabled={!canSave || logCall.isPending}>
           {logCall.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
         </Button>
       </div>
