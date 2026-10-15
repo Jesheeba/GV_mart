@@ -73,8 +73,12 @@ create table public.post_service_call_answers (
   answer_int integer,
   answer_text text,
   created_at timestamptz not null default now(),
-  -- NO ACTION (not RESTRICT) so an organisation removal, which cascades to both tables, is not blocked by the order of deletes
-  foreign key (question_id, org_id) references public.followup_questions (id, org_id) on delete no action,
+  -- NO ACTION, DEFERRED to the end of the transaction. A question can only be removed by purge_test_organisation() (the guard
+  -- trigger refuses every other delete); that cascade deletes questions and answers in an order the database does not
+  -- promise, so the check must wait until both are gone. A stray delete of a question that still has answers is still
+  -- refused: at commit, and earlier by the guard trigger.
+  foreign key (question_id, org_id) references public.followup_questions (id, org_id) on delete no action
+    deferrable initially deferred,
   constraint post_service_call_answers_value_matches_type check (
     (answer_type = 'yes_no' and answer_bool is not null and answer_int is null and answer_text is null)
     or (answer_type = 'rating' and answer_int between 1 and 5 and answer_bool is null and answer_text is null)

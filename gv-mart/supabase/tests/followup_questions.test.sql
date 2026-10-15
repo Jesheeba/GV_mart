@@ -44,6 +44,7 @@ declare
   f1 uuid; f2 uuid; f3 uuid; f4 uuid; f5 uuid; f6 uuid; f7 uuid; f_amc uuid;
   r jsonb; s text; n int; rec record; v_due timestamptz := now() + interval '3 days'; v_call uuid;
   v_ratings_before int; v_ratings_after int; v_reviews_before int;
+  v_org3 uuid; v_c3 uuid; v_q3 uuid; v_f3 uuid; v_o3 uuid; v_m3 uuid; v_s3 uuid; v_ok boolean; v_err text; v_list text; v_call3 uuid;
 begin
   -- ---------- schema, seeds, grants ----------
   perform pg_temp.chk('the three new tables exist with RLS on',
@@ -392,6 +393,105 @@ begin
   perform pg_temp.chk('wa_dispatch_v2_enabled untouched; nothing queued to the outbox',
     not coalesce((select wa_dispatch_v2_enabled from settings where org_id = v_org), false)
     and not exists (select 1 from whatsapp_outbox where org_id = v_org));
+
+  -- ---------- (d) one function, no overload ambiguity for a caller that sends the four old named arguments ----------
+  f6 := pg_temp.ticket(v_org, v_c1, 'paid');
+  update followup_questions set is_required = false where id = q_req;
+  perform pg_temp.as_user(v_sales);
+  r := public.log_post_service_call(p_followup_id => f6, p_outcome_id => o_sat, p_note => 'named', p_next_due_at => null);
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('a caller using the four old NAMED arguments resolves to the single new function',
+    r ->> 'status' = 'done' and (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname = 'log_post_service_call') = 1);
+  perform pg_temp.chk('no other overload of the new read functions either',
+    (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('get_post_service_questions', 'report_followup_question_answers')) = 2);
+
+  -- ---------- (c) seed trigger and backfill ----------
+  select count(*) into n from followup_questions where org_id = v_org;
+  perform public.seed_followup_questions(v_org);
+  perform pg_temp.chk('seed function is idempotent: a second run adds nothing',
+    (select count(*) from followup_questions where org_id = v_org) = n, n::text);
+  update followup_questions set text_en = 'Edited wording', is_active = true where org_id = v_org and code = 'do_better';
+  perform public.seed_followup_questions(v_org);
+  perform pg_temp.chk('re-running the seed leaves an edited, activated seed question as the master left it',
+    (select text_en || '/' || is_active::text from followup_questions where org_id = v_org and code = 'do_better') = 'Edited wording/true');
+  perform pg_temp.chk('the seed trigger is one AFTER INSERT row trigger on organizations',
+    (select count(*) from pg_trigger t where t.tgrelid = 'public.organizations'::regclass and t.tgname = 'seed_followup_questions_on_org'
+       and (t.tgtype & 4) = 4 and (t.tgtype & 1) = 1 and (t.tgtype & 2) = 0) = 1);
+
+  -- ---------- (b) the guard bypass flag is reachable by no client-callable function ----------
+  select string_agg(p.oid::regprocedure::text, ', ') into v_list
+  from pg_proc p
+  where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.prosrc ilike '%set_config%lead_lists_cleanup%';
+  perform pg_temp.chk('the only public function that SETS app.lead_lists_cleanup is purge_test_organisation',
+    coalesce(v_list, '') = 'purge_test_organisation(uuid)', coalesce(v_list, 'none'));
+  perform pg_temp.chk('purge_test_organisation is executable by neither anon, authenticated nor service_role',
+    not has_function_privilege('anon', 'public.purge_test_organisation(uuid)', 'execute')
+    and not has_function_privilege('authenticated', 'public.purge_test_organisation(uuid)', 'execute')
+    and not has_function_privilege('service_role', 'public.purge_test_organisation(uuid)', 'execute'));
+  select string_agg(p.oid::regprocedure::text, ', ' order by p.proname) into v_list
+  from pg_proc p
+  where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.prosrc ilike '%set_config(%'
+    and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'));
+  perform pg_temp.chk('client-callable public functions that call set_config (listed for review; none sets lead_lists_cleanup)',
+    not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosrc ilike '%set_config%lead_lists_cleanup%'
+                  and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))),
+    coalesce(v_list, 'none'));
+  perform pg_temp.as_user(v_master);
+  s := pg_temp.raises(format($q$delete from followup_questions where id = %L$q$, q_ch));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('a master cannot delete a question that has answers', s is not null and exists (select 1 from followup_questions where id = q_ch), coalesce(s, 'deleted'));
+
+  -- ---------- (a) purge_test_organisation: an organisation with questions, links, calls and answers ----------
+  insert into organizations (name) values ('__TEST_followupq_purge') returning id into v_org3;
+  insert into settings (org_id) values (v_org3) on conflict (org_id) do nothing;
+  update settings set post_service_followup_enabled = true where org_id = v_org3;
+  v_m3 := pg_temp.mkuser('master', v_org3);
+  v_s3 := pg_temp.mkuser('sales_admin', v_org3);
+  insert into customers (org_id, name, mobile) values (v_org3, '__TEST_ purge customer', '9400000093') returning id into v_c3;
+  select id into v_q3 from followup_questions where org_id = v_org3 and code = 'service_rating';
+  update followup_questions set is_active = true, is_required = true where id = v_q3;
+  insert into followup_question_ticket_types (org_id, question_id, ticket_type) values (v_org3, v_q3, 'paid');
+  select id into v_o3 from post_service_outcomes where org_id = v_org3 and code = 'satisfied';
+  v_f3 := pg_temp.ticket(v_org3, v_c3, 'paid');
+  perform pg_temp.as_user(v_s3);
+  r := public.log_post_service_call(v_f3, v_o3, null, null, jsonb_build_array(jsonb_build_object('question_id', v_q3, 'value', 4)));
+  perform pg_temp.as_pg();
+  v_call3 := (r ->> 'call_id')::uuid;
+  perform pg_temp.chk('purge fixture: the organisation has questions, a link, a call and an answer',
+    (select count(*) from followup_questions where org_id = v_org3) = 6
+    and (select count(*) from followup_question_ticket_types where org_id = v_org3) = 1
+    and (select count(*) from post_service_call_answers where call_id = v_call3) = 1);
+  s := pg_temp.raises(format($q$delete from followup_questions where org_id = %L$q$, v_org3));
+  perform pg_temp.chk('without app.lead_lists_cleanup the guard refuses deleting the questions', s like '%never deleted%', coalesce(s, 'deleted'));
+  -- with the flag but answers still present, the deferred foreign key refuses when it is checked
+  v_ok := false;
+  begin
+    perform set_config('app.lead_lists_cleanup', 'on', true);
+    delete from followup_questions where id = v_q3;
+    set constraints all immediate;
+  exception when foreign_key_violation then
+    v_ok := true;
+  end;
+  perform set_config('app.lead_lists_cleanup', '', true);
+  perform pg_temp.chk('even with the flag set, a question that still has answers is refused by the foreign key', v_ok);
+  perform pg_temp.chk('the question and the answer are intact after that refusal',
+    exists (select 1 from followup_questions where id = v_q3) and exists (select 1 from post_service_call_answers where call_id = v_call3));
+  -- the supported route: purge_test_organisation sets both flags itself and removes the organisation
+  v_ok := false; v_err := null;
+  begin
+    perform public.purge_test_organisation(v_org3);
+    set constraints all immediate;
+    v_ok := not exists (select 1 from organizations where id = v_org3)
+        and not exists (select 1 from followup_questions where org_id = v_org3)
+        and not exists (select 1 from followup_question_ticket_types where org_id = v_org3)
+        and not exists (select 1 from post_service_calls where org_id = v_org3)
+        and not exists (select 1 from post_service_call_answers where org_id = v_org3);
+  exception when others then
+    v_ok := false; v_err := sqlerrm;
+  end;
+  perform pg_temp.chk('purge_test_organisation removes an organisation with questions, links, calls and answers', v_ok, coalesce(v_err, ''));
+  perform pg_temp.chk('and leaves both flags cleared',
+    coalesce(current_setting('app.lead_lists_cleanup', true), '') = '' and coalesce(current_setting('app.audit_purge_ok', true), '') = '');
 
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
