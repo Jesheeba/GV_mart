@@ -457,5 +457,16 @@ begin
   perform pg_temp.chk('wa_dispatch_v2_enabled for the real organisation is untouched',
     not exists (select 1 from settings s join organizations o on o.id = s.org_id where o.name not like '\_\_TEST\_%' and s.wa_dispatch_v2_enabled));
 
+  -- ---------- rebased onto items 1 and 2: the merged automation_emit keeps all three features ----------
+  perform pg_temp.chk('merged automation_emit carries the per-item cooldown (item 1), the no-customer refusal (item 2) and the hand-off context (Stage B)',
+    (select prosrc from pg_proc where proname = 'automation_emit' and pronamespace = 'public'::regnamespace) like '%cooldown_per_item%'
+    and (select prosrc from pg_proc where proname = 'automation_emit' and pronamespace = 'public'::regnamespace) like '%no_customer_record%'
+    and (select prosrc from pg_proc where proname = 'automation_emit' and pronamespace = 'public'::regnamespace) like '%v_ctx%'
+    and (select prosrc from pg_proc where proname = 'automation_emit' and pronamespace = 'public'::regnamespace) like '%blocked_not_in_dispatch_scope%');
+  perform pg_temp.chk('queue has item_key (item 1) and context (Stage B); rules have cooldown_per_item; the 17-argument rule save exists',
+    (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'automation_queue' and column_name in ('item_key', 'context')) = 2
+    and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'automation_rules' and column_name = 'cooldown_per_item')
+    and to_regprocedure('public.automation_rule_save(uuid,text,text,text,jsonb,text,text,integer,integer,integer,text,uuid,text,text,boolean,integer,boolean)') is not null);
+
   raise exception 'RESULTS%', E'\n' || (select string_agg(r.line, E'\n' order by r.n) from pg_temp.res r);
 end $t$;

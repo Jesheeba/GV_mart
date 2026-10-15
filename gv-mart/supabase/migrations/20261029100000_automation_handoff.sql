@@ -1,4 +1,8 @@
 -- Automation Phase 3 / Stage B, part 1: the hand-off from the automation queue to the dispatcher's outbox.
+-- DEPENDS ON (rebased 2026-10-15): 20261026100000_automation_item_added_and_per_item_cooldown and
+-- 20261026110000_automation_emit_requires_customer_record, applied BEFORE this file. The automation_emit below is the item 2 body
+-- (which includes item 1) with the Stage B additions merged in: the whitelisted hand-off context (v_ctx, queue.context), the wider
+-- counted-state lists, and the 'context' column on all three queue inserts next to 'item_key'.
 --
 -- automation_handoff_due() is the ONLY place automation writes whatsapp_outbox. It is service_role only and is NOT scheduled
 -- by this migration. It inserts nothing unless ALL of these hold for a queue row:
