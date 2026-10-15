@@ -6,8 +6,11 @@
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   0b259877e23566fb739292b8a1bb1e10009cf48a461f27671fb8d921b9455445  gv-mart/supabase/migrations/20261102100000_p2_staff_profile_and_huddle.sql
---   fd399b68e72df0c19f10ec550bc93811c93b3ce3a48b62153454e09efc86b1e9  gv-mart/supabase/tests/p2_staff_profile_and_huddle.test.sql
+--   33ab9174c47ad9e23778048a3a512858c0b0519aabcce79f331b82477ef7f0cb  gv-mart/supabase/migrations/20261102100000_p2_staff_profile_and_huddle.sql
+--   139c3691dbf015baef69d5f60365985b914132df96aca545fe2967979ca2fd02  gv-mart/supabase/tests/p2_staff_profile_and_huddle.test.sql
+--   d65d7395d458ac117593cedf6c1e61638b261e0e8204773cf57b03f6ecf90bfc  (pre-check snippet: public.wa_send_huddle_reminder(uuid) as last defined in gv-mart/supabase/migrations/20260929100000_daily_huddle_log.sql)
+-- Pre-check: the live function must equal what that migration defined. The wrapper re-creates the pinned snippet inside a
+-- sub-block, takes md5(pg_get_functiondef()) of it, rolls the sub-block back, and refuses if it differs from the live md5.
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(p.id::text || ':' || p.org_id::text || ':' || p.role::text || ':' || p.is_active::text || ':' || p.full_name || ':' || coalesce(p.phone, ''), ',' order by p.id)
@@ -22,9 +25,65 @@ declare
   v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   v_text text;
   v_hash text;
+  v_live text;
+  v_orig text;
 begin
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  end if;
+
+  -- pre-check: the live public.wa_send_huddle_reminder(uuid) is still the definition the last migration gave it
+  v_text := $orig$create or replace function public.wa_send_huddle_reminder(p_org_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_now_ist timestamp := (now() at time zone 'Asia/Kolkata');
+  v_today date := v_now_ist::date;
+  v_claimed integer;
+  v_role public.user_role;
+begin
+  -- Atomic claim: only one caller per day passes, and only when past the
+  -- cutoff and no log exists yet.
+  update public.settings s
+     set huddle_reminder_last_date = v_today
+   where s.org_id = p_org_id
+     and s.huddle_reminder_time is not null
+     and v_now_ist::time >= s.huddle_reminder_time
+     and (s.huddle_reminder_last_date is null or s.huddle_reminder_last_date < v_today)
+     and not exists (
+       select 1 from public.meeting_logs m
+        where m.org_id = p_org_id and m.meeting_date = v_today
+     );
+  get diagnostics v_claimed = row_count;
+  if v_claimed = 0 then
+    return 0;
+  end if;
+
+  foreach v_role in array array['master', 'operation_admin', 'sales_admin']::public.user_role[] loop
+    insert into public.notifications (org_id, role, type, title, body)
+    values (p_org_id, v_role, 'huddle_reminder', 'Daily huddle not logged yet',
+            'No huddle log has been recorded for today. Open Daily Huddle to record it.');
+  end loop;
+  return 1;
+end;
+$$;$orig$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> 'd65d7395d458ac117593cedf6c1e61638b261e0e8204773cf57b03f6ecf90bfc' then
+    raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch: %', v_hash;
+  end if;
+  v_live := md5(pg_get_functiondef('public.wa_send_huddle_reminder(uuid)'::regprocedure));
+  begin
+    execute v_text;
+    v_orig := md5(pg_get_functiondef('public.wa_send_huddle_reminder(uuid)'::regprocedure));
+    raise exception 'GV_PRECHECK_PROBE';
+  exception when others then
+    if sqlerrm <> 'GV_PRECHECK_PROBE' then raise; end if;
+  end;
+  if v_orig is distinct from v_live then
+    raise exception 'REHEARSAL_REFUSED: live public.wa_send_huddle_reminder(uuid) (md5 %) differs from its last migration definition (md5 %)', v_live, v_orig;
   end if;
 
   execute $gvfp$create function pg_temp.gv_fingerprint() returns text language sql stable as $fpb$
@@ -198,7 +257,11 @@ begin
   end if;
   select m.marker into v_marker from public.profile_password_markers m where m.profile_id = auth.uid();
   select pg_catalog.md5(coalesce(u.encrypted_password, '')) into v_now from auth.users u where u.id = auth.uid();
-  if v_marker is not null and v_now = v_marker then
+  if v_marker is null then
+    -- the flag is on but nothing was recorded to compare with: never clear it on a guess
+    raise exception 'ask your administrator to reset your password';
+  end if;
+  if v_now = v_marker then
     raise exception 'the password has not been changed yet';
   end if;
   update public.profiles set must_change_password = false where id = auth.uid();
@@ -280,9 +343,16 @@ declare
   v_client boolean := current_user in ('authenticated', 'anon');
 begin
   if tg_op = 'INSERT' then
-    if new.raised_by is null then new.raised_by := auth.uid(); end if;
-    if btrim(coalesce(new.solution, '')) <> '' and new.solution_by is null then new.solution_by := auth.uid(); end if;
-    if new.status = 'solved' and new.solved_by is null then new.solved_by := auth.uid(); end if;
+    if v_client then
+      -- a client's own values are ignored: the three columns are what the database observed
+      new.raised_by := auth.uid();
+      new.solution_by := case when btrim(coalesce(new.solution, '')) <> '' then auth.uid() else null end;
+      new.solved_by := case when new.status = 'solved' then auth.uid() else null end;
+    else
+      if new.raised_by is null then new.raised_by := auth.uid(); end if;
+      if btrim(coalesce(new.solution, '')) <> '' and new.solution_by is null then new.solution_by := auth.uid(); end if;
+      if new.status = 'solved' and new.solved_by is null then new.solved_by := auth.uid(); end if;
+    end if;
     return new;
   end if;
 
@@ -291,12 +361,11 @@ begin
     new.solution_by := old.solution_by;
     new.solved_by := old.solved_by;
   end if;
-  if new.solution is distinct from old.solution then
-    if btrim(coalesce(new.solution, '')) <> '' then
-      new.solution_by := coalesce(auth.uid(), new.solution_by);
-    else
-      new.solution_by := null;
-    end if;
+  -- solution_by is stamped only when the solution goes from blank to non-blank; editing an existing solution keeps the original name
+  if btrim(coalesce(new.solution, '')) = '' then
+    new.solution_by := null;
+  elsif btrim(coalesce(old.solution, '')) = '' then
+    new.solution_by := coalesce(auth.uid(), new.solution_by);
   end if;
   if new.status = 'solved' and old.status is distinct from 'solved' then
     new.solved_by := coalesce(auth.uid(), new.solved_by);
@@ -473,7 +542,7 @@ $$;
 notify pgrst, 'reload schema';
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '0b259877e23566fb739292b8a1bb1e10009cf48a461f27671fb8d921b9455445' then
+  if v_hash <> '33ab9174c47ad9e23778048a3a512858c0b0519aabcce79f331b82477ef7f0cb' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261102100000_p2_staff_profile_and_huddle.sql: %', v_hash;
   end if;
   execute v_text;
@@ -666,6 +735,15 @@ begin
   perform pg_temp.chk('arming an unknown profile is refused',
     pg_temp.raises(format($q$select public.arm_forced_password_change(%L)$q$, gen_random_uuid())) like '%not found%');
   perform pg_temp.as_user(v_cr);
+  -- flag on but no marker row (cannot happen through the system paths): never cleared on a guess
+  perform pg_temp.as_pg();
+  delete from profile_password_markers where profile_id = v_staff;
+  perform pg_temp.as_user(v_staff);
+  s := pg_temp.raises($q$select public.complete_forced_password_change()$q$);
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('flag on and NO marker row: refused with "ask your administrator", flag NOT cleared',
+    s like '%ask your administrator to reset your password%' and (select must_change_password from profiles where id = v_staff), coalesce(s, 'accepted'));
+  perform pg_temp.as_user(v_cr);
   perform pg_temp.chk('a user with the flag off can call complete harmlessly', public.complete_forced_password_change() is true);
   perform pg_temp.as_pg();
   perform pg_temp.as_anon();
@@ -742,6 +820,40 @@ begin
   insert into meeting_issues (org_id, meeting_id, description, date_raised, solution) values (v_org, v_meet, 'Printer jam at counter', v_today, 'Replace the roller') returning id into v_issue2;
   perform pg_temp.as_pg();
   perform pg_temp.chk('a staff insert stamps raised_by and solution_by', (select raised_by from meeting_issues where id = v_issue2) = v_sales and (select solution_by from meeting_issues where id = v_issue2) = v_sales);
+  -- insert path: a client cannot choose the three names
+  perform pg_temp.as_user(v_sales);
+  insert into meeting_issues (org_id, meeting_id, description, date_raised, raised_by, solution, solution_by, status, solved_by, date_solved)
+  values (v_org, v_meet, 'Forged names attempt one', v_today, v_master, 'Some solution', v_master, 'solved', v_master, v_today) returning id into v_issue2;
+  perform pg_temp.chk('INSERT: a client passing someone else''s raised_by / solution_by / solved_by gets its own id',
+    (select raised_by from meeting_issues where id = v_issue2) = v_sales and (select solution_by from meeting_issues where id = v_issue2) = v_sales
+    and (select solved_by from meeting_issues where id = v_issue2) = v_sales);
+  insert into meeting_issues (org_id, meeting_id, description, date_raised, raised_by, solution_by, solved_by)
+  values (v_org, v_meet, 'Forged names attempt two', v_today, v_master, v_master, v_master) returning id into v_issue2;
+  perform pg_temp.chk('INSERT: with no solution and status open, solution_by and solved_by are NULL whatever the client sent',
+    (select raised_by from meeting_issues where id = v_issue2) = v_sales and (select solution_by from meeting_issues where id = v_issue2) is null
+    and (select solved_by from meeting_issues where id = v_issue2) is null);
+  -- update path: editing an existing solution keeps the original name
+  update meeting_issues set solution = 'Replace the roller and clean the feed path' where id = v_issue2;
+  perform pg_temp.as_user(v_ops);
+  update meeting_issues set solution = 'Replace the roller and clean the feed path, then test' where id = v_issue2;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('UPDATE: blank -> non-blank stamps the writer; a later edit by someone else keeps the ORIGINAL name',
+    (select solution_by from meeting_issues where id = v_issue2) = v_sales);
+  perform pg_temp.as_user(v_ops);
+  update meeting_issues set solution = '' where id = v_issue2;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('UPDATE: clearing the solution clears solution_by', (select solution_by from meeting_issues where id = v_issue2) is null);
+  perform pg_temp.as_user(v_ops);
+  update meeting_issues set solution = 'Fresh solution after clearing' where id = v_issue2;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('UPDATE: blank -> non-blank again stamps the new writer', (select solution_by from meeting_issues where id = v_issue2) = v_ops);
+  -- staff path of the screen: the log a technician created has recorded_by NULL; staff taking it over sets recorded_by (huddle.ts ensureMeetingLog)
+  update meeting_logs set recorded_by = null where id = v_meet;
+  perform pg_temp.as_user(v_ops);
+  update meeting_logs set recorded_by = v_ops where id = v_meet and recorded_by is null;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('STAFF PATH: staff can claim a technician-created log (recorded_by NULL -> themselves) through the normal update policy',
+    (select recorded_by from meeting_logs where id = v_meet) = v_ops);
 
   -- ---------- 10 problems a day for a technician ----------
   perform pg_temp.as_user(v_tp2);
@@ -793,7 +905,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'fd399b68e72df0c19f10ec550bc93811c93b3ce3a48b62153454e09efc86b1e9' then
+  if v_hash <> '139c3691dbf015baef69d5f60365985b914132df96aca545fe2967979ca2fd02' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for p2_staff_profile_and_huddle.test.sql: %', v_hash;
   end if;
   execute v_text;
