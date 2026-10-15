@@ -4742,6 +4742,13 @@
     "recentMeetings": "சமீபத்திய கூட்டங்கள்"
   },
   "tasks": {
+    "overdue": "Overdue",
+    "onlyAssigneeFinishes": "Only {{name}} can mark this finished",
+    "cannotFinish": {
+      "not_assignee": "Only {{name}} can mark this finished.",
+      "unassigned": "This task has no assignee. Ask operations to finish it.",
+      "po_needs_master": "Only the master can finish a purchase-order task, because the master approves and pays purchase orders. Ask the master to finish it, or reassign it."
+    },
     "subtitle": "முழு குழுவிலும் பணிகளை ஒதுக்கி கண்காணிக்கவும்.",
     "assignTask": "பணி ஒதுக்கு",
     "loadFailed": "பணிகளை ஏற்ற முடியவில்லை.",
@@ -4761,6 +4768,7 @@
       "calendar": "நாட்காட்டி"
     },
     "detailDialog": {
+      "readOnly": "You can view this task but only its assignee, the person who assigned it, or operations can change it.",
       "title": "பணி",
       "subtitle": "இந்தப் பணியை மறு-ஒதுக்கீடு செய்யவும், தேதியை மாற்றவும் அல்லது புதுப்பிக்கவும்.",
       "statusOpen": "திறந்தது",

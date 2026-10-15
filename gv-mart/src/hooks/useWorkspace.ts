@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as workspace from "@/services/workspace"
 import type { CreateTaskInput } from "@/services/workspace"
 import type { Enums } from "@/types/database"
+import { useToast } from "@/components/ui/toast-context"
 
 export function useMyWorkspaceTasks(orgId: string | undefined, assigneeId: string | undefined) {
   return useQuery({
@@ -37,9 +38,11 @@ export function useCreateTask() {
 
 export function useSetTaskStatus() {
   const qc = useQueryClient()
+  const { toast } = useToast()
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: Enums<"task_status"> }) => workspace.setTaskStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks", "workspace"] }),
+    onError: (e) => toast.error(e instanceof Error && e.message ? e.message : "Could not update the task"),
   })
 }
 
