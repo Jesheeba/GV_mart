@@ -4730,11 +4730,34 @@
     "recurring": "Repeats monthly",
     "assignedBy": "Assigned by {{name}}",
     "due": "Due {{date}}",
+    "cannotToggle": "Only the person it is assigned to can mark this task done.",
     "filters": {
+      "myDay": "My Day",
       "open": "Open",
       "mine": "Assigned to me",
       "done": "Done",
       "all": "All"
+    },
+    "myDay": {
+      "overdue": "Overdue ({{count}})",
+      "dueToday": "Due today ({{count}})",
+      "upcoming": "Upcoming ({{count}})",
+      "noDate": "No date ({{count}})",
+      "completed": "Completed ({{count}})",
+      "empty": "Nothing on your plate today.",
+      "moveToToday": "Move to today"
+    },
+    "workLog": {
+      "title": "Work log",
+      "empty": "No entries yet.",
+      "minutes": "{{count}} min",
+      "nextPlanned": "Next:",
+      "notePlaceholder": "What did you do?",
+      "minutesPlaceholder": "Minutes spent",
+      "minutesInvalid": "Minutes must be a whole number from 0 to 1440.",
+      "nextPlannedDate": "Next planned date",
+      "nextPlannedNotePlaceholder": "Plan for next time",
+      "add": "Add entry"
     },
     "view": {
       "list": "List",

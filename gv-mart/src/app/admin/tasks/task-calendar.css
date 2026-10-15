@@ -60,7 +60,10 @@
 }
 
 .gv-calendar .fc-event {
-  border: none;
+  /* border-color is set per event (the assignee's colour, P3); only the left edge shows it, as a thin
+     colour-per-user accent next to the priority-coloured fill. */
+  border-style: solid;
+  border-width: 0 0 0 4px;
   border-radius: 6px;
   padding: 1px 5px;
   font-size: 0.72rem;

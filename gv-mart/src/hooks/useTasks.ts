@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as tasksService from "@/services/tasks"
-import type { AssignTaskInput, UpdateTaskInput } from "@/services/tasks"
-import { setTaskStatus } from "@/services/workspace"
+import type { AssignTaskInput, TaskRow, UpdateTaskInput } from "@/services/tasks"
 import type { Enums } from "@/types/database"
 
 export function useOrgTasks(orgId: string | undefined) {
@@ -46,14 +45,19 @@ export function useDeleteTask() {
   })
 }
 
-// Reuses workspace.ts's setTaskStatus (same `tasks` table) but invalidates
-// the whole ["tasks", ...] key space, not just ["tasks", "workspace"] —
-// useWorkspace's own useSetTaskStatus wouldn't refresh this page's
-// ["tasks", "org", orgId] list.
 export function useSetOrgTaskStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: Enums<"task_status"> }) => setTaskStatus(id, status),
+    mutationFn: ({ id, status }: { id: string; status: Enums<"task_status"> }) => tasksService.setTaskStatus(id, status),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  })
+}
+
+// P3: replaces the lazy "rollover on read" workspace.ts used to do on every fetch.
+export function useMoveTaskToToday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (task: Pick<TaskRow, "id" | "due_date" | "original_due_date" | "rolled_count">) => tasksService.moveTaskToToday(task),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   })
 }

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { getIstNow } from "@/lib/ist"
 import type { Enums, Tables } from "@/types/database"
 
 export type TaskRow = Tables<"tasks">
@@ -21,19 +22,20 @@ export async function listAssignableProfiles(orgId: string): Promise<AssignableP
 }
 
 export type OrgTask = TaskRow & {
-  assignee: { id: string; full_name: string; role: Enums<"user_role"> } | null
+  // colour: profiles.colour (20261102100000) — null means "pick one for me", not "no colour"; see lib/user-colour.ts.
+  assignee: { id: string; full_name: string; role: Enums<"user_role">; colour: string | null } | null
   assigner: { id: string; full_name: string } | null
 }
 
-// Org-wide task list for the admin Tasks section — every staff role and
-// technician can see every task in the org (tasks_select_internal RLS),
-// which is what makes this a shared calendar/board rather than a personal
-// list. Two FKs point at `profiles` (assignee_id, assigned_by), so each
-// embed must be disambiguated by constraint name.
+// Task list for the admin Tasks section. Since 20261103100000 (P3), tasks_select_internal narrows this to every
+// task in the org for master/operation_admin, and to "assignee or assigner is me" for everyone else — so this one
+// query already IS "my day" for a non-ops role, just not grouped that way (see MyDayView, which filters this same
+// list rather than issuing a second query). Two FKs point at `profiles` (assignee_id, assigned_by), so each embed
+// must be disambiguated by constraint name.
 export async function listOrgTasks(orgId: string): Promise<OrgTask[]> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, role), assigner:profiles!tasks_assigned_by_fkey(id, full_name)")
+    .select("*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, role, colour), assigner:profiles!tasks_assigned_by_fkey(id, full_name)")
     .eq("org_id", orgId)
     .order("due_date", { ascending: true, nullsFirst: false })
   if (error) throw error
@@ -123,4 +125,30 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskRow> {
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from("tasks").delete().eq("id", id)
   if (error) throw error
+}
+
+// Moved here from services/workspace.ts (P3 — My Workspace merged into Tasks): the done/open toggle is not
+// Workspace-specific, every Tasks view uses it.
+export async function setTaskStatus(id: string, status: Enums<"task_status">): Promise<TaskRow> {
+  const { data, error } = await supabase.from("tasks").update({ status }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+
+// P3: replaces the old lazy "rollover on read" (listMyWorkspaceTasks silently rewrote due_date on every fetch).
+// This is the same column effect (original_due_date preserved via coalesce, due_date -> today, rolled_count + 1),
+// but now only on an explicit "Move to today" click — a read never mutates data any more.
+export async function moveTaskToToday(task: Pick<TaskRow, "id" | "due_date" | "original_due_date" | "rolled_count">): Promise<TaskRow> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({
+      original_due_date: task.original_due_date ?? task.due_date,
+      due_date: getIstNow().date,
+      rolled_count: (task.rolled_count ?? 0) + 1,
+    })
+    .eq("id", task.id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
 }

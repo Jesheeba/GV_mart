@@ -11,8 +11,64 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { useProfile } from "@/hooks/useProfile"
 import { useAppointmentsRange, useAssignTicketTechnician, useAutoAssignTicket, useTechnicians, useUnassignAppointment } from "@/hooks/useService"
+import { useMarkAppointmentConfirmed, useUpcomingAppointmentsForConfirmation } from "@/hooks/useWorkspace"
 import type { AppointmentListItem } from "@/services/service"
+import type { UpcomingAppointmentForConfirmation } from "@/services/workspace"
 import { PriorityBadge, TicketTypeBadge } from "./TicketBadges"
+
+// P3: moved here from the retired My Workspace page — this is Service/Appointments' own business, not a personal
+// to-do item. No real telephony/AI exists; "confirmed" is still a manual log tied to one appointment.
+function ConfirmationCallCard({ orgId, userId }: { orgId: string; userId: string }) {
+  const { t } = useTranslation()
+  const upcoming = useUpcomingAppointmentsForConfirmation(orgId)
+  const markConfirmed = useMarkAppointmentConfirmed()
+
+  function handleConfirm(appointment: UpcomingAppointmentForConfirmation) {
+    const customerName = appointment.service_tickets?.customers?.name
+    const ticketLabel = customerName
+      ? `${customerName} — ${appointment.service_tickets?.name_of_complaint ?? t("workspace.confirmationCall.genericLabel")}`
+      : t("workspace.confirmationCall.genericLabel")
+    markConfirmed.mutate({ orgId, userId, appointmentId: appointment.id, ticketLabel })
+  }
+
+  if (!upcoming.isLoading && (upcoming.data?.length ?? 0) === 0) return null
+
+  return (
+    <Card size="default" className="gap-2 px-5">
+      <p className="text-sm font-semibold text-text">{t("workspace.confirmationCall.title")}</p>
+      <p className="text-xs text-text-muted">{t("workspace.confirmationCall.body")}</p>
+      <p className="text-[11px] italic text-text-muted">{t("workspace.confirmationCall.stubNote")}</p>
+      {upcoming.isLoading ? (
+        <p className="py-3 text-center text-sm text-text-muted">{t("common.loading")}</p>
+      ) : upcoming.isError ? (
+        <p className="py-3 text-center text-sm text-danger">{t("workspace.loadFailed")}</p>
+      ) : (
+        <div className="mt-1 flex flex-wrap gap-2">
+          {upcoming.data!.map((appointment) => {
+            const isThisPending = markConfirmed.isPending && markConfirmed.variables?.appointmentId === appointment.id
+            return (
+              <div key={appointment.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-text">
+                    {appointment.service_tickets?.customers?.name ?? t("workspace.confirmationCall.unknownCustomer")}
+                  </p>
+                  <p className="truncate text-xs text-text-muted">
+                    {appointment.service_tickets?.name_of_complaint ?? "—"}
+                    {appointment.scheduled_at ? ` · ${new Date(appointment.scheduled_at).toLocaleString()}` : ""}
+                  </p>
+                </div>
+                <Button type="button" size="sm" variant="accent" disabled={isThisPending} onClick={() => handleConfirm(appointment)} className="shrink-0">
+                  {isThisPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                  {t("workspace.confirmationCall.markConfirmed")}
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Card>
+  )
+}
 
 function toDateInput(d: Date) {
   return toLocalDateString(d)
@@ -23,6 +79,7 @@ export function AppointmentsPage() {
   const navigate = useNavigate()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
+  const userId = profile?.id
 
   // Default to today in IST (not the device's date): local midnight of the IST date, so
   // toDateInput(day) round-trips to that IST date on any device timezone.
@@ -107,6 +164,8 @@ export function AppointmentsPage() {
           </Button>
         </div>
       </div>
+
+      {orgId && userId ? <ConfirmationCallCard orgId={orgId} userId={userId} /> : null}
 
       {conflict ? (
         <Card size="sm" className="flex-row items-center gap-3 border-warning/40 bg-warning/5 px-4">

@@ -7,6 +7,7 @@ import interactionPlugin from "@fullcalendar/interaction"
 import type { EventClickArg, EventInput } from "@fullcalendar/core"
 import { useTranslation } from "react-i18next"
 import type { OrgTask } from "@/services/tasks"
+import { userColour } from "@/lib/user-colour"
 import "./task-calendar.css"
 
 const PRIORITY_EVENT_COLOR: Record<OrgTask["priority"], string> = {
@@ -27,6 +28,9 @@ function taskToEvent(task: OrgTask): EventInput | null {
     start,
     allDay: !task.due_at,
     backgroundColor: PRIORITY_EVENT_COLOR[task.priority],
+    // P3: colour per user — a thin border in the assignee's colour, layered on top of the priority fill rather
+    // than replacing it, so urgency stays readable at a glance and "whose task is this" is a second glance away.
+    borderColor: task.assignee ? userColour(task.assignee.id, task.assignee.colour) : PRIORITY_EVENT_COLOR[task.priority],
     textColor: "#fff",
     classNames: task.status === "done" ? ["gv-event-done"] : [],
   }

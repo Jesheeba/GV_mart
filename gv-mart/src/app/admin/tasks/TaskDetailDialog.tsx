@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { useToast } from "@/components/ui/toast-context"
 import { useAssignableProfiles, useDeleteTask, useSetOrgTaskStatus, useUpdateTask } from "@/hooks/useTasks"
+import { useCreateTaskLog, useTaskLogs } from "@/hooks/useTaskLogs"
+import { getIstNow } from "@/lib/ist"
 import type { OrgTask, PriorityLevel } from "@/services/tasks"
 import { cn } from "@/lib/utils"
 
@@ -176,6 +178,8 @@ export function TaskDetailDialog({
         </label>
         {!dueDate ? <p className="text-xs text-text-muted">{t("tasks.assignDialog.repeatMonthlyHint")}</p> : null}
 
+        <TaskWorkLog taskId={task.id} orgId={orgId} userId={userId} />
+
         <div className="flex items-center justify-between gap-2 pt-1">
           {canDelete ? (
             <Button type="button" variant="ghost" onClick={handleDelete} disabled={deleteTask.isPending} className="text-danger hover:text-danger">
@@ -196,5 +200,109 @@ export function TaskDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * P3: a work-log entry — a note, minutes spent, and what's planned next (and when). Append-only (task_logs has no
+ * update/delete policy, 20261103100000): a correction is a new entry, not an edit of history. Visible to whoever
+ * can see the task at all (same RLS); this dialog itself is already only opened by someone who can see the task.
+ */
+function TaskWorkLog({ taskId, orgId, userId }: { taskId: string; orgId: string; userId: string }) {
+  const { t } = useTranslation()
+  const logs = useTaskLogs(taskId)
+  const createLog = useCreateTaskLog()
+
+  const [note, setNote] = useState("")
+  const [minutes, setMinutes] = useState("")
+  const [nextPlannedDate, setNextPlannedDate] = useState("")
+  const [nextPlannedNote, setNextPlannedNote] = useState("")
+
+  const minutesValue = minutes.trim() === "" ? null : Number(minutes)
+  const minutesValid = minutesValue === null || (Number.isInteger(minutesValue) && minutesValue >= 0 && minutesValue <= 1440)
+  const hasContent = note.trim() !== "" || minutesValue !== null || nextPlannedDate !== "" || nextPlannedNote.trim() !== ""
+  const canLog = hasContent && minutesValid && !createLog.isPending
+
+  function handleAddLog() {
+    if (!canLog) return
+    createLog.mutate(
+      {
+        orgId,
+        taskId,
+        createdBy: userId,
+        note: note.trim() || null,
+        minutesSpent: minutesValue,
+        nextPlannedDate: nextPlannedDate || null,
+        nextPlannedNote: nextPlannedNote.trim() || null,
+      },
+      {
+        onSuccess: () => {
+          setNote("")
+          setMinutes("")
+          setNextPlannedDate("")
+          setNextPlannedNote("")
+        },
+      }
+    )
+  }
+
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-surface-alt p-3.5">
+      <Label className="text-xs font-semibold text-text-muted">{t("tasks.workLog.title")}</Label>
+
+      {logs.isLoading ? (
+        <p className="text-xs text-text-muted">{t("common.loading")}</p>
+      ) : (logs.data?.length ?? 0) === 0 ? (
+        <p className="text-xs text-text-muted">{t("tasks.workLog.empty")}</p>
+      ) : (
+        <ul className="space-y-2">
+          {logs.data!.map((entry) => (
+            <li key={entry.id} className="rounded-lg border border-border bg-surface px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center gap-x-2 text-text-muted">
+                <span className="font-medium text-text">{entry.author?.full_name ?? t("tasks.unknownUser")}</span>
+                <span>· {new Date(entry.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
+                {entry.minutes_spent !== null ? <span>· {t("tasks.workLog.minutes", { count: entry.minutes_spent })}</span> : null}
+              </div>
+              {entry.note ? <p className="mt-1 text-text">{entry.note}</p> : null}
+              {entry.next_planned_date || entry.next_planned_note ? (
+                <p className="mt-1 text-text-muted">
+                  {t("tasks.workLog.nextPlanned")}
+                  {entry.next_planned_date ? ` ${entry.next_planned_date}` : ""}
+                  {entry.next_planned_note ? ` — ${entry.next_planned_note}` : ""}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="space-y-2 pt-1">
+        <Input placeholder={t("tasks.workLog.notePlaceholder")} value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <Input
+            type="number"
+            min={0}
+            max={1440}
+            placeholder={t("tasks.workLog.minutesPlaceholder")}
+            value={minutes}
+            onChange={(e) => setMinutes(e.target.value)}
+          />
+          <DatePicker
+            value={nextPlannedDate}
+            onChange={setNextPlannedDate}
+            min={getIstNow().date}
+            aria-label={t("tasks.workLog.nextPlannedDate")}
+          />
+          <Input placeholder={t("tasks.workLog.nextPlannedNotePlaceholder")} value={nextPlannedNote} maxLength={500} onChange={(e) => setNextPlannedNote(e.target.value)} />
+        </div>
+        {!minutesValid ? <p className="text-xs text-danger">{t("tasks.workLog.minutesInvalid")}</p> : null}
+        <div className="flex justify-end">
+          <Button type="button" size="sm" variant="outline" disabled={!canLog} onClick={handleAddLog}>
+            {createLog.isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+            {t("tasks.workLog.add")}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }

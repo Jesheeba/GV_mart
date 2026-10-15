@@ -9,11 +9,13 @@ import { useOrgTasks, useSetOrgTaskStatus } from "@/hooks/useTasks"
 import type { OrgTask } from "@/services/tasks"
 import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { cn } from "@/lib/utils"
+import { userColour } from "@/lib/user-colour"
 import { AssignTaskDialog } from "./AssignTaskDialog"
 import { TaskDetailDialog } from "./TaskDetailDialog"
 import { TaskCalendar } from "./TaskCalendar"
+import { MyDayView } from "./MyDayView"
 
-type PrimaryFilter = "all" | "open" | "done" | "mine"
+type PrimaryFilter = "myDay" | "all" | "open" | "done" | "mine"
 type ViewMode = "list" | "calendar"
 
 // Delete is ops-only under RLS (tasks_delete_ops) — mirrored here so the
@@ -29,7 +31,8 @@ export function TasksPage() {
   const { data: tasks, isLoading, isError, refetch } = useOrgTasks(orgId)
   const setStatus = useSetOrgTaskStatus()
 
-  const [filter, setFilter] = useState<PrimaryFilter>("open")
+  // P3: My Day (the old Workspace) is the default tab, for every role.
+  const [filter, setFilter] = useState<PrimaryFilter>("myDay")
   const [view, setView] = useState<ViewMode>("list")
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<OrgTask | null>(null)
@@ -68,6 +71,9 @@ export function TasksPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
+        <FilterChip active={filter === "myDay"} onClick={() => setFilter("myDay")}>
+          {t("tasks.filters.myDay")}
+        </FilterChip>
         <FilterChip active={filter === "open"} onClick={() => setFilter("open")}>
           {t("tasks.filters.open")} · {openCount}
         </FilterChip>
@@ -95,6 +101,8 @@ export function TasksPage() {
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
         </div>
+      ) : filter === "myDay" ? (
+        orgId && userId ? <MyDayView tasks={allTasks} orgId={orgId} userId={userId} role={profile?.role} onOpen={setSelectedTask} /> : null
       ) : view === "calendar" ? (
         <TaskCalendar tasks={visibleTasks} onTaskClick={setSelectedTask} />
       ) : visibleTasks.length === 0 ? (
@@ -200,7 +208,11 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
         {task.description ? <p className="truncate text-xs text-text-muted">{task.description}</p> : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
           <span className="flex items-center gap-1">
-            <User className="size-3" />
+            {task.assignee ? (
+              <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: userColour(task.assignee.id, task.assignee.colour) }} aria-hidden />
+            ) : (
+              <User className="size-3" />
+            )}
             {task.assignee?.full_name ?? t("tasks.unknownUser")}
           </span>
           {task.assigner ? <span>{t("tasks.assignedBy", { name: task.assigner.full_name })}</span> : null}

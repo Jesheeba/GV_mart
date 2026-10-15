@@ -6718,6 +6718,65 @@ export type Database = {
           },
         ]
       }
+      // Hand-patched, see 20261103100000_task_logs_and_visibility.sql
+      task_logs: {
+        Row: {
+          id: string
+          org_id: string
+          task_id: string
+          created_by: string | null
+          note: string | null
+          minutes_spent: number | null
+          next_planned_date: string | null
+          next_planned_note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          task_id: string
+          created_by?: string | null
+          note?: string | null
+          minutes_spent?: number | null
+          next_planned_date?: string | null
+          next_planned_note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          task_id?: string
+          created_by?: string | null
+          note?: string | null
+          minutes_spent?: number | null
+          next_planned_date?: string | null
+          next_planned_note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           id: string

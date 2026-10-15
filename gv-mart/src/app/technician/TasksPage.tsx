@@ -15,9 +15,11 @@ import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 // just be dead-weight drift risk for zero behavioral difference.
 import { AssignTaskDialog } from "@/app/admin/tasks/AssignTaskDialog"
 import { TaskDetailDialog } from "@/app/admin/tasks/TaskDetailDialog"
+import { MyDayView } from "@/app/admin/tasks/MyDayView"
+import { userColour } from "@/lib/user-colour"
 import { cn } from "@/lib/utils"
 
-type PrimaryFilter = "open" | "mine" | "done" | "all"
+type PrimaryFilter = "myDay" | "open" | "mine" | "done" | "all"
 
 // Mobile-simplified sibling of admin's TasksPage: same shared data/RLS (a
 // technician can see and assign every org task, per Phase 0's fully-open
@@ -33,7 +35,8 @@ export function TasksPage() {
   const { data: tasks, isLoading: tasksLoading, isError: tasksError, refetch: refetchTasks } = useOrgTasks(orgId)
   const setStatus = useSetOrgTaskStatus()
 
-  const [filter, setFilter] = useState<PrimaryFilter>("mine")
+  // P3: My Day (the old Workspace, which technicians never had) is the default tab, for every role.
+  const [filter, setFilter] = useState<PrimaryFilter>("myDay")
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<OrgTask | null>(null)
 
@@ -70,6 +73,9 @@ export function TasksPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <FilterChip active={filter === "myDay"} onClick={() => setFilter("myDay")}>
+          {t("tasks.filters.myDay")}
+        </FilterChip>
         <FilterChip active={filter === "mine"} onClick={() => setFilter("mine")}>
           {t("tasks.filters.mine")} · {mineCount}
         </FilterChip>
@@ -95,6 +101,8 @@ export function TasksPage() {
         <Card className="items-center py-8 text-center">
           <p className="text-sm text-text-muted">{t("common.loading")}</p>
         </Card>
+      ) : filter === "myDay" ? (
+        orgId && userId ? <MyDayView tasks={allTasks} orgId={orgId} userId={userId} role={profile.role} onOpen={setSelectedTask} /> : null
       ) : visibleTasks.length === 0 ? (
         <Card className="items-center gap-2 py-10 text-center">
           <ClipboardList className="size-6 text-text-muted" />
@@ -180,7 +188,11 @@ function TaskCard({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTog
           {task.description ? <p className="truncate text-xs text-text-muted">{task.description}</p> : null}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-muted">
             <span className="flex items-center gap-1">
-              <User className="size-3" />
+              {task.assignee ? (
+                <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: userColour(task.assignee.id, task.assignee.colour) }} aria-hidden />
+              ) : (
+                <User className="size-3" />
+              )}
               {task.assignee?.full_name ?? t("tasks.unknownUser")}
             </span>
             {dueLabel ? <span>{t("tasks.due", { date: dueLabel })}</span> : null}

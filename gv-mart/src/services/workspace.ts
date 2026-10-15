@@ -1,140 +1,20 @@
 import { supabase } from "@/lib/supabase"
 import { getIstNow, istDayStartIso, istDayEndIso } from "@/lib/ist"
-import type { Enums, Tables } from "@/types/database"
+import type { Tables } from "@/types/database"
 
 export type TaskRow = Tables<"tasks">
 export type NotificationRow = Tables<"notifications">
-
-export type TaskRowWithRollover = TaskRow
 
 function todayIso() {
   return getIstNow().date
 }
 
-// ── ADM-31 Workspace: to-do checklist over `tasks` ───────────────────────
-// Genuine lazy rollover: there is no cron/scheduled-job infrastructure in
-// this project, so "carrying a task forward" happens the first time an
-// overdue-but-not-done task is actually fetched. For every row still
-// matching due_date < today, this stamps original_due_date (the first-ever
-// due date, preserved via coalesce so repeated rolls don't lose it),
-// bumps due_date to today, and increments rolled_count — a real state
-// mutation, not just a display filter. Because due_date becomes today as
-// part of the roll, the very next fetch that same day no longer matches
-// `due_date < today`, so a task is never re-rolled twice in one day without
-// needing any extra "already rolled today" bookkeeping column.
-async function rollOverOverdueTasks(rows: TaskRowWithRollover[]): Promise<TaskRowWithRollover[]> {
-  const today = todayIso()
-  const overdue = rows.filter((r) => r.status !== "done" && !!r.due_date && r.due_date < today)
-  if (overdue.length === 0) return rows
-
-  const rolled = await Promise.all(
-    overdue.map(async (task) => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .update({
-          original_due_date: task.original_due_date ?? task.due_date,
-          due_date: today,
-          rolled_count: (task.rolled_count ?? 0) + 1,
-        })
-        .eq("id", task.id)
-        .select()
-        .single()
-      if (error) throw error
-      return data
-    })
-  )
-
-  const rolledById = new Map(rolled.map((r) => [r.id, r]))
-  return rows.map((r) => rolledById.get(r.id) ?? r)
-}
-
-// "Today's list" = due_date <= today AND status != 'done'. Any row that's
-// still overdue (due_date < today) is rolled forward via
-// rollOverOverdueTasks before the list is returned, so the UI always shows
-// a task's *current* due_date (today, once rolled) plus rolled_count/
-// original_due_date for the "rolled over Nx" treatment.
-export async function listMyWorkspaceTasks(orgId: string, assigneeId: string): Promise<TaskRowWithRollover[]> {
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("*")
-    .eq("org_id", orgId)
-    .eq("assignee_id", assigneeId)
-    .lte("due_date", todayIso())
-    .neq("status", "done")
-    .order("due_date", { ascending: true })
-  if (error) throw error
-  return rollOverOverdueTasks(data ?? [])
-}
-
-export async function listUpcomingWorkspaceTasks(orgId: string, assigneeId: string): Promise<TaskRow[]> {
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("*")
-    .eq("org_id", orgId)
-    .eq("assignee_id", assigneeId)
-    .gt("due_date", todayIso())
-    .neq("status", "done")
-    .order("due_date", { ascending: true })
-  if (error) throw error
-  return data ?? []
-}
-
-export async function listCompletedWorkspaceTasks(orgId: string, assigneeId: string): Promise<TaskRow[]> {
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("*")
-    .eq("org_id", orgId)
-    .eq("assignee_id", assigneeId)
-    .eq("status", "done")
-    .order("updated_at", { ascending: false })
-    .limit(50)
-  if (error) throw error
-  return data ?? []
-}
-
-export type CreateTaskInput = { orgId: string; assigneeId: string; title: string; dueDate: string | null; source?: string; assignedBy?: string }
-
-// assignedBy defaults to assigneeId (self-assigned) — every call site today
-// (Workspace's personal to-do quick-add) is a self-assign, and the
-// tasks_notify_assigned trigger uses assigned_by = assignee_id as its signal
-// to skip the "new task assigned" notification, so leaving this unset would
-// wrongly notify a user about their own to-do entry.
-export async function createTask(input: CreateTaskInput): Promise<TaskRow> {
-  const { data, error } = await supabase
-    .from("tasks")
-    .insert({
-      org_id: input.orgId,
-      assignee_id: input.assigneeId,
-      assigned_by: input.assignedBy ?? input.assigneeId,
-      title: input.title,
-      due_date: input.dueDate,
-      source: input.source ?? "manual",
-    })
-    .select()
-    .single()
-  if (error) throw error
-  return data
-}
-
-export async function setTaskStatus(id: string, status: Enums<"task_status">): Promise<TaskRow> {
-  const { data, error } = await supabase.from("tasks").update({ status }).eq("id", id).select().single()
-  if (error) throw error
-  return data
-}
-
-// ── Notifications feed (embedded in Workspace, plus the dedicated
-// Notifications Center page reuses the same reads) ────────────────────────
-export async function listMyNotificationsFeed(orgId: string, userId: string, role: Enums<"user_role">, limit = 20): Promise<NotificationRow[]> {
-  const [ownRes, roleRes] = await Promise.all([
-    supabase.from("notifications").select("*").eq("org_id", orgId).eq("user_id", userId).order("created_at", { ascending: false }).limit(limit),
-    supabase.from("notifications").select("*").eq("org_id", orgId).eq("role", role).order("created_at", { ascending: false }).limit(limit),
-  ])
-  if (ownRes.error) throw ownRes.error
-  if (roleRes.error) throw roleRes.error
-  const merged = [...(ownRes.data ?? []), ...(roleRes.data ?? [])]
-  merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  return merged.slice(0, limit)
-}
+// P3 (My Workspace merged into Tasks, 2026-11): the to-do checklist, its lazy rollover, its own quick-add and its
+// embedded notifications feed all moved — see src/app/admin/tasks/MyDayView.tsx (reads the same useOrgTasks list
+// every Tasks tab uses, filtered to the caller), src/services/tasks.ts (setTaskStatus, moveTaskToToday — an
+// explicit action now, not a silent mutation on every read) and the dedicated Notifications pages (which never
+// used listMyNotificationsFeed in the first place). What's left here is specific to appointments and the
+// technician day-sheet, neither of which belonged to the to-do list.
 
 // ── "AI confirmation-call" list, per-appointment (ADM-31) ─────────────────
 // No real telephony/AI exists in this app — this is still a manual "Mark
