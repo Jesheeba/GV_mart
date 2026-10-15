@@ -32,6 +32,10 @@ and rebased on items 1 and 2:
 4. `wa-automation-vars.ts`: variables `video_url` and `item_name` (the template calls them `video_link` and `item_name`).
 5. The in-app note to the sales person (decision 10).
 
+## Numbering
+Part 2 uses migration version **20261031100000**. (20261030100000 belongs to the technician table; this resolver is
+20261028100000; Stage B is 20261029100000 to 20261029130000.)
+
 ## Estimate
 Resolver (this branch): built, 0.5 day including tests and wrapper. Part 2: 1.5 to 2 days after Stage B is rebased.
 
