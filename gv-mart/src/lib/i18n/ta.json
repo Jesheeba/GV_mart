@@ -4738,6 +4738,7 @@
       "calendar": "நாட்காட்டி"
     },
     "detailDialog": {
+      "readOnly": "You can view this task but only its assignee, the person who assigned it, or operations can change it.",
       "title": "பணி",
       "subtitle": "இந்தப் பணியை மறு-ஒதுக்கீடு செய்யவும், தேதியை மாற்றவும் அல்லது புதுப்பிக்கவும்.",
       "statusOpen": "திறந்தது",

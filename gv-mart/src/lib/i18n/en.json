@@ -4743,6 +4743,7 @@
       "calendar": "Calendar"
     },
     "detailDialog": {
+      "readOnly": "You can view this task but only its assignee, the person who assigned it, or operations can change it.",
       "title": "Task",
       "subtitle": "Reassign, reschedule, or update this task.",
       "statusOpen": "Open",

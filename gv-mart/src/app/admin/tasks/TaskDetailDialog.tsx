@@ -54,7 +54,9 @@ export function TaskDetailDialog({
   const isDone = task.status === "done"
   const { data: me } = useProfile()
   const canFinish = canCompleteTask(task, me ? { id: me.id, role: me.role } : null)
-  const canSubmit = title.trim().length > 0 && assigneeId.length > 0 && !updateTask.isPending
+  // mirrors tasks_update_assign: operations, the assignee or the assigner may edit; anyone else sees it read-only
+  const canEdit = !!me && (me.role === "master" || me.role === "operation_admin" || task.assignee_id === me.id || task.assigned_by === me.id)
+  const canSubmit = canEdit && title.trim().length > 0 && assigneeId.length > 0 && !updateTask.isPending
 
   function handleSave() {
     if (!canSubmit) return
@@ -195,6 +197,7 @@ export function TaskDetailDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               {t("common.cancel")}
             </Button>
+            {!canEdit ? <span className="mr-auto text-xs text-text-muted">{t("tasks.detailDialog.readOnly")}</span> : null}
             <Button type="button" onClick={handleSave} disabled={!canSubmit}>
               {updateTask.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
             </Button>

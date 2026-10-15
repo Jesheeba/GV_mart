@@ -171,23 +171,74 @@ begin
   s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t1));
   perform pg_temp.chk('a path with no API role (service role / SECURITY DEFINER job / owner) can still set status', s is null, coalesce(s, 'ok'));
 
-  -- ---------- deactivated technician ----------
+  -- ---------- the 'rolled' value: open <-> rolled is not a completion; rolled -> done and done -> rolled follow the same rules ----------
+  t1 := pg_temp.mk(v_org, v_tp, v_sales);
+  perform pg_temp.as_user(v_sales);
+  s := pg_temp.raises(format($q$update tasks set status = 'rolled' where id = %L$q$, t1));
+  perform pg_temp.chk('open -> rolled by the assigner is not restricted by the guard', s is null, coalesce(s, 'ok'));
+  perform pg_temp.as_user(v_ops);
+  s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t1));
+  perform pg_temp.chk('rolled -> done by operations (not the assignee) is refused', s like '%only the person a task is assigned to%', coalesce(s, 'accepted'));
   perform pg_temp.as_user(v_tp);
-  select public.current_technician_id() into x;
-  perform pg_temp.as_pg();
-  perform pg_temp.chk('an active technician resolves to their technician id', x = v_tech, coalesce(x::text, 'null'));
-  update technicians set is_active = false where id = v_tech;
+  s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t1));
+  perform pg_temp.chk('rolled -> done by the assignee is allowed', s is null, coalesce(s, 'ok'));
+  perform pg_temp.as_user(v_sales);
+  s := pg_temp.raises(format($q$update tasks set status = 'rolled' where id = %L$q$, t1));
+  perform pg_temp.chk('done -> rolled by a non-assignee, non-ops user is refused (same as re-open)', s like '%re-open%', coalesce(s, 'accepted'));
+  perform pg_temp.as_user(v_ops);
+  s := pg_temp.raises(format($q$update tasks set status = 'rolled' where id = %L$q$, t1));
+  perform pg_temp.chk('done -> rolled by operations is allowed', s is null, coalesce(s, 'ok'));
   perform pg_temp.as_user(v_tp);
-  select public.current_technician_id() into x;
-  select count(*) into n from tasks where org_id = v_org;
+  s := pg_temp.raises(format($q$update tasks set status = 'open' where id = %L$q$, t1));
+  perform pg_temp.chk('rolled -> open by the assignee is allowed', s is null, coalesce(s, 'ok'));
   perform pg_temp.as_pg();
-  perform pg_temp.chk('a deactivated technician: current_technician_id() is NULL and they can no longer read tasks', x is null and n = 0, coalesce(x::text, 'null') || '/' || n::text);
-  t3 := pg_temp.mk(v_org, v_tp, v_ops);
+
+  -- ---------- every path that still has to work after tasks_update_assign was narrowed ----------
+  -- (a) Workspace lazy rollover / "Move to today": the assignee rewrites due_date, original_due_date, rolled_count of their OWN task
+  t2 := pg_temp.mk(v_org, v_tp, v_tp);
+  update tasks set due_date = current_date - 3 where id = t2;
   perform pg_temp.as_user(v_tp);
-  update tasks set status = 'done' where id = t3;
+  s := pg_temp.raises(format($q$update tasks set original_due_date = coalesce(original_due_date, due_date), due_date = current_date, rolled_count = rolled_count + 1 where id = %L$q$, t2));
   perform pg_temp.as_pg();
-  perform pg_temp.chk('a deactivated technician cannot finish a task assigned to them', (select status::text from tasks where id = t3) = 'open');
-  update technicians set is_active = true where id = v_tech;
+  perform pg_temp.chk('PATH rollover / Move to today: the assignee can move their own task to today',
+    s is null and (select due_date from tasks where id = t2) = current_date and (select rolled_count from tasks where id = t2) = 1, coalesce(s, 'ok'));
+  -- (b) Workspace quick-add: a self-assigned to-do is inserted and finished by its owner
+  perform pg_temp.as_user(v_sales2);
+  s := pg_temp.raises(format($q$insert into tasks (org_id, assignee_id, assigned_by, title, source) values (%L, %L, %L, 'my to-do', 'manual')$q$, v_org, v_sales2, v_sales2));
+  perform pg_temp.chk('PATH workspace quick-add: a self-assigned to-do can be created', s is null, coalesce(s, 'ok'));
+  s := pg_temp.raises(format($q$update tasks set status = 'done' where org_id = %L and title = 'my to-do' and assignee_id = %L$q$, v_org, v_sales2));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('PATH workspace quick-add: and finished by its owner',
+    s is null and (select status::text from tasks where org_id = v_org and title = 'my to-do') = 'done', coalesce(s, 'ok'));
+  -- (c) huddle action items: a staff member creates a task linked to a meeting issue for someone else; that someone finishes it
+  perform pg_temp.as_user(v_sales);
+  s := pg_temp.raises(format($q$insert into tasks (org_id, assignee_id, assigned_by, title, ref_type, ref_id, source) values (%L, %L, %L, 'huddle action', 'meeting_issue', gen_random_uuid(), 'assigned')$q$, v_org, v_tp, v_sales));
+  perform pg_temp.chk('PATH huddle action item: created by a sales_admin for a technician', s is null, coalesce(s, 'ok'));
+  perform pg_temp.as_user(v_tp);
+  s := pg_temp.raises(format($q$update tasks set status = 'done' where org_id = %L and title = 'huddle action'$q$, v_org));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('PATH huddle action item: finished by the technician it was assigned to',
+    s is null and (select status::text from tasks where org_id = v_org and title = 'huddle action') = 'done', coalesce(s, 'ok'));
+  -- (d) the task detail screen: the assigner edits text and priority of a task they created, assignee unchanged
+  t3 := pg_temp.mk(v_org, v_tp, v_sales);
+  perform pg_temp.as_user(v_sales);
+  s := pg_temp.raises(format($q$update tasks set title = 'retitled', description = 'x', priority = 'urgent' where id = %L$q$, t3));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('PATH task detail: the assigner edits text and priority', s is null and (select assigned_by from tasks where id = t3) = v_sales, coalesce(s, 'ok'));
+  -- (e) SECURITY DEFINER / service paths are not narrowed
+  t4 := pg_temp.mk(v_org, v_master, v_master, 'purchase_order', gen_random_uuid());
+  update tasks set due_at = now() - interval '4 days' where id = t4;
+  s := pg_temp.raises(format($q$select public.wa_escalate_overdue_po_payment_reminders(%L)$q$, v_org));
+  perform pg_temp.chk('PATH PO payment-reminder escalation (service role): still stamps escalated_at',
+    s is null and (select escalated_at is not null from tasks where id = t4), coalesce(s, 'ok'));
+  t5 := pg_temp.mk(v_org, v_tp, v_sales);
+  update tasks set is_recurring = true, due_date = current_date - 1 where id = t5;
+  s := pg_temp.raises(format($q$select public.advance_recurring_tasks(%L)$q$, v_org));
+  perform pg_temp.chk('PATH recurring tasks (service role): the successor is created for the same assignee',
+    s is null and exists (select 1 from tasks where ref_type = 'recurring_task_series' and ref_id = t5 and assignee_id = v_tp), coalesce(s, 'ok'));
+  -- (f) not a task update at all: confirmation calls live on appointments.confirmation_called_at
+  perform pg_temp.chk('PATH confirmation calls do not touch tasks (appointments.confirmation_called_at)',
+    exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'appointments' and column_name = 'confirmation_called_at'));
 
   -- ---------- org scope ----------
   perform pg_temp.as_user(v_m2);

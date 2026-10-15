@@ -7,8 +7,16 @@
 --   2. A purchase_order task can be completed only by a master (the role that approves and pays POs, mark_po_paid / approve_purchase_order).
 --   3. Closing the PO through its task (_po_task_completed_marks_paid) is now conditional on the same: a signed-in non-master never marks
 --      a PO paid by ticking a task. Paths with no signed-in user (service role, scheduled jobs) are unchanged.
---   4. current_technician_id() returns NULL for a deactivated technician, so every RLS policy that keys on it stops matching.
---   5. tasks_update_assign: only operations, the assignee or the assigner may update a task (it was: any staff or technician).
+--   4. tasks_update_assign: only operations, the assignee or the assigner may update a task (it was: any staff or technician).
+--   (current_technician_id() requires is_active: separate migration 20261101110000_current_technician_id_active, P1b.)
+--
+-- task_status has three values: open, done, rolled ('rolled' is in the enum but nothing in the app or the database writes it today).
+-- How the guard treats the transitions:
+--   open   -> done    : assignee only (unassigned: operations); purchase_order tasks: master only
+--   rolled -> done    : the same as open -> done (any non-done state is finished by the same rule)
+--   done   -> open    : the assignee or operations
+--   done   -> rolled  : the same as done -> open
+--   open   <-> rolled : not a completion, unrestricted by the guard (the update policy still decides who may update the row)
 --
 -- Exempt from the completion guard (current_user is not authenticated/anon): the service role, SECURITY DEFINER functions
 -- (mark_po_paid, advance_recurring_tasks, the escalation and PO-reminder jobs, the rollover RPCs) and any direct owner connection.
@@ -21,13 +29,7 @@
 --
 -- Rollback: supabase/rollbacks/20261101100000_task_completion_rule.rollback.sql
 
--- 1. a deactivated technician is not a technician for RLS --------------------------------------------------------------
-create or replace function public.current_technician_id()
-returns uuid
-language sql stable security definer set search_path = public
-as $$ select t.id from public.technicians t where t.profile_id = auth.uid() and t.is_active $$;
-
--- 2. completion guard --------------------------------------------------------------------------------------------------
+-- 1. completion guard --------------------------------------------------------------------------------------------------
 create or replace function public.guard_task_completion()
 returns trigger
 language plpgsql
@@ -73,7 +75,7 @@ create trigger aa_guard_task_completion
   before insert or update on public.tasks
   for each row execute function public.guard_task_completion();
 
--- 3. closing the PO through its task needs a master (or a system path) -------------------------------------------------
+-- 2. closing the PO through its task needs a master (or a system path) -------------------------------------------------
 create or replace function public._po_task_completed_marks_paid()
 returns trigger
 language plpgsql
@@ -95,7 +97,9 @@ begin
 end;
 $$;
 
--- 4. who may update a task ----------------------------------------------------------------------------------------------
+revoke all on function public._po_task_completed_marks_paid() from public, anon, authenticated;
+
+-- 3. who may update a task ----------------------------------------------------------------------------------------------
 drop policy if exists tasks_update_assign on public.tasks;
 create policy tasks_update_assign on public.tasks
   for update using (
