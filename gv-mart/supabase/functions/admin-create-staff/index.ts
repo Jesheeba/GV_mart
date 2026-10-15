@@ -76,11 +76,10 @@ Deno.serve(async (req) => {
     full_name: input.fullName,
     phone: input.phone,
     designation: input.designation,
-    address: input.address,
     role: input.role,
     is_active: true,
-    // the first password is shared in person, so the person must choose their own at first login; the database records a
-    // marker of this password's hash and only clears the flag once the hash has changed
+    // The password already exists (createUser above), so the flag is armed second: the database records a marker of THIS
+    // password's hash and only clears the flag once the hash has changed. Never reorder these two steps.
     must_change_password: true,
   })
   if (profileErr) {
@@ -89,6 +88,16 @@ Deno.serve(async (req) => {
     await finishStaffAudit(admin, audit, false, { error: "profile_insert_failed", rolled_back: !rollbackErr }, userId)
     console.error("admin-create-staff: profile insert failed", profileErr.code ?? "", rollbackErr ? "ROLLBACK FAILED for " + userId : "rolled back")
     return json({ error: "Could not create the staff profile; nothing was created" }, 500)
+  }
+
+  // The address is personal: it lives in staff_private (readable only by the person, the master and operation_admin), never on profiles.
+  const { error: privateErr } = await admin.from("staff_private").insert({ profile_id: userId, org_id: caller.orgId, address: input.address })
+  if (privateErr) {
+    // deleting the login cascades the profile row: nothing half-created is left behind
+    const { error: rollbackErr } = await admin.auth.admin.deleteUser(userId)
+    await finishStaffAudit(admin, audit, false, { error: "private_insert_failed", rolled_back: !rollbackErr }, userId)
+    console.error("admin-create-staff: staff_private insert failed", privateErr.code ?? "", rollbackErr ? "ROLLBACK FAILED for " + userId : "rolled back")
+    return json({ error: "Could not save the staff details; nothing was created" }, 500)
   }
 
   await finishStaffAudit(admin, audit, true, {}, userId)

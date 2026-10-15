@@ -11,13 +11,15 @@ type Db = {
   authUsers: Row[]
   audit: Row[]
   failProfileInsert: boolean
+  failPrivateInsert: boolean
+  private: Record<string, Row>
   failAuditInsert: boolean
   failCreateWith: { code?: string; message?: string } | null
   failDeleteUser: boolean
   calls: string[]
 }
 
-const db: Db = { users: {}, profiles: {}, authUsers: [], audit: [], failProfileInsert: false, failAuditInsert: false, failCreateWith: null, failDeleteUser: false, calls: [] }
+const db: Db = { users: {}, profiles: {}, authUsers: [], audit: [], failProfileInsert: false, failPrivateInsert: false, private: {}, failAuditInsert: false, failCreateWith: null, failDeleteUser: false, calls: [] }
 let handler: (req: Request) => Promise<Response>
 
 function client() {
@@ -56,6 +58,12 @@ function client() {
           return p ? { data: p, error: null } : { data: null, error: { message: "not found" } }
         },
         insert: async (row: Row) => {
+          if (table === "staff_private") {
+            db.calls.push("insertPrivate")
+            if (db.failPrivateInsert) return { error: { message: "insert failed", code: "23505" } }
+            db.private[String(row.profile_id)] = row
+            return { error: null }
+          }
           if (table === "profiles") {
             db.calls.push("insertProfile")
             if (db.failProfileInsert) return { error: { message: "insert failed", code: "23505" } }
@@ -92,6 +100,8 @@ beforeEach(async () => {
   db.authUsers = []
   db.audit = []
   db.failProfileInsert = false
+  db.failPrivateInsert = false
+  db.private = {}
   db.failAuditInsert = false
   db.failCreateWith = null
   db.failDeleteUser = false
@@ -174,18 +184,19 @@ describe("admin-create-staff handler", () => {
     expect(body).toMatchObject({ ok: true, email: "priya@example.com", generated: true })
     expect(typeof body.password).toBe("string")
     expect(body.password).toHaveLength(14)
-    expect(db.calls).toEqual(["insertAudit", "createUser", "insertProfile", "insertAudit"]) // audit FIRST, completion last
+    expect(db.calls).toEqual(["insertAudit", "createUser", "insertProfile", "insertPrivate", "insertAudit"]) // audit FIRST, completion last
+    // the address is NOT on the profile row: it goes to staff_private
     expect(db.profiles[body.id]).toEqual({
       id: body.id,
       org_id: "org-1",
       full_name: "Priya Dharshini",
       phone: "9876543210",
       designation: "Sales executive",
-      address: "12 Main Road, Anna Nagar, Chennai 600040",
       role: "sales_admin",
       is_active: true,
       must_change_password: true,
     })
+    expect(db.private[body.id]).toEqual({ profile_id: body.id, org_id: "org-1", address: "12 Main Road, Anna Nagar, Chennai 600040" })
     expect(db.authUsers[0]).toMatchObject({ email: "priya@example.com", email_confirm: true })
     expect(db.audit).toHaveLength(2) // never updated: two rows
     expect(startRow()).toMatchObject({ org_id: "org-1", actor_id: "u-master", action: "STAFF_CREATE", table_name: "profiles", row_id: null })
@@ -241,7 +252,41 @@ describe("admin-create-staff handler", () => {
     expect(res.status).toBe(500)
     expect(db.authUsers).toHaveLength(0)
     expect(db.calls).toEqual(["insertAudit", "createUser", "insertProfile", "deleteUser", "insertAudit"])
+    expect(Object.keys(db.private)).toHaveLength(0)
     expect(resultRow().after).toMatchObject({ result: "failed", error: "profile_insert_failed", rolled_back: true })
+  })
+
+  it("the login (password) is created BEFORE the profile that arms the forced change, never after", async () => {
+    await call(good)
+    expect(db.calls.indexOf("createUser")).toBeGreaterThan(-1)
+    expect(db.calls.indexOf("createUser")).toBeLessThan(db.calls.indexOf("insertProfile"))
+    expect(db.profiles[Object.keys(db.profiles).find((k) => db.profiles[k].full_name === "Priya Dharshini")!]).toMatchObject({ must_change_password: true })
+  })
+
+  it("the server rejects a request without a mobile, a designation or a full address (the UI is not the guard): 400 and nothing is written", async () => {
+    for (const k of ["phone", "designation", "address"] as const) {
+      const { [k]: _omit, ...rest } = good
+      db.calls = []
+      const res = await call(rest)
+      expect(res.status, k).toBe(400)
+      expect(db.calls, k).toEqual([])
+      expect(db.authUsers, k).toHaveLength(0)
+    }
+    for (const bad of [{ phone: "12345" }, { designation: " " }, { address: "short" }]) {
+      db.calls = []
+      const res = await call({ ...good, ...bad })
+      expect(res.status).toBe(400)
+      expect(db.calls).toEqual([])
+    }
+  })
+
+  it("rolls the login back when the private address row cannot be saved", async () => {
+    db.failPrivateInsert = true
+    const res = await call(good)
+    expect(res.status).toBe(500)
+    expect(db.authUsers).toHaveLength(0)
+    expect(db.calls).toEqual(["insertAudit", "createUser", "insertProfile", "insertPrivate", "deleteUser", "insertAudit"])
+    expect(resultRow().after).toMatchObject({ result: "failed", error: "private_insert_failed", rolled_back: true })
   })
 
   it("fails closed when the audit start row cannot be written: no account is created", async () => {

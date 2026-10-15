@@ -49,6 +49,27 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_private: {
+        Row: {
+          profile_id: string
+          org_id: string
+          address: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          org_id: string
+          address?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           id: string
@@ -60,9 +81,7 @@ export type Database = {
           language: string
           is_active: boolean
           designation: string | null
-          address: string | null
           must_change_password: boolean
-          password_marker: string | null
           task_color: string | null
           staff_role_key: string | null
           created_at: string
@@ -79,7 +98,6 @@ export type Database = {
           language?: string
           is_active?: boolean
           designation?: string | null
-          address?: string | null
           task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
@@ -96,7 +114,6 @@ export type Database = {
           language?: string
           is_active?: boolean
           designation?: string | null
-          address?: string | null
           task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
@@ -7341,6 +7358,10 @@ export type Database = {
       // 20260925100100_po_paid_functions.sql; Docker-based `supabase gen
       // types` isn't available in this environment (see memory: hand-patch
       // instead).
+      arm_forced_password_change: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
       raise_huddle_issue: {
         Args: { p_description: string }
         Returns: string

@@ -11,6 +11,8 @@ const db = {
   audit: [] as Row[],
   passwords: {} as Record<string, string>,
   revoked: [] as string[],
+  armed: [] as string[],
+  armedBeforePassword: false,
   failAuditInsert: false,
   failUpdateWith: null as { code?: string; message?: string } | null,
   failRevoke: false,
@@ -34,10 +36,20 @@ function client() {
         },
       },
     },
-    rpc: async (fn: string, args: { p_user_id: string }) => {
+    rpc: async (fn: string, args: { p_user_id?: string; p_profile_id?: string }) => {
+      if (fn === "arm_forced_password_change") {
+        // the real function records the hash that exists AT THIS MOMENT: arming before the password was set is a bug
+        if (!db.calls.includes("updateUser")) {
+          db.armedBeforePassword = true
+          return { data: null, error: { message: "armed before the password was set" } }
+        }
+        db.calls.push("armFlag")
+        db.armed.push(String(args.p_profile_id))
+        return { data: null, error: null }
+      }
       db.calls.push(`rpc:${fn}`)
       if (db.failRevoke) return { data: null, error: { code: "42501", message: "denied" } }
-      db.revoked.push(args.p_user_id)
+      db.revoked.push(String(args.p_user_id))
       return { data: 1, error: null }
     },
     from(table: string) {
@@ -52,13 +64,6 @@ function client() {
           const p = table === "profiles" && filterId ? db.profiles[filterId] : undefined
           return p ? { data: { id: filterId, ...p }, error: null } : { data: null, error: { message: "not found" } }
         },
-        update: (row: Row) => ({
-          eq: async (_c: string, v: string) => {
-            db.calls.push("forceChange")
-            if (table === "profiles" && db.profiles[v]) db.profiles[v] = { ...db.profiles[v], ...row }
-            return { error: null }
-          },
-        }),
         insert: async (row: Row) => {
           db.calls.push("insertAudit")
           if (db.failAuditInsert) return { error: { message: "denied" } }
@@ -92,6 +97,8 @@ beforeEach(async () => {
   db.audit = []
   db.passwords = {}
   db.revoked = []
+  db.armed = []
+  db.armedBeforePassword = false
   db.failAuditInsert = false
   db.failUpdateWith = null
   db.failRevoke = false
@@ -152,7 +159,9 @@ describe("admin-reset-staff-password handler (hardened)", () => {
     const res = await call({ profileId: "u-sales", password: "typed phrase 4271" })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, generated: false, sessionsRevoked: true, forcedChange: true })
-    expect(db.calls).toEqual(["insertAudit", "updateUser", "forceChange", "rpc:revoke_user_sessions", "insertAudit"])
+    expect(db.calls).toEqual(["insertAudit", "updateUser", "armFlag", "rpc:revoke_user_sessions", "insertAudit"])
+    expect(db.armed).toEqual(["u-sales"])
+    expect(db.armedBeforePassword).toBe(false)
     expect(db.passwords["u-sales"]).toBe("typed phrase 4271")
     expect(db.revoked).toEqual(["u-sales"]) // F-01
     expect(db.audit).toHaveLength(2)
@@ -160,6 +169,23 @@ describe("admin-reset-staff-password handler (hardened)", () => {
     expect(startRow().after).toMatchObject({ phase: "start", result: "pending", actor_name: "Ramesh Kumar", target_role: "sales_admin", generated: false })
     expect(resultRow().after).toMatchObject({ phase: "result", result: "ok", sessions_revoked: true })
     expect(JSON.stringify(db.audit)).not.toContain("typed phrase 4271")
+  })
+
+  it("ORDER: the password is set FIRST and the forced change armed SECOND (a reversed order records the old hash and fails this test)", async () => {
+    const res = await call({ profileId: "u-sales", password: GOOD_PW })
+    expect(res.status).toBe(200)
+    expect(db.armedBeforePassword).toBe(false)
+    expect(db.calls.indexOf("updateUser")).toBeGreaterThan(-1)
+    expect(db.calls.indexOf("updateUser")).toBeLessThan(db.calls.indexOf("armFlag"))
+    expect((await res.json()).forcedChange).toBe(true)
+  })
+
+  it("if the password update fails nothing is armed", async () => {
+    db.failUpdateWith = { code: "unexpected_failure", message: "boom" }
+    const res = await call({ profileId: "u-sales", password: GOOD_PW })
+    expect(res.status).toBe(400)
+    expect(db.armed).toEqual([])
+    expect(db.calls).not.toContain("armFlag")
   })
 
   it("F-01: if session revocation fails the reset still succeeds but says so, in the response and in the audit completion row", async () => {

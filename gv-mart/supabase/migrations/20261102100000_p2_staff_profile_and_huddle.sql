@@ -1,29 +1,63 @@
 -- P2 (client list 12-10-2026 items 3 and 7). Design: gv-mart/docs/design-p2-staff-profile-huddle.md
 --
---   profiles.designation, profiles.address        taken when a staff member is created; master-only to change
+--   profiles.designation, profiles.task_color     non-personal profile fields (master-only to change)
 --   profiles.must_change_password                 new staff (and a staff password reset) must change the password at first login
---   profiles.password_marker                      md5 of the password hash at the moment the flag was set (never the password)
---   profiles.task_color                           one colour per person, assigned automatically, master can change
+--   profile_password_markers                      PRIVATE: md5 of the password hash when the flag was armed (RLS on, no policy, no grant)
+--   staff_private (address)                       PRIVATE: only the person, the master and operation_admin can read it
 --   meeting_issues.solution_by, solved_by         who gave the solution, who marked it solved (stamped by the database)
 --   notifications to the master                   when a problem is raised, a solution is given, or an issue is solved
---   raise_huddle_issue / propose_huddle_solution  technicians may raise a problem and propose a solution (not edit others')
+--   raise_huddle_issue / propose_huddle_solution  technicians may raise a problem (10 a day) and propose a solution
+--   wa_send_huddle_reminder                       a log that only holds technician-raised problems no longer counts as "huddle held"
 --
--- Existing staff are NOT forced to change their password: the flag defaults to false and is only ever set for new staff
--- (admin-create-staff) and after a master's password reset (admin-reset-staff-password), both service-role paths.
--- A client can never set or clear the flag: it is cleared only by complete_forced_password_change(), which clears it only when the
--- password hash differs from the one recorded when the flag was set.
+-- Existing staff are NOT forced to change their password: the flag defaults to false and is only set for new staff
+-- (admin-create-staff inserts the profile with the flag on, AFTER the password exists) and after a master's reset
+-- (admin-reset-staff-password calls arm_forced_password_change AFTER the password was changed). A client can never set or clear
+-- the flag: it is cleared only by complete_forced_password_change(), which clears it only when the password hash differs from
+-- the one recorded when the flag was armed.
 --
 -- Rollback: supabase/rollbacks/20261102100000_p2_staff_profile_and_huddle.rollback.sql
 
 -- 1. profile columns --------------------------------------------------------------------------------------------------
 alter table public.profiles
   add column designation text check (designation is null or char_length(btrim(designation)) between 1 and 80),
-  add column address text check (address is null or char_length(btrim(address)) between 1 and 400),
   add column must_change_password boolean not null default false,
-  add column password_marker text,
   add column task_color text check (task_color is null or task_color ~ '^#[0-9a-fA-F]{6}$');
 
--- 2. who may write them -------------------------------------------------------------------------------------------------
+-- 2. private tables ------------------------------------------------------------------------------------------------------
+-- The password marker is never readable through the API: RLS is on and there is NO policy; no API role holds a privilege.
+-- Only the SECURITY DEFINER functions below (owner) touch it.
+create table public.profile_password_markers (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  marker text not null,
+  armed_at timestamptz not null default now()
+);
+alter table public.profile_password_markers enable row level security;
+revoke all on public.profile_password_markers from public, anon, authenticated, service_role;
+
+-- Personal staff details. profiles is readable by every staff role and (for a technician's own row) by customers, so an address
+-- must not live there. Readable by the person themselves, the master and operation_admin of the same organisation; writable by the
+-- master only (and by the service role through admin-create-staff). Technicians and sales_admin cannot read other people's rows.
+create table public.staff_private (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  org_id uuid not null references public.organizations (id) on delete cascade,
+  address text check (address is null or char_length(btrim(address)) between 1 and 400),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index staff_private_org_idx on public.staff_private (org_id);
+alter table public.staff_private enable row level security;
+create policy staff_private_select on public.staff_private for select
+  using (profile_id = auth.uid() or (org_id = public.current_org_id() and public.is_ops_staff()));
+create policy staff_private_write_master on public.staff_private for all
+  using (org_id = public.current_org_id() and public.is_master())
+  with check (org_id = public.current_org_id() and public.is_master());
+revoke all on public.staff_private from public, anon, authenticated;
+grant select, insert, update on public.staff_private to authenticated;
+grant select, insert, update, delete on public.staff_private to service_role;
+create trigger set_updated_at before update on public.staff_private for each row execute function public.set_updated_at();
+-- no audit_master_change trigger on purpose: it would copy the address into audit_log, which every staff role can read
+
+-- 3. who may write the profile fields -------------------------------------------------------------------------------------
 create or replace function public.guard_profile_staff_fields()
 returns trigger
 language plpgsql
@@ -36,20 +70,17 @@ begin
     return new;
   end if;
   if tg_op = 'INSERT' then
-    if new.must_change_password or new.password_marker is not null then
+    if new.must_change_password then
       raise exception 'profiles: the forced password change flag can only be set by the system';
     end if;
     return new;
   end if;
-  if new.must_change_password is distinct from old.must_change_password
-     or new.password_marker is distinct from old.password_marker then
+  if new.must_change_password is distinct from old.must_change_password then
     raise exception 'profiles: the forced password change flag can only be set by the system';
   end if;
-  if (new.designation is distinct from old.designation
-      or new.address is distinct from old.address
-      or new.task_color is distinct from old.task_color)
+  if (new.designation is distinct from old.designation or new.task_color is distinct from old.task_color)
      and not public.is_master() then
-    raise exception 'profiles: only the master can change designation, address or colour';
+    raise exception 'profiles: only the master can change designation or colour';
   end if;
   return new;
 end;
@@ -60,23 +91,23 @@ create trigger guard_profile_staff_fields
   before insert or update on public.profiles
   for each row execute function public.guard_profile_staff_fields();
 
--- 3. the password marker ---------------------------------------------------------------------------------------------------
--- Computed when the flag is turned on (or turned on again with no marker): md5 of the current password hash. SECURITY DEFINER
--- because auth.users is not readable by the API roles. Named zz_ so it fires after the guard above (the guard must see the
--- client's own values, not the marker this trigger fills in).
+-- 4. the password marker -----------------------------------------------------------------------------------------------------
+-- search_path is EMPTY and every object is schema-qualified: these functions read auth.users.
 create or replace function public._trg_profile_password_marker()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   if new.must_change_password then
-    if tg_op = 'INSERT' or old.must_change_password is not true or new.password_marker is null then
-      select md5(coalesce(u.encrypted_password, '')) into new.password_marker from auth.users u where u.id = new.id;
+    if tg_op = 'INSERT' or old.must_change_password is not true then
+      insert into public.profile_password_markers (profile_id, marker)
+      select new.id, pg_catalog.md5(coalesce(u.encrypted_password, '')) from auth.users u where u.id = new.id
+      on conflict (profile_id) do update set marker = excluded.marker, armed_at = pg_catalog.now();
     end if;
   else
-    new.password_marker := null;
+    delete from public.profile_password_markers where profile_id = new.id;
   end if;
   return new;
 end;
@@ -84,15 +115,37 @@ $$;
 revoke all on function public._trg_profile_password_marker() from public, anon, authenticated;
 drop trigger if exists zz_profile_password_marker on public.profiles;
 create trigger zz_profile_password_marker
-  before insert or update on public.profiles
+  after insert or update of must_change_password on public.profiles
   for each row execute function public._trg_profile_password_marker();
 
--- 4. clearing the flag ------------------------------------------------------------------------------------------------------
+-- Arms (or re-arms) the flag for a person whose password was JUST set. Service role only: the Edge Functions call it after
+-- updating the password, never before, so the recorded marker is the hash of the password that was shared.
+create or replace function public.arm_forced_password_change(p_profile_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.profile_password_markers (profile_id, marker)
+  select p.id, pg_catalog.md5(coalesce(u.encrypted_password, ''))
+    from public.profiles p join auth.users u on u.id = p.id
+   where p.id = p_profile_id
+  on conflict (profile_id) do update set marker = excluded.marker, armed_at = pg_catalog.now();
+  if not found then
+    raise exception 'arm_forced_password_change: profile % not found', p_profile_id;
+  end if;
+  update public.profiles set must_change_password = true where id = p_profile_id;
+end;
+$$;
+revoke all on function public.arm_forced_password_change(uuid) from public, anon, authenticated;
+grant execute on function public.arm_forced_password_change(uuid) to service_role;
+
 create or replace function public.complete_forced_password_change()
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_marker text;
@@ -101,15 +154,15 @@ begin
   if auth.uid() is null then
     raise exception 'not signed in';
   end if;
-  select p.password_marker into v_marker from public.profiles p where p.id = auth.uid() and p.must_change_password;
-  if not found then
+  if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.must_change_password) then
     return true;                         -- nothing to do
   end if;
-  select md5(coalesce(u.encrypted_password, '')) into v_now from auth.users u where u.id = auth.uid();
+  select m.marker into v_marker from public.profile_password_markers m where m.profile_id = auth.uid();
+  select pg_catalog.md5(coalesce(u.encrypted_password, '')) into v_now from auth.users u where u.id = auth.uid();
   if v_marker is not null and v_now = v_marker then
     raise exception 'the password has not been changed yet';
   end if;
-  update public.profiles set must_change_password = false, password_marker = null where id = auth.uid();
+  update public.profiles set must_change_password = false where id = auth.uid();
   return true;
 end;
 $$;
@@ -142,8 +195,7 @@ end;
 $$;
 revoke all on function public._hsl_hex(numeric, numeric, numeric) from public, anon, authenticated;
 
--- golden-angle hue steps: the n-th person in an organisation gets a hue 137.5 degrees from the previous one, so any number of people
--- get clearly different colours. The master can overwrite a colour.
+-- golden-angle hue steps: the n-th person in an organisation gets a hue 137.5 degrees from the previous one. The master can overwrite it.
 create or replace function public._trg_profile_assign_color()
 returns trigger
 language plpgsql
@@ -166,7 +218,7 @@ create trigger zy_profile_assign_color
   before insert on public.profiles
   for each row execute function public._trg_profile_assign_color();
 
--- existing staff and technicians: numbered per organisation by creation time (set-based; the guard is bypassed because this runs as owner)
+-- existing staff and technicians: numbered per organisation by creation time (runs as owner, so the guard does not apply)
 with ranked as (
   select p.id, row_number() over (partition by p.org_id order by p.created_at, p.id) - 1 as n
   from public.profiles p
@@ -262,7 +314,10 @@ create trigger meeting_issues_notify
   after insert or update on public.meeting_issues
   for each row execute function public._trg_meeting_issue_notify();
 
--- 8. technicians raise and propose (they still cannot edit anyone else's issue) ---------------------------------------------
+-- 8. technicians raise and propose (they still cannot edit or solve anyone's issue) -------------------------------------------
+-- A raised problem needs today's meeting log (meeting_id is NOT NULL), so the function creates one if there is none. That log is
+-- created with recorded_by = NULL and no notes, and the huddle reminder (section 9) ignores such a log, so a technician raising a
+-- problem at 9 a.m. does not silence the "huddle not logged yet" reminder.
 create or replace function public.raise_huddle_issue(p_description text)
 returns uuid
 language plpgsql
@@ -275,6 +330,7 @@ declare
   v_meeting uuid;
   v_id uuid;
   v_desc text := btrim(coalesce(p_description, ''));
+  v_today integer;
 begin
   if auth.uid() is null or not (public.is_staff() or public.current_technician_is_active()) then
     raise exception 'not permitted: only staff or an active technician can raise a huddle problem';
@@ -282,8 +338,15 @@ begin
   if char_length(v_desc) < 3 or char_length(v_desc) > 1000 then
     raise exception 'describe the problem in 3 to 1000 characters';
   end if;
+  -- a technician may raise at most 10 problems a day (staff are not limited)
+  if not public.is_staff() then
+    select count(*) into v_today from public.meeting_issues i where i.org_id = v_org and i.raised_by = auth.uid() and i.date_raised = v_date;
+    if v_today >= 10 then
+      raise exception 'you have already raised 10 problems today; tell the office directly';
+    end if;
+  end if;
   insert into public.meeting_logs (org_id, meeting_date, recorded_by)
-  values (v_org, v_date, case when public.is_staff() then auth.uid() end)
+  values (v_org, v_date, null)
   on conflict (org_id, meeting_date) do nothing;
   select id into v_meeting from public.meeting_logs where org_id = v_org and meeting_date = v_date;
   insert into public.meeting_issues (org_id, meeting_id, description, raised_by, date_raised)
@@ -326,5 +389,46 @@ end;
 $$;
 revoke all on function public.propose_huddle_solution(uuid, text) from public, anon, authenticated;
 grant execute on function public.propose_huddle_solution(uuid, text) to authenticated, service_role;
+
+-- 9. the huddle reminder: a log holding only technician-raised problems is not "huddle held" ----------------------------------
+-- Same function, same signature and grants as 20260929100000; the only change is the not-exists test: a log counts only when staff
+-- recorded it (recorded_by set) or it carries notes.
+create or replace function public.wa_send_huddle_reminder(p_org_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_now_ist timestamp := (now() at time zone 'Asia/Kolkata');
+  v_today date := v_now_ist::date;
+  v_claimed integer;
+  v_role public.user_role;
+begin
+  -- Atomic claim: only one caller per day passes, and only when past the cutoff and no staff-recorded log exists yet.
+  update public.settings s
+     set huddle_reminder_last_date = v_today
+   where s.org_id = p_org_id
+     and s.huddle_reminder_time is not null
+     and v_now_ist::time >= s.huddle_reminder_time
+     and (s.huddle_reminder_last_date is null or s.huddle_reminder_last_date < v_today)
+     and not exists (
+       select 1 from public.meeting_logs m
+        where m.org_id = p_org_id and m.meeting_date = v_today
+          and (m.recorded_by is not null or btrim(coalesce(m.general_notes, '')) <> '')
+     );
+  get diagnostics v_claimed = row_count;
+  if v_claimed = 0 then
+    return 0;
+  end if;
+
+  foreach v_role in array array['master', 'operation_admin', 'sales_admin']::public.user_role[] loop
+    insert into public.notifications (org_id, role, type, title, body)
+    values (p_org_id, v_role, 'huddle_reminder', 'Daily huddle not logged yet',
+            'No huddle log has been recorded for today. Open Daily Huddle to record it.');
+  end loop;
+  return 1;
+end;
+$$;
 
 notify pgrst, 'reload schema';

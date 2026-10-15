@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
+import { useMustChangePassword } from "@/hooks/useMustChangePassword"
 import { roleHomePath } from "@/lib/roles"
 import { supabase } from "@/lib/supabase"
 import { signOut } from "@/services/auth"
@@ -24,14 +25,15 @@ export function ChangePasswordPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: profile, isLoading } = useProfile()
+  const mustChange = useMustChangePassword()
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (isLoading) return <FullPageLoader label={t("common.loading")} />
+  if (isLoading || mustChange.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (!profile) return <Navigate to="/login" replace />
-  if (!profile.must_change_password) return <Navigate to={roleHomePath(profile.role)} replace />
+  if (mustChange.data !== true) return <Navigate to={roleHomePath(profile.role)} replace />
 
   const tooShort = password.length > 0 && new TextEncoder().encode(password).length < MIN_LENGTH
   const mismatch = confirm.length > 0 && confirm !== password
