@@ -5,8 +5,8 @@
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   cf5854e0ff57b17598589919122ca64a13392baba1ca928a8ca43b1876d02df2  gv-mart/supabase/migrations/20261030100000_technician_table.sql
---   86231360170550328e1799c6ab5d8af22f15fe662d6687b257461b922a7582bc  gv-mart/supabase/tests/technician_table.test.sql
+--   1480f8ad5659040df86693c9042313aa87ac55b4df50ad891aa576507092bbe6  gv-mart/supabase/migrations/20261030100000_technician_table.sql
+--   c6e9aefc559365a8774216b831029e868f2fc6e808639233c272bf56c6925a4d  gv-mart/supabase/tests/technician_table.test.sql
 
 do $rehearsal$
 declare
@@ -28,10 +28,16 @@ begin
 -- Definitions (owner):
 --   revenue       = the invoice totals (invoices.total) of COMPLETED jobs. A completed ticket's invoice is credited to the technician
 --                   of the ticket's last finished visit, in the period of that visit's end (IST). Not service_charge, not collected.
---   working days  = Monday to Saturday between the period start and min(period end, today IST), minus org_holidays, counted from
---                   the day the technician record was created.
+--   working days  = Monday to Saturday between the period start and min(period end, YESTERDAY IST) (completed days only; today is
+--                   never counted), minus org_holidays, counted from the day the technician record was created in the system
+--                   (technicians has no joining-date field; a technician who joined earlier than their record shows is counted
+--                   from the record date, and the screen says so).
 --   absent days   = working days minus the working days the technician was present (an attendance check-in) or on leave
 --                   (technician_availability status 'leave'). A day that is both present and leave counts once.
+--   real sales    = this schema has NO void / cancelled / draft invoice state: payment_status is only paid | partial | due, and all
+--                   three are sales (a due invoice is a receivable, not a void one). What can make an invoice not a real sale is
+--                   its ticket: an invoice attached to a ticket that is not completed (cancelled, open ...) is left out of revenue,
+--                   the invoiced count and every referral sum. Invoices not tied to any ticket (sales, AMC) always count.
 --   Google reviews: NOT in this table (no per-technician Google review column anywhere).
 --   referral revenue: invoice totals stamped to the technician, split service (the invoice belongs to a service ticket), AMC
 --                   (type amc) and sales (everything else). FORWARD-ONLY: only invoices created after this migration are stamped;
@@ -124,7 +130,7 @@ begin
   if p_to - p_from > 366 then
     raise exception 'the date range is limited to 366 days';
   end if;
-  v_end := least(p_to, v_today);
+  v_end := least(p_to, v_today - 1);          -- completed days only: today is never counted
 
   return query
   with techs as (
@@ -134,7 +140,7 @@ begin
       left join public.profiles pr on pr.id = t.profile_id
      where t.org_id = v_org
   ),
-  days as (        -- Monday to Saturday, from the technician's start, up to today
+  days as (        -- Monday to Saturday, from the technician's record date, up to yesterday
     select t.id as tech_id, g::date as d
       from techs t
       cross join lateral generate_series(t.d_from::timestamp, v_end::timestamp, interval '1 day') g
@@ -199,6 +205,7 @@ begin
            sum(i.total) filter (where i.type::text <> 'amc' and not exists (select 1 from public.service_tickets st where st.invoice_id = i.id)) as sales
       from public.invoices i
      where i.org_id = v_org and i.referred_by_technician_id is not null
+       and not exists (select 1 from public.service_tickets st where st.invoice_id = i.id and st.status <> 'completed')
        and (i.created_at at time zone 'Asia/Kolkata')::date between p_from and p_to
        and not public.is_test_customer(i.customer_id)
      group by i.referred_by_technician_id
@@ -234,7 +241,7 @@ grant execute on function public.report_technician_table(date, date) to authenti
 notify pgrst, 'reload schema';
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'cf5854e0ff57b17598589919122ca64a13392baba1ca928a8ca43b1876d02df2' then
+  if v_hash <> '1480f8ad5659040df86693c9042313aa87ac55b4df50ad891aa576507092bbe6' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261030100000_technician_table.sql: %', v_hash;
   end if;
   execute v_text;
@@ -355,8 +362,17 @@ begin
   perform pg_temp.as_user(v_ops);
   select * into r from report_technician_table(v_today, v_today + 30) where technician_id = v_t1;
   perform pg_temp.as_pg();
-  perform pg_temp.chk('future dates are never counted: at most today',
-    r.working_days <= 1, r.working_days::text);
+  perform pg_temp.chk('today and future dates are never counted (completed days only)',
+    r.working_days = 0, r.working_days::text);
+  perform pg_temp.as_user(v_ops);
+  select * into r from report_technician_table(v_today, v_today) where technician_id = v_t1;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('a window that is only today has no working days and no absent days', r.working_days = 0 and r.absent_days = 0, r.working_days::text);
+  perform pg_temp.as_user(v_ops);
+  select * into r from report_technician_table(v_today - 1, v_today) where technician_id = v_t1;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('yesterday counts when it is a working day, today does not',
+    r.working_days = (case when extract(isodow from v_today - 1) between 1 and 6 then 1 else 0 end), r.working_days::text);
 
   -- ---------- revenue and jobs ----------
   v_vis := pg_temp.job(v_org, v_c, v_t1, 1000, v_from + 1);
@@ -387,6 +403,19 @@ begin
   perform pg_temp.as_pg();
   perform pg_temp.chk('a ticket that is not completed adds no revenue', r.revenue = 3500);
 
+  -- ---------- what is a real sale: no void state exists; a ticket that is not completed is not one ----------
+  perform pg_temp.chk('the schema has no void / cancelled / draft invoice state (payment_status is paid | partial | due only)',
+    (select array_agg(e.enumlabel order by e.enumsortorder) from pg_enum e where e.enumtypid = 'public.payment_status'::regtype) = array['paid', 'partial', 'due']
+    and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'invoices'
+                      and (column_name ilike '%void%' or column_name ilike '%cancel%' or column_name = 'status' or column_name ilike '%draft%')),
+    'if this fails a new invoice state exists: revisit report_technician_table');
+  -- a DUE (unpaid) completed job is still revenue
+  v_vis := pg_temp.job(v_org, v_c, v_t2, 300, v_from + 5);
+  perform pg_temp.as_user(v_ops);
+  select * into r from report_technician_table(v_from, v_to) where technician_id = v_t2;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('an unpaid (due) invoice of a completed job counts as revenue', r.revenue >= 300 + 400, r.revenue::text);
+
   -- ---------- referral revenue: forward-only stamp ----------
   insert into leads (org_id, customer_id, name, source, status, owner_id) values (v_org, v_cref, '__TEST_ referral', 'referral', 'won', v_t1);
   v_inv := null;
@@ -408,6 +437,17 @@ begin
   perform pg_temp.as_pg();
   perform pg_temp.chk('the technician who did the referred service job gets the job revenue, not the referral revenue',
     r.referral_total = 0 and r.revenue >= 600, r.referral_total::text || '/' || r.revenue::text);
+
+  -- an invoice whose ticket was CANCELLED is not a real sale: left out of the referral sums (and never in revenue)
+  insert into leads (org_id, customer_id, name, source, status, owner_id) values (v_org, v_cref, '__TEST_ referral again', 'referral', 'won', v_t1);
+  insert into invoices (org_id, customer_id, type, subtotal, total, payment_status) values (v_org, v_cref, 'spare', 4000, 4000, 'due') returning id into v_inv;
+  insert into service_tickets (org_id, customer_id, type, name_of_complaint, invoice_id, status) values (v_org, v_cref, 'paid', '__TEST_ cancelled', v_inv, 'cancelled');
+  perform pg_temp.as_user(v_ops);
+  select * into r from report_technician_table(v_today - 2, v_today + 1) where technician_id = v_t1;
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('an invoice of a cancelled ticket is stamped but not counted in referral revenue',
+    (select referred_by_technician_id from invoices where id = v_inv) = v_t1 and r.referral_service = 600 and r.referral_total = 11600,
+    r.referral_service::text || '/' || r.referral_total::text);
 
   -- 30-day window and lost leads
   update leads set created_at = now() - interval '45 days' where org_id = v_org and customer_id = v_cref;
@@ -460,7 +500,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '86231360170550328e1799c6ab5d8af22f15fe662d6687b257461b922a7582bc' then
+  if v_hash <> 'c6e9aefc559365a8774216b831029e868f2fc6e808639233c272bf56c6925a4d' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for technician_table.test.sql: %', v_hash;
   end if;
   execute v_text;
