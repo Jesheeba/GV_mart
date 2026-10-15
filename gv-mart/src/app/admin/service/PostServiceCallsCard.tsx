@@ -3,6 +3,7 @@ import { Phone } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
 import { useTicketPostServiceCalls } from "@/hooks/usePostServiceFollowups"
+import { PostServiceAnswersList } from "@/components/shared/PostServiceAnswersList"
 import { formatIstDateTime } from "@/lib/lead-followups"
 import { canWorkFollowups } from "@/hooks/useLeadFollowups"
 import type { UserRole } from "@/lib/roles"
@@ -35,6 +36,7 @@ export function PostServiceCallsCard({ ticketId }: { ticketId: string }) {
               </span>
             </p>
             {c.note ? <p className="mt-0.5 whitespace-pre-wrap text-text">{c.note}</p> : null}
+            <PostServiceAnswersList answers={c.post_service_call_answers ?? []} />
           </li>
         ))}
       </ul>

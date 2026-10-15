@@ -14,6 +14,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { postServiceOutcomeInUse, type PostServiceOutcomeRow } from "@/services/masters"
 import { POST_SERVICE_TICKET_TYPES } from "@/services/postServiceFollowups"
 import { leadSourceKeyFromLabel } from "@/lib/lead-sources"
+import { FollowupQuestionsSection } from "./FollowupQuestionsSection"
 import type { UserRole } from "@/lib/roles"
 
 /**
@@ -25,6 +26,7 @@ export function PostServiceCallsTab() {
     <div className="space-y-5">
       <SettingsCard />
       <OutcomesList />
+      <FollowupQuestionsSection />
     </div>
   )
 }

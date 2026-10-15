@@ -460,6 +460,11 @@
         "invoiceTitle": "{{type}} விலைப்பட்டியல்",
         "wasLate": "தாமதம்"
       },
+        "postServiceCalls": {
+          "title": "Post-service calls",
+          "empty": "No post-service calls for this customer yet.",
+          "followupNeeded": "Follow-up needed"
+        },
       "tabs": {
         "products": "பொருட்கள்",
         "service": "சேவை வரலாறு",
@@ -467,7 +472,8 @@
         "family": "குடும்பம்",
         "exemptions": "விலக்குகள்",
         "rentals": "வாடகைகள்",
-        "whatsapp": "வாட்ஸ்அப்"
+        "whatsapp": "வாட்ஸ்அப்",
+        "calls": "Calls"
       },
       "rentals": {
         "startDate": "{{date}} அன்று தொடங்கியது",
@@ -605,6 +611,43 @@
     }
   },
   "masters": {
+      "followupQuestions": {
+        "title": "Questions for post-service calls",
+        "hint": "These are asked on the call sheet. Questions are never deleted: turn one off and earlier answers keep their wording. A question with no ticket type selected applies to every type.",
+        "add": "Add question",
+        "empty": "No questions yet.",
+        "textEn": "Question (English)",
+        "textTa": "Question (Tamil)",
+        "answerType": "Answer type",
+        "types": {
+          "yes_no": "Yes / No",
+          "choice": "Choices",
+          "rating": "Rating 1-5",
+          "text": "Free text"
+        },
+        "choices": "Choices",
+        "choicesPlaceholder": "One per line: English | Tamil (optional). Only for the Choices type.",
+        "required": "Required",
+        "order": "Order",
+        "appliesTo": "Applies to ticket types",
+        "allTypes": "all types",
+        "cannotDelete": "Questions are turned off, not deleted, so earlier answers keep their wording.",
+        "errors": {
+          "choices_count": "A choice question needs 2 to 10 choices, one per line.",
+          "choices_label": "Every choice needs an English label.",
+          "choices_duplicate": "Two choices have the same name."
+        },
+        "reportTitle": "Answers report",
+        "reportHint": "Answers per question for the dates chosen (test customers left out). Read-only.",
+        "from": "From",
+        "to": "To",
+        "badRange": "The end date must not be before the start date.",
+        "reportEmpty": "No answers in this period.",
+        "reportAnswers": "Answers",
+        "reportSummary": "Summary",
+        "average": "Average",
+        "textCount": "{{count}} written answer(s)"
+      },
     "pageTitle": "மாஸ்டர்ஸ் & அமைப்புகள்",
     "groups": {
       "dailyFollowup": "தினசரி பின்தொடர்தல்"
@@ -3586,7 +3629,14 @@
       "callAgain": "மீண்டும் அழைக்கும் நாள்",
       "saved": "அழைப்பு பதிவு செய்யப்பட்டது.",
       "savedRetry": "அழைப்பு பதிவு செய்யப்பட்டது. அடுத்த அழைப்பு: {{when}}",
-      "savedAlert": "அழைப்பு பதிவு செய்யப்பட்டது. மாஸ்டர் மற்றும் செயல்பாட்டுக் குழுவுக்குத் தெரிவிக்கப்பட்டது."
+      "savedAlert": "அழைப்பு பதிவு செய்யப்பட்டது. மாஸ்டர் மற்றும் செயல்பாட்டுக் குழுவுக்குத் தெரிவிக்கப்பட்டது.",
+        "questionsTitle": "Questions for this call",
+        "questionsOptional": "Answers are optional for this result.",
+        "requiredMissing": "{{count}} required question(s) still need an answer.",
+        "questionsFailed": "The questions could not be loaded. Close and open this sheet again.",
+        "answerPlaceholder": "Type the customer's answer",
+        "followupNeeded": "Is another follow-up needed?",
+        "followupNeededHint": "Choose Yes to keep this call open and pick the next date. Leave it empty to close the call."
     },
     "outcomeSheet": {
       "title": "முடிவைப் பதிவு செய்",

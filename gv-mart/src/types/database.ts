@@ -5253,6 +5253,95 @@ export type Database = {
           note: string | null
           called_by: string | null
           called_at: string
+          followup_needed: boolean | null
+        }
+        // Read-only from the client: written by log_post_service_call.
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      followup_questions: {
+        Row: {
+          id: string
+          org_id: string
+          code: string
+          scope: string | null
+          text_en: string
+          text_ta: string
+          answer_type: "yes_no" | "choice" | "rating" | "text"
+          choices: Json | null
+          is_required: boolean
+          is_active: boolean
+          sort_order: number
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        // answer_type cannot be changed after creation; there is no DELETE grant (deactivate instead).
+        Insert: {
+          id?: string
+          org_id: string
+          code?: string
+          scope?: string | null
+          text_en: string
+          text_ta?: string
+          answer_type: "yes_no" | "choice" | "rating" | "text"
+          choices?: Json | null
+          is_required?: boolean
+          is_active?: boolean
+          sort_order?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          scope?: string | null
+          text_en?: string
+          text_ta?: string
+          choices?: Json | null
+          is_required?: boolean
+          is_active?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      followup_question_ticket_types: {
+        Row: {
+          id: string
+          org_id: string
+          question_id: string
+          ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          question_id: string
+          ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"
+          created_at?: string
+        }
+        Update: {
+          ticket_type?: "paid" | "warranty" | "amc" | "installation" | "rental"
+        }
+        Relationships: []
+      }
+      post_service_call_answers: {
+        Row: {
+          id: string
+          org_id: string
+          call_id: string
+          question_id: string
+          ticket_id: string
+          customer_id: string | null
+          question_text_en: string
+          question_text_ta: string
+          answer_type: "yes_no" | "choice" | "rating" | "text"
+          question_choices: Json | null
+          answer_bool: boolean | null
+          answer_int: number | null
+          answer_text: string | null
+          created_at: string
         }
         // Read-only from the client: written by log_post_service_call.
         Insert: never
@@ -7439,8 +7528,43 @@ export type Database = {
         }[]
       }
       log_post_service_call: {
-        Args: { p_followup_id: string; p_outcome_id: string; p_note?: string | null; p_next_due_at?: string | null }
+        Args: {
+          p_followup_id: string
+          p_outcome_id: string
+          p_note?: string | null
+          p_next_due_at?: string | null
+          p_answers?: Json | null
+          p_followup_needed?: boolean | null
+        }
         Returns: Json
+      }
+      get_post_service_questions: {
+        Args: { p_followup_id: string }
+        Returns: {
+          id: string
+          text_en: string
+          text_ta: string
+          answer_type: "yes_no" | "choice" | "rating" | "text"
+          choices: Json | null
+          is_required: boolean
+          sort_order: number
+        }[]
+      }
+      report_followup_question_answers: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          question_id: string
+          text_en: string
+          text_ta: string
+          answer_type: "yes_no" | "choice" | "rating" | "text"
+          answers: number
+          yes_count: number
+          no_count: number
+          rating_avg: number | null
+          rating_counts: Json | null
+          choice_counts: Json | null
+          text_count: number
+        }[]
       }
       list_followups: {
         Args: {

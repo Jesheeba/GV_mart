@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
+import { CustomerPostServiceCallsCard } from "./CustomerPostServiceCallsCard"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
 
@@ -521,6 +522,9 @@ export function CustomerDetailPage() {
           <TabsTrigger value="rentals">
             {t("customers.detail.tabs.rentals")} ({(rentals.data ?? []).filter((r) => r.status === "active").length})
           </TabsTrigger>
+          {profile?.role === "master" || profile?.role === "sales_admin" || profile?.role === "operation_admin" ? (
+            <TabsTrigger value="calls">{t("customers.detail.tabs.calls")}</TabsTrigger>
+          ) : null}
           <TabsTrigger value="whatsapp">{t("customers.detail.tabs.whatsapp")}</TabsTrigger>
         </TabsList>
 
@@ -556,6 +560,10 @@ export function CustomerDetailPage() {
               ))
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="calls" className="mt-3.5">
+          <CustomerPostServiceCallsCard customerId={customer.id} />
         </TabsContent>
 
         <TabsContent value="family" className="mt-3.5">

@@ -460,6 +460,11 @@
         "invoiceTitle": "{{type}} invoice",
         "wasLate": "Late"
       },
+        "postServiceCalls": {
+          "title": "Post-service calls",
+          "empty": "No post-service calls for this customer yet.",
+          "followupNeeded": "Follow-up needed"
+        },
       "tabs": {
         "products": "Products",
         "service": "Service History",
@@ -467,7 +472,8 @@
         "family": "Family",
         "exemptions": "Exemptions",
         "rentals": "Rentals",
-        "whatsapp": "WhatsApp"
+        "whatsapp": "WhatsApp",
+        "calls": "Calls"
       },
       "rentals": {
         "startDate": "Started {{date}}",
@@ -605,6 +611,43 @@
     }
   },
   "masters": {
+      "followupQuestions": {
+        "title": "Questions for post-service calls",
+        "hint": "These are asked on the call sheet. Questions are never deleted: turn one off and earlier answers keep their wording. A question with no ticket type selected applies to every type.",
+        "add": "Add question",
+        "empty": "No questions yet.",
+        "textEn": "Question (English)",
+        "textTa": "Question (Tamil)",
+        "answerType": "Answer type",
+        "types": {
+          "yes_no": "Yes / No",
+          "choice": "Choices",
+          "rating": "Rating 1-5",
+          "text": "Free text"
+        },
+        "choices": "Choices",
+        "choicesPlaceholder": "One per line: English | Tamil (optional). Only for the Choices type.",
+        "required": "Required",
+        "order": "Order",
+        "appliesTo": "Applies to ticket types",
+        "allTypes": "all types",
+        "cannotDelete": "Questions are turned off, not deleted, so earlier answers keep their wording.",
+        "errors": {
+          "choices_count": "A choice question needs 2 to 10 choices, one per line.",
+          "choices_label": "Every choice needs an English label.",
+          "choices_duplicate": "Two choices have the same name."
+        },
+        "reportTitle": "Answers report",
+        "reportHint": "Answers per question for the dates chosen (test customers left out). Read-only.",
+        "from": "From",
+        "to": "To",
+        "badRange": "The end date must not be before the start date.",
+        "reportEmpty": "No answers in this period.",
+        "reportAnswers": "Answers",
+        "reportSummary": "Summary",
+        "average": "Average",
+        "textCount": "{{count}} written answer(s)"
+      },
     "pageTitle": "Masters & Settings",
     "groups": {
       "dailyFollowup": "Daily Followup"
@@ -3591,7 +3634,14 @@
       "callAgain": "Call again on",
       "saved": "Call logged.",
       "savedRetry": "Call logged. Next call: {{when}}",
-      "savedAlert": "Call logged. Master and operations have been notified."
+      "savedAlert": "Call logged. Master and operations have been notified.",
+        "questionsTitle": "Questions for this call",
+        "questionsOptional": "Answers are optional for this result.",
+        "requiredMissing": "{{count}} required question(s) still need an answer.",
+        "questionsFailed": "The questions could not be loaded. Close and open this sheet again.",
+        "answerPlaceholder": "Type the customer's answer",
+        "followupNeeded": "Is another follow-up needed?",
+        "followupNeededHint": "Choose Yes to keep this call open and pick the next date. Leave it empty to close the call."
     },
     "outcomeSheet": {
       "title": "Log outcome",

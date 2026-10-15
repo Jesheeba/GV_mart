@@ -6,6 +6,7 @@
     "_trg_lead_auto_assign",
     "compute_incentives",
     "followup_counts",
+    "report_followup_question_answers",
     "get_lead_funnel",
     "get_technician_public_stats",
     "list_followups",

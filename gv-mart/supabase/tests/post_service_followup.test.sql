@@ -59,10 +59,10 @@ begin
   -- ---------- ACLs ----------
   perform pg_temp.chk('new RPCs: authenticated + service_role yes, anon + PUBLIC no',
     has_function_privilege('authenticated','public.list_post_service_followups(text,text,uuid)','execute')
-    and has_function_privilege('authenticated','public.log_post_service_call(uuid,uuid,text,timestamptz)','execute')
-    and has_function_privilege('service_role','public.log_post_service_call(uuid,uuid,text,timestamptz)','execute')
+    and has_function_privilege('authenticated','public.log_post_service_call(uuid,uuid,text,timestamptz,jsonb,boolean)','execute')
+    and has_function_privilege('service_role','public.log_post_service_call(uuid,uuid,text,timestamptz,jsonb,boolean)','execute')
     and not has_function_privilege('anon','public.list_post_service_followups(text,text,uuid)','execute')
-    and not has_function_privilege('anon','public.log_post_service_call(uuid,uuid,text,timestamptz)','execute')
+    and not has_function_privilege('anon','public.log_post_service_call(uuid,uuid,text,timestamptz,jsonb,boolean)','execute')
     and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a where p.pronamespace='public'::regnamespace and p.proname in ('list_post_service_followups','log_post_service_call') and a.grantee = 0));
   perform pg_temp.chk('trigger/seed/guard functions are not executable by anon or authenticated',
     not has_function_privilege('anon','public._trg_ticket_post_service_followup()','execute') and not has_function_privilege('authenticated','public._trg_ticket_post_service_followup()','execute')
