@@ -1,21 +1,48 @@
 -- REHEARSAL (NOT RUN; for the owner's approval of this exact text): standard minutes + efficiency (P5): migration 20261105100000 + its tests
--- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()), (2) recomputes
--- the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) executes the migration text(s) and then the
--- test file in order, (4) always ends in an unconditional RAISE EXCEPTION, so nothing is ever committed.
--- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
--- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
+-- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
+-- (2) recomputes the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) recomputes
+-- a RELATIVE fingerprint of the real organisation (its id + name, picking the earliest non-__TEST-named row — not an
+-- exact snapshot of the whole table, so it survives new test orgs being added later) and refuses on any mismatch,
+-- confirming this rehearsal is pointed at the real project and that every function this migration redefines still matches the live definition it was written against (report_ops_resolution),
+-- (4) executes the migration text(s) and then the test file in order, (5) always ends in an unconditional RAISE
+-- EXCEPTION, so nothing is ever committed.
+-- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with
+-- test code outside this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure
+-- and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   2cb7679f1e09cdd9f90347165366d23b28cb4c80dd3bfb576468116e0e1b3bb9  gv-mart/supabase/migrations/20261105100000_standard_minutes_and_efficiency.sql
 --   226a9cad0c1b5d13c193ccbdca92c21b57622676a9ffb7a366cf89c537dcbb00  gv-mart/supabase/tests/standard_minutes_and_efficiency.test.sql
+-- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
+--   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
+-- Pinned (live definition this migration redefines; read-only, confirmed against the live project):
+--   e0af6103bee014bc75004965caea376e  md5(pg_get_functiondef('public.report_ops_resolution(date,date)'))
 
 do $rehearsal$
 declare
   v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   v_text text;
   v_hash text;
+  v_check text;
 begin
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  end if;
+
+  select md5(o.id::text || '|' || o.name) into v_check
+    from public.organizations o
+   where o.name not like '\_\_TEST%'
+   order by o.created_at asc
+   limit 1;
+  if v_check is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch (expected the real GV Mart org, got %)', coalesce(v_check, 'null');
+  end if;
+
+  -- Live-definition precheck (P5 item 2): report_ops_resolution is an EXISTING function this migration redefines.
+  -- Refuse if the live definition has drifted from the one this migration was written against — a `create or
+  -- replace` would otherwise silently clobber whatever is live now, which may no longer be what this diff assumed.
+  v_check := md5(pg_get_functiondef('public.report_ops_resolution(date,date)'::regprocedure));
+  if v_check is distinct from 'e0af6103bee014bc75004965caea376e' then
+    raise exception 'REHEARSAL_REFUSED: live definition of report_ops_resolution does not match the pinned original (got %), refusing to redefine it', v_check;
   end if;
 
   v_text := $rh0$-- P5: a standard-minutes master per service (complaint) type; an actual-vs-standard efficiency figure on the
