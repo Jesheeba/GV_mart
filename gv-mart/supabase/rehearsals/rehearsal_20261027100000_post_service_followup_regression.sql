@@ -5,7 +5,7 @@
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   fa4d7594ae7fe6f563017d41afc1b77b0bd6ef796833010528a8ec64d6c03b80  gv-mart/supabase/migrations/20261027100000_followup_questions.sql
+--   29795b2ebeb1f1569795114ea978e14bd2795af5a2397f61da7e9256932a154c  gv-mart/supabase/migrations/20261027100000_followup_questions.sql
 --   086ba1e29fd5a1a43c688315addda53ce4e2e0f007d604a9286f929831802ee4  gv-mart/supabase/tests/post_service_followup.test.sql
 
 do $rehearsal$
@@ -93,8 +93,12 @@ create table public.post_service_call_answers (
   answer_int integer,
   answer_text text,
   created_at timestamptz not null default now(),
-  -- NO ACTION (not RESTRICT) so an organisation removal, which cascades to both tables, is not blocked by the order of deletes
-  foreign key (question_id, org_id) references public.followup_questions (id, org_id) on delete no action,
+  -- NO ACTION, DEFERRED to the end of the transaction. A question can only be removed by purge_test_organisation() (the guard
+  -- trigger refuses every other delete); that cascade deletes questions and answers in an order the database does not
+  -- promise, so the check must wait until both are gone. A stray delete of a question that still has answers is still
+  -- refused: at commit, and earlier by the guard trigger.
+  foreign key (question_id, org_id) references public.followup_questions (id, org_id) on delete no action
+    deferrable initially deferred,
   constraint post_service_call_answers_value_matches_type check (
     (answer_type = 'yes_no' and answer_bool is not null and answer_int is null and answer_text is null)
     or (answer_type = 'rating' and answer_int between 1 and 5 and answer_bool is null and answer_text is null)
@@ -480,7 +484,7 @@ grant execute on function public.report_followup_question_answers(date, date) to
 notify pgrst, 'reload schema';
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'fa4d7594ae7fe6f563017d41afc1b77b0bd6ef796833010528a8ec64d6c03b80' then
+  if v_hash <> '29795b2ebeb1f1569795114ea978e14bd2795af5a2397f61da7e9256932a154c' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261027100000_followup_questions.sql: %', v_hash;
   end if;
   execute v_text;
