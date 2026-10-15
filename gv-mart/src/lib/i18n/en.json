@@ -4724,6 +4724,7 @@
   "tasks": {
     "overdue": "Overdue",
     "cannotToggle": "Only the person it is assigned to can mark this task done.",
+    "unassignedCannotToggle": "This task has no assignee. Assign it to someone first; only the assignee can mark it done.",
     "subtitle": "Assign and track tasks across the whole team.",
     "assignTask": "Assign Task",
     "loadFailed": "Could not load tasks.",

@@ -1,0 +1,282 @@
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): task status guard (P1a): migration 20261101100000 + its tests
+-- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()), (2) recomputes
+-- the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) executes the migration text(s) and then the
+-- test file in order, (4) always ends in an unconditional RAISE EXCEPTION, so nothing is ever committed.
+-- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
+-- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
+-- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
+--   6aaceec1f2b573fc80f083c4565f42f3971772654349e0d4d350321c75db40bd  gv-mart/supabase/migrations/20261101100000_task_status_guard.sql
+--   a50e8fb6420dfa50aeeac9d8cb8e8844d625346538ed19c637b4789fcfa6ed6d  gv-mart/supabase/tests/task_status_guard.test.sql
+
+do $rehearsal$
+declare
+  v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
+  v_text text;
+  v_hash text;
+begin
+  if v_ist < time '18:00' then
+    raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  end if;
+
+  v_text := $rh0$-- P1a: task completion rule. Design: only the ASSIGNEE can set a task to 'done'.
+--
+--   * complete (status -> 'done'): OLD.assignee_id must equal auth.uid(). OLD on purpose, so reassigning to
+--     yourself and completing in one statement is still refused. A purchase_order task additionally needs
+--     is_master() (the same gate as approve_purchase_order and mark_po_paid).
+--   * master / operation_admin may still edit, reassign and REOPEN a finished task; they cannot complete one
+--     on someone's behalf.
+--   * reopen (done -> anything else): the assignee, or master / operation_admin. open <-> rolled is not a
+--     completion and is left as it was.
+--   * exempt: every role that is not 'authenticated' or 'anon' (service-role jobs, security-definer
+--     functions such as mark_po_paid and advance_recurring_tasks, migrations). Same test as the other guard_*
+--     triggers in this schema.
+--   * INSERT: a task cannot be created already done for someone else, nor an already-done purchase_order task
+--     by a non-master.
+--
+-- Status column ONLY. The earlier guard (aa_guard_task_assignee_update, 20261006190000) compared every
+-- column and was dropped in 20261006200000 because it blocked the task-assignment design (any staff role or
+-- technician may create, edit and reassign any task). That behaviour is deliberately untouched here:
+-- tasks_select_internal / tasks_insert_assign / tasks_update_assign / tasks_delete_ops are not changed.
+--
+-- Unassigned tasks (assignee_id is null, possible after the assignee's profile is deleted: ON DELETE SET NULL)
+-- cannot be completed until someone reassigns them; reassignment stays open to every staff role.
+--
+-- current_technician_id() is NOT changed here; see 20261101110000.
+
+create or replace function public.guard_task_status_change()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  -- service role, security-definer functions and migrations are not 'authenticated'
+  if current_user not in ('authenticated', 'anon') then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if new.status = 'done' and new.assignee_id is distinct from auth.uid() then
+      raise exception 'tasks: only the assignee can mark a task done' using errcode = '42501';
+    end if;
+    if new.status = 'done' and new.ref_type = 'purchase_order' and not public.is_master() then
+      raise exception 'tasks: only a user who may approve purchase orders can complete a purchase-order task' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  if new.status is not distinct from old.status then
+    return new;
+  end if;
+
+  if new.status = 'done' then
+    -- OLD.assignee_id on purpose: changing the assignee and the status in one statement must not let a
+    -- non-assignee complete the task.
+    if old.assignee_id is null or old.assignee_id is distinct from auth.uid() then
+      raise exception 'tasks: only the assignee can mark a task done' using errcode = '42501';
+    end if;
+    if old.ref_type = 'purchase_order' and not public.is_master() then
+      raise exception 'tasks: only a user who may approve purchase orders can complete a purchase-order task' using errcode = '42501';
+    end if;
+  elsif old.status = 'done' then
+    if old.assignee_id is distinct from auth.uid() and not public.is_ops_staff() then
+      raise exception 'tasks: only the assignee or operations staff can reopen a task' using errcode = '42501';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+-- A trigger function is not an RPC: nobody calls it directly, and a trigger fires without EXECUTE on it.
+revoke all on function public.guard_task_status_change() from public, anon, authenticated;
+
+drop trigger if exists aa_guard_task_status_change on public.tasks;
+create trigger aa_guard_task_status_change
+  before insert or update on public.tasks
+  for each row execute function public.guard_task_status_change();
+$rh0$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> '6aaceec1f2b573fc80f083c4565f42f3971772654349e0d4d350321c75db40bd' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101100000_task_status_guard.sql: %', v_hash;
+  end if;
+  execute v_text;
+
+  v_text := $rh1$-- Rolled-back DB tests for 20261101100000_task_status_guard (P1a).
+-- NOT RUN (written for review). Run only through the rehearsal wrapper: it applies the migration and then this file in ONE
+-- request; this file ends in an unconditional RAISE, so nothing is committed. Throwaway __TEST_ organisations only.
+-- Independent of P1b: every technician below is ACTIVE, so the result is the same with either definition of current_technician_id().
+-- R1-R6 are the regression for why aa_guard_task_assignee_update was dropped (20261006200000): non-ops assignees must still be
+-- able to edit, reassign and roll the due date, and any staff/technician must still be able to create a task for someone else.
+create temp table res (n serial, line text);
+grant all on res to public;
+grant usage on sequence res_n_seq to public;
+create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
+begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
+create function pg_temp.mkuser(p_role text, p_org uuid, p_tech boolean default false) returns uuid language plpgsql as $f$
+declare v uuid := gen_random_uuid();
+begin
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+  values (v, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '__t_' || p_role || '_' || v || '@test.invalid', 'x', now(), now(), now(), '{}', '{}');
+  insert into public.profiles (id, org_id, full_name, role, is_active) values (v, p_org, '__TEST_ ' || p_role, p_role::public.user_role, true)
+    on conflict (id) do update set role = excluded.role, is_active = true, org_id = excluded.org_id;
+  if p_tech then insert into public.technicians (org_id, profile_id, is_active) values (p_org, v, true); end if;
+  return v;
+end $f$;
+-- run one statement as a user; 'ok:<rows>' or 'err:<message>'. 'set local role' only, always reset afterwards.
+create function pg_temp.act(p_uid uuid, p_sql text) returns text language plpgsql as $f$
+declare n int;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    execute p_sql;
+    get diagnostics n = row_count;
+    execute 'reset role';
+    return 'ok:' || n;
+  exception when others then
+    execute 'reset role';
+    return 'err:' || sqlerrm;
+  end;
+end $f$;
+
+do $t$
+declare
+  v_org uuid; m uuid; o uuid; s uuid; t1 uuid; t2 uuid; c uuid;
+  v_sup uuid; v_po uuid; v_t uuid; v_tpo uuid; x text; v_status text;
+begin
+  insert into public.organizations(name) values ('__TEST_task_guard') returning id into v_org;
+  m := pg_temp.mkuser('master', v_org); o := pg_temp.mkuser('operation_admin', v_org); s := pg_temp.mkuser('sales_admin', v_org);
+  t1 := pg_temp.mkuser('technician', v_org, true); t2 := pg_temp.mkuser('technician', v_org, true);
+  c := pg_temp.mkuser('customer', v_org);
+
+  -- G: privileges and shape
+  perform pg_temp.chk('G1 the guard function is not callable by anon / authenticated / PUBLIC',
+    not has_function_privilege('anon', 'public.guard_task_status_change()', 'execute')
+    and not has_function_privilege('authenticated', 'public.guard_task_status_change()', 'execute')
+    and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
+                     where p.pronamespace = 'public'::regnamespace and p.proname = 'guard_task_status_change' and a.grantee = 0));
+  perform pg_temp.chk('G2 the trigger exists on tasks, BEFORE INSERT OR UPDATE, row level',
+    exists (select 1 from pg_trigger tg where tg.tgrelid = 'public.tasks'::regclass and tg.tgname = 'aa_guard_task_status_change'
+              and not tg.tgisinternal and (tg.tgtype & 2) = 2 and (tg.tgtype & 4) = 4 and (tg.tgtype & 16) = 16 and (tg.tgtype & 1) = 1));
+  perform pg_temp.chk('G3 the old column guard is still gone',
+    not exists (select 1 from pg_trigger tg where tg.tgrelid = 'public.tasks'::regclass and tg.tgname = 'aa_guard_task_assignee_update'));
+  perform pg_temp.chk('G4 fixed search_path on the guard',
+    (select coalesce(p.proconfig::text like '%search_path=%', false) from pg_proc p
+      where p.pronamespace = 'public'::regnamespace and p.proname = 'guard_task_status_change'));
+
+  insert into public.tasks(org_id, assignee_id, title) values (v_org, t1, '__TEST_t1 task') returning id into v_t;
+
+  -- A: completion
+  x := pg_temp.act(t1, format('update public.tasks set status=''done'' where id=%L', v_t));
+  perform pg_temp.chk('A1 assignee can complete', x = 'ok:1', x);
+  update public.tasks set status = 'open' where id = v_t;
+  x := pg_temp.act(t2, format('update public.tasks set status=''done'' where id=%L', v_t));
+  perform pg_temp.chk('A2 another technician is blocked', x like 'err:tasks: only the assignee%', x);
+  x := pg_temp.act(s, format('update public.tasks set status=''done'' where id=%L', v_t));
+  perform pg_temp.chk('A3 sales_admin is blocked', x like 'err:tasks: only the assignee%', x);
+  x := pg_temp.act(o, format('update public.tasks set status=''done'' where id=%L', v_t));
+  perform pg_temp.chk('A4 operation_admin is blocked from completing on behalf', x like 'err:tasks: only the assignee%', x);
+  x := pg_temp.act(m, format('update public.tasks set status=''done'' where id=%L', v_t));
+  perform pg_temp.chk('A5 master is blocked from completing on behalf', x like 'err:tasks: only the assignee%', x);
+  x := pg_temp.act(t2, format('update public.tasks set assignee_id=%L, status=''done'' where id=%L', t2, v_t));
+  perform pg_temp.chk('A6 reassign-to-self and complete in one statement is blocked (OLD.assignee_id is tested)',
+    x like 'err:tasks: only the assignee%', x);
+  select status::text into v_status from public.tasks where id = v_t;
+  perform pg_temp.chk('A6b the task was not changed by the refused statement', v_status = 'open', v_status);
+  x := pg_temp.act(c, format('update public.tasks set status=''done'' where id=%L', v_t));
+  perform pg_temp.chk('A7 a customer cannot update a task at all', x = 'ok:0' or x like 'err:%', x);
+  insert into public.tasks(org_id, assignee_id, title) values (v_org, null, '__TEST_unassigned') returning id into v_tpo;
+  x := pg_temp.act(m, format('update public.tasks set status=''done'' where id=%L', v_tpo));
+  perform pg_temp.chk('A8 an unassigned task cannot be completed by anyone through the API', x like 'err:tasks: only the assignee%', x);
+  x := pg_temp.act(m, format('update public.tasks set assignee_id=%L where id=%L', m, v_tpo));
+  perform pg_temp.chk('A8b ...but any staff member can reassign it (the smallest fix: adopt, then complete)', x = 'ok:1', x);
+  x := pg_temp.act(m, format('update public.tasks set status=''done'' where id=%L', v_tpo));
+  perform pg_temp.chk('A8c ...after which the new assignee can complete it', x = 'ok:1', x);
+  x := pg_temp.act(s, format('insert into public.tasks(org_id,assignee_id,title,status) values (%L,%L,''__TEST_ins'',''done'')', v_org, t1));
+  perform pg_temp.chk('A9 inserting an already-done task for someone else is blocked', x like 'err:tasks: only the assignee%', x);
+  x := pg_temp.act(s, format('insert into public.tasks(org_id,assignee_id,title,status) values (%L,%L,''__TEST_ins2'',''done'')', v_org, s));
+  perform pg_temp.chk('A9b ...but one for yourself is allowed', x = 'ok:1', x);
+
+  -- B: reopen
+  update public.tasks set status = 'done' where id = v_t;
+  x := pg_temp.act(s, format('update public.tasks set status=''open'' where id=%L', v_t));
+  perform pg_temp.chk('B1 a non-assignee, non-ops user cannot reopen', x like 'err:tasks: only the assignee or operations%', x);
+  x := pg_temp.act(o, format('update public.tasks set status=''open'' where id=%L', v_t));
+  perform pg_temp.chk('B2 operation_admin can reopen', x = 'ok:1', x);
+  update public.tasks set status = 'done' where id = v_t;
+  x := pg_temp.act(t1, format('update public.tasks set status=''open'' where id=%L', v_t));
+  perform pg_temp.chk('B3 the assignee can reopen', x = 'ok:1', x);
+  x := pg_temp.act(t2, format('update public.tasks set status=''rolled'' where id=%L', v_t));
+  perform pg_temp.chk('B4 open -> rolled is not a completion and is not restricted', x = 'ok:1', x);
+
+  -- R: regression for the dropped column guard: only status is restricted
+  update public.tasks set status = 'open', assignee_id = t1 where id = v_t;
+  x := pg_temp.act(t1, format('update public.tasks set title=''__TEST_edited'', priority=''urgent'', description=''d'' where id=%L', v_t));
+  perform pg_temp.chk('R1 a non-ops assignee can still edit title / priority / description', x = 'ok:1', x);
+  x := pg_temp.act(t1, format('update public.tasks set assignee_id=%L where id=%L', t2, v_t));
+  perform pg_temp.chk('R2 a non-ops assignee can still reassign', x = 'ok:1', x);
+  x := pg_temp.act(s, format('update public.tasks set assignee_id=%L, due_date=current_date+3 where id=%L', t1, v_t));
+  perform pg_temp.chk('R3 a non-assignee staff member can still reassign and change the due date', x = 'ok:1', x);
+  x := pg_temp.act(t1, format('update public.tasks set due_date=current_date, original_due_date=current_date-2, rolled_count=rolled_count+1 where id=%L', v_t));
+  perform pg_temp.chk('R4 the rollover columns are still writable', x = 'ok:1', x);
+  x := pg_temp.act(t2, format('insert into public.tasks(org_id,assignee_id,assigned_by,title) values (%L,%L,%L,''__TEST_new'')', v_org, s, t2));
+  perform pg_temp.chk('R5 a technician can still create a task for a staff member', x = 'ok:1', x);
+  x := pg_temp.act(t2, format('delete from public.tasks where id=%L', v_t));
+  perform pg_temp.chk('R6 delete is still ops-only', x = 'ok:0' or x like 'err:%', x);
+
+  -- P: purchase-order task
+  insert into public.suppliers(org_id, name) values (v_org, '__TEST_sup') returning id into v_sup;
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'sent') returning id into v_po;
+  insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, o, '__TEST_po pay', 'purchase_order', v_po) returning id into v_tpo;
+  x := pg_temp.act(o, format('update public.tasks set status=''done'' where id=%L', v_tpo));
+  perform pg_temp.chk('P1 a non-master assignee cannot complete a purchase-order task', x like 'err:tasks: only a user who may approve%', x);
+  select status::text into v_status from public.purchase_orders where id = v_po;
+  perform pg_temp.chk('P2 the purchase order is still sent', v_status = 'sent', v_status);
+  update public.tasks set assignee_id = m where id = v_tpo;
+  x := pg_temp.act(m, format('update public.tasks set status=''done'' where id=%L', v_tpo));
+  perform pg_temp.chk('P3 the master assignee completes it', x = 'ok:1', x);
+  select status::text into v_status from public.purchase_orders where id = v_po;
+  perform pg_temp.chk('P4 the existing trigger marked the purchase order paid', v_status = 'paid', v_status);
+  x := pg_temp.act(s, format('insert into public.tasks(org_id,assignee_id,title,status,ref_type,ref_id) values (%L,%L,''__TEST_po ins'',''done'',''purchase_order'',%L)', v_org, s, v_po));
+  perform pg_temp.chk('P5 a non-master cannot insert an already-done purchase-order task for themselves', x like 'err:tasks: only a user who may approve%', x);
+
+  -- S: exempt paths
+  insert into public.purchase_orders(org_id, supplier_id, status) values (v_org, v_sup, 'received') returning id into v_po;
+  insert into public.tasks(org_id, assignee_id, title, ref_type, ref_id) values (v_org, o, '__TEST_po pay 2', 'purchase_order', v_po) returning id into v_tpo;
+  perform set_config('request.jwt.claims', json_build_object('sub', m, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    perform public.mark_po_paid(v_po);
+    execute 'reset role';
+    select status::text into v_status from public.tasks where id = v_tpo;
+    perform pg_temp.chk('S1 mark_po_paid still closes the reminder task assigned to someone else (definer is exempt)', v_status = 'done', v_status);
+  exception when others then
+    execute 'reset role';
+    perform pg_temp.chk('S1 mark_po_paid still closes the reminder task', false, sqlerrm);
+  end;
+  update public.tasks set status = 'open' where id = v_tpo;
+  begin
+    update public.tasks set status = 'done' where id = v_tpo;
+    perform pg_temp.chk('S2 a non-authenticated role (service role / migration) is exempt', true);
+  exception when others then
+    perform pg_temp.chk('S2 a non-authenticated role is exempt', false, sqlerrm);
+  end;
+  -- advance_recurring_tasks inserts open successors as the function owner and never touches status
+  insert into public.tasks(org_id, assignee_id, title, due_date, is_recurring) values (v_org, t1, '__TEST_recurring', current_date - 1, true);
+  perform public.advance_recurring_tasks(v_org);
+  perform pg_temp.chk('S3 advance_recurring_tasks still creates the open successor under the guard',
+    (select count(*) from public.tasks where org_id = v_org and ref_type = 'recurring_task_series' and status = 'open') = 1);
+
+  raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
+end $t$;
+$rh1$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> 'a50e8fb6420dfa50aeeac9d8cb8e8844d625346538ed19c637b4789fcfa6ed6d' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for task_status_guard.test.sql: %', v_hash;
+  end if;
+  execute v_text;
+
+  raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
+end
+$rehearsal$;

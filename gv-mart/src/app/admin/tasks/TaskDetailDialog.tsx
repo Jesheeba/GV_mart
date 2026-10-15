@@ -91,7 +91,7 @@ export function TaskDetailDialog({
             type="button"
             onClick={() => setStatus.mutate({ id: task.id, status: isDone ? "open" : "done" })}
             disabled={setStatus.isPending || !canToggle}
-            title={canToggle ? undefined : t("tasks.cannotToggle")}
+            title={canToggle ? undefined : t(task.assignee_id ? "tasks.cannotToggle" : "tasks.unassignedCannotToggle")}
             className={cn(
               "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
               isDone ? "border-success bg-success text-white" : "border-border text-transparent hover:border-ink",

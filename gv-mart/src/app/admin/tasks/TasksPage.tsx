@@ -191,7 +191,7 @@ function TaskRow({ task, onToggle, isMutating, canToggle, onOpen }: { task: OrgT
           onToggle()
         }}
         disabled={isMutating || !canToggle}
-        title={canToggle ? undefined : t("tasks.cannotToggle")}
+        title={canToggle ? undefined : t(task.assignee_id ? "tasks.cannotToggle" : "tasks.unassignedCannotToggle")}
         className={cn(
           "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
           isDone ? "border-success bg-success text-white" : "border-border text-transparent hover:border-ink",

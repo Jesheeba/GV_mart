@@ -158,7 +158,7 @@ function TaskCard({ task, onToggle, isMutating, canToggle, onOpen }: { task: Org
           role="button"
           tabIndex={0}
           aria-disabled={!canToggle}
-          title={canToggle ? undefined : t("tasks.cannotToggle")}
+          title={canToggle ? undefined : t(task.assignee_id ? "tasks.cannotToggle" : "tasks.unassignedCannotToggle")}
           onClick={(e) => {
             e.stopPropagation()
             if (canToggle) onToggle()

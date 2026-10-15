@@ -1,7 +1,4 @@
--- Rollback for 20261025100000_task_completion_rule.sql
-drop trigger if exists aa_guard_task_status_change on public.tasks;
-drop function if exists public.guard_task_status_change();
-
+-- Rollback for 20261101110000_current_technician_id_active_only.sql
 -- original definition (20260701091200_functions_triggers.sql): no is_active test
 create or replace function public.current_technician_id()
 returns uuid
