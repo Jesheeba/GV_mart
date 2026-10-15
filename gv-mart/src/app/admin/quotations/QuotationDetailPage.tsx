@@ -142,7 +142,7 @@ export function QuotationDetailPage() {
             {quotation.quotation_items.map((item, i) => (
               <tr key={item.id}>
                 <td className={CELL}>{i + 1}</td>
-                <td className={CELL}>{item.itemName}</td>
+                <td className={CELL}>{item.itemName} {item.itemCode ? <span className="text-text-muted"> ({item.itemCode})</span> : null}</td>
                 <td className={`${CELL} text-right`}>{item.qty}</td>
                 <td className={`${CELL} text-right`}>{item.price.toFixed(2)}</td>
                 <td className={`${CELL} text-right`}>{(item.qty * item.price).toFixed(2)}</td>
@@ -204,7 +204,7 @@ export function QuotationDetailPage() {
             <tbody>
               {quotation.quotation_items.map((item) => (
                 <tr key={item.id} className="border-t border-border">
-                  <td className="px-3 py-2 text-text">{item.itemName}</td>
+                  <td className="px-3 py-2 text-text">{item.itemName} {item.itemCode ? <span className="text-text-muted"> ({item.itemCode})</span> : null}</td>
                   <td className="px-3 py-2 text-right text-text">{item.qty}</td>
                   <td className="px-3 py-2 text-right text-text">{formatCurrency(item.price)}</td>
                   <td className="px-3 py-2 text-right font-medium text-text">{formatCurrency(item.qty * item.price)}</td>

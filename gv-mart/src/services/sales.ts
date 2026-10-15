@@ -133,6 +133,30 @@ export async function itemNameLookup(orgId: string, items: { item_type: Enums<"i
   return names
 }
 
+/**
+ * P4: the identification code to print next to the item name on an invoice/quotation line — products.item_code
+ * (20261104100000) or spares.sku. A SEPARATE lookup from itemNameLookup on purpose: that function's Map<string,
+ * string> return type is already relied on by several name-only summary labels (sales.ts's own itemsSummary,
+ * customers.ts's itemsLabel) — widening its return shape would have forced every one of those to change for a
+ * value none of them need. This one reads the current catalog value (not a snapshot): editing a product's code
+ * later changes how an OLD invoice/quotation prints too.
+ */
+export async function itemCodeLookup(orgId: string, items: { item_type: Enums<"item_type">; item_id: string }[]) {
+  const productIds = [...new Set(items.filter((i) => i.item_type === "product").map((i) => i.item_id))]
+  const spareIds = [...new Set(items.filter((i) => i.item_type === "spare").map((i) => i.item_id))]
+  const [productsRes, sparesRes] = await Promise.all([
+    productIds.length ? supabase.from("products").select("id,item_code").eq("org_id", orgId).in("id", productIds) : Promise.resolve({ data: [], error: null }),
+    spareIds.length ? supabase.from("spares").select("id,sku").eq("org_id", orgId).in("id", spareIds) : Promise.resolve({ data: [], error: null }),
+  ])
+  if (productsRes.error) throw productsRes.error
+  if (sparesRes.error) throw sparesRes.error
+
+  const codes = new Map<string, string | null>()
+  for (const p of productsRes.data ?? []) codes.set((p as { id: string; item_code: string | null }).id, (p as { item_code: string | null }).item_code)
+  for (const s of sparesRes.data ?? []) codes.set((s as { id: string; sku: string | null }).id, (s as { sku: string | null }).sku)
+  return codes
+}
+
 export type InvoiceAddress = {
   door_no: string | null
   flat_no: string | null
@@ -148,7 +172,7 @@ export type InvoiceAddress = {
 export type InvoiceDetail = InvoiceRow & {
   customers: { name: string; mobile: string; addresses: InvoiceAddress[] } | null
   gifts: { name: string } | null
-  invoice_items: (InvoiceItemRow & { itemName: string })[]
+  invoice_items: (InvoiceItemRow & { itemName: string; itemCode: string | null })[]
 }
 
 export async function getInvoice(orgId: string, id: string): Promise<InvoiceDetail> {
@@ -159,10 +183,10 @@ export async function getInvoice(orgId: string, id: string): Promise<InvoiceDeta
     .single()
   if (error) throw error
 
-  const names = await itemNameLookup(orgId, data.invoice_items)
+  const [names, codes] = await Promise.all([itemNameLookup(orgId, data.invoice_items), itemCodeLookup(orgId, data.invoice_items)])
   return {
     ...data,
-    invoice_items: data.invoice_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—" })),
+    invoice_items: data.invoice_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—", itemCode: codes.get(it.item_id) ?? null })),
   } as InvoiceDetail
 }
 
