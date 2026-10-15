@@ -13,8 +13,9 @@ One row per technician: jobs, revenue, average call value, app rating, working d
 |---|---|
 | Revenue | `invoices.total` of COMPLETED jobs. A completed ticket's invoice goes to the technician of the ticket's last finished visit, in the period that visit ended (IST). Test customers excluded. Not `service_charge`, not "collected". |
 | Average call value | revenue / completed jobs that have an invoice. |
-| Working days | Monday to Saturday from max(period start, the day the technician record was created) to min(period end, today IST), minus holidays. |
+| Working days | Monday to Saturday from max(period start, the day the technician record was created) to min(period end, YESTERDAY IST) - completed days only - minus holidays. `technicians` has no joining-date field, so the creation date is the start and the screen says so. |
 | Absent | working days minus working days with an attendance check-in or a `leave` row in `technician_availability`. A day both present and on leave counts once. |
+| Real sales | The schema has no void / cancelled / draft invoice state (`payment_status` is paid, partial, due: all count). An invoice attached to a ticket that is not completed is left out of revenue, the invoiced count and every referral sum; invoices with no ticket (sales, AMC) always count. A test fails if a new invoice state ever appears. |
 | Google reviews | none, anywhere in this table. The rating shown is the customer-app rating. |
 | Referral revenue | invoice totals stamped to the technician, FORWARD-ONLY: split service (the invoice belongs to a ticket), AMC (type amc), sales (the rest). |
 

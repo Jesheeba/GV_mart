@@ -3970,7 +3970,7 @@
   "technicians": {
       "performance": {
         "title": "Technician performance (invoice basis)",
-        "basis": "Revenue = invoice totals of completed jobs. Absent days = working days (Monday to Saturday, minus holidays) minus days present minus leave days. Referral revenue is counted from the day this was switched on (earlier invoices are not back-filled). Not the same figure as the Revenue column above, which is the visit service charge.",
+        "basis": "Revenue = invoice totals of completed jobs. Absent days = working days (Monday to Saturday, minus holidays) minus days present minus leave days. Only completed days are counted (up to yesterday). Referral revenue is counted from the day this was switched on (earlier invoices are not back-filled). Not the same figure as the Revenue column above, which is the visit service charge.",
         "empty": "No technician activity in this period.",
         "technician": "Technician",
         "jobs": "Jobs",
@@ -3986,7 +3986,7 @@
         "referralAmc": "Referral: AMC",
         "referralTotal": "Referral: total",
         "inactive": "inactive",
-        "footnote": "Days are counted from the technician's start date up to today. A day marked both present and leave counts once. Customer-app rating only; no Google review figures are shown here."
+        "footnote": "Working days are counted from the day the technician's record was created in the system (there is no joining-date field, so someone who joined earlier is counted from that date) up to yesterday: today is not counted. A day marked both present and leave counts once. Invoices of cancelled or unfinished tickets are not counted. Customer-app rating only; no Google review figures are shown here."
       },
     "list": {
       "title": "Technicians",

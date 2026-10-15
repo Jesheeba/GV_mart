@@ -8,10 +8,16 @@
 -- Definitions (owner):
 --   revenue       = the invoice totals (invoices.total) of COMPLETED jobs. A completed ticket's invoice is credited to the technician
 --                   of the ticket's last finished visit, in the period of that visit's end (IST). Not service_charge, not collected.
---   working days  = Monday to Saturday between the period start and min(period end, today IST), minus org_holidays, counted from
---                   the day the technician record was created.
+--   working days  = Monday to Saturday between the period start and min(period end, YESTERDAY IST) (completed days only; today is
+--                   never counted), minus org_holidays, counted from the day the technician record was created in the system
+--                   (technicians has no joining-date field; a technician who joined earlier than their record shows is counted
+--                   from the record date, and the screen says so).
 --   absent days   = working days minus the working days the technician was present (an attendance check-in) or on leave
 --                   (technician_availability status 'leave'). A day that is both present and leave counts once.
+--   real sales    = this schema has NO void / cancelled / draft invoice state: payment_status is only paid | partial | due, and all
+--                   three are sales (a due invoice is a receivable, not a void one). What can make an invoice not a real sale is
+--                   its ticket: an invoice attached to a ticket that is not completed (cancelled, open ...) is left out of revenue,
+--                   the invoiced count and every referral sum. Invoices not tied to any ticket (sales, AMC) always count.
 --   Google reviews: NOT in this table (no per-technician Google review column anywhere).
 --   referral revenue: invoice totals stamped to the technician, split service (the invoice belongs to a service ticket), AMC
 --                   (type amc) and sales (everything else). FORWARD-ONLY: only invoices created after this migration are stamped;
@@ -104,7 +110,7 @@ begin
   if p_to - p_from > 366 then
     raise exception 'the date range is limited to 366 days';
   end if;
-  v_end := least(p_to, v_today);
+  v_end := least(p_to, v_today - 1);          -- completed days only: today is never counted
 
   return query
   with techs as (
@@ -114,7 +120,7 @@ begin
       left join public.profiles pr on pr.id = t.profile_id
      where t.org_id = v_org
   ),
-  days as (        -- Monday to Saturday, from the technician's start, up to today
+  days as (        -- Monday to Saturday, from the technician's record date, up to yesterday
     select t.id as tech_id, g::date as d
       from techs t
       cross join lateral generate_series(t.d_from::timestamp, v_end::timestamp, interval '1 day') g
@@ -179,6 +185,7 @@ begin
            sum(i.total) filter (where i.type::text <> 'amc' and not exists (select 1 from public.service_tickets st where st.invoice_id = i.id)) as sales
       from public.invoices i
      where i.org_id = v_org and i.referred_by_technician_id is not null
+       and not exists (select 1 from public.service_tickets st where st.invoice_id = i.id and st.status <> 'completed')
        and (i.created_at at time zone 'Asia/Kolkata')::date between p_from and p_to
        and not public.is_test_customer(i.customer_id)
      group by i.referred_by_technician_id
