@@ -30,6 +30,7 @@ const TICK_ORDER: Tick[] = ["affirmation", "pledge", "meeting"]
 
 const GEO_ERROR_KEYS: Record<ReturnType<typeof classifyGeoError>, string> = {
   unsupported: "technician.attendance.locationUnsupported",
+  insecureContext: "technician.attendance.locationInsecureContext",
   permissionDenied: "technician.attendance.locationPermissionDenied",
   unavailable: "technician.attendance.locationUnavailable",
   timeout: "technician.attendance.locationTimeout",
