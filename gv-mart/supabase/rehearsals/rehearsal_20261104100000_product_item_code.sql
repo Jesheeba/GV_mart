@@ -1,4 +1,6 @@
 -- REHEARSAL (NOT RUN; for the owner's approval of this exact text): product item code, with unique index (P4): migration 20261104100000 + its tests
+-- This run changes no real data: every statement below runs inside one rolled-back transaction and the embedded
+-- test file itself ends in an unconditional RAISE, so nothing is ever committed, on the real org or anywhere else.
 -- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
 -- (2) recomputes the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) recomputes
 -- a RELATIVE fingerprint of the real organisation (its id + name, picking the earliest non-__TEST-named row — not an

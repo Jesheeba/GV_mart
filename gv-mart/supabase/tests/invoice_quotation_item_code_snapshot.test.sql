@@ -9,13 +9,38 @@ grant all on res to public;
 grant usage on sequence res_n_seq to public;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
+create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
+declare v uuid := gen_random_uuid();
+begin
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+  values (v, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '__t_' || p_role || '_' || v || '@test.invalid', 'x', now(), now(), now(), '{}', '{}');
+  insert into public.profiles (id, org_id, full_name, role, is_active) values (v, p_org, '__TEST_ ' || p_role, p_role::public.user_role, true)
+    on conflict (id) do update set role = excluded.role, is_active = true, org_id = excluded.org_id;
+  return v;
+end $f$;
+create function pg_temp.act(p_uid uuid, p_sql text) returns text language plpgsql as $f$
+declare n int;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    execute p_sql;
+    get diagnostics n = row_count;
+    execute 'reset role';
+    return 'ok:' || n;
+  exception when others then
+    execute 'reset role';
+    return 'err:' || sqlerrm;
+  end;
+end $f$;
 
 do $t$
 declare
   v_org uuid; v_brand uuid; v_model uuid; v_cust uuid; v_product uuid; v_spare uuid;
-  v_inv uuid; v_quo uuid; v_ii uuid; v_qi uuid; v_code text; v_ii_first uuid;
+  v_inv uuid; v_quo uuid; v_ii uuid; v_qi uuid; v_code text; v_ii_first uuid; s uuid; x text;
 begin
   insert into public.organizations(name) values ('__TEST_p4b') returning id into v_org;
+  s := pg_temp.mkuser('sales_admin', v_org);
   insert into public.brands(org_id, name, category) values (v_org, '__TEST_brand', 'ro') returning id into v_brand;
   insert into public.models(org_id, brand_id, name) values (v_org, v_brand, '__TEST_model') returning id into v_model;
   insert into public.customers(org_id, name, mobile) values (v_org, '__TEST_cust', '9000000020') returning id into v_cust;
@@ -54,10 +79,22 @@ begin
   select item_code into v_code from public.invoice_items where id = v_ii_first;
   perform pg_temp.chk('F1 changing the product''s code afterwards does NOT change an already-created line (the whole point of a snapshot)', v_code = 'RO-STD-01', coalesce(v_code, 'null'));
 
-  -- U: BEFORE INSERT only — an UPDATE of the line's own item_id/item_type does not re-stamp
+  -- U: the trigger ALSO fires BEFORE UPDATE, and there it always restores old.item_code — a line's code never
+  -- changes after creation, whatever the UPDATE touches.
   update public.invoice_items set item_type = 'spare', item_id = v_spare where id = v_ii;
   select item_code into v_code from public.invoice_items where id = v_ii;
-  perform pg_temp.chk('U1 the trigger is insert-only; updating item_type/item_id on an existing line leaves item_code as it was', v_code is null, coalesce(v_code, 'null'));
+  perform pg_temp.chk('U1 updating item_type/item_id on an existing line leaves item_code as it was (still null here)', v_code is null, coalesce(v_code, 'null'));
+
+  -- U2: a direct client UPDATE of item_code itself is a no-op — BEFORE UPDATE overwrites it back to old.item_code
+  -- before the row is written, as a sales_admin (invoice_items_write_sales), not just as superuser.
+  x := pg_temp.act(s, format('update public.invoice_items set item_code = ''HACKED'' where id = %L', v_ii_first));
+  perform pg_temp.chk('U2a the UPDATE itself succeeds (RLS allows it; only item_code is defended)', x = 'ok:1', x);
+  select item_code into v_code from public.invoice_items where id = v_ii_first;
+  perform pg_temp.chk('U2b ...but item_code is unchanged — still the original snapshot, not ''HACKED''', v_code = 'RO-STD-01', coalesce(v_code, 'null'));
+
+  x := pg_temp.act(s, format('update public.quotation_items set item_code = ''HACKED'' where id = %L', v_qi));
+  select item_code into v_code from public.quotation_items where id = v_qi;
+  perform pg_temp.chk('U3 the same no-op holds for quotation_items', v_code = 'SPR-AB-01', coalesce(v_code, 'null'));
 
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
