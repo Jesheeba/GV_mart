@@ -69,8 +69,19 @@ describe("classifyGeoError", () => {
     expect(classifyGeoError(new Error("geolocation_unsupported"))).toBe("unsupported")
   })
 
+  it("distinguishes an insecure web origin from an unsupported browser", () => {
+    expect(classifyGeoError(new Error("geolocation_insecure_context"))).toBe("insecureContext")
+    expect(classifyGeoError(new Error("geolocation_unsupported"))).toBe("unsupported")
+  })
+
   it("classifies GeolocationPositionError code 1 as permissionDenied", () => {
     expect(classifyGeoError({ code: 1 })).toBe("permissionDenied")
+  })
+
+  it("classifies plain browser geolocation errors without mislabeling them unsupported", () => {
+    expect(classifyGeoError({ code: 1, message: "User denied Geolocation" })).toBe("permissionDenied")
+    expect(classifyGeoError({ code: 2, message: "Position unavailable" })).toBe("unavailable")
+    expect(classifyGeoError({ code: 3, message: "Timeout expired" })).toBe("timeout")
   })
 
   it("classifies GeolocationPositionError code 2 as unavailable", () => {

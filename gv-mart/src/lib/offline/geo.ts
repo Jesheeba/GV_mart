@@ -1,6 +1,7 @@
 /** Geolocation + geofence helpers shared by Attendance (TECH-01) and Map (TECH-04). */
 
 import { Geolocation, type Position } from "@capacitor/geolocation"
+import { Capacitor } from "@capacitor/core"
 
 /** heading/speed mirror GeolocationCoordinates.heading/.speed — both
  * frequently null (device stationary or sensor doesn't report them), never
@@ -17,12 +18,31 @@ function toGeoPoint(pos: Position): GeoPoint {
   }
 }
 
+function normalizeGeoError(err: unknown): Error {
+  if (err instanceof Error) return err
+  if (typeof err === "object" && err !== null) {
+    const message = "message" in err && typeof err.message === "string" ? err.message : "geolocation_error"
+    const code = "code" in err && typeof err.code === "number" ? err.code : undefined
+    return Object.assign(new Error(message), code === undefined ? {} : { code })
+  }
+  return new Error(typeof err === "string" ? err : "geolocation_error")
+}
+
 // Routed through @capacitor/geolocation rather than navigator.geolocation
 // directly — on native it drives proper Android/iOS permission prompts, and
 // on web it transparently falls back to the same browser Geolocation API,
 // so this is a drop-in replacement for both platforms.
 
 export async function getCurrentPosition(options?: PositionOptions): Promise<GeoPoint> {
+  if (!Capacitor.isNativePlatform()) {
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      throw new Error("geolocation_insecure_context")
+    }
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      throw new Error("geolocation_unsupported")
+    }
+  }
+
   try {
     const pos = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
@@ -32,7 +52,7 @@ export async function getCurrentPosition(options?: PositionOptions): Promise<Geo
     })
     return toGeoPoint(pos)
   } catch (err) {
-    throw err instanceof Error ? err : new Error("geolocation_unsupported")
+    throw normalizeGeoError(err)
   }
 }
 
@@ -42,7 +62,7 @@ export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: Geolo
 
   Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }, (pos, err) => {
     if (err) {
-      onError?.(err instanceof Error ? err : new Error(String(err)))
+      onError?.(normalizeGeoError(err))
       return
     }
     if (pos) cb(toGeoPoint(pos))
@@ -67,17 +87,23 @@ export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: Geolo
  * denied, GPS/network unavailable, and a stale timeout each need a
  * different fix from the technician.
  */
-export type GeoErrorKind = "unsupported" | "permissionDenied" | "unavailable" | "timeout" | "unknown"
+export type GeoErrorKind = "unsupported" | "insecureContext" | "permissionDenied" | "unavailable" | "timeout" | "unknown"
 
 export function classifyGeoError(err: unknown): GeoErrorKind {
-  if (err instanceof Error && err.message === "geolocation_unsupported") return "unsupported"
-  const code = (err as GeolocationPositionError | undefined)?.code
+  const message =
+    typeof err === "object" && err !== null && "message" in err && typeof err.message === "string"
+      ? err.message.toLowerCase()
+      : err instanceof Error
+        ? err.message.toLowerCase()
+        : ""
+  if (message === "geolocation_unsupported") return "unsupported"
+  if (message === "geolocation_insecure_context") return "insecureContext"
+  const code = typeof err === "object" && err !== null && "code" in err ? err.code : undefined
   if (code === 1) return "permissionDenied"
   if (code === 2) return "unavailable"
   if (code === 3) return "timeout"
   // @capacitor/geolocation's native (non-web-fallback) errors don't carry
   // the numeric GeolocationPositionError.code above — only a message.
-  const message = err instanceof Error ? err.message.toLowerCase() : ""
   if (message.includes("denied") || message.includes("permission")) return "permissionDenied"
   if (message.includes("unavailable") || message.includes("disabled")) return "unavailable"
   if (message.includes("timeout")) return "timeout"
