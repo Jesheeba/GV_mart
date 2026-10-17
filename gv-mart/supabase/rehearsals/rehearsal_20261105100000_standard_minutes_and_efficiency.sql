@@ -1,9 +1,11 @@
 -- REHEARSAL (NOT RUN; for the owner's approval of this exact text): standard minutes + efficiency (P5): migration 20261105100000 + its tests
+-- This run changes no real data: every statement below runs inside one rolled-back transaction and the embedded
+-- test file itself ends in an unconditional RAISE, so nothing is ever committed, on the real org or anywhere else.
 -- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
 -- (2) recomputes the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) recomputes
 -- a RELATIVE fingerprint of the real organisation (its id + name, picking the earliest non-__TEST-named row — not an
 -- exact snapshot of the whole table, so it survives new test orgs being added later) and refuses on any mismatch,
--- confirming this rehearsal is pointed at the real project and that every function this migration redefines still matches the live definition it was written against (report_ops_resolution),
+-- confirming this rehearsal is pointed at the real project and that every function this migration redefines (report_ops_resolution) still equals the one embedded below, freshly re-proved at rehearsal time rather than a pinned value,
 -- (4) executes the migration text(s) and then the test file in order, (5) always ends in an unconditional RAISE
 -- EXCEPTION, so nothing is ever committed.
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with
@@ -14,8 +16,9 @@
 --   226a9cad0c1b5d13c193ccbdca92c21b57622676a9ffb7a366cf89c537dcbb00  gv-mart/supabase/tests/standard_minutes_and_efficiency.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
--- Pinned (live definition this migration redefines; read-only, confirmed against the live project):
---   e0af6103bee014bc75004965caea376e  md5(pg_get_functiondef('public.report_ops_resolution(date,date)'))
+-- Pinned (sha256 of the ORIGINAL function-defining text embedded below, read from the migration that last
+-- defined it; nothing else about this pin is trusted — the comparison itself is recomputed live):
+--   646f78b8495c15b060156e6dd7d176d4dd7ba170a57c8d828060eded0b2c4d18  (embedded original of public.report_ops_resolution(date,date))
 
 do $rehearsal$
 declare
@@ -23,6 +26,10 @@ declare
   v_text text;
   v_hash text;
   v_check text;
+  v_orig_text text;
+  v_orig_hash text;
+  v_check_def text;
+  v_live_def text;
 begin
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
@@ -37,12 +44,51 @@ begin
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch (expected the real GV Mart org, got %)', coalesce(v_check, 'null');
   end if;
 
-  -- Live-definition precheck (P5 item 2): report_ops_resolution is an EXISTING function this migration redefines.
-  -- Refuse if the live definition has drifted from the one this migration was written against — a `create or
-  -- replace` would otherwise silently clobber whatever is live now, which may no longer be what this diff assumed.
-  v_check := md5(pg_get_functiondef('public.report_ops_resolution(date,date)'::regprocedure));
-  if v_check is distinct from 'e0af6103bee014bc75004965caea376e' then
-    raise exception 'REHEARSAL_REFUSED: live definition of report_ops_resolution does not match the pinned original (got %), refusing to redefine it', v_check;
+  -- Live-definition precheck (P5 item 1): report_ops_resolution is an EXISTING function this migration redefines.
+  -- Recreate the ORIGINAL (embedded below, from the migration that last defined it) under a different name in
+  -- pg_temp, compare its pg_get_functiondef to the function as it is ACTUALLY live right now (both computed
+  -- fresh here, not a value fetched ahead of time and hard-coded) and refuse on any difference. This proves the
+  -- live function equals the repo file, not merely that it matched when this wrapper was written.
+  v_orig_text := $orig$create or replace function pg_temp._check_report_ops_resolution(p_from date, p_to date)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_org uuid := public._report_org();
+  v_from timestamptz;
+  v_to timestamptz;
+  v_result jsonb;
+begin
+  if p_from is null or p_to is null then
+    raise exception 'report_ops_resolution: p_from and p_to are required';
+  end if;
+  v_from := public._report_ist_start(p_from);
+  v_to := public._report_ist_start(p_to + 1);
+
+  select jsonb_build_object(
+    'resolved_within_24h', count(*) filter (where t.updated_at - t.created_at <= interval '24 hours'),
+    'total_completed', count(*),
+    'percent', case when count(*) > 0 then round(count(*) filter (where t.updated_at - t.created_at <= interval '24 hours') * 100.0 / count(*), 1) end
+  ) into v_result
+  from public.service_tickets t
+  where t.org_id = v_org and not public.is_test_customer(t.customer_id) and t.status = 'completed' and t.created_at >= v_from and t.created_at < v_to;
+  return v_result;
+end;
+$function$;
+$orig$;
+  v_orig_hash := encode(sha256(convert_to(v_orig_text, 'UTF8')), 'hex');
+  if v_orig_hash <> '646f78b8495c15b060156e6dd7d176d4dd7ba170a57c8d828060eded0b2c4d18' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for the embedded original of report_ops_resolution: %', v_orig_hash;
+  end if;
+  execute v_orig_text;
+  v_check_def := pg_get_functiondef('pg_temp._check_report_ops_resolution(date,date)'::regprocedure);
+  execute 'drop function if exists pg_temp._check_report_ops_resolution(date,date)';
+  v_check_def := replace(v_check_def, 'pg_temp._check_report_ops_resolution', 'public.report_ops_resolution');
+  v_live_def := pg_get_functiondef('public.report_ops_resolution(date,date)'::regprocedure);
+  if v_check_def is distinct from v_live_def then
+    raise exception 'REHEARSAL_REFUSED: the live definition of report_ops_resolution no longer matches the original migration text — refusing to redefine it';
   end if;
 
   v_text := $rh0$-- P5: a standard-minutes master per service (complaint) type; an actual-vs-standard efficiency figure on the
