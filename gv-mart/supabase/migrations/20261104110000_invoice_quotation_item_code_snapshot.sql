@@ -13,6 +13,12 @@
 -- stamp-from-session triggers in this schema use for their own column) so a line's code cannot be spoofed by a
 -- direct insert.
 --
+-- The SAME trigger also fires BEFORE UPDATE, where it does the opposite: new.item_code := old.item_code,
+-- unconditionally. A line's code is a snapshot of what was true at creation; it must never be rewritten by a
+-- later UPDATE — not by a client-supplied value, and not by re-deriving it even if item_type/item_id also change
+-- in that UPDATE (invoice_items_write_sales/quotation_items_write_sales already allow a staff UPDATE of other
+-- columns on these rows, and that must not have this side effect).
+--
 -- create_sale and create_quotation are NOT edited — both insert into these tables with plain INSERT statements,
 -- so the trigger fires under them exactly as it does under a direct client insert; nothing in either RPC's own
 -- body needs to change. No backfill: existing rows (there are none yet in this org, since item_code on products
@@ -38,6 +44,10 @@ security invoker
 set search_path = public
 as $$
 begin
+  if tg_op = 'UPDATE' then
+    new.item_code := old.item_code;
+    return new;
+  end if;
   if new.item_type = 'product' then
     select p.item_code into new.item_code from public.products p where p.id = new.item_id;
   elsif new.item_type = 'spare' then
@@ -51,10 +61,10 @@ $$;
 
 drop trigger if exists aa_stamp_item_code on public.invoice_items;
 create trigger aa_stamp_item_code
-  before insert on public.invoice_items
+  before insert or update on public.invoice_items
   for each row execute function public._stamp_item_code();
 
 drop trigger if exists aa_stamp_item_code on public.quotation_items;
 create trigger aa_stamp_item_code
-  before insert on public.quotation_items
+  before insert or update on public.quotation_items
   for each row execute function public._stamp_item_code();

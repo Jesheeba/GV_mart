@@ -1,17 +1,22 @@
--- REHEARSAL (NOT RUN; for the owner's approval of this exact text): invoice/quotation item_code snapshot trigger (P4 part 2): migration 20261104110000 + its tests
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): invoice/quotation item_code snapshot trigger (P4 part 2): 20261104100000_product_item_code.sql then 20261104110000_invoice_quotation_item_code_snapshot.sql + its tests
+-- This run changes no real data: every statement below runs inside one rolled-back transaction and the embedded
+-- test file itself ends in an unconditional RAISE, so nothing is ever committed, on the real org or anywhere else.
 -- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
 -- (2) recomputes the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) recomputes
 -- a RELATIVE fingerprint of the real organisation (its id + name, picking the earliest non-__TEST-named row — not an
 -- exact snapshot of the whole table, so it survives new test orgs being added later) and refuses on any mismatch,
--- confirming this rehearsal is pointed at the real project,
--- (4) executes the migration text(s) and then the test file in order, (5) always ends in an unconditional RAISE
--- EXCEPTION, so nothing is ever committed.
+-- confirming this rehearsal is pointed at the real project, (4) executes the migrations in order (20261104100000_product_item_code.sql then 20261104110000_invoice_quotation_item_code_snapshot.sql)
+-- and then the test file, (5) always ends in an unconditional RAISE EXCEPTION, so nothing is ever committed.
+-- migrations/20261104100000_product_item_code.sql is embedded here a SECOND time (it was already typed in full in the first wrapper of this
+-- package) because nothing persists between separate rehearsal runs — this test file needs the column that
+-- migration adds, so this wrapper must apply it first, inside the same rolled-back transaction, every time.
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with
 -- test code outside this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure
 -- and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   d9e5be0bfaf74e9515957f3a021f89a728c5f6b7c00adab322a2d07e6a5e4b4a  gv-mart/supabase/migrations/20261104110000_invoice_quotation_item_code_snapshot.sql
---   17983e6bd43a949f0d79630d6cdf0e297c7c9a18dc1152fdc8873c939f1c0a13  gv-mart/supabase/tests/invoice_quotation_item_code_snapshot.test.sql
+--   117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c  gv-mart/supabase/migrations/20261104100000_product_item_code.sql
+--   4acedd9092e5fc40009709dcda9f65405c29c314913341ff32e24e6f25678a8d  gv-mart/supabase/migrations/20261104110000_invoice_quotation_item_code_snapshot.sql
+--   4bb51b88237f487303085e670f1cd9ed26817e3fbe3ba6060fce2bfb3521424e  gv-mart/supabase/tests/invoice_quotation_item_code_snapshot.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
 
@@ -35,7 +40,34 @@ begin
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch (expected the real GV Mart org, got %)', coalesce(v_check, 'null');
   end if;
 
-  v_text := $rh0$-- P4 part 2: a SNAPSHOT of the item's identification code on each invoice/quotation LINE, stamped at line-creation
+  v_text := $rh0$-- P4: an identification code per PRODUCT (spares already have one — `spares.sku`, 20260701090300). This is a
+-- code SET by master in Inventory/Masters, printed on invoice and quotation lines — NOT a per-unit serial/IMEI.
+-- Per-unit tracking (one row per physical unit, captured at sale and tied to the warranty) is a separate, larger
+-- design and is explicitly held pending the owner's answer; nothing here anticipates it.
+--
+-- Same shape as spares.sku: plain nullable text, no DB-level check — sku itself has none either; the
+-- alphanumeric/hyphen/underscore format is validated client-side only (ProductsTab.tsx), matching SparesTab.tsx's
+-- own sku field exactly. Master-write only (products_write_master already covers this column — no RLS change).
+--
+-- A case-insensitive PARTIAL unique index: two products in the same org cannot share a code, but any number may
+-- leave it null (not yet coded). Safe to add in this same migration — item_code is a brand-new column with no
+-- existing rows to conflict (no backfill), so there is nothing for the index to reject at creation time.
+
+alter table public.products
+  add column item_code text;
+
+comment on column public.products.item_code is
+  'Master-set identification code for the product (not a per-unit serial). Printed on invoice/quotation lines alongside the item name.';
+
+create unique index products_item_code_unique_idx on public.products (org_id, lower(item_code)) where item_code is not null;
+$rh0$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> '117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261104100000_product_item_code.sql: %', v_hash;
+  end if;
+  execute v_text;
+
+  v_text := $rh1$-- P4 part 2: a SNAPSHOT of the item's identification code on each invoice/quotation LINE, stamped at line-creation
 -- time — not read from the live catalog at print time (that was the first cut of this package; replaced here).
 --
 -- invoice_items and quotation_items reference their item by (item_type, item_id): item_type is the enum
@@ -49,6 +81,12 @@ begin
 -- whatever the client sent in that column (the same pattern _meeting_issue_attribution and other
 -- stamp-from-session triggers in this schema use for their own column) so a line's code cannot be spoofed by a
 -- direct insert.
+--
+-- The SAME trigger also fires BEFORE UPDATE, where it does the opposite: new.item_code := old.item_code,
+-- unconditionally. A line's code is a snapshot of what was true at creation; it must never be rewritten by a
+-- later UPDATE — not by a client-supplied value, and not by re-deriving it even if item_type/item_id also change
+-- in that UPDATE (invoice_items_write_sales/quotation_items_write_sales already allow a staff UPDATE of other
+-- columns on these rows, and that must not have this side effect).
 --
 -- create_sale and create_quotation are NOT edited — both insert into these tables with plain INSERT statements,
 -- so the trigger fires under them exactly as it does under a direct client insert; nothing in either RPC's own
@@ -75,6 +113,10 @@ security invoker
 set search_path = public
 as $$
 begin
+  if tg_op = 'UPDATE' then
+    new.item_code := old.item_code;
+    return new;
+  end if;
   if new.item_type = 'product' then
     select p.item_code into new.item_code from public.products p where p.id = new.item_id;
   elsif new.item_type = 'spare' then
@@ -88,21 +130,21 @@ $$;
 
 drop trigger if exists aa_stamp_item_code on public.invoice_items;
 create trigger aa_stamp_item_code
-  before insert on public.invoice_items
+  before insert or update on public.invoice_items
   for each row execute function public._stamp_item_code();
 
 drop trigger if exists aa_stamp_item_code on public.quotation_items;
 create trigger aa_stamp_item_code
-  before insert on public.quotation_items
+  before insert or update on public.quotation_items
   for each row execute function public._stamp_item_code();
-$rh0$;
+$rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'd9e5be0bfaf74e9515957f3a021f89a728c5f6b7c00adab322a2d07e6a5e4b4a' then
+  if v_hash <> '4acedd9092e5fc40009709dcda9f65405c29c314913341ff32e24e6f25678a8d' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261104110000_invoice_quotation_item_code_snapshot.sql: %', v_hash;
   end if;
   execute v_text;
 
-  v_text := $rh1$-- Rolled-back DB tests for 20261104110000_invoice_quotation_item_code_snapshot (P4 part 2).
+  v_text := $rh2$-- Rolled-back DB tests for 20261104110000_invoice_quotation_item_code_snapshot (P4 part 2).
 -- NOT RUN (written for review). Run only through the rehearsal wrapper: it applies the migration and then this file in ONE
 -- request; this file ends in an unconditional RAISE, so nothing is committed. Throwaway __TEST_ organisation only.
 -- Exercises the trigger directly via a raw insert into invoice_items/quotation_items (not through create_sale/
@@ -113,13 +155,38 @@ grant all on res to public;
 grant usage on sequence res_n_seq to public;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
+create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
+declare v uuid := gen_random_uuid();
+begin
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+  values (v, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '__t_' || p_role || '_' || v || '@test.invalid', 'x', now(), now(), now(), '{}', '{}');
+  insert into public.profiles (id, org_id, full_name, role, is_active) values (v, p_org, '__TEST_ ' || p_role, p_role::public.user_role, true)
+    on conflict (id) do update set role = excluded.role, is_active = true, org_id = excluded.org_id;
+  return v;
+end $f$;
+create function pg_temp.act(p_uid uuid, p_sql text) returns text language plpgsql as $f$
+declare n int;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    execute p_sql;
+    get diagnostics n = row_count;
+    execute 'reset role';
+    return 'ok:' || n;
+  exception when others then
+    execute 'reset role';
+    return 'err:' || sqlerrm;
+  end;
+end $f$;
 
 do $t$
 declare
   v_org uuid; v_brand uuid; v_model uuid; v_cust uuid; v_product uuid; v_spare uuid;
-  v_inv uuid; v_quo uuid; v_ii uuid; v_qi uuid; v_code text; v_ii_first uuid;
+  v_inv uuid; v_quo uuid; v_ii uuid; v_qi uuid; v_code text; v_ii_first uuid; s uuid; x text;
 begin
   insert into public.organizations(name) values ('__TEST_p4b') returning id into v_org;
+  s := pg_temp.mkuser('sales_admin', v_org);
   insert into public.brands(org_id, name, category) values (v_org, '__TEST_brand', 'ro') returning id into v_brand;
   insert into public.models(org_id, brand_id, name) values (v_org, v_brand, '__TEST_model') returning id into v_model;
   insert into public.customers(org_id, name, mobile) values (v_org, '__TEST_cust', '9000000020') returning id into v_cust;
@@ -158,16 +225,28 @@ begin
   select item_code into v_code from public.invoice_items where id = v_ii_first;
   perform pg_temp.chk('F1 changing the product''s code afterwards does NOT change an already-created line (the whole point of a snapshot)', v_code = 'RO-STD-01', coalesce(v_code, 'null'));
 
-  -- U: BEFORE INSERT only — an UPDATE of the line's own item_id/item_type does not re-stamp
+  -- U: the trigger ALSO fires BEFORE UPDATE, and there it always restores old.item_code — a line's code never
+  -- changes after creation, whatever the UPDATE touches.
   update public.invoice_items set item_type = 'spare', item_id = v_spare where id = v_ii;
   select item_code into v_code from public.invoice_items where id = v_ii;
-  perform pg_temp.chk('U1 the trigger is insert-only; updating item_type/item_id on an existing line leaves item_code as it was', v_code is null, coalesce(v_code, 'null'));
+  perform pg_temp.chk('U1 updating item_type/item_id on an existing line leaves item_code as it was (still null here)', v_code is null, coalesce(v_code, 'null'));
+
+  -- U2: a direct client UPDATE of item_code itself is a no-op — BEFORE UPDATE overwrites it back to old.item_code
+  -- before the row is written, as a sales_admin (invoice_items_write_sales), not just as superuser.
+  x := pg_temp.act(s, format('update public.invoice_items set item_code = ''HACKED'' where id = %L', v_ii_first));
+  perform pg_temp.chk('U2a the UPDATE itself succeeds (RLS allows it; only item_code is defended)', x = 'ok:1', x);
+  select item_code into v_code from public.invoice_items where id = v_ii_first;
+  perform pg_temp.chk('U2b ...but item_code is unchanged — still the original snapshot, not ''HACKED''', v_code = 'RO-STD-01', coalesce(v_code, 'null'));
+
+  x := pg_temp.act(s, format('update public.quotation_items set item_code = ''HACKED'' where id = %L', v_qi));
+  select item_code into v_code from public.quotation_items where id = v_qi;
+  perform pg_temp.chk('U3 the same no-op holds for quotation_items', v_code = 'SPR-AB-01', coalesce(v_code, 'null'));
 
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
-$rh1$;
+$rh2$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '17983e6bd43a949f0d79630d6cdf0e297c7c9a18dc1152fdc8873c939f1c0a13' then
+  if v_hash <> '4bb51b88237f487303085e670f1cd9ed26817e3fbe3ba6060fce2bfb3521424e' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for invoice_quotation_item_code_snapshot.test.sql: %', v_hash;
   end if;
   execute v_text;
