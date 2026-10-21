@@ -59,6 +59,7 @@ const LOW_ACCURACY_WARNING_M = 500
 
 const GEO_ERROR_KEYS: Record<ReturnType<typeof classifyGeoError>, string> = {
   unsupported: "technician.map.locationUnsupported",
+  braveBlocked: "technician.map.locationBraveBlocked",
   insecureContext: "technician.map.locationInsecureContext",
   permissionDenied: "technician.map.locationPermissionDenied",
   unavailable: "technician.map.locationUnavailable",

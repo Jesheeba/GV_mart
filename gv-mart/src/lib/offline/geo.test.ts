@@ -74,6 +74,10 @@ describe("classifyGeoError", () => {
     expect(classifyGeoError(new Error("geolocation_unsupported"))).toBe("unsupported")
   })
 
+  it("classifies the Brave-Shields sentinel error distinctly from a genuinely unsupported browser", () => {
+    expect(classifyGeoError(new Error("geolocation_brave_blocked"))).toBe("braveBlocked")
+  })
+
   it("classifies GeolocationPositionError code 1 as permissionDenied", () => {
     expect(classifyGeoError({ code: 1 })).toBe("permissionDenied")
   })
