@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle, Bell, Check, Home, MapPin, CalendarCheck, History, Languages, Moon, MoreVertical, Sun, User, UserX } from "lucide-react"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useProfile } from "@/hooks/useProfile"
 import { useLiveLocationStream, useMyTechnician } from "@/hooks/useTechnician"
+import { getCurrentPosition } from "@/lib/offline/geo"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SyncStatusChip } from "./components/SyncStatusChip"
@@ -58,6 +59,21 @@ export function TechnicianShell() {
   const technician = useMyTechnician()
   const isDeactivated = technician.data != null && technician.data.is_active === false
   const { error: locationError } = useLiveLocationStream(profile?.org_id, isDeactivated ? undefined : technician.data?.id)
+  const [requestingLocation, setRequestingLocation] = useState(false)
+
+  // The background watch above already requests location automatically on
+  // mount (i.e. right after login), but once a browser has shown that
+  // prompt and the technician dismissed or denied it, the browser won't
+  // re-show it on its own — only a fresh request from an explicit user
+  // gesture reliably does (and is required on some mobile browsers in the
+  // first place). This gives the technician that explicit action instead
+  // of leaving them to find their own way to the browser's site settings.
+  function requestLocation() {
+    setRequestingLocation(true)
+    void getCurrentPosition()
+      .catch(() => {})
+      .finally(() => setRequestingLocation(false))
+  }
 
   if (isLoading || technician.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
@@ -105,17 +121,6 @@ export function TechnicianShell() {
           <span className="sr-only text-sm font-semibold text-text sm:not-sr-only sm:truncate">{t("shell.technicianAppTitle")}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {locationError ? (
-            <span
-              role="status"
-              aria-label={t(LOCATION_ERROR_KEYS[locationError])}
-              title={t(LOCATION_ERROR_KEYS[locationError])}
-              className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2 py-1 text-xs font-medium text-danger sm:px-2.5"
-            >
-              <AlertTriangle className="size-3" />
-              <span className="hidden sm:inline">{t(LOCATION_ERROR_KEYS[locationError])}</span>
-            </span>
-          ) : null}
           <SyncStatusChip />
           <button
             type="button"
@@ -160,6 +165,18 @@ export function TechnicianShell() {
           <UserMenu fullName={profile.full_name} role={profile.role} />
         </div>
       </header>
+      {locationError ? (
+        <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 print:hidden">
+          <AlertTriangle className="size-5 shrink-0 text-danger" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-danger">{t("technician.locationPrompt.title")}</p>
+            <p className="text-xs text-danger/90">{t(LOCATION_ERROR_KEYS[locationError])}</p>
+          </div>
+          <Button type="button" size="xs" variant="outline" disabled={requestingLocation} onClick={requestLocation} className="shrink-0">
+            {t("technician.locationPrompt.enableButton")}
+          </Button>
+        </div>
+      ) : null}
       <div className="print:hidden">
         <NewJobAssignedBanner userId={profile.id} />
         <NewTaskAssignedBanner userId={profile.id} />

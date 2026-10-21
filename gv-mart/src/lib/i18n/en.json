@@ -2447,6 +2447,10 @@
       "body": "Your admin has deactivated your account. You won't see active bookings or receive new assignments. Contact your admin if you think this is a mistake.",
       "signOut": "Sign out"
     },
+    "locationPrompt": {
+      "title": "Turn on location to use this app",
+      "enableButton": "Enable location"
+    },
     "newJobAssignedAlert": {
       "message": "You've been assigned a new job — tap to view",
       "dismiss": "Dismiss"
