@@ -8,7 +8,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { subscribeAttendanceSync, subscribeSyncState } from "@/lib/offline/sync"
 import { watchPendingCount, watchStuckJobs } from "@/lib/offline/outbox"
-import { distanceKm, watchPosition } from "@/lib/offline/geo"
+import { classifyGeoError, distanceKm, watchPosition, type GeoErrorKind } from "@/lib/offline/geo"
 import type { Enums } from "@/types/database"
 import type { OutboxJob } from "@/lib/offline/db"
 
@@ -261,11 +261,17 @@ const SPEED_SLOW_KMH = 3
 export function useLiveLocationStream(orgId: string | undefined, technicianId: string | undefined) {
   const lastSentRef = useRef(0)
   const lastFixRef = useRef<{ lat: number; lng: number; at: number } | null>(null)
+  const [error, setError] = useState<GeoErrorKind | null>(null)
   useEffect(() => {
-    if (!orgId || !technicianId) return
+    if (!orgId || !technicianId) {
+      setError(null)
+      return
+    }
     lastSentRef.current = 0
     lastFixRef.current = null
+    setError(null)
     const stop = watchPosition((pos) => {
+      setError(null)
       const now = Date.now()
       const prevFix = lastFixRef.current
       let speedKmh: number | null = pos.speed != null ? pos.speed * 3.6 : null
@@ -285,9 +291,10 @@ export function useLiveLocationStream(orgId: string | undefined, technicianId: s
       lastSentRef.current = now
       lastFixRef.current = { lat: pos.lat, lng: pos.lng, at: now }
       void tech.pingLiveLocation(orgId, technicianId, pos.lat, pos.lng, { heading: pos.heading, speed: pos.speed, accuracy: pos.accuracy })
-    })
+    }, (err) => setError(classifyGeoError(err)))
     return stop
   }, [orgId, technicianId])
+  return { error }
 }
 
 // ── A5: route trail colour classification (own journey view) ─────────────

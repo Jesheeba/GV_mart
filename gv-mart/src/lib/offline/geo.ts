@@ -28,20 +28,43 @@ function normalizeGeoError(err: unknown): Error {
   return new Error(typeof err === "string" ? err : "geolocation_error")
 }
 
+// Brave's own navigator.brave.isBrave() is present regardless of its
+// Shields settings, so this detects the browser itself, not whether
+// geolocation is actually being blocked — used only to pick a more useful
+// error message (Shields settings vs. "switch browsers") once geolocation
+// has already turned out to be unavailable.
+function isBraveBrowser(): boolean {
+  return typeof navigator !== "undefined" && typeof (navigator as unknown as { brave?: { isBrave?: unknown } }).brave?.isBrave === "function"
+}
+
+// Shared by getCurrentPosition and watchPosition so a missing
+// navigator.geolocation (unsupported browser, or Brave Shields having
+// removed it — see isBraveBrowser's doc comment) is reported the same way
+// from both entry points instead of watchPosition falling through to
+// whatever generic error Capacitor's web plugin happens to throw instead.
+function checkGeoSupport() {
+  if (Capacitor.isNativePlatform()) return
+  if (typeof window !== "undefined" && window.isSecureContext === false) {
+    throw new Error("geolocation_insecure_context")
+  }
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    // Brave's "Block fingerprinting" Shields setting (Standard, not just
+    // Aggressive) removes navigator.geolocation entirely rather than
+    // just denying permission on call, so it lands here looking
+    // identical to a truly unsupported browser — but unlike a real
+    // unsupported browser, it's fixable per-site from Shields, so it
+    // gets its own message instead of "use a different browser".
+    throw new Error(isBraveBrowser() ? "geolocation_brave_blocked" : "geolocation_unsupported")
+  }
+}
+
 // Routed through @capacitor/geolocation rather than navigator.geolocation
 // directly — on native it drives proper Android/iOS permission prompts, and
 // on web it transparently falls back to the same browser Geolocation API,
 // so this is a drop-in replacement for both platforms.
 
 export async function getCurrentPosition(options?: PositionOptions): Promise<GeoPoint> {
-  if (!Capacitor.isNativePlatform()) {
-    if (typeof window !== "undefined" && window.isSecureContext === false) {
-      throw new Error("geolocation_insecure_context")
-    }
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      throw new Error("geolocation_unsupported")
-    }
-  }
+  checkGeoSupport()
 
   try {
     const pos = await Geolocation.getCurrentPosition({
@@ -60,6 +83,17 @@ export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: Geolo
   let watchId: string | null = null
   let cancelled = false
 
+  // Caller contract is "always returns a stop function, report failures via
+  // onError" (see useLiveLocationStream/MapPage/AttendancePage, none of
+  // which wrap this call in try/catch) — so a synchronous checkGeoSupport
+  // throw has to be caught here and handed to onError instead of escaping.
+  try {
+    checkGeoSupport()
+  } catch (err) {
+    queueMicrotask(() => onError?.(normalizeGeoError(err)))
+    return () => {}
+  }
+
   Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }, (pos, err) => {
     if (err) {
       onError?.(normalizeGeoError(err))
@@ -71,7 +105,7 @@ export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: Geolo
       if (cancelled) void Geolocation.clearWatch({ id })
       else watchId = id
     })
-    .catch((err) => onError?.(err instanceof Error ? err : new Error("geolocation_unsupported")))
+    .catch((err) => onError?.(normalizeGeoError(err)))
 
   return () => {
     cancelled = true
@@ -87,7 +121,7 @@ export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: Geolo
  * denied, GPS/network unavailable, and a stale timeout each need a
  * different fix from the technician.
  */
-export type GeoErrorKind = "unsupported" | "insecureContext" | "permissionDenied" | "unavailable" | "timeout" | "unknown"
+export type GeoErrorKind = "unsupported" | "braveBlocked" | "insecureContext" | "permissionDenied" | "unavailable" | "timeout" | "unknown"
 
 export function classifyGeoError(err: unknown): GeoErrorKind {
   const message =
@@ -97,6 +131,7 @@ export function classifyGeoError(err: unknown): GeoErrorKind {
         ? err.message.toLowerCase()
         : ""
   if (message === "geolocation_unsupported") return "unsupported"
+  if (message === "geolocation_brave_blocked") return "braveBlocked"
   if (message === "geolocation_insecure_context") return "insecureContext"
   const code = typeof err === "object" && err !== null && "code" in err ? err.code : undefined
   if (code === 1) return "permissionDenied"

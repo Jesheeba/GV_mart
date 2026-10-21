@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Bell, Check, Home, MapPin, CalendarCheck, History, Languages, Moon, MoreVertical, Sun, User, UserX } from "lucide-react"
+import { AlertTriangle, Bell, Check, Home, MapPin, CalendarCheck, History, Languages, Moon, MoreVertical, Sun, User, UserX } from "lucide-react"
 import { BottomTabBar, type BottomTab } from "@/components/shared/BottomTabBar"
 import { UserMenu } from "@/components/shared/UserMenu"
 import { Button } from "@/components/ui/button"
@@ -20,6 +20,19 @@ import { useTheme } from "@/lib/theme/ThemeProvider"
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/lib/i18n"
 
 const LANGUAGE_LABELS: Record<SupportedLanguage, string> = { en: "English", ta: "தமிழ்" }
+
+// Same mapping as MapPage/AttendancePage's GEO_ERROR_KEYS — duplicated here
+// (not shared) since this chip surfaces the background stream's error, a
+// separate watchPosition from either screen's own foreground one.
+const LOCATION_ERROR_KEYS: Record<string, string> = {
+  unsupported: "technician.map.locationUnsupported",
+  braveBlocked: "technician.map.locationBraveBlocked",
+  insecureContext: "technician.map.locationInsecureContext",
+  permissionDenied: "technician.map.locationPermissionDenied",
+  unavailable: "technician.map.locationUnavailable",
+  timeout: "technician.map.locationTimeout",
+  unknown: "technician.map.locationError",
+}
 
 export function TechnicianShell() {
   const { t, i18n } = useTranslation()
@@ -44,7 +57,7 @@ export function TechnicianShell() {
   // (Technician Lifecycle Mgmt Phase 3), passing `undefined` below no-ops it.
   const technician = useMyTechnician()
   const isDeactivated = technician.data != null && technician.data.is_active === false
-  useLiveLocationStream(profile?.org_id, isDeactivated ? undefined : technician.data?.id)
+  const { error: locationError } = useLiveLocationStream(profile?.org_id, isDeactivated ? undefined : technician.data?.id)
 
   if (isLoading || technician.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
@@ -92,6 +105,17 @@ export function TechnicianShell() {
           <span className="sr-only text-sm font-semibold text-text sm:not-sr-only sm:truncate">{t("shell.technicianAppTitle")}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {locationError ? (
+            <span
+              role="status"
+              aria-label={t(LOCATION_ERROR_KEYS[locationError])}
+              title={t(LOCATION_ERROR_KEYS[locationError])}
+              className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2 py-1 text-xs font-medium text-danger sm:px-2.5"
+            >
+              <AlertTriangle className="size-3" />
+              <span className="hidden sm:inline">{t(LOCATION_ERROR_KEYS[locationError])}</span>
+            </span>
+          ) : null}
           <SyncStatusChip />
           <button
             type="button"
