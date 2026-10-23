@@ -69,13 +69,30 @@ export async function getCurrentPosition(options?: PositionOptions): Promise<Geo
   try {
     const pos = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
-      timeout: 10_000,
+      timeout: 20_000,
       maximumAge: 5_000,
       ...options,
     })
     return toGeoPoint(pos)
   } catch (err) {
-    throw normalizeGeoError(err)
+    const normalized = normalizeGeoError(err)
+    // enableHighAccuracy forces a GPS-chip fix, which can genuinely take
+    // longer than even a generous timeout indoors or with a weak signal —
+    // the single most common real-world complaint from technicians. A
+    // much faster network/cell-based fix trades precision for actually
+    // getting a position, which is what the geofence/selfie-watermark
+    // callers need far more than GPS-grade accuracy, so retry once before
+    // surfacing a hard error. Skipped if the caller explicitly asked for
+    // low accuracy already (nothing more to fall back to).
+    if (classifyGeoError(normalized) === "timeout" && options?.enableHighAccuracy !== false) {
+      try {
+        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10_000, maximumAge: 5_000 })
+        return toGeoPoint(pos)
+      } catch (fallbackErr) {
+        throw normalizeGeoError(fallbackErr)
+      }
+    }
+    throw normalized
   }
 }
 
@@ -94,7 +111,7 @@ export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: Geolo
     return () => {}
   }
 
-  Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 }, (pos, err) => {
+  Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 }, (pos, err) => {
     if (err) {
       onError?.(normalizeGeoError(err))
       return
