@@ -41,3 +41,6 @@ graphify-out/
 
 # test-only credentials for e2e/Playwright scripts (never commit)
 .env.test
+
+# UI audit screenshots — large, regenerable via Playwright, not source
+ui-audit/screenshots/
