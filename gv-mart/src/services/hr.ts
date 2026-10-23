@@ -12,8 +12,27 @@ import type { Tables } from "@/types/database"
 // src/services/techniciansAdmin.ts for why this file doesn't edit that
 // generated file and instead casts narrowly at the call site.
 
-export type SalaryRow = Tables<"salaries">
-export type IncentiveEarnedRow = Tables<"incentives_earned">
+// Monthly Expenses spec (GVMART_MONTHLY_EXPENSES_SPEC.md) — Unit 6's four
+// itemised reimbursement lines on `salaries`, and Unit 5's own-bike-
+// allowance marker on `incentives_earned`, post-date this file's last real
+// codegen the same way technicians.zone/is_active did in techniciansAdmin.ts
+// — widened locally here rather than editing database.ts.
+export type SalaryRow = Tables<"salaries"> & {
+  recharge_amount: number
+  recharge_reason: string | null
+  petrol_km: number
+  petrol_rate: number
+  // Owner revision: the verified claim pays, km x rate is a reference only
+  // — see petrol_reference_amount vs petrol_amount in the migration header.
+  petrol_reference_amount: number
+  petrol_amount: number
+  maintenance_amount: number
+  bike_allowance_base: number
+  bike_allowance_extra: number
+  bike_allowance_reason: string | null
+  bike_allowance_amount: number
+}
+export type IncentiveEarnedRow = Tables<"incentives_earned"> & { is_bike_allowance: boolean }
 export type IncentiveRuleRow = Tables<"incentive_rules">
 export type RewardRow = Tables<"rewards">
 

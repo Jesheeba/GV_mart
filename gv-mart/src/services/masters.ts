@@ -543,7 +543,9 @@ export type InstallationRateRow = Tables<"installation_incentive_rates">
 export type ComplaintTypeRow = Tables<"complaint_types">
 export type ProductSpareRow = Tables<"product_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
 export type ComplaintTypeSpareRow = Tables<"complaint_type_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
-export type SettingsRow = Tables<"settings">
+// Monthly Expenses spec — own_bike_allowance_base post-dates the last real
+// codegen, widened locally the same way as service.ts's SettingsWithSla.
+export type SettingsRow = Tables<"settings"> & { own_bike_allowance_base: number }
 export type SopStepTemplateRow = Tables<"sop_step_templates"> & { products: Pick<Tables<"products">, "name"> | null }
 export type AppointmentSlotRow = Tables<"appointment_slots">
 

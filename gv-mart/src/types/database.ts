@@ -210,6 +210,273 @@ export type Database = {
           },
         ]
       }
+      // Monthly Expenses spec (GVMART_MONTHLY_EXPENSES_SPEC.md) — hand-added
+      // stubs, same approach as technician_stock_levels/spare_returns above:
+      // Docker/`supabase gen types` is unavailable on this machine, so these
+      // post-date the last real codegen but are typed as full Row/Insert/
+      // Update entries rather than needing an `as never` widening at every
+      // call site.
+      technician_vehicles: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          ownership: string
+          petrol_rate_per_km: number
+          effective_from: string
+          effective_to: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          ownership: string
+          petrol_rate_per_km?: number
+          effective_from: string
+          effective_to?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          ownership?: string
+          petrol_rate_per_km?: number
+          effective_from?: string
+          effective_to?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technician_vehicles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technician_vehicles_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      technician_km_log: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          entry_date: string
+          km: number
+          note: string | null
+          logged_by: string | null
+          entered_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          entry_date: string
+          km: number
+          note?: string | null
+          logged_by?: string | null
+          entered_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          entry_date?: string
+          km?: number
+          note?: string | null
+          logged_by?: string | null
+          entered_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technician_km_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technician_km_log_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_claims: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          period: string
+          claim_type: string
+          submitted_amount: number
+          bill_photo_path: string
+          submitted_at: string
+          verified_amount: number | null
+          verified_by: string | null
+          verified_at: string | null
+          reason: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          period: string
+          claim_type: string
+          submitted_amount: number
+          bill_photo_path: string
+          submitted_at?: string
+          verified_amount?: number | null
+          verified_by?: string | null
+          verified_at?: string | null
+          reason?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          period?: string
+          claim_type?: string
+          submitted_amount?: number
+          bill_photo_path?: string
+          submitted_at?: string
+          verified_amount?: number | null
+          verified_by?: string | null
+          verified_at?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      person_allowances: {
+        Row: {
+          id: string
+          org_id: string
+          profile_id: string
+          recharge_amount: number
+          effective_from: string
+          effective_to: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          profile_id: string
+          recharge_amount: number
+          effective_from: string
+          effective_to?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          profile_id?: string
+          recharge_amount?: number
+          effective_from?: string
+          effective_to?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_allowances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_allowances_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_adjustments: {
+        Row: {
+          id: string
+          org_id: string
+          profile_id: string
+          period: string
+          adjustment_target: string
+          adjustment_type: string
+          amount: number | null
+          reason: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          profile_id: string
+          period: string
+          adjustment_target: string
+          adjustment_type: string
+          amount?: number | null
+          reason: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          profile_id?: string
+          period?: string
+          adjustment_target?: string
+          adjustment_type?: string
+          amount?: number | null
+          reason?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_adjustments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_adjustments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           id: string
