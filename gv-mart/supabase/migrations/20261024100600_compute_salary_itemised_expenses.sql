@@ -192,4 +192,4 @@ end;
 $$;
 
 grant execute on function public.compute_salary(uuid, uuid, date) to authenticated;
-revoke execute on function public.compute_salary(uuid, uuid, date) from anon;
+revoke execute on function public.compute_salary(uuid, uuid, date) from public, anon;

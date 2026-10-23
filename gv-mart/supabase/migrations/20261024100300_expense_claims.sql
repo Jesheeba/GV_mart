@@ -122,7 +122,7 @@ end;
 $$;
 
 grant execute on function public.submit_expense_claim(uuid, text, numeric, text, date) to authenticated;
-revoke execute on function public.submit_expense_claim(uuid, text, numeric, text, date) from anon;
+revoke execute on function public.submit_expense_claim(uuid, text, numeric, text, date) from public, anon;
 
 -- ── verify_expense_claim: master/operation_admin sets the figure that pays ──
 -- `verified_amount = 0` with a reason IS the "rejected" state (§1.4) — no
@@ -169,7 +169,7 @@ end;
 $$;
 
 grant execute on function public.verify_expense_claim(uuid, numeric, text) to authenticated;
-revoke execute on function public.verify_expense_claim(uuid, numeric, text) from anon;
+revoke execute on function public.verify_expense_claim(uuid, numeric, text) from public, anon;
 
 -- Monthly verified totals per technician, by claim type — the figures Units
 -- 6/7 read. Unverified rows are excluded by construction (verified_amount is
@@ -196,4 +196,4 @@ as $$
 $$;
 
 grant execute on function public.technician_expense_claims_total(uuid, uuid, date, text) to authenticated;
-revoke execute on function public.technician_expense_claims_total(uuid, uuid, date, text) from anon;
+revoke execute on function public.technician_expense_claims_total(uuid, uuid, date, text) from public, anon;
