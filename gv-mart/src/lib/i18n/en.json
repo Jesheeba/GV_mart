@@ -2743,6 +2743,8 @@
       "locationInsecureContext": "Location requires a secure connection. Open the technician app using its HTTPS address, then allow location access.",
       "locationUnsupported": "This browser doesn't provide location services. Open the app in Chrome or Safari, or use the GV Mart app.",
       "locationBraveBlocked": "Brave is blocking location for this site. Tap the Brave Shields icon in the address bar, turn Shields off or allow Location for this site, then recheck.",
+      "locationRefining": "Getting a more precise location…",
+      "locationImprecise": "Couldn't get a precise enough location to confirm you're at the office. Move near a window or step outside for a clearer signal, then recheck.",
       "selfieLabel": "Take a selfie",
       "markButton": "Mark Attendance",
       "disabledOutsideGeofence": "You must be inside the office to mark attendance.",

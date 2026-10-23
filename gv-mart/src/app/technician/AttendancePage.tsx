@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useCheckOut, useLunchToggle, useMarkAttendance, useMyTechnician, useTechnicianSettings, useTodayAttendance } from "@/hooks/useTechnician"
 import type { AttendanceRowWithCheckOut } from "@/services/technician"
-import { classifyGeoError, getCurrentPosition, isInsideGeofence, type GeoPoint } from "@/lib/offline/geo"
+import { classifyGeoError, distanceKm, getCurrentPosition, isInsideGeofence, type GeoPoint } from "@/lib/offline/geo"
 import { attendanceSchema } from "@/lib/validation/technician"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
 import { StatusDot } from "@/components/shared/StatusDot"
@@ -65,11 +65,48 @@ export function AttendancePage() {
   async function refreshLocation() {
     setCheckingGeo(true)
     setGeoError(null)
+    // The office geofence is only ~100-150m, so a fast network/Wi-Fi fix
+    // (no GPS wait) is tried first — indoors, where attendance is marked,
+    // GPS is often weak or unavailable and would otherwise time out. A
+    // network/cell fix's accuracy is a radius of uncertainty around the
+    // reported point, not an error bound on the reported point being
+    // "close enough" in isolation — so whether it's trustworthy depends on
+    // where the technician actually is relative to the geofence, not on
+    // accuracy alone. A fix 20m from the centre with 60m accuracy is
+    // unambiguously inside a 100m geofence even though 60m alone looks
+    // coarse; a fix is only truly ambiguous when its uncertainty circle
+    // straddles the geofence boundary, and only then does this escalate to
+    // a real GPS fix (geo.ts's own high-accuracy call, with its existing
+    // timeout/fallback behavior as the safety net) rather than guessing.
+    const geofenceRadiusM = settings.data?.geofence_radius_m ?? 100
+    let quick: GeoPoint | null = null
     try {
-      const pos = await getCurrentPosition()
-      setPosition(pos)
+      quick = await getCurrentPosition({ enableHighAccuracy: false, timeout: 15_000, maximumAge: 30_000 })
+    } catch {
+      // quick fix failed outright (weak network signal etc.) — fall through to GPS below
+    }
+    if (quick && settings.data) {
+      const office: GeoPoint = { lat: Number(settings.data.office_lat), lng: Number(settings.data.office_lng) }
+      const distanceM = distanceKm(quick, office) * 1000
+      const accuracyM = quick.accuracy ?? Infinity
+      const definitelyInside = distanceM + accuracyM <= geofenceRadiusM
+      const definitelyOutside = distanceM - accuracyM > geofenceRadiusM
+      if (definitelyInside || definitelyOutside) {
+        setPosition(quick)
+        setCheckingGeo(false)
+        return
+      }
+    }
+    setGeoError(t("technician.attendance.locationRefining"))
+    try {
+      const precise = await getCurrentPosition({ enableHighAccuracy: true })
+      setPosition(precise)
+      setGeoError(null)
     } catch (err) {
-      setGeoError(t(geoErrorKey(err)))
+      // a coarse-but-unusable quick fix plus a failed GPS escalation means
+      // the real problem is precision, not a plain lookup failure — say so
+      // instead of surfacing geo.ts's generic (and here misleading) timeout text
+      setGeoError(quick ? t("technician.attendance.locationImprecise") : t(geoErrorKey(err)))
     } finally {
       setCheckingGeo(false)
     }
