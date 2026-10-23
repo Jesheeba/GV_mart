@@ -66,3 +66,52 @@ One automated capture rendered this page fully blank/white immediately after nav
 - Empty states (Spares — "No handover for today yet", Tasks — "No tasks here", Profile — "No ratings yet"/"No referrals yet") all have an icon, a clear message, and are not blank tables — a genuinely good pattern, no vibe-code violation here.
 - Overflow menu (theme + language) and user menu (profile + sign-out) both open/close cleanly with no z-index or clipping issues at any width tested.
 - The "Assign Task" button visible to technicians on the Tasks page is **intentional** (documented in code: Phase 0's "fully-open hierarchy" decision lets any technician assign any org task) — not a permissions bug, not flagged.
+
+---
+
+## Wave 2 — Customer area
+
+Role: `customer`. Widths: 375 (primary), 768 (primary), 1440 (quick check). Pages covered: Home, My Products, Bookings (+ detail), Profile, AMC, Book Service (step 1 only, not submitted), Product Enquiry catalog (+ callback, compare), Spare Enquiry, Notifications.
+
+**Blocker hit and resolved before this wave could run**: `customer@gvmart.test` came back `user_banned` from Supabase Auth on first attempt. Investigated — not caused by anything in this session or explained by any prior memory (the 2026-10-05 mock-data-wipe work explicitly planned to *keep* this account; it was never executed anyway). Per the user's explicit instruction, unbanned the account and (after the shared test password also turned out not to match it — a separate, unrelated issue) reset its password to the standard `GvMart@2026` via the Supabase Admin API, both scoped to this one test auth user only. Flagging here for visibility since it's a real auth-side anomaly outside this audit's normal scope, not a UI finding — worth the user independently checking *why* that account got banned, in case it recurs.
+
+**Regression check against the Aug 2026 audit's Customer-phase (Phase 5) decisions**: the booking-detail "About pricing" transparency copy (that phase's fix for a missing-i18n-key bug) renders correctly, in real English text, not a raw key — not regressed. Customer notification copy is human-readable — consistent with that phase's "Trust & Conversion" lens.
+
+### Findings
+
+**CUST-001 — Duplicate notification bell on the Home page** · Category **C** (Components) · `vibe-code` (same control built two different ways) · role: customer · page: Home · width: all · [`01-home.png`](screenshots/before/customer/375/01-home.png)
+`CustomerShell`'s header already has a notification bell with an unread-count badge (shared across all customer pages). `CustomerHomePage.tsx:175-182` adds a second, page-local bell button next to the "Welcome back" heading that navigates to the exact same `/customer/notifications` route — but with no unread badge and no `aria-label` (only a `title`, line 179).
+**Severity: High** (two controls for one action, inconsistent with each other, on the single most-visited page). Fix: delete the page-local bell, rely on the shell's.
+
+**CUST-002 — Wrong avatar initials on the Profile page** · Category **C** (Components) + **I** (Content) · `vibe-code` (same logic reimplemented, incorrectly) · role: customer · page: Profile · width: 375px (code-level, applies at all widths) · [`04-profile.png`](screenshots/before/customer/375/04-profile.png), zoomed crop confirms "LA" for "Lakshmi Priya"
+The shared `UserMenu.tsx` has a correct `initials()` helper (produces "LP" — shown correctly in every shell header, e.g. the avatar in the very same screenshot). `CustomerProfilePage.tsx:409` instead does `profile.full_name.slice(0, 2).toUpperCase()`, which takes the first 2 *characters* ("La") instead of the first letter of each word, producing **a visibly wrong initial for any customer whose first name is longer than one letter**.
+**Severity: High** — this is simply wrong, visible to every customer on their own profile page, right next to their correctly-rendered initials in the header above it. Fix: import and reuse `UserMenu`'s `initials()` helper (or hoist it to a shared util) instead of the inline `slice(0,2)`.
+
+**CUST-003 — Catalog "open product" button has zero accessible name when there's no photo** · Category **J** (Accessibility) · role: customer · page: Product Enquiry catalog · width: all · [`07-product-enquiry.png`](screenshots/before/customer/375/07-product-enquiry.png)
+`CustomerCatalogGrid.tsx:132-144`: when a product has no `primaryImage`, the clickable button that opens its detail page renders only a bare `<Package>` icon with no `alt`/`aria-label`/visible text — so the button has **no accessible name at all**. `axe-core` flags this as `button-name` (**critical**), and it hit 3 of the 4 products visible on this page (most catalog products in the test data have no photo uploaded — see CUST-005).
+**Severity: Critical** (screen-reader users get nothing for the primary way to open most products). Fix: add `aria-label={p.name}` to the fallback button (or an `sr-only` span), same as the real-photo case already gets via `alt={p.name}`.
+
+**CUST-004 — Mobile "add to compare" checkbox relies only on a `title` attribute** · Category **J** (Accessibility) · role: customer · page: Product Enquiry catalog · width: 375/768px
+`CustomerCatalogGrid.tsx:195-203`: the mobile-only compact compare checkbox has no visible text and no `aria-label`, only `title={t("...compare.cta")}` — `axe-core` flags `label-title-only` (serious), since `title` tooltips aren't a reliable accessible name for assistive tech.
+**Severity: Medium.** Fix: add `aria-label` alongside (or instead of) `title`.
+
+**CUST-005 — Most catalog products have no photo on file** · Category **D** (States) · role: customer · page: Product Enquiry catalog · width: all
+Of the ~13 products visible in the test catalog, only 1 ("Amaron Current 150Ah Battery") has a real photo; the rest show a generic box-icon placeholder. The fallback state itself renders cleanly and consistently (not broken) — this is a **content gap**, not a UI defect, but worth surfacing: customers browsing the catalog mostly see placeholder icons instead of product photos.
+**Severity: Low/informational.**
+
+**CUST-006 — Danger-colored text fails contrast app-wide (same pattern as Technician)** · Category **J** (Accessibility) · role: customer · ALL pages
+Same systemic `color-contrast` (serious) finding as TECH-007 — hit on 6 page/width combinations here too (the "Technician assigned — tap to track" banner, overdue/status-danger text).
+**Severity: High, systemic.** Same fix as TECH-007 — one design-token change in Phase 3 fixes both roles.
+
+**CUST-007 — Icon buttons missing accessible names, systemic** · Category **J** (Accessibility) · role: customer · nearly every page (33 page/width combinations)
+`label-content-name-mismatch` (serious), same pattern as TECH-008 — icon-only header/control buttons whose accessible name doesn't match their visible content.
+**Severity: Medium, systemic** — fix once at the shared icon-button/header level in Phase 3.
+
+### What's clean (worth recording, not just defects)
+- Zero console errors / page errors on any customer page at any width tested.
+- No `window.alert()`/`confirm()`, no clickable-`<div>` patterns in `src/app/customer/**`.
+- Empty states (My Products, AMC, Compare) all have a clear icon, message, and a next action — no blank tables.
+- Booking Detail was caught mid-load during capture: shows a real spinner + "Loading…" text, not a blank screen or layout jump — a genuinely good loading-state example.
+- Notification copy is human-readable ("Technician has arrived", "A technician has been assigned to your request") — a sharp, positive contrast with the Technician app's raw-UUID notification bug (TECH-002), confirming that's a real inconsistency and not just how the whole app works.
+- The Tamil (`த`) glyph in the language toggle renders correctly via the self-hosted font (verified with a zoomed capture) — no tofu/missing-glyph box.
+- Short, human ticket references ("#383a62ef") are used in the Bookings list — another contrast point against TECH-002's raw UUID.
