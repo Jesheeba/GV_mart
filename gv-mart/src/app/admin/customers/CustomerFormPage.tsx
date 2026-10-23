@@ -649,7 +649,11 @@ export function CustomerFormPage() {
             {t("customers.form.next")}
           </Button>
         ) : (
-          <Button type="button" onClick={handleSaveAndFinish} disabled={isSaving}>
+          <Button
+            type="button"
+            onClick={handleSaveAndFinish}
+            disabled={isSaving || (lat == null && lng == null && hasAddressText(addressForm.getValues()))}
+          >
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
           </Button>
         )}
