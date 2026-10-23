@@ -180,3 +180,36 @@ Same `color-contrast: serious` pattern as TECH-007/CUST-006. Confirms this is an
 - Service Tickets, Inventory, and Suppliers tables render real data cleanly: color-coded status badges, stock-level progress bars, star ratings — no layout breakage with real row counts.
 - No `window.alert()`/`confirm()` usage found.
 - Admin shell's icon-only sidebar nav correctly uses both `title` and `aria-label` on every nav item (unlike several icon buttons elsewhere in the app).
+
+---
+
+## Wave 4 — Admin sales pages
+
+Role: `sales_admin` (fixed as part of the same Wave 3 account-reactivation; captured directly with working data, no retraction needed). Widths: 1440 and 1024 (primary), 768 (quick check). Pages covered: My Day, Customers (+ New Customer), Sales, New Sale, Quotations (+ New Quotation), Leads (Kanban), Automation, Rentals, Campaigns.
+
+**Regression check against the Aug 2026 audit's sales-adjacent decisions**: `CustomersListPage`'s CSV export fix (paginate full filtered set) and `NotificationsPage`'s type-filter fix are both Phase 3b items for Admin generally — not directly re-verified this wave (not exercised), no evidence of regression either. Campaigns' "no live send integration" disclaimer copy still renders correctly (honest, not overselling the feature).
+
+### Findings
+
+**SALES-001 — Quotation/spare item pickers are unlabeled native selects, in a form with no responsive layout** · Category **J** (Accessibility) + **A** (Layout) · role: sales_admin · page: New Quotation · width: all · [`07-new-quotation.png`](screenshots/before/admin-sales/1440/07-new-quotation.png)
+Two issues on one screen: (1) `axe-core` flags `select-name: critical` on the "Select product"/"Select spare" native selects — no accessible name. (2) At 1440px, the entire form stays in a single ~670px-wide left column with nothing else on the page — roughly 55% of the viewport is unused whitespace instead of a two-column layout (e.g. form + live summary, as New Sale uses elsewhere).
+**Severity: High** (critical a11y gap) **for the label issue; Low** for the layout waste.
+Note: the underlying flat/unfiltered product-spare picker (vs. the cascading Brand→Model→Product picker `ItemsStep` uses for New Sale) is a **known, already-flagged backlog item** from the Aug 2026 audit (not re-reported as new) — confirmed still present.
+
+**SALES-002 — Unlabeled filter selects on Leads** · Category **J** (Accessibility) · role: sales_admin · page: Leads · width: all
+`axe-core` flags `select-name: critical` on 3 filter `<select>` elements (source/topic/kind filters).
+**Severity: High.**
+
+**SALES-003 — Customer list contains raw, un-cleaned imported data** · Category **I** (Content) · role: sales_admin · page: Customers · width: all · [`02-customers.png`](screenshots/before/admin-sales/1440/02-customers.png)
+Of 16,381 customers, a visible fraction have no real name on file — several rows show an all-caps legacy-import-style name with a phone number concatenated into the name field itself (e.g. "NAME 9XXXXXXXXX"), or a generic placeholder prefix with the number. This is a **data quality issue, not a UI defect** (the table itself renders this cleanly, with sensible avatar-initial colors) — flagged for awareness, not something Phase 3-5 UI work should or could fix.
+**Severity: Informational, not a UI finding.**
+
+**SALES-004 — Systemic accessibility findings, consistent with every other wave** · Category **J** · role: sales_admin
+`color-contrast: serious` (18 combos), `label-content-name-mismatch: serious` (35 combos), `heading-order: moderate` (6 combos — Sales and Leads pages), `empty-table-header: minor` (6 combos — Automation, Rentals). All match the same patterns already documented in Waves 1-3; same shared fixes apply.
+**Severity: matches the established pattern (High/Medium/Low per sub-finding) — no new category, logged for completeness of the per-category severity count.**
+
+### What's clean
+- My Day's lead-action cards (Call/WhatsApp/Set follow-up/Assign) use a deliberately graduated button hierarchy (solid black/outline/accent/text-link) that reads as intentional prioritization, not inconsistency — unlike the Suppliers/Purchase button-color finding (ADMIN-003), this one makes sense in context.
+- Sales dashboard's empty states ("No sales yet," "Start your first sale to see it here") are honest and genuinely empty (0 sales this month is real data, not a loading/permission failure) — confirmed by cross-referencing with My Day's real 64-lead count on the same account.
+- Campaigns' "This app has no live send integration" banner is a good example of honest, limitation-aware microcopy rather than overselling a half-built feature.
+- Zero console errors, zero `window.alert()`/`confirm()` usage.
