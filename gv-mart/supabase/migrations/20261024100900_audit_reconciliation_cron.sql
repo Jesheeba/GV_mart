@@ -1,3 +1,15 @@
+-- PREREQUISITE: 20261024100800 (audit_reconciliation_baseline) must
+-- already be applied, AND its baseline must already have been captured
+-- once:
+--   select capture_audit_reconciliation_baseline('post-investigation baseline, 2026-10');
+-- The two cron.schedule() calls at the end of this file start the daily
+-- tick and the 2-hourly dead-man's-switch immediately on apply. Without
+-- a captured baseline first, moved_since_baseline is true for every
+-- audited table by construction, and the very first tick notifies
+-- master about all of them at once. Capture the baseline, confirm
+-- audit_reconciliation_report() comes back with moved_since_baseline
+-- false everywhere, and only then apply this file.
+--
 -- Audit reconciliation, scheduled. A detector that stops running
 -- silently is worse than none — it creates false confidence. Reuses the
 -- EXISTING heartbeat/dead-man's-switch pattern from

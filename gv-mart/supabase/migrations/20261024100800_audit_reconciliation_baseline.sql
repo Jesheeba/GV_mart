@@ -1,3 +1,16 @@
+-- PREREQUISITE: 20261024100700 (salary_period_locks) must already be
+-- applied — this migration replaces that one's audit_reconciliation_report()
+-- and depends on audit_master_change already being attached wherever
+-- 20261024100700 and earlier migrations attached it.
+--
+-- *** DO NOT SCHEDULE THE CRON JOBS IN 20261024100900 UNTIL THE BASELINE
+-- BELOW HAS BEEN CAPTURED ONCE. *** Without a captured baseline,
+-- moved_since_baseline is true for every single audited table by
+-- construction (no baseline row exists yet to compare against), and the
+-- first cron tick will alert on all of them at once. After applying this
+-- migration and BEFORE applying/scheduling 20261024100900, run as master:
+--   select capture_audit_reconciliation_baseline('post-investigation baseline, 2026-10');
+--
 -- Baselines the audit_reconciliation_report() findings from
 -- 20261024100700. The 2026-10 investigation explained the drift as it
 -- stood then: positive on tables whose history predates their trigger,
@@ -97,6 +110,14 @@ revoke execute on function public.capture_audit_reconciliation_baseline(text) fr
 -- as null and moved_since_baseline as true by construction — an
 -- unbaselined table has no "known-explained" figure to fall back on, so
 -- any diff on it is new information by definition.
+--
+-- Explicit DROP first: 20261024100700's version returns a 4-column row
+-- (no baseline_difference/moved_since_baseline). Postgres refuses to
+-- CREATE OR REPLACE a function across a change in its OUT-parameter
+-- shape — "cannot change return type of existing function" — so the old
+-- shape has to be dropped before the new one can be created.
+drop function if exists public.audit_reconciliation_report();
+
 create or replace function public.audit_reconciliation_report()
 returns table (
   table_name text,

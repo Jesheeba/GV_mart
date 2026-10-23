@@ -1,3 +1,11 @@
+-- PREREQUISITE: 20261024100100 through 20261024100600 (Monthly Expenses
+-- units 1-7: technician_vehicles, technician_km_log, expense_claims,
+-- person_allowances_and_adjustments, compute_incentives_bike_allowance,
+-- compute_salary_itemised_expenses) must already be applied. This
+-- migration's verify_expense_claim and compute_salary bodies are those
+-- units' verbatim live bodies with the lock guard added — applying this
+-- first would overwrite them with a body that does not exist yet.
+--
 -- Salary period finalization (2026-10-23 payroll-integrity review, raised
 -- while building the Monthly Expenses feature). Investigation found:
 --   * compute_salary is permanently recomputable — no period was ever closed.
