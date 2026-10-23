@@ -85,7 +85,7 @@ const TICKET_SELECT = `
   products(name),
   brands(name),
   models(name),
-  addresses(area),
+  addresses(area, lat, lng),
   appointments(
     id, scheduled_at, mode, status, technician_id, available_from, available_to,
     is_narrow_window, next_day_priority, rescheduled_from_date,

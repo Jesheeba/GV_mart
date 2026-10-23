@@ -1917,6 +1917,7 @@
       "autoAssign": "Auto-assign",
       "pickTechnician": "Pick a technician",
       "editAddress": "Edit address",
+      "addressMissingPin": "No confirmed map pin — technician won't see a location for this job",
       "offDuty": "Off duty",
       "assignManually": "Assign manually",
       "postServiceCalls": "Post-service calls",

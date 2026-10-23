@@ -475,6 +475,12 @@ export function TicketDetailPage() {
                 </button>
               </div>
               <div className="text-text">{ticket.addresses?.area ?? "—"}</div>
+              {!ticket.address_id || ticket.addresses?.lat == null || ticket.addresses?.lng == null ? (
+                <p className="mt-0.5 flex items-center gap-1 text-xs text-warning">
+                  <TriangleAlert className="size-3" />
+                  {t("service.detail.addressMissingPin")}
+                </p>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-1.5">
