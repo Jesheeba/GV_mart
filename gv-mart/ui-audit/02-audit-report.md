@@ -124,59 +124,59 @@ Role: `operation_admin` (covers both the all-staff pages and the ops-only pages 
 
 **Blocker hit and resolved before this wave could run**: `operation_admin@gvmart.test` and `sales_admin@gvmart.test` were *also* banned, with the exact same timestamp (2026-10-05T11:15) as `customer@gvmart.test` had been — a 3-account batch action, not a one-off. Per the user's explicit instruction, unbanned both and reset both passwords to the standard `GvMart@2026` (same password mismatch as the customer account). **This pattern — 3 of 5 test accounts banned in one batch, all on the same day — doesn't match anything in prior session memory and is worth the user independently investigating.**
 
-### The headline finding: operation_admin appears to have broken data access across most of the admin app
+### Correction: the "broken data access" observed in this wave was not a bug
 
-This is a functional/backend finding, not a styling one, and it's **out of this audit's scope to fix** (ground rules: UI/UX only, no business logic/API/data changes) — but it's severe enough, and visible enough in the UI, that it has to be reported prominently rather than buried in a findings list.
+**Update, same session**: Wave 3 was originally captured while `operation_admin` had `profiles.is_active = false` — a deliberate staff-activation gate (`20261015110000_current_role_active_gate.sql`: "every office role must be active"), separate from and in addition to the Supabase Auth ban already described above. This wasn't visible from the UI or from `profiles.role`/`org_id` alone (both looked correct), which is why it was initially mis-reported here as a Critical backend/RLS bug. A read-only check surfaced the real cause (`is_active: false` on `operation_admin`, `sales_admin`, and `customer`, with `sales_admin`'s flag set on a *different* date than the other two — so not even a single clean batch action). **The user re-activated all three (`is_active = true`) partway through this wave**, and a direct re-check confirms the Dashboard, Reports RPCs, and Technicians list all now load real data with zero console errors.
 
-**ADMIN-001 — operation_admin sees empty/zero data on nearly every admin page, despite that data demonstrably existing** · Category **H** (UX flows) + **D** (States) · role: operation_admin · ALL widths
-Observed, in order:
-- **Dashboard** (`01-dashboard.png`): red "⚠ Could not load the tiles" banner with a Retry button, every single page load, at every width.
-- **Daily Huddle** (`04-huddle.png`): "Performance —" section shows "Performance numbers unavailable."
-- Both trace to the same root cause: `report_sales_service` and `report_ops_resolution` RPC calls return HTTP 400 with `{"message":"not permitted: only staff can view reports"}` — **even though `operation_admin` is defined as a staff role everywhere else in this codebase** (`STAFF_ROLES = [master, operation_admin, sales_admin]` in `router.tsx`). Reproduced on 100% of loads across all 3 widths.
-- **Service Tickets** (`06-service-tickets.png`): "No tickets yet," all filter-tab counts (Overdue/Unassigned/Pending/Cancelled/Completed/Missing product) read 0 — despite a real, active, "In progress" ticket existing for this exact org (seen directly in Wave 1, ticket `383a62ef…`, assigned to technician Karthik Raja).
-- **Technicians** (`09-technicians.png`): "No technicians yet. Add your first technician to start assigning jobs." — despite a real technician (Karthik Raja) actively working a job in this same org.
-- **Inventory** (`13-inventory.png`): "0 SKUs" / "No inventory rows yet." — despite real products with real prices visible in the Customer app's catalog in the same org (Wave 2).
-- **Suppliers** (`14-suppliers.png`) and **Purchase** (`15-purchase.png`): both empty, despite prior session memory confirming at least 2 real supplier records exist in this org.
+**This means**: the empty-table/"could not load" screens originally described here were a direct, correct consequence of a real (if previously-undiscovered) account deactivation — not an application defect. **Re-captured every page in this wave after reactivation** (new screenshots replace the broken-state ones) and re-derived findings below from the working app. Whatever caused 3 test accounts to end up deactivated across two different dates, with nothing in prior session memory explaining it, is still worth the user independently understanding, but it's an account-provisioning question, not a UI/UX finding.
 
-**Ruled out before reporting**: this is not a test-org mismatch — a direct read of the `profiles` table confirms `operation_admin`, `sales_admin`, `technician`, and `master` all share the identical `org_id`. So the data exists in the right org; `operation_admin` specifically can't see it.
+### Findings (re-derived from the working app)
 
-**Severity: Critical.** This makes the operation_admin role's primary dashboard, ticket queue, technician roster, and inventory/supplier/purchase modules all appear completely empty on every visit — effectively unusable for anyone actually holding this role in production. Strongly recommend treating this as an urgent backend/RLS investigation, separate from and before any of this audit's Phase 3-5 UI work for ops-role screens (there's limited value polishing table layouts that currently render no rows for this role).
+**ADMIN-001 — Three different date formats in the admin area alone** · Category **I** (Content) · `vibe-code` · role: operation_admin · widths: all
+Three distinct date formats observed across pages visited this wave: `23/10/2026, 16:00:00` (slash-separated, includes seconds — Service Tickets' Appointment column), `2026-10-09` (raw ISO — Huddle's "Raised" dates, carried over from TECH-003/same pattern), and `23 Oct 2026` (friendly — Dashboard, elsewhere). `TasksPage.tsx:165` calls `.toLocaleDateString(undefined, { dateStyle: "medium" })` — the explicit `undefined` locale arg means this one renders in whatever locale the visiting device/browser is set to, not consistently `en-IN` like most of the app.
+**Severity: Medium**, ties into the same shared-date-formatter gap flagged in Discovery §6C — this wave adds 3 more concrete inconsistent call sites.
+
+**ADMIN-002 — Nested interactive elements on the Tasks list** · Category **J** (Accessibility) · `vibe-code` (clickable wrapper instead of a real button) · role: operation_admin · page: Tasks · width: all
+`TasksPage.tsx:169-178`: each task row is a `<div role="button" tabIndex={0} onClick={onOpen}>` that itself wraps a real `<button>` (the done/undone toggle, with its own `stopPropagation()`). `axe-core` flags `nested-interactive` (serious) on all 3 visible rows — a focusable element inside another focusable element confuses keyboard/screen-reader navigation (which target does Enter/Space/Tab actually activate?).
+**Severity: Medium.** Fix: don't nest a real `<button>` inside a `role="button"` div — restructure so the row and the toggle are siblings, or make the row itself non-interactive and keep only the real controls (title link + toggle) focusable.
 
 ### Other findings
 
-**ADMIN-002 — Inconsistent primary-action button color** · Category **B** (Visual design) · `vibe-code` (same component styled differently) · role: operation_admin · pages: Suppliers, Purchase · width: all · [`14-suppliers.png`](screenshots/before/admin-ops/1440/14-suppliers.png), [`15-purchase.png`](screenshots/before/admin-ops/1440/15-purchase.png)
+**ADMIN-003 — Inconsistent primary-action button color** · Category **B** (Visual design) · `vibe-code` (same component styled differently) · role: operation_admin · pages: Suppliers, Purchase · width: all · [`14-suppliers.png`](screenshots/before/admin-ops/1440/14-suppliers.png), [`15-purchase.png`](screenshots/before/admin-ops/1440/15-purchase.png)
 Every other primary action button sampled this wave ("Assign Task," "Add Technician," "New Complaint") uses the solid black `ink` button style. "Add supplier" and "Create PO" instead use the coral `accent` color. Could be a deliberate "money/procurement" accent, but nothing in the design docs says so, and it reads as inconsistent next to the rest of the admin shell.
 **Severity: Low/Medium.** Flag for the Phase 3 design-system pass to make an explicit, documented call either way.
 
-**ADMIN-003 — Month-range control has no accessible label** · Category **J** (Accessibility) · role: operation_admin · pages: Dashboard, Technicians · width: all
+**ADMIN-004 — Month-range control has no accessible label** · Category **J** (Accessibility) · role: operation_admin · pages: Dashboard, Technicians · width: all
 `axe-core` flags `label: critical` on the "Month"-range date control (the `#base-ui-...` generated id matches the shared date-picker primitive) on both pages it appears on.
 **Severity: Critical** (per axe; a date-range control with no accessible name is unusable via screen reader).
 
-**ADMIN-004 — Notification filter selects look labeled but aren't programmatically associated** · Category **J** (Accessibility) · role: operation_admin · page: Notifications · width: all · [`05-notifications.png`](screenshots/before/admin-ops/1440/05-notifications.png)
+**ADMIN-005 — Notification filter selects look labeled but aren't programmatically associated** · Category **J** (Accessibility) · role: operation_admin · page: Notifications · width: all · [`05-notifications.png`](screenshots/before/admin-ops/1440/05-notifications.png)
 The "Type" and "Status" filters are native `<select>` elements with visible text labels right above them, but `axe-core` flags `select-name: critical` on both — the `<label>` text isn't actually wired to the `<select>` via `htmlFor`/`id` or `aria-label`, so it only *looks* labeled.
 **Severity: Critical** (per axe), easy fix (add `htmlFor`/`id` pairing).
 
-**ADMIN-005 — Icon buttons with no accessible name on Appointments** · Category **J** (Accessibility) · role: operation_admin · page: Appointments · width: all
+**ADMIN-006 — Icon buttons with no accessible name on Appointments** · Category **J** (Accessibility) · role: operation_admin · page: Appointments · width: all
 `button-name: critical` on 2 icon-only buttons (calendar nav or view-toggle, based on class names).
 **Severity: Critical.**
 
-**ADMIN-006 — Danger-colored text contrast failure, systemic (same as Technician/Customer)** · Category **J** · role: operation_admin · 15 page/width combinations
+**ADMIN-007 — Danger-colored text contrast failure, systemic (same as Technician/Customer)** · Category **J** · role: operation_admin · 32 page/width combinations
 Same `color-contrast: serious` pattern as TECH-007/CUST-006. Confirms this is an app-wide design-token issue, not role-specific.
 **Severity: High, systemic.**
 
-**ADMIN-007 — Heading level skip, repeated** · Category **J** · role: operation_admin · pages: Dashboard, Huddle · 6 combinations
+**ADMIN-008 — Heading level skip, repeated** · Category **J** · role: operation_admin · pages: Dashboard, Huddle · 6 combinations
 `heading-order: moderate`, same pattern as TECH-010.
 **Severity: Low.**
 
-**ADMIN-008 — Icon buttons missing accessible names (shell-wide)** · Category **J** · role: operation_admin · pages: Huddle, New Complaint · 6 combinations
+**ADMIN-009 — Icon buttons missing accessible names (shell-wide)** · Category **J** · role: operation_admin · widely across pages (55 page/width combinations) — the largest single a11y finding of this wave
 `label-content-name-mismatch: serious`, consistent with TECH-008/CUST-007.
 **Severity: Medium, systemic.**
 
-**ADMIN-009 — Empty table headers (minor) and a scrollable-region-focus gap at tablet width** · Category **J** · role: operation_admin · Technicians Spares/Suppliers/Purchase (`empty-table-header`, 9 combos, minor); Service Tickets/Technicians Attendance/Inventory at 768px (`scrollable-region-focusable: serious`, 3 combos — a horizontally-scrollable table region isn't keyboard-focusable at tablet width, where tables start needing to scroll).
+**ADMIN-010 — Empty table headers (minor) and a scrollable-region-focus gap at tablet width** · Category **J** · role: operation_admin · Technicians Spares/Suppliers/Purchase (`empty-table-header`, 9 combos, minor — the trailing actions column has no header text); Technicians Attendance at 768px (`scrollable-region-focusable: serious`, 1 combo — a horizontally-scrollable table region isn't keyboard-focusable at tablet width, where tables start needing to scroll).
 **Severity: Low (empty-table-header) / Medium (scrollable-region-focusable).**
 
 ### What's clean (worth recording, not just defects)
-- Empty states throughout (Workspace, Tasks, Inventory, Suppliers, Purchase) have clear icon+message+CTA — consistent with the pattern seen in Waves 1-2, not a vibe-code violation.
-- The Dashboard's "Could not load the tiles" error has a proper Retry button rather than a silent failure or a raw stack trace — good defensive UI around a bad underlying permission error (ADMIN-001).
+- With a working account, the Dashboard is genuinely well put together: a highlighted primary KPI tile (consistent with the technician Day Sheet's pattern), "LIVE" badges on real-time figures, per-tile info tooltips, and good "No data yet"/"No sales in this period yet" micro-copy under zeroed KPIs rather than blank numbers.
+- Empty states throughout (Workspace, Tasks when genuinely empty, etc.) have clear icon+message+CTA — consistent with the pattern seen in Waves 1-2, not a vibe-code violation.
+- Before the fix, the Dashboard's "Could not load the tiles" error had a proper Retry button rather than a silent failure or a raw stack trace — good defensive UI around what turned out to be a real (if unexpected) deactivated-account state.
+- Service Tickets, Inventory, and Suppliers tables render real data cleanly: color-coded status badges, stock-level progress bars, star ratings — no layout breakage with real row counts.
 - No `window.alert()`/`confirm()` usage found.
 - Admin shell's icon-only sidebar nav correctly uses both `title` and `aria-label` on every nav item (unlike several icon buttons elsewhere in the app).
