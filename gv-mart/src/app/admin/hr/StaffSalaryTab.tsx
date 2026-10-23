@@ -234,7 +234,13 @@ export function StaffSalaryTab() {
             onChange={(e) => setAmounts((prev) => ({ ...prev, [r.id]: e.target.value }))}
             className="h-9 w-32"
           />
-          <Button size="xs" variant="accent" onClick={() => logSalary(r)} disabled={!r.is_active || !(Number(effectiveAmount(r)) > 0) || loggingId === r.id}>
+          <Button
+            size="xs"
+            variant="accent"
+            onClick={() => logSalary(r)}
+            disabled={!r.is_active || !(Number(effectiveAmount(r)) > 0) || loggingId === r.id || !!totalsByStaffId.get(r.id)}
+            title={totalsByStaffId.get(r.id) ? t("hr.staffSalary.alreadyLoggedThisMonth") : undefined}
+          >
             {loggingId === r.id ? <Loader2 className="size-3 animate-spin" /> : <Wallet className="size-3" />}
             {t("hr.staffSalary.logSalary")}
           </Button>

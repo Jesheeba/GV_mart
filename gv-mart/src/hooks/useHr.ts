@@ -65,6 +65,46 @@ export function useComputeSalary() {
   })
 }
 
+// ── Salary period finalization ──────────────────────────────────────────
+
+export function useSalaryPeriodLock(orgId: string | undefined, period: string) {
+  return useQuery({
+    queryKey: ["salary_period_locks", orgId, period],
+    queryFn: () => hr.getSalaryPeriodLock(orgId!, period),
+    enabled: !!orgId && !!period,
+  })
+}
+
+export function useLockSalaryPeriod() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, period }: { orgId: string; period: string }) => hr.lockSalaryPeriod(orgId, period),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["salary_period_locks"] })
+      qc.invalidateQueries({ queryKey: ["salaries"] })
+    },
+  })
+}
+
+export function useReopenSalaryPeriod() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, period, reason }: { orgId: string; period: string; reason: string }) => hr.reopenSalaryPeriod(orgId, period, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["salary_period_locks"] })
+      qc.invalidateQueries({ queryKey: ["salaries"] })
+    },
+  })
+}
+
+export function useAuditReconciliationReport(enabled: boolean) {
+  return useQuery({
+    queryKey: ["audit_reconciliation_report"],
+    queryFn: () => hr.getAuditReconciliationReport(),
+    enabled,
+  })
+}
+
 // ── Incentives ─────────────────────────────────────────────────────────────
 
 export function useIncentivesEarned(orgId: string | undefined, period: string) {
