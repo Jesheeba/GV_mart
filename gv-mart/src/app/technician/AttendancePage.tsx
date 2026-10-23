@@ -39,6 +39,24 @@ const GEO_ERROR_KEYS: Record<ReturnType<typeof classifyGeoError>, string> = {
 }
 const geoErrorKey = (err: unknown) => GEO_ERROR_KEYS[classifyGeoError(err)]
 
+// Below this, GPS can't meaningfully improve on a network/Wi-Fi fix, so
+// escalating would just cost ~20s and return the same ambiguous read.
+const GEOFENCE_PRECISION_FLOOR_M = 15
+
+/**
+ * A fix's accuracy is a radius of uncertainty, not a flat precision score —
+ * whether it's trustworthy for a geofence decision depends on where the
+ * technician actually is relative to the boundary, not on accuracy alone.
+ * True when the uncertainty circle doesn't straddle the boundary (decisively
+ * inside or outside), or when accuracy is already at the floor GPS could
+ * offer anyway (so there's nothing to gain by asking for a better fix).
+ */
+function isGeofenceReadTrustworthy(distanceM: number, accuracyM: number, radiusM: number): boolean {
+  const definitelyInside = distanceM + accuracyM <= radiusM
+  const definitelyOutside = distanceM - accuracyM > radiusM
+  return definitelyInside || definitelyOutside || accuracyM <= GEOFENCE_PRECISION_FLOOR_M
+}
+
 export function AttendancePage() {
   const { t } = useTranslation()
   const { toast } = useToast()
@@ -67,17 +85,7 @@ export function AttendancePage() {
     setGeoError(null)
     // The office geofence is only ~100-150m, so a fast network/Wi-Fi fix
     // (no GPS wait) is tried first — indoors, where attendance is marked,
-    // GPS is often weak or unavailable and would otherwise time out. A
-    // network/cell fix's accuracy is a radius of uncertainty around the
-    // reported point, not an error bound on the reported point being
-    // "close enough" in isolation — so whether it's trustworthy depends on
-    // where the technician actually is relative to the geofence, not on
-    // accuracy alone. A fix 20m from the centre with 60m accuracy is
-    // unambiguously inside a 100m geofence even though 60m alone looks
-    // coarse; a fix is only truly ambiguous when its uncertainty circle
-    // straddles the geofence boundary, and only then does this escalate to
-    // a real GPS fix (geo.ts's own high-accuracy call, with its existing
-    // timeout/fallback behavior as the safety net) rather than guessing.
+    // GPS is often weak or unavailable and would otherwise time out.
     const geofenceRadiusM = settings.data?.geofence_radius_m ?? 100
     let quick: GeoPoint | null = null
     try {
@@ -89,23 +97,31 @@ export function AttendancePage() {
       const office: GeoPoint = { lat: Number(settings.data.office_lat), lng: Number(settings.data.office_lng) }
       const distanceM = distanceKm(quick, office) * 1000
       const accuracyM = quick.accuracy ?? Infinity
-      const definitelyInside = distanceM + accuracyM <= geofenceRadiusM
-      const definitelyOutside = distanceM - accuracyM > geofenceRadiusM
-      if (definitelyInside || definitelyOutside) {
+      if (isGeofenceReadTrustworthy(distanceM, accuracyM, geofenceRadiusM)) {
         setPosition(quick)
         setCheckingGeo(false)
         return
       }
     }
+    // Still ambiguous and not yet at the precision floor — a real GPS fix
+    // might resolve it, so escalate.
     setGeoError(t("technician.attendance.locationRefining"))
     try {
       const precise = await getCurrentPosition({ enableHighAccuracy: true })
+      // Whatever this comes back as is the best fix available — there's
+      // nothing left to escalate to. If it still straddles the boundary,
+      // that's the terminal case: accept it and let the plain
+      // distance-vs-radius check below (isInsideGeofence) have the final
+      // word, rather than showing an error to someone who may be standing
+      // right at the gate with a perfectly good fix.
       setPosition(precise)
       setGeoError(null)
     } catch (err) {
-      // a coarse-but-unusable quick fix plus a failed GPS escalation means
-      // the real problem is precision, not a plain lookup failure — say so
-      // instead of surfacing geo.ts's generic (and here misleading) timeout text
+      // GPS failed outright. If we never got even a coarse fix, this is a
+      // genuine lookup failure (permission denied, unsupported, etc.) — show
+      // the classified error. If we did get a coarse fix but it was too
+      // ambiguous to trust and GPS couldn't improve on it, that's a real
+      // precision problem, not a generic timeout.
       setGeoError(quick ? t("technician.attendance.locationImprecise") : t(geoErrorKey(err)))
     } finally {
       setCheckingGeo(false)
@@ -128,6 +144,7 @@ export function AttendancePage() {
   const radiusM = settings.data.geofence_radius_m
   const officeLocation: GeoPoint = { lat: Number(settings.data.office_lat), lng: Number(settings.data.office_lng) }
   const insideGeofence = position ? isInsideGeofence(position, officeLocation, radiusM) : false
+  const distanceFromOfficeM = position ? Math.round(distanceKm(position, officeLocation) * 1000) : null
   const alreadyMarked = !!attendance.data
   const lateCutoff = settings.data.late_cutoff // "HH:MM:SS"
   const [cutH, cutM] = lateCutoff.split(":").map(Number)
@@ -147,7 +164,9 @@ export function AttendancePage() {
     : geoError && !position
       ? t("technician.attendance.locationUnknown")
       : !insideGeofence
-        ? t("technician.attendance.disabledOutsideGeofence")
+        ? distanceFromOfficeM !== null
+          ? t("technician.attendance.disabledOutsideGeofenceWithDistance", { distance: distanceFromOfficeM, radius: radiusM })
+          : t("technician.attendance.disabledOutsideGeofence")
         : !selfie
           ? t("technician.attendance.disabledNoSelfie")
           : null
@@ -304,7 +323,9 @@ export function AttendancePage() {
                   ? t("technician.attendance.locationUnknown")
                   : insideGeofence
                     ? t("technician.attendance.insideOffice")
-                    : t("technician.attendance.outsideOffice")}
+                    : distanceFromOfficeM !== null
+                      ? t("technician.attendance.outsideOfficeWithDistance", { distance: distanceFromOfficeM, radius: radiusM })
+                      : t("technician.attendance.outsideOffice")}
             </p>
             <Button type="button" size="xs" variant="outline" className="ml-auto" onClick={refreshLocation} disabled={checkingGeo}>
               {checkingGeo ? <Loader2 className="size-3 animate-spin" /> : t("technician.attendance.recheckLocation")}
