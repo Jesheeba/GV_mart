@@ -136,8 +136,8 @@
     "previousMonth": "முந்தைய மாதம்",
     "nextMonth": "அடுத்த மாதம்",
     "none": "எதுவுமில்லை",
-    "ongoing": "ongoing",
-    "tapToExpand": "Tap to expand",
+    "ongoing": "தொடர்கிறது",
+    "tapToExpand": "விரிவாகப் பார்க்க தட்டவும்",
     "referredByTechnician": "தொழில்நுட்பவியலாளர் பரிந்துரை (விருப்பத்தேர்வு)",
     "errors": {
       "fieldRequired": "{{field}} தேவை",
