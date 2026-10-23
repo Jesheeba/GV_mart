@@ -136,6 +136,8 @@
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
     "none": "None",
+    "ongoing": "ongoing",
+    "tapToExpand": "Tap to expand",
     "referredByTechnician": "Referred by technician (optional)",
     "errors": {
       "fieldRequired": "{{field}} is required",
@@ -180,7 +182,8 @@
     "complaints": "Complaints",
     "returns": "Returns",
     "auditLog": "Audit Log",
-    "myDay": "Daily Follow Up"
+    "myDay": "Daily Follow Up",
+    "expenses": "Expenses"
   },
   "auth": {
     "heroTitle": "Sign in to your workspace",
@@ -2902,6 +2905,32 @@
       "confirmButton": "Confirm received",
       "history": "Past handovers"
     },
+    "expenses": {
+      "title": "Expenses",
+      "history": "History",
+      "claimTypeValues": { "petrol": "Petrol bill", "maintenance": "Maintenance bill" },
+      "amount": "Amount spent",
+      "enterAmountFirst": "Enter the amount before attaching the bill photo.",
+      "uploadFromGallery": "Upload photo",
+      "takePhoto": "Take photo",
+      "submitted": "Submitted — waiting for verification",
+      "myClaims": "My submissions",
+      "noClaims": "No submissions in this period",
+      "submittedAmount": "Submitted",
+      "approvedAmount": "Approved",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "myKmLog": "My kilometre log",
+      "noKmEntries": "No entries in this period",
+      "kmLog": {
+        "title": "Kilometre log",
+        "date": "Date travelled",
+        "km": "Kilometres",
+        "save": "Add entry",
+        "monthlySum": "This month so far: {{km}} km"
+      }
+    },
     "home": {
       "unknownCustomer": "Customer",
       "inProgress": "In progress",
@@ -4223,6 +4252,84 @@
       "logKindReturn": "Return",
       "print": "Print",
       "printTitle": "Spare Handover Receipt"
+    }
+  },
+  "expenses": {
+    "subtitle": "Mobile recharge, bike petrol/maintenance and the own-bike allowance",
+    "tabs": {
+      "verification": "Verification Queue",
+      "bikeAssignment": "Bike Assignment",
+      "kmLog": "KM Log",
+      "allowances": "Recharge Allowances",
+      "adjustments": "Adjustments",
+      "settings": "Settings"
+    },
+    "claimTypeValues": {
+      "petrol": "Petrol",
+      "maintenance": "Maintenance"
+    },
+    "bikeAssignment": {
+      "hint": "Assign each technician to their own or a company motorcycle, with a petrol rate per km.",
+      "ownership": "Ownership",
+      "ownershipValues": { "own": "Own bike", "company": "Company bike" },
+      "rate": "Petrol rate (₹/km)",
+      "effectiveFrom": "Effective from",
+      "save": "Save",
+      "current": "Currently: {{ownership}}, ₹{{rate}}/km",
+      "noRow": "No bike assigned yet",
+      "history": "History"
+    },
+    "verification": {
+      "empty": "No bills waiting for verification",
+      "viewBill": "View bill",
+      "submittedAmount": "Submitted",
+      "referenceFigure": "Reference (km × rate)",
+      "amountToPay": "Amount to pay",
+      "reasonRequired": "Reason (required — differs from submitted amount)",
+      "confirm": "Confirm"
+    },
+    "kmLog": {
+      "technician": "Technician",
+      "selectTechnician": "Select a technician",
+      "monthlySum": "This month's log total: {{km}} km",
+      "approxReference": "Approximate GPS-tracked distance (reference only): {{km}} km",
+      "addEntry": "Add an entry",
+      "entryDate": "Date travelled",
+      "km": "Kilometres",
+      "note": "Note (optional)",
+      "save": "Save",
+      "empty": "No entries yet"
+    },
+    "allowances": {
+      "hint": "A fixed monthly recharge allowance, set per person. No amount set means no recharge.",
+      "amount": "Monthly recharge amount",
+      "effectiveFrom": "Effective from",
+      "save": "Save",
+      "current": "Currently: ₹{{amount}}/month",
+      "noRow": "No allowance set",
+      "endNow": "End from today"
+    },
+    "adjustments": {
+      "month": "Month",
+      "addTitle": "Add a top-up or exclusion",
+      "person": "Person",
+      "selectPerson": "Select a person",
+      "target": "Applies to",
+      "targetValues": { "recharge": "Recharge allowance", "bike_allowance": "Own-bike allowance" },
+      "type": "Type",
+      "topUp": "Top-up",
+      "exclude": "Exclude this month",
+      "amount": "Amount",
+      "reason": "Reason (required)",
+      "save": "Save",
+      "empty": "No adjustments for this month"
+    },
+    "settings": {
+      "ownBikeAllowanceBase": "Own-bike allowance base amount",
+      "hint": "Organisation-wide monthly base, editable by the owner only.",
+      "amount": "Amount",
+      "save": "Save",
+      "masterOnly": "Only the owner can edit this setting."
     }
   },
   "hr": {
