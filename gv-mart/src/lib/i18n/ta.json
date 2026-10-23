@@ -183,7 +183,7 @@
     "returns": "திரும்பப்பெறுதல்",
     "auditLog": "தணிக்கை பதிவு",
     "myDay": "தினசரி பின்தொடர்தல்",
-    "expenses": "Expenses"
+    "expenses": "செலவுகள்"
   },
   "auth": {
     "heroTitle": "உங்கள் பணியிடத்தில் உள்நுழையவும்",
@@ -2901,29 +2901,32 @@
       "history": "முந்தைய ஒப்படைப்புகள்"
     },
     "expenses": {
-      "title": "Expenses",
-      "history": "History",
-      "claimTypeValues": { "petrol": "Petrol bill", "maintenance": "Maintenance bill" },
-      "amount": "Amount spent",
-      "enterAmountFirst": "Enter the amount before attaching the bill photo.",
-      "uploadFromGallery": "Upload photo",
-      "takePhoto": "Take photo",
-      "submitted": "Submitted — waiting for verification",
-      "myClaims": "My submissions",
-      "noClaims": "No submissions in this period",
-      "submittedAmount": "Submitted",
-      "approvedAmount": "Approved",
-      "statusPending": "Pending",
-      "statusApproved": "Approved",
-      "statusRejected": "Rejected",
-      "myKmLog": "My kilometre log",
-      "noKmEntries": "No entries in this period",
+      "title": "செலவுகள்",
+      "history": "வரலாறு",
+      "claimTypeValues": {
+        "petrol": "பெட்ரோல் பில்",
+        "maintenance": "பராமரிப்பு பில்"
+      },
+      "amount": "செலவு செய்த தொகை",
+      "enterAmountFirst": "பில் புகைப்படத்தை இணைப்பதற்கு முன் தொகையை உள்ளிடுங்கள்.",
+      "uploadFromGallery": "புகைப்படத்தைப் பதிவேற்று",
+      "takePhoto": "புகைப்படம் எடு",
+      "submitted": "சமர்ப்பிக்கப்பட்டது — சரிபார்ப்புக்காக காத்திருக்கிறது",
+      "myClaims": "நான் சமர்ப்பித்தவை",
+      "noClaims": "இந்த காலத்தில் சமர்ப்பிப்புகள் இல்லை",
+      "submittedAmount": "சமர்ப்பித்த தொகை",
+      "approvedAmount": "ஒப்புதல் பெற்ற தொகை",
+      "statusPending": "நிலுவையில்",
+      "statusApproved": "ஒப்புதல் பெற்றது",
+      "statusRejected": "நிராகரிக்கப்பட்டது",
+      "myKmLog": "எனது கிலோமீட்டர் பட்டியல்",
+      "noKmEntries": "இந்த காலத்தில் பதிவுகள் இல்லை",
       "kmLog": {
-        "title": "Kilometre log",
-        "date": "Date travelled",
-        "km": "Kilometres",
-        "save": "Add entry",
-        "monthlySum": "This month so far: {{km}} km"
+        "title": "கிலோமீட்டர் பட்டியல்",
+        "date": "பயணித்த தேதி",
+        "km": "கிலோமீட்டர்",
+        "save": "பதிவைச் சேர்",
+        "monthlySum": "இந்த மாதம் இதுவரை: {{km}} கிமீ"
       }
     },
     "home": {
@@ -3484,9 +3487,19 @@
       "unassigned": "ஒதுக்கப்படாதது",
       "assign": "ஒதுக்கு",
       "reassign": "மாற்றி ஒதுக்கு",
-      "action": { "assign": "ஒதுக்கு", "reassign": "மாற்றி ஒதுக்கு", "pickup": "நானே எடுக்கிறேன்", "handover": "ஒப்படை" },
+      "action": {
+        "assign": "ஒதுக்கு",
+        "reassign": "மாற்றி ஒதுக்கு",
+        "pickup": "நானே எடுக்கிறேன்",
+        "handover": "ஒப்படை"
+      },
       "scopeLabel": "யாருடைய லீட்கள்",
-      "scope": { "all": "அனைத்து லீட்கள்", "mine": "என் லீட்கள்", "unassigned": "ஒதுக்கப்படாதது", "mineUnassigned": "என் லீட்கள் + ஒதுக்கப்படாதவை" },
+      "scope": {
+        "all": "அனைத்து லீட்கள்",
+        "mine": "என் லீட்கள்",
+        "unassigned": "ஒதுக்கப்படாதது",
+        "mineUnassigned": "என் லீட்கள் + ஒதுக்கப்படாதவை"
+      },
       "filterLabel": "ஒதுக்கப்பட்டவர்",
       "select": "லீட்களைத் தேர்ந்தெடு",
       "selectDone": "தேர்வு முடிந்தது",
@@ -3680,9 +3693,9 @@
       "note": "குறிப்பு",
       "stageChange": "நிலை: {{from}} → {{to}}",
       "assigned": "{{to}} அவர்களுக்கு ஒதுக்கப்பட்டது",
-        "reassigned": "{{from}} இடமிருந்து {{to}} க்கு மாற்றப்பட்டது",
-        "unassigned": "ஒதுக்கீடு நீக்கப்பட்டது",
-        "stageSet": "நிலை: {{to}}",
+      "reassigned": "{{from}} இடமிருந்து {{to}} க்கு மாற்றப்பட்டது",
+      "unassigned": "ஒதுக்கீடு நீக்கப்பட்டது",
+      "stageSet": "நிலை: {{to}}",
       "followupSet": "{{when}} க்கு பின்தொடர்தல் அமைக்கப்பட்டது ({{type}})",
       "followupDone": "பின்தொடர்தல் முடிந்தது ({{when}} க்கு திட்டமிடப்பட்டது)",
       "followupDoneEarly": "பின்தொடர்தல் முன்கூட்டியே முடிந்தது ({{when}} க்கு திட்டமிடப்பட்டது)",
@@ -3881,17 +3894,11 @@
       "stateSkipped": "அனுப்பப்படவில்லை: அங்கீகரிக்கப்பட்ட வார்ப்புரு இல்லை",
       "stateDeliveryFailed": "வழங்குதல் தோல்வி",
       "stateStuck": "அனுப்புவதில் சிக்கியது: ஒருவர் பார்க்க வேண்டும்",
-
       "alertStuck": "{{count}} WhatsApp செய்தி(கள்) 15 நிமிடங்களுக்கு மேலாக நிலுவையில் உள்ளன. அவை தானாக மீண்டும் அனுப்பப்படாது: டிஸ்பேட்சரைச் சரிபார்த்து, ஒவ்வொன்றையும் மீண்டும் அனுப்பவும் அல்லது மூடவும்.",
-
       "alertSkipped": "அங்கீகரிக்கப்பட்ட டெம்ப்ளேட் இல்லாததால் இன்று {{count}} செய்தி(கள்) அனுப்பப்படவில்லை (எச்சரிக்கை வரம்பு: நாளொன்றுக்கு {{threshold}}).",
-
       "thresholdLabel": "எச்சரிக்கைக்கு முன் ஒரு நாளில் தவிர்க்கப்பட்ட செய்திகள்",
-
       "thresholdHint": "0 என்றால் எச்சரிக்கை அணைக்கப்படும். இயல்புநிலை 10.",
-
       "thresholdSaved": "எச்சரிக்கை வரம்பு சேமிக்கப்பட்டது.",
-
       "thresholdFailed": "எச்சரிக்கை வரம்பைச் சேமிக்க முடியவில்லை.",
       "empty": "தோல்வியடைந்த அனுப்புதல்கள் இல்லை — தற்போது எதுவும் சிக்கவில்லை."
     }
@@ -4250,81 +4257,87 @@
     }
   },
   "expenses": {
-    "subtitle": "Mobile recharge, bike petrol/maintenance and the own-bike allowance",
+    "subtitle": "மொபைல் ரீசார்ஜ், பைக் பெட்ரோல்/பராமரிப்பு மற்றும் சொந்த பைக் படி",
     "tabs": {
-      "verification": "Verification Queue",
-      "bikeAssignment": "Bike Assignment",
-      "kmLog": "KM Log",
-      "allowances": "Recharge Allowances",
-      "adjustments": "Adjustments",
-      "settings": "Settings"
+      "verification": "சரிபார்ப்பு வரிசை",
+      "bikeAssignment": "பைக் ஒதுக்கீடு",
+      "kmLog": "கிமீ பட்டியல்",
+      "allowances": "ரீசார்ஜ் படிகள்",
+      "adjustments": "சரிசெய்தல்கள்",
+      "settings": "அமைப்புகள்"
     },
     "claimTypeValues": {
-      "petrol": "Petrol",
-      "maintenance": "Maintenance"
+      "petrol": "பெட்ரோல்",
+      "maintenance": "பராமரிப்பு"
     },
     "bikeAssignment": {
-      "hint": "Assign each technician to their own or a company motorcycle, with a petrol rate per km.",
-      "ownership": "Ownership",
-      "ownershipValues": { "own": "Own bike", "company": "Company bike" },
-      "rate": "Petrol rate (₹/km)",
-      "effectiveFrom": "Effective from",
-      "save": "Save",
-      "current": "Currently: {{ownership}}, ₹{{rate}}/km",
-      "noRow": "No bike assigned yet",
-      "history": "History"
+      "hint": "ஒவ்வொரு டெக்னீஷியனுக்கும் சொந்த பைக் அல்லது கம்பெனி பைக் ஒதுக்கி, கிமீ-க்கான பெட்ரோல் விகிதத்தை அமைக்கவும்.",
+      "ownership": "உரிமை",
+      "ownershipValues": {
+        "own": "சொந்த பைக்",
+        "company": "கம்பெனி பைக்"
+      },
+      "rate": "பெட்ரோல் விகிதம் (₹/கிமீ)",
+      "effectiveFrom": "இந்த தேதியிலிருந்து அமல்",
+      "save": "சேமி",
+      "current": "தற்போது: {{ownership}}, ₹{{rate}}/கிமீ",
+      "noRow": "இன்னும் பைக் ஒதுக்கப்படவில்லை",
+      "history": "வரலாறு"
     },
     "verification": {
-      "empty": "No bills waiting for verification",
-      "viewBill": "View bill",
-      "submittedAmount": "Submitted",
-      "referenceFigure": "Reference (km × rate)",
-      "amountToPay": "Amount to pay",
-      "reasonRequired": "Reason (required — differs from submitted amount)",
-      "confirm": "Confirm"
+      "empty": "சரிபார்ப்புக்காக காத்திருக்கும் பில்கள் இல்லை",
+      "viewBill": "பில்லைப் பார்",
+      "submittedAmount": "சமர்ப்பித்த தொகை",
+      "referenceFigure": "குறிப்புத் தொகை (கிமீ × விகிதம்)",
+      "amountToPay": "வழங்க வேண்டிய தொகை",
+      "reasonRequired": "காரணம் (கட்டாயம் — சமர்ப்பித்த தொகையிலிருந்து வேறுபடுகிறது)",
+      "confirm": "உறுதிப்படுத்து"
     },
     "kmLog": {
-      "technician": "Technician",
-      "selectTechnician": "Select a technician",
-      "monthlySum": "This month's log total: {{km}} km",
-      "approxReference": "Approximate GPS-tracked distance (reference only): {{km}} km",
-      "addEntry": "Add an entry",
-      "entryDate": "Date travelled",
-      "km": "Kilometres",
-      "note": "Note (optional)",
-      "save": "Save",
-      "empty": "No entries yet"
+      "technician": "டெக்னீஷியன்",
+      "selectTechnician": "ஒரு டெக்னீஷியனைத் தேர்ந்தெடுக்கவும்",
+      "monthlySum": "இந்த மாதப் பட்டியல் மொத்தம்: {{km}} கிமீ",
+      "approxReference": "GPS மூலம் கணக்கிட்ட தோராயமான தூரம் (குறிப்புக்கு மட்டும்): {{km}} கிமீ",
+      "addEntry": "ஒரு பதிவைச் சேர்",
+      "entryDate": "பயணித்த தேதி",
+      "km": "கிலோமீட்டர்",
+      "note": "குறிப்பு (விரும்பினால்)",
+      "save": "சேமி",
+      "empty": "இன்னும் பதிவுகள் இல்லை"
     },
     "allowances": {
-      "hint": "A fixed monthly recharge allowance, set per person. No amount set means no recharge.",
-      "amount": "Monthly recharge amount",
-      "effectiveFrom": "Effective from",
-      "save": "Save",
-      "current": "Currently: ₹{{amount}}/month",
-      "noRow": "No allowance set",
-      "endNow": "End from today"
+      "hint": "ஒவ்வொருவருக்கும் தனியாக அமைக்கப்படும் நிலையான மாதாந்திர ரீசார்ஜ் படி. தொகை அமைக்கப்படாவிட்டால் ரீசார்ஜ் படி கிடைக்காது.",
+      "amount": "மாதாந்திர ரீசார்ஜ் தொகை",
+      "effectiveFrom": "இந்த தேதியிலிருந்து அமல்",
+      "save": "சேமி",
+      "current": "தற்போது: ₹{{amount}}/மாதம்",
+      "noRow": "படி அமைக்கப்படவில்லை",
+      "endNow": "இன்றிலிருந்து நிறுத்து"
     },
     "adjustments": {
-      "month": "Month",
-      "addTitle": "Add a top-up or exclusion",
-      "person": "Person",
-      "selectPerson": "Select a person",
-      "target": "Applies to",
-      "targetValues": { "recharge": "Recharge allowance", "bike_allowance": "Own-bike allowance" },
-      "type": "Type",
-      "topUp": "Top-up",
-      "exclude": "Exclude this month",
-      "amount": "Amount",
-      "reason": "Reason (required)",
-      "save": "Save",
-      "empty": "No adjustments for this month"
+      "month": "மாதம்",
+      "addTitle": "கூடுதல் தொகை அல்லது விலக்கு சேர்",
+      "person": "நபர்",
+      "selectPerson": "ஒரு நபரைத் தேர்ந்தெடுக்கவும்",
+      "target": "எதற்கு பொருந்தும்",
+      "targetValues": {
+        "recharge": "ரீசார்ஜ் படி",
+        "bike_allowance": "சொந்த பைக் படி"
+      },
+      "type": "வகை",
+      "topUp": "கூடுதல் தொகை",
+      "exclude": "இந்த மாதம் விலக்கு",
+      "amount": "தொகை",
+      "reason": "காரணம் (கட்டாயம்)",
+      "save": "சேமி",
+      "empty": "இந்த மாதத்திற்கு சரிசெய்தல்கள் இல்லை"
     },
     "settings": {
-      "ownBikeAllowanceBase": "Own-bike allowance base amount",
-      "hint": "Organisation-wide monthly base, editable by the owner only.",
-      "amount": "Amount",
-      "save": "Save",
-      "masterOnly": "Only the owner can edit this setting."
+      "ownBikeAllowanceBase": "சொந்த பைக் படியின் அடிப்படைத் தொகை",
+      "hint": "நிறுவனம் முழுவதும் பொருந்தும் மாதாந்திர அடிப்படைத் தொகை. உரிமையாளர் மட்டுமே மாற்ற முடியும்.",
+      "amount": "தொகை",
+      "save": "சேமி",
+      "masterOnly": "இந்த அமைப்பை உரிமையாளர் மட்டுமே மாற்ற முடியும்."
     }
   },
   "hr": {
@@ -4385,7 +4398,6 @@
       "subtitle": "மாஸ்டர், செயல்பாட்டு நிர்வாகி மற்றும் விற்பனையாளர் சம்பளங்கள் — ஒவ்வொரு முறையும் கைமுறையாக உள்ளிடப்படுகிறது, நிலையான அல்லது தானாக மீண்டும் நிகழும் தொகை இல்லை. தொழிலாளர் சம்பளங்கள் சம்பளம் தாவலில் உள்ளன (தானாக கணக்கிடப்படுகிறது).",
       "month": "மாதம்",
       "staff": "பணியாளர்",
-      "role": "பங்கு",
       "amount": "தொகை",
       "logSalary": "சம்பளத்தைப் பதிவு செய்",
       "logged": "இந்த மாதம் பதிவு செய்யப்பட்டது: {{amount}}",
