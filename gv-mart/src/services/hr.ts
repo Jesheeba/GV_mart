@@ -114,6 +114,39 @@ export async function computeSalary(orgId: string, technicianId: string, period:
   return data as unknown as SalaryRow
 }
 
+// ── Salary period finalization (payroll-integrity review, 2026-10-23) ────
+// 20261024100700_salary_period_locks.sql. Master only.
+
+export type SalaryPeriodLockRow = Tables<"salary_period_locks">
+
+export async function getSalaryPeriodLock(orgId: string, period: string): Promise<SalaryPeriodLockRow | null> {
+  const { data, error } = await supabase.from("salary_period_locks").select("*").eq("org_id", orgId).eq("period", period).maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function lockSalaryPeriod(orgId: string, period: string): Promise<SalaryPeriodLockRow> {
+  const { data, error } = await rpc("lock_salary_period", { p_org_id: orgId, p_period: period })
+  if (error) throw error
+  return data as unknown as SalaryPeriodLockRow
+}
+
+export async function reopenSalaryPeriod(orgId: string, period: string, reason: string): Promise<SalaryPeriodLockRow> {
+  const { data, error } = await rpc("reopen_salary_period", { p_org_id: orgId, p_period: period, p_reason: reason })
+  if (error) throw error
+  return data as unknown as SalaryPeriodLockRow
+}
+
+export type AuditReconciliationRow = { table_name: string; live_count: number; net_audit_count: number; difference: number }
+
+/** Master-run, on demand — not a cron job (see the migration header for why:
+ *  pre-trigger history shows expected drift, not suspicious activity). */
+export async function getAuditReconciliationReport(): Promise<AuditReconciliationRow[]> {
+  const { data, error } = await rpc("audit_reconciliation_report", {})
+  if (error) throw error
+  return (data ?? []) as unknown as AuditReconciliationRow[]
+}
+
 // ── ADM-25: Incentives (earned preview) ───────────────────────────────────
 
 export type IncentiveEarnedListItem = IncentiveEarnedRow & {

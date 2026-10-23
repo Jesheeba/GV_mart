@@ -478,6 +478,46 @@ export type Database = {
           },
         ]
       }
+      // Payroll-integrity review (2026-10-23) — hand-added stub, same
+      // approach as the Monthly Expenses tables above.
+      salary_period_locks: {
+        Row: {
+          id: string
+          org_id: string
+          period: string
+          locked: boolean
+          locked_by: string | null
+          locked_at: string
+          reason: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          period: string
+          locked?: boolean
+          locked_by?: string | null
+          locked_at?: string
+          reason?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          period?: string
+          locked?: boolean
+          locked_by?: string | null
+          locked_at?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salary_period_locks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           is_test: boolean

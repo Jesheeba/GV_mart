@@ -2,14 +2,14 @@ import { useState } from "react"
 import { getIstNow } from "@/lib/ist"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
-import { CheckCircle2, Loader2, Printer, Wallet } from "lucide-react"
+import { CheckCircle2, Lock, Loader2, Printer, Unlock, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
-import { useActiveTechnicians, useComputeSalary, useSalaries } from "@/hooks/useHr"
+import { useActiveTechnicians, useComputeSalary, useLockSalaryPeriod, useReopenSalaryPeriod, useSalaries, useSalaryPeriodLock } from "@/hooks/useHr"
 import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { SalaryListItem } from "@/services/hr"
@@ -49,12 +49,45 @@ export function SalaryTab() {
   const [computingIds, setComputingIds] = useState<Set<string>>(new Set())
   const [printing, setPrinting] = useState<SalaryListItem | null>(null)
 
+  // Salary period finalization (payroll-integrity review, 2026-10-23) — a
+  // locked period is enforced server-side (a trigger on `salaries` and
+  // `incentives_earned`, and a guard inside compute_salary/
+  // verify_expense_claim), but Recompute/Log to Accounts are disabled here
+  // too so the admin gets a clear disabled control instead of a server
+  // error for the common case.
+  const { data: periodLock } = useSalaryPeriodLock(orgId, period)
+  const isLocked = !!periodLock?.locked
+  const lockMut = useLockSalaryPeriod()
+  const reopenMut = useReopenSalaryPeriod()
+  const [reopenReason, setReopenReason] = useState("")
+  const [showReopen, setShowReopen] = useState(false)
+
+  function finalizeMonth() {
+    if (!orgId) return
+    lockMut.mutate({ orgId, period })
+  }
+
+  function reopenMonth() {
+    if (!orgId || !reopenReason.trim()) return
+    reopenMut.mutate(
+      { orgId, period, reason: reopenReason.trim() },
+      { onSuccess: () => { setShowReopen(false); setReopenReason("") } }
+    )
+  }
+
   // "Log to Accounts" (item 1, 2026-09-24 change request) — writes the
   // computed net salary into `expenses` (category='salary', staff_id = the
   // technician's profile id) so it joins the same money-out ledger a
   // manually-entered staff salary uses. Explicit per-row action, not
   // automatic on compute/recompute — a computed figure is an estimate until
   // someone confirms it was actually paid.
+  //
+  // Payroll-integrity review: gated on the period being finalized first
+  // (addition c) — logging an unlocked, still-recomputable figure is
+  // exactly the staleness bug this review found (recompute after logging
+  // left a wrong expenses row with no way to re-log the correction). The
+  // logged row's `ref_id` now points at the salaries row it came from, so
+  // the figure it references is guaranteed stable while locked.
   const monthRange = monthToRange(month)
   const { data: staffSalaryTotals } = useSalarySpendByStaff(orgId, monthRange)
   const loggedProfileIds = new Set((staffSalaryTotals ?? []).map((s) => s.staffId))
@@ -63,7 +96,7 @@ export function SalaryTab() {
 
   function logToAccounts(row: SalaryListItem) {
     const profileId = row.technicians?.profiles?.id
-    if (!orgId || !profileId) return
+    if (!orgId || !profileId || !isLocked) return
     setLoggingIds((prev) => new Set(prev).add(row.id))
     createExpense.mutate(
       {
@@ -74,6 +107,7 @@ export function SalaryTab() {
         note: `Salary — ${month}`,
         staffId: profileId,
         loggedBy: profile?.id ?? null,
+        refId: row.id,
       },
       {
         onSettled: () =>
@@ -87,7 +121,7 @@ export function SalaryTab() {
   }
 
   function computeFor(technicianId: string) {
-    if (!orgId) return
+    if (!orgId || isLocked) return
     setComputingIds((prev) => new Set(prev).add(technicianId))
     computeMut.mutate(
       { orgId, technicianId, period },
@@ -125,15 +159,21 @@ export function SalaryTab() {
         const alreadyLogged = !!profileId && loggedProfileIds.has(profileId)
         return (
           <div className="flex justify-end gap-1.5">
-            <Button size="xs" variant="outline" onClick={() => computeFor(r.technician_id)} disabled={computingIds.has(r.technician_id)}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => computeFor(r.technician_id)}
+              disabled={computingIds.has(r.technician_id) || isLocked}
+              title={isLocked ? t("hr.salary.lockedTooltip") : undefined}
+            >
               {computingIds.has(r.technician_id) ? <Loader2 className="size-3 animate-spin" /> : t("hr.salary.recompute")}
             </Button>
             <Button
               size="xs"
               variant={alreadyLogged ? "ghost" : "accent"}
               onClick={() => logToAccounts(r)}
-              disabled={!profileId || alreadyLogged || loggingIds.has(r.id)}
-              title={t("hr.salary.logToAccounts")}
+              disabled={!profileId || alreadyLogged || loggingIds.has(r.id) || !isLocked}
+              title={!isLocked ? t("hr.salary.logRequiresFinalized") : t("hr.salary.logToAccounts")}
             >
               {loggingIds.has(r.id) ? (
                 <Loader2 className="size-3 animate-spin" />
@@ -168,11 +208,47 @@ export function SalaryTab() {
           </Label>
           <Input id="salary-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 max-w-44 border-border" />
         </div>
-        <Button variant="accent" onClick={computeAll} disabled={!technicians || technicians.length === 0 || isBulkComputing}>
-          {isBulkComputing ? <Loader2 className="size-3.5 animate-spin" /> : null}
-          {t("hr.salary.computeAll")}
-        </Button>
+        <div className="flex items-center gap-2">
+          {isLocked ? (
+            <>
+              <span className="flex items-center gap-1 text-xs font-semibold text-success">
+                <Lock className="size-3.5" /> {t("hr.salary.finalized")}
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setShowReopen((v) => !v)}>
+                <Unlock className="size-3.5" />
+                {t("hr.salary.reopen")}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="outline" onClick={finalizeMonth} disabled={lockMut.isPending || !salaries || salaries.length === 0}>
+              {lockMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Lock className="size-3.5" />}
+              {t("hr.salary.finalize")}
+            </Button>
+          )}
+          <Button variant="accent" onClick={computeAll} disabled={!technicians || technicians.length === 0 || isBulkComputing || isLocked}>
+            {isBulkComputing ? <Loader2 className="size-3.5 animate-spin" /> : null}
+            {t("hr.salary.computeAll")}
+          </Button>
+        </div>
       </div>
+
+      {showReopen ? (
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-surface-alt px-3.5 py-3">
+          <div className="min-w-56 flex-1 space-y-1">
+            <Label htmlFor="reopen-reason" className="block text-xs font-medium text-text-muted">
+              {t("hr.salary.reopenReason")}
+            </Label>
+            <Input id="reopen-reason" value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} className="h-9" />
+          </div>
+          <Button size="sm" variant="destructive" onClick={reopenMonth} disabled={!reopenReason.trim() || reopenMut.isPending}>
+            {reopenMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+            {t("hr.salary.confirmReopen")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setShowReopen(false)}>
+            {t("common.cancel")}
+          </Button>
+        </div>
+      ) : null}
 
       <DataTable
         columns={columns}

@@ -4355,7 +4355,14 @@
       "empty": "No salary records for this month",
       "loadFailed": "Failed to load salaries",
       "logToAccounts": "Log to Accounts",
-      "logged": "Logged"
+      "logged": "Logged",
+      "finalize": "Finalize month",
+      "finalized": "Finalized",
+      "reopen": "Reopen",
+      "reopenReason": "Reason for reopening (required)",
+      "confirmReopen": "Confirm reopen",
+      "lockedTooltip": "This month is finalized — reopen it first to recompute",
+      "logRequiresFinalized": "Finalize the month before logging to Accounts"
     },
     "staffSalary": {
       "inactive": "Inactive",
@@ -4395,6 +4402,7 @@
       "logSalary": "Log Salary",
       "logged": "Logged this month: {{amount}}",
       "notLoggedYet": "Not logged this month",
+      "alreadyLoggedThisMonth": "Already logged this month",
       "empty": "No staff found",
       "setupReminders": "Set up monthly salary reminders",
       "remindersSetUp_one": "Created {{count}} reminder",
