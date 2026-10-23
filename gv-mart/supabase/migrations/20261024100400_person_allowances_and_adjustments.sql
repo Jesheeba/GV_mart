@@ -65,7 +65,7 @@ as $$
 $$;
 
 grant execute on function public.person_allowance_on(uuid, uuid, date) to authenticated;
-revoke execute on function public.person_allowance_on(uuid, uuid, date) from anon;
+revoke execute on function public.person_allowance_on(uuid, uuid, date) from public, anon;
 
 -- ── monthly_adjustments ────────────────────────────────────────────────────
 
@@ -145,8 +145,8 @@ $$;
 
 grant execute on function public.monthly_adjustment_top_up(uuid, uuid, date, text) to authenticated;
 grant execute on function public.monthly_adjustment_excluded(uuid, uuid, date, text) to authenticated;
-revoke execute on function public.monthly_adjustment_top_up(uuid, uuid, date, text) from anon;
-revoke execute on function public.monthly_adjustment_excluded(uuid, uuid, date, text) from anon;
+revoke execute on function public.monthly_adjustment_top_up(uuid, uuid, date, text) from public, anon;
+revoke execute on function public.monthly_adjustment_excluded(uuid, uuid, date, text) from public, anon;
 
 -- ── Org setting: own-bike allowance base (§1.6/§3.6) ──────────────────────
 -- Appended to the existing single-row-per-org `settings` table, matching

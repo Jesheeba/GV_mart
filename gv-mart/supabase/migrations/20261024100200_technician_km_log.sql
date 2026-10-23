@@ -56,7 +56,7 @@ as $$
 $$;
 
 grant execute on function public.technician_km_log_sum(uuid, uuid, date) to authenticated;
-revoke execute on function public.technician_km_log_sum(uuid, uuid, date) from anon;
+revoke execute on function public.technician_km_log_sum(uuid, uuid, date) from public, anon;
 
 -- Petrol REFERENCE figure — not the payment. Owner revision: the bill is for
 -- validation, and once a claim is verified the admin's entered amount is
@@ -92,7 +92,7 @@ as $$
 $$;
 
 grant execute on function public.technician_petrol_reference_amount(uuid, uuid, date) to authenticated;
-revoke execute on function public.technician_petrol_reference_amount(uuid, uuid, date) from anon;
+revoke execute on function public.technician_petrol_reference_amount(uuid, uuid, date) from public, anon;
 
 -- Approximate distance for the same technician/month, from the GPS ping
 -- trail (`technician_locations`) already recorded by live tracking —
@@ -136,4 +136,4 @@ as $$
 $$;
 
 grant execute on function public.technician_approx_distance_km(uuid, uuid, date) to authenticated;
-revoke execute on function public.technician_approx_distance_km(uuid, uuid, date) from anon;
+revoke execute on function public.technician_approx_distance_km(uuid, uuid, date) from public, anon;

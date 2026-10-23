@@ -114,5 +114,9 @@ $$;
 
 grant execute on function public.technician_vehicle_on(uuid, uuid, date) to authenticated;
 grant execute on function public.technician_own_bike_days(uuid, uuid, date) to authenticated;
-revoke execute on function public.technician_vehicle_on(uuid, uuid, date) from anon;
-revoke execute on function public.technician_own_bike_days(uuid, uuid, date) from anon;
+-- 20261024100000_close_public_and_anon_function_execute closed the default
+-- (a function postgres creates is no longer born PUBLIC-executable), but
+-- these are stated explicitly anyway rather than relying on migration
+-- ordering alone.
+revoke execute on function public.technician_vehicle_on(uuid, uuid, date) from public, anon;
+revoke execute on function public.technician_own_bike_days(uuid, uuid, date) from public, anon;
