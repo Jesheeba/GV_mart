@@ -80,3 +80,14 @@ cancelled visit.
 - **Still open:** the replacement (decided 2026-10-14: option 1b, Supabase phone verification with the Send SMS hook over WhatsApp;
   spec `docs/spec-link-customer-login-phone-otp.md` on that branch, awaiting owner security review) is specified, not built, and must exist before Google login is switched on
   (until then the link card would fail with permission denied). Open question: should public sign-up be open at all.
+
+## Cleanup: unseeded test organisation `__TEST_ GV Mart 2026-10-12`
+
+**Found:** 2026-10-23, while investigating `20261008100000_reseed_complaint_types.sql` (see that migration's deletion note in the
+Monthly Expenses feature history — the review found the premise unsupported and removed it rather than holding it).
+
+- Organisation `8b87c496-de26-4539-8fc8-3f3e7056d3c3`, created 2026-10-12, has zero `complaint_types` rows and is otherwise
+  unseeded — it is missing all 71 rows a normal organisation would have.
+- Not touched, not deleted, by that review — read-only investigation only.
+- Needs its own decision: either seed it properly if it is still in use for testing, or remove it if it is a leftover that should
+  not be sitting in production.
