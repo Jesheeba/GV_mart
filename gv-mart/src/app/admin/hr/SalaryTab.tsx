@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
+import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useActiveTechnicians, useComputeSalary, useLockSalaryPeriod, useReopenSalaryPeriod, useSalaries, useSalaryPeriodLock } from "@/hooks/useHr"
 import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
@@ -38,6 +39,7 @@ function monthToRange(month: string) {
  */
 export function SalaryTab() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
   const [month, setMonth] = useState(currentMonthIso())
@@ -126,6 +128,12 @@ export function SalaryTab() {
     computeMut.mutate(
       { orgId, technicianId, period },
       {
+        // Every compute_salary failure was silent before this: the spinner
+        // cleared via onSettled below regardless of outcome, and nothing
+        // read computeMut.error, so a raised exception looked identical to
+        // a successful recompute. Pattern matches StaffSalaryTab.tsx's
+        // existing mutation error handling.
+        onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.salary.computeFailed")),
         onSettled: () =>
           setComputingIds((prev) => {
             const next = new Set(prev)

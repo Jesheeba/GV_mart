@@ -4354,6 +4354,7 @@
       "print": "Print",
       "empty": "No salary records for this month",
       "loadFailed": "Failed to load salaries",
+      "computeFailed": "Failed to compute salary",
       "logToAccounts": "Log to Accounts",
       "logged": "Logged",
       "finalize": "Finalize month",
