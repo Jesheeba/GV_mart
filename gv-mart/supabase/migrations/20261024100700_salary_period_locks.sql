@@ -261,24 +261,29 @@ $$;
 grant execute on function public.verify_expense_claim(uuid, numeric, text) to authenticated;
 revoke execute on function public.verify_expense_claim(uuid, numeric, text) from public, anon;
 
--- ── 5. compute_salary: refuse a locked period early, and floor net at zero ─
+-- ── 5. compute_salary: refuse a locked period early, block a missing tier,
+--      and floor net at zero for a genuine earnings shortfall ───────────
 -- (a) Early guard purely for a clean error message before any work is done
 -- — the table trigger in §2 would catch it regardless on the INSERT/UPDATE
 -- below, but with a less specific error. Redundant by design, not relied
 -- on alone.
--- (b) Addition (d): Karthik Raja's July net was -46.20 — late_deduction
--- (46.20) exceeded base+revenue+incentives (0) because he had no tier
--- assigned that month. Chose FLOOR AT ZERO over blocking the computation:
--- blocking would stop that technician's row from being written at all
--- until an admin fixes the tier assignment, which (a) is a bigger behaviour
--- change for a payroll run that's otherwise fine for every other
--- technician, since "Compute All" calls compute_salary once per technician
--- independently and a hard block only ever affects that one row anyway, and
--- (b) a missing tier is already visible in the breakdown as base=0 without
--- needing to block anything. Flooring never pays negative money (the actual
--- problem) while leaving the underlying "no tier assigned" data gap exactly
--- as visible as it already was — this does not fix that gap, it only
--- stops it from producing a nonsensical negative salary.
+-- (b) Addition (d), REVISED: the original version of this migration chose
+-- to floor net at zero and silently fall back to the org's rank-1 tier's
+-- monthly_salary when a technician had no tier_id, reasoning that a
+-- missing tier was "already visible in the breakdown as base=0." Checked
+-- that reasoning against the actual blast radius before keeping it: zero
+-- active technicians currently have no tier_id, but the fallback made a
+-- missing tier LESS visible, not more — it silently substitutes another
+-- tier's figure instead of surfacing anything, and "Compute All" calls
+-- compute_salary once per technician independently, so a hard block here
+-- only ever affects the one untiered row, not the whole payroll run. A
+-- missing tier is now a block, not a silent substitution:
+-- 'compute_salary: technician % has no tier assigned for period %'.
+-- greatest(..., 0) stays for the case it actually fits: a PROPERLY tiered
+-- technician whose late_deduction exceeds their own base+revenue+
+-- incentives. That is a real, visible payroll outcome correctable by
+-- reopening the period, not a data gap — it keeps the floor, it does not
+-- get the new block.
 create or replace function public.compute_salary(
   p_org_id uuid,
   p_technician_id uuid,
@@ -331,11 +336,8 @@ begin
   join public.technician_tiers tt on tt.id = t.tier_id
   where t.id = p_technician_id;
   if v_base is null then
-    select tt.monthly_salary into v_base
-    from public.technician_tiers tt
-    where tt.org_id = p_org_id and tt.rank = 1;
+    raise exception 'compute_salary: technician % has no tier assigned for period %', p_technician_id, v_period;
   end if;
-  v_base := coalesce(v_base, 0);
 
   v_revenue := public.technician_attributed_revenue(p_org_id, p_technician_id, v_period);
   v_late_hours := public.technician_late_hours(p_org_id, p_technician_id, v_period);

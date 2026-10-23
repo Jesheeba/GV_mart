@@ -5,7 +5,7 @@
 do $t$
 declare
   res text := '';
-  v_org uuid; v_master uuid; v_t1 uuid; v_t1p uuid; v_n int;
+  v_org uuid; v_master uuid; v_t1 uuid; v_t1p uuid; v_t2 uuid; v_t2p uuid; v_tier uuid; v_n int;
   v_salary salaries; v_lock salary_period_locks;
   v_claim public.expense_claims;
 begin
@@ -16,23 +16,38 @@ begin
     returning id into v_master;
   insert into profiles (id, org_id, full_name, role) values (v_master, v_org, '__TEST_ master', 'master');
 
+  insert into technician_tiers (org_id, rank, name, monthly_salary) values (v_org, 1, '__TEST_ tier 1', 1000)
+    returning id into v_tier;
+
   v_t1 := gen_random_uuid();
   insert into auth.users (id, aud, role, email) values (v_t1, 'authenticated', 'authenticated', 'spl-t1@test.invalid');
   insert into profiles (id, org_id, full_name, role) values (v_t1, v_org, '__TEST_ tech1', 'technician');
-  insert into technicians (org_id, profile_id) values (v_org, v_t1) returning id into v_t1p;
+  insert into technicians (org_id, profile_id, tier_id) values (v_org, v_t1, v_tier) returning id into v_t1p;
+
+  -- A second technician, deliberately given no tier_id at all, to exercise
+  -- the removed-fallback behaviour below.
+  v_t2 := gen_random_uuid();
+  insert into auth.users (id, aud, role, email) values (v_t2, 'authenticated', 'authenticated', 'spl-t2@test.invalid');
+  insert into profiles (id, org_id, full_name, role) values (v_t2, v_org, '__TEST_ tech2 (no tier)', 'technician');
+  insert into technicians (org_id, profile_id) values (v_org, v_t2) returning id into v_t2p;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
 
-  -- Addition (d): net floors at zero (no tier assigned -> base=0; no
-  -- revenue/incentives; late_deduction would make it negative without the
-  -- floor, but technician_late_hours needs no setup to return 0, so this
-  -- just proves the floor doesn't break the ordinary zero case — the
-  -- exact-figure proof is the mid-month-switch test elsewhere; here the
-  -- point is that compute_salary runs cleanly end to end with the new
-  -- guard in place).
+  -- The rank-1 fallback is gone: a technician with no tier_id blocks,
+  -- naming the technician and period, rather than silently substituting
+  -- another tier's figure or flooring to zero.
+  begin
+    perform compute_salary(v_org, v_t2p, '2026-05-01');
+    res := res || E'\n' || 'compute_salary for a technician with no tier assigned: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'compute_salary for a technician with no tier assigned: rejected ('||sqlerrm||')';
+  end;
+
+  -- A properly tiered technician runs cleanly end to end with the lock
+  -- guard in place; base comes from the assigned tier, not a fallback.
   select * into v_salary from compute_salary(v_org, v_t1p, '2026-05-01');
-  res := res || E'\n' || format('compute_salary runs on an unlocked period: net=%s (expect 0, not negative): %s', v_salary.net, v_salary.net >= 0);
+  res := res || E'\n' || format('compute_salary for a properly tiered technician: base=%s net=%s', v_salary.base, v_salary.net);
 
   -- Lock the period
   select * into v_lock from lock_salary_period(v_org, '2026-05-01');
