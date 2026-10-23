@@ -4363,14 +4363,7 @@
       "empty": "இந்த மாதத்திற்கு சம்பள பதிவுகள் இல்லை",
       "loadFailed": "சம்பளங்களை ஏற்ற முடியவில்லை",
       "logToAccounts": "கணக்குகளில் பதிவு செய்",
-      "logged": "பதிவு செய்யப்பட்டது",
-      "finalize": "Finalize month",
-      "finalized": "Finalized",
-      "reopen": "Reopen",
-      "reopenReason": "Reason for reopening (required)",
-      "confirmReopen": "Confirm reopen",
-      "lockedTooltip": "This month is finalized — reopen it first to recompute",
-      "logRequiresFinalized": "Finalize the month before logging to Accounts"
+      "logged": "பதிவு செய்யப்பட்டது"
     },
     "staffSalary": {
       "inactive": "செயலற்றது",
@@ -4409,7 +4402,6 @@
       "logSalary": "சம்பளத்தைப் பதிவு செய்",
       "logged": "இந்த மாதம் பதிவு செய்யப்பட்டது: {{amount}}",
       "notLoggedYet": "இந்த மாதம் இன்னும் பதிவு செய்யப்படவில்லை",
-      "alreadyLoggedThisMonth": "Already logged this month",
       "empty": "பணியாளர்கள் இல்லை",
       "setupReminders": "மாதாந்திர சம்பள நினைவூட்டல்களை அமைக்கவும்",
       "remindersSetUp_one": "{{count}} நினைவூட்டல் உருவாக்கப்பட்டது",

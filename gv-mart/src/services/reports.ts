@@ -907,12 +907,6 @@ export type CreateExpenseInput = {
    * spend is one combined figure with per-person drill-down. Unset for
    * every other category. */
   staffId?: string | null
-  /** Payroll-integrity review (2026-10-23) — when logging a technician's
-   *  computed salary, this is the `salaries.id` the logged amount came
-   *  from, so the expenses row references the actual figure rather than
-   *  just a free-text note repeating it. Only meaningful alongside
-   *  category='salary' + staffId; unset for every other use. */
-  refId?: string | null
 }
 
 export async function createExpense(input: CreateExpenseInput) {
@@ -928,7 +922,6 @@ export async function createExpense(input: CreateExpenseInput) {
       is_recurring: !!input.recurringTaskId,
       logged_by: input.loggedBy ?? null,
       staff_id: input.staffId ?? null,
-      ref_id: input.refId ?? null,
     })
     .select()
     .single()
