@@ -1,4 +1,5 @@
-import { useId, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -53,6 +54,30 @@ export function Autocomplete<T>({
   const showList = open && (openOnFocus || value.trim().length > 0)
   const activeOptionId = activeIndex >= 0 && activeIndex < suggestions.length ? `${listboxId}-option-${activeIndex}` : undefined
 
+  // Dropdown is portalled to <body> instead of absolutely positioned inside
+  // the wrapper — several callers render this inside a Card, and Card
+  // always sets overflow-hidden (for its own rounded corners), which would
+  // otherwise silently clip the suggestion list the moment it overflows the
+  // card's bounds. Position is recomputed on open and kept in sync with
+  // scroll/resize while open (same approach as AdminShell's sidebar
+  // tooltip, which hit the identical clipping problem).
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  useEffect(() => {
+    if (!showList) return
+    function updateRect() {
+      const rect = wrapperRef.current?.getBoundingClientRect()
+      if (rect) setDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    }
+    updateRect()
+    window.addEventListener("scroll", updateRect, true)
+    window.addEventListener("resize", updateRect)
+    return () => {
+      window.removeEventListener("scroll", updateRect, true)
+      window.removeEventListener("resize", updateRect)
+    }
+  }, [showList])
+
   const selectItem = (item: T) => {
     onSelect(item)
     setOpen(false)
@@ -60,7 +85,7 @@ export function Autocomplete<T>({
   }
 
   return (
-    <div className={cn("relative", className)}>
+    <div ref={wrapperRef} className={cn("relative", className)}>
       {icon ? <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted">{icon}</span> : null}
       <Input
         id={id}
@@ -99,36 +124,44 @@ export function Autocomplete<T>({
         aria-autocomplete="list"
         aria-activedescendant={activeOptionId}
       />
-      {showList ? (
-        <div id={listboxId} role="listbox" className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border bg-surface shadow-lg">
-          {loading ? (
-            <div className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-text-muted">
-              <Loader2 className="size-3.5 animate-spin" /> …
-            </div>
-          ) : suggestions.length === 0 ? (
-            <div className="px-3.5 py-2.5 text-sm text-text-muted">{emptyMessage}</div>
-          ) : (
-            suggestions.map((item, index) => (
-              <button
-                key={getKey(item)}
-                id={`${listboxId}-option-${index}`}
-                role="option"
-                aria-selected={index === activeIndex}
-                type="button"
-                className={cn(
-                  "block w-full px-3.5 py-2.5 text-left text-sm text-text hover:bg-surface-alt",
-                  index === activeIndex && "bg-surface-alt"
-                )}
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => selectItem(item)}
-              >
-                {getLabel(item)}
-              </button>
-            ))
-          )}
-        </div>
-      ) : null}
+      {showList && dropdownRect
+        ? createPortal(
+            <div
+              id={listboxId}
+              role="listbox"
+              style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width }}
+              className="fixed z-50 max-h-56 overflow-auto rounded-xl border border-border bg-surface shadow-lg"
+            >
+              {loading ? (
+                <div className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-text-muted">
+                  <Loader2 className="size-3.5 animate-spin" /> …
+                </div>
+              ) : suggestions.length === 0 ? (
+                <div className="px-3.5 py-2.5 text-sm text-text-muted">{emptyMessage}</div>
+              ) : (
+                suggestions.map((item, index) => (
+                  <button
+                    key={getKey(item)}
+                    id={`${listboxId}-option-${index}`}
+                    role="option"
+                    aria-selected={index === activeIndex}
+                    type="button"
+                    className={cn(
+                      "block w-full px-3.5 py-2.5 text-left text-sm text-text hover:bg-surface-alt",
+                      index === activeIndex && "bg-surface-alt"
+                    )}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => selectItem(item)}
+                  >
+                    {getLabel(item)}
+                  </button>
+                ))
+              )}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   )
 }
