@@ -11,6 +11,7 @@ import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { cn } from "@/lib/utils"
 import { type CompleteBlockReason, canCompleteTask, compareTasksOverdueFirst, completeBlockReason, isTaskOverdue } from "@/lib/task-rules"
 import { getIstNow } from "@/lib/ist"
+import { userColour } from "@/lib/user-colour"
 import { AssignTaskDialog } from "./AssignTaskDialog"
 import { TaskDetailDialog } from "./TaskDetailDialog"
 import { TaskCalendar } from "./TaskCalendar"
@@ -235,7 +236,7 @@ function TaskRow({
             <span
               aria-hidden="true"
               className="size-2.5 shrink-0 rounded-full border border-border"
-              style={task.assignee?.task_color ? { backgroundColor: task.assignee.task_color } : undefined}
+              style={task.assignee ? { backgroundColor: userColour(task.assignee.id, task.assignee.task_color) } : undefined}
             />
             <User className="size-3" />
             {task.assignee?.full_name ?? t("tasks.unknownUser")}
