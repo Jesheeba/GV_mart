@@ -1,0 +1,14 @@
+-- Second half of the Customers-list performance fix (see
+-- 20261024170000_customer_filter_counts_sql.sql for the filter-chip-counts
+-- half). Switching queryCustomers() off `count: "exact"` only shaved the
+-- main listing query from ~5.6s to ~4.0s -- the dominant remaining cost is
+-- the query itself: `customers` is filtered by org_id then sorted by
+-- created_at desc before the page's `.range()` is applied, with no index
+-- covering that sort, so Postgres has to collect every one of the org's
+-- customer rows and sort them in memory on every single page load.
+--
+-- ADDITIVE ONLY. Standard covering index for exactly this access pattern
+-- (WHERE org_id = $1 ORDER BY created_at DESC): index-only scan in sorted
+-- order, nothing to re-sort, nothing beyond the 20 rows the page actually
+-- needs ever has to be touched.
+create index if not exists customers_org_created_idx on public.customers (org_id, created_at desc);

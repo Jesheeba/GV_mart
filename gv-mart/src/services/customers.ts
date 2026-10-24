@@ -142,17 +142,21 @@ export async function listCustomers(orgId: string, filters: CustomerListFilters,
 
 export type CustomerFilterCounts = { total: number; hasAmc: number; amcDueSoon: number; dormant: number }
 
-/** Real counts for the quick-filter chip row — no fabricated numbers. */
-export async function getCustomerFilterCounts(orgId: string): Promise<CustomerFilterCounts> {
-  const [totalRes, amcIds, dueSoonIds, dormantIds] = await Promise.all([
-    // flagged test customers are never counted (batch-2 item 5)
-    supabase.from("customers").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("is_test", false),
-    idsWithAmc(orgId),
-    idsByAmcStatus(orgId, "due_soon"),
-    idsDormant(orgId),
-  ])
-  if (totalRes.error) throw totalRes.error
-  return { total: totalRes.count ?? 0, hasAmc: amcIds.length, amcDueSoon: dueSoonIds.length, dormant: dormantIds.length }
+/**
+ * Real counts for the quick-filter chip row — no fabricated numbers.
+ *
+ * SQL-aggregated server-side (20261024170000_customer_filter_counts_sql.sql):
+ * this used to run on every Customers-list page load and download entire raw
+ * row sets (every amc_contracts.customer_id, every customers.id older than
+ * the dormancy window, every invoices/service_tickets.customer_id in that
+ * window) just to count them in JS — the single slowest page in the app.
+ * `orgId` is unused now (the RPC derives it from the caller's own session)
+ * but kept in the signature so every call site stays unchanged.
+ */
+export async function getCustomerFilterCounts(_orgId: string): Promise<CustomerFilterCounts> {
+  const { data, error } = await supabase.rpc("customer_filter_counts")
+  if (error) throw error
+  return data as CustomerFilterCounts
 }
 
 export type CustomerRowEnrichment = {
@@ -240,10 +244,22 @@ export async function getCustomerListEnrichment(
 }
 
 async function queryCustomers(orgId: string, page: number, ids: string[] | null) {
+  // `count: "exact"` runs a real COUNT(*) over every matching row on every
+  // single page load — for a growing customers table that alone took 5+
+  // seconds, dwarfing everything else the Customers list fetches (see
+  // 20261024170000_customer_filter_counts_sql.sql's header for the sibling
+  // fix to this same page's filter-chip counts). Two ways out of that scan:
+  //   - filtered (`ids` already the full, exhaustive matching id list from
+  //     listCustomers above): ids.length IS the exact count, for free —
+  //     no need to ask Postgres to count it again.
+  //   - unfiltered: "planned" asks PostgREST to use the query planner's row
+  //     estimate (from table statistics) instead of actually scanning —
+  //     near-instant, and "~N customers" / "page X of Y" doesn't need to be
+  //     exact to the row for a count this large.
   let query = supabase
     .from("customers")
     .select("*, addresses(area,pincode,address_type,is_primary), member_count:customer_members(count)", {
-      count: "exact",
+      count: ids ? undefined : "planned",
     })
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
@@ -253,7 +269,7 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
   const from = (page - 1) * PAGE_SIZE
   const { data, error, count } = await query.range(from, from + PAGE_SIZE - 1)
   if (error) throw error
-  return { rows: (data ?? []) as CustomerListItem[], count: count ?? 0, pageSize: PAGE_SIZE }
+  return { rows: (data ?? []) as CustomerListItem[], count: ids ? ids.length : (count ?? 0), pageSize: PAGE_SIZE }
 }
 
 export async function getCustomer(id: string) {

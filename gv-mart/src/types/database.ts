@@ -7487,6 +7487,10 @@ export type Database = {
         Args: { p_scope?: string; p_assignee?: string | null }
         Returns: Json
       }
+      customer_filter_counts: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       list_leads_without_followup: {
         Args: {
           p_stage?: Database["public"]["Enums"]["lead_status"] | null
