@@ -7,7 +7,7 @@
 -- exact snapshot of the whole table, so it survives new test orgs being added later) and refuses on any mismatch,
 -- confirming this rehearsal is pointed at the real project, (4) executes the migrations in order (20261104100000_product_item_code.sql then 20261104110000_invoice_quotation_item_code_snapshot.sql)
 -- and then the test file, (5) always ends in an unconditional RAISE EXCEPTION, so nothing is ever committed.
--- migrations/20261104100000_product_item_code.sql is embedded here a SECOND time (it was already typed in full in the first wrapper of this
+-- supabase/migrations/20261104100000_product_item_code.sql is embedded here a SECOND time (it was already typed in full in the first wrapper of this
 -- package) because nothing persists between separate rehearsal runs — this test file needs the column that
 -- migration adds, so this wrapper must apply it first, inside the same rolled-back transaction, every time.
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with
@@ -16,7 +16,7 @@
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c  gv-mart/supabase/migrations/20261104100000_product_item_code.sql
 --   4acedd9092e5fc40009709dcda9f65405c29c314913341ff32e24e6f25678a8d  gv-mart/supabase/migrations/20261104110000_invoice_quotation_item_code_snapshot.sql
---   4bb51b88237f487303085e670f1cd9ed26817e3fbe3ba6060fce2bfb3521424e  gv-mart/supabase/tests/invoice_quotation_item_code_snapshot.test.sql
+--   c7990ab5b06963f53d804f9517a3496b154edbb984303c97377d2442ebfb26db  gv-mart/supabase/tests/invoice_quotation_item_code_snapshot.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
 
@@ -183,7 +183,7 @@ end $f$;
 do $t$
 declare
   v_org uuid; v_brand uuid; v_model uuid; v_cust uuid; v_product uuid; v_spare uuid;
-  v_inv uuid; v_quo uuid; v_ii uuid; v_qi uuid; v_code text; v_ii_first uuid; s uuid; x text;
+  v_inv uuid; v_quo uuid; v_ii uuid; v_qi uuid; v_code text; v_ii_first uuid; v_ii_sp uuid; v_qi_sp uuid; s uuid; x text;
 begin
   insert into public.organizations(name) values ('__TEST_p4b') returning id into v_org;
   s := pg_temp.mkuser('sales_admin', v_org);
@@ -212,6 +212,30 @@ begin
   insert into public.quotation_items(org_id, quotation_id, item_type, item_id, qty, price) values (v_org, v_quo, 'spare', v_spare, 1, 100) returning id into v_qi;
   select item_code into v_code from public.quotation_items where id = v_qi;
   perform pg_temp.chk('S4 a quotation line (spare) is stamped the same way', v_code = 'SPR-AB-01', coalesce(v_code, 'null'));
+
+  -- SP: item_id matching NO row in the catalog. item_id has no foreign key (it is polymorphic — see the migration's
+  -- own header comment), so nothing at the DB level stops a client from inserting a bogus item_id; this is the one
+  -- path where a spoofed item_code could survive if the trigger's SELECT INTO ever left it untouched on no match
+  -- instead of overwriting it to null. Covering both item_type values, on both tables.
+  insert into public.invoice_items(org_id, invoice_id, item_type, item_id, qty, price, item_code)
+    values (v_org, v_inv, 'product', gen_random_uuid(), 1, 1000, '__TEST_SPOOFED_NOMATCH') returning id into v_ii_sp;
+  select item_code into v_code from public.invoice_items where id = v_ii_sp;
+  perform pg_temp.chk('SP1 item_type=product with an item_id matching NO product: the client-supplied item_code is overwritten to null', v_code is null, coalesce(v_code, 'null'));
+
+  insert into public.invoice_items(org_id, invoice_id, item_type, item_id, qty, price, item_code)
+    values (v_org, v_inv, 'spare', gen_random_uuid(), 1, 100, '__TEST_SPOOFED_NOMATCH') returning id into v_ii_sp;
+  select item_code into v_code from public.invoice_items where id = v_ii_sp;
+  perform pg_temp.chk('SP2 item_type=spare with an item_id matching NO spare: the client-supplied item_code is overwritten to null', v_code is null, coalesce(v_code, 'null'));
+
+  insert into public.quotation_items(org_id, quotation_id, item_type, item_id, qty, price, item_code)
+    values (v_org, v_quo, 'product', gen_random_uuid(), 1, 1000, '__TEST_SPOOFED_NOMATCH') returning id into v_qi_sp;
+  select item_code into v_code from public.quotation_items where id = v_qi_sp;
+  perform pg_temp.chk('SP3 the same no-match-overwrites-to-null holds on quotation_items (product)', v_code is null, coalesce(v_code, 'null'));
+
+  insert into public.quotation_items(org_id, quotation_id, item_type, item_id, qty, price, item_code)
+    values (v_org, v_quo, 'spare', gen_random_uuid(), 1, 100, '__TEST_SPOOFED_NOMATCH') returning id into v_qi_sp;
+  select item_code into v_code from public.quotation_items where id = v_qi_sp;
+  perform pg_temp.chk('SP4 the same no-match-overwrites-to-null holds on quotation_items (spare)', v_code is null, coalesce(v_code, 'null'));
 
   -- N: no catalog code -> line stays null, not an error
   update public.products set item_code = null where id = v_product;
@@ -246,7 +270,7 @@ begin
 end $t$;
 $rh2$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '4bb51b88237f487303085e670f1cd9ed26817e3fbe3ba6060fce2bfb3521424e' then
+  if v_hash <> 'c7990ab5b06963f53d804f9517a3496b154edbb984303c97377d2442ebfb26db' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for invoice_quotation_item_code_snapshot.test.sql: %', v_hash;
   end if;
   execute v_text;

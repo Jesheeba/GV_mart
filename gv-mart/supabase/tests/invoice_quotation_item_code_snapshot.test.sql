@@ -37,7 +37,7 @@ end $f$;
 do $t$
 declare
   v_org uuid; v_brand uuid; v_model uuid; v_cust uuid; v_product uuid; v_spare uuid;
-  v_inv uuid; v_quo uuid; v_ii uuid; v_qi uuid; v_code text; v_ii_first uuid; s uuid; x text;
+  v_inv uuid; v_quo uuid; v_ii uuid; v_qi uuid; v_code text; v_ii_first uuid; v_ii_sp uuid; v_qi_sp uuid; s uuid; x text;
 begin
   insert into public.organizations(name) values ('__TEST_p4b') returning id into v_org;
   s := pg_temp.mkuser('sales_admin', v_org);
@@ -66,6 +66,30 @@ begin
   insert into public.quotation_items(org_id, quotation_id, item_type, item_id, qty, price) values (v_org, v_quo, 'spare', v_spare, 1, 100) returning id into v_qi;
   select item_code into v_code from public.quotation_items where id = v_qi;
   perform pg_temp.chk('S4 a quotation line (spare) is stamped the same way', v_code = 'SPR-AB-01', coalesce(v_code, 'null'));
+
+  -- SP: item_id matching NO row in the catalog. item_id has no foreign key (it is polymorphic — see the migration's
+  -- own header comment), so nothing at the DB level stops a client from inserting a bogus item_id; this is the one
+  -- path where a spoofed item_code could survive if the trigger's SELECT INTO ever left it untouched on no match
+  -- instead of overwriting it to null. Covering both item_type values, on both tables.
+  insert into public.invoice_items(org_id, invoice_id, item_type, item_id, qty, price, item_code)
+    values (v_org, v_inv, 'product', gen_random_uuid(), 1, 1000, '__TEST_SPOOFED_NOMATCH') returning id into v_ii_sp;
+  select item_code into v_code from public.invoice_items where id = v_ii_sp;
+  perform pg_temp.chk('SP1 item_type=product with an item_id matching NO product: the client-supplied item_code is overwritten to null', v_code is null, coalesce(v_code, 'null'));
+
+  insert into public.invoice_items(org_id, invoice_id, item_type, item_id, qty, price, item_code)
+    values (v_org, v_inv, 'spare', gen_random_uuid(), 1, 100, '__TEST_SPOOFED_NOMATCH') returning id into v_ii_sp;
+  select item_code into v_code from public.invoice_items where id = v_ii_sp;
+  perform pg_temp.chk('SP2 item_type=spare with an item_id matching NO spare: the client-supplied item_code is overwritten to null', v_code is null, coalesce(v_code, 'null'));
+
+  insert into public.quotation_items(org_id, quotation_id, item_type, item_id, qty, price, item_code)
+    values (v_org, v_quo, 'product', gen_random_uuid(), 1, 1000, '__TEST_SPOOFED_NOMATCH') returning id into v_qi_sp;
+  select item_code into v_code from public.quotation_items where id = v_qi_sp;
+  perform pg_temp.chk('SP3 the same no-match-overwrites-to-null holds on quotation_items (product)', v_code is null, coalesce(v_code, 'null'));
+
+  insert into public.quotation_items(org_id, quotation_id, item_type, item_id, qty, price, item_code)
+    values (v_org, v_quo, 'spare', gen_random_uuid(), 1, 100, '__TEST_SPOOFED_NOMATCH') returning id into v_qi_sp;
+  select item_code into v_code from public.quotation_items where id = v_qi_sp;
+  perform pg_temp.chk('SP4 the same no-match-overwrites-to-null holds on quotation_items (spare)', v_code is null, coalesce(v_code, 'null'));
 
   -- N: no catalog code -> line stays null, not an error
   update public.products set item_code = null where id = v_product;
