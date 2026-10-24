@@ -6,8 +6,8 @@
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   62f71209e07c637401a6ee35ce30a3ba3a14d02429d4400ce4ce531b4403efa7  gv-mart/supabase/migrations/20261103100000_task_logs_and_visibility.sql
---   829a386c162421a33f869476bc588292b1ec13b2c018ae87d5b24bbf983acef0  gv-mart/supabase/tests/task_logs_and_visibility.test.sql
+--   99990dde17cceb8485d5adc12bc4776906557a615341a4c0dbd04bf65238d6d5  gv-mart/supabase/migrations/20261103100000_task_logs_and_visibility.sql
+--   0ba1eef4ea38530206f9176d0fbfc1aea57c167e17cb010c7d869503e5c05266  gv-mart/supabase/tests/task_logs_and_visibility.test.sql
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
@@ -84,10 +84,12 @@ create policy task_logs_insert on public.task_logs for insert
 -- no update or delete policy, and no update or delete privilege: an entry is corrected by adding another one
 
 -- What a client can write is a note by themselves: the database stamps who and when and clears the system-only columns.
+-- SECURITY INVOKER on purpose: it tells a client from a trusted path by current_user, which inside a SECURITY DEFINER function is the
+-- owner. The only thing it reads is the caller's own profile name, which profiles_select_own (id = auth.uid()) allows.
 create or replace function public._trg_task_log_client_insert()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 begin
@@ -181,7 +183,7 @@ create policy tasks_select_internal on public.tasks
 notify pgrst, 'reload schema';
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '62f71209e07c637401a6ee35ce30a3ba3a14d02429d4400ce4ce531b4403efa7' then
+  if v_hash <> '99990dde17cceb8485d5adc12bc4776906557a615341a4c0dbd04bf65238d6d5' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261103100000_task_logs_and_visibility.sql: %', v_hash;
   end if;
   execute v_text;
@@ -218,6 +220,11 @@ begin
   return t;
 end $f$;
 
+-- 20261024100000 made `alter default privileges for role postgres revoke execute on functions from public` global, which also removes
+-- PUBLIC execute from the helper functions above (they live in pg_temp and are called after `set local role authenticated`).
+-- Granting on pg_temp only touches this session's own temporary schema.
+grant execute on all functions in schema pg_temp to public;
+
 do $t$
 declare
   v_org uuid; v_org2 uuid; v_master uuid; v_ops uuid; v_sales uuid; v_sales2 uuid; v_tp uuid; v_tp2 uuid; v_tp_off uuid; v_m2 uuid;
@@ -248,6 +255,8 @@ begin
     has_table_privilege('authenticated', 'public.task_logs', 'SELECT') and has_table_privilege('authenticated', 'public.task_logs', 'INSERT')
     and not has_table_privilege('authenticated', 'public.task_logs', 'UPDATE') and not has_table_privilege('authenticated', 'public.task_logs', 'DELETE')
     and not has_table_privilege('anon', 'public.task_logs', 'SELECT') and not has_table_privilege('anon', 'public.task_logs', 'INSERT'));
+  perform pg_temp.chk('_trg_task_log_client_insert and _trg_task_log_immutable are SECURITY INVOKER (they test current_user)',
+    (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('_trg_task_log_client_insert', '_trg_task_log_immutable') and not prosecdef) = 2);
   perform pg_temp.chk('the trigger functions are not client-callable',
     not has_function_privilege('authenticated', 'public._trg_task_log_changes()', 'execute')
     and not has_function_privilege('authenticated', 'public._trg_task_log_client_insert()', 'execute')
@@ -425,7 +434,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '829a386c162421a33f869476bc588292b1ec13b2c018ae87d5b24bbf983acef0' then
+  if v_hash <> '0ba1eef4ea38530206f9176d0fbfc1aea57c167e17cb010c7d869503e5c05266' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_logs_and_visibility.test.sql: %', v_hash;
   end if;
   execute v_text;
