@@ -89,9 +89,20 @@ describe.skipIf(!email || !password || !org)("legacy vs SQL (live throwaway org)
     }
   })
 
-  it("Ops resolution matches", async () => {
-    // slaHours comes from settings.ops_resolution_sla_hours (P5, new-path only) — the legacy browser-side path
-    // predates that setting and always assumed 24h; excluded from parity on purpose, not a regression.
+  it("Ops resolution matches — only meaningful while this org's SLA is still the legacy-assumed 24h", async (ctx) => {
+    // getOpsResolutionKpiLegacy hardcodes 24 hours IN ITS FILTER (reports.ts), not just in a label — it predates
+    // settings.ops_resolution_sla_hours entirely and has no way to read it. So this comparison only holds while
+    // the org's setting is still the default; once someone changes it, resolved_within_24h/percent genuinely
+    // diverge between the two paths, and that is correct new behaviour, not a bug. Skip (not fail, not delete)
+    // so the parity signal survives for every org that hasn't touched the setting, and a change to the setting
+    // shows up here as a skip, not a mystery red test with no visible cause.
+    const { data: s, error } = await supabase.from("settings").select("ops_resolution_sla_hours").eq("org_id", org).single()
+    if (error) throw error
+    if (s.ops_resolution_sla_hours !== 24) {
+      ctx.skip(`org's ops_resolution_sla_hours is ${s.ops_resolution_sla_hours}, not the legacy-assumed 24 — see comment above`)
+    }
+    // slaHours comes from the same setting (P5, new-path only) — the legacy path has no equivalent field at all;
+    // excluded from parity on purpose, not a regression.
     const { slaHours: _sh, ...n } = await getOpsResolutionKpi(org, oct)
     expect(n).toEqual(await getOpsResolutionKpiLegacy(org, oct))
   })
