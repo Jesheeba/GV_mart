@@ -57,7 +57,7 @@ export const settingsSchema = z
     // GV.md 1.2: "admin also sets a review time and a new-enquiry time allowance."
     review_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     enquiry_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
-    // P5 (20261024110000) — previously hard-coded constants: OVERRUN_BUFFER_MINUTES in src/lib/job-overrun.ts,
+    // P5 (20261024120000) — previously hard-coded constants: OVERRUN_BUFFER_MINUTES in src/lib/job-overrun.ts,
     // and the 24h window inside report_ops_resolution.
     job_overrun_buffer_minutes: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     ops_resolution_sla_hours: z.coerce.number().int().positive("settings.errors.positive"),

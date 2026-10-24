@@ -153,7 +153,7 @@ export type PerformanceRpcRow = {
 }
 
 /**
- * P5 (20261024110000) — a SEPARATE RPC (report_performance_efficiency), merged client-side into PerformanceRow
+ * P5 (20261024120000) — a SEPARATE RPC (report_performance_efficiency), merged client-side into PerformanceRow
  * rather than added to report_performance's own body. Informational only: see getPerformanceReport.
  */
 export type PerformanceEfficiencyRpcRow = {

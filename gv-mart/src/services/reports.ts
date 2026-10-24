@@ -515,7 +515,7 @@ export type PerformanceRow = {
   /** Units logged in installations_logged in range (sum of qty). */
   installations: number
   /**
-   * P5 (20261024110000) — INFORMATIONAL ONLY: sum(standard minutes) ÷ sum(actual minutes) × 100, over visits
+   * P5 (20261024120000) — INFORMATIONAL ONLY: sum(standard minutes) ÷ sum(actual minutes) × 100, over visits
    * whose standard could be resolved (complaint_types.standard_minutes, else the ticket type's
    * settings.default_duration_* default). Null when no visit in range had a resolvable standard. Not read by
    * compute_incentives or any review/flag logic — see report_performance_efficiency's own migration comment.

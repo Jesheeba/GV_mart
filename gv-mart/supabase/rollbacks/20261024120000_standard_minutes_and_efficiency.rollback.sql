@@ -1,4 +1,4 @@
--- Rollback for 20261024110000_standard_minutes_and_efficiency.sql
+-- Rollback for 20261024120000_standard_minutes_and_efficiency.sql
 drop function if exists public.report_performance_efficiency(date, date);
 
 -- restore report_ops_resolution to its definition in 20261016110000_test_customer_flag.sql (hard-coded 24h,
