@@ -4,6 +4,11 @@
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid, p_tech boolean default false) returns uuid language plpgsql as $f$
@@ -111,16 +116,16 @@ begin
 
   -- t1: standard 20 (vis1) + 30 (vis2, amc default) = 50; actual 30 + 45 = 75 -> 50*100/75 = 66.7
   perform pg_temp.chk('E2 t1''s efficiency is (20+30)/(30+45) = 66.7% over 2 samples, the test-customer visit excluded',
-    (select (x->>'efficiency_percent')::numeric = 66.7 and (x->>'efficiency_sample_count')::int = 2
-       from jsonb_array_elements(r) x where x->>'id' = v_tech1::text),
+    (select (e->>'efficiency_percent')::numeric = 66.7 and (e->>'efficiency_sample_count')::int = 2
+       from jsonb_array_elements(r) e where e->>'id' = v_tech1::text),
     r::text);
   -- t2: standard 45 (vis3, paid default) ; actual 90 -> 50.0
   perform pg_temp.chk('E3 t2''s efficiency is 45/90 = 50.0% over 1 sample',
-    (select (x->>'efficiency_percent')::numeric = 50.0 and (x->>'efficiency_sample_count')::int = 1
-       from jsonb_array_elements(r) x where x->>'id' = v_tech2::text),
+    (select (e->>'efficiency_percent')::numeric = 50.0 and (e->>'efficiency_sample_count')::int = 1
+       from jsonb_array_elements(r) e where e->>'id' = v_tech2::text),
     r::text);
   perform pg_temp.chk('E4 the test customer''s visit contributed to neither technician''s sample count',
-    not exists (select 1 from jsonb_array_elements(r) x where (x->>'efficiency_sample_count')::int > 2));
+    not exists (select 1 from jsonb_array_elements(r) e where (e->>'efficiency_sample_count')::int > 2));
 
   x := pg_temp.act(t1, format('select public.report_performance_efficiency(%L, %L)', v_from, v_to));
   perform pg_temp.chk('E5 a technician cannot call it (is_staff()-gated via _report_org, same as every other report RPC)',
