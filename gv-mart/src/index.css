@@ -41,12 +41,16 @@
   --danger: #e5484d;
   --info: #2e6be6;
 
-  /* AA-safe text variants of --accent/--warning: those tokens are also used
-     as solid fills (buttons, dots, chart bars) where the brighter brand hue
-     is correct, so small/normal text usage reads from these darker,
-     same-hue variants instead of shifting the shared token globally. */
+  /* AA-safe text variants of --accent/--warning/--danger: those tokens are
+     also used as solid fills (buttons, dots, chart bars) where the brighter
+     brand hue is correct, so small/normal text usage reads from these
+     darker, same-hue variants instead of shifting the shared token
+     globally. (TECH-007/CUST-006/ADMIN-007: --danger was missing this —
+     e5484d only cleared ~3.5:1 against the cream/white surfaces it's read
+     on; c0282e clears 5.2-5.9:1 against bg/surface/surface-alt.) */
   --accent-text: #c23a09;
   --warning-text: #995b11;
+  --danger-text: #c0282e;
 
   /* Radii */
   --radius: 0.625rem;
@@ -97,9 +101,12 @@
   --text-muted: #a39d8c;
 
   /* Original brand hues already clear 4.5:1 against the dark surfaces, so
-     the text variants can stay the same as the base tokens here. */
+     the text variants can stay the same as the base tokens here. --danger
+     doesn't quite (4.0-4.75:1 depending on surface), so it gets its own
+     lighter dark-mode variant instead of reusing the base token. */
   --accent-text: var(--accent);
   --warning-text: var(--warning);
+  --danger-text: #f06267;
 
   --background: var(--bg);
   --foreground: var(--text);
@@ -240,13 +247,16 @@
 }
 
 @layer utilities {
-  /* --accent/--warning stay bright for fills (buttons, dots, chart bars);
-     text usage of the same utility classes reads from the darker AA-safe
-     variants above instead. */
+  /* --accent/--warning/--danger stay bright for fills (buttons, dots, chart
+     bars); text usage of the same utility classes reads from the darker
+     (or, in dark mode, lighter) AA-safe variants above instead. */
   .text-accent {
     color: var(--accent-text);
   }
   .text-warning {
     color: var(--warning-text);
+  }
+  .text-danger {
+    color: var(--danger-text);
   }
 }

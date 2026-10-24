@@ -170,7 +170,7 @@ export function TechnicianShell() {
           <AlertTriangle className="size-5 shrink-0 text-danger" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-danger">{t("technician.locationPrompt.title")}</p>
-            <p className="text-xs text-danger/90">{t(LOCATION_ERROR_KEYS[locationError])}</p>
+            <p className="text-xs text-danger">{t(LOCATION_ERROR_KEYS[locationError])}</p>
           </div>
           <Button type="button" size="xs" variant="outline" disabled={requestingLocation} onClick={requestLocation} className="shrink-0">
             {t("technician.locationPrompt.enableButton")}
