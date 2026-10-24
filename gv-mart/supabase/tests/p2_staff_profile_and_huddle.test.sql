@@ -26,6 +26,11 @@ create function pg_temp.raises(p_sql text) returns text language plpgsql as $f$
 begin execute p_sql; return null;
 exception when others then return sqlerrm; end $f$;
 
+-- 20261024100000 made `alter default privileges for role postgres revoke execute on functions from public` global, which also removes
+-- PUBLIC execute from the helper functions above (they live in pg_temp and are called after `set local role authenticated`).
+-- Granting on pg_temp only touches this session's own temporary schema.
+grant execute on all functions in schema pg_temp to public;
+
 do $t$
 declare
   v_org uuid; v_org2 uuid; v_master uuid; v_master_b uuid; v_ops uuid; v_sales uuid; v_cr uuid; v_tp uuid; v_tp2 uuid; v_tp_off uuid; v_m2 uuid;
