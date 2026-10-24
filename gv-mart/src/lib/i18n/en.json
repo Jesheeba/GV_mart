@@ -1342,6 +1342,7 @@
       "timeInvalid": "Start time must be before end time."
     },
     "saved": "Settings saved.",
+    "unsavedChangesBar": "You have unsaved changes on this page.",
     "errors": {
       "required": "This field is required",
       "positive": "Must be greater than zero",

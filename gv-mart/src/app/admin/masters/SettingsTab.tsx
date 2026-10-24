@@ -116,7 +116,7 @@ export function SettingsTab() {
   )
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className={cn("space-y-4", (isDirty || updateMut.isSuccess) && "pb-20")}>
       <OrgProfileCard orgId={orgId} />
 
       <DiscountGiftCard
@@ -265,15 +265,32 @@ export function SettingsTab() {
       {updateMut.isError ? (
         <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(updateMut.error as Error).message}</p>
       ) : null}
-      {updateMut.isSuccess ? (
-        <p className="rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success">{t("settings.saved")}</p>
-      ) : null}
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={!isDirty || updateMut.isPending}>
-          {updateMut.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
-        </Button>
-      </div>
+      {/* This form covers ~10 setting groups (Travel, Attendance, SLA, Job
+          Duration, Booking, AMC & Referral, Inventory, Product Enquiry...) in
+          one submit, but previously only had a Save button at the very
+          bottom — unreachable without scrolling past everything else, with
+          no indication along the way that e.g. editing "GST rate" near the
+          top needed that same distant button (MASTER-001). A sticky bar
+          fixes both: it's visible from anywhere on the page the instant
+          something is dirty, and it says plainly that it covers the whole
+          page, not just whatever card is on screen. */}
+      {isDirty || updateMut.isSuccess ? (
+        // A `sticky` bar here only engages once its own position in this very
+        // long form's normal flow nears the viewport — i.e. only once you've
+        // scrolled almost to the end anyway, which is exactly the "unreachable
+        // until you scroll past everything" problem this exists to fix. Needs
+        // `fixed` (viewport-relative, not flow-relative) to actually show up
+        // the moment something becomes dirty, from anywhere on the page.
+        <div className="fixed inset-x-0 bottom-4 z-20 flex justify-center px-4 sm:left-[88px] sm:right-6 sm:justify-end">
+          <div className="flex w-full max-w-md items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3 shadow-[0_8px_30px_-12px_rgba(26,26,26,0.35)]">
+            <p className="text-sm font-medium text-text">{isDirty ? t("settings.unsavedChangesBar") : t("settings.saved")}</p>
+            <Button type="submit" disabled={!isDirty || updateMut.isPending}>
+              {updateMut.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </form>
   )
 }
@@ -491,18 +508,25 @@ function GiftThresholdRow({
       />
       <div className="min-w-[88px] text-center text-[18px] font-extrabold tabular-nums text-text">₹{localThreshold.toLocaleString("en-IN")}</div>
       <StepperButton onClick={() => setLocalThreshold((v) => (v ?? 0) + 500)} className="border border-[#DAD5CC] bg-surface text-text" label="+" ariaLabel="+" />
-      <button
-        type="button"
-        disabled={savingLimits || updateGiftMut.isPending}
-        title={t("settings.discountGift.saveLimitsHint")}
-        onClick={() => {
-          if (giftDirty) updateGiftMut.mutate({ id: entryGift.id, patch: { threshold_amount: localThreshold } })
-          onSaveLimits()
-        }}
-        className="rounded-full bg-ink px-5 py-2.75 text-[13px] font-bold text-white shadow-[0_10px_20px_-12px_rgba(26,26,26,0.6)] disabled:opacity-50"
-      >
-        {savingLimits || updateGiftMut.isPending ? <Loader2 className="mx-auto size-4 animate-spin" /> : t("settings.discountGift.saveLimits")}
-      </button>
+      <div className="flex flex-col items-end gap-1">
+        <button
+          type="button"
+          disabled={savingLimits || updateGiftMut.isPending}
+          onClick={() => {
+            if (giftDirty) updateGiftMut.mutate({ id: entryGift.id, patch: { threshold_amount: localThreshold } })
+            onSaveLimits()
+          }}
+          className="rounded-full bg-ink px-5 py-2.75 text-[13px] font-bold text-white shadow-[0_10px_20px_-12px_rgba(26,26,26,0.6)] disabled:opacity-50"
+        >
+          {savingLimits || updateGiftMut.isPending ? <Loader2 className="mx-auto size-4 animate-spin" /> : t("settings.discountGift.saveLimits")}
+        </button>
+        {/* This button has always saved the whole page's form, not just this
+            card (see onSaveLimits) — that hint used to live only in a title=
+            tooltip, invisible on touch and easy to miss on desktop, which was
+            the real source of "which groups does Save actually cover?"
+            confusion (MASTER-001). Printing it as a visible caption instead. */}
+        <p className="max-w-[220px] text-right text-[10px] text-text-muted">{t("settings.discountGift.saveLimitsHint")}</p>
+      </div>
     </div>
   )
 }
