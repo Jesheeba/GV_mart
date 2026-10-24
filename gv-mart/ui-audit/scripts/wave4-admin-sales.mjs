@@ -1,6 +1,6 @@
 // Phase 2, Wave 4 — Admin sales pages (sales_admin role)
 import { chromium } from "playwright"
-import { WIDTHS, newContext, login, visitAndCapture, writeLog } from "./audit-lib.mjs"
+import { WIDTHS, newContext, login, visitAndCapture, writeLog, shot } from "./audit-lib.mjs"
 import path from "node:path"
 
 const OUT_ROOT = path.resolve("ui-audit/screenshots/before/admin-sales")
@@ -84,7 +84,7 @@ async function run(widthKey, { deepModals }) {
       const userMenuBtn = page.locator("header button:has(svg)").last()
       await userMenuBtn.click({ timeout: 3000 })
       await page.waitForTimeout(300)
-      await page.screenshot({ path: path.join(outDir, "14-user-menu-open.png"), fullPage: true })
+      await shot(page, outDir, "14-user-menu-open")
       await page.keyboard.press("Escape")
     } catch (e) {
       results.push({ step: "user-menu", error: e.message })

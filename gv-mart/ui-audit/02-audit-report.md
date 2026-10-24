@@ -6,6 +6,8 @@ Severity scale: **Critical** (broken/blocking/data-loss) · **High** (clearly wr
 
 Method note: captured with Playwright (scripts in `ui-audit/scripts/`) — full-page screenshots, `@axe-core/playwright` scans, and console-error capture on every page. Screenshots live in `ui-audit/screenshots/before/<area>/<width>/`. **Known artifact**: on mobile-shell pages taller than the viewport, the fixed bottom tab bar can appear "floating" mid-page in a *full-page* screenshot — this is a Playwright full-page-stitching artifact, not a real bug (verified against real scrolled-viewport captures on the Map page). Findings below were cross-checked against real viewport screenshots where this mattered.
 
+**Capture-tool correction (mid-Wave-5)**: discovered that `AdminShell` locks `document.body`/`<html>` to the viewport height (`h-screen overflow-hidden`) and scrolls inside its own `<main>` instead — so a plain `page.screenshot({ fullPage: true })` was silently capturing only the first ~900px of every Admin page across Waves 3 and 4, cutting off everything below the fold. Fixed the capture library (`audit-lib.mjs`) to temporarily flatten the scroll-locked ancestor chain before screenshotting, then **re-captured Waves 3, 4, and 5 in full** before writing up findings — all screenshot references and findings in Waves 3-5 below are from the corrected, complete captures. Spot-checked a sample of the newly-visible below-the-fold content (ticket detail, technician detail, the full Leads Kanban board with all 63 cards, the full Masters module grid + active tab content) and found nothing that contradicts the findings already written up from the truncated captures — no findings needed retracting because of this, only the capture method needed fixing.
+
 ---
 
 ## Wave 1 — Technician area
@@ -213,3 +215,33 @@ Of 16,381 customers, a visible fraction have no real name on file — several ro
 - Sales dashboard's empty states ("No sales yet," "Start your first sale to see it here") are honest and genuinely empty (0 sales this month is real data, not a loading/permission failure) — confirmed by cross-referencing with My Day's real 64-lead count on the same account.
 - Campaigns' "This app has no live send integration" banner is a good example of honest, limitation-aware microcopy rather than overselling a half-built feature.
 - Zero console errors, zero `window.alert()`/`confirm()` usage.
+
+---
+
+## Wave 5 — Admin master-only pages
+
+Role: `master`. Widths: 1440 and 1024 (primary), 768 (quick check). Pages covered: AMC & Warranty, HR & Payroll, Accounts, Reports (all 7 report tabs' nav, Sales & Service tab in depth), Approvals, Audit Log, and Masters & Settings — full audit of the module-card overview plus 6 distinct-layout tabs (AMC Plans, Technician Tiers, Settings, Payment Settings, Water Quality, Activities), spot-checked 3 generic `EntityCrudTable`-template tabs (Brands, Gift Exclusions, Lead Outcomes).
+
+### Findings
+
+**MASTER-001 — Settings page has inconsistent save affordances across ~15 setting groups** · Category **G** (Forms) + **H** (UX flows) · role: master · page: Masters → Settings · width: all · [`10b-masters-settings.png`](screenshots/before/admin-master/1440/10b-masters-settings.png)
+This single scrolling page (5400px+ tall) holds ~15 distinct setting groups: Business Details, Discount & Gift Limits, Travel & Geofence, Work Hours & Attendance, GST/Tax, Service SLA, Default Job Duration, Booking Model, Auto-assign, Appointment Slots, AMC & Referral, Review Incentives, Inventory Defaults, and a Product Enquiry/EMI section. Only **3 of these** have a visible "Save" button of their own (Business Details, "Save all settings" under Discount & Gift Limits, and one "Save" at the very bottom covering the EMI section). The ~10 groups in between — including Work Hours & Attendance and GST/Tax, both business-critical — have **no save button anywhere near them**. It's not possible to tell, just by looking, whether editing "GST rate (%)" auto-saves, saves via some distant button, or silently does nothing until the page is left.
+**Severity: Medium-High** — this is exactly the kind of ambiguity that leads to a real admin believing they've saved a change (e.g. SLA hours, late-cutoff thresholds) when they haven't, with no error and no confirmation either way. Fix: either give every group its own explicit Save with visible success feedback, or clearly communicate (e.g. a sticky "unsaved changes" bar) that the whole page saves as one unit.
+
+**MASTER-002 — Real merchant payment details rendered in this audit's own screenshots** · Not a UI finding — process note
+The Payment Settings tab displays the org's real UPI ID, merchant phone number, and a live QR code (by design — that's the feature). Flagging only so these screenshots are handled carefully: they're already excluded from git via `.gitignore` (`ui-audit/screenshots/`), and this report doesn't quote the actual values.
+
+**Cross-reference — findings confirmed again in this wave, not re-described in full:**
+- `select-name: critical` (unlabeled native selects) — Masters Products brand/category filter, Approvals Type/Status, Audit Log Table filter — 9 more page/width combinations on top of Notifications/New Quotation/Leads from Waves 3-4. This is now confirmed on **7 distinct pages across 3 roles** — one shared filter-select component/pattern, one shared fix.
+- `label: critical` (Month-range control has no accessible name) — Accounts and Reports, 6 more combinations on top of Dashboard/Technicians from Wave 3 — confirmed on **4 pages across 2 roles**, same root cause (the shared Month/Year/Custom date-range control).
+- `color-contrast: serious` and `label-content-name-mismatch: serious` — both hit all 7 static pages plus all 9 Masters tab views (35 combinations each) — fully consistent with every other wave.
+- `heading-order: moderate` — 18 combinations, concentrated in Masters tabs (most sub-tabs render an `h3` module-card title without a preceding `h1`/`h2` in the tab content itself).
+- Inconsistent date formats — AMC & Warranty's expiry dates render as `13/10/2029` (DD/MM/YYYY, no time) — a **fourth** distinct format alongside the ISO, "23 Oct 2026," and "DD/MM/YYYY, HH:MM:SS" variants already catalogued in ADMIN-001.
+- `empty-table-header: minor` — 14 combinations, same trailing-actions-column pattern as ADMIN-010.
+
+### What's clean
+- AMC Plans' and Technician Tiers' tier-preview cards (the black highlighted "Silver"/"Tier 1" cards) are a deliberate, consistent design pattern — matches code (`AmcWarrantyListPage.tsx`'s tier-color swatch) and renders cleanly with real data.
+- Accounts and Reports both have well-written, honest empty-state copy ("No data for this range yet") rather than blank charts or zeroed totals with no explanation.
+- The Masters module-card grid (22 modules across Brands through Water Quality) is visually consistent and well-organized into "Daily Followup" vs. general groups; every spot-checked `EntityCrudTable`-template tab (Brands, Gift Exclusions, Lead Outcomes) matched the same list/add/edit pattern with no inconsistency found.
+- Technician Tiers correctly shows ₹0.00 for the entry tier with "no promotion requirement" copy — consistent with this being genuinely unconfigured data (owner hasn't entered real tier salaries yet, a known open item), not a bug.
+- Zero console errors across every page in this wave.

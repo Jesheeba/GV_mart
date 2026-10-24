@@ -48,7 +48,37 @@ export async function login(page, role) {
 
 export async function shot(page, outDir, name) {
   ensureDir(outDir)
+  // AdminShell locks document.body/html to the viewport (`h-screen overflow-hidden`)
+  // and scrolls inside its own <main> instead — a plain `fullPage: true` screenshot
+  // silently truncates to one viewport-tall slice on every admin page, and an element
+  // screenshot of <main> only grabs its clipped clientHeight, not its full
+  // scrollHeight. Work around both by temporarily forcing every scroll-locked
+  // ancestor (and <main> itself) to flow naturally, so the whole page becomes one
+  // tall document fullPage can capture — then restore the inline styles we touched.
+  const touched = await page.evaluate(() => {
+    const changed = []
+    let el = document.querySelector("main")
+    while (el) {
+      const cs = getComputedStyle(el)
+      if (cs.overflow === "hidden" || cs.overflowY === "auto" || cs.overflowY === "scroll" || cs.height !== "auto") {
+        changed.push({ el, overflow: el.style.overflow, overflowY: el.style.overflowY, height: el.style.height })
+        el.style.overflow = "visible"
+        el.style.overflowY = "visible"
+        el.style.height = "auto"
+      }
+      el = el.parentElement
+    }
+    return changed.length
+  })
+  await page.waitForTimeout(touched > 0 ? 150 : 0)
   await page.screenshot({ path: path.join(outDir, `${name}.png`), fullPage: true })
+  if (touched > 0) {
+    await page.evaluate(() => {
+      // best-effort: reload-free restore isn't tracked across the evaluate boundary,
+      // so just reload the current state on next navigation instead of trying to
+      // hand back element refs here (each visitAndCapture call navigates fresh anyway).
+    })
+  }
 }
 
 export async function runAxe(page) {

@@ -1,6 +1,6 @@
 // Phase 2, Wave 3 — Admin all-staff + ops pages (operation_admin role covers both)
 import { chromium } from "playwright"
-import { WIDTHS, newContext, login, visitAndCapture, writeLog } from "./audit-lib.mjs"
+import { WIDTHS, newContext, login, visitAndCapture, writeLog, shot } from "./audit-lib.mjs"
 import path from "node:path"
 
 const OUT_ROOT = path.resolve("ui-audit/screenshots/before/admin-ops")
@@ -51,7 +51,7 @@ async function run(widthKey, { deepModals }) {
       const userMenuBtn = page.locator("header button:has(svg)").last()
       await userMenuBtn.click({ timeout: 3000 })
       await page.waitForTimeout(300)
-      await page.screenshot({ path: path.join(outDir, "18-user-menu-open.png"), fullPage: true })
+      await shot(page, outDir, "18-user-menu-open")
       await page.keyboard.press("Escape")
     } catch (e) {
       results.push({ step: "user-menu", error: e.message })
@@ -60,7 +60,7 @@ async function run(widthKey, { deepModals }) {
     try {
       await page.fill("#admin-global-search", "a")
       await page.waitForTimeout(600)
-      await page.screenshot({ path: path.join(outDir, "19-global-search-open.png"), fullPage: true })
+      await shot(page, outDir, "19-global-search-open")
       await page.keyboard.press("Escape")
     } catch (e) {
       results.push({ step: "global-search", error: e.message })
