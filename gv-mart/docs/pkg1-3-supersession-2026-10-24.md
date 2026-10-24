@@ -22,39 +22,49 @@ filename didn't carry over, by reading the actual logic on both sides.
   its own RLS. This is not the same mechanism patched up; it's a different, correct design — see
   "pkg2 defects, now moot" below.
 
-## NOT covered — real work with no P-series equivalent
+## Ported into the P-series (2026-10-24) — gaps that needed porting before pkg1-3 are abandoned
 
-1. **A notification-attribution bug fix (pkg1).** `services/tasks.ts`'s `UpdateTaskInput.assignedBy`
-   was required and written on every save, so editing an unrelated field (e.g. priority)
-   silently overwrote who last assigned the task — corrupting the `tasks_notify_assigned`
-   trigger's self-assign check (which can wrongly suppress or send a reassignment notification).
-   pkg1 made `assignedBy` optional, written only when the caller is actually reassigning.
-   Confirmed: `feat/p3-task-log-visibility`'s `tasks.ts` still has `assignedBy: string` required
-   and unconditionally written. **This bug is live in the P-series and needs its own fix,
-   independent of pkg1.**
+1. **A notification-attribution bug fix (pkg1) → `feat/p3-task-log-visibility` (`7bb89b5`).**
+   `services/tasks.ts`'s `UpdateTaskInput.assignedBy` was required and written on every save, so
+   editing an unrelated field (e.g. priority) silently overwrote who last assigned the task. This
+   is not only an attribution bug: `tasks_update_assign` (20261101100000) grants UPDATE to
+   `assignee_id = auth.uid() or assigned_by = auth.uid()`, so the overwrite moved that update
+   right from the task's original assigner to whoever last edited it. Made `assignedBy` optional,
+   written only on an actual reassignment; `TaskDetailDialog` now omits the key entirely rather
+   than resending a (possibly stale or null) current value. Added `tasks.test.ts` pinning the
+   exact update payload, and extended `task_completion_rule.test.sql`: an unrelated edit by the
+   assignee leaves `assigned_by` untouched, and the original assigner can still update the row
+   afterwards.
 
-2. **Stable fallback colour for unset `task_color` (pkg3).** pkg3's `user-colour.ts`
-   (`userColour(profileId, explicitColour?)`) derives a stable hash-based colour from the profile
-   id when a user hasn't picked one, so every user is visually distinguishable on the task
-   calendar/list from day one. feat/p3 reads `task.assignee?.task_color` directly with no
-   fallback — a user with no colour set renders with no colour at all (no border/background),
-   i.e. visually identical to every other unset user. Not ported.
+2. **`must_change_password` on technician creation/reset (pkg2) → `feat/p2-staff-profile-huddle`
+   (`baafe88`).** pkg2's `admin-create-technician` Edge Function set `must_change_password: true`
+   both when creating a new technician and when resetting one's password — the same
+   forced-first-login-password-change P2 built for staff. feat/p2's mechanism (`profile_password_markers`
+   + `arm_forced_password_change` + `complete_forced_password_change`, a stronger design than
+   pkg2's own boolean-only flag — see "pkg2 defects, now moot" below) is role-agnostic, so only the
+   wiring was missing: `"create"` now sets the flag in the same profile insert (after the password
+   exists, same ordering as staff), `"reset_password"` now calls `arm_forced_password_change` after
+   the password update. Added a test block in `p2_staff_profile_and_huddle.test.sql` proving both
+   paths for a technician profile.
 
-3. **"My Workspace" merged into Tasks (pkg3).** pkg3 removed the standalone "My Workspace" nav
-   item, made My Day the default Tasks tab for every role, and moved the one real piece of
-   Workspace content (the confirmation-call card) into Service → Appointments, on the reasoning
-   that it's Service's business, not a personal to-do. feat/p3 still has a separate `workspace`
-   nav entry and the original `WorkspacePage.tsx`. This is a deliberate UX decision pkg3 made
-   that the P-series never adopted — worth a product call on whether it still should, now that
-   pkg3 itself is retired and won't carry it forward.
+3. **Stable fallback colour for unset `task_color` (pkg3) → `feat/p3-task-log-visibility`
+   (`047c102`).** pkg3's `user-colour.ts` (`userColour(profileId, explicitColour?)`) derives a
+   stable hash-based colour from the profile id when a user hasn't picked one, so every user is
+   visually distinguishable on the task calendar/list from day one. feat/p3 was reading
+   `task.assignee?.task_color` directly with no fallback. Ported the utility and its test verbatim
+   (only the doc comment's migration-column reference corrected to `task_color`, feat/p2's actual
+   name for it) and wired it into both read sites (`TaskCalendar.tsx`, `TasksPage.tsx`). Cosmetic,
+   no schema change.
 
-4. **`must_change_password` on technician creation/reset (pkg2).** pkg2's
-   `admin-create-technician` Edge Function sets `must_change_password: true` both when creating a
-   new technician and when resetting one's password — the same forced-first-login-password-change
-   pkg2/P2 built for staff. feat/p2's `admin-create-technician/index.ts` has no
-   `must_change_password` reference at all: the flag only reaches staff (`admin-create-staff`,
-   `admin-reset-staff-password`), not technicians. If technicians were meant to be in scope for
-   P2 (pkg2 clearly treated them as in scope), this is a gap.
+## Left alone — a product decision, not a gap (open question for the owner)
+
+**"My Workspace" merged into Tasks (pkg3).** pkg3 removed the standalone "My Workspace" nav item,
+made My Day the default Tasks tab for every role, and moved the one real piece of Workspace
+content (the confirmation-call card) into Service → Appointments, reasoning that it's Service's
+business, not a personal to-do. feat/p3 still has a separate `workspace` nav entry and the
+original `WorkspacePage.tsx`. This was **not** ported: it's a deliberate UX call, not a bug, and
+pkg3 retiring doesn't carry it forward automatically. Open question for the owner: should the
+P-series adopt pkg3's merge, keep Workspace standalone, or something else? No code changed here.
 
 ## pkg2 defects, now moot (no fix needed — retiring the branch retires them)
 
@@ -74,7 +84,7 @@ with the branch; no standalone fix is needed.
 
 ## Bottom line
 
-Three of four open gaps (1, 2, 4) are real, independent pieces of work that existed on pkg1-3 and
-do not exist anywhere in the P-series. Gap 3 is a product/UX decision, not a bug, and needs a call
-rather than a fix. None of this blocks retiring pkg1-3 — the gaps are now tracked here instead of
-living only in a branch nobody is rehearsing.
+All three real gaps (the assignedBy permission bug, must_change_password for technicians, the
+colour fallback) are now ported into the P-series, each as its own commit, with tests. The My
+Workspace merge is deliberately left as an open product question, not ported — see above. pkg1-3
+are fully retired: nothing that mattered is left stranded on a branch nobody is rehearsing.
