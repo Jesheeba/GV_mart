@@ -12,6 +12,7 @@ import { useAmcContracts, useRefreshAmcStatuses, useWarranties } from "@/hooks/u
 import { amcPlansHooks, useSettings } from "@/hooks/useMasters"
 import { pricePerYearOf } from "@/lib/amc-window"
 import { AMC_STATUS_TONE } from "@/lib/amc-status"
+import { formatDate } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
 import { SellAmcPanel } from "./SellAmcPanel"
 import type { AmcContractListItem, WarrantyListItem } from "@/services/amc"
@@ -31,10 +32,6 @@ const AMC_GRID =
 // Customer / Product / Serial no / Expiry / Next svc / Status.
 const WARRANTY_GRID =
   "grid-cols-[minmax(130px,1.2fr)_minmax(110px,1.4fr)_minmax(90px,0.9fr)_minmax(90px,0.85fr)_minmax(90px,0.85fr)_minmax(90px,0.9fr)]"
-
-function fmt(date: string | null) {
-  return date ? new Date(date).toLocaleDateString("en-IN") : "—"
-}
 
 function warrantyStatus(expiryDate: string, windowDays: number): "active" | "due_soon" | "expired" {
   // Both sides as date-only UTC midnights: expiryDate is a plain date, and
@@ -444,8 +441,8 @@ function AmcTable({
                 <span className="size-1.75 shrink-0 rounded-[2px]" style={{ background: tierColor }} />
                 {c.amc_plans?.name ?? "—"}
               </span>
-              <span className="text-[13px] font-medium tabular-nums text-text">{fmt(c.expiry_date)}</span>
-              <span className="text-[13px] font-medium tabular-nums text-text">{fmt(c.next_service_date)}</span>
+              <span className="text-[13px] font-medium tabular-nums text-text">{formatDate(c.expiry_date)}</span>
+              <span className="text-[13px] font-medium tabular-nums text-text">{formatDate(c.next_service_date)}</span>
               <StatusDot tone={AMC_STATUS_TONE[c.status] ?? "neutral"} label={t(`amc.status.${c.status}`)} />
             </div>
           )
@@ -516,8 +513,8 @@ function WarrantyTable({
             </div>
             <span className="text-[13px] font-medium text-text">{w.products?.name ?? "—"}</span>
             <span className="text-[13px] font-medium tabular-nums text-text">{w.serial_no ?? "—"}</span>
-            <span className="text-[13px] font-medium tabular-nums text-text">{fmt(w.expiry_date)}</span>
-            <span className="text-[13px] font-medium tabular-nums text-text">{fmt(w.next_service_date)}</span>
+            <span className="text-[13px] font-medium tabular-nums text-text">{formatDate(w.expiry_date)}</span>
+            <span className="text-[13px] font-medium tabular-nums text-text">{formatDate(w.next_service_date)}</span>
             <StatusDot tone={AMC_STATUS_TONE[w.computedStatus as keyof typeof AMC_STATUS_TONE] ?? "neutral"} label={t(`amc.status.${w.computedStatus}`)} />
           </div>
         ))

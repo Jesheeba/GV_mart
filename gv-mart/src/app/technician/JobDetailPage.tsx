@@ -11,11 +11,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { cn } from "@/lib/utils"
 import { computeTicketAllowedDuration, findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
-
-function formatDateTime(iso: string | null) {
-  if (!iso) return null
-  return new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
-}
+import { formatDate, formatDateTime } from "@/lib/formatDate"
 
 /** Re-renders every 30s so an in-progress visit's overrun state (Build Order A4)
  *  flips to red without the technician needing to leave and reopen the page —
@@ -183,7 +179,7 @@ export function JobDetailPage() {
         {latestConfirmedCall ? (
           <p className="mx-1 rounded-xl bg-accent-soft px-3 py-2 text-xs text-accent">
             {t("technician.jobDetail.confirmedAvailability", {
-              date: new Date(latestConfirmedCall.confirmed_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+              date: formatDate(latestConfirmedCall.confirmed_date),
               from: latestConfirmedCall.confirmed_from.slice(0, 5),
               to: latestConfirmedCall.confirmed_to.slice(0, 5),
             })}
@@ -209,7 +205,7 @@ export function JobDetailPage() {
         <p className="px-1 text-sm text-text">{ticket.name_of_complaint ?? "—"}</p>
         {ticket.nature_of_complaint ? <p className="px-1 text-xs text-text-muted">{ticket.nature_of_complaint}</p> : null}
         <p className="px-1 text-xs text-text-muted">
-          {t("technician.jobDetail.raised", { date: new Date(ticket.created_at).toLocaleDateString() })}
+          {t("technician.jobDetail.raised", { date: formatDate(ticket.created_at) })}
         </p>
       </Card>
 
@@ -235,7 +231,7 @@ export function JobDetailPage() {
                 <span className="absolute -left-[19px] top-1 size-2 rounded-full bg-accent" />
                 <p className="text-sm font-medium text-text">{h.name_of_complaint ?? "—"}</p>
                 <p className="text-xs text-text-muted">
-                  {new Date(h.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · {t(`service.type.${h.type ?? "paid"}`)} · {t(`service.status.${h.status}`)}
+                  {formatDate(h.created_at)} · {t(`service.type.${h.type ?? "paid"}`)} · {t(`service.status.${h.status}`)}
                 </p>
                 {/* D6: past notes + parts changed, not just the date — one block per visit (usually one). */}
                 {h.service_visits.map((v) => (

@@ -13,6 +13,7 @@ import { FullPageError } from "@/components/shared/FullPageLoader"
 import { BOOKING_STATUS_TONE } from "@/lib/booking-status"
 import { useMyCustomerId, useMyTicketsFiltered, useMyTicketTechnicians, useResolveStaleBookings } from "@/hooks/useCustomerApp"
 import { TICKET_FILTER_PAGE_SIZE, type FilteredTicketItem, type TicketFilters } from "@/services/customerApp"
+import { formatDate } from "@/lib/formatDate"
 
 // Real product categories this app actually sells (brand_category enum) —
 // the spec's own list (RO/AC/Inverter/Washing Machine/Refrigerator/Others)
@@ -282,9 +283,7 @@ function FilterSelect({
 function BookingRow({ ticket, onClick }: { ticket: FilteredTicketItem; onClick: () => void }) {
   const { t } = useTranslation()
   const appt = ticket.appointment
-  const dateLabel = appt?.scheduled_at
-    ? new Date(appt.scheduled_at).toLocaleDateString(undefined, { dateStyle: "medium" })
-    : t("customerApp.bookings.anytime")
+  const dateLabel = appt?.scheduled_at ? formatDate(appt.scheduled_at) : t("customerApp.bookings.anytime")
   const slotLabel =
     appt?.slot_name && appt.slot_start_time && appt.slot_end_time
       ? `${appt.slot_name} (${appt.slot_start_time.slice(0, 5)}–${appt.slot_end_time.slice(0, 5)})`
@@ -305,7 +304,7 @@ function BookingRow({ ticket, onClick }: { ticket: FilteredTicketItem; onClick: 
         <ChevronRight className="size-4 shrink-0 text-text-muted" />
       </div>
       <p className="px-1 text-[11px] text-text-muted">
-        {t("customerApp.bookings.raised", { date: new Date(ticket.created_at).toLocaleDateString(undefined, { dateStyle: "medium" }) })}
+        {t("customerApp.bookings.raised", { date: formatDate(ticket.created_at) })}
       </p>
       <div className="flex items-center justify-between px-1">
         <StatusDot tone={BOOKING_STATUS_TONE[ticket.status] ?? "neutral"} label={t(`customerApp.bookings.status.${ticket.status}`)} />

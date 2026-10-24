@@ -17,6 +17,7 @@ import { CompletionScreen } from "@/app/customer/components/tracking/CompletionS
 import { BookingConfirmedStrip } from "@/app/customer/components/tracking/BookingConfirmedStrip"
 import { useTicketDetail, useSubmitCustomerRating, useTechnicianPublicStats, useCustomerAppSettings } from "@/hooks/useCustomerApp"
 import { useLiveTracking } from "@/hooks/useLiveTracking"
+import { formatDate } from "@/lib/formatDate"
 import type { RouteInfo } from "@/app/customer/components/tracking/TrackingMap"
 
 const STATUS_TONE: Record<string, StatusTone> = {
@@ -155,7 +156,7 @@ export function CustomerBookingDetailPage() {
               {ticket.products?.name ?? ticket.unlisted_product_name ?? ticket.name_of_complaint ?? t("customerApp.bookings.generalService")}
             </p>
             <p className="text-xs text-text-muted">{[ticket.brands?.name, ticket.models?.name].filter(Boolean).join(" · ")}</p>
-            <p className="text-xs text-text-muted">{t("customerApp.bookings.raised", { date: new Date(ticket.created_at).toLocaleDateString(undefined, { dateStyle: "medium" }) })}</p>
+            <p className="text-xs text-text-muted">{t("customerApp.bookings.raised", { date: formatDate(ticket.created_at) })}</p>
           </div>
           <StatusDot tone={STATUS_TONE[ticket.status] ?? "neutral"} label={t(`customerApp.bookings.status.${ticket.status}`)} />
         </div>
@@ -188,7 +189,7 @@ export function CustomerBookingDetailPage() {
           <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.bookingDetail.appointmentTitle")}</h2>
           <div className="grid grid-cols-2 gap-y-1 px-1 text-sm">
             <span className="text-text-muted">{t("customerApp.bookingDetail.appointmentDate")}</span>
-            <span className="text-text">{new Date(appt.scheduled_at).toLocaleDateString(undefined, { dateStyle: "medium" })}</span>
+            <span className="text-text">{formatDate(appt.scheduled_at)}</span>
             {appt.appointment_slots ? (
               <>
                 <span className="text-text-muted">{t("customerApp.bookingDetail.appointmentSlot")}</span>

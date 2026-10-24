@@ -6,6 +6,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useFeedbackReport } from "@/hooks/useReports"
 import { defaultDateRange, downloadCsv, periodToRange, toCsv, type FeedbackReport, type PeriodValue } from "@/services/reports"
+import { formatDate } from "@/lib/formatDate"
 import { PeriodFilter } from "./PeriodFilter"
 
 export function FeedbackReportTab() {
@@ -21,7 +22,7 @@ export function FeedbackReportTab() {
   const { data, isLoading, isError, refetch } = useFeedbackReport(profile?.org_id, range)
 
   const columns: DataTableColumn<FeedbackReport["lowRatingEntries"][number]>[] = [
-    { key: "date", header: t("reports.feedback.date"), render: (r) => new Date(r.createdAt).toLocaleDateString() },
+    { key: "date", header: t("reports.feedback.date"), render: (r) => formatDate(r.createdAt) },
     { key: "customer", header: t("reports.feedback.customer"), render: (r) => r.customerName ?? "—" },
     { key: "technician", header: t("reports.feedback.technician"), render: (r) => r.technicianName ?? "—" },
     {
@@ -40,7 +41,7 @@ export function FeedbackReportTab() {
     if (!data) return
     const csv = toCsv(
       [t("reports.feedback.date"), t("reports.feedback.customer"), t("reports.feedback.technician"), t("reports.feedback.stars"), t("reports.feedback.reason")],
-      data.lowRatingEntries.map((r) => [new Date(r.createdAt).toLocaleDateString(), r.customerName, r.technicianName, r.stars, r.reason])
+      data.lowRatingEntries.map((r) => [formatDate(r.createdAt), r.customerName, r.technicianName, r.stars, r.reason])
     )
     downloadCsv(`feedback-report_${range.from}_${range.to}.csv`, csv)
   }

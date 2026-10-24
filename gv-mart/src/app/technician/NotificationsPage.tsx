@@ -7,6 +7,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useProfile } from "@/hooks/useProfile"
 import { useAllMyNotifications, useMarkAllNotificationsRead, useMarkNotificationRead } from "@/hooks/useSystemPages"
 import { useTicketDisplayNames } from "@/hooks/useService"
+import { formatDateTime } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
 
 // No type/read-status filter UI here (unlike the admin notifications page) —
@@ -103,7 +104,7 @@ export function NotificationsPage() {
                 {!n.is_read ? <span className="mt-1 size-2 shrink-0 rounded-full bg-info" aria-hidden="true" /> : null}
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] text-text-muted">{new Date(n.created_at).toLocaleString()}</span>
+                <span className="text-[10px] text-text-muted">{formatDateTime(n.created_at)}</span>
                 {!n.is_read ? (
                   <Button type="button" size="xs" variant="ghost" onClick={() => markRead.mutate({ id: n.id })}>
                     {t("notifications.markRead")}

@@ -14,6 +14,7 @@ import { useAwardReferralPoints, useDeleteLead, useMoveLeadToCustomer, useUpdate
 import { useQuotationsForLead } from "@/hooks/useQuotations"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 import { LOST_REASON_PRESETS, lostReasonLabel, type LostReasonPreset } from "@/lib/lead-lost-reasons"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
 
@@ -120,7 +121,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
                   className="flex w-full items-center justify-between rounded-lg bg-surface-alt px-2.5 py-2 text-xs hover:bg-surface-alt/70"
                 >
                   <span className="font-medium text-text">{formatCurrency(q.total)}</span>
-                  <span className="text-text-muted">{new Date(q.created_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })}</span>
+                  <span className="text-text-muted">{formatDate(q.created_at)}</span>
                   <StatusDot tone={QUOTATION_STATUS_TONE[q.status] ?? "neutral"} label={t(`quotations.status.${q.status}`)} />
                 </button>
               </li>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { getIstNow } from "@/lib/ist"
+import { formatDate } from "@/lib/formatDate"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Download, Plus, Search, SlidersHorizontal, UserPlus, X } from "lucide-react"
@@ -42,17 +43,12 @@ function toCsv(
       primary?.pincode ?? "",
       String(r.member_count[0]?.count ?? 1),
       info?.amcStatus ? amcStatusLabel(info.amcStatus) : "",
-      fmtDate(info?.lastServiceAt),
+      formatDate(info?.lastServiceAt),
     ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(",")
   })
   return [header.join(","), ...lines].join("\n")
-}
-
-function fmtDate(iso: string | null | undefined) {
-  if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })
 }
 
 function QuickFilterChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
@@ -223,7 +219,7 @@ export function CustomersListPage() {
     {
       key: "lastService",
       header: t("customers.table.lastService"),
-      render: (c) => (enrichment.isLoading ? "…" : fmtDate(enrichment.data?.get(c.id)?.lastServiceAt)),
+      render: (c) => (enrichment.isLoading ? "…" : formatDate(enrichment.data?.get(c.id)?.lastServiceAt)),
     },
   ]
 

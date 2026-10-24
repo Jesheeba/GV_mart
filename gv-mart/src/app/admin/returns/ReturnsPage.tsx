@@ -12,6 +12,7 @@ import type { ReturnListItem, ReturnStatus } from "@/services/systemPages"
 import type { Enums } from "@/types/database"
 import { createReturnSchema } from "@/lib/validation/systemPages"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 
 const STATUS_TONE: Record<ReturnStatus, StatusTone> = { requested: "warning", approved: "info", completed: "success", rejected: "danger" }
 const NEXT_STATUS: Record<ReturnStatus, ReturnStatus | null> = { requested: "approved", approved: "completed", completed: null, rejected: null }
@@ -126,7 +127,7 @@ export function ReturnsPage() {
   ]
 
   const invoiceOptions = useMemo(
-    () => (invoices.data ?? []).map((i) => ({ id: i.id, label: `${(i as { customers?: { name: string } | null }).customers?.name ?? "—"} · ${formatCurrency(i.total)} · ${new Date(i.created_at).toLocaleDateString()}` })),
+    () => (invoices.data ?? []).map((i) => ({ id: i.id, label: `${(i as { customers?: { name: string } | null }).customers?.name ?? "—"} · ${formatCurrency(i.total)} · ${formatDate(i.created_at)}` })),
     [invoices.data]
   )
 

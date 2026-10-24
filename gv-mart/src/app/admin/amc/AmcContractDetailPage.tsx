@@ -7,14 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useAmcContract, useAmcContractVisits } from "@/hooks/useAmc"
+import { formatDate } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
 
 const AMC_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
 const TICKET_STATUS_TONE: Record<string, StatusTone> = { open: "warning", assigned: "info", in_progress: "warning", completed: "success", cancelled: "danger" }
-
-function fmt(date: string | null | undefined) {
-  return date ? new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"
-}
 
 export function AmcContractDetailPage() {
   const { t } = useTranslation()
@@ -64,11 +61,11 @@ export function AmcContractDetailPage() {
           </div>
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{t("amc.detail.startDate")}</div>
-            <div className="text-sm font-semibold tabular-nums text-text">{fmt(contract.start_date)}</div>
+            <div className="text-sm font-semibold tabular-nums text-text">{formatDate(contract.start_date)}</div>
           </div>
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{t("amc.list.expiry")}</div>
-            <div className="text-sm font-semibold tabular-nums text-text">{fmt(contract.expiry_date)}</div>
+            <div className="text-sm font-semibold tabular-nums text-text">{formatDate(contract.expiry_date)}</div>
           </div>
         </div>
       </Card>
@@ -115,7 +112,7 @@ export function AmcContractDetailPage() {
                     <div className="text-xs font-medium text-text-muted">{visit.name_of_complaint ?? "—"}</div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-sm font-semibold tabular-nums text-text">{fmt(appointment?.scheduled_at)}</span>
+                    <span className="text-sm font-semibold tabular-nums text-text">{formatDate(appointment?.scheduled_at)}</span>
                     <StatusDot tone={TICKET_STATUS_TONE[visit.status] ?? "neutral"} label={t(`service.status.${visit.status}`)} />
                   </div>
                 </div>

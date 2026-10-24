@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { getIstNow } from "@/lib/ist"
+import { formatDateTime } from "@/lib/formatDate"
 import { useTranslation } from "react-i18next"
 import { Bell, CheckCircle2, Loader2, Plus, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -205,7 +206,7 @@ export function WorkspacePage() {
                         </p>
                         <p className="truncate text-xs text-text-muted">
                           {appointment.service_tickets?.name_of_complaint ?? "—"}
-                          {appointment.scheduled_at ? ` · ${new Date(appointment.scheduled_at).toLocaleString()}` : ""}
+                          {appointment.scheduled_at ? ` · ${formatDateTime(appointment.scheduled_at)}` : ""}
                         </p>
                       </div>
                       <Button
@@ -240,7 +241,7 @@ export function WorkspacePage() {
                   <div key={n.id} className={cn("rounded-xl border border-border p-2.5", !n.is_read && "border-info/40 bg-info/5")}>
                     <p className="text-xs font-semibold text-text">{n.title}</p>
                     {n.body ? <p className="mt-0.5 text-xs text-text-muted">{n.body}</p> : null}
-                    <p className="mt-1 text-[10px] text-text-muted">{new Date(n.created_at).toLocaleString()}</p>
+                    <p className="mt-1 text-[10px] text-text-muted">{formatDateTime(n.created_at)}</p>
                   </div>
                 ))}
               </div>

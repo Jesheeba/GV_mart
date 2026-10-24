@@ -38,6 +38,7 @@ import type { ConfirmedAvailabilityReason } from "@/services/service"
 import { ticketPhotoSignedUrl } from "@/services/ticketPhotos"
 import { paymentProofSignedUrl } from "@/services/paymentProofs"
 import { computeJobOverrun } from "@/lib/job-overrun"
+import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
@@ -87,7 +88,7 @@ function PaymentProofCard({
       )}
       <div className="min-w-0 space-y-0.5 text-xs">
         <p className="text-text-muted">
-          {t("service.detail.paymentProof.date")}: <span className="text-text">{paidAt ? paidAt.toLocaleDateString() : "—"}</span>
+          {t("service.detail.paymentProof.date")}: <span className="text-text">{formatDate(paidAt)}</span>
         </p>
         <p className="text-text-muted">
           {t("service.detail.paymentProof.time")}: <span className="text-text">{paidAt ? paidAt.toLocaleTimeString() : "—"}</span>
@@ -360,7 +361,7 @@ export function TicketDetailPage() {
         <div>
           <h1 className="text-2xl font-bold text-text">#{ticket.id.slice(0, 8)}</h1>
           <p className="text-sm text-text-muted">{ticket.customers?.name} · {ticket.customers?.mobile}</p>
-          <p className="text-xs text-text-muted">{t("service.table.raised", { date: new Date(ticket.created_at).toLocaleDateString() })}</p>
+          <p className="text-xs text-text-muted">{t("service.table.raised", { date: formatDate(ticket.created_at) })}</p>
         </div>
         <div className="flex items-center gap-2">
           {canCancelOrDelete ? (
@@ -441,7 +442,7 @@ export function TicketDetailPage() {
           {appointment?.next_day_priority ? (
             <span className="flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
               {t("service.detail.nextDayPriorityBadge")}
-              {appointment.rescheduled_from_date ? ` (${t("service.detail.rescheduledFrom", { date: new Date(appointment.rescheduled_from_date).toLocaleDateString() })})` : ""}
+              {appointment.rescheduled_from_date ? ` (${t("service.detail.rescheduledFrom", { date: formatDate(appointment.rescheduled_from_date) })})` : ""}
             </span>
           ) : null}
           {ticket.invoice_id ? (
@@ -464,7 +465,7 @@ export function TicketDetailPage() {
           </div>
           <Field label={t("service.newComplaint.nameOfComplaint")} value={ticket.name_of_complaint || "—"} />
           <Field label={t("service.newComplaint.natureOfComplaint")} value={ticket.nature_of_complaint || "—"} />
-          <Field label={t("service.table.appointment")} value={appointment?.mode === "always" ? t("service.appointment.always") : appointment?.scheduled_at ? new Date(appointment.scheduled_at).toLocaleString() : "—"} />
+          <Field label={t("service.table.appointment")} value={appointment?.mode === "always" ? t("service.appointment.always") : appointment?.scheduled_at ? formatDateTime(appointment.scheduled_at) : "—"} />
           <Field label={t("service.detail.status")} value={t(`service.status.${ticket.status}`)} />
           {!editingAddress ? (
             <div>
@@ -739,7 +740,7 @@ export function TicketDetailPage() {
                 .map((c) => (
                   <li key={c.id} className="rounded-xl border border-border px-3 py-2 text-xs">
                     <p className="font-medium text-text">
-                      {new Date(c.confirmed_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}{" "}
+                      {formatDate(c.confirmed_date)}{" "}
                       {c.confirmed_from.slice(0, 5)}–{c.confirmed_to.slice(0, 5)}
                       <span className="ml-1.5 font-normal text-text-muted">
                         · {t(`service.detail.confirmedAvailability.reason.${c.reason}`)}
@@ -748,7 +749,7 @@ export function TicketDetailPage() {
                     <p className="mt-0.5 text-text-muted">
                       {t("service.detail.confirmedAvailability.loggedBy", {
                         name: c.profiles?.full_name ?? "—",
-                        date: new Date(c.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+                        date: formatDate(c.created_at),
                       })}
                     </p>
                     {c.note ? <p className="mt-0.5 text-text">{c.note}</p> : null}
@@ -847,8 +848,8 @@ export function TicketDetailPage() {
         </div>
         {visit ? (
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <Field label={t("service.detail.startTime")} value={visit.timer_start ? new Date(visit.timer_start).toLocaleString() : "—"} />
-            <Field label={t("service.detail.closeTime")} value={visit.timer_end ? new Date(visit.timer_end).toLocaleString() : "—"} />
+            <Field label={t("service.detail.startTime")} value={visit.timer_start ? formatDateTime(visit.timer_start) : "—"} />
+            <Field label={t("service.detail.closeTime")} value={visit.timer_end ? formatDateTime(visit.timer_end) : "—"} />
             <Field
               label={t("service.detail.totalTime")}
               value={
@@ -1011,7 +1012,7 @@ export function TicketDetailPage() {
                     {" · "}
                     {v.technicians?.profiles?.full_name ?? "—"}
                   </h3>
-                  <span className="text-xs text-text-muted">{v.timer_start ? new Date(v.timer_start).toLocaleString() : "—"}</span>
+                  <span className="text-xs text-text-muted">{v.timer_start ? formatDateTime(v.timer_start) : "—"}</span>
                 </div>
 
                 <div>
@@ -1216,7 +1217,7 @@ export function TicketDetailPage() {
               {evidence.invoice ? (
                 <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                   <Field label={t("service.detail.evidence.invoiceAmount")} value={`₹${evidence.invoice.total.toLocaleString("en-IN")}`} />
-                  <Field label={t("service.detail.evidence.invoiceDate")} value={new Date(evidence.invoice.created_at).toLocaleDateString()} />
+                  <Field label={t("service.detail.evidence.invoiceDate")} value={formatDate(evidence.invoice.created_at)} />
                   <Field
                     label={t("sales.invoice.paymentMethod")}
                     value={evidence.invoice.payment_method ? t(`sales.payment.${evidence.invoice.payment_method}`) : "—"}

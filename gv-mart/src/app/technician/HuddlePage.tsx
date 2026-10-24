@@ -7,6 +7,7 @@ import { useAgendaIssues, useIssueTasks, useMeetingLog, useRecentMeetings } from
 import { useAssignableProfiles } from "@/hooks/useTasks"
 import { todayIst } from "@/services/huddle"
 import { IssueCard } from "@/app/admin/huddle/IssueCard"
+import { formatDate } from "@/lib/formatDate"
 
 // Read-only by design: no create/edit/solve/task controls are rendered (and
 // RLS would reject the writes anyway — meeting_* writes are is_staff()-gated).
@@ -41,7 +42,7 @@ export function HuddlePage() {
       </div>
 
       <Card className="gap-2">
-        <h3 className="text-sm font-semibold text-text">{t("huddle.todayNotes", { date })}</h3>
+        <h3 className="text-sm font-semibold text-text">{t("huddle.todayNotes", { date: formatDate(date) })}</h3>
         <p className="whitespace-pre-wrap text-sm text-text-muted" data-testid="huddle-today-notes">
           {log.data?.general_notes || (log.data ? t("huddle.noNotes") : t("huddle.notLoggedYet"))}
         </p>
@@ -70,7 +71,7 @@ export function HuddlePage() {
           <h2 className="text-sm font-semibold text-text-muted">{t("huddle.recentMeetings")}</h2>
           {pastMeetings.map((m) => (
             <Card key={m.id} className="gap-1">
-              <p className="text-xs font-semibold text-text">{m.meeting_date}</p>
+              <p className="text-xs font-semibold text-text">{formatDate(m.meeting_date)}</p>
               <p className="whitespace-pre-wrap text-sm text-text-muted">{m.general_notes}</p>
             </Card>
           ))}

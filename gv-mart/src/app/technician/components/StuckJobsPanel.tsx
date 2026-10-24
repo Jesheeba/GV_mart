@@ -3,6 +3,7 @@ import { AlertTriangle, X } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import type { OutboxJob } from "@/lib/offline/db"
+import { formatDateTime } from "@/lib/formatDate"
 
 /**
  * Small expandable panel opened from the sync-status chip when one or more
@@ -49,7 +50,7 @@ export function StuckJobsPanel({
                   </p>
                   <p className="text-xs text-text-muted">
                     {t("technician.sync.failingSince", {
-                      time: new Date(job.firstFailedAt ?? job.updatedAt).toLocaleString(),
+                      time: formatDateTime(job.firstFailedAt ?? job.updatedAt),
                     })}
                   </p>
                   {job.lastError ? <p className="mt-0.5 truncate text-xs text-danger">{job.lastError}</p> : null}

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
+import { formatDate } from "@/lib/formatDate"
 import {
   useAgendaIssues,
   useCreateIssue,
@@ -144,7 +145,7 @@ function MeetingView() {
       </div>
 
       <Card className="gap-3" data-testid="huddle-performance">
-        <h3 className="px-1 text-sm font-semibold text-text">{t("huddle.performance.title", { date: perf.data?.date ?? "" })}</h3>
+        <h3 className="px-1 text-sm font-semibold text-text">{t("huddle.performance.title", { date: perf.data?.date ? formatDate(perf.data.date) : "" })}</h3>
         {perf.isLoading ? (
           <Skeleton className="h-14 w-full" />
         ) : perf.isError || !perf.data ? (

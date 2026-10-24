@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { useResolveApprovalRef } from "@/hooks/useSystemPages"
+import { formatDateTime } from "@/lib/formatDate"
 import type { ApprovalListItem } from "@/services/systemPages"
 
 const STATUS_TONE: Record<string, StatusTone> = { pending: "warning", approved: "success", rejected: "danger" }
@@ -33,7 +34,7 @@ export function ApprovalRow({
         </div>
         <p className="mt-1 text-sm text-text">{ref.data ?? approval.ref_id}</p>
         <p className="text-xs text-text-muted">
-          {t("approvals.requestedBy")}: {approval.requester?.full_name ?? "—"} · {new Date(approval.created_at).toLocaleString()}
+          {t("approvals.requestedBy")}: {approval.requester?.full_name ?? "—"} · {formatDateTime(approval.created_at)}
           {approval.approver ? ` · ${t("approvals.decidedBy")}: ${approval.approver.full_name}` : ""}
         </p>
       </div>

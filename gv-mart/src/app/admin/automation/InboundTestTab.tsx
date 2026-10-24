@@ -11,6 +11,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useSimulateInboundWhatsapp, useWhatsappOutbox } from "@/hooks/useAutomation"
 import { simulateInboundSchema, type SimulateInboundInput } from "@/lib/validation/automation"
 import type { WhatsappOutboxRow } from "@/services/automation"
+import { formatDateTime } from "@/lib/formatDate"
 
 /** ADM-23's "/api/whatsapp/webhook" has no real HTTP route to host in this
  * Vite SPA — this panel calls the same `simulate_inbound_whatsapp` RPC a
@@ -36,7 +37,7 @@ export function InboundTestTab() {
   }
 
   const columns: DataTableColumn<WhatsappOutboxRow>[] = [
-    { key: "time", header: t("automation.inbox.time"), render: (r) => new Date(r.created_at).toLocaleString("en-IN") },
+    { key: "time", header: t("automation.inbox.time"), render: (r) => formatDateTime(r.created_at) },
     {
       key: "direction",
       header: t("automation.inbox.direction"),

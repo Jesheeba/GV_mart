@@ -16,6 +16,7 @@ import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { AssignTaskDialog } from "@/app/admin/tasks/AssignTaskDialog"
 import { TaskDetailDialog } from "@/app/admin/tasks/TaskDetailDialog"
 import { cn } from "@/lib/utils"
+import { formatDate, formatDateTime } from "@/lib/formatDate"
 
 type PrimaryFilter = "open" | "mine" | "done" | "all"
 
@@ -140,11 +141,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
 function TaskCard({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onToggle: () => void; isMutating: boolean; onOpen: () => void }) {
   const { t } = useTranslation()
   const isDone = task.status === "done"
-  const dueLabel = task.due_at
-    ? new Date(task.due_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
-    : task.due_date
-      ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: "medium" })
-      : null
+  const dueLabel = task.due_at ? formatDateTime(task.due_at) : task.due_date ? formatDate(task.due_date) : null
 
   return (
     <button type="button" onClick={onOpen} className="block w-full text-left">

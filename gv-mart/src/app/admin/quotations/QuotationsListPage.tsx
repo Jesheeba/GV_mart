@@ -10,6 +10,7 @@ import { KpiCard } from "@/components/shared/KpiCard"
 import { useProfile } from "@/hooks/useProfile"
 import { useQuotationsList } from "@/hooks/useQuotations"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 import { QuotationOriginBadge } from "./QuotationBadges"
 import type { QuotationListItem } from "@/services/quotations"
 
@@ -55,8 +56,8 @@ export function QuotationsListPage() {
     },
     { key: "origin", header: t("quotations.table.origin"), render: (q) => <QuotationOriginBadge leadName={q.leads?.name ?? null} /> },
     { key: "total", header: t("quotations.table.amount"), render: (q) => formatCurrency(q.total) },
-    { key: "validUntil", header: t("quotations.table.validUntil"), render: (q) => (q.valid_until ? new Date(q.valid_until).toLocaleDateString("en-IN") : "—") },
-    { key: "date", header: t("quotations.table.date"), render: (q) => new Date(q.created_at).toLocaleDateString("en-IN") },
+    { key: "validUntil", header: t("quotations.table.validUntil"), render: (q) => formatDate(q.valid_until) },
+    { key: "date", header: t("quotations.table.date"), render: (q) => formatDate(q.created_at) },
     { key: "status", header: t("quotations.table.status"), render: (q) => <StatusDot tone={STATUS_TONE[q.status] ?? "neutral"} label={t(`quotations.status.${q.status}`)} /> },
   ]
 

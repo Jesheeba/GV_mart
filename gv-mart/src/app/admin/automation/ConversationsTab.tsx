@@ -9,6 +9,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useWhatsappConversations, useWhatsappTranscript } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import { cn } from "@/lib/utils"
+import { formatDateTime } from "@/lib/formatDate"
 import type { WhatsappConversationListItem } from "@/services/automation"
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "secondary"> = {
@@ -39,7 +40,7 @@ function TranscriptPanel({ orgId, phone, onClose }: { orgId: string; phone: stri
           {(messages ?? []).map((m) => (
             <div key={m.id} className={cn("max-w-[80%] rounded-2xl px-3.5 py-2 text-sm", m.direction === "inbound" ? "self-start bg-surface-alt text-text" : "self-end bg-accent/15 text-text")}>
               <p>{(m.payload as { body?: string })?.body ?? m.template}</p>
-              <p className="mt-1 text-[10px] text-text-muted">{new Date(m.created_at).toLocaleString("en-IN")}</p>
+              <p className="mt-1 text-[10px] text-text-muted">{formatDateTime(m.created_at)}</p>
             </div>
           ))}
         </div>
@@ -66,7 +67,7 @@ export function ConversationsTab() {
     { key: "journey", header: t("automation.conversations.journey"), render: (r) => r.journey ?? "—" },
     { key: "step", header: t("automation.conversations.step"), render: (r) => r.step ?? "—" },
     { key: "status", header: t("automation.conversations.status"), render: (r) => <Badge variant={STATUS_VARIANT[r.status] ?? "secondary"}>{t(`automation.conversations.statuses.${r.status}`)}</Badge> },
-    { key: "lastMessage", header: t("automation.conversations.lastMessage"), render: (r) => new Date(r.last_message_at).toLocaleString("en-IN") },
+    { key: "lastMessage", header: t("automation.conversations.lastMessage"), render: (r) => formatDateTime(r.last_message_at) },
   ]
 
   return (

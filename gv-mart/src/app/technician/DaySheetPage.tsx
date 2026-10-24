@@ -9,6 +9,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useMyTechnician, useTodayAttendance } from "@/hooks/useTechnician"
 import { useDaySheetSummary } from "@/hooks/useWorkspace"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 import { ATTENDANCE_STATUS_I18N_KEY } from "@/lib/attendance-status"
 
 export function DaySheetPage() {
@@ -38,7 +39,7 @@ export function DaySheetPage() {
         </Button>
         <div>
           <h1 className="text-xl font-bold text-text">{t("technician.daySheet.title")}</h1>
-          <p className="text-xs text-text-muted">{new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+          <p className="text-xs text-text-muted">{formatDate(new Date())}</p>
         </div>
       </div>
 

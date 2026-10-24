@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { useProductImages } from "@/hooks/useMasters"
 import { productImagePublicUrl } from "@/services/productMedia"
+import { formatDate } from "@/lib/formatDate"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
 import type { CustomerMeasuredWaterReading, CustomerTdsSuggestion, TdsBand } from "@/services/waterQuality"
@@ -98,7 +99,7 @@ export function TdsSuggestionDialog({
               </div>
             ) : null}
             <div className="text-xs text-text-muted">
-              {t("customers.detail.tdsDialog.measuredOn", { date: new Date(measured.measuredAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) })}
+              {t("customers.detail.tdsDialog.measuredOn", { date: formatDate(measured.measuredAt) })}
             </div>
           </div>
         ) : null}

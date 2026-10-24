@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useAllMyNotifications, useMarkAllNotificationsRead, useMarkNotificationRead } from "@/hooks/useSystemPages"
+import { formatDateTime } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
 
 // Same role-generic notification hooks the admin/technician notification
@@ -86,7 +87,7 @@ export function NotificationsPage() {
                 {!n.is_read ? <span className="mt-1 size-2 shrink-0 rounded-full bg-info" aria-hidden="true" /> : null}
               </div>
               <div className="flex items-center justify-between gap-2 px-1">
-                <span className="text-[10px] text-text-muted">{new Date(n.created_at).toLocaleString()}</span>
+                <span className="text-[10px] text-text-muted">{formatDateTime(n.created_at)}</span>
                 {!n.is_read ? (
                   <Button
                     type="button"

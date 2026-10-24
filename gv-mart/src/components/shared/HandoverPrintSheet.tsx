@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { formatDate } from "@/lib/formatDate"
 
 // Same window.print() convention as InvoicePage.tsx / QuotationDetailPage.tsx
 // (hidden on screen, `print:block` letterhead table) — no PDF library, no
@@ -55,7 +56,7 @@ export function HandoverPrintSheet({
               <b>{t("technicians.spares.technician")}:</b> {technicianName}
             </td>
             <td className={CELL}>
-              <b>{t("technicians.spares.date")}:</b> {new Date(date).toLocaleDateString("en-IN")}
+              <b>{t("technicians.spares.date")}:</b> {formatDate(date)}
             </td>
             <td className={CELL}>
               <b>{t("technicians.spares.status")}:</b> {t(`technicians.spares.statusValues.${status}`, { defaultValue: status })}

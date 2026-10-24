@@ -15,6 +15,7 @@ import {
   useTechniciansList,
 } from "@/hooks/useTechniciansAdmin"
 import type { SpareReturnListItem } from "@/services/techniciansAdmin"
+import { formatDate } from "@/lib/formatDate"
 
 function todayIso() {
   return getIstNow().date
@@ -77,7 +78,7 @@ export function TechniciansSpareReturnTab({ orgId }: { orgId: string | undefined
   }
 
   const columns: DataTableColumn<SpareReturnListItem>[] = [
-    { key: "date", header: t("technicians.spares.date"), render: (r) => new Date(r.date).toLocaleDateString("en-IN") },
+    { key: "date", header: t("technicians.spares.date"), render: (r) => formatDate(r.date) },
     { key: "technician", header: t("technicians.spares.technician"), render: (r) => r.technicians?.profiles?.full_name ?? "—" },
     {
       key: "items",

@@ -10,6 +10,7 @@ import { SegButton } from "@/components/shared/SegButton"
 import { JobTypeBadge } from "./components/JobBadges"
 import { useMyTechnician, useMyHistory } from "@/hooks/useTechnician"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 import type { Enums } from "@/types/database"
 
 const TYPE_FILTERS: (Enums<"ticket_type"> | "all")[] = ["all", "paid", "warranty", "amc", "installation"]
@@ -87,7 +88,7 @@ export function HistoryPage() {
                   <div className="flex flex-wrap items-center gap-2 px-1">
                     <JobTypeBadge type={ticket?.type ?? null} />
                     <span className="text-xs text-text-muted">
-                      {visit.timer_start ? new Date(visit.timer_start).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                      {formatDate(visit.timer_start)}
                     </span>
                     <span className="ml-auto text-sm font-semibold text-text">{formatCurrency(visit.service_charge ?? 0)}</span>
                   </div>

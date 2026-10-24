@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useAllTechnicianStock, useSpareHandovers, useSpareReturns } from "@/hooks/useTechniciansAdmin"
 import { buildStockLog, type StockLogEntry, type TechnicianStockLevelItem } from "@/services/techniciansAdmin"
+import { formatDate } from "@/lib/formatDate"
 
 /**
  * Group 5 — manager-facing visibility: who holds what (per-technician van
@@ -45,7 +46,7 @@ export function TechniciansStockLevelsTab({ orgId }: { orgId: string | undefined
   ]
 
   const logColumns: DataTableColumn<StockLogEntry>[] = [
-    { key: "date", header: t("technicians.spares.date"), render: (r) => new Date(r.date).toLocaleDateString("en-IN") },
+    { key: "date", header: t("technicians.spares.date"), render: (r) => formatDate(r.date) },
     {
       key: "kind",
       header: t("technicians.spares.status"),

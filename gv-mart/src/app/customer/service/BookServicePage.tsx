@@ -30,6 +30,7 @@ import { useLocalDraft } from "@/hooks/useLocalDraft"
 import { getIstNow } from "@/lib/ist"
 import { AvailabilityTimeline } from "@/app/customer/components/AvailabilityTimeline"
 import { largestFreeWindow, isBookableDate, type TimeWindow } from "@/lib/booking-window"
+import { formatDate } from "@/lib/formatDate"
 
 const DRAFT_KEY = "gv_mart_draft:customer_book_service"
 const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const
@@ -276,7 +277,7 @@ export function BookServicePage() {
           <p className="px-1 text-sm text-text-muted">{t("customerApp.bookService.bookedBody")}</p>
           {result?.scheduled_at ? (
             <p className="px-1 text-sm font-medium text-text">
-              {new Date(result.scheduled_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
+              {formatDate(result.scheduled_at)}
               {result?.available_from ? ` · ${result.available_from.slice(0, 5)}–${(result.available_to ?? "").slice(0, 5)}` : ""}
             </p>
           ) : null}
@@ -678,9 +679,7 @@ export function BookServicePage() {
               <span className="text-text-muted">{t("customerApp.bookService.appointmentMode")}: </span>
               <span className="text-text">
                 {pickedDate
-                  ? `${new Date(`${pickedDate}T00:00:00`).toLocaleDateString(undefined, { dateStyle: "medium" })}${
-                      freeWindow.availableFrom ? ` · ${freeWindow.availableFrom}–${freeWindow.availableTo}` : ""
-                    }`
+                  ? `${formatDate(pickedDate)}${freeWindow.availableFrom ? ` · ${freeWindow.availableFrom}–${freeWindow.availableTo}` : ""}`
                   : "—"}
               </span>
             </p>

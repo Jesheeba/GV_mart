@@ -9,6 +9,7 @@ import { useOrgTasks, useSetOrgTaskStatus } from "@/hooks/useTasks"
 import type { OrgTask } from "@/services/tasks"
 import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { cn } from "@/lib/utils"
+import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { AssignTaskDialog } from "./AssignTaskDialog"
 import { TaskDetailDialog } from "./TaskDetailDialog"
 import { TaskCalendar } from "./TaskCalendar"
@@ -160,9 +161,9 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
   const { t } = useTranslation()
   const isDone = task.status === "done"
   const dueLabel = task.due_at
-    ? new Date(task.due_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    ? formatDateTime(task.due_at)
     : task.due_date
-      ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: "medium" })
+      ? formatDate(task.due_date)
       : null
 
   return (

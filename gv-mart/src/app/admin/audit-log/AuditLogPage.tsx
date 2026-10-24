@@ -9,6 +9,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useAuditLog, useAuditLogTableNames } from "@/hooks/useSystemPages"
 import type { AuditLogRow } from "@/services/systemPages"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { formatDateTime } from "@/lib/formatDate"
 
 function JsonDiff({ before, after }: { before: unknown; after: unknown }) {
   const { t } = useTranslation()
@@ -45,7 +46,7 @@ function AuditLogEntry({ row }: { row: AuditLogRow }) {
               <span className="text-text-muted">{row.table_name}</span>
             </p>
             <p className="truncate text-xs text-text-muted">
-              {row.actor?.full_name ?? t("auditLog.systemActor")} · {new Date(row.created_at).toLocaleString()}
+              {row.actor?.full_name ?? t("auditLog.systemActor")} · {formatDateTime(row.created_at)}
               {row.row_id ? ` · #${row.row_id.slice(0, 8)}` : ""}
             </p>
           </div>

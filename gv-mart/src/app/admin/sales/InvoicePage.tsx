@@ -9,6 +9,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useProfile } from "@/hooks/useProfile"
 import { useInvoice, useInvoiceExtras, useOrganization } from "@/hooks/useSales"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 import { amountInWords } from "@/lib/amount-in-words"
 import { toWhatsappLink } from "@/lib/whatsapp-link"
 import { RecordPaymentDialog } from "./RecordPaymentDialog"
@@ -234,7 +235,7 @@ export function InvoicePage() {
           </div>
           <div className="text-right">
             <p className="text-sm font-semibold text-text">{t("sales.invoice.invoiceNo", { id: invoice.id.slice(0, 8).toUpperCase() })}</p>
-            <p className="text-xs text-text-muted">{new Date(invoice.created_at).toLocaleDateString("en-IN")}</p>
+            <p className="text-xs text-text-muted">{formatDate(invoice.created_at)}</p>
             <p className="text-xs text-text-muted">{t(`sales.invoice.type.${invoice.type}`)}</p>
           </div>
         </div>
@@ -355,7 +356,7 @@ export function InvoicePage() {
           <p className="px-1 text-sm font-semibold text-text">{t("sales.invoice.generatedTitle")}</p>
           {extras.warranties.map((w) => (
             <p key={w.id} className="px-1 text-sm text-text-muted">
-              {t("sales.invoice.warrantyLine", { date: new Date(w.expiry_date).toLocaleDateString("en-IN") })}
+              {t("sales.invoice.warrantyLine", { date: formatDate(w.expiry_date) })}
             </p>
           ))}
           {extras.tickets.map((tk) => (
@@ -367,7 +368,7 @@ export function InvoicePage() {
             <p className="px-1 text-sm text-text-muted">
               {t("sales.invoice.amcLine", {
                 plan: (extras.amcContract as { amc_plans: { name: string } | null }).amc_plans?.name ?? "—",
-                date: new Date(extras.amcContract.expiry_date).toLocaleDateString("en-IN"),
+                date: formatDate(extras.amcContract.expiry_date),
               })}
             </p>
           ) : null}

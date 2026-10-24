@@ -25,6 +25,7 @@ import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
+import { formatDate } from "@/lib/formatDate"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
@@ -41,11 +42,6 @@ const CATEGORY_STYLE: Record<Enums<"brand_category">, { icon: typeof Droplet; bg
   ac: { icon: Wind, bg: "#FDE7DD", fg: "#F5612C" },
   inverter: { icon: BatteryCharging, bg: "#F0EBE3", fg: "#1A1A1A" },
   battery: { icon: BatteryCharging, bg: "#E2F3EA", fg: "#16855B" },
-}
-
-function fmtDate(iso: string | null | undefined, opts?: Intl.DateTimeFormatOptions) {
-  if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-IN", opts ?? { day: "2-digit", month: "short", year: "numeric" })
 }
 
 function EmptyTab({ icon: Icon, label }: { icon: typeof Package; label: string }) {
@@ -128,7 +124,7 @@ export function CustomerDetailPage() {
   const palette = avatarPalette(customer.name)
   const subtitleParts = [
     customer.profession || null,
-    t("customers.detail.customerSince", { date: fmtDate(customer.created_at, { month: "short", year: "numeric" }) }),
+    t("customers.detail.customerSince", { date: formatDate(customer.created_at) }),
   ].filter(Boolean)
 
   const nextAmcAction = lifetime.data?.nextAmcAction ?? null
@@ -151,7 +147,7 @@ export function CustomerDetailPage() {
   if (measured?.tdsPpm != null) {
     nextActionItems.push({
       icon: Droplet,
-      label: t("customers.detail.waterMeasured", { ppm: measured.tdsPpm, date: fmtDate(measured.measuredAt, { day: "2-digit", month: "short" }) }),
+      label: t("customers.detail.waterMeasured", { ppm: measured.tdsPpm, date: formatDate(measured.measuredAt) }),
     })
   }
   if (tds?.recommendWaterTest) {
@@ -197,7 +193,7 @@ export function CustomerDetailPage() {
             const title = [p.brandName, p.modelName].filter(Boolean).join(" · ") || p.productName
             const subtitle =
               [
-                p.boughtAt ? t("customers.detail.productCard.bought", { date: fmtDate(p.boughtAt, { month: "short", year: "numeric" }) }) : null,
+                p.boughtAt ? t("customers.detail.productCard.bought", { date: formatDate(p.boughtAt) }) : null,
                 p.serialNo ? t("customers.detail.productCard.serial", { serial: p.serialNo }) : null,
               ]
                 .filter(Boolean)
@@ -206,7 +202,7 @@ export function CustomerDetailPage() {
               ? { tone: AMC_STATUS_TONE[p.amcStatus] ?? "neutral", label: `${p.amcPlanName ?? "—"} · ${t(`amc.status.${p.amcStatus}`)}` }
               : p.warrantyExpiry
                 ? new Date(p.warrantyExpiry) >= new Date()
-                  ? { tone: "success", label: t("customers.detail.productCard.warrantyTo", { date: fmtDate(p.warrantyExpiry) }) }
+                  ? { tone: "success", label: t("customers.detail.productCard.warrantyTo", { date: formatDate(p.warrantyExpiry) }) }
                   : { tone: "danger", label: t("customers.detail.productCard.warrantyExpired") }
                 : { plain: t("customers.detail.productCard.noCoverage") }
             return <ProductCard key={p.productId} icon={Icon} iconBg={style?.bg ?? "#F0EBE3"} iconFg={style?.fg ?? "#1A1A1A"} title={title} subtitle={subtitle} coverage={coverage} />
@@ -236,7 +232,7 @@ export function CustomerDetailPage() {
                 title = entry.title
                 metaParts = [
                   entry.technicianName,
-                  fmtDate(entry.date),
+                  formatDate(entry.date),
                   entry.ticketType ? t(`service.type.${entry.ticketType}`) : t(`service.status.${entry.status}`),
                   entry.durationMinutes != null ? formatDurationMinutes(entry.durationMinutes) : null,
                   entry.completedLate === true ? t("customers.detail.timeline.wasLate") : null,
@@ -247,13 +243,13 @@ export function CustomerDetailPage() {
                   defaultValue: entry.isRenewal ? "AMC renewed — {{plan}}" : "AMC sold — {{plan}}",
                   plan: entry.planName,
                 })
-                metaParts = [entry.productName, fmtDate(entry.date), t(`amc.status.${entry.status}`), formatCurrency(entry.amount)]
+                metaParts = [entry.productName, formatDate(entry.date), t(`amc.status.${entry.status}`), formatCurrency(entry.amount)]
               } else {
                 title = t("customers.detail.timeline.invoiceTitle", {
                   defaultValue: "{{type}} invoice",
                   type: t(`invoiceType.${entry.invoiceType}`),
                 })
-                metaParts = [entry.itemsLabel, fmtDate(entry.date), formatCurrency(entry.amount)]
+                metaParts = [entry.itemsLabel, formatDate(entry.date), formatCurrency(entry.amount)]
               }
               return (
                 <div key={`${entry.kind}-${entry.id}`} className="flex gap-3.25">
@@ -551,7 +547,7 @@ export function CustomerDetailPage() {
                   <span className="gv-tnum text-xs font-bold text-text">#{inv.id.slice(0, 8).toUpperCase()}</span>
                   <span className="truncate pr-2 text-sm font-medium text-[#3A3A36]">{inv.itemsLabel}</span>
                   <span className="gv-tnum text-sm font-bold text-text">{formatCurrency(inv.total)}</span>
-                  <span className="text-xs font-medium text-text-muted">{fmtDate(inv.createdAt)}</span>
+                  <span className="text-xs font-medium text-text-muted">{formatDate(inv.createdAt)}</span>
                 </div>
               ))
             )}
@@ -596,13 +592,13 @@ export function CustomerDetailPage() {
                         {r.rental_plans?.name ?? "—"} · ₹{r.rental_plans?.monthly_rate ?? "—"}/mo
                       </div>
                       <div className="text-xs text-text-muted">
-                        {t("customers.detail.rentals.startDate", { date: fmtDate(r.start_date) })}
+                        {t("customers.detail.rentals.startDate", { date: formatDate(r.start_date) })}
                         {r.status === "active" ? (
                           <>
                             {" · "}
-                            {t("customers.detail.rentals.nextBilling", { date: fmtDate(r.next_billing_date) })}
+                            {t("customers.detail.rentals.nextBilling", { date: formatDate(r.next_billing_date) })}
                             {" · "}
-                            {t("customers.detail.rentals.nextService", { date: fmtDate(r.next_service_date) })}
+                            {t("customers.detail.rentals.nextService", { date: formatDate(r.next_service_date) })}
                           </>
                         ) : null}
                       </div>

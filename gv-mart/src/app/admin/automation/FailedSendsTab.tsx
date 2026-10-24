@@ -9,6 +9,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useFailedWhatsappOutbox, useWaDispatchAlertCounts } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import type { WhatsappOutboxRow } from "@/services/automation"
+import { formatDateTime } from "@/lib/formatDate"
 
 /** Why a row is on this list, in words ops can act on (dispatcher v2 states). */
 function stateLabelKey(r: WhatsappOutboxRow): string {
@@ -43,7 +44,7 @@ export function FailedSendsTab() {
   const thresholdValid = /^\d{1,4}$/.test(thresholdText.trim())
 
   const columns: DataTableColumn<WhatsappOutboxRow>[] = [
-    { key: "time", header: t("automation.failedSends.time"), render: (r) => new Date(r.created_at).toLocaleString("en-IN") },
+    { key: "time", header: t("automation.failedSends.time"), render: (r) => formatDateTime(r.created_at) },
     { key: "to", header: t("automation.failedSends.contact"), render: (r) => r.to_mobile ?? "—" },
     { key: "template", header: t("automation.failedSends.template"), render: (r) => <span className="font-mono text-xs">{r.template}</span> },
     { key: "body", header: t("automation.failedSends.body"), render: (r) => <span className="line-clamp-1 max-w-70 text-xs text-text-muted">{(r.payload as { body?: string })?.body ?? "—"}</span> },

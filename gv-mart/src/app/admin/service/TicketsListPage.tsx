@@ -10,6 +10,7 @@ import type { TicketFiltersInput, TicketListItem } from "@/services/service"
 import { DEFAULT_AMC_ASSIGN_WINDOW_DAYS, PRIMARY_FILTERS, countByPrimaryFilter, filterTickets, isMissingProduct, type PrimaryFilter } from "@/lib/ticketFilters"
 import { useSettings } from "@/hooks/useMasters"
 import { cn } from "@/lib/utils"
+import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { SlaCountdown } from "./SlaCountdown"
 import { ChannelBadge, PriorityText, TicketTypeBadge } from "./TicketBadges"
 import { TicketsKanban } from "./TicketsKanban"
@@ -282,7 +283,7 @@ function TicketsTable({
                 ) : null}
               </div>
               <div className="text-[11px] font-medium text-text-muted">
-                {t("service.table.raised", { date: new Date(r.created_at).toLocaleDateString() })}
+                {t("service.table.raised", { date: formatDate(r.created_at) })}
               </div>
             </div>
             <div className="leading-tight">
@@ -304,7 +305,7 @@ function TicketsTable({
               {r.appointments[0]?.mode === "always"
                 ? t("service.appointment.always")
                 : r.appointments[0]?.scheduled_at
-                  ? new Date(r.appointments[0].scheduled_at).toLocaleString()
+                  ? formatDateTime(r.appointments[0].scheduled_at)
                   : "—"}
             </span>
             <SlaCountdown slaDueAt={r.sla_due_at} status={r.status} />

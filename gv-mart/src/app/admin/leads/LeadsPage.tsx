@@ -19,6 +19,7 @@ import { useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
 import { AssignLeadDialog } from "./AssignLeadDialog"
 import { SetFollowupDialog } from "./SetFollowupDialog"
 import { canScheduleLead } from "@/lib/lead-assign"
+import { formatDate } from "@/lib/formatDate"
 import type { UserRole } from "@/lib/roles"
 import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 import { isOverdueNow } from "@/lib/lead-followups"
@@ -467,7 +468,7 @@ function LeadsTable({
               ) : null}
             </span>
             <TechnicianChip source={r.source} name={r.technicians?.profiles?.full_name ?? null} />
-            <span className="text-xs font-medium text-text-muted">{new Date(r.created_at).toLocaleDateString()}</span>
+            <span className="text-xs font-medium text-text-muted">{formatDate(r.created_at)}</span>
           </div>
         ))
       )}

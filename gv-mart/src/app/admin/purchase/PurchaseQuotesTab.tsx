@@ -17,6 +17,7 @@ import {
   useGenerateQuoteRequestPdf,
 } from "@/hooks/useAutomation"
 import { useSuppliersForItem } from "@/hooks/useSuppliers"
+import { formatDateTime } from "@/lib/formatDate"
 import type { PurchaseQuoteRequestListItem } from "@/services/automation"
 
 const RESOLUTION_TONE: Record<string, StatusTone> = { reply: "success", fallback: "warning", no_supplier: "danger", no_po_not_low_stock: "neutral" }
@@ -86,7 +87,7 @@ export function PurchaseQuotesTab() {
                   {req.itemName} · {req.order_qty} {t("purchase.quotes.units")}
                 </span>
                 <StatusDot tone={RESOLUTION_TONE[req.resolution ?? ""] ?? "neutral"} label={t(`purchase.quotes.resolutions.${req.resolution ?? "unknown"}`)} />
-                <span className="text-xs text-text-muted">{req.resolved_at ? new Date(req.resolved_at).toLocaleString("en-IN") : "—"}</span>
+                <span className="text-xs text-text-muted">{formatDateTime(req.resolved_at)}</span>
               </li>
             ))}
           </ul>
@@ -131,7 +132,7 @@ function OpenRequestCard({ orgId, req }: { orgId: string | undefined; req: Purch
         <div className="text-xs text-text-muted">
           {pastTimeout
             ? t("purchase.quotes.timedOutWaitingResolve")
-            : t("purchase.quotes.timeoutAt", { time: new Date(req.timeout_at).toLocaleString("en-IN") })}
+            : t("purchase.quotes.timeoutAt", { time: formatDateTime(req.timeout_at) })}
         </div>
       </div>
 

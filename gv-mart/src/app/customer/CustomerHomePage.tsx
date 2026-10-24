@@ -8,6 +8,7 @@ import { StatusDot } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useMyAddresses, useMyAmcContracts, useMyCustomerId, useMyWarranties } from "@/hooks/useCustomerApp"
+import { formatDate } from "@/lib/formatDate"
 
 function AddressBar() {
   const { t } = useTranslation()
@@ -88,8 +89,8 @@ function NextServiceBanner() {
         <p className="text-sm font-semibold">{t("customerApp.home.nextServiceDue")}</p>
         <p className="text-xs text-white/85">
           {daysUntil <= 0
-            ? t("customerApp.home.nextServiceOverdue", { date: dueDate.toLocaleDateString() })
-            : t("customerApp.home.nextServiceInDays", { count: daysUntil, date: dueDate.toLocaleDateString() })}
+            ? t("customerApp.home.nextServiceOverdue", { date: formatDate(dueDate) })
+            : t("customerApp.home.nextServiceInDays", { count: daysUntil, date: formatDate(dueDate) })}
         </p>
       </div>
       <ChevronRight className="size-4 shrink-0" />

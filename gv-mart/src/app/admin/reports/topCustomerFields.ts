@@ -1,4 +1,5 @@
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 import type { TopCustomerRow } from "@/services/reports"
 
 export type TopCustomerFieldKey =
@@ -22,7 +23,7 @@ export type TopCustomerFieldDef = {
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+  return formatDate(iso)
 }
 
 // Order here is both the field-picker checklist order and the printed

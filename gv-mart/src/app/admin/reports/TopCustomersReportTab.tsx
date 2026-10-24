@@ -11,6 +11,7 @@ import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/
 import type { TopCustomerRow } from "@/services/reports"
 import { ColumnPicker } from "@/components/shared/ColumnPicker"
 import { useColumnPrefs } from "@/hooks/useColumnPrefs"
+import { formatDate } from "@/lib/formatDate"
 import { PeriodFilter } from "./PeriodFilter"
 import { TOP_CUSTOMER_FIELDS, DEFAULT_TOP_CUSTOMER_FIELDS, type TopCustomerFieldKey } from "./topCustomerFields"
 
@@ -43,7 +44,7 @@ export function TopCustomersReportTab() {
     render: (r: TopCustomerRow) => f.format(r),
   }))
 
-  const rangeLabel = `${new Date(range.from).toLocaleDateString("en-IN")} – ${new Date(range.to).toLocaleDateString("en-IN")}`
+  const rangeLabel = `${formatDate(range.from)} – ${formatDate(range.to)}`
 
   return (
     <div className="space-y-4">

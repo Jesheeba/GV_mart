@@ -15,6 +15,7 @@ import {
   useOwnedProductsWithStatus,
 } from "@/hooks/useCustomerApp"
 import type { AmcHistoryTicket } from "@/services/customerApp"
+import { formatDate } from "@/lib/formatDate"
 
 function HistoryList({ tickets, t }: { tickets: AmcHistoryTicket[]; t: TFunction }) {
   if (tickets.length === 0) {
@@ -27,7 +28,7 @@ function HistoryList({ tickets, t }: { tickets: AmcHistoryTicket[]; t: TFunction
         return (
           <div key={ticket.id} className="space-y-1.5 rounded-xl border border-border px-3.5 py-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-medium text-text">{new Date(ticket.created_at).toLocaleDateString()}</span>
+              <span className="font-medium text-text">{formatDate(ticket.created_at)}</span>
               <StatusDot tone="success" label={t(`customerApp.bookings.status.${ticket.status}`)} />
             </div>
             {ticket.name_of_complaint ? <p className="text-text-muted">{ticket.name_of_complaint}</p> : null}

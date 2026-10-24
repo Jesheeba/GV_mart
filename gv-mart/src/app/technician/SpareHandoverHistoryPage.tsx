@@ -10,6 +10,7 @@ import { HandoverPrintSheet } from "@/components/shared/HandoverPrintSheet"
 import { useProfile } from "@/hooks/useProfile"
 import { useOrganization } from "@/hooks/useSales"
 import { useMyHandovers, useMyTechnician } from "@/hooks/useTechnician"
+import { formatDate } from "@/lib/formatDate"
 
 /** Simple find-and-print list — no per-handover detail route, since printing
  * is the only reason to reach a past handover from here (today's own view
@@ -56,7 +57,7 @@ export function SpareHandoverHistoryPage() {
             <Card key={h.id} className="gap-2">
               <div className="flex items-start justify-between gap-2 px-1">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-text">{new Date(h.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                  <p className="text-sm font-semibold text-text">{formatDate(h.date)}</p>
                   <p className="truncate text-xs text-text-muted">
                     {h.spare_handover_items.length === 0
                       ? t("technician.spareHandover.noItems")

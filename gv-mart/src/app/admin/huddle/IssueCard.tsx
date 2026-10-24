@@ -3,6 +3,7 @@ import { CheckCircle2, ListPlus, Pencil, RotateCcw, User } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { formatDate } from "@/lib/formatDate"
 import type { IssueTask, MeetingIssue } from "@/services/huddle"
 
 export type IssueCardProps = {
@@ -31,7 +32,7 @@ export function IssueCard({ issue, names, tasks, onEdit, onToggleStatus, onCreat
       </div>
 
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-        <span>{t("huddle.raisedOn", { date: issue.date_raised })}</span>
+        <span>{t("huddle.raisedOn", { date: formatDate(issue.date_raised) })}</span>
         {raisedBy && <span>{t("huddle.raisedBy", { name: raisedBy })}</span>}
         {owner && (
           <span className="inline-flex items-center gap-1">

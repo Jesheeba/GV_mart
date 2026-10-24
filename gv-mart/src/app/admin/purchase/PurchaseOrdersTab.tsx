@@ -13,6 +13,7 @@ import { PoItemRows } from "./PoItemRows"
 import { PoReceiptForm } from "./PoReceiptForm"
 import type { PoItemInput } from "@/lib/validation/automation"
 import type { PurchaseOrderListItem } from "@/services/automation"
+import { formatDate } from "@/lib/formatDate"
 
 // money-flow-audit item 2 — 'paid' is a real, queryable settlement state
 // now (20260925100000_po_paid_status_enum.sql), not just the cosmetic
@@ -55,7 +56,7 @@ export function PurchaseOrdersTab() {
     { key: "total", header: t("purchase.po.total"), render: (r) => `₹${r.total.toLocaleString("en-IN")}` },
     { key: "channel", header: t("purchase.po.channel"), render: (r) => r.sent_channel ?? "—" },
     { key: "status", header: t("purchase.po.status"), render: (r) => <StatusDot tone={STATUS_TONE[r.status] ?? "neutral"} label={t(`purchase.po.statuses.${r.status}`)} /> },
-    { key: "created", header: t("purchase.po.created"), render: (r) => new Date(r.created_at).toLocaleDateString("en-IN") },
+    { key: "created", header: t("purchase.po.created"), render: (r) => formatDate(r.created_at) },
     {
       key: "actions",
       header: "",

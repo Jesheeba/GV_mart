@@ -11,6 +11,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useMyTechnician, useTechnicianStats } from "@/hooks/useTechnician"
 import { signOut } from "@/services/auth"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 import { dateRangeForPreset, defaultDateRange, type DateRange } from "@/services/reports"
 
 function initials(name: string) {
@@ -138,7 +139,7 @@ export function ProfilePage() {
             {referrals.data.map((r) => (
               <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
                 <p className="text-sm text-text">{r.customers?.name ?? r.name}</p>
-                <p className="text-xs text-text-muted">{new Date(r.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                <p className="text-xs text-text-muted">{formatDate(r.created_at)}</p>
               </div>
             ))}
           </div>

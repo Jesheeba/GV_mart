@@ -5,6 +5,7 @@ import { TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { useTicketsMissingProduct } from "@/hooks/useService"
+import { formatDate } from "@/lib/formatDate"
 
 /**
  * Gate-assignment-on-product (2026-08-04): nags admins about open service
@@ -58,7 +59,7 @@ export function MissingProductAlert({ orgId }: { orgId: string | undefined }) {
             >
               <div className="font-medium text-text">{ticket.name_of_complaint || "—"}</div>
               <div className="text-xs text-text-muted">
-                {[ticket.customers?.name, ticket.addresses?.area, new Date(ticket.created_at).toLocaleDateString()].filter(Boolean).join(" · ")}
+                {[ticket.customers?.name, ticket.addresses?.area, formatDate(ticket.created_at)].filter(Boolean).join(" · ")}
               </div>
             </button>
           ))}

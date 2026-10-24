@@ -9,11 +9,12 @@ import { useProfile } from "@/hooks/useProfile"
 import { useMarkRentalReturned, useRentalContracts } from "@/hooks/useRentals"
 import { RentOutPanel } from "./RentOutPanel"
 import type { RentalContractListItem } from "@/services/rentals"
+import { formatDate } from "@/lib/formatDate"
 
 const STATUS_TONE: Record<string, StatusTone> = { active: "success", returned: "neutral" }
 
 function fmt(date: string | null) {
-  return date ? new Date(date).toLocaleDateString("en-IN") : "—"
+  return formatDate(date)
 }
 
 export function RentalsListPage() {

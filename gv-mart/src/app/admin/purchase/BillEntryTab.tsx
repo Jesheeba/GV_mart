@@ -16,6 +16,7 @@ import type { PoItemInput } from "@/lib/validation/automation"
 import { expenseCategories } from "@/lib/validation/reports"
 import type { PurchaseBillRow } from "@/services/automation"
 import type { Enums } from "@/types/database"
+import { formatDate } from "@/lib/formatDate"
 
 export function BillEntryTab() {
   const { t } = useTranslation()
@@ -82,7 +83,7 @@ export function BillEntryTab() {
     { key: "supplier", header: t("purchase.po.supplier"), render: (r) => r.suppliers?.name ?? "—" },
     { key: "amount", header: t("purchase.bill.amount"), render: (r) => `₹${r.amount.toLocaleString("en-IN")}` },
     { key: "gst", header: t("purchase.bill.gst"), render: (r) => `₹${r.gst.toLocaleString("en-IN")}` },
-    { key: "date", header: t("purchase.bill.date"), render: (r) => new Date(r.created_at).toLocaleDateString("en-IN") },
+    { key: "date", header: t("purchase.bill.date"), render: (r) => formatDate(r.created_at) },
   ]
 
   return (

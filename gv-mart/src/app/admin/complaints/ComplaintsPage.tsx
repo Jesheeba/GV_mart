@@ -7,6 +7,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useOverdueSlaTickets, useRepeatComplaintTickets } from "@/hooks/useSystemPages"
 import type { OverdueTicket } from "@/services/systemPages"
+import { formatDateTime } from "@/lib/formatDate"
 
 function ComplaintsTable({
   rows,
@@ -35,7 +36,7 @@ function ComplaintsTable({
     {
       key: "slaDue",
       header: t("complaints.table.slaDue"),
-      render: (r) => (r.sla_due_at ? new Date(r.sla_due_at).toLocaleString() : "—"),
+      render: (r) => formatDateTime(r.sla_due_at),
     },
   ]
 

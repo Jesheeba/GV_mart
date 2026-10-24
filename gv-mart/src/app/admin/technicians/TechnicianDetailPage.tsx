@@ -42,18 +42,17 @@ import { cn } from "@/lib/utils"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocumentUpload"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
+import { formatDate, formatDateTime } from "@/lib/formatDate"
 
 const SKILL_OPTIONS = TECHNICIAN_SKILL_OPTIONS
 // Indian mobile: 10 digits, starts 6-9 — same rule as lib/validation/technician.ts.
 const MOBILE_REGEX = /^[6-9]\d{9}$/
 
 function fmtDate(iso: string | null | undefined) {
-  if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+  return formatDate(iso)
 }
 function fmtDateTime(iso: string | null | undefined) {
-  if (!iso) return "—"
-  return new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+  return formatDateTime(iso)
 }
 /** Requirement 2/11 — convenience wrapper over the shared visit-duration.ts primitives, for Attendance's worked-hours readout (plain check-in/check-out, no persisted duration column). History's visit duration uses resolveVisitDurationMinutes directly (see below) to prefer the persisted actual_duration_minutes. */
 function fmtDuration(startIso: string, endIso: string): string {

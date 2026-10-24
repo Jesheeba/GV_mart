@@ -12,6 +12,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useAuth } from "@/hooks/useAuth"
 import { useActiveTechnicians, useLogReward, useRewardCandidates, useRewards } from "@/hooks/useHr"
 import type { RewardCandidate, RewardCategory, RewardListItem } from "@/services/hr"
+import { formatDate } from "@/lib/formatDate"
 
 function currentMonthIso() {
   return toLocalMonthString(new Date())
@@ -73,7 +74,7 @@ export function RewardsTab() {
   const columns: DataTableColumn<RewardListItem>[] = [
     { key: "category", header: t("hr.rewards.category"), render: (r) => t(`hr.rewards.categories.${r.category}`) },
     { key: "winner", header: t("hr.rewards.winner"), render: (r) => r.technicians?.profiles?.full_name ?? "—" },
-    { key: "givenAt", header: t("hr.rewards.givenAt"), render: (r) => new Date(r.given_at).toLocaleDateString("en-IN") },
+    { key: "givenAt", header: t("hr.rewards.givenAt"), render: (r) => formatDate(r.given_at) },
     { key: "note", header: t("hr.rewards.note"), render: (r) => r.note ?? "—" },
   ]
 

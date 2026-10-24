@@ -11,6 +11,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useMarkQuotationLost, useQuotation, useUpdateQuotationValidUntil } from "@/hooks/useQuotations"
 import { useOrganization } from "@/hooks/useSales"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatDate } from "@/lib/formatDate"
 import { amountInWords } from "@/lib/amount-in-words"
 import { toWhatsappLink } from "@/lib/whatsapp-link"
 import { QuotationOriginBadge } from "./QuotationBadges"
@@ -113,12 +114,12 @@ export function QuotationDetailPage() {
                     </tr>
                     <tr>
                       <td className={CELL}>{t("sales.invoice.dateLabel")}</td>
-                      <td className={CELL}>{new Date(quotation.created_at).toLocaleDateString("en-IN")}</td>
+                      <td className={CELL}>{formatDate(quotation.created_at)}</td>
                     </tr>
                     {quotation.valid_until ? (
                       <tr>
                         <td className={CELL}>{t("quotations.table.validUntil")}</td>
-                        <td className={CELL}>{new Date(quotation.valid_until).toLocaleDateString("en-IN")}</td>
+                        <td className={CELL}>{formatDate(quotation.valid_until)}</td>
                       </tr>
                     ) : null}
                   </tbody>
@@ -173,10 +174,10 @@ export function QuotationDetailPage() {
           </div>
           <div className="text-right">
             <p className="text-sm font-semibold text-text">{t("quotations.quotationNo", { id: quotationNo })}</p>
-            <p className="text-xs text-text-muted">{new Date(quotation.created_at).toLocaleDateString("en-IN")}</p>
+            <p className="text-xs text-text-muted">{formatDate(quotation.created_at)}</p>
             {quotation.valid_until ? (
               <p className="text-xs text-text-muted">
-                {t("quotations.table.validUntil")}: {new Date(quotation.valid_until).toLocaleDateString("en-IN")}
+                {t("quotations.table.validUntil")}: {formatDate(quotation.valid_until)}
               </p>
             ) : null}
             <div className="mt-1.5 flex justify-end print:hidden">

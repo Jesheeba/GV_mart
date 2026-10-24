@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
 import { useAllMyNotifications, useMarkAllNotificationsRead, useMarkNotificationRead, useMyNotificationTypes } from "@/hooks/useSystemPages"
+import { formatDateTime } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
 
 export function NotificationsPage() {
@@ -88,7 +89,7 @@ export function NotificationsPage() {
                   </span>
                 </div>
                 {n.body ? <p className="mt-0.5 text-xs text-text-muted">{n.body}</p> : null}
-                <p className="mt-1 text-[10px] text-text-muted">{new Date(n.created_at).toLocaleString()}</p>
+                <p className="mt-1 text-[10px] text-text-muted">{formatDateTime(n.created_at)}</p>
               </div>
               {!n.is_read ? (
                 <Button type="button" size="xs" variant="ghost" onClick={() => markRead.mutate({ id: n.id })}>
