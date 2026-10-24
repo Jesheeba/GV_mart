@@ -25,7 +25,7 @@ import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
-import { formatDate } from "@/lib/formatDate"
+import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
@@ -288,7 +288,7 @@ export function CustomerDetailPage() {
                 )}
               >
                 <p>{(m.payload as { body?: string } | null)?.body ?? m.template}</p>
-                <p className="mt-1 text-[10px] text-text-muted">{new Date(m.created_at).toLocaleString("en-IN")}</p>
+                <p className="mt-1 text-[10px] text-text-muted">{formatDateTime(m.created_at)}</p>
               </div>
             ))}
           </div>
