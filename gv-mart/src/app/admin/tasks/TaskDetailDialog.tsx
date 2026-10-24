@@ -69,8 +69,9 @@ export function TaskDetailDialog({
         title: title.trim(),
         description: description.trim() || null,
         assigneeId,
-        // only a reassignment changes who assigned it; editing the text must not take the assigner role
-        assignedBy: assigneeId !== (task.assignee_id ?? "") ? userId : (task.assigned_by ?? userId),
+        // only a reassignment changes who assigned it; omitted (not resent) otherwise, so an unrelated edit can
+        // never move tasks_update_assign's assigned_by-based update right off the original assigner
+        ...(assigneeId !== (task.assignee_id ?? "") ? { assignedBy: userId } : {}),
         priority,
         dueDate: dueDate || null,
         dueAt,

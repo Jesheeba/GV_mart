@@ -88,10 +88,16 @@ export type UpdateTaskInput = {
   title: string
   description: string | null
   assigneeId: string
-  // Set whenever assigneeId changes, so the tasks_notify_assigned trigger
-  // (UPDATE OF assignee_id) attributes the reassignment to whoever made it
-  // and skips the notification if they reassigned it to themselves.
-  assignedBy: string
+  // Pass ONLY when assigneeId is actually changing (reassignment), so the tasks_notify_assigned trigger
+  // (UPDATE OF assignee_id) attributes the reassignment to whoever made it and skips the notification if they
+  // reassigned it to themselves. Omitted, assigned_by is left untouched by the UPDATE entirely.
+  //
+  // This isn't only an attribution label: tasks_update_assign (20261101100000) grants UPDATE to
+  // `assignee_id = auth.uid() or assigned_by = auth.uid()`. Writing assignedBy on every save — even to the
+  // same value — used to mean any edit to an unrelated field (priority, due date, ...) silently moved update
+  // rights from the task's original assigner to whoever last saved it. Making this optional, and never writing
+  // it except on a real reassignment, keeps that permission with the person who actually holds it.
+  assignedBy?: string
   priority: PriorityLevel
   dueDate: string | null
   dueAt: string | null
@@ -105,7 +111,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskRow> {
       title: input.title,
       description: input.description,
       assignee_id: input.assigneeId,
-      assigned_by: input.assignedBy,
+      ...(input.assignedBy !== undefined ? { assigned_by: input.assignedBy } : {}),
       priority: input.priority,
       due_date: input.dueDate,
       due_at: input.dueAt,

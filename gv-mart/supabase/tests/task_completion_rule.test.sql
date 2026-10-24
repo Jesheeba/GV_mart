@@ -249,6 +249,20 @@ begin
   s := pg_temp.raises(format($q$update tasks set title = 'retitled', description = 'x', priority = 'urgent' where id = %L$q$, t3));
   perform pg_temp.as_pg();
   perform pg_temp.chk('PATH task detail: the assigner edits text and priority', s is null and (select assigned_by from tasks where id = t3) = v_sales, coalesce(s, 'ok'));
+
+  -- (d2) the regression this package ports in from pkg1: an unrelated edit by the ASSIGNEE (not the assigner —
+  -- the harder direction, since the assignee's own tasks_update_assign path doesn't need assigned_by at all) must
+  -- not touch assigned_by, and the original assigner must still hold their tasks_update_assign row afterwards.
+  perform pg_temp.as_user(v_tp);
+  s := pg_temp.raises(format($q$update tasks set priority = 'very_urgent' where id = %L$q$, t3));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('PATH d2a: the assignee''s own unrelated edit leaves assigned_by exactly as it was',
+    s is null and (select assigned_by from tasks where id = t3) = v_sales, coalesce(s, 'ok'));
+  perform pg_temp.as_user(v_sales);
+  s := pg_temp.raises(format($q$update tasks set description = 'still editable by the assigner' where id = %L$q$, t3));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('PATH d2b: the original assigner can still update the row afterwards (tasks_update_assign''s assigned_by = auth.uid() branch was not displaced)',
+    s is null and (select description from tasks where id = t3) = 'still editable by the assigner', coalesce(s, 'ok'));
   -- (e) SECURITY DEFINER / service paths are not narrowed
   t4 := pg_temp.mk(v_org, v_master, v_master, 'purchase_order', gen_random_uuid());
   update tasks set due_at = now() - interval '4 days' where id = t4;
