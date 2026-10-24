@@ -60,6 +60,8 @@ begin
     has_table_privilege('authenticated', 'public.task_logs', 'SELECT') and has_table_privilege('authenticated', 'public.task_logs', 'INSERT')
     and not has_table_privilege('authenticated', 'public.task_logs', 'UPDATE') and not has_table_privilege('authenticated', 'public.task_logs', 'DELETE')
     and not has_table_privilege('anon', 'public.task_logs', 'SELECT') and not has_table_privilege('anon', 'public.task_logs', 'INSERT'));
+  perform pg_temp.chk('_trg_task_log_client_insert and _trg_task_log_immutable are SECURITY INVOKER (they test current_user)',
+    (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('_trg_task_log_client_insert', '_trg_task_log_immutable') and not prosecdef) = 2);
   perform pg_temp.chk('the trigger functions are not client-callable',
     not has_function_privilege('authenticated', 'public._trg_task_log_changes()', 'execute')
     and not has_function_privilege('authenticated', 'public._trg_task_log_client_insert()', 'execute')

@@ -51,10 +51,12 @@ create policy task_logs_insert on public.task_logs for insert
 -- no update or delete policy, and no update or delete privilege: an entry is corrected by adding another one
 
 -- What a client can write is a note by themselves: the database stamps who and when and clears the system-only columns.
+-- SECURITY INVOKER on purpose: it tells a client from a trusted path by current_user, which inside a SECURITY DEFINER function is the
+-- owner. The only thing it reads is the caller's own profile name, which profiles_select_own (id = auth.uid()) allows.
 create or replace function public._trg_task_log_client_insert()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 begin
