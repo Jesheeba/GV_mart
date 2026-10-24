@@ -7,7 +7,7 @@
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   17538d3073a53eb23ed65ee4f2e333f7f1aeb64a35a6b854920c63a5c704067e  gv-mart/supabase/migrations/20261102100000_p2_staff_profile_and_huddle.sql
---   e577b8ce71149ceaf6584233eaa2a53b7af813e4115f958e31dd4468da87da3b  gv-mart/supabase/tests/p2_staff_profile_and_huddle.test.sql
+--   21f247af869f4a75672bbe33dc199cca98262213c9e5a2b531cf556efca0ab3d  gv-mart/supabase/tests/p2_staff_profile_and_huddle.test.sql
 --   d65d7395d458ac117593cedf6c1e61638b261e0e8204773cf57b03f6ecf90bfc  (pre-check snippet: public.wa_send_huddle_reminder(uuid) as last defined in gv-mart/supabase/migrations/20260929100000_daily_huddle_log.sql)
 -- Pre-check: the live function must equal what that migration defined. The wrapper re-creates the pinned snippet inside a
 -- sub-block, takes md5(pg_get_functiondef()) of it, rolls the sub-block back, and refuses if it differs from the live md5.
@@ -556,6 +556,11 @@ $rh0$;
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
@@ -576,11 +581,6 @@ begin execute 'reset role'; perform set_config('request.jwt.claims', '', true); 
 create function pg_temp.raises(p_sql text) returns text language plpgsql as $f$
 begin execute p_sql; return null;
 exception when others then return sqlerrm; end $f$;
-
--- 20261024100000 made `alter default privileges for role postgres revoke execute on functions from public` global, which also removes
--- PUBLIC execute from the helper functions above (they live in pg_temp and are called after `set local role authenticated`).
--- Granting on pg_temp only touches this session's own temporary schema.
-grant execute on all functions in schema pg_temp to public;
 
 do $t$
 declare
@@ -914,7 +914,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'e577b8ce71149ceaf6584233eaa2a53b7af813e4115f958e31dd4468da87da3b' then
+  if v_hash <> '21f247af869f4a75672bbe33dc199cca98262213c9e5a2b531cf556efca0ab3d' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for p2_staff_profile_and_huddle.test.sql: %', v_hash;
   end if;
   execute v_text;
