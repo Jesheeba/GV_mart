@@ -83,6 +83,31 @@ Ranked by real-world impact, consolidating repeated instances of the same root c
 
 ---
 
+## Phase 3 fixes — verification status
+
+Six items fixed per the approved priority order (commits `65db93a` through `4259ba4` on `ui-ux-improvements`). **Verification rule applied below**: a finding is only marked **Resolved** when a fresh capture or a fresh `axe-core` run shows it fixed — not because the code changed. The original findings came from screenshots, and the capture tool itself was silently cropping content until mid-Wave-5; a fix "verified" by reading the diff is verified by the same weak method that produced the original gap. Where that bar isn't met, the item is marked **Fixed, unverified** with what verification is still owed.
+
+| # | Item | Status | Verification |
+|---|---|---|---|
+| 1 | TECH-001 — quick-action overlap | **Resolved** | Fresh screenshots at 360px and 375px, technician role (the only role with this component) — both clean, labels wrap on 2 lines, no overlap. `ui-audit/screenshots/after/item1-technician-home-{360,375}.png` |
+| 2 | TECH-002 — notification UUID → name | **Resolved** | Live-tested against the real seeded ticket: notification body now reads "Lakshmi Priya — Amaron Current 150Ah Battery" instead of the raw UUID. Confirmed via direct network-response inspection that the fallback-to-raw-text path is RLS-driven (reassigned/historical tickets technicians can no longer read) — correct, not a bug. |
+| 3 | TECH-007/CUST-006/ADMIN-007 — `text-danger` contrast | **Resolved** | Fresh axe run, this session: Technician `/technician` (light) — 0 color-contrast violations. Customer `/customer/bookings` — 0. Admin `/admin` — 3 color-contrast violations remain, **0 of them `text-danger`-specific** (confirmed the 3 are the separately-flagged, out-of-scope gray-muted-text/info-badge issues noted when ADMIN-007 was first fixed, not a regression). |
+| 4 | ADMIN-001/TECH-003 — date formats | **Resolved** | Full-codebase grep re-run this session (`toLocaleDateString\|\.toLocaleString(`) — every remaining match individually re-checked and confirmed to be either `Number.prototype.toLocaleString` currency/count formatting (unrelated), a deliberately-excluded period/range label, or calendar-widget internals. One real miss found by this re-check (`CustomerDetailPage.tsx:291`, a WhatsApp message timestamp) and fixed on the spot (`c40c234`) — the grep-based verification caught something the original sweep's own file-by-file review missed, which is exactly why "diff was reviewed" isn't sufficient evidence for this category either. |
+| 5 | MASTER-001 — Settings save affordance | **Fixed the ambiguity; did NOT fix (and was never asked to fix) the underlying data-loss risk** | See the dedicated section below — this needed an actual behavioral test, not a screenshot. |
+| 6 | Shared a11y sweep (selects, Month picker, bell, nested button, avatar initials) | **Resolved** | Fresh axe run, this session, on every affected page: notification bell (`label-content-name-mismatch`) clean on Admin/Huddle/Technician/Customer. Month-range label (`label`) clean on Dashboard/Technicians/Accounts/Reports. `select-name` clean on Notifications/Approvals/Audit Log/Leads/New Quotation/Masters. `nested-interactive` clean on Admin Tasks. Date-picker label clean on Technician History. Avatar initials is not an axe-detectable issue — verified by direct DOM read of the rendered text ("LP" now, was "LA"). |
+
+### MASTER-001, the actual question: does leaving the page lose an edit silently?
+
+**Yes — confirmed live, not inferred.** I edited the GST rate field on the Settings page, navigated away to Service (a real route change, not a reload), then navigated back to Settings: the field had reverted to its original value with **no warning, no confirmation dialog, no toast — nothing**. I also checked the codebase for a `beforeunload` handler anywhere in the app: there is none. So this applies equally to closing the tab or hitting refresh, not just in-app navigation.
+
+**What the Phase-3 fix actually did and didn't do**: the fix made the unsaved-changes state *visible while you're still on the page* (the fixed-position bar). It does **not** intercept navigation and does **not** add a `beforeunload` warning. Someone who edits a field and then clicks a different sidebar item, closes the tab, or hits back still loses the edit exactly as before, just as silently as before — the bar only helps if they notice it and act before leaving.
+
+**Why this plausibly matters beyond polish**: you pointed out the app has effectively never been configured — the only technician tier pays ₹0.00, the expenses ledger is empty, and the appointment-slots card was mislabelled for weeks. A plausible mechanism: someone opens Settings, edits a value, gets interrupted or clicks elsewhere to check something, comes back expecting their edit to still be there (most forms either auto-save or warn), and it's just gone with nothing to indicate why. That's a more complete explanation than "nobody got around to it" — it's consistent with someone trying more than once and not realizing their attempts never actually saved.
+
+**This was not in your approved six-item list** ("make it unambiguous," not "prevent it"), so I didn't build it without asking. The actual fix would be: a React Router navigation blocker (`useBlocker`) that confirms before leaving with unsaved changes, plus a `window.beforeunload` listener for tab close/refresh. Both are standard, scoped, UI-layer behavior changes — no backend/schema involved. Let me know if you want this done now as a follow-up, given what it's plausibly explaining.
+
+---
+
 ## Wave 1 — Technician area
 
 Role: `technician`. Widths: 375 (primary), 768 (primary), 1440 (quick check). Pages covered: Home, Map, Attendance, History (+ detail), Profile, Spares (+ history), Search, Day Sheet, Notifications, Tasks, Huddle, Job Detail, On-Site Visit stepper (step 1 only — an open visit already existed for the test technician's one seeded job, so "Start Visit" was reachable without triggering the data-writing "confirm arrival" action). Rating page and visit-submission/OTP were **not** reached, per instructions — scope stops the step before submit.
