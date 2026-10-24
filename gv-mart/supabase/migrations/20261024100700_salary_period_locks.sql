@@ -6,6 +6,25 @@
 -- units' verbatim live bodies with the lock guard added — applying this
 -- first would overwrite them with a body that does not exist yet.
 --
+-- FULL APPLY ORDER for feat/salary-finalization, confirmed against
+-- supabase_migrations.schema_migrations rather than assumed (checked
+-- 2026-10-24; the live ceiling at that point was 20261024100000, with
+-- none of the below yet applied):
+--   20261024100100 -> 100200 -> 100300 -> 100400 -> 100500 -> 100600
+--   (Monthly Expenses units 1-7, prerequisite above)
+--   -> 20261024100700 (this file — salary period locks; its
+--      compute_salary already has the rank-1 tier fallback removed,
+--      edited in place rather than split into a later migration)
+--   -> 20261024100800 (audit_reconciliation_baseline — see its own
+--      header for why it must follow this file, and for the mandatory
+--      capture_audit_reconciliation_baseline() step before 100900)
+--   -> 20261024100900 (audit_reconciliation_cron — schedules the two
+--      pg_cron jobs; see its own header for the baseline-capture
+--      prerequisite)
+-- Three migrations total beyond the expenses feature, not four or five
+-- — this file's own compute_salary change did not get a separate
+-- migration number.
+--
 -- Salary period finalization (2026-10-23 payroll-integrity review, raised
 -- while building the Monthly Expenses feature). Investigation found:
 --   * compute_salary is permanently recomputable — no period was ever closed.
