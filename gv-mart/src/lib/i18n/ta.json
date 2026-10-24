@@ -219,6 +219,8 @@
     "searchEmpty": "பொருத்தங்கள் இல்லை",
     "notifications": "அறிவிப்புகள்",
     "notificationsUnread": "அறிவிப்புகள், {{count}} படிக்காதவை",
+    "sidebarCollapse": "பக்கப் பட்டியை சுருக்கு",
+    "sidebarExpand": "பக்கப் பட்டியை விரிவாக்கு",
     "moreOptions": "மேலும் விருப்பங்கள்",
     "switchToDarkMode": "இருள் பயன்முறைக்கு மாறு",
     "switchToLightMode": "வெளிச்ச பயன்முறைக்கு மாறு",

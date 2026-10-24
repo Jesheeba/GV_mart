@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { Bell, Search } from "lucide-react"
+import { createPortal } from "react-dom"
+import { Bell, ChevronLeft, Search } from "lucide-react"
 import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
@@ -84,9 +85,42 @@ function AdminGlobalSearch({ orgId }: { orgId: string }) {
   )
 }
 
+const SIDEBAR_COLLAPSED_KEY = "gv_mart_admin_sidebar_collapsed"
+
+function getInitialSidebarCollapsed(): boolean {
+  try {
+    const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+    if (stored !== null) return stored === "true"
+  } catch {
+    // ignore — localStorage can throw in private browsing / blocked storage
+  }
+  // No saved preference yet: default to collapsed on phone-width viewports
+  // so the sidebar doesn't eat the screen on first load.
+  return typeof window !== "undefined" && window.innerWidth < 640
+}
+
 export function AdminShell() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed)
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed))
+    } catch {
+      // ignore
+    }
+  }, [sidebarCollapsed])
+  // Collapsed-sidebar hover tooltip, portalled to <body> — the sidebar's
+  // own overflow-y-auto (needed so the 20+ item nav list scrolls on short
+  // viewports) forces overflow-x to auto too per the CSS spec's "one axis
+  // visible, the other not" rule, which would otherwise clip an
+  // absolutely-positioned tooltip the moment it pokes past the sidebar's
+  // right edge.
+  const [hoveredNavTooltip, setHoveredNavTooltip] = useState<{ label: string; top: number; left: number } | null>(null)
+  useEffect(() => {
+    if (sidebarCollapsed) return
+    setHoveredNavTooltip(null)
+  }, [sidebarCollapsed])
   const { data: profile, isLoading, isError, refetch } = useProfile()
   const { data: unreadCount } = useUnreadNotificationCount(profile?.org_id, profile?.id, profile?.role)
   const { data: followupCounts } = useFollowupCounts(profile?.role)
@@ -144,14 +178,47 @@ export function AdminShell() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg print:block print:h-auto print:overflow-visible">
+      {/* On phone-width viewports, an expanded sidebar overlays content
+          instead of squeezing it — this backdrop closes it on outside tap. */}
+      {!sidebarCollapsed ? (
+        <div
+          className="fixed inset-0 z-30 hidden bg-ink/30 max-sm:block"
+          onClick={() => setSidebarCollapsed(true)}
+          aria-hidden="true"
+        />
+      ) : null}
+
       {/* Its own independently-scrolling region — never moves when the main
           content scrolls, and (if the nav list ever outgrows the viewport)
           scrolls internally instead of dragging header/content with it. */}
-      <aside className="my-4 ml-4 flex h-[calc(100vh-2rem)] w-16 shrink-0 flex-col items-center gap-2 overflow-y-auto rounded-card border border-border bg-surface py-4 print:hidden">
-        <span className="mb-2 flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-white p-1">
+      <aside
+        className={cn(
+          "relative my-4 ml-4 flex h-[calc(100vh-2rem)] shrink-0 flex-col gap-2 overflow-y-auto rounded-card border border-border bg-surface py-4 transition-[width] duration-200 ease-in-out print:hidden",
+          sidebarCollapsed ? "w-16 items-center px-2" : "w-64 items-stretch px-3",
+          // Expanded + phone-width: float above the page instead of pushing
+          // the main content down to a sliver.
+          !sidebarCollapsed && "max-sm:fixed max-sm:inset-y-4 max-sm:left-4 max-sm:z-40 max-sm:shadow-xl"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed((c) => !c)}
+          aria-label={sidebarCollapsed ? t("shell.sidebarExpand") : t("shell.sidebarCollapse")}
+          title={sidebarCollapsed ? t("shell.sidebarExpand") : t("shell.sidebarCollapse")}
+          className="absolute -right-3 top-7 z-10 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-text-muted shadow-sm transition-colors hover:bg-surface-alt hover:text-text"
+        >
+          <ChevronLeft className={cn("size-3.5 transition-transform duration-200", sidebarCollapsed && "rotate-180")} />
+        </button>
+
+        <span
+          className={cn(
+            "mb-2 flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-white p-1",
+            !sidebarCollapsed && "self-start"
+          )}
+        >
           <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
         </span>
-        <nav className="flex flex-1 flex-col items-center gap-1">
+        <nav className={cn("flex flex-1 flex-col gap-1", sidebarCollapsed ? "items-center" : "items-stretch")}>
           {items.map((item) => {
             const Icon = item.icon
             return (
@@ -159,16 +226,28 @@ export function AdminShell() {
                 key={item.key}
                 to={item.path}
                 end={item.end}
-                title={t(item.labelKey)}
                 aria-label={t(item.labelKey)}
+                onMouseEnter={(e) => {
+                  if (!sidebarCollapsed) return
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setHoveredNavTooltip({ label: t(item.labelKey), top: rect.top + rect.height / 2, left: rect.right + 8 })
+                }}
+                onMouseLeave={() => setHoveredNavTooltip(null)}
+                onFocus={(e) => {
+                  if (!sidebarCollapsed) return
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setHoveredNavTooltip({ label: t(item.labelKey), top: rect.top + rect.height / 2, left: rect.right + 8 })
+                }}
+                onBlur={() => setHoveredNavTooltip(null)}
                 className={({ isActive }) =>
                   cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+                    "relative flex shrink-0 items-center rounded-xl transition-colors",
+                    sidebarCollapsed ? "size-10 justify-center" : "h-10 w-full gap-3 px-3",
                     isActive ? "bg-ink text-white" : "text-text-muted hover:bg-surface-alt hover:text-text"
                   )
                 }
               >
-                <span className="relative flex">
+                <span className="relative flex shrink-0">
                   <Icon className="size-5" />
                   {item.key === "myDay" && followupCounts?.total ? (
                     <span
@@ -183,11 +262,25 @@ export function AdminShell() {
                     </span>
                   ) : null}
                 </span>
+                {!sidebarCollapsed ? <span className="truncate text-sm font-medium">{t(item.labelKey)}</span> : null}
               </NavLink>
             )
           })}
         </nav>
       </aside>
+
+      {hoveredNavTooltip
+        ? createPortal(
+            <span
+              role="tooltip"
+              style={{ top: hoveredNavTooltip.top, left: hoveredNavTooltip.left }}
+              className="pointer-events-none fixed z-50 -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-xs font-medium text-white shadow-lg"
+            >
+              {hoveredNavTooltip.label}
+            </span>,
+            document.body
+          )
+        : null}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden print:block print:overflow-visible">
         <header className="flex shrink-0 items-center gap-3 px-6 py-4 print:hidden">

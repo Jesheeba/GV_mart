@@ -219,6 +219,8 @@
     "searchEmpty": "No matches found",
     "notifications": "Notifications",
     "notificationsUnread": "Notifications, {{count}} unread",
+    "sidebarCollapse": "Collapse sidebar",
+    "sidebarExpand": "Expand sidebar",
     "moreOptions": "More options",
     "switchToDarkMode": "Switch to dark mode",
     "switchToLightMode": "Switch to light mode",
