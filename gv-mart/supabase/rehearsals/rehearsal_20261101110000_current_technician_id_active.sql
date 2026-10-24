@@ -5,9 +5,12 @@
 -- RAISE EXCEPTION, so nothing is ever committed.
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
+-- PREREQUISITE: migration 20261024100000_close_public_and_anon_function_execute must already be applied on the target database. It is applied live;
+-- it sits on origin/ui-ux-improvements and origin/fix/close-public-anon-function-execute, NOT on origin/main. The check "no PUBLIC grant appears on it"
+-- reads the live ACL and holds only with that migration in place. It is deliberately NOT embedded in this wrapper.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   a64bf7ad63d9ab2501a5da7147f95a9986945e73231c8b612f49769105523a40  gv-mart/supabase/migrations/20261101110000_current_technician_id_active.sql
---   44fed7e701d3a4650e8653aa6c5e1b0426af7ea1206b4b67e0866e8f4d37b8fb  gv-mart/supabase/tests/current_technician_id_active.test.sql
+--   10986439bf9078a214304d66eee416adb554d060c170993b1c431a90d7165e88  gv-mart/supabase/tests/current_technician_id_active.test.sql
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.is_active::text, ',' order by t.id)
@@ -53,9 +56,17 @@ $rh0$;
 
   v_text := $rh1$-- DB tests for 20261101110000_current_technician_id_active. NOT RUN (written for review). Run only through the approved rehearsal wrapper
 -- (migration then this file, one request, ends in an unconditional RAISE). Throwaway __TEST_ organisation only.
+-- PREREQUISITE: migration 20261024100000_close_public_and_anon_function_execute is applied on the target database (it is applied live; it is
+-- on origin/ui-ux-improvements and origin/fix/close-public-anon-function-execute, NOT on origin/main). The check "no PUBLIC grant appears on it"
+-- reads the live ACL and holds only with that migration in place; a from-scratch replay must apply it first. It is deliberately not embedded here.
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
@@ -141,7 +152,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '44fed7e701d3a4650e8653aa6c5e1b0426af7ea1206b4b67e0866e8f4d37b8fb' then
+  if v_hash <> '10986439bf9078a214304d66eee416adb554d060c170993b1c431a90d7165e88' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for current_technician_id_active.test.sql: %', v_hash;
   end if;
   execute v_text;

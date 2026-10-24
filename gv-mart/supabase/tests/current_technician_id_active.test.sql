@@ -1,8 +1,16 @@
 -- DB tests for 20261101110000_current_technician_id_active. NOT RUN (written for review). Run only through the approved rehearsal wrapper
 -- (migration then this file, one request, ends in an unconditional RAISE). Throwaway __TEST_ organisation only.
+-- PREREQUISITE: migration 20261024100000_close_public_and_anon_function_execute is applied on the target database (it is applied live; it is
+-- on origin/ui-ux-improvements and origin/fix/close-public-anon-function-execute, NOT on origin/main). The check "no PUBLIC grant appears on it"
+-- reads the live ACL and holds only with that migration in place; a from-scratch replay must apply it first. It is deliberately not embedded here.
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$

@@ -7,7 +7,7 @@
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb  gv-mart/supabase/migrations/20261101100000_task_completion_rule.sql
---   d441e5854b91f3c781aa346c85dad9580e272502b0b9ab37a8a1cbf00d662805  gv-mart/supabase/tests/task_completion_rule.test.sql
+--   4b2e844945ade1a2d9c129982635fd9e367619a636930f15bfdea7e2f58ba257  gv-mart/supabase/tests/task_completion_rule.test.sql
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
@@ -163,6 +163,11 @@ $rh0$;
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
@@ -279,11 +284,21 @@ begin
   t4 := pg_temp.mk(v_org, null, v_ops);
   perform pg_temp.as_user(v_sales);
   s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t4));
-  perform pg_temp.chk('an unassigned task cannot be finished by a sales_admin', s is not null, coalesce(s, 'accepted'));
+  perform pg_temp.as_pg();
+  -- this sales_admin did not assign the task, so tasks_update_assign hides the row from the update: no error, no row touched. The guard is not reached.
+  perform pg_temp.chk('an unassigned task a sales_admin did not assign: the update touches no row and the task stays open (no error is raised)',
+    (select status::text from tasks where id = t4) = 'open', coalesce(s, 'no error'));
   perform pg_temp.as_user(v_ops);
   s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t4));
   perform pg_temp.as_pg();
   perform pg_temp.chk('operations can finish an unassigned task', s is null and (select status::text from tasks where id = t4) = 'done', coalesce(s, 'ok'));
+  -- the assigner passes the update policy, so this case reaches guard_task_completion itself
+  t4 := pg_temp.mk(v_org, null, v_sales);
+  perform pg_temp.as_user(v_sales);
+  s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t4));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('GUARD: the assigner of an unassigned task, who is not operations, is refused by the guard itself and the task stays open',
+    s like '%only operations can finish a task that has no assignee%' and (select status::text from tasks where id = t4) = 'open', coalesce(s, 'no error'));
 
   -- ---------- insert as done ----------
   perform pg_temp.as_user(v_sales);
@@ -429,7 +444,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'd441e5854b91f3c781aa346c85dad9580e272502b0b9ab37a8a1cbf00d662805' then
+  if v_hash <> '4b2e844945ade1a2d9c129982635fd9e367619a636930f15bfdea7e2f58ba257' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_completion_rule.test.sql: %', v_hash;
   end if;
   execute v_text;
