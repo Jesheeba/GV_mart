@@ -65,7 +65,9 @@ begin
   perform pg_temp.chk('the marker functions use an empty search_path',
     (select count(*) from pg_proc where pronamespace = 'public'::regnamespace
         and proname in ('_trg_profile_password_marker', 'arm_forced_password_change', 'complete_forced_password_change')
-        and prosecdef and coalesce(proconfig::text like '%search_path=""%', false)) = 3);
+        and prosecdef and coalesce(proconfig @> array['search_path=""'], false)) = 3);
+  perform pg_temp.chk('_trg_meeting_issue_stamp is SECURITY INVOKER (it tests current_user, which is the owner inside a definer function)',
+    (select not prosecdef from pg_proc where pronamespace = 'public'::regnamespace and proname = '_trg_meeting_issue_stamp'));
   perform pg_temp.chk('functions: complete_forced_password_change, raise_huddle_issue, propose_huddle_solution: authenticated yes, anon and PUBLIC no',
     has_function_privilege('authenticated', 'public.complete_forced_password_change()', 'execute')
     and has_function_privilege('authenticated', 'public.raise_huddle_issue(text)', 'execute')
