@@ -7,7 +7,7 @@
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   17538d3073a53eb23ed65ee4f2e333f7f1aeb64a35a6b854920c63a5c704067e  gv-mart/supabase/migrations/20261102100000_p2_staff_profile_and_huddle.sql
---   21f247af869f4a75672bbe33dc199cca98262213c9e5a2b531cf556efca0ab3d  gv-mart/supabase/tests/p2_staff_profile_and_huddle.test.sql
+--   92c5c039c12d28f65927400f753433f8a9965201804c42bfb2e877aa18e4962a  gv-mart/supabase/tests/p2_staff_profile_and_huddle.test.sql
 --   d65d7395d458ac117593cedf6c1e61638b261e0e8204773cf57b03f6ecf90bfc  (pre-check snippet: public.wa_send_huddle_reminder(uuid) as last defined in gv-mart/supabase/migrations/20260929100000_daily_huddle_log.sql)
 -- Pre-check: the live function must equal what that migration defined. The wrapper re-creates the pinned snippet inside a
 -- sub-block, takes md5(pg_get_functiondef()) of it, rolls the sub-block back, and refuses if it differs from the live md5.
@@ -764,6 +764,34 @@ begin
   perform pg_temp.as_pg();
   perform pg_temp.chk('a master cannot call arm directly (service role only)', s like '%permission denied%', coalesce(s, 'accepted'));
 
+  -- the mechanism above is role-agnostic (no role check anywhere in it); admin-create-technician now calls it the
+  -- same way admin-create-staff/admin-reset-staff-password do — a technician is forced to change their password on
+  -- next login too, both when the login is first created and after a master resets it.
+  declare v_tech_profile uuid;
+  begin
+    insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '__t_newtech_' || gen_random_uuid() || '@test.invalid', 'brand-new-password', now(), now(), now(), '{}', '{}')
+    returning id into v_tech_profile;
+    -- admin-create-technician's own insert: profile row created with must_change_password already true (the password exists first, same ordering as staff)
+    insert into public.profiles (id, org_id, full_name, role, is_active, must_change_password)
+      values (v_tech_profile, v_org, '__TEST_ new technician', 'technician', true, true);
+    perform pg_temp.chk('a freshly-created technician is force-flagged on INSERT, same as a freshly-created staff member',
+      (select must_change_password from profiles where id = v_tech_profile)
+      and (select marker from profile_password_markers where profile_id = v_tech_profile) = md5('brand-new-password'));
+    update auth.users set encrypted_password = 'tech-changed-it' where id = v_tech_profile;
+    perform pg_temp.as_user(v_tech_profile);
+    s := pg_temp.raises($q$select public.complete_forced_password_change()$q$);
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('once that technician actually changes it, the flag clears exactly like it does for staff',
+      s is null and not (select must_change_password from profiles where id = v_tech_profile), coalesce(s, 'ok'));
+    -- admin-create-technician's "reset_password" action: password changed first, THEN arm_forced_password_change
+    update auth.users set encrypted_password = 'tech-reset-by-master' where id = v_tech_profile;
+    perform public.arm_forced_password_change(v_tech_profile);
+    perform pg_temp.chk('resetting an existing technician''s password re-arms the flag with the new hash, same as a staff reset',
+      (select must_change_password from profiles where id = v_tech_profile)
+      and (select marker from profile_password_markers where profile_id = v_tech_profile) = md5('tech-reset-by-master'));
+  end;
+
   -- ---------- huddle: technicians raise, the master is told, names are stamped ----------
   perform pg_temp.as_user(v_tp);
   select public.raise_huddle_issue('  The van GPS keeps dropping off during jobs  ') into v_issue;
@@ -914,7 +942,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '21f247af869f4a75672bbe33dc199cca98262213c9e5a2b531cf556efca0ab3d' then
+  if v_hash <> '92c5c039c12d28f65927400f753433f8a9965201804c42bfb2e877aa18e4962a' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for p2_staff_profile_and_huddle.test.sql: %', v_hash;
   end if;
   execute v_text;
