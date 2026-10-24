@@ -10,6 +10,79 @@ Method note: captured with Playwright (scripts in `ui-audit/scripts/`) — full-
 
 ---
 
+## Checkpoint 2 summary
+
+**34 findings logged** across 5 waves (11 Technician, 7 Customer, 10 Admin/ops, 4 Admin/sales, 2 Admin/master — one of the "master" items is a process note, not a UI defect). One major non-finding: the Wave 3 "operation_admin sees no data" report was retracted after root-causing it to a deliberate `profiles.is_active = false` flag unrelated to this audit, not an app bug.
+
+**By severity:**
+
+| Severity | Count | Notes |
+|---|---:|---|
+| Critical | 4 | All four are the *same class* of bug (a clickable control with zero accessible name) on 4 different pages/roles |
+| High | 11 | Includes 3 instances of one systemic contrast bug (Tech/Customer/Admin) and 2 instances of one unlabeled-select pattern (Sales) |
+| Medium-High | 1 | Settings page save-button ambiguity |
+| Medium | 8 | |
+| Low / Low-Medium | 9 | |
+| Informational (not UI defects) | 2 | Messy imported customer data; real PII visible in this audit's own screenshots (handled, not committed) |
+
+**By category** (primary category per finding; several findings span two):
+
+| Category | Findings | Dominant pattern |
+|---|---:|---|
+| A — Layout & structure | 3 | Minor: no max-width at desktop widths, wasted whitespace on one form |
+| B — Visual design | 1 | One inconsistent button-color pair |
+| C — Components | 2 | Duplicate control, wrong reimplementation of a shared helper |
+| D — States | 1 | Missing product photos (data gap, not a defect) |
+| E — Responsiveness | 1 | One real overlap bug at 375px |
+| F — Navigation/IA | 0 | No findings — nav is consistently clear across all three apps |
+| G — Forms | 1 | Settings page's ambiguous save affordances |
+| H — UX flows | 0 (folds into G) | |
+| I — Content/microcopy | 4 | **5 different date formats** found across the app; one raw UUID shown to a user |
+| J — Accessibility | **20** | By far the largest category — see below |
+| K — Perceived performance | 1 | One unreproduced blank-paint flake |
+
+**Accessibility (J) is the standout weak spot.** Every single page audited across all 5 waves, every role, every width, failed at least one of: `color-contrast` (danger-red text, app-wide), `label-content-name-mismatch` (notification bell's unread badge not in its accessible name, app-wide), or an unlabeled native `<select>`/icon button. These aren't 20 unrelated bugs — they're ~5 systemic root causes (one shared danger-color token, one shared notification-bell pattern, one shared unlabeled-select pattern, one shared Month-range-picker component, assorted icon buttons) repeated across dozens of pages. Phase 3's shared-component work should fix most of category J in a handful of commits, not 20 separate ones.
+
+**UI score by category (out of 10):**
+
+| Category | Score | Why |
+|---|---:|---|
+| A — Layout & structure | 7 | Clean, consistent page structure everywhere; minor desktop-width polish gaps |
+| B — Visual design | 7 | Strong, consistent "Finexy" identity; one inconsistent button-color pair |
+| C — Components | 6 | Good shared-component reuse generally, but 2 concrete duplicate/reimplementation bugs found live |
+| D — States | 9 | Loading/empty/error states are a genuine strength everywhere audited — no vibe-code violations found |
+| E — Responsiveness | 7 | Holds up well at 4 widths; one real overlap bug, one layout-waste issue |
+| F — Navigation/IA | 8 | Clear "where am I," consistent nav patterns, no confusing IA found |
+| G — Forms | 6 | Good validation/draft-save patterns elsewhere, dragged down by Settings' save ambiguity and no shared Select component |
+| H — UX flows | 7 | Thoughtful flows (graduated button hierarchy, honest limitation copy); Settings page is the exception |
+| I — Content/microcopy | 5 | 5 date formats, 1 raw UUID, otherwise good human-readable copy |
+| J — Accessibility | **3** | Systemic failures on literally every page audited; the clear priority for Phase 3 |
+| K — Perceived performance | 7 | Zero console errors anywhere; one unconfirmed flake |
+
+**Overall: 6.5/10.** The app's visual design, layout consistency, and state-handling (loading/empty/error) are genuinely above the "vibe-coded" baseline the brief asked us to watch for — most of category D and F show real craft. Accessibility is the clear exception and the right place to focus Phase 3.
+
+### Top 15 most serious issues
+
+Ranked by real-world impact, consolidating repeated instances of the same root cause into one line:
+
+1. **(Critical, systemic)** Unlabeled interactive controls with zero accessible name — catalog "open product" button (CUST-003), Month-range picker (ADMIN-004), Notifications/Approvals Type & Status filters (ADMIN-005), Appointments icon buttons (ADMIN-006). Same defect pattern, 4+ pages, 2 roles.
+2. **(High, systemic)** `text-danger` fails color contrast on every single page in the app, all 3 roles (TECH-007 / CUST-006 / ADMIN-007) — one design-token fix.
+3. **(High, systemic)** Unlabeled native `<select>` filters/pickers — New Quotation, Leads ×2 pages (SALES-001/002), Masters, Approvals, Audit Log, Notifications — 7 pages, 3 roles, one shared component gap.
+4. **(High)** TECH-001 — Technician Home quick-action labels visually overlap and become unreadable at 375px, the primary field-use width.
+5. **(High)** TECH-002 — Technician notifications show a raw ticket UUID instead of a customer name, for every job assignment, forever.
+6. **(High)** CUST-001 — Duplicate, inconsistent notification bell on the Customer Home page (one with an unread badge, one without).
+7. **(High)** CUST-002 — Customer Profile page shows visibly wrong avatar initials ("LA" instead of "LP") from a buggy reimplementation of an already-correct shared helper.
+8. **(Medium, huge scale)** ADMIN-009 — Icon buttons with accessible-name/visible-content mismatches hit 55 page/width combinations in the Admin area alone — the single largest a11y finding by volume.
+9. **(Medium-High)** MASTER-001 — The org Settings page has ~15 setting groups but only 3 visible Save buttons; no way to tell if GST/SLA/work-hours edits actually save.
+10. **(Medium)** TECH-011 — The On-Site Visit stepper (job completion, signatures, payment — the highest-stakes technician screen) has the weakest accessibility coverage of any screen audited.
+11. **(Medium)** ADMIN-002 — Admin Tasks list nests a real `<button>` inside a `role="button"` div on every row — confuses keyboard/screen-reader navigation.
+12. **(Medium)** CUST-003's sibling, CUST-004 — the mobile "add to compare" control relies solely on a `title` attribute for its name.
+13. **(Medium)** TECH-006 — One unreproduced blank-paint capture on the job-completion stepper at tablet width, flagged for monitoring on a route used outdoors over patchy connections.
+14. **(Low-Medium)** ADMIN-003 — Suppliers/Purchase use a coral primary-button color where every other sampled page uses black, with no documented reason.
+15. **(Informational, flagged for awareness not UI fix)** 5 different date formats found across the app (ISO, two DD/MM/YYYY variants, a device-locale-dependent format, and a friendly format) — ties into the shared date-formatter gap already in Discovery §6C.
+
+---
+
 ## Wave 1 — Technician area
 
 Role: `technician`. Widths: 375 (primary), 768 (primary), 1440 (quick check). Pages covered: Home, Map, Attendance, History (+ detail), Profile, Spares (+ history), Search, Day Sheet, Notifications, Tasks, Huddle, Job Detail, On-Site Visit stepper (step 1 only — an open visit already existed for the test technician's one seeded job, so "Start Visit" was reachable without triggering the data-writing "confirm arrival" action). Rating page and visit-submission/OTP were **not** reached, per instructions — scope stops the step before submit.
