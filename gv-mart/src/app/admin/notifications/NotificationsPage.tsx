@@ -37,8 +37,15 @@ export function NotificationsPage() {
 
       <Card size="sm" className="flex-row flex-wrap items-center gap-2 px-4">
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-text-muted">{t("notifications.filters.type")}</label>
-          <select value={type} onChange={(e) => setType(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <label htmlFor="notif-filter-type" className="block text-xs font-medium text-text-muted">
+            {t("notifications.filters.type")}
+          </label>
+          <select
+            id="notif-filter-type"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          >
             <option value="">{t("notifications.filters.all")}</option>
             {(typeOptions ?? []).map((tOpt) => (
               <option key={tOpt} value={tOpt}>
@@ -48,8 +55,11 @@ export function NotificationsPage() {
           </select>
         </div>
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-text-muted">{t("notifications.filters.status")}</label>
+          <label htmlFor="notif-filter-status" className="block text-xs font-medium text-text-muted">
+            {t("notifications.filters.status")}
+          </label>
           <select
+            id="notif-filter-status"
             value={readStatus}
             onChange={(e) => setReadStatus(e.target.value as "read" | "unread" | "")}
             className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"

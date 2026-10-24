@@ -134,6 +134,7 @@ export function ProductsTab() {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("masters.spares.searchPlaceholder")} className="max-w-xs" />
         <select
+          aria-label={t("masters.spares.filterStatusLabel")}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"

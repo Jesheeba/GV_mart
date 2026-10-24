@@ -735,6 +735,7 @@
       "filterAll": "All",
       "filterActive": "Active only",
       "filterInactive": "Inactive only",
+      "filterStatusLabel": "Filter by status",
       "noResults": "No spares match this search/filter.",
       "selectAll": "Select all",
       "selectedCount_one": "{{count}} selected",

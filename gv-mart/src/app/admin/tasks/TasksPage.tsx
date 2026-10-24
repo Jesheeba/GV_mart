@@ -166,22 +166,19 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
       ? formatDate(task.due_date)
       : null
 
+  // A clickable row (whole-row "open detail") used to wrap the per-task
+  // toggle button in a `role="button"` div — a focusable element nested
+  // inside another focusable element, which axe flags (nested-interactive)
+  // and which also makes Tab/Enter behavior ambiguous for keyboard and
+  // screen-reader users (ADMIN-002). The toggle and the "open" action are
+  // now siblings inside a plain, non-interactive row instead: the toggle
+  // keeps its own <button>, and a second <button> covers the rest of the
+  // row for opening the task.
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onOpen()
-      }}
-      className={cn("flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3 hover:bg-surface-alt", isDone && "opacity-60")}
-    >
+    <div className={cn("flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3 hover:bg-surface-alt", isDone && "opacity-60")}>
       <button
         type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle()
-        }}
+        onClick={onToggle}
         disabled={isMutating}
         className={cn(
           "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
@@ -192,7 +189,7 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
         {isMutating ? <Loader2 className="size-3 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
       </button>
 
-      <div className="min-w-0 flex-1 space-y-1">
+      <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1 text-left">
         <div className="flex flex-wrap items-center gap-2">
           <p className={cn("text-sm font-semibold text-text", isDone && "text-text-muted line-through")}>{task.title}</p>
           <PriorityBadge priority={task.priority} />
@@ -207,7 +204,7 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
           {task.assigner ? <span>{t("tasks.assignedBy", { name: task.assigner.full_name })}</span> : null}
           {dueLabel ? <span>{t("tasks.due", { date: dueLabel })}</span> : null}
         </div>
-      </div>
+      </button>
     </div>
   )
 }

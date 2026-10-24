@@ -44,8 +44,15 @@ export function ApprovalsPage() {
 
       <Card size="sm" className="flex-row flex-wrap items-center gap-2 px-4">
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-text-muted">{t("approvals.filters.type")}</label>
-          <select value={type} onChange={(e) => setType(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <label htmlFor="approvals-filter-type" className="block text-xs font-medium text-text-muted">
+            {t("approvals.filters.type")}
+          </label>
+          <select
+            id="approvals-filter-type"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          >
             <option value="">{t("approvals.filters.all")}</option>
             {TYPE_OPTIONS.map((o) => (
               <option key={o} value={o}>
@@ -55,8 +62,15 @@ export function ApprovalsPage() {
           </select>
         </div>
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-text-muted">{t("approvals.filters.status")}</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <label htmlFor="approvals-filter-status" className="block text-xs font-medium text-text-muted">
+            {t("approvals.filters.status")}
+          </label>
+          <select
+            id="approvals-filter-status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          >
             <option value="">{t("approvals.filters.all")}</option>
             {STATUS_OPTIONS.map((o) => (
               <option key={o} value={o}>

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { AddressForm } from "@/components/shared/AddressForm"
+import { initials } from "@/components/shared/UserMenu"
 import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
 import { useProfile } from "@/hooks/useProfile"
@@ -406,7 +407,7 @@ export function CustomerProfilePage() {
       <Card className="gap-3 lg:px-5">
         <div className="flex items-center gap-3 px-1">
           <span className="flex size-12 items-center justify-center rounded-full bg-ink text-base font-semibold text-white">
-            {profile.full_name.slice(0, 2).toUpperCase()}
+            {initials(profile.full_name)}
           </span>
           <div className="min-w-0">
             <p className="truncate text-base font-semibold text-text">{profile.full_name}</p>

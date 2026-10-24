@@ -187,6 +187,7 @@ export function LeadsPage() {
           />
         </div>
         <select
+          aria-label={t("leads.filters.allSources")}
           value={source}
           onChange={(e) => setSource(e.target.value)}
           className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
@@ -199,6 +200,7 @@ export function LeadsPage() {
           ))}
         </select>
         <select
+          aria-label={t("leads.filters.allTopics")}
           value={enquiryType}
           onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type"> | "")}
           className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
@@ -211,6 +213,7 @@ export function LeadsPage() {
           ))}
         </select>
         <select
+          aria-label={t("leads.filters.allKinds")}
           value={kind}
           onChange={(e) => setKind(e.target.value)}
           className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"

@@ -89,8 +89,15 @@ export function AuditLogPage() {
           </div>
         </div>
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-text-muted">{t("auditLog.filters.table")}</label>
-          <select value={tableName} onChange={(e) => setTableName(e.target.value)} className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <label htmlFor="audit-filter-table" className="block text-xs font-medium text-text-muted">
+            {t("auditLog.filters.table")}
+          </label>
+          <select
+            id="audit-filter-table"
+            value={tableName}
+            onChange={(e) => setTableName(e.target.value)}
+            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          >
             <option value="">{t("auditLog.filters.all")}</option>
             {(tableNames.data ?? []).map((tn) => (
               <option key={tn} value={tn}>

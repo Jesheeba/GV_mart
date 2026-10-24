@@ -186,7 +186,7 @@ export function QuotationFormPage() {
       <Card className="gap-3 px-5">
         <p className="px-1 text-sm font-semibold text-text">{t("quotations.form.itemsTitle")}</p>
         <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
-          <select className={selectClass} value={productId} onChange={(e) => setProductId(e.target.value)}>
+          <select aria-label={t("sales.items.selectProduct")} className={selectClass} value={productId} onChange={(e) => setProductId(e.target.value)}>
             <option value="">{t("sales.items.selectProduct")}</option>
             {activeProducts.map((p) => (
               <option key={p.id} value={p.id}>
@@ -201,7 +201,7 @@ export function QuotationFormPage() {
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
-          <select className={selectClass} value={spareId} onChange={(e) => setSpareId(e.target.value)}>
+          <select aria-label={t("sales.items.selectSpare")} className={selectClass} value={spareId} onChange={(e) => setSpareId(e.target.value)}>
             <option value="">{t("sales.items.selectSpare")}</option>
             {activeSpares.map((s) => (
               <option key={s.id} value={s.id}>

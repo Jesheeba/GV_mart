@@ -37,6 +37,7 @@ export function GiftsTab() {
   return (
     <div className="space-y-3">
       <select
+        aria-label={t("masters.spares.filterStatusLabel")}
         value={statusFilter}
         onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
         className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
