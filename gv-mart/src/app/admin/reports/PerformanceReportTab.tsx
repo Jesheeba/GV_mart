@@ -23,7 +23,7 @@ import { PeriodFilter } from "./PeriodFilter"
 const PERF_COLUMNS = ["jobs", "avgPerCall", "firstFix", "avgCompletion", "productivity", "reviews", "conversion", "installations", "revenue", "efficiency"] as const
 type PerfColumn = (typeof PERF_COLUMNS)[number]
 // installations + revenue + efficiency are new/optional, off until the admin ticks them.
-// efficiency (P5, 20261105100000) is informational only — standard vs actual minutes, read nowhere near
+// efficiency (P5, 20261024110000) is informational only — standard vs actual minutes, read nowhere near
 // compute_incentives or any review/flag logic.
 const PERF_DEFAULT_COLUMNS: PerfColumn[] = ["jobs", "avgPerCall", "firstFix", "avgCompletion", "productivity", "reviews", "conversion"]
 const PERF_HEADER_KEY: Record<PerfColumn, string> = {

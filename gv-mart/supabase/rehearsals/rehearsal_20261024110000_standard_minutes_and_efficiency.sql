@@ -1,4 +1,4 @@
--- REHEARSAL (NOT RUN; for the owner's approval of this exact text): standard minutes + efficiency (P5, review round 2): migration 20261105100000 + its tests
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): standard minutes + efficiency (P5, review round 2): migration 20261024110000 + its tests
 -- This run changes no real data: every statement below runs inside one rolled-back transaction and the embedded
 -- test file itself ends in an unconditional RAISE, so nothing is ever committed, on the real org or anywhere else.
 -- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
@@ -14,8 +14,8 @@
 -- test code outside this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure
 -- and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   d55f64019566a08dd6c79241e984b22b97e34ff62fcff4190371cfe7c4611bad  gv-mart/supabase/migrations/20261105100000_standard_minutes_and_efficiency.sql
---   c1d182411f8c807efcb667bba81f2d8360824d26f0bc4e57b61c069b481484b6  gv-mart/supabase/tests/standard_minutes_and_efficiency.test.sql
+--   d55f64019566a08dd6c79241e984b22b97e34ff62fcff4190371cfe7c4611bad  gv-mart/supabase/migrations/20261024110000_standard_minutes_and_efficiency.sql
+--   794edbc813ba91918871affa17e01a388e802f3d758226dafbe028b7f50d76df  gv-mart/supabase/tests/standard_minutes_and_efficiency.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
 -- Pinned (sha256 of the ORIGINAL function-defining text embedded below, read from the migration that last
@@ -671,11 +671,11 @@ $function$;
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
   if v_hash <> 'd55f64019566a08dd6c79241e984b22b97e34ff62fcff4190371cfe7c4611bad' then
-    raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261105100000_standard_minutes_and_efficiency.sql: %', v_hash;
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261024110000_standard_minutes_and_efficiency.sql: %', v_hash;
   end if;
   execute v_text;
 
-  v_text := $rh1$-- Rolled-back DB tests for 20261105100000_standard_minutes_and_efficiency (P5).
+  v_text := $rh1$-- Rolled-back DB tests for 20261024110000_standard_minutes_and_efficiency (P5).
 -- NOT RUN (written for review). Run only through the rehearsal wrapper: it applies the migration and then this file in ONE
 -- request; this file ends in an unconditional RAISE, so nothing is committed. Throwaway __TEST_ organisation only.
 create temp table res (n serial, line text);
@@ -837,7 +837,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'c1d182411f8c807efcb667bba81f2d8360824d26f0bc4e57b61c069b481484b6' then
+  if v_hash <> '794edbc813ba91918871affa17e01a388e802f3d758226dafbe028b7f50d76df' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for standard_minutes_and_efficiency.test.sql: %', v_hash;
   end if;
   execute v_text;
