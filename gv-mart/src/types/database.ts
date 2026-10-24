@@ -6996,6 +6996,11 @@ export type Database = {
           // 20260806130000_complaint_type_spares.sql. The complaint_types
           // row the Autocomplete's onSelect resolved, if any.
           p_complaint_type_id?: string | null
+          // Admin/customer booking-format parity (2026-10-24) — the same
+          // free-form unavailable-time-range geometry book_service_ticket
+          // takes, now preferred over p_slot_id when provided. See
+          // 20261024160000_admin_complaint_unavailable_windows.sql.
+          p_unavailable_windows?: Json | null
         }
         Returns: Json
       }

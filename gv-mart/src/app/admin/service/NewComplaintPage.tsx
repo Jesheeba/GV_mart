@@ -9,17 +9,17 @@ import { Input } from "@/components/ui/input"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { DraftBanner } from "@/components/shared/DraftBanner"
 import { NotInInventoryProductDialog } from "@/components/shared/NotInInventoryProductDialog"
+import { AvailabilityTimeline } from "@/app/customer/components/AvailabilityTimeline"
+import type { TimeWindow } from "@/lib/booking-window"
 import { useProfile } from "@/hooks/useProfile"
-import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
-import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
+import { useCustomer, useCustomerAutocomplete, useCustomerExemptionWindows } from "@/hooks/useCustomers"
+import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks, useSettings } from "@/hooks/useMasters"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { useAppointmentSlots } from "@/hooks/useCustomerApp"
 import { useCreateComplaintTicket, useCustomerAddresses, useDetectTicketType, useOwnedEquipment, useTechnicians } from "@/hooks/useService"
 import {
   complaintAppointmentStepSchema,
@@ -177,23 +177,25 @@ export function NewComplaintPage() {
   // Step 4: type auto-detect
   const detected = useDetectTicketType(orgId, customerId, resolvedProductId || null)
 
-  // Step 5: appointment — same admin-configured appointment-slot format as
-  // the customer app's own booking flow (BookServicePage.tsx), instead of
-  // the old free-text available-time-window builder.
+  // Step 5: appointment — exact UI/logic parity with the customer app's own
+  // booking flow (BookServicePage.tsx's address + date + AvailabilityTimeline
+  // step), replacing the admin-configured appointment-slot picker this
+  // previously matched. See 20261024160000_admin_complaint_unavailable_
+  // windows.sql for the RPC side of this change.
   const appointmentForm = useForm<ComplaintAppointmentStepInput>({
     resolver: zodResolver(complaintAppointmentStepSchema),
     mode: "onChange",
-    defaultValues: { scheduledDate: "", slotId: "", autoAssign: true },
+    defaultValues: { scheduledDate: "", unavailableWindows: [], autoAssign: true },
   })
-  const { data: appointmentSlots, isLoading: loadingSlots } = useAppointmentSlots(orgId)
-  const activeSlots = appointmentSlots ?? []
-  // If today is picked, drop slots whose window has already fully passed —
-  // otherwise e.g. "Morning 08:00-12:00" is still offered/selectable at
-  // 6pm. The RPC re-checks this too (defense in depth).
-  const bookableSlots =
-    appointmentForm.watch("scheduledDate") === todayInput()
-      ? activeSlots.filter((s) => s.end_time.slice(0, 5) > getIstNow().time)
-      : activeSlots
+  const { data: settings } = useSettings(orgId)
+  const exemptionWindows = useCustomerExemptionWindows(customerId || undefined)
+  const workStart = (settings?.work_start ?? "09:00").slice(0, 5)
+  const workEnd = (settings?.work_end ?? "19:30").slice(0, 5)
+  const narrowThreshold = settings?.narrow_window_threshold_minutes ?? 90
+  const estimatedMinutes = settings?.default_duration_paid_minutes ?? 45
+  const exemptionBlocks: TimeWindow[] = (exemptionWindows.data ?? [])
+    .filter((w) => w.is_active)
+    .map((w) => ({ start: w.start_time.slice(0, 5), end: w.end_time.slice(0, 5) }))
 
   const createTicket = useCreateComplaintTicket()
   const { data: technicians } = useTechnicians(orgId)
@@ -256,7 +258,7 @@ export function NewComplaintPage() {
     setNewProductId("")
     setUnlistedProductName("")
     detailsForm.reset({ nameOfComplaint: "", natureOfComplaint: "", priority: "normal" })
-    appointmentForm.reset({ scheduledDate: "", slotId: "", autoAssign: true })
+    appointmentForm.reset({ scheduledDate: "", unavailableWindows: [], autoAssign: true })
   }
 
   const steps = [
@@ -306,11 +308,12 @@ export function NewComplaintPage() {
       // created ticket now gets a real date + slot, same as the customer app.
       appointmentMode: "datetime",
       autoAssign: appt.autoAssign,
-      // Same plain date-string + slot-id pair as BookServicePage.tsx's own
-      // p_scheduled_date/p_slot_id — the RPC's p_scheduled_date is a `date`,
-      // not a timestamp, so no UTC-midnight anchoring is needed here.
+      // Same plain date-string + unavailable-windows pair as
+      // BookServicePage.tsx's own p_scheduled_date/p_unavailable_windows —
+      // the RPC's p_scheduled_date is a `date`, not a timestamp, so no
+      // UTC-midnight anchoring is needed here.
       scheduledDate: appt.scheduledDate || null,
-      slotId: appt.slotId || null,
+      unavailableWindows: appt.unavailableWindows ?? [],
       referredByTechnicianId: referredByTechnicianId || null,
     })
     clearDraft()
@@ -611,7 +614,25 @@ export function NewComplaintPage() {
 
       {step === 5 ? (
         <Card className="gap-3 px-5">
-          <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>{t("service.newComplaint.address")}</Label>
+            {(() => {
+              const a = (addresses.data ?? []).find((row) => row.id === addressId)
+              return a ? (
+                <div className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm">
+                  <span className="text-text">{[a.door_no, a.area].filter(Boolean).join(", ")}</span>
+                  {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customers.detail.primary")}</span> : null}
+                </div>
+              ) : (
+                <p className="rounded-xl border border-dashed border-border px-3.5 py-2.5 text-sm text-warning">{t("service.newComplaint.addressNone")}</p>
+              )
+            })()}
+            <Button type="button" size="sm" variant="outline" onClick={() => setStep(1)}>
+              {t("customerApp.addressPicker.changeAddress")}
+            </Button>
+          </div>
+
+          <div className="space-y-3 border-t border-border pt-3">
             <div className="space-y-1.5">
               <Label htmlFor="scheduledDate">{t("service.newComplaint.scheduledAt")}</Label>
               <Controller
@@ -632,43 +653,23 @@ export function NewComplaintPage() {
               ) : null}
             </div>
 
-            <div className="space-y-1.5">
-              <Label>{t("customerApp.bookService.selectSlot")}</Label>
-              {loadingSlots ? (
-                <Skeleton className="h-16 w-full" />
-              ) : activeSlots.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-border px-3.5 py-2.5 text-sm text-warning">
-                  {t("customerApp.bookService.noSlotsConfigured")}
-                </p>
-              ) : bookableSlots.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-border px-3.5 py-2.5 text-sm text-warning">
-                  {t("customerApp.bookService.noSlotsLeftToday")}
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {bookableSlots.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => appointmentForm.setValue("slotId", s.id, { shouldValidate: true })}
-                      aria-pressed={appointmentForm.watch("slotId") === s.id}
-                      className={`rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
-                        appointmentForm.watch("slotId") === s.id ? "border-accent bg-accent-soft" : "border-border"
-                      }`}
-                    >
-                      <span className="block text-sm font-semibold text-text">{s.name}</span>
-                      <span className="block text-xs text-text-muted">
-                        {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+            <Controller
+              control={appointmentForm.control}
+              name="unavailableWindows"
+              render={({ field }) => (
+                <AvailabilityTimeline
+                  workStart={workStart}
+                  workEnd={workEnd}
+                  windows={field.value ?? []}
+                  onChange={field.onChange}
+                  exemptionWindows={exemptionBlocks}
+                  narrowThresholdMinutes={narrowThreshold}
+                  estimatedMinutes={estimatedMinutes}
+                />
               )}
-              {appointmentForm.formState.errors.slotId ? (
-                <p className="text-xs text-warning">{t(appointmentForm.formState.errors.slotId.message!)}</p>
-              ) : null}
-            </div>
+            />
           </div>
+
           <label className="flex items-center gap-2 text-sm text-text">
             <input type="checkbox" {...appointmentForm.register("autoAssign")} className="size-4 rounded border-border" />
             {t("service.newComplaint.autoAssign")}

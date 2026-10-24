@@ -24,21 +24,23 @@ export const complaintDetailsStepSchema = z.object({
 })
 export type ComplaintDetailsStepInput = z.infer<typeof complaintDetailsStepSchema>
 
-// Admin/customer booking-format parity (2026-08-03): mirrors the customer
-// app's plain date + admin-configured appointment-slot pick (see
-// lib/validation/customerApp.ts's serviceBookingSchema note on why the two
-// validation files stay separate declarations) — replaces the old
-// windowMode/unavailableWindows free-text builder. The "always"/anytime
-// appointment mode was dropped from this form (2026-08-03 follow-up) so a
-// date + slot is always required, matching the customer app's own flow,
-// which never offered "always" either — 'always' remains a valid
+// Admin/customer booking-format parity (2026-10-24): the appointment step
+// now mirrors the customer app's own free-form unavailable-time-range
+// picker exactly (see lib/validation/customerApp.ts's serviceBookingSchema
+// note on why the two validation files stay separate declarations), instead
+// of the admin-configured appointment-slot pick this replaced. A date +
+// window geometry (unavailableWindows, possibly empty) is required, same as
+// BookServicePage.tsx. The "always"/anytime appointment mode remains
+// unused by this form (dropped 2026-08-03) — 'always' stays a valid
 // `appointment_mode` value everywhere it's already displayed/stored
 // (TicketDetailPage, AppointmentsPage, TicketsListPage, etc.), only the
-// admin's own New Complaint form stops creating new appointments with it.
+// admin's own New Complaint form never creates new appointments with it.
 export const complaintAppointmentStepSchema = z.object({
   // Holds a DATE ("YYYY-MM-DD").
   scheduledDate: z.string().min(1, "service.errors.scheduledAtRequired"),
-  slotId: z.string().min(1, "customerApp.bookService.slotRequired"),
+  unavailableWindows: z
+    .array(z.object({ start: z.string(), end: z.string() }))
+    .refine((windows) => windows.every((w) => w.end > w.start), "customerApp.bookService.unavailability.invalidRange"),
   autoAssign: z.boolean(),
 })
 export type ComplaintAppointmentStepInput = z.infer<typeof complaintAppointmentStepSchema>

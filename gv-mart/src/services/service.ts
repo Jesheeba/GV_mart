@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { getIstNow, istDateOf } from "@/lib/ist"
 import type { Enums, Tables } from "@/types/database"
+import type { TimeWindow } from "@/lib/booking-window"
 
 // `settings.sla_hours_very_urgent/urgent/normal` were added in migration
 // 20260702110000_service_amc_schema.sql, after src/types/database.ts was
@@ -267,14 +268,19 @@ export type CreateComplaintInput = {
   channel: Enums<"ticket_channel">
   appointmentMode: AppointmentMode | null
   autoAssign: boolean
-  // Admin/customer booking-format parity (2026-08-03): the "New Complaint"
-  // appointment step now uses the same admin-configured appointment-slot
+  // Admin/customer booking-format parity (2026-10-24): the "New Complaint"
+  // appointment step now uses the exact same free-form unavailable-window
   // picker as the customer app's own booking flow (see
-  // customerApp.ts#bookServiceTicket) instead of the old free-text
-  // available-time-window builder. Only meaningful when appointmentMode is
-  // 'datetime'. See 20260803130000_admin_complaint_appointment_slots.sql.
+  // customerApp.ts#bookServiceTicket), replacing the admin-configured
+  // appointment-slot picker this previously matched. Only meaningful when
+  // appointmentMode is 'datetime'. slotId is kept for backward
+  // compatibility with any other caller still booking via a fixed slot
+  // (none left in this app, besides the WhatsApp bot's own separate RPC) —
+  // the RPC prefers unavailableWindows whenever it's provided.
+  // See 20261024160000_admin_complaint_unavailable_windows.sql.
   scheduledDate?: string | null
   slotId?: string | null
+  unavailableWindows?: TimeWindow[] | null
   /** Rewards spec (2026-08-04) — optional finder-credit referral for this complaint/booking. Ignored server-side if the id doesn't resolve to a technician in this org. */
   referredByTechnicianId?: string | null
   /** Gate-assignment-on-product (2026-08-04) — admin-typed product name when the customer's real product isn't in Masters yet. Mutually exclusive with productId. */
@@ -304,6 +310,7 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     p_referred_by_technician_id: input.referredByTechnicianId ?? null,
     p_unlisted_product_name: input.unlistedProductName ?? null,
     p_complaint_type_id: input.complaintTypeId ?? null,
+    p_unavailable_windows: input.unavailableWindows ?? null,
   })
   if (error) throw error
   return data as {
@@ -316,6 +323,10 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     slot_name: string | null
     slot_start_time: string | null
     slot_end_time: string | null
+    available_from: string | null
+    available_to: string | null
+    is_narrow_window: boolean | null
+    next_day_priority: boolean | null
   }
 }
 
