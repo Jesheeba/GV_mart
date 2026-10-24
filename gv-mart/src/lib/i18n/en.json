@@ -1268,8 +1268,8 @@
       "above": "> {{value}}%",
       "freeGiftThreshold": "Free gift threshold",
       "freeGiftThresholdDesc": "Auto-suggest \"{{name}}\" when the invoice total exceeds this",
-      "saveLimits": "Save all settings",
-      "saveLimitsHint": "Saves this whole Settings page, including any unsaved edits in other sections above.",
+      "saveLimits": "Save limits",
+      "saveLimitsHint": "Saves the discount limits above and the free gift threshold only.",
       "noGifts": "No gift tiers configured yet — add one in the Gifts tab to set a free-gift threshold."
     },
     "perKmMinutes": "Travel time (minutes per km)",
@@ -1345,6 +1345,12 @@
     },
     "saved": "Settings saved.",
     "unsavedChangesBar": "You have unsaved changes on this page.",
+    "saveAll": "Save all",
+    "leaveWithoutSavingTitle": "Leave without saving?",
+    "leaveWithoutSavingBody": "You have unsaved changes on this page. If you leave now, they'll be lost.",
+    "leaveAnyway": "Leave without saving",
+    "stayOnPage": "Stay on this page",
+    "beforeUnloadWarning": "You have unsaved changes. If you leave this page, they'll be lost.",
     "errors": {
       "required": "This field is required",
       "positive": "Must be greater than zero",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { UnsavedChangesGuard } from "@/components/shared/UnsavedChangesGuard"
 import { giftsHooks, useSettings, useUpdateSettings } from "@/hooks/useMasters"
 import type { GiftRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
@@ -26,66 +27,121 @@ function formatPct(n: number) {
   return Number.isInteger(n) ? String(n) : n.toFixed(1)
 }
 
+/**
+ * Pre-coercion (SettingsFormInput-shaped) view of the saved settings row —
+ * shared by the initial `reset()` and by every per-group save as the
+ * "everything except this group" baseline. Centralized so a per-group save
+ * builds its payload from the exact same mapping the form was last
+ * initialized from, not a second hand-maintained copy of it.
+ */
+function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data"]>): SettingsFormInput {
+  return {
+    per_km_minutes: Number(settings.per_km_minutes),
+    geofence_radius_m: settings.geofence_radius_m,
+    geofence_radius_job_m: settings.geofence_radius_job_m,
+    office_lat: Number(settings.office_lat),
+    office_lng: Number(settings.office_lng),
+    work_start: hhmm(settings.work_start),
+    work_end: hhmm(settings.work_end),
+    late_cutoff: hhmm(settings.late_cutoff),
+    very_late_threshold_minutes: settings.very_late_threshold_minutes,
+    lunch_minutes_allowed: settings.lunch_minutes_allowed,
+    lunch_minutes_red_threshold: settings.lunch_minutes_red_threshold,
+    discount_tech_max: Number(settings.discount_tech_max),
+    discount_admin_max: Number(settings.discount_admin_max),
+    amc_book_window_days: settings.amc_book_window_days,
+    referral_point_value: Number(settings.referral_point_value),
+    review_link_min_stars: Number(settings.review_link_min_stars),
+    google_review_url: settings.google_review_url ?? "",
+    review_flag_threshold_percent: Number(settings.review_flag_threshold_percent),
+    review_flag_min_visits: settings.review_flag_min_visits,
+    default_min_stock: settings.default_min_stock,
+    gst_rate: Number(settings.gst_rate),
+    sla_hours_very_urgent: Number(settings.sla_hours_very_urgent),
+    sla_hours_urgent: Number(settings.sla_hours_urgent),
+    sla_hours_normal: Number(settings.sla_hours_normal),
+    default_duration_paid_minutes: settings.default_duration_paid_minutes,
+    default_duration_warranty_minutes: settings.default_duration_warranty_minutes,
+    default_duration_amc_minutes: settings.default_duration_amc_minutes,
+    default_duration_installation_minutes: settings.default_duration_installation_minutes,
+    narrow_window_threshold_minutes: settings.narrow_window_threshold_minutes,
+    po_approval_threshold: Number(settings.po_approval_threshold),
+    po_requires_approval: settings.po_requires_approval,
+    po_quote_timeout_hours: Number(settings.po_quote_timeout_hours),
+    po_quote_day_of_month: settings.po_quote_day_of_month ?? "",
+    review_time_allowance_minutes: settings.review_time_allowance_minutes,
+    enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
+    emi_enabled: settings.emi_enabled,
+    review_incentives_enabled: settings.review_incentives_enabled,
+    emi_tenure_months: (Array.isArray(settings.emi_tenure_months) ? settings.emi_tenure_months : []).join(","),
+    emi_disclaimer: settings.emi_disclaimer ?? "",
+  }
+}
+
+// One row per <Card> below that holds fields from the big form. Lets a
+// group's Save button submit *only* its own fields (see saveGroup) instead
+// of silently also committing whatever else happens to be dirty elsewhere
+// on the page (MASTER-001's actual root cause — 15 groups sharing 3 Save
+// buttons, not just 3 buttons being hard to find).
+const FIELD_GROUPS = {
+  discountGift: ["discount_tech_max", "discount_admin_max"],
+  travel: ["per_km_minutes", "geofence_radius_m", "geofence_radius_job_m", "office_lat", "office_lng"],
+  attendance: ["work_start", "work_end", "late_cutoff", "very_late_threshold_minutes", "lunch_minutes_allowed", "lunch_minutes_red_threshold"],
+  gst: ["gst_rate"],
+  sla: ["sla_hours_very_urgent", "sla_hours_urgent", "sla_hours_normal"],
+  jobDuration: [
+    "default_duration_paid_minutes",
+    "default_duration_warranty_minutes",
+    "default_duration_amc_minutes",
+    "default_duration_installation_minutes",
+    "review_time_allowance_minutes",
+    "enquiry_time_allowance_minutes",
+  ],
+  booking: ["narrow_window_threshold_minutes"],
+  amcReferral: [
+    "amc_book_window_days",
+    "referral_point_value",
+    "review_link_min_stars",
+    "google_review_url",
+    "review_flag_threshold_percent",
+    "review_flag_min_visits",
+    "review_incentives_enabled",
+  ],
+  inventory: ["default_min_stock", "po_approval_threshold", "po_quote_timeout_hours", "po_quote_day_of_month", "po_requires_approval"],
+  productEnquiry: ["emi_tenure_months", "emi_disclaimer", "emi_enabled"],
+} as const satisfies Record<string, readonly (keyof SettingsFormInput)[]>
+
+type GroupKey = keyof typeof FIELD_GROUPS
+
 export function SettingsTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
   const { data: settings, isLoading, isError, refetch } = useSettings(orgId)
   const updateMut = useUpdateSettings(orgId)
+  const [savingGroup, setSavingGroup] = useState<GroupKey | null>(null)
+  const [justSavedGroup, setJustSavedGroup] = useState<GroupKey | null>(null)
+  const [orgProfileDirty, setOrgProfileDirty] = useState(false)
+  const handleOrgProfileDirtyChange = useCallback((dirty: boolean) => setOrgProfileDirty(dirty), [])
 
   const {
     register,
     handleSubmit,
     reset,
     watch,
+    getValues,
+    trigger,
     setValue,
-    formState: { errors, isDirty },
+    formState: { errors, isDirty, dirtyFields },
   } = useForm<SettingsFormInput, unknown, SettingsOutput>({ resolver: zodResolver(settingsSchema), mode: "onChange" })
 
   useEffect(() => {
-    if (settings) {
-      reset({
-        per_km_minutes: Number(settings.per_km_minutes),
-        geofence_radius_m: settings.geofence_radius_m,
-        geofence_radius_job_m: settings.geofence_radius_job_m,
-        office_lat: Number(settings.office_lat),
-        office_lng: Number(settings.office_lng),
-        work_start: hhmm(settings.work_start),
-        work_end: hhmm(settings.work_end),
-        late_cutoff: hhmm(settings.late_cutoff),
-        very_late_threshold_minutes: settings.very_late_threshold_minutes,
-        lunch_minutes_allowed: settings.lunch_minutes_allowed,
-        lunch_minutes_red_threshold: settings.lunch_minutes_red_threshold,
-        discount_tech_max: Number(settings.discount_tech_max),
-        discount_admin_max: Number(settings.discount_admin_max),
-        amc_book_window_days: settings.amc_book_window_days,
-        referral_point_value: Number(settings.referral_point_value),
-        review_link_min_stars: Number(settings.review_link_min_stars),
-        google_review_url: settings.google_review_url ?? "",
-        review_flag_threshold_percent: Number(settings.review_flag_threshold_percent),
-        review_flag_min_visits: settings.review_flag_min_visits,
-        default_min_stock: settings.default_min_stock,
-        gst_rate: Number(settings.gst_rate),
-        sla_hours_very_urgent: Number(settings.sla_hours_very_urgent),
-        sla_hours_urgent: Number(settings.sla_hours_urgent),
-        sla_hours_normal: Number(settings.sla_hours_normal),
-        default_duration_paid_minutes: settings.default_duration_paid_minutes,
-        default_duration_warranty_minutes: settings.default_duration_warranty_minutes,
-        default_duration_amc_minutes: settings.default_duration_amc_minutes,
-        default_duration_installation_minutes: settings.default_duration_installation_minutes,
-        narrow_window_threshold_minutes: settings.narrow_window_threshold_minutes,
-        po_approval_threshold: Number(settings.po_approval_threshold),
-        po_requires_approval: settings.po_requires_approval,
-        po_quote_timeout_hours: Number(settings.po_quote_timeout_hours),
-        po_quote_day_of_month: settings.po_quote_day_of_month ?? "",
-        review_time_allowance_minutes: settings.review_time_allowance_minutes,
-        enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
-        emi_enabled: settings.emi_enabled,
-        review_incentives_enabled: settings.review_incentives_enabled,
-        emi_tenure_months: (Array.isArray(settings.emi_tenure_months) ? settings.emi_tenure_months : []).join(","),
-        emi_disclaimer: settings.emi_disclaimer ?? "",
-      })
-    }
+    // `keepDirtyValues` matters here, not just on the per-group save path
+    // below: without it, *any* settings refetch (another group's save,
+    // another admin's edit landing via a slow network retry, React Query's
+    // own background refetch) would silently blow away whatever the user is
+    // still mid-typing in an untouched field elsewhere on this long page.
+    if (settings) reset(toFormValues(settings), { keepDirtyValues: true })
   }, [settings, reset])
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
@@ -94,6 +150,38 @@ export function SettingsTab() {
   }
 
   const onSubmit = handleSubmit((values) => updateMut.mutate(values))
+
+  /**
+   * Scoped save for one Card: validates only that group's fields (every
+   * cross-field `.refine()` in settingsSchema happens to compare fields
+   * within the same group, so this never spuriously blocks on an unrelated
+   * group's in-progress edit), then submits a payload built from the last
+   * known server truth overlaid with *only* this group's live values — so a
+   * dirty, unsaved edit sitting in a different card is neither lost nor
+   * accidentally persisted as a side effect of clicking this button.
+   */
+  async function saveGroup(key: GroupKey) {
+    const fieldKeys = FIELD_GROUPS[key]
+    const valid = await trigger(fieldKeys as unknown as (keyof SettingsFormInput)[])
+    if (!valid) return
+    const merged: SettingsFormInput = { ...toFormValues(settings!), ...pick(getValues(), fieldKeys) }
+    setSavingGroup(key)
+    try {
+      await updateMut.mutateAsync(settingsSchema.parse(merged))
+      // keepDirtyValues again: saving the Travel card shouldn't revert a
+      // still-unsaved edit sitting in the Inventory card two scrolls away.
+      reset(merged, { keepDirtyValues: true })
+      setJustSavedGroup(key)
+    } finally {
+      setSavingGroup(null)
+    }
+  }
+
+  function pick<T extends Record<string, unknown>>(obj: T, keys: readonly (keyof T)[]): Partial<T> {
+    const out: Partial<T> = {}
+    for (const k of keys) out[k] = obj[k]
+    return out
+  }
 
   const techMax = Number((watch("discount_tech_max") as number | string | undefined) ?? settings.discount_tech_max)
   const adminMax = Number((watch("discount_admin_max") as number | string | undefined) ?? settings.discount_admin_max)
@@ -110,14 +198,38 @@ export function SettingsTab() {
   const field = (key: keyof SettingsFormInput, label: string, type: "number" | "time" | "text", step?: string, placeholder?: string) => (
     <div className="space-y-1">
       <Label htmlFor={key}>{label}</Label>
-      <Input id={key} type={type} step={step} placeholder={placeholder} aria-invalid={!!errors[key]} {...register(key)} />
+      <Input
+        id={key}
+        type={type}
+        step={step}
+        placeholder={placeholder}
+        aria-invalid={!!errors[key]}
+        {...register(key, { onChange: () => setJustSavedGroup(null) })}
+      />
       {errors[key] ? <p className="text-xs text-danger">{t(errors[key]!.message!)}</p> : null}
     </div>
   )
 
+  function isGroupDirty(key: GroupKey) {
+    return FIELD_GROUPS[key].some((k) => dirtyFields[k as keyof SettingsFormInput])
+  }
+
+  function GroupSaveRow({ groupKey }: { groupKey: GroupKey }) {
+    const dirty = isGroupDirty(groupKey)
+    return (
+      <div className="flex items-center justify-end gap-2 px-1">
+        {justSavedGroup === groupKey && !dirty ? <span className="text-xs text-success">{t("settings.saved")}</span> : null}
+        <Button type="button" size="sm" disabled={!dirty || savingGroup === groupKey} onClick={() => saveGroup(groupKey)}>
+          {savingGroup === groupKey ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <form onSubmit={onSubmit} className={cn("space-y-4", (isDirty || updateMut.isSuccess) && "pb-20")}>
-      <OrgProfileCard orgId={orgId} />
+      <UnsavedChangesGuard when={isDirty || orgProfileDirty} />
+      <OrgProfileCard orgId={orgId} onDirtyChange={handleOrgProfileDirtyChange} />
 
       <DiscountGiftCard
         techMax={techMax}
@@ -125,8 +237,8 @@ export function SettingsTab() {
         onStepTech={stepTech}
         onStepAdmin={stepAdmin}
         adminErrorMessage={errors.discount_admin_max?.message}
-        onSaveLimits={onSubmit}
-        saving={updateMut.isPending}
+        onSaveLimits={() => saveGroup("discountGift")}
+        saving={savingGroup === "discountGift"}
         orgId={orgId}
       />
 
@@ -140,6 +252,7 @@ export function SettingsTab() {
           {field("office_lng", t("settings.officeLng"), "number", "0.000001")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.officeLocationHint")}</p>
+        <GroupSaveRow groupKey="travel" />
       </Card>
 
       <Card className="gap-4">
@@ -153,11 +266,13 @@ export function SettingsTab() {
           {field("lunch_minutes_red_threshold", t("settings.lunchRed"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.attendanceStatusHint")}</p>
+        <GroupSaveRow groupKey="attendance" />
       </Card>
 
       <Card className="gap-4">
         <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.discounts")}</h3>
         <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">{field("gst_rate", t("settings.gstRate"), "number", "0.5")}</div>
+        <GroupSaveRow groupKey="gst" />
       </Card>
 
       <Card className="gap-4">
@@ -167,6 +282,7 @@ export function SettingsTab() {
           {field("sla_hours_urgent", t("settings.slaUrgent"), "number", "0.5")}
           {field("sla_hours_normal", t("settings.slaNormal"), "number", "0.5")}
         </div>
+        <GroupSaveRow groupKey="sla" />
       </Card>
 
       <Card className="gap-4">
@@ -187,6 +303,7 @@ export function SettingsTab() {
           {field("enquiry_time_allowance_minutes", t("settings.enquiryTimeAllowance"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.allowanceHint")}</p>
+        <GroupSaveRow groupKey="jobDuration" />
       </Card>
 
       <Card className="gap-4">
@@ -195,8 +312,16 @@ export function SettingsTab() {
           {field("narrow_window_threshold_minutes", t("settings.narrowWindowThreshold"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.narrowWindowThresholdHint")}</p>
+        <GroupSaveRow groupKey="booking" />
       </Card>
 
+      {/* AutoAssignLeadsCard and AppointmentSlotsCard deliberately get no
+          GroupSaveRow: AutoAssignLeadsCard's toggle persists immediately on
+          change (its own mutation, no draft state to lose), and
+          AppointmentSlotsCard is a CRUD list where every add/edit already
+          submits through its own explicit per-row Save in its dialog. A
+          per-group Save button here would be misleading — there is never
+          anything pending to commit. */}
       <AutoAssignLeadsCard />
       <AppointmentSlotsCard />
 
@@ -217,12 +342,13 @@ export function SettingsTab() {
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.reviewFlagHint")}</p>
         <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
-          <input type="checkbox" className="size-4 accent-accent" {...register("review_incentives_enabled")} />
+          <input type="checkbox" className="size-4 accent-accent" {...register("review_incentives_enabled", { onChange: () => setJustSavedGroup(null) })} />
           <span>
             <span className="block font-medium">{t("settings.reviewIncentivesEnabled")}</span>
             <span className="block text-xs text-text-muted">{t("settings.reviewIncentivesEnabledHint")}</span>
           </span>
         </label>
+        <GroupSaveRow groupKey="amcReferral" />
       </Card>
 
       <Card className="gap-4">
@@ -238,12 +364,13 @@ export function SettingsTab() {
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.poQuoteDayOfMonthHint")}</p>
         <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
-          <input type="checkbox" className="size-4 accent-accent" {...register("po_requires_approval")} />
+          <input type="checkbox" className="size-4 accent-accent" {...register("po_requires_approval", { onChange: () => setJustSavedGroup(null) })} />
           <span>
             <span className="block font-medium">{t("settings.poRequiresApproval")}</span>
             <span className="block text-xs text-text-muted">{t("settings.poRequiresApprovalHint")}</span>
           </span>
         </label>
+        <GroupSaveRow groupKey="inventory" />
       </Card>
 
       <Card className="gap-4">
@@ -254,39 +381,34 @@ export function SettingsTab() {
         </div>
         <div className="px-1">{field("emi_disclaimer", t("settings.emiDisclaimer"), "text", undefined, t("settings.emiDisclaimerPlaceholder"))}</div>
         <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
-          <input type="checkbox" className="size-4 accent-accent" {...register("emi_enabled")} />
+          <input type="checkbox" className="size-4 accent-accent" {...register("emi_enabled", { onChange: () => setJustSavedGroup(null) })} />
           <span>
             <span className="block font-medium">{t("settings.emiEnabled")}</span>
             <span className="block text-xs text-text-muted">{t("settings.emiEnabledHint")}</span>
           </span>
         </label>
+        <GroupSaveRow groupKey="productEnquiry" />
       </Card>
 
       {updateMut.isError ? (
         <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(updateMut.error as Error).message}</p>
       ) : null}
 
-      {/* This form covers ~10 setting groups (Travel, Attendance, SLA, Job
-          Duration, Booking, AMC & Referral, Inventory, Product Enquiry...) in
-          one submit, but previously only had a Save button at the very
-          bottom — unreachable without scrolling past everything else, with
-          no indication along the way that e.g. editing "GST rate" near the
-          top needed that same distant button (MASTER-001). A sticky bar
-          fixes both: it's visible from anywhere on the page the instant
-          something is dirty, and it says plainly that it covers the whole
-          page, not just whatever card is on screen. */}
+      {/* Every group above now has its own scoped Save, so this bar is no
+          longer "the only way to save anything" (MASTER-001's original
+          failure mode) — it's a convenience for committing every dirty
+          group in one action, clearly labeled as such, plus the generic
+          "something here is unsaved" signal SettingsNavigationGuard listens
+          for isn't itself visible on screen. Still `fixed`, not `sticky`,
+          for the same reason as before: `sticky`'s own flow position in a
+          page this long means it wouldn't appear until scrolled almost to
+          the bottom anyway. */}
       {isDirty || updateMut.isSuccess ? (
-        // A `sticky` bar here only engages once its own position in this very
-        // long form's normal flow nears the viewport — i.e. only once you've
-        // scrolled almost to the end anyway, which is exactly the "unreachable
-        // until you scroll past everything" problem this exists to fix. Needs
-        // `fixed` (viewport-relative, not flow-relative) to actually show up
-        // the moment something becomes dirty, from anywhere on the page.
         <div className="fixed inset-x-0 bottom-4 z-20 flex justify-center px-4 sm:left-[88px] sm:right-6 sm:justify-end">
           <div className="flex w-full max-w-md items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3 shadow-[0_8px_30px_-12px_rgba(26,26,26,0.35)]">
             <p className="text-sm font-medium text-text">{isDirty ? t("settings.unsavedChangesBar") : t("settings.saved")}</p>
             <Button type="submit" disabled={!isDirty || updateMut.isPending}>
-              {updateMut.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
+              {updateMut.isPending ? <Loader2 className="size-4 animate-spin" /> : t("settings.saveAll")}
             </Button>
           </div>
         </div>
@@ -299,7 +421,7 @@ export function SettingsTab() {
 // it's stored on organizations, not the app_settings row the rest of this
 // page edits, so it gets its own small local form + mutation instead of
 // joining the big react-hook-form above.
-function OrgProfileCard({ orgId }: { orgId: string | undefined }) {
+function OrgProfileCard({ orgId, onDirtyChange }: { orgId: string | undefined; onDirtyChange: (dirty: boolean) => void }) {
   const { t } = useTranslation()
   const { data: org, isLoading } = useOrganization(orgId)
   const updateMut = useUpdateOrganization(orgId)
@@ -318,15 +440,19 @@ function OrgProfileCard({ orgId }: { orgId: string | undefined }) {
     }
   }, [org])
 
+  const dirty = !!org && (gstNo !== (org.gst_no ?? "") || address !== (org.address ?? "") || phone !== (org.phone ?? "") || businessHours !== (org.business_hours ?? ""))
+
+  // This card has its own local-state form (see the comment above), separate
+  // from the big react-hook-form the rest of the page uses — so its dirty
+  // state has to be reported up separately too, or the navigation guard at
+  // the top of the page would miss edits made here specifically.
+  useEffect(() => {
+    onDirtyChange(dirty)
+  }, [dirty, onDirtyChange])
+
   if (isLoading || !org) {
     return <div className="h-32 animate-pulse rounded-card border border-border bg-surface" />
   }
-
-  const dirty =
-    gstNo !== (org.gst_no ?? "") ||
-    address !== (org.address ?? "") ||
-    phone !== (org.phone ?? "") ||
-    businessHours !== (org.business_hours ?? "")
 
   return (
     <Card className="gap-4">
