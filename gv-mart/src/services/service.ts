@@ -696,3 +696,25 @@ export async function getTicketEvidence(ticketId: string): Promise<TicketEvidenc
 
   return { visits, invoice }
 }
+
+export type TicketDisplayName = { id: string; customerName: string | null; productName: string | null }
+
+/**
+ * Display-only lookup for notification rows: `notifications.body` for
+ * appointment_assigned rows is a generic "Ticket <uuid> assigned to you"
+ * string with no human-readable reference baked in (the row is written once,
+ * at assignment time, and never re-rendered). One batched query per
+ * notifications-page load resolves the referenced tickets' customer/product
+ * names so the list can show something readable instead of a raw id —
+ * read-only, doesn't touch how the notification row itself gets created.
+ */
+export async function listTicketDisplayNames(ticketIds: string[]): Promise<TicketDisplayName[]> {
+  if (ticketIds.length === 0) return []
+  const { data, error } = await supabase.from("service_tickets").select("id, customers(name), products(name)").in("id", ticketIds)
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    customerName: (row.customers as { name: string } | null)?.name ?? null,
+    productName: (row.products as { name: string } | null)?.name ?? null,
+  }))
+}

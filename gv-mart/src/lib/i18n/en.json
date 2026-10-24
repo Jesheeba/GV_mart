@@ -4786,6 +4786,8 @@
     "empty": "No notifications yet.",
     "markAllRead": "Mark all read",
     "markRead": "Mark read",
+    "jobAssignedBodyFull": "{{customer}} — {{product}}",
+    "jobAssignedBodyCustomerOnly": "{{customer}}",
     "readLabel": "Read",
     "filters": {
       "status": "Status",

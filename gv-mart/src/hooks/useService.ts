@@ -55,6 +55,16 @@ export function useTicketSearch(orgId: string | undefined, term: string) {
   })
 }
 
+export function useTicketDisplayNames(ticketIds: string[]) {
+  const sortedIds = [...ticketIds].sort()
+  return useQuery({
+    queryKey: ["service_tickets", "displayNames", sortedIds],
+    queryFn: () => service.listTicketDisplayNames(sortedIds),
+    enabled: sortedIds.length > 0,
+    staleTime: 60_000,
+  })
+}
+
 export function useTicket(id: string | undefined) {
   return useQuery({
     queryKey: ["service_tickets", "detail", id],
