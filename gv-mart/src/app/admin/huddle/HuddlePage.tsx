@@ -153,7 +153,10 @@ function MeetingView() {
           <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-4">
             <Metric label={t("huddle.performance.collected")} value={formatCurrency(perf.data.collected)} />
             <Metric label={t("huddle.performance.completedVisits")} value={String(perf.data.completedVisits)} />
-            <Metric label={t("huddle.performance.within24h")} value={perf.data.resolvedWithin24hPercent === null ? "—" : `${perf.data.resolvedWithin24hPercent}%`} />
+            <Metric
+              label={t("huddle.performance.within24h", { hours: perf.data.resolvedWithinSlaHours })}
+              value={perf.data.resolvedWithin24hPercent === null ? "—" : `${perf.data.resolvedWithin24hPercent}%`}
+            />
             <Metric label={t("huddle.performance.openTickets")} value={String(perf.data.openTickets)} />
           </div>
         )}

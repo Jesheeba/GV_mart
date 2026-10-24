@@ -74,9 +74,9 @@
       "help": "Service tickets that are open, assigned or in progress right now."
     },
     "resolved": {
-      "title": "Fixed within 24 hours",
-      "sub": "{{resolved}} of {{completed}} completed",
-      "help": "Of the tickets raised in this period and now completed, the share completed within 24 hours."
+      "title": "Fixed within SLA",
+      "sub": "{{resolved}} of {{completed}} completed within {{hours}}h",
+      "help": "Of the tickets raised in this period and now completed, the share completed within the resolution SLA (the hour window set in Settings — see the figure in the line below)."
     },
     "rating": {
       "title": "Customer rating",
@@ -4489,8 +4489,8 @@
       "avgRating": "Avg Rating",
       "reviewsShort": "Reviews",
       "conversion": "Conversion",
-      "opsKpiLabel": "Ops KPI: tickets resolved within 24h",
-      "kpiNote": "Operation Admin KPI = complaints resolved within 24h; Sales person KPI = lead conversion rate.",
+      "opsKpiLabel": "Ops KPI: tickets resolved within the SLA window",
+      "kpiNote": "Operation Admin KPI = complaints resolved within the resolution SLA (set in Settings); Sales person KPI = lead conversion rate.",
       "legendCaption": "1st-fix rate, technician-wise",
       "legendStrong": "≥ 90% strong",
       "legendWatch": "80–89% watch",
@@ -4708,7 +4708,7 @@
       "title": "Performance — {{date}}",
       "collected": "Collected",
       "completedVisits": "Completed tickets",
-      "within24h": "Resolved within 24h",
+      "within24h": "Resolved within {{hours}}h",
       "openTickets": "Open tickets now",
       "unavailable": "Performance numbers unavailable."
     },

@@ -141,5 +141,20 @@ begin
   perform pg_temp.chk('S2 reverting to the 24h default, the same ticket IS within SLA again',
     (r->>'resolved_within_24h')::int = 1, r::text);
 
+  -- S3/S4 (review fix): the RPC's key is still literally named 'resolved_within_24h' even though the window is
+  -- configurable, so it now ALSO carries the real value as 'sla_hours' — an honest label can be built from that,
+  -- without guessing 24. Prove the carried value actually reflects a non-default setting, not just the default.
+  update public.settings set ops_resolution_sla_hours = 6 where org_id = v_org;
+  r := pg_temp.call_as(m, 'report_ops_resolution', v_from, v_to);
+  perform pg_temp.chk('S3 report_ops_resolution carries the real sla_hours (6, not the 24 default) in its payload',
+    (r->>'sla_hours')::int = 6, r::text);
+
+  r := pg_temp.call_as(m, 'report_kpi_tiles', v_from, v_to);
+  perform pg_temp.chk('S4 report_kpi_tiles forwards the SAME sla_hours into its own tile-13 sub-object (additive; every other field of that object is untouched)',
+    (r #>> '{service,resolved_within_24h,sla_hours}')::int = 6
+    and (r #>> '{service,resolved_within_24h,percent}') is not null,
+    r::text);
+  update public.settings set ops_resolution_sla_hours = 24 where org_id = v_org;
+
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;

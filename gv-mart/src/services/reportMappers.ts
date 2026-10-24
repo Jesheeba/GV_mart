@@ -192,9 +192,12 @@ export function mapPerformance(rows: PerformanceRpcRow[]): PerformanceRow[] {
   }))
 }
 
-export type OpsResolutionRpc = { resolved_within_24h: number; total_completed: number; percent: number | null }
+// resolved_within_24h keeps its name for compatibility with every existing reader, but the window behind it is now
+// configurable (settings.ops_resolution_sla_hours) — sla_hours is the real figure a label should be built from,
+// not an assumed 24.
+export type OpsResolutionRpc = { resolved_within_24h: number; total_completed: number; percent: number | null; sla_hours: number }
 export function mapOpsResolution(d: OpsResolutionRpc) {
-  return { resolvedWithin24h: num(d.resolved_within_24h), totalCompleted: num(d.total_completed), percent: numOrNull(d.percent) }
+  return { resolvedWithin24h: num(d.resolved_within_24h), totalCompleted: num(d.total_completed), percent: numOrNull(d.percent), slaHours: num(d.sla_hours) }
 }
 
 // ── report_feedback ──────────────────────────────────────────────────────
@@ -397,7 +400,7 @@ export type KpiTilesRpc = {
   } | null
   service: {
     open_tickets: { count: number; urgent: number; past_sla: number }
-    resolved_within_24h: { resolved: number; completed: number; percent: number | null }
+    resolved_within_24h: { resolved: number; completed: number; percent: number | null; sla_hours: number }
     rating: { average: number | null; count: number; below_4_5: number }
     amc: { active: number; renewal_window: number; revenue: number }
   } | null
@@ -429,7 +432,7 @@ export type KpiTiles = {
   } | null
   service: {
     openTickets: { count: number; urgent: number; pastSla: number }
-    resolvedWithin24h: { resolved: number; completed: number; percent: number | null }
+    resolvedWithin24h: { resolved: number; completed: number; percent: number | null; slaHours: number }
     rating: { average: number | null; count: number; below45: number }
     amc: { active: number; renewalWindow: number; revenue: number }
   } | null
@@ -483,7 +486,12 @@ export function mapKpiTiles(d: KpiTilesRpc): KpiTiles {
     service: v
       ? {
           openTickets: { count: num(v.open_tickets.count), urgent: num(v.open_tickets.urgent), pastSla: num(v.open_tickets.past_sla) },
-          resolvedWithin24h: { resolved: num(v.resolved_within_24h.resolved), completed: num(v.resolved_within_24h.completed), percent: numOrNull(v.resolved_within_24h.percent) },
+          resolvedWithin24h: {
+            resolved: num(v.resolved_within_24h.resolved),
+            completed: num(v.resolved_within_24h.completed),
+            percent: numOrNull(v.resolved_within_24h.percent),
+            slaHours: num(v.resolved_within_24h.sla_hours),
+          },
           rating: { average: numOrNull(v.rating.average), count: num(v.rating.count), below45: num(v.rating.below_4_5) },
           amc: { active: num(v.amc.active), renewalWindow: num(v.amc.renewal_window), revenue: num(v.amc.revenue) },
         }

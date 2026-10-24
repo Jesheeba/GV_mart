@@ -172,9 +172,9 @@ describe("mapPerformance / mapOpsResolution", () => {
     expect(merged.find((r) => r.id === "b")).toMatchObject({ efficiencyPercent: null, efficiencySampleCount: 0 })
   })
 
-  it("maps the 24h resolution KPI, including no completed tickets", () => {
-    expect(mapOpsResolution({ resolved_within_24h: 2, total_completed: 3, percent: 66.7 })).toEqual({ resolvedWithin24h: 2, totalCompleted: 3, percent: 66.7 })
-    expect(mapOpsResolution({ resolved_within_24h: 0, total_completed: 0, percent: null })).toEqual({ resolvedWithin24h: 0, totalCompleted: 0, percent: null })
+  it("maps the resolution KPI, including no completed tickets, carrying the real SLA hours (not an assumed 24)", () => {
+    expect(mapOpsResolution({ resolved_within_24h: 2, total_completed: 3, percent: 66.7, sla_hours: 6 })).toEqual({ resolvedWithin24h: 2, totalCompleted: 3, percent: 66.7, slaHours: 6 })
+    expect(mapOpsResolution({ resolved_within_24h: 0, total_completed: 0, percent: null, sla_hours: 24 })).toEqual({ resolvedWithin24h: 0, totalCompleted: 0, percent: null, slaHours: 24 })
   })
 
   it("an empty list stays empty", () => {

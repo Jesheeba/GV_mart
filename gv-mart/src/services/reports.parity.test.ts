@@ -90,7 +90,10 @@ describe.skipIf(!email || !password || !org)("legacy vs SQL (live throwaway org)
   })
 
   it("Ops resolution matches", async () => {
-    expect(await getOpsResolutionKpi(org, oct)).toEqual(await getOpsResolutionKpiLegacy(org, oct))
+    // slaHours comes from settings.ops_resolution_sla_hours (P5, new-path only) — the legacy browser-side path
+    // predates that setting and always assumed 24h; excluded from parity on purpose, not a regression.
+    const { slaHours: _sh, ...n } = await getOpsResolutionKpi(org, oct)
+    expect(n).toEqual(await getOpsResolutionKpiLegacy(org, oct))
   })
 
   it("Feedback matches except the trend, which is now grouped by IST day", async () => {

@@ -877,8 +877,8 @@ export async function getPerformanceReport(_orgId: string, range: DateRange): Pr
   return mergePerformanceEfficiency(mapPerformance(perf), efficiency)
 }
 
-/** Operation-admin KPI: % of tickets in range resolved (completed) within 24h of creation. */
-export async function getOpsResolutionKpi(_orgId: string, range: DateRange): Promise<{ resolvedWithin24h: number; totalCompleted: number; percent: number | null }> {
+/** Operation-admin KPI: % of tickets in range resolved (completed) within the resolution SLA window (configurable, settings.ops_resolution_sla_hours — slaHours carries the actual figure). */
+export async function getOpsResolutionKpi(_orgId: string, range: DateRange): Promise<{ resolvedWithin24h: number; totalCompleted: number; percent: number | null; slaHours: number }> {
   return mapOpsResolution(await callReport<OpsResolutionRpc>("report_ops_resolution", rpcArgs(range)))
 }
 

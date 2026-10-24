@@ -142,7 +142,11 @@ function serviceTiles(v: NonNullable<KpiTiles["service"]>): KpiTileView[] {
       sub:
         v.resolvedWithin24h.percent == null
           ? text("kpi.noData")
-          : text("kpi.resolved.sub", { resolved: v.resolvedWithin24h.resolved, completed: v.resolvedWithin24h.completed }),
+          : text("kpi.resolved.sub", {
+              resolved: v.resolvedWithin24h.resolved,
+              completed: v.resolvedWithin24h.completed,
+              hours: v.resolvedWithin24h.slaHours,
+            }),
       empty: v.resolvedWithin24h.percent == null,
     }),
     base("rating", {
