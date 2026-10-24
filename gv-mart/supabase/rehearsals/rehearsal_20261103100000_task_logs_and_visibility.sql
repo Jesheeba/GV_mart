@@ -7,7 +7,7 @@
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   99990dde17cceb8485d5adc12bc4776906557a615341a4c0dbd04bf65238d6d5  gv-mart/supabase/migrations/20261103100000_task_logs_and_visibility.sql
---   0ba1eef4ea38530206f9176d0fbfc1aea57c167e17cb010c7d869503e5c05266  gv-mart/supabase/tests/task_logs_and_visibility.test.sql
+--   9ee0ff8755b45aef8db476d5344e4f6bf1bf1bd746691684e3a545433d0b8ec3  gv-mart/supabase/tests/task_logs_and_visibility.test.sql
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
@@ -193,6 +193,11 @@ $rh0$;
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid, p_name text default null) returns uuid language plpgsql as $f$
@@ -219,11 +224,6 @@ begin
   insert into public.tasks (org_id, assignee_id, assigned_by, title, source) values (p_org, p_assignee, p_by, p_title, 'assigned') returning id into t;
   return t;
 end $f$;
-
--- 20261024100000 made `alter default privileges for role postgres revoke execute on functions from public` global, which also removes
--- PUBLIC execute from the helper functions above (they live in pg_temp and are called after `set local role authenticated`).
--- Granting on pg_temp only touches this session's own temporary schema.
-grant execute on all functions in schema pg_temp to public;
 
 do $t$
 declare
@@ -434,7 +434,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '0ba1eef4ea38530206f9176d0fbfc1aea57c167e17cb010c7d869503e5c05266' then
+  if v_hash <> '9ee0ff8755b45aef8db476d5344e4f6bf1bf1bd746691684e3a545433d0b8ec3' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_logs_and_visibility.test.sql: %', v_hash;
   end if;
   execute v_text;
