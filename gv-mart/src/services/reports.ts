@@ -882,6 +882,24 @@ export async function getOpsResolutionKpi(_orgId: string, range: DateRange): Pro
   return mapOpsResolution(await callReport<OpsResolutionRpc>("report_ops_resolution", rpcArgs(range)))
 }
 
+// ── reports.parity.test.ts helpers ───────────────────────────────────────
+// Extracted so the skip decision (does this org's SLA still match what the deprecated legacy aggregation
+// hardcodes?) can be unit-tested with the settings fetch mocked, without needing a live org.
+
+/** Mirrors report_ops_resolution's own defaulting exactly: a missing settings row (maybeSingle returns null) and a
+ * null column value both collapse to 24, same as the RPC's `coalesce(s.ops_resolution_sla_hours, 24)` / second
+ * `coalesce(v_sla_hours, 24)` for a missing row. */
+export async function getOpsResolutionParitySlaHours(orgId: string): Promise<number> {
+  const { data, error } = await supabase.from("settings").select("ops_resolution_sla_hours").eq("org_id", orgId).maybeSingle()
+  if (error) throw error
+  return data?.ops_resolution_sla_hours ?? 24
+}
+
+/** null when the parity comparison should run (SLA is still the legacy-assumed 24); otherwise the skip reason, with the actual value in it. */
+export function opsResolutionParitySkipReason(slaHours: number): string | null {
+  return slaHours === 24 ? null : `org's ops_resolution_sla_hours is ${slaHours}, not the legacy-assumed 24 — see comment above`
+}
+
 export async function getFeedbackReport(_orgId: string, range: DateRange): Promise<FeedbackReport> {
   return mapFeedback(await callReport<FeedbackRpc>("report_feedback", rpcArgs(range)))
 }

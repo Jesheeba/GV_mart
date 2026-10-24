@@ -11,6 +11,8 @@ import {
   getFeedbackReportLegacy,
   getOpsResolutionKpi,
   getOpsResolutionKpiLegacy,
+  getOpsResolutionParitySlaHours,
+  opsResolutionParitySkipReason,
   getPerformanceReport,
   getPerformanceReportLegacy,
   getPnlReport,
@@ -96,11 +98,12 @@ describe.skipIf(!email || !password || !org)("legacy vs SQL (live throwaway org)
     // diverge between the two paths, and that is correct new behaviour, not a bug. Skip (not fail, not delete)
     // so the parity signal survives for every org that hasn't touched the setting, and a change to the setting
     // shows up here as a skip, not a mystery red test with no visible cause.
-    const { data: s, error } = await supabase.from("settings").select("ops_resolution_sla_hours").eq("org_id", org).single()
-    if (error) throw error
-    if (s.ops_resolution_sla_hours !== 24) {
-      ctx.skip(`org's ops_resolution_sla_hours is ${s.ops_resolution_sla_hours}, not the legacy-assumed 24 — see comment above`)
-    }
+    // getOpsResolutionParitySlaHours/opsResolutionParitySkipReason (reports.ts) are unit-tested on their own in
+    // reports.opsResolutionParity.test.ts, with the settings fetch mocked — covering the null-column, 24,
+    // 48, and no-settings-row cases without touching a live DB. This test only wires that decision in.
+    const slaHours = await getOpsResolutionParitySlaHours(org)
+    const skipReason = opsResolutionParitySkipReason(slaHours)
+    if (skipReason) ctx.skip(skipReason)
     // slaHours comes from the same setting (P5, new-path only) — the legacy path has no equivalent field at all;
     // excluded from parity on purpose, not a regression.
     const { slaHours: _sh, ...n } = await getOpsResolutionKpi(org, oct)
