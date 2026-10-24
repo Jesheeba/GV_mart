@@ -195,7 +195,7 @@ export function AdminShell() {
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               type="button"
-              aria-label={t("shell.notifications")}
+              aria-label={unreadCount ? t("shell.notificationsUnread", { count: unreadCount > 9 ? "9+" : unreadCount }) : t("shell.notifications")}
               onClick={() => navigate("/admin/notifications")}
               className="relative flex size-10 items-center justify-center rounded-full bg-surface text-text-muted hover:bg-surface-alt hover:text-text"
             >

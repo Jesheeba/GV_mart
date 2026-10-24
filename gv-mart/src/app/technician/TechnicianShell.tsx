@@ -124,7 +124,7 @@ export function TechnicianShell() {
           <SyncStatusChip />
           <button
             type="button"
-            aria-label={t("shell.notifications")}
+            aria-label={unreadCount ? t("shell.notificationsUnread", { count: unreadCount > 9 ? "9+" : unreadCount }) : t("shell.notifications")}
             onClick={() => navigate("/technician/notifications")}
             className="relative flex size-9 items-center justify-center rounded-full bg-surface text-text-muted hover:bg-surface-alt hover:text-text"
           >

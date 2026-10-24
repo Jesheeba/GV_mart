@@ -218,6 +218,7 @@
     "searchPlaceholder": "Search customers, tickets, invoices…",
     "searchEmpty": "No matches found",
     "notifications": "Notifications",
+    "notificationsUnread": "Notifications, {{count}} unread",
     "moreOptions": "More options",
     "switchToDarkMode": "Switch to dark mode",
     "switchToLightMode": "Switch to light mode",

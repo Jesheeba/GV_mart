@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { CalendarIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { formatDate } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
 
 function parseDateOnly(value: string | undefined | null): Date | null {
@@ -52,6 +53,13 @@ export function DatePicker({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const selected = parseDateOnly(value)
+  const visibleText = selected ? formatDate(selected) : t("common.selectDate")
+  // axe's label-content-name-mismatch: a caller-supplied aria-label like
+  // "From"/"To" replaced the trigger's own accessible name outright, so the
+  // visible date text inside it (or "Select date") was never part of the
+  // name a screen reader announces — folding both together fixes it without
+  // losing the caller's context label.
+  const resolvedAriaLabel = ariaLabel ? `${ariaLabel}: ${visibleText}` : visibleText
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -60,16 +68,14 @@ export function DatePicker({
         type="button"
         disabled={disabled}
         aria-invalid={ariaInvalid}
-        aria-label={ariaLabel}
+        aria-label={resolvedAriaLabel}
         className={cn(
           "flex h-10 w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 text-left text-sm text-text outline-none transition-colors hover:bg-surface-alt/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-danger",
           className
         )}
       >
         <CalendarIcon className="size-4 shrink-0 text-text-muted" />
-        <span className={cn("truncate", !selected && "text-text-muted")}>
-          {selected ? selected.toLocaleDateString(undefined, { dateStyle: "medium" }) : t("common.selectDate")}
-        </span>
+        <span className={cn("truncate", !selected && "text-text-muted")}>{visibleText}</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto border-0 bg-transparent p-0 shadow-none ring-0">
         <Calendar

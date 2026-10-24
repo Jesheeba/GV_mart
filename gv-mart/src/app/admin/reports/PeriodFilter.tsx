@@ -56,8 +56,11 @@ export function PeriodFilter({
 
           {value.mode === "month" ? (
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-text-muted">{t("reports.filters.mode.month")}</label>
+              <label htmlFor="period-filter-month" className="block text-xs font-medium text-text-muted">
+                {t("reports.filters.mode.month")}
+              </label>
               <Input
+                id="period-filter-month"
                 type="month"
                 value={value.month}
                 onChange={(e) => onChange({ mode: "month", month: e.target.value })}
@@ -68,8 +71,11 @@ export function PeriodFilter({
 
           {value.mode === "year" ? (
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-text-muted">{t("reports.filters.mode.year")}</label>
+              <label htmlFor="period-filter-year" className="block text-xs font-medium text-text-muted">
+                {t("reports.filters.mode.year")}
+              </label>
               <select
+                id="period-filter-year"
                 value={value.year}
                 onChange={(e) => onChange({ mode: "year", year: Number(e.target.value) })}
                 className={cn(SELECT_CLASS, "h-9 w-auto")}
