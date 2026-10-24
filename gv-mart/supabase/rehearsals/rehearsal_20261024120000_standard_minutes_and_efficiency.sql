@@ -15,7 +15,7 @@
 -- and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   d55f64019566a08dd6c79241e984b22b97e34ff62fcff4190371cfe7c4611bad  gv-mart/supabase/migrations/20261024120000_standard_minutes_and_efficiency.sql
---   926dec771f186360299eed6cd090a6cfe1c956f1059b863d3f45f83ba22fd5ca  gv-mart/supabase/tests/standard_minutes_and_efficiency.test.sql
+--   34c7853753a552ada639ee5025dcde90a491174ac47affec41cde62aec9c81e0  gv-mart/supabase/tests/standard_minutes_and_efficiency.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
 -- Pinned (sha256 of the ORIGINAL function-defining text embedded below, read from the migration that last
@@ -48,11 +48,11 @@ begin
   end if;
 
   -- Live-definition precheck (1/2): report_ops_resolution is an EXISTING function this migration redefines.
-  -- Recreate the ORIGINAL (embedded below, from the migration that last defined it) under a different name in
-  -- pg_temp, compare its pg_get_functiondef to the function as it is ACTUALLY live right now (both computed
+  -- Re-create the ORIGINAL (embedded below VERBATIM, from the migration that last defined it) inside a sub-block
+  -- that is rolled back, compare its pg_get_functiondef to the function as it is ACTUALLY live right now (both computed
   -- fresh here, not a value fetched ahead of time and hard-coded) and refuse on any difference. This proves the
   -- live function equals the repo file, not merely that it matched when this wrapper was written.
-  v_orig_text := $orig0$create or replace function pg_temp._check_report_ops_resolution(p_from date, p_to date)
+  v_orig_text := $orig0$create or replace function public.report_ops_resolution(p_from date, p_to date)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
@@ -85,21 +85,24 @@ $orig0$;
   if v_orig_hash <> '646f78b8495c15b060156e6dd7d176d4dd7ba170a57c8d828060eded0b2c4d18' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for the embedded original of report_ops_resolution: %', v_orig_hash;
   end if;
-  execute v_orig_text;
-  v_check_def := pg_get_functiondef('pg_temp._check_report_ops_resolution(date,date)'::regprocedure);
-  execute 'drop function if exists pg_temp._check_report_ops_resolution(date,date)';
-  v_check_def := replace(v_check_def, 'pg_temp._check_report_ops_resolution', 'public.report_ops_resolution');
   v_live_def := pg_get_functiondef('public.report_ops_resolution(date,date)'::regprocedure);
+  begin
+    execute v_orig_text;
+    v_check_def := pg_get_functiondef('public.report_ops_resolution(date,date)'::regprocedure);
+    raise exception 'GV_PRECHECK_PROBE';
+  exception when others then
+    if sqlerrm <> 'GV_PRECHECK_PROBE' then raise; end if;
+  end;
   if v_check_def is distinct from v_live_def then
     raise exception 'REHEARSAL_REFUSED: the live definition of report_ops_resolution no longer matches the original migration text — refusing to redefine it';
   end if;
 
   -- Live-definition precheck (2/2): report_kpi_tiles is an EXISTING function this migration redefines.
-  -- Recreate the ORIGINAL (embedded below, from the migration that last defined it) under a different name in
-  -- pg_temp, compare its pg_get_functiondef to the function as it is ACTUALLY live right now (both computed
+  -- Re-create the ORIGINAL (embedded below VERBATIM, from the migration that last defined it) inside a sub-block
+  -- that is rolled back, compare its pg_get_functiondef to the function as it is ACTUALLY live right now (both computed
   -- fresh here, not a value fetched ahead of time and hard-coded) and refuse on any difference. This proves the
   -- live function equals the repo file, not merely that it matched when this wrapper was written.
-  v_orig_text := $orig1$CREATE OR REPLACE FUNCTION pg_temp._check_report_kpi_tiles(p_from date, p_to date)
+  v_orig_text := $orig1$CREATE OR REPLACE FUNCTION public.report_kpi_tiles(p_from date, p_to date)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
@@ -309,11 +312,14 @@ $orig1$;
   if v_orig_hash <> 'ad0dd4eba0f679ebb9d54aab32c9367a905bdb69df70914e704d2cca673686eb' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for the embedded original of report_kpi_tiles: %', v_orig_hash;
   end if;
-  execute v_orig_text;
-  v_check_def := pg_get_functiondef('pg_temp._check_report_kpi_tiles(date,date)'::regprocedure);
-  execute 'drop function if exists pg_temp._check_report_kpi_tiles(date,date)';
-  v_check_def := replace(v_check_def, 'pg_temp._check_report_kpi_tiles', 'public.report_kpi_tiles');
   v_live_def := pg_get_functiondef('public.report_kpi_tiles(date,date)'::regprocedure);
+  begin
+    execute v_orig_text;
+    v_check_def := pg_get_functiondef('public.report_kpi_tiles(date,date)'::regprocedure);
+    raise exception 'GV_PRECHECK_PROBE';
+  exception when others then
+    if sqlerrm <> 'GV_PRECHECK_PROBE' then raise; end if;
+  end;
   if v_check_def is distinct from v_live_def then
     raise exception 'REHEARSAL_REFUSED: the live definition of report_kpi_tiles no longer matches the original migration text — refusing to redefine it';
   end if;
@@ -681,6 +687,11 @@ $rh0$;
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid, p_tech boolean default false) returns uuid language plpgsql as $f$
@@ -788,16 +799,16 @@ begin
 
   -- t1: standard 20 (vis1) + 30 (vis2, amc default) = 50; actual 30 + 45 = 75 -> 50*100/75 = 66.7
   perform pg_temp.chk('E2 t1''s efficiency is (20+30)/(30+45) = 66.7% over 2 samples, the test-customer visit excluded',
-    (select (x->>'efficiency_percent')::numeric = 66.7 and (x->>'efficiency_sample_count')::int = 2
-       from jsonb_array_elements(r) x where x->>'id' = v_tech1::text),
+    (select (e->>'efficiency_percent')::numeric = 66.7 and (e->>'efficiency_sample_count')::int = 2
+       from jsonb_array_elements(r) e where e->>'id' = v_tech1::text),
     r::text);
   -- t2: standard 45 (vis3, paid default) ; actual 90 -> 50.0
   perform pg_temp.chk('E3 t2''s efficiency is 45/90 = 50.0% over 1 sample',
-    (select (x->>'efficiency_percent')::numeric = 50.0 and (x->>'efficiency_sample_count')::int = 1
-       from jsonb_array_elements(r) x where x->>'id' = v_tech2::text),
+    (select (e->>'efficiency_percent')::numeric = 50.0 and (e->>'efficiency_sample_count')::int = 1
+       from jsonb_array_elements(r) e where e->>'id' = v_tech2::text),
     r::text);
   perform pg_temp.chk('E4 the test customer''s visit contributed to neither technician''s sample count',
-    not exists (select 1 from jsonb_array_elements(r) x where (x->>'efficiency_sample_count')::int > 2));
+    not exists (select 1 from jsonb_array_elements(r) e where (e->>'efficiency_sample_count')::int > 2));
 
   x := pg_temp.act(t1, format('select public.report_performance_efficiency(%L, %L)', v_from, v_to));
   perform pg_temp.chk('E5 a technician cannot call it (is_staff()-gated via _report_org, same as every other report RPC)',
@@ -837,7 +848,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '926dec771f186360299eed6cd090a6cfe1c956f1059b863d3f45f83ba22fd5ca' then
+  if v_hash <> '34c7853753a552ada639ee5025dcde90a491174ac47affec41cde62aec9c81e0' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for standard_minutes_and_efficiency.test.sql: %', v_hash;
   end if;
   execute v_text;
