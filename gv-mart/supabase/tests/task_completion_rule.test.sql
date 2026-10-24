@@ -3,6 +3,11 @@
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
@@ -119,11 +124,21 @@ begin
   t4 := pg_temp.mk(v_org, null, v_ops);
   perform pg_temp.as_user(v_sales);
   s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t4));
-  perform pg_temp.chk('an unassigned task cannot be finished by a sales_admin', s is not null, coalesce(s, 'accepted'));
+  perform pg_temp.as_pg();
+  -- this sales_admin did not assign the task, so tasks_update_assign hides the row from the update: no error, no row touched. The guard is not reached.
+  perform pg_temp.chk('an unassigned task a sales_admin did not assign: the update touches no row and the task stays open (no error is raised)',
+    (select status::text from tasks where id = t4) = 'open', coalesce(s, 'no error'));
   perform pg_temp.as_user(v_ops);
   s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t4));
   perform pg_temp.as_pg();
   perform pg_temp.chk('operations can finish an unassigned task', s is null and (select status::text from tasks where id = t4) = 'done', coalesce(s, 'ok'));
+  -- the assigner passes the update policy, so this case reaches guard_task_completion itself
+  t4 := pg_temp.mk(v_org, null, v_sales);
+  perform pg_temp.as_user(v_sales);
+  s := pg_temp.raises(format($q$update tasks set status = 'done' where id = %L$q$, t4));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('GUARD: the assigner of an unassigned task, who is not operations, is refused by the guard itself and the task stays open',
+    s like '%only operations can finish a task that has no assignee%' and (select status::text from tasks where id = t4) = 'open', coalesce(s, 'no error'));
 
   -- ---------- insert as done ----------
   perform pg_temp.as_user(v_sales);
