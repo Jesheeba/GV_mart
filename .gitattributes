@@ -1,0 +1,12 @@
+# Everything text is stored and checked out with LF so a file on disk hashes the same as the committed blob (migration pins, rehearsal wrappers).
+# Binary files are detected automatically and left alone.
+* text=auto eol=lf
+*.sql text eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pptx binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
