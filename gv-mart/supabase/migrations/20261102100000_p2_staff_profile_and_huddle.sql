@@ -235,10 +235,12 @@ alter table public.meeting_issues
   add column solution_by uuid references public.profiles (id) on delete set null,
   add column solved_by uuid references public.profiles (id) on delete set null;
 
+-- SECURITY INVOKER on purpose: this function tells a client from a trusted path by current_user, and inside a SECURITY DEFINER
+-- function current_user is the owner, never the client. It reads only auth.uid(), so it needs no elevated rights.
 create or replace function public._trg_meeting_issue_stamp()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare
