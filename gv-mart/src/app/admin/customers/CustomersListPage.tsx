@@ -106,7 +106,15 @@ export function CustomersListPage() {
     (data?.rows ?? []).map((r) => r.id)
   )
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.count / (data.pageSize ?? 20))) : 1
+  // queryCustomers (services/customers.ts) returns an exact count only when
+  // a filter/search is active (the full matching id list is already in
+  // hand, for free) — unfiltered, it's PostgREST's `count: "planned"` query-
+  // planner estimate, cheap but approximate. The exact unfiltered total is
+  // already being fetched anyway, in parallel, for the filter-chip row
+  // above (`counts`) — reuse it here instead of showing an estimate, at no
+  // extra network cost.
+  const effectiveCount = hasActiveFilters ? (data?.count ?? 0) : (counts.data?.total ?? data?.count ?? 0)
+  const totalPages = data ? Math.max(1, Math.ceil(effectiveCount / (data.pageSize ?? 20))) : 1
 
   function clearFilters() {
     setSearchInput("")
@@ -119,11 +127,11 @@ export function CustomersListPage() {
   }
 
   async function exportCsv() {
-    if (!orgId || !data?.count) return
+    if (!orgId || !effectiveCount) return
     setIsExporting(true)
     try {
-      const pageSize = data.pageSize ?? 20
-      const pageCount = Math.max(1, Math.ceil(data.count / pageSize))
+      const pageSize = data?.pageSize ?? 20
+      const pageCount = Math.max(1, Math.ceil(effectiveCount / pageSize))
       const pages = await Promise.all(
         Array.from({ length: pageCount }, (_, i) => listCustomers(orgId, filters, i + 1))
       )
@@ -402,10 +410,10 @@ export function CustomersListPage() {
           />
         )}
 
-        {data && data.count > 0 ? (
+        {data && effectiveCount > 0 ? (
           <div className="flex items-center justify-between px-1 pt-1">
             <p className="text-xs text-text-muted">
-              {t("customers.pagination.pageInfo", { page, totalPages, count: data.count })}
+              {t("customers.pagination.pageInfo", { page, totalPages, count: effectiveCount })}
               {isFetching ? ` · ${t("common.loading")}` : ""}
             </p>
             <div className="flex gap-2">

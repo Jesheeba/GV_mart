@@ -165,3 +165,22 @@ foreign-key error instead of the usual "in use" message.
 on the merged function, not on a stale copy), and add `spare_videos` to any spare soft-delete reference list that mirrors it.
 Alternatively check `spare_videos` client-side in `SparesTab` `checkCanDelete` as a stop-gap. One rolled-back test: a spare with a
 video reports in use, and without one does not. Builds after the migration `20261023100000_video_language` is applied.
+
+## Follow-up: Customers quick-filter counts don't exclude test customers consistently (2026-10-24, from the Customers-list speed-up)
+
+**Status:** not fixed. Explicitly deferred by the owner during review of migration `20261024170000_customer_filter_counts_sql`;
+do not fix without the owner naming it.
+
+**Problem:** `customer_filter_counts()` (`20261024170000_customer_filter_counts_sql.sql`) computes four numbers for the Customers
+screen's quick-filter chip row: `total`, `hasAmc`, `amcDueSoon`, `dormant`. Only `total` excludes `is_test = true` customers
+(`where org_id = v_org and is_test = false`). `hasAmc`, `amcDueSoon`, and `dormant` count every matching `amc_contracts`/`customers`
+row for the org regardless of `is_test`, so a flagged test customer with an AMC contract (or sitting dormant) is counted in those
+three chip numbers but excluded from `total`.
+
+**Not introduced by this migration:** this is a straight port of the pre-existing client-side behavior
+(`idsWithAmc` / `idsByAmcStatus` / `idsDormant` in `src/services/customers.ts`, now removed) — the same asymmetry existed before
+20261024170000 and was reproduced faithfully rather than silently fixed during the performance change, per the "ADDITIVE ONLY,
+no behavior change beyond performance" scope that migration was reviewed under.
+
+**If/when addressed:** join `amc_contracts`/`customers` against `customers.is_test = false` for all three counts, matching `total`'s
+existing filter. Small, additive change to `customer_filter_counts()`'s body only — no schema change.
