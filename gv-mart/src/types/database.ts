@@ -173,6 +173,9 @@ export type Database = {
           shift_end: string | null
           created_at: string
           updated_at: string
+          // FEATURE_TECHNICIAN_LEAVE_REQUEST.md — hand-added, 20261106100000
+          leave_request_id: string | null
+          protected: boolean
         }
         Insert: {
           id?: string
@@ -184,6 +187,8 @@ export type Database = {
           shift_end?: string | null
           created_at?: string
           updated_at?: string
+          leave_request_id?: string | null
+          protected?: boolean
         }
         Update: {
           id?: string
@@ -195,6 +200,8 @@ export type Database = {
           shift_end?: string | null
           created_at?: string
           updated_at?: string
+          leave_request_id?: string | null
+          protected?: boolean
         }
         Relationships: [
           {
@@ -206,6 +213,74 @@ export type Database = {
           },
           {
             foreignKeyName: "technician_availability_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      // FEATURE_TECHNICIAN_LEAVE_REQUEST.md — hand-added stub, 20261106100000
+      // (no codegen run; same approach as the Monthly Expenses stubs below).
+      technician_leave_requests: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          start_date: string
+          end_date: string
+          reason: string | null
+          status: string
+          protected: boolean
+          requested_by: string
+          created_at: string
+          decided_by: string | null
+          decided_at: string | null
+          decision_note: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          start_date: string
+          end_date: string
+          reason?: string | null
+          status?: string
+          protected?: boolean
+          requested_by: string
+          created_at?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          decision_note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          start_date?: string
+          end_date?: string
+          reason?: string | null
+          status?: string
+          protected?: boolean
+          requested_by?: string
+          created_at?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          decision_note?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technician_leave_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technician_leave_requests_technician_id_fkey"
             columns: ["technician_id"]
             isOneToOne: false
             referencedRelation: "technicians"
@@ -6361,6 +6436,8 @@ export type Database = {
           created_at: string
           updated_at: string
           auto_assign_leads: boolean
+          // FEATURE_TECHNICIAN_LEAVE_REQUEST.md — hand-added, 20261106100000
+          leave_notice_days: number
         }
         Insert: {
           review_incentives_enabled?: boolean
@@ -6438,6 +6515,7 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_leads?: boolean
+          leave_notice_days?: number
         }
         Update: {
           review_incentives_enabled?: boolean
@@ -6515,6 +6593,7 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_leads?: boolean
+          leave_notice_days?: number
         }
         Relationships: [
           {

@@ -27,6 +27,7 @@ import {
   TrendingDown,
   Users2,
   Fuel,
+  CalendarOff,
   type LucideIcon,
 } from "lucide-react"
 import type { UserRole } from "@/lib/roles"
@@ -66,6 +67,8 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { key: "amc", labelKey: "nav.amcWarranty", path: "/admin/amc", icon: ShieldCheck, roles: ["master"] },
   { key: "rentals", labelKey: "nav.rentals", path: "/admin/rentals", icon: CalendarClock, roles: ["master", "sales_admin"] },
   { key: "technicians", labelKey: "nav.technicians", path: "/admin/technicians", icon: UserCog, roles: ["master", "operation_admin"] },
+  // FEATURE_TECHNICIAN_LEAVE_REQUEST.md — same roles as Technicians (master + operation_admin decide).
+  { key: "leaveRequests", labelKey: "nav.leaveRequests", path: "/admin/leave-requests", icon: CalendarOff, roles: ["master", "operation_admin"] },
   { key: "inventory", labelKey: "nav.inventory", path: "/admin/inventory", icon: Boxes, roles: ["master", "operation_admin"] },
   { key: "suppliers", labelKey: "nav.suppliers", path: "/admin/suppliers", icon: Truck, roles: ["master", "operation_admin"] },
   { key: "purchase", labelKey: "nav.purchase", path: "/admin/purchase", icon: Receipt, roles: ["master", "operation_admin"] },

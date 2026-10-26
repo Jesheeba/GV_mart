@@ -545,7 +545,8 @@ export type ProductSpareRow = Tables<"product_spares"> & { spares: Pick<Tables<"
 export type ComplaintTypeSpareRow = Tables<"complaint_type_spares"> & { spares: Pick<Tables<"spares">, "id" | "name" | "sku" | "is_active"> | null }
 // Monthly Expenses spec — own_bike_allowance_base post-dates the last real
 // codegen, widened locally the same way as other recently-added columns here.
-export type SettingsRow = Tables<"settings"> & { own_bike_allowance_base: number }
+// leave_notice_days (FEATURE_TECHNICIAN_LEAVE_REQUEST.md, 20261106100000) added the same way.
+export type SettingsRow = Tables<"settings"> & { own_bike_allowance_base: number; leave_notice_days: number }
 export type SopStepTemplateRow = Tables<"sop_step_templates"> & { products: Pick<Tables<"products">, "name"> | null }
 export type AppointmentSlotRow = Tables<"appointment_slots">
 
