@@ -1,8 +1,10 @@
 -- Rollback for 20261106100000_technician_leave_request.sql.
 -- Restores reward_candidates() to the body from 20261016110000_test_customer_flag.sql (no
 -- protected-leave exclusion, no per-day coverage, no minimum-present ratio), drops every new
--- function, drops the link columns on technician_availability, drops the new table, and drops
--- the leave_notice_days and attendance_reward_min_present_ratio settings.
+-- function, drops the link columns on technician_availability, drops the audit trigger and the
+-- new table, and drops the leave_notice_days and attendance_reward_min_present_ratio settings.
+-- Refuses outright if technician_leave_requests has any row at all -- this rollback has no
+-- migration path to preserve real request history, so it will not silently drop it.
 -- Rows already written into technician_availability by decide_technician_leave (status='leave')
 -- are left exactly as they are — they are ordinary leave rows now, same as any admin-direct entry,
 -- and this rollback does not delete calendar data.
@@ -126,7 +128,20 @@ alter table public.technician_availability
   drop column if exists leave_request_id,
   drop column if exists protected;
 
--- ── drop the request table ─────────────────────────────────────────────────────────────────
+-- ── refuse if any real request exists -- this rollback has no migration path for that data,
+--    so dropping the table under it would silently destroy it ─────────────────────────────────
+do $$
+begin
+  if exists (select 1 from public.technician_leave_requests limit 1) then
+    raise exception 'rollback refused: technician_leave_requests has % row(s) -- this rollback does not know how to preserve them',
+      (select count(*) from public.technician_leave_requests);
+  end if;
+end;
+$$;
+
+-- ── drop the audit trigger, then the request table (the trigger drops with the table too; kept
+--    explicit per the deploy checklist) ───────────────────────────────────────────────────────
+drop trigger if exists audit_technician_leave_requests on public.technician_leave_requests;
 drop table if exists public.technician_leave_requests;
 
 -- ── drop the settings ───────────────────────────────────────────────────────────────────────

@@ -47,7 +47,7 @@ alter table public.settings
     check (attendance_reward_min_present_ratio > 0 and attendance_reward_min_present_ratio <= 1);
 
 -- ── the request table ───────────────────────────────────────────────────────────────────────
-create extension if not exists btree_gist;
+create extension if not exists btree_gist with schema extensions;
 
 create table public.technician_leave_requests (
   id uuid primary key default gen_random_uuid(),
@@ -87,10 +87,18 @@ create policy technician_leave_requests_staff_select on public.technician_leave_
 
 -- all writes go through the SECURITY DEFINER functions below; no insert/update/delete grant to
 -- authenticated at all (there is deliberately no RLS write policy for that reason).
+revoke all on public.technician_leave_requests from public, anon, authenticated;
 grant select on public.technician_leave_requests to authenticated;
 
 create trigger set_updated_at before update on public.technician_leave_requests
   for each row execute function public.set_updated_at();
+
+-- Same audit trigger every other master table uses (20261011110000_audit_log_append_only.sql's
+-- current body) — keeps the full history of status changes/decisions in audit_log for free, no
+-- separate history table needed. technician_leave_requests already has the id/org_id columns it
+-- requires.
+create trigger audit_technician_leave_requests after insert or update or delete on public.technician_leave_requests
+  for each row execute function public.audit_master_change();
 
 -- ── link columns on the existing calendar table (per owner decision: extend, don't touch its
 --    existing unique(technician_id, date) constraint) ───────────────────────────────────────────
@@ -242,6 +250,9 @@ begin
   if p_decision in ('approved', 'rejected') and v_row.status <> 'pending' then
     raise exception 'decide_technician_leave: only a pending request can be approved or rejected';
   end if;
+  if p_decision = 'approved' and v_row.start_date < v_today then
+    raise exception 'decide_technician_leave: this request has already started; reject it';
+  end if;
   if p_decision = 'revoked' and not (v_row.status = 'approved' and v_row.start_date > v_today) then
     raise exception 'decide_technician_leave: only an approved, not-yet-started request can be revoked';
   end if;
@@ -262,12 +273,15 @@ begin
       raise exception 'decide_technician_leave: % already has a non-leave availability entry on %', v_row.technician_id, v_conflicts;
     end if;
 
+    -- A day that already carries a pre-existing 'leave' row (admin-direct entry, the only way
+    -- the conflict check above still let this through) is left completely alone: DO NOTHING, not
+    -- linked to this request. It was never this request's day to claim, and cancel/revoke below
+    -- only ever touch rows with leave_request_id = this request, so a pre-existing admin-entered
+    -- leave day always survives this request being cancelled or revoked.
     insert into public.technician_availability (org_id, technician_id, date, status, leave_request_id, protected)
     select v_row.org_id, v_row.technician_id, g.d::date, 'leave', p_request_id, v_protected
     from generate_series(v_row.start_date, v_row.end_date, interval '1 day') g(d)
-    on conflict (technician_id, date) do update
-      set leave_request_id = p_request_id, protected = v_protected
-      where public.technician_availability.status = 'leave';
+    on conflict (technician_id, date) do nothing;
 
     update public.technician_leave_requests
        set status = 'approved', protected = v_protected, decided_by = auth.uid(), decided_at = now(), decision_note = p_decision_note
@@ -359,6 +373,9 @@ begin
   -- is_staff(), not is_ops_staff(): a technician may also call this for their own id.
   if not (public.is_staff() or p_technician_id = public.current_technician_id()) then
     raise exception 'technician_protected_leave_days: access denied';
+  end if;
+  if p_from > p_to then
+    return 0;
   end if;
 
   select coalesce(s.lead_work_days, '{1,2,3,4,5,6}'::smallint[]) into v_work_days
