@@ -159,7 +159,11 @@ revoke all on public.customer_health_profile from public, anon, authenticated;
 -- the referenced customer to actually belong to the same org as the row being written —
 -- without this, staff of one org could plant (or move) a health_condition row for a
 -- customer_id that actually belongs to a different org, by simply quoting their own org_id
--- in the insert/update.
+-- in the insert/update. The subquery's columns are explicitly table-qualified on BOTH sides
+-- (customer_health_profile.customer_id / customer_health_profile.org_id vs c.id / c.org_id) —
+-- leaving org_id unqualified here would resolve to c.org_id inside the subquery's own scope
+-- (closest enclosing alias wins), making "c.org_id = org_id" a tautology that never actually
+-- compares against the row being written.
 create policy customer_health_profile_staff_select on public.customer_health_profile
   for select using (org_id = public.current_org_id() and public.is_staff());
 create policy customer_health_profile_staff_insert on public.customer_health_profile
@@ -167,7 +171,10 @@ create policy customer_health_profile_staff_insert on public.customer_health_pro
   with check (
     org_id = public.current_org_id()
     and public.is_staff()
-    and exists (select 1 from public.customers c where c.id = customer_id and c.org_id = org_id)
+    and exists (
+      select 1 from public.customers c
+      where c.id = customer_health_profile.customer_id and c.org_id = customer_health_profile.org_id
+    )
   );
 create policy customer_health_profile_staff_update on public.customer_health_profile
   for update
@@ -175,7 +182,10 @@ create policy customer_health_profile_staff_update on public.customer_health_pro
   with check (
     org_id = public.current_org_id()
     and public.is_staff()
-    and exists (select 1 from public.customers c where c.id = customer_id and c.org_id = org_id)
+    and exists (
+      select 1 from public.customers c
+      where c.id = customer_health_profile.customer_id and c.org_id = customer_health_profile.org_id
+    )
   );
 
 -- the customer — their own row, read-only (no insert/update policy for the customer role).
@@ -410,6 +420,15 @@ begin
   perform pg_temp.chk('health_condition is NOT a column on customers (lives in its own table)',
     not exists (select 1 from information_schema.columns where table_schema='public' and table_name='customers' and column_name='health_condition'));
 
+  -- ACL: anon has no privileges on customer_health_profile at all, and cannot execute the
+  -- technician-path function either.
+  perform pg_temp.chk('anon has no select/insert/update privilege on customer_health_profile',
+    not has_table_privilege('anon', 'public.customer_health_profile', 'select')
+    and not has_table_privilege('anon', 'public.customer_health_profile', 'insert')
+    and not has_table_privilege('anon', 'public.customer_health_profile', 'update'));
+  perform pg_temp.chk('anon cannot execute get_customer_health_condition',
+    not has_function_privilege('anon', 'public.get_customer_health_condition(uuid)', 'execute'));
+
   -- ══ cross-org planting, BEFORE any customer_health_profile row exists for v_cust ═════════
   -- org2 staff tries to insert a health row for v_org's customer while claiming org_id =
   -- v_org2 (their own org) — the WITH CHECK's exists() integrity check must refuse this even
@@ -542,11 +561,11 @@ begin
   v_mig_hash := encode(sha256(convert_to(v_migration, 'UTF8')), 'hex');
   v_test_hash := encode(sha256(convert_to(v_test, 'UTF8')), 'hex');
 
-  if v_mig_hash <> 'b0539936375869edb3d97e2942e3fc3ce42c8bf2cd77ef7106bd69113a3bec3c' then
-    raise exception 'migration hash mismatch: expected b0539936375869edb3d97e2942e3fc3ce42c8bf2cd77ef7106bd69113a3bec3c, got %', v_mig_hash;
+  if v_mig_hash <> '2bbcaeb398118e308def19ffec662c793f011ea48fe823314ed7aaefaef2ba0c' then
+    raise exception 'migration hash mismatch: expected 2bbcaeb398118e308def19ffec662c793f011ea48fe823314ed7aaefaef2ba0c, got %', v_mig_hash;
   end if;
-  if v_test_hash <> 'cff298f21d8372ead284009113e81ad5e1773c0dd30a8bf7414de4289516b022' then
-    raise exception 'test hash mismatch: expected cff298f21d8372ead284009113e81ad5e1773c0dd30a8bf7414de4289516b022, got %', v_test_hash;
+  if v_test_hash <> 'eb9fe00e6ed8690420750fe2810130eda2e84ef2996d210c203eb4eae56a3be8' then
+    raise exception 'test hash mismatch: expected eb9fe00e6ed8690420750fe2810130eda2e84ef2996d210c203eb4eae56a3be8, got %', v_test_hash;
   end if;
 
   execute v_migration;

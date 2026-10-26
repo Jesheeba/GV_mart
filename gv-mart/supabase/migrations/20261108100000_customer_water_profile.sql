@@ -144,7 +144,11 @@ revoke all on public.customer_health_profile from public, anon, authenticated;
 -- the referenced customer to actually belong to the same org as the row being written —
 -- without this, staff of one org could plant (or move) a health_condition row for a
 -- customer_id that actually belongs to a different org, by simply quoting their own org_id
--- in the insert/update.
+-- in the insert/update. The subquery's columns are explicitly table-qualified on BOTH sides
+-- (customer_health_profile.customer_id / customer_health_profile.org_id vs c.id / c.org_id) —
+-- leaving org_id unqualified here would resolve to c.org_id inside the subquery's own scope
+-- (closest enclosing alias wins), making "c.org_id = org_id" a tautology that never actually
+-- compares against the row being written.
 create policy customer_health_profile_staff_select on public.customer_health_profile
   for select using (org_id = public.current_org_id() and public.is_staff());
 create policy customer_health_profile_staff_insert on public.customer_health_profile
@@ -152,7 +156,10 @@ create policy customer_health_profile_staff_insert on public.customer_health_pro
   with check (
     org_id = public.current_org_id()
     and public.is_staff()
-    and exists (select 1 from public.customers c where c.id = customer_id and c.org_id = org_id)
+    and exists (
+      select 1 from public.customers c
+      where c.id = customer_health_profile.customer_id and c.org_id = customer_health_profile.org_id
+    )
   );
 create policy customer_health_profile_staff_update on public.customer_health_profile
   for update
@@ -160,7 +167,10 @@ create policy customer_health_profile_staff_update on public.customer_health_pro
   with check (
     org_id = public.current_org_id()
     and public.is_staff()
-    and exists (select 1 from public.customers c where c.id = customer_id and c.org_id = org_id)
+    and exists (
+      select 1 from public.customers c
+      where c.id = customer_health_profile.customer_id and c.org_id = customer_health_profile.org_id
+    )
   );
 
 -- the customer — their own row, read-only (no insert/update policy for the customer role).

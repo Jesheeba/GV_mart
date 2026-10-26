@@ -167,6 +167,15 @@ begin
   perform pg_temp.chk('health_condition is NOT a column on customers (lives in its own table)',
     not exists (select 1 from information_schema.columns where table_schema='public' and table_name='customers' and column_name='health_condition'));
 
+  -- ACL: anon has no privileges on customer_health_profile at all, and cannot execute the
+  -- technician-path function either.
+  perform pg_temp.chk('anon has no select/insert/update privilege on customer_health_profile',
+    not has_table_privilege('anon', 'public.customer_health_profile', 'select')
+    and not has_table_privilege('anon', 'public.customer_health_profile', 'insert')
+    and not has_table_privilege('anon', 'public.customer_health_profile', 'update'));
+  perform pg_temp.chk('anon cannot execute get_customer_health_condition',
+    not has_function_privilege('anon', 'public.get_customer_health_condition(uuid)', 'execute'));
+
   -- ══ cross-org planting, BEFORE any customer_health_profile row exists for v_cust ═════════
   -- org2 staff tries to insert a health row for v_org's customer while claiming org_id =
   -- v_org2 (their own org) — the WITH CHECK's exists() integrity check must refuse this even
