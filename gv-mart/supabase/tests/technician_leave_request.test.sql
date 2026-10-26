@@ -28,6 +28,15 @@
 -- though it is a working weekday. The real organisation working days this month are therefore
 -- {02, 09, 23, 30} — four days (n = 4; ceil(4 * 0.5) = 2 minimum real attendance days). All KPI
 -- cases use these fixed 2026-03 dates so they do not depend on when the rehearsal actually runs.
+--
+-- WRITE-PERMISSION NOTE: technician_leave_requests has no insert/update/delete grant to
+-- authenticated (all writes go through the SECURITY DEFINER RPCs). Every direct INSERT into
+-- technician_leave_requests or technician_availability in this test therefore runs in the
+-- DO block's own (table-owner) context, BEFORE any `set local role authenticated` -- never while
+-- impersonating a technician or master. Every notifications assertion also runs after `reset
+-- role` (owner context) rather than while impersonating master/a technician, since notifications
+-- RLS can hide a role-targeted row from a technician or a user-targeted row from a different
+-- user -- reading as the owner bypasses RLS entirely and avoids a false negative.
 do $t$
 declare
   res text := '';
@@ -39,7 +48,7 @@ declare
   v_today date := (now() at time zone 'Asia/Kolkata')::date;
   v_req uuid; v_req2 uuid; v_req_sun uuid; v_req_zero uuid; v_req_overlap uuid;
   v_req_closureleave uuid; v_req_below uuid; v_req_admin uuid; v_req_started uuid;
-  v_req_notice_hi uuid; v_req_notice_lo uuid;
+  v_req_notice_hi uuid; v_req_notice_lo uuid; v_other_pending uuid;
   v_reject uuid; v_cancel uuid; v_revoke uuid;
   v_row public.technician_leave_requests;
   v_n int; v_ok boolean;
@@ -50,13 +59,15 @@ begin
   select count(*) into v_fp_before from technician_availability where org_id = v_real_org;
   select leave_notice_days into v_setting_before from settings where org_id = v_real_org;
 
-  -- ── throwaway org + actors ────────────────────────────────────────────────────────────────
+  -- ── throwaway org + actors (all in owner context -- no role switch has happened yet) ───────
   insert into organizations (name) values ('__TEST_technician_leave_request') returning id into v_org;
-  insert into settings (org_id, leave_notice_days, lead_work_days) values (v_org, 3, '{1}');
+  insert into settings (org_id, leave_notice_days, lead_work_days) values (v_org, 3, '{1}')
+    on conflict (org_id) do update set leave_notice_days = excluded.leave_notice_days, lead_work_days = excluded.lead_work_days;
 
   v_master := gen_random_uuid();
   insert into auth.users (id, aud, role, email) values (v_master, 'authenticated', 'authenticated', 'leave-master@test.invalid');
-  insert into profiles (id, org_id, full_name, role) values (v_master, v_org, '__TEST_ master', 'master');
+  insert into profiles (id, org_id, full_name, role) values (v_master, v_org, '__TEST_ master', 'master')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
 
   v_t1 := gen_random_uuid(); v_t2 := gen_random_uuid(); v_ctrl := gen_random_uuid();
   v_sun := gen_random_uuid(); v_extra := gen_random_uuid(); v_zero := gen_random_uuid();
@@ -73,17 +84,28 @@ begin
   insert into auth.users (id, aud, role, email) values (v_below, 'authenticated', 'authenticated', 'leave-below@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_admin, 'authenticated', 'authenticated', 'leave-admin@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_started, 'authenticated', 'authenticated', 'leave-started@test.invalid');
-  insert into profiles (id, org_id, full_name, role) values (v_t1, v_org, '__TEST_ tech1', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_t2, v_org, '__TEST_ tech2', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_ctrl, v_org, '__TEST_ ctrl', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_sun, v_org, '__TEST_ sun', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_extra, v_org, '__TEST_ extra', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_zero, v_org, '__TEST_ zero', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_overlap, v_org, '__TEST_ overlap', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_closureleave, v_org, '__TEST_ closure', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_below, v_org, '__TEST_ below', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_admin, v_org, '__TEST_ admin', 'technician');
-  insert into profiles (id, org_id, full_name, role) values (v_started, v_org, '__TEST_ started', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_t1, v_org, '__TEST_ tech1', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_t2, v_org, '__TEST_ tech2', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_ctrl, v_org, '__TEST_ ctrl', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_sun, v_org, '__TEST_ sun', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_extra, v_org, '__TEST_ extra', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_zero, v_org, '__TEST_ zero', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_overlap, v_org, '__TEST_ overlap', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_closureleave, v_org, '__TEST_ closure', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_below, v_org, '__TEST_ below', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_admin, v_org, '__TEST_ admin', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
+  insert into profiles (id, org_id, full_name, role) values (v_started, v_org, '__TEST_ started', 'technician')
+    on conflict (id) do update set org_id = excluded.org_id, full_name = excluded.full_name, role = excluded.role;
   insert into technicians (org_id, profile_id) values (v_org, v_t1) returning id into v_t1id;
   insert into technicians (org_id, profile_id) values (v_org, v_t2) returning id into v_t2id;
   insert into technicians (org_id, profile_id) values (v_org, v_ctrl) returning id into v_ctrlid;
@@ -139,13 +161,13 @@ begin
 
   -- These seven KPI-case requests are inserted DIRECTLY as already-approved, with `protected`
   -- set explicitly to what each case needs -- decide_technician_leave's "already started" guard
-  -- (added this round: approving requires start_date >= today IST) would refuse approving any of
-  -- these fixed 2026-03 dates through the RPC today, since they are long in the past relative to
-  -- the actual rehearsal run date. The protected/late FLAG COMPUTATION itself (via
+  -- (approving requires start_date >= today IST) would refuse approving any of these fixed
+  -- 2026-03 dates through the RPC today, since they are long in the past relative to the actual
+  -- rehearsal run date. The protected/late FLAG COMPUTATION itself (via
   -- _leave_request_is_protected, comparing created_at to leave_notice_days) is tested separately
   -- below, through the real RPC, with today-relative dates -- these direct inserts only need to
   -- exercise reward_candidates'/technician_protected_leave_days' CONSUMPTION of an already-decided
-  -- protected flag, not its computation.
+  -- protected flag, not its computation. Still owner context -- no role switch yet.
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
     values (v_org, v_t1id, '2026-03-30', '2026-03-30', v_t1, '2026-03-01 10:00+05:30', 'approved', true)
     returning id into v_req;
@@ -167,6 +189,24 @@ begin
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
     values (v_org, v_belowid, '2026-03-09', '2026-03-30', v_below, '2026-02-01 10:00+05:30', 'approved', true)
     returning id into v_req_below;
+
+  -- admin / "an admin-entered leave day inside an approved range survives revoke" fixture: a
+  -- pre-existing technician_availability row + a fresh pending request on the same day. Both
+  -- inserted here, still in owner context -- the decide_technician_leave(...) calls that actually
+  -- exercise this come later, inside the master-impersonation block, since they are RPC calls
+  -- (SECURITY DEFINER) and do not need direct table-write privilege.
+  insert into technician_availability (org_id, technician_id, date, status) values (v_org, v_adminid, v_today + 50, 'leave');
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_adminid, v_today + 50, v_today + 50, v_admin, now())
+    returning id into v_req_admin;
+
+  -- already-started fixture: a pending request whose start_date has already passed, inserted
+  -- directly (request_technician_leave itself would refuse a past start_date at submission time;
+  -- this simulates a request that was submitted in time but never actioned before its start date
+  -- arrived).
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_startedid, v_today - 5, v_today - 5, v_started, now() - interval '20 days')
+    returning id into v_req_started;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -234,14 +274,8 @@ begin
   select technician_protected_leave_days(v_org, v_t1id, '2026-04-01', '2026-03-01') = 0 into v_ok;
   res := res || E'\n' || format('p_from > p_to returns 0 (expect true): %s', v_ok);
 
-  -- admin / "an admin-entered leave day inside an approved range survives revoke": a pre-existing
-  -- technician_availability row (leave_request_id null, status='leave') on the exact day of a
-  -- new request's range must be left alone by approval (ON CONFLICT DO NOTHING) and must NOT be
-  -- deleted by a later revoke (revoke only deletes rows with leave_request_id = that request).
-  insert into technician_availability (org_id, technician_id, date, status) values (v_org, v_adminid, v_today + 50, 'leave');
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_adminid, v_today + 50, v_today + 50, v_admin, now())
-    returning id into v_req_admin;
+  -- admin test: approve the pre-made request, confirm the pre-existing row was left UNLINKED
+  -- (ON CONFLICT DO NOTHING), then revoke and confirm it still survives, still unlinked.
   select * into v_row from decide_technician_leave(v_req_admin, 'approved');
   select leave_request_id is null into v_ok from technician_availability where technician_id = v_adminid and date = v_today + 50;
   res := res || E'\n' || format('admin pre-existing leave row left unlinked by approval, ON CONFLICT DO NOTHING (expect true): %s', v_ok);
@@ -249,10 +283,8 @@ begin
   select count(*) = 1 into v_ok from technician_availability where technician_id = v_adminid and date = v_today + 50 and status = 'leave';
   res := res || E'\n' || format('admin pre-existing leave row survives revoke, still unlinked (expect true): %s', v_ok);
 
-  -- already-started: a pending request whose start_date has passed cannot be approved, only rejected
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_startedid, v_today - 5, v_today - 5, v_started, now() - interval '20 days')
-    returning id into v_req_started;
+  -- already-started: the pre-made pending request, whose start_date has passed, cannot be
+  -- approved, only rejected
   begin
     perform decide_technician_leave(v_req_started, 'approved', null);
     res := res || E'\n' || 'approving an already-started request: SUCCEEDED (bad)';
@@ -277,6 +309,9 @@ begin
   -- requested >= leave_notice_days (3) before the start -> protected; < 3 days -> late.
   select (request_technician_leave(v_today + 10, v_today + 10, 'in advance')).id into v_req_notice_hi;
   select (request_technician_leave(v_today + 1, v_today + 1, 'late')).id into v_req_notice_lo;
+
+  -- left pending on purpose, for the RLS "someone else's PENDING request" check below.
+  select (request_technician_leave(v_today + 18, v_today + 18, 'untouched')).id into v_other_pending;
 
   -- overlap with an existing pending request is refused by the database
   begin
@@ -321,22 +356,40 @@ begin
   execute 'set local role authenticated';
   select * into v_row from decide_technician_leave(v_reject, 'rejected', 'not enough cover that week');
   res := res || E'\n' || format('reject: status (expect rejected): %s', v_row.status);
-  select count(*) > 0 into v_ok from notifications where ref_id = v_reject and type = 'technician_leave_rejected';
-  res := res || E'\n' || format('reject notification row exists (expect true): %s', v_ok);
+
+  -- notifications assertion: always read as the owner (reset role) -- RLS can otherwise hide a
+  -- role-targeted row from a technician or a user-targeted row from a different user. Also
+  -- confirms exactly one of user_id/role is set (the schema CHECK already guarantees this; the
+  -- predicate below is a belt-and-suspenders assertion, not a workaround for it).
+  execute 'reset role';
+  select count(*) > 0 into v_ok from notifications
+   where ref_id = v_reject and type = 'technician_leave_rejected' and (user_id is not null) <> (role is not null);
+  res := res || E'\n' || format('reject notification row exists, exactly one of user_id/role set (expect true): %s', v_ok);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+
   select * into v_row from decide_technician_leave(v_revoke, 'approved');
   res := res || E'\n' || format('pre-revoke approve: status (expect approved): %s', v_row.status);
   select count(*) into v_n from technician_availability where leave_request_id = v_revoke and status = 'leave';
   res := res || E'\n' || format('pre-revoke: availability row exists (expect 1): %s', v_n);
 
-  -- a request creates its notification row (role-targeted, to master/operation_admin) -- uses a
-  -- request created through the real RPC, not a direct insert.
-  select count(*) > 0 into v_ok from notifications where ref_id = v_req_notice_hi and type = 'technician_leave_requested';
-  res := res || E'\n' || format('request notification row exists (expect true): %s', v_ok);
+  execute 'reset role';
+  select count(*) > 0 into v_ok from notifications
+   where ref_id = v_req_notice_hi and type = 'technician_leave_requested' and (user_id is not null) <> (role is not null);
+  res := res || E'\n' || format('request notification row exists, exactly one of user_id/role set (expect true): %s', v_ok);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
 
   select * into v_row from decide_technician_leave(v_req_notice_hi, 'approved');
   res := res || E'\n' || format('notice test: today+10 (notice=3) approved, protected (expect true): %s', v_row.protected);
-  select count(*) > 0 into v_ok from notifications where ref_id = v_req_notice_hi and type = 'technician_leave_approved';
-  res := res || E'\n' || format('approval notification row exists (expect true): %s', v_ok);
+
+  execute 'reset role';
+  select count(*) > 0 into v_ok from notifications
+   where ref_id = v_req_notice_hi and type = 'technician_leave_approved' and (user_id is not null) <> (role is not null);
+  res := res || E'\n' || format('approval notification row exists, exactly one of user_id/role set (expect true): %s', v_ok);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+
   select * into v_row from decide_technician_leave(v_req_notice_lo, 'approved');
   res := res || E'\n' || format('notice test: today+1 (notice=3) approved, protected (expect false): %s', v_row.protected);
 
@@ -346,9 +399,11 @@ begin
   execute 'set local role authenticated';
   select * into v_row from cancel_technician_leave(v_cancel);
   res := res || E'\n' || format('t1 cancels own pending request: status (expect cancelled): %s', v_row.status);
-  select count(*) > 0 into v_ok from notifications where ref_id = v_cancel and type = 'technician_leave_cancelled';
-  res := res || E'\n' || format('cancel notification row exists (expect true): %s', v_ok);
   execute 'reset role';
+
+  select count(*) > 0 into v_ok from notifications
+   where ref_id = v_cancel and type = 'technician_leave_cancelled' and (user_id is not null) <> (role is not null);
+  res := res || E'\n' || format('cancel notification row exists, exactly one of user_id/role set (expect true): %s', v_ok);
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -356,9 +411,11 @@ begin
   res := res || E'\n' || format('revoke: status (expect revoked): %s', v_row.status);
   select count(*) into v_n from technician_availability where leave_request_id = v_revoke and status = 'leave';
   res := res || E'\n' || format('post-revoke: availability row removed (expect 0): %s', v_n);
-  select count(*) > 0 into v_ok from notifications where ref_id = v_revoke and type = 'technician_leave_revoked';
-  res := res || E'\n' || format('revoke notification row exists (expect true): %s', v_ok);
   execute 'reset role';
+
+  select count(*) > 0 into v_ok from notifications
+   where ref_id = v_revoke and type = 'technician_leave_revoked' and (user_id is not null) <> (role is not null);
+  res := res || E'\n' || format('revoke notification row exists, exactly one of user_id/role set (expect true): %s', v_ok);
 
   -- ══ RLS: one technician cannot see another technician's requests ═══════════════════════════
   perform set_config('request.jwt.claims', json_build_object('sub', v_t2, 'role', 'authenticated')::text, true);
@@ -367,9 +424,9 @@ begin
   res := res || E'\n' || format('t2 sees t1''s requests (expect 0): %s', v_n);
   select count(*) > 0 into v_ok from technician_leave_requests where technician_id = v_t2id;
   res := res || E'\n' || format('t2 sees own requests (expect true): %s', v_ok);
-  -- t2 also cannot approve t1's untouched request, or anyone's
+  -- t2 also cannot approve t1's own still-PENDING request, or anyone's
   begin
-    perform decide_technician_leave(v_req, 'approved', null);
+    perform decide_technician_leave(v_other_pending, 'approved', null);
     res := res || E'\n' || 'technician approves someone else''s request: SUCCEEDED (bad)';
   exception when others then
     res := res || E'\n' || 'technician approves someone else''s request: rejected ('||sqlerrm||')';
