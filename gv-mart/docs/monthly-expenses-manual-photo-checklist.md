@@ -83,3 +83,18 @@ technician A.
 Report each step as pass/fail with whatever you actually saw, especially for
 steps 4-6 — those are the ones most likely to reveal something this session
 could not check.
+
+## Known limitation: the petrol reference figure is unreviewed data
+
+The verification queue shows the admin a "reference" figure (km × the
+technician's rate) next to every petrol claim, so the admin has something to
+check the claim against. That kilometre figure comes from
+`technician_km_log`, which **anyone with insert rights — including the
+technician themself — can write to, with no approval or verification step at
+all** (append-only, no status column, no review gate). The admin's sanity
+check when deciding what to verify a petrol claim at therefore rests on
+self-reported, never-verified input from the same technician submitting the
+claim. The verify screen's label now says this explicitly ("from
+self-reported km, not verified"); this is a design gap worth deciding on
+later (e.g. an odometer photo, or an admin-only km entry path), not something
+fixed here.

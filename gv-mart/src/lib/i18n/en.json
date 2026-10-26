@@ -4295,7 +4295,7 @@
       "empty": "No bills waiting for verification",
       "viewBill": "View bill",
       "submittedAmount": "Submitted",
-      "referenceFigure": "Reference (km × rate)",
+      "referenceFigure": "Reference (km × rate) — from self-reported km, not verified",
       "amountToPay": "Amount to pay",
       "reasonRequired": "Reason (required — differs from submitted amount)",
       "confirm": "Confirm"
