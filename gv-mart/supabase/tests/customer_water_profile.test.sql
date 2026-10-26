@@ -258,7 +258,11 @@ begin
   perform pg_temp.chk('get_customer_health_condition returns null for another organisation''s staff', (select public.get_customer_health_condition(v_cust)) is null);
   perform pg_temp.as_pg();
 
+  -- org creation does not create a settings row — insert one before flipping the switch.
+  insert into settings (org_id) values (v_org);
   update settings set show_health_condition_to_technicians = true where org_id = v_org;
+  get diagnostics v_rows = row_count;
+  perform pg_temp.chk('show_health_condition_to_technicians update affects exactly 1 row', v_rows = 1);
 
   perform pg_temp.as_user(v_techprofile);
   perform pg_temp.chk('technician reads ZERO rows directly even with the setting ON (no table policy exists for them)', (select count(*) from customer_health_profile where customer_id = v_cust) = 0);

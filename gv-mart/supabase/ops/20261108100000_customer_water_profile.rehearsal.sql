@@ -511,7 +511,11 @@ begin
   perform pg_temp.chk('get_customer_health_condition returns null for another organisation''s staff', (select public.get_customer_health_condition(v_cust)) is null);
   perform pg_temp.as_pg();
 
+  -- org creation does not create a settings row — insert one before flipping the switch.
+  insert into settings (org_id) values (v_org);
   update settings set show_health_condition_to_technicians = true where org_id = v_org;
+  get diagnostics v_rows = row_count;
+  perform pg_temp.chk('show_health_condition_to_technicians update affects exactly 1 row', v_rows = 1);
 
   perform pg_temp.as_user(v_techprofile);
   perform pg_temp.chk('technician reads ZERO rows directly even with the setting ON (no table policy exists for them)', (select count(*) from customer_health_profile where customer_id = v_cust) = 0);
@@ -564,8 +568,8 @@ begin
   if v_mig_hash <> '2bbcaeb398118e308def19ffec662c793f011ea48fe823314ed7aaefaef2ba0c' then
     raise exception 'migration hash mismatch: expected 2bbcaeb398118e308def19ffec662c793f011ea48fe823314ed7aaefaef2ba0c, got %', v_mig_hash;
   end if;
-  if v_test_hash <> 'eb9fe00e6ed8690420750fe2810130eda2e84ef2996d210c203eb4eae56a3be8' then
-    raise exception 'test hash mismatch: expected eb9fe00e6ed8690420750fe2810130eda2e84ef2996d210c203eb4eae56a3be8, got %', v_test_hash;
+  if v_test_hash <> '84aab1286dcd8f61f47ea16bc42bd62bd1ee55ad7a1ac5b929f3d87515a8f356' then
+    raise exception 'test hash mismatch: expected 84aab1286dcd8f61f47ea16bc42bd62bd1ee55ad7a1ac5b929f3d87515a8f356, got %', v_test_hash;
   end if;
 
   execute v_migration;
