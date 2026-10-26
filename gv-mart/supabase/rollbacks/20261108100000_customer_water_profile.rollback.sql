@@ -1,0 +1,49 @@
+-- Rollback for 20261108100000_customer_water_profile.sql. Refuses if any profile data has
+-- already been entered (water_source, water_tds_ppm, water_ph, health_condition, or the
+-- technician-visibility setting flipped on) rather than silently discarding it.
+do $$
+declare
+  v_profile_rows bigint;
+  v_setting_flipped bigint;
+begin
+  select count(*) into v_profile_rows
+  from public.customers
+  where water_source is not null
+     or water_tds_ppm is not null
+     or water_ph is not null
+     or health_condition is not null;
+
+  select count(*) into v_setting_flipped
+  from public.settings
+  where show_health_condition_to_technicians is true;
+
+  if v_profile_rows > 0 then
+    raise exception 'rollback refused: % customers row(s) already have water/household profile data entered', v_profile_rows;
+  end if;
+  if v_setting_flipped > 0 then
+    raise exception 'rollback refused: % org(s) already turned on show_health_condition_to_technicians', v_setting_flipped;
+  end if;
+end $$;
+
+revoke all on function public.get_customer_health_condition(uuid) from public, anon, authenticated;
+drop function public.get_customer_health_condition(uuid);
+
+drop policy if exists customers_write_operation_admin on public.customers;
+
+drop trigger if exists guard_water_profile_edit_roles on public.customers;
+drop function public.guard_water_profile_edit_roles();
+
+alter table public.settings
+  drop column show_health_condition_to_technicians;
+
+alter table public.customers
+  drop constraint if exists customers_water_source_other_only_with_other;
+
+alter table public.customers
+  drop column health_condition,
+  drop column water_ph,
+  drop column water_tds_ppm,
+  drop column water_source_other,
+  drop column water_source;
+
+drop type household_health_level;

@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { itemNameLookup } from "@/services/sales"
 import { pickHistoryVisit } from "@/services/techniciansAdmin"
+import { isUndefinedColumnError } from "@/lib/supabaseErrors"
 import type { Enums, Tables } from "@/types/database"
 import type { FamilyRelation } from "@/lib/validation/customer"
 
@@ -258,9 +259,13 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
   //     exact to the row for a count this large.
   let query = supabase
     .from("customers")
-    .select("*, addresses(area,pincode,address_type,is_primary), member_count:customer_members(count)", {
-      count: ids ? undefined : "planned",
-    })
+    .select(
+      // health_condition is deliberately not selectable via the raw table at all (column-level
+      // revoke — see 20261108100000_customer_water_profile.sql) and isn't shown on this list
+      // anyway, so this enumerates every other customers column instead of "*".
+      "id,org_id,primary_profile_id,name,mobile,profession,preferred_language,source,tags,notes,needs_setup,is_test,water_source,water_source_other,water_tds_ppm,water_ph,created_at,updated_at, addresses(area,pincode,address_type,is_primary), member_count:customer_members(count)",
+      { count: ids ? undefined : "planned" }
+    )
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
 
@@ -272,10 +277,30 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
   return { rows: (data ?? []) as CustomerListItem[], count: ids ? ids.length : (count ?? 0), pageSize: PAGE_SIZE }
 }
 
+// Every customers column except health_condition, which is deliberately not selectable via
+// the raw table at all (column-level revoke — 20261108100000_customer_water_profile.sql); it's
+// fetched separately below through get_customer_health_condition and merged in, so a wildcard
+// "*" here (which would error for every caller, staff included, once a single column is
+// select-revoked) is never used against this table again.
+//
+// Two full literal select strings (not built from a shared ${columns} template) on purpose —
+// supabase-js statically parses the select() string's literal type to infer the result shape,
+// and a template-interpolated string loses that (the result collapses to an unparseable type).
+
+type GetCustomerRow = CustomerRow & { addresses: Tables<"addresses">[]; customer_members: MemberRow[] }
+type GetCustomerRowNoWater = Omit<CustomerRow, "water_source" | "water_source_other" | "water_tds_ppm" | "water_ph"> & {
+  addresses: Tables<"addresses">[]
+  customer_members: MemberRow[]
+}
+
 export async function getCustomer(id: string) {
-  const { data, error } = await supabase
+  let waterColumnsUnavailable = false
+  let data: GetCustomerRow | GetCustomerRowNoWater
+  const full = await supabase
     .from("customers")
-    .select("*, addresses(*), customer_members(*)")
+    .select(
+      "id,org_id,primary_profile_id,name,mobile,profession,preferred_language,source,tags,notes,needs_setup,is_test,water_source,water_source_other,water_tds_ppm,water_ph,created_at,updated_at, addresses(*), customer_members(*)"
+    )
     .eq("id", id)
     // Item D3: a member "moved out" to their own customer record is soft-
     // detached (moved_out_at set), not deleted — excluded here so every
@@ -285,11 +310,78 @@ export async function getCustomer(id: string) {
     .order("is_primary", { referencedTable: "addresses", ascending: false })
     .order("is_primary", { referencedTable: "customer_members", ascending: false })
     .single()
-  if (error) throw error
+  if (full.error && isUndefinedColumnError(full.error)) {
+    // Deploy-order safety (§6): the migration adding these columns hasn't landed yet — degrade
+    // to "not available" instead of crashing the whole customer page.
+    waterColumnsUnavailable = true
+    const base = await supabase
+      .from("customers")
+      .select("id,org_id,primary_profile_id,name,mobile,profession,preferred_language,source,tags,notes,needs_setup,is_test,created_at,updated_at, addresses(*), customer_members(*)")
+      .eq("id", id)
+      .is("customer_members.moved_out_at", null)
+      .order("is_primary", { referencedTable: "addresses", ascending: false })
+      .order("is_primary", { referencedTable: "customer_members", ascending: false })
+      .single()
+    if (base.error) throw base.error
+    data = base.data as unknown as GetCustomerRowNoWater
+  } else {
+    if (full.error) throw full.error
+    data = full.data as unknown as GetCustomerRow
+  }
+  const healthCondition = waterColumnsUnavailable ? null : await getCustomerHealthCondition(id)
   // customer_members(*) is typed from the pre-`relation`-column generated
   // schema (see MemberRow comment) — the column IS in the actual row, just
   // not the generated type.
-  return { ...data, customer_members: data.customer_members as MemberRow[] }
+  return {
+    ...data,
+    water_source: waterColumnsUnavailable ? null : (data as GetCustomerRow).water_source,
+    water_source_other: waterColumnsUnavailable ? null : (data as GetCustomerRow).water_source_other,
+    water_tds_ppm: waterColumnsUnavailable ? null : (data as GetCustomerRow).water_tds_ppm,
+    water_ph: waterColumnsUnavailable ? null : (data as GetCustomerRow).water_ph,
+    customer_members: data.customer_members as MemberRow[],
+    health_condition: healthCondition,
+  }
+}
+
+/**
+ * Sensitive (spec: FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md §3.5) — routed through the
+ * get_customer_health_condition function rather than a raw column select, which is revoked
+ * for everyone. Returns null for "not set", "caller isn't allowed to see it", AND "the
+ * migration that creates this function hasn't been applied yet" (deploy-order safety, §6) —
+ * none of those are distinguished client-side, matching the function's own return shape.
+ */
+export async function getCustomerHealthCondition(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
+  if (error) {
+    // Postgres "function does not exist" (42883) — same deploy-order case as 42703 above, just
+    // for a function instead of a column.
+    if ((error as { code?: string }).code === "42883") return null
+    throw error
+  }
+  return data ?? null
+}
+
+export async function updateCustomerWaterProfile(
+  customerId: string,
+  patch: {
+    waterSource?: Enums<"water_source_type"> | null
+    waterSourceOther?: string | null
+    waterTdsPpm?: number | null
+    waterPh?: number | null
+    healthCondition?: Enums<"household_health_level"> | null
+  }
+) {
+  const { error } = await supabase
+    .from("customers")
+    .update({
+      water_source: patch.waterSource,
+      water_source_other: patch.waterSourceOther,
+      water_tds_ppm: patch.waterTdsPpm,
+      water_ph: patch.waterPh,
+      health_condition: patch.healthCondition,
+    })
+    .eq("id", customerId)
+  if (error) throw error
 }
 
 /**
@@ -435,7 +527,9 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
 }
 
 export async function updateCustomerProfession(id: string, profession: string) {
-  const { data, error } = await supabase.from("customers").update({ profession }).eq("id", id).select().single()
+  // "id" only — a bare .select() defaults to "*", which errors now that health_condition is
+  // column-revoked on this table (20261108100000_customer_water_profile.sql).
+  const { data, error } = await supabase.from("customers").update({ profession }).eq("id", id).select("id").single()
   if (error) throw error
   return data
 }
@@ -550,10 +644,12 @@ export async function setPrimaryMember(customerId: string, memberId: string) {
 }
 
 export async function moveMemberOut(orgId: string, member: MemberRow) {
+  // "id" only — a bare .select() defaults to "*", which errors now that health_condition is
+  // column-revoked on this table (20261108100000_customer_water_profile.sql).
   const { data: newCustomer, error: createError } = await supabase
     .from("customers")
     .insert({ org_id: orgId, name: member.name, mobile: member.mobile })
-    .select()
+    .select("id")
     .single()
   if (createError) throw createError
   // Detached, not deleted (Item D3) — preserves the record instead of

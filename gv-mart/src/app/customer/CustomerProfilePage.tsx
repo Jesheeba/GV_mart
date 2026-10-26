@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Coins, Home as HomeIcon, Loader2, LogOut, Pencil, Plus, Star, Trash2, UserPlus } from "lucide-react"
+import { Coins, Droplet, Home as HomeIcon, Loader2, LogOut, Pencil, Plus, Star, Trash2, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -380,6 +380,47 @@ function ReferralWalletCard({ customerId }: { customerId: string }) {
   )
 }
 
+/**
+ * Read-only (spec default, FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md §3.4/9) — the customer
+ * sees these fields but edits them nowhere in this app; master/operation_admin edit them from
+ * the admin side. health_condition comes through the get_customer_health_condition RPC inside
+ * useMyCustomerRecord (the raw column is select-revoked for everyone), not a direct column.
+ */
+function WaterHouseholdSection({ customerId }: { customerId: string }) {
+  const { t } = useTranslation()
+  const { data: record } = useMyCustomerRecord(customerId)
+  const familyMemberCount = record?.customer_members?.length ?? 0
+
+  return (
+    <Card className="gap-3 lg:px-5">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text">
+        <Droplet className="size-4 text-text-muted" />
+        {t("customerApp.profile.waterHouseholdTitle")}
+      </h2>
+      <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
+        <span className="text-text-muted">{t("customers.detail.waterSource")}</span>
+        <span className="text-text">
+          {record?.water_source
+            ? record.water_source === "other" && record.water_source_other
+              ? record.water_source_other
+              : t(`customers.detail.waterSourceOptions.${record.water_source}`)
+            : "—"}
+        </span>
+        <span className="text-text-muted">{t("customers.detail.waterTds")}</span>
+        <span className="text-text">{record?.water_tds_ppm ?? "—"}</span>
+        <span className="text-text-muted">{t("customers.detail.waterPh")}</span>
+        <span className="text-text">{record?.water_ph ?? "—"}</span>
+        <span className="text-text-muted">{t("customers.detail.healthCondition")}</span>
+        <span className="text-text">
+          {record?.health_condition ? t(`customers.detail.healthConditionLevels.${record.health_condition}`) : "—"}
+        </span>
+        <span className="text-text-muted">{t("customers.detail.familyMembersCount")}</span>
+        <span className="text-text">{familyMemberCount}</span>
+      </div>
+    </Card>
+  )
+}
+
 export function CustomerProfilePage() {
   const { t } = useTranslation()
   const { data: profile, isLoading: loadingProfile, isError, refetch } = useProfile()
@@ -423,6 +464,8 @@ export function CustomerProfilePage() {
       {customerId ? <AddressesSection customerId={customerId} orgId={orgId} /> : null}
 
       {customerId ? <MembersSection customerId={customerId} orgId={orgId} /> : null}
+
+      {customerId ? <WaterHouseholdSection customerId={customerId} /> : null}
     </div>
   )
 }

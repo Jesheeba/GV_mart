@@ -16,6 +16,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
+import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import {
   addressStepSchema,
   peopleStepSchema,
@@ -499,7 +500,21 @@ export function CustomerFormPage() {
               />
             </div>
           ) : (
-            <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
+            <>
+              <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
+              <div className="border-t border-border pt-4">
+                <WaterHouseholdPanel
+                  customerId={id!}
+                  waterSource={existing.data!.water_source}
+                  waterSourceOther={existing.data!.water_source_other}
+                  waterTdsPpm={existing.data!.water_tds_ppm}
+                  waterPh={existing.data!.water_ph}
+                  healthCondition={existing.data!.health_condition}
+                  familyMemberCount={existing.data!.customer_members.length}
+                  canEdit={profile?.role === "master" || profile?.role === "operation_admin"}
+                />
+              </div>
+            </>
           )}
         </Card>
       ) : (

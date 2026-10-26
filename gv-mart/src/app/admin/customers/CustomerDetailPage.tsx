@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
+import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
 
@@ -508,6 +509,7 @@ export function CustomerDetailPage() {
           </TabsTrigger>
           <TabsTrigger value="service">{t("customers.detail.tabs.service")}</TabsTrigger>
           <TabsTrigger value="invoices">{t("customers.detail.tabs.invoices")}</TabsTrigger>
+          <TabsTrigger value="water">{t("customers.detail.tabs.water")}</TabsTrigger>
           <TabsTrigger value="family">
             {t("customers.detail.tabs.family")} ({customer.customer_members.length})
           </TabsTrigger>
@@ -552,6 +554,22 @@ export function CustomerDetailPage() {
               ))
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="water" className="mt-3.5">
+          <Card size="default">
+            <WaterHouseholdPanel
+              customerId={customer.id}
+              waterSource={customer.water_source}
+              waterSourceOther={customer.water_source_other}
+              waterTdsPpm={customer.water_tds_ppm}
+              waterPh={customer.water_ph}
+              healthCondition={customer.health_condition}
+              familyMemberCount={customer.customer_members.length}
+              measuredReading={measured}
+              canEdit={profile?.role === "master" || profile?.role === "operation_admin"}
+            />
+          </Card>
         </TabsContent>
 
         <TabsContent value="family" className="mt-3.5">
