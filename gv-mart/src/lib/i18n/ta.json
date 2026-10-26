@@ -643,6 +643,7 @@
       "sopStepsDesc": "{{count}} செயல்பாடுகள்",
       "productEnquiryDesc": "{{count}} கஸ்டமர் ஆப் டேப்கள் அமைக்கப்பட்டுள்ளன",
       "waterQualityDesc": "{{count}} மாவட்டங்களுக்கு TDS தரவு உள்ளது",
+      "leadTaxonomyDesc": "{{sources}} மூலங்கள், {{kinds}} வகைகள், {{productTypes}} பொருள் வகைகள்",
       "leadSourcesDesc": "{{count}} மூலங்கள்",
       "leadKindsDesc": "{{count}} வகைகள்",
       "leadProductTypesDesc": "{{count}} பொருள் வகைகள்",
@@ -659,6 +660,7 @@
       "spares": "உதிரிபாகங்கள்",
       "gifts": "பரிசுகள்",
       "giftExclusions": "பரிசு விலக்குகள்",
+      "leadTaxonomy": "லீட் வகைப்பாடு",
       "amcPlans": "ஏஎம்சி திட்டங்கள்",
       "rentalPlans": "வாடகை திட்டங்கள்",
       "technicianTiers": "தொழில்நுட்ப நிலைகள்",
@@ -1749,7 +1751,8 @@
       "amc": "ஏஎம்சி",
       "warranty": "உத்தரவாதம்",
       "unassigned": "ஒதுக்கப்படவில்லை",
-      "missingProduct": "தயாரிப்பு இல்லை"
+      "missingProduct": "தயாரிப்பு இல்லை",
+      "repeat": "மீண்டும் வந்த புகார்"
     },
     "table": {
       "ticket": "டிக்கெட்",
@@ -4448,7 +4451,6 @@
         "other": "மற்றவை"
       },
       "gstToggle": "காண்க",
-      "logExpense": "செலவைப் பதிவு செய்யவும்",
       "date": "தேதி",
       "marginPercent": "நிகர லாப விகிதம் %",
       "grossMarginPercent": "மொத்த லாப விகிதம் %",

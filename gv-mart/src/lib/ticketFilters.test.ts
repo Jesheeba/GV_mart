@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   PRIMARY_FILTERS,
+  computeRepeatComplaintKeys,
   countByPrimaryFilter,
   filterTickets,
   isFutureAmcVisit,
@@ -22,6 +23,10 @@ function t(over: Partial<FilterableTicket> & { id?: string }): FilterableTicket 
     sla_due_at: FUTURE,
     product_id: "p1",
     unlisted_product_name: null,
+    // Unique per row by default (keyed on id) so unrelated tests don't
+    // accidentally collide on the repeat-complaint customer+product key.
+    customer_id: over.id ?? "x",
+    created_at: "2026-10-01T00:00:00Z",
     appointments: TECH,
     ...over,
   }
@@ -46,8 +51,8 @@ const rows = [
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id).sort()
 
 describe("service page primary filters", () => {
-  it("is ordered Overdue, Unassigned, Pending, Cancelled, Completed", () => {
-    expect([...PRIMARY_FILTERS]).toEqual(["overdue", "unassigned", "pending", "cancelled", "completed"])
+  it("is ordered Overdue, Unassigned, Pending, Cancelled, Completed, Repeat", () => {
+    expect([...PRIMARY_FILTERS]).toEqual(["overdue", "unassigned", "pending", "cancelled", "completed", "repeat"])
   })
 
   it("pending = open + assigned + in_progress", () => {
@@ -81,6 +86,35 @@ describe("service page primary filters", () => {
     for (const f of PRIMARY_FILTERS) expect(counts[f]).toBe(filterTickets(rows, f, NOW).length)
   })
 
+  it("repeat = same customer+product appearing more than once within the lookback window (mirrors systemPages.ts#listRepeatComplaintTickets)", () => {
+    const repeatRows = [
+      t({ id: "r1", customer_id: "c1", product_id: "pA", created_at: "2026-09-01T00:00:00Z" }),
+      t({ id: "r2", customer_id: "c1", product_id: "pA", created_at: "2026-09-15T00:00:00Z" }),
+      // Same customer, different product — not a repeat for that product.
+      t({ id: "r3", customer_id: "c1", product_id: "pB", created_at: "2026-09-15T00:00:00Z" }),
+      // Different customer, same product — not a repeat either.
+      t({ id: "r4", customer_id: "c2", product_id: "pA", created_at: "2026-09-15T00:00:00Z" }),
+      // Same customer+product, but outside the 90-day lookback from NOW (2026-10-10).
+      t({ id: "r5", customer_id: "c3", product_id: "pC", created_at: "2026-01-01T00:00:00Z" }),
+      t({ id: "r6", customer_id: "c3", product_id: "pC", created_at: "2026-01-02T00:00:00Z" }),
+      // No product — never counts as a repeat, even if it duplicates a customer.
+      t({ id: "r7", customer_id: "c1", product_id: null, created_at: "2026-09-15T00:00:00Z" }),
+    ]
+    expect(ids(filterTickets(repeatRows, "repeat", NOW))).toEqual(["r1", "r2"])
+    expect(computeRepeatComplaintKeys(repeatRows, NOW)).toEqual(new Set(["c1:pA"]))
+    const counts = countByPrimaryFilter(repeatRows, NOW)
+    expect(counts.repeat).toBe(2)
+  })
+
+  it("the repeat lookback window is a parameter", () => {
+    const repeatRows = [
+      t({ id: "old1", customer_id: "c9", product_id: "pZ", created_at: "2026-01-01T00:00:00Z" }),
+      t({ id: "old2", customer_id: "c9", product_id: "pZ", created_at: "2026-01-02T00:00:00Z" }),
+    ]
+    expect(ids(filterTickets(repeatRows, "repeat", NOW))).toEqual([])
+    expect(ids(filterTickets(repeatRows, "repeat", NOW, { lookbackDays: 365 }))).toEqual(["old1", "old2"])
+  })
+
   it("Missing product is a toggle that ANDs with the primary filter", () => {
     const withMissing = [
       ...rows,
@@ -102,6 +136,8 @@ describe("AMC visits that are not yet due (migration 20261022100000)", () => {
     sla_due_at: null,
     product_id: "p",
     unlisted_product_name: null,
+    customer_id: "cust-amc",
+    created_at: "2026-10-01T00:00:00Z",
     contract_id: "c1",
     type: "amc",
   }

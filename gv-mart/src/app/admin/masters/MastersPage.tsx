@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Ban, PhoneCall, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Hammer, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wallet, Wrench } from "lucide-react"
+import { PhoneCall, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Hammer, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wallet, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
@@ -9,7 +9,6 @@ import {
   amcPlansHooks,
   brandsHooks,
   complaintTypesHooks,
-  giftExclusionProductsHooks,
   giftsHooks,
   incentiveRulesHooks,
   roleBaseSalariesHooks,
@@ -31,7 +30,6 @@ import { ModelsTab } from "./ModelsTab"
 import { ProductsTab } from "./ProductsTab"
 import { SparesTab } from "./SparesTab"
 import { GiftsTab } from "./GiftsTab"
-import { GiftExclusionsTab } from "./GiftExclusionsTab"
 import { AmcPlansTab } from "./AmcPlansTab"
 import { RentalPlansTab } from "./RentalPlansTab"
 import { useTechnicianTiers } from "@/hooks/useTechnicianTiers"
@@ -45,9 +43,7 @@ import { ProductEnquiryConfigTab } from "./ProductEnquiryConfigTab"
 import { SettingsTab } from "./SettingsTab"
 import { PaymentSettingsTab } from "./PaymentSettingsTab"
 import { WaterQualityTab } from "./WaterQualityTab"
-import { LeadSourcesTab } from "./LeadSourcesTab"
-import { LeadKindsTab } from "./LeadKindsTab"
-import { LeadProductTypesTab } from "./LeadProductTypesTab"
+import { LeadTaxonomyTab } from "./LeadTaxonomyTab"
 import { PostServiceCallsTab } from "./PostServiceCallsTab"
 import { LeadOutcomesTab } from "./LeadOutcomesTab"
 import { useLeadOutcomes } from "@/hooks/useLeadFollowups"
@@ -58,7 +54,6 @@ type ModuleId =
   | "products"
   | "spares"
   | "gifts"
-  | "giftExclusions"
   | "amcPlans"
   | "rentalPlans"
   | "technicianTiers"
@@ -69,9 +64,7 @@ type ModuleId =
   | "sopSteps"
   | "productEnquiry"
   | "waterQuality"
-  | "leadSources"
-  | "leadKinds"
-  | "leadProductTypes"
+  | "leadTaxonomy"
   | "postService"
   | "leadOutcomes"
   | "settings"
@@ -99,7 +92,6 @@ export function MastersPage() {
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
   const { data: gifts } = giftsHooks.useList(orgId)
-  const { data: giftExclusionProducts } = giftExclusionProductsHooks.useList(orgId)
   const { data: amcPlans } = amcPlansHooks.useList(orgId)
   const { data: rentalPlans } = rentalPlansHooks.useList(orgId)
   const { data: technicianTiers } = useTechnicianTiers(orgId)
@@ -127,13 +119,6 @@ export function MastersPage() {
     { id: "products", icon: Package, swatch: "accent", title: t("masters.tabs.products"), desc: t("masters.overview.productsDesc", { count: products?.length ?? 0 }) },
     { id: "spares", icon: Wrench, swatch: "ink", title: t("masters.tabs.spares"), desc: t("masters.overview.sparesDesc", { count: spares?.length ?? 0 }) },
     { id: "gifts", icon: Gift, swatch: "green", title: t("masters.tabs.gifts"), desc: t("masters.overview.giftsDesc", { count: gifts?.length ?? 0 }) },
-    {
-      id: "giftExclusions",
-      icon: Ban,
-      swatch: "warning",
-      title: t("masters.tabs.giftExclusions"),
-      desc: t("masters.overview.giftExclusionsDesc", { count: giftExclusionProducts?.length ?? 0 }),
-    },
     { id: "amcPlans", icon: ShieldCheck, swatch: "info", title: t("masters.tabs.amcPlans"), desc: t("masters.overview.amcPlansDesc", { count: amcPlans?.length ?? 0 }) },
     { id: "rentalPlans", icon: CalendarClock, swatch: "warning", title: t("masters.tabs.rentalPlans"), desc: t("masters.overview.rentalPlansDesc", { count: rentalPlans?.length ?? 0 }) },
     { id: "technicianTiers", icon: TrendingUp, swatch: "accent", title: t("masters.tabs.technicianTiers"), desc: t("masters.overview.technicianTiersDesc", { count: technicianTiers?.length ?? 0 }) },
@@ -156,15 +141,17 @@ export function MastersPage() {
       title: t("masters.tabs.waterQuality"),
       desc: t("masters.overview.waterQualityDesc", { count: waterQualityDistricts?.length ?? 0 }),
     },
-    { id: "leadSources", group: "dailyFollowup", icon: Megaphone, swatch: "accent", title: t("masters.tabs.leadSources"), desc: t("masters.overview.leadSourcesDesc", { count: leadSources?.length ?? 0 }) },
-    { id: "leadKinds", group: "dailyFollowup", icon: Tag, swatch: "info", title: t("masters.tabs.leadKinds"), desc: t("masters.overview.leadKindsDesc", { count: leadKinds?.length ?? 0 }) },
     {
-      id: "leadProductTypes",
+      id: "leadTaxonomy",
       group: "dailyFollowup",
-      icon: Package,
-      swatch: "info",
-      title: t("masters.tabs.leadProductTypes"),
-      desc: t("masters.overview.leadProductTypesDesc", { count: leadProductTypes?.length ?? 0 }),
+      icon: Megaphone,
+      swatch: "accent",
+      title: t("masters.tabs.leadTaxonomy"),
+      desc: t("masters.overview.leadTaxonomyDesc", {
+        sources: leadSources?.length ?? 0,
+        kinds: leadKinds?.length ?? 0,
+        productTypes: leadProductTypes?.length ?? 0,
+      }),
     },
     { id: "postService", group: "dailyFollowup", icon: PhoneCall, swatch: "info", title: t("masters.tabs.postService"), desc: t("masters.overview.postServiceDesc") },
     { id: "leadOutcomes", group: "dailyFollowup", icon: PhoneCall, swatch: "green", title: t("masters.tabs.leadOutcomes"), desc: t("masters.overview.leadOutcomesDesc", { count: leadOutcomes?.length ?? 0 }) },
@@ -234,9 +221,6 @@ export function MastersPage() {
           <TabsContent value="gifts">
             <GiftsTab />
           </TabsContent>
-          <TabsContent value="giftExclusions">
-            <GiftExclusionsTab />
-          </TabsContent>
           <TabsContent value="amcPlans">
             <AmcPlansTab />
           </TabsContent>
@@ -267,14 +251,8 @@ export function MastersPage() {
           <TabsContent value="waterQuality">
             <WaterQualityTab />
           </TabsContent>
-          <TabsContent value="leadSources">
-            <LeadSourcesTab />
-          </TabsContent>
-          <TabsContent value="leadKinds">
-            <LeadKindsTab />
-          </TabsContent>
-          <TabsContent value="leadProductTypes">
-            <LeadProductTypesTab />
+          <TabsContent value="leadTaxonomy">
+            <LeadTaxonomyTab />
           </TabsContent>
           <TabsContent value="postService">
             <PostServiceCallsTab />

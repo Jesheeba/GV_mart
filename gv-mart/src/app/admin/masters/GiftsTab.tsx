@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
-import { giftsHooks } from "@/hooks/useMasters"
+import { giftExclusionProductsHooks, giftsHooks } from "@/hooks/useMasters"
 import { giftHasReferences, type GiftRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
+import { GiftExclusionsTab } from "./GiftExclusionsTab"
 
 type StatusFilter = "all" | "active" | "inactive"
 
@@ -16,6 +17,7 @@ export function GiftsTab() {
   const createMut = giftsHooks.useCreate()
   const updateMut = giftsHooks.useUpdate()
   const deleteMut = giftsHooks.useDelete()
+  const { data: giftExclusionProducts } = giftExclusionProductsHooks.useList(orgId)
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const filteredRows = useMemo(
@@ -104,6 +106,16 @@ export function GiftsTab() {
         checkCanDelete={async (id) => !(await giftHasReferences(id))}
         cannotDeleteMessage={t("masters.cannotDeleteInUse")}
       />
+
+      {/* Cleanup batch 1 item 2: folded in as a sub-section rather than its
+          own masters module — a product on this list is dropped from the
+          gift-qualifying subtotal in create_sale, so it's a property of
+          Gifts, not a separate catalog. */}
+      <div className="mt-6 border-t border-border pt-4.5">
+        <h3 className="mb-1 text-[15px] font-bold text-text">{t("masters.tabs.giftExclusions")}</h3>
+        <p className="mb-3.5 text-xs font-medium text-text-muted">{t("masters.overview.giftExclusionsDesc", { count: giftExclusionProducts?.length ?? 0 })}</p>
+        <GiftExclusionsTab />
+      </div>
     </div>
   )
 }

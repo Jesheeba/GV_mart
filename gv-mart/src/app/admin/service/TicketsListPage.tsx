@@ -32,6 +32,7 @@ const FILTER_LABEL_KEYS: Record<PrimaryFilter, string> = {
   pending: "service.quickFilters.pending",
   cancelled: "service.status.cancelled",
   completed: "service.status.completed",
+  repeat: "service.quickFilters.repeat",
 }
 
 export function TicketsListPage() {

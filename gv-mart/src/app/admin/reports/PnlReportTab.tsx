@@ -1,22 +1,13 @@
 import { useState } from "react"
-import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { Controller, useForm } from "react-hook-form"
-import { Loader2, Plus } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
-import { usePnlReport, useCreateExpense } from "@/hooks/useReports"
+import { usePnlReport } from "@/hooks/useReports"
 import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue } from "@/services/reports"
-import { createExpenseSchema, expenseCategories, type CreateExpenseFormInput, type CreateExpenseOutput } from "@/lib/validation/reports"
+import { expenseCategories } from "@/lib/validation/reports"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { DatePicker } from "@/components/ui/date-picker"
 import { SegButton } from "@/components/shared/SegButton"
 import { ColumnPicker } from "@/components/shared/ColumnPicker"
 import { useColumnPrefs } from "@/hooks/useColumnPrefs"
@@ -47,7 +38,6 @@ export function PnlReportTab() {
   const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
   const range = periodToRange(period)
   const [withGst, setWithGst] = useState(true)
-  const [showLogExpense, setShowLogExpense] = useState(false)
   // F2 category filter — scopes the Expense Breakdown panel below to one
   // expense_category (reusing the same expenseCategories/expenseCategory.*
   // i18n pattern LogExpensePanel already uses). Revenue/COGS/OpEx/Net Profit
@@ -237,20 +227,8 @@ export function PnlReportTab() {
                   onToggle={expensePrefs.toggle}
                   onReset={expensePrefs.reset}
                 />
-                <Button size="sm" variant="outline" onClick={() => setShowLogExpense((v) => !v)}>
-                  <Plus className="size-4" />
-                  {t("reports.pnl.logExpense")}
-                </Button>
               </div>
             </div>
-
-            {showLogExpense ? (
-              <LogExpensePanel
-                orgId={profile?.org_id}
-                onClose={() => setShowLogExpense(false)}
-                onLogged={() => setShowLogExpense(false)}
-              />
-            ) : null}
 
             {isLoading ? (
               <div className="space-y-4">
@@ -350,79 +328,5 @@ function PnlRow({ label, value, sub, tone }: { label: string; value: string; sub
         {sub ? <p className="text-[11px] font-medium text-text-muted">{sub}</p> : null}
       </div>
     </div>
-  )
-}
-
-/** Inline "Log Expense" panel (ADM-28 gap fix) — mirrors the inline-expand
- * form convention established by SellAmcPanel.tsx (amc module): a button
- * toggles this panel open, react-hook-form + zodResolver validates, and a
- * successful submit calls back up to collapse the panel. Kept local to this
- * file rather than split out, since this is the only place `expenses` is
- * written to from the UI. */
-function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefined; onClose: () => void; onLogged: () => void }) {
-  const { t } = useTranslation()
-  const createExpense = useCreateExpense()
-
-  const form = useForm<CreateExpenseFormInput, unknown, CreateExpenseOutput>({
-    resolver: zodResolver(createExpenseSchema),
-    mode: "onChange",
-    defaultValues: { category: "marketing", amount: 0, date: toLocalDateString(new Date()) },
-  })
-
-  async function onSubmit(values: CreateExpenseOutput) {
-    if (!orgId) return
-    await createExpense.mutateAsync({ orgId, category: values.category, amount: values.amount, date: values.date })
-    onLogged()
-  }
-
-  return (
-    <Card className="mb-4 gap-3 px-5">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-text">{t("reports.pnl.logExpense")}</h4>
-        <Button size="sm" variant="ghost" onClick={onClose}>
-          {t("common.cancel")}
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="pnl-expense-category">{t("reports.pnl.category")}</Label>
-          <select
-            id="pnl-expense-category"
-            {...form.register("category")}
-            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          >
-            {expenseCategories.map((c) => (
-              <option key={c} value={c}>
-                {t(`reports.pnl.expenseCategory.${c}`)}
-              </option>
-            ))}
-          </select>
-          {form.formState.errors.category ? <p className="text-xs text-danger">{t(form.formState.errors.category.message!)}</p> : null}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="pnl-expense-amount">{t("reports.pnl.amount")}</Label>
-          <Input id="pnl-expense-amount" type="number" min={0} step="0.01" {...form.register("amount")} />
-          {form.formState.errors.amount ? <p className="text-xs text-danger">{t(form.formState.errors.amount.message!)}</p> : null}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="pnl-expense-date">{t("reports.pnl.date")}</Label>
-          <Controller
-            control={form.control}
-            name="date"
-            render={({ field }) => <DatePicker id="pnl-expense-date" value={field.value ?? ""} onChange={field.onChange} />}
-          />
-          {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
-        </div>
-      </div>
-
-      {createExpense.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createExpense.error as Error).message}</p> : null}
-
-      <div className="flex justify-end">
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={createExpense.isPending || !orgId}>
-          {createExpense.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
-        </Button>
-      </div>
-    </Card>
   )
 }

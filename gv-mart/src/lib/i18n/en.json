@@ -643,6 +643,7 @@
       "sopStepsDesc": "{{count}} activities",
       "productEnquiryDesc": "{{count}} customer app tabs configured",
       "waterQualityDesc": "{{count}} districts with TDS data",
+      "leadTaxonomyDesc": "{{sources}} sources, {{kinds}} kinds, {{productTypes}} product types",
       "leadSourcesDesc": "{{count}} sources",
       "leadKindsDesc": "{{count}} kinds",
       "leadProductTypesDesc": "{{count}} product types",
@@ -659,6 +660,7 @@
       "spares": "Spares",
       "gifts": "Gifts",
       "giftExclusions": "Gift Exclusions",
+      "leadTaxonomy": "Lead Taxonomy",
       "amcPlans": "AMC Plans",
       "rentalPlans": "Rental Plans",
       "technicianTiers": "Technician Tiers",
@@ -1749,7 +1751,8 @@
       "amc": "AMC",
       "warranty": "Warranty",
       "unassigned": "Unassigned",
-      "missingProduct": "Missing product"
+      "missingProduct": "Missing product",
+      "repeat": "Repeat complaint"
     },
     "table": {
       "ticket": "Ticket",
@@ -4453,7 +4456,6 @@
         "other": "Other"
       },
       "gstToggle": "View",
-      "logExpense": "Log Expense",
       "date": "Date",
       "marginPercent": "Net margin %",
       "grossMarginPercent": "Gross margin %",
