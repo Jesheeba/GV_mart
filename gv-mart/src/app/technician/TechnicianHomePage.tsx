@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarCheck, ChevronRight, ClipboardList, ListChecks, MapPin, Users2, TriangleAlert, Wrench } from "lucide-react"
+import { CalendarCheck, ChevronRight, ClipboardList, Fuel, ListChecks, MapPin, Users2, TriangleAlert, Wrench } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { Card } from "@/components/ui/card"
@@ -192,7 +192,7 @@ export function TechnicianHomePage() {
     <div className="space-y-4 pt-2">
       <h1 className="text-xl font-bold text-text">{t("dashboard.welcomeBack", { name: profile.full_name.split(" ")[0] })}</h1>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         <Button
           type="button"
           variant="outline"
@@ -201,6 +201,15 @@ export function TechnicianHomePage() {
         >
           <Wrench className="size-3.5" />
           {t("technician.home.spareReceipt")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          onClick={() => navigate("/technician/expenses")}
+        >
+          <Fuel className="size-3.5" />
+          {t("nav.expenses")}
         </Button>
         <Button
           type="button"
