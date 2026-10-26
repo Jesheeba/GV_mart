@@ -63,7 +63,7 @@ revoke execute on function public.technician_km_log_sum(uuid, uuid, date) from p
 -- what is paid (Unit 3/6). This exists so the admin has something to check
 -- that verified amount against. Priced per entry against whichever
 -- technician_vehicles row was effective on THAT entry's own date (table
--- 20261008100100_technician_vehicles.sql), not month-total-km x the rate at
+-- 20261107100000_technician_vehicles.sql), not month-total-km x the rate at
 -- month end — a rate changed on the 10th must not re-price the first nine
 -- days, the same day-level precision technician_own_bike_days already uses
 -- for ownership.

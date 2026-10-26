@@ -1,4 +1,4 @@
--- Rolled-back check for 20261024100500_compute_incentives_bike_allowance.sql,
+-- Rolled-back check for 20261107100400_compute_incentives_bike_allowance.sql,
 -- rebuilt against the real live body (after 20261016150000_review_
 -- incentives_switch, itself after 20261016120000_installation_incentive_
 -- credits and 20261016110000_test_customer_flag). Uses its own throwaway

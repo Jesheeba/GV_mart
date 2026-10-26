@@ -1,6 +1,6 @@
 -- ACL guard, CASE13 pattern (from feat/master-time-slots) -- for every
 -- function created or redefined by this branch's migrations
--- (20261024100100 through 20261024100600). The pooler/test connection is
+-- (20261107100000 through 20261107100500). The pooler/test connection is
 -- `postgres`, the owner of every one of these functions -- ownership does
 -- not carry through a role switch (verified empirically), but relying on
 -- that implicitly, inside other tests that happen to also exercise these

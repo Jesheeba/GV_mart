@@ -1,4 +1,4 @@
--- Rolled-back check for 20261024100300_expense_claims.sql. Run through the
+-- Rolled-back check for 20261107100200_expense_claims.sql. Run through the
 -- Management API (database/query); it always ends in a RAISE so nothing
 -- persists. Read the RESULTS in the error.
 --

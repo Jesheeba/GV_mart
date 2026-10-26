@@ -1,4 +1,4 @@
--- Rolled-back check for 20261024100200_technician_km_log.sql. Run through
+-- Rolled-back check for 20261107100100_technician_km_log.sql. Run through
 -- the Management API (database/query); it always ends in a RAISE so nothing
 -- persists. Read the RESULTS in the error.
 do $t$

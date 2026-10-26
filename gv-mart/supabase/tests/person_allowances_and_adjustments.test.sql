@@ -1,4 +1,4 @@
--- Rolled-back check for 20261024100400_person_allowances_and_adjustments.sql.
+-- Rolled-back check for 20261107100300_person_allowances_and_adjustments.sql.
 -- Run through the Management API (database/query); it always ends in a
 -- RAISE so nothing persists. Read the RESULTS in the error.
 do $t$

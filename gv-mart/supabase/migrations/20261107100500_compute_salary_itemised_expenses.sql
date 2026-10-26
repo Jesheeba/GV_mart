@@ -14,7 +14,7 @@
 -- (null = nothing paid). Kilometres x rate is kept only as a REFERENCE
 -- figure, computed per log entry against whichever technician_vehicles row
 -- was effective on that entry's own date
--- (technician_petrol_reference_amount, 20261008100200_technician_km_log.sql)
+-- (technician_petrol_reference_amount, 20261107100100_technician_km_log.sql)
 -- so the admin has something to check the verified amount against. Neither
 -- petrol nor maintenance reads monthly_adjustments any more — verifying at
 -- zero is the refusal, the verified amount is the correction (Fix 4).

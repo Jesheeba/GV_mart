@@ -1,4 +1,4 @@
--- Rolled-back check for 20261024100600_compute_salary_itemised_expenses.sql.
+-- Rolled-back check for 20261107100500_compute_salary_itemised_expenses.sql.
 -- Run through the Management API (database/query); it always ends in a
 -- RAISE so nothing persists. Read the RESULTS in the error.
 --
