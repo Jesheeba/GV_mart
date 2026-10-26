@@ -130,7 +130,11 @@ begin
       values (v_org, v_tech2orgp, 'own', 2, '2026-04-01');
     res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: SUCCEEDED (bad)';
   exception when others then
-    res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: rejected ('||sqlerrm||')';
+    if sqlstate <> '42501' then
+      res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: WRONG ERROR (not a policy refusal): '||sqlerrm;
+    else
+      res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: rejected ('||sqlerrm||')';
+    end if;
   end;
   execute 'reset role';
 

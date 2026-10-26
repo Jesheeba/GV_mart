@@ -117,14 +117,22 @@ begin
       values (v_org, v_master2, 300, '2026-04-01');
     res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: SUCCEEDED (bad)';
   exception when others then
-    res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+    if sqlstate <> '42501' then
+      res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: WRONG ERROR (not a policy refusal): '||sqlerrm;
+    else
+      res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+    end if;
   end;
   begin
     insert into monthly_adjustments (org_id, profile_id, period, adjustment_target, adjustment_type, amount, reason)
       values (v_org, v_master2, '2026-04-01', 'recharge', 'top_up', 100, 'cross-org check');
     res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: SUCCEEDED (bad)';
   exception when others then
-    res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+    if sqlstate <> '42501' then
+      res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: WRONG ERROR (not a policy refusal): '||sqlerrm;
+    else
+      res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+    end if;
   end;
   execute 'reset role';
 

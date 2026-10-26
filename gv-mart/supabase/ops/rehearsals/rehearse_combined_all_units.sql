@@ -70,6 +70,7 @@ declare
   v_org_count int;
   v_fp_before text;
   v_fp_after_migrations text;
+  v_fp_final text;
   v_actual_sha256 text;
   v_test_result text;
   v_live_inc_md5 text;
@@ -1517,7 +1518,11 @@ begin
       values (v_org, v_tech2orgp, 'own', 2, '2026-04-01');
     res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: SUCCEEDED (bad)';
   exception when others then
-    res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: rejected ('||sqlerrm||')';
+    if sqlstate <> '42501' then
+      res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: WRONG ERROR (not a policy refusal): '||sqlerrm;
+    else
+      res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: rejected ('||sqlerrm||')';
+    end if;
   end;
   execute 'reset role';
 
@@ -1916,14 +1921,22 @@ begin
       values (v_org, v_master2, 300, '2026-04-01');
     res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: SUCCEEDED (bad)';
   exception when others then
-    res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+    if sqlstate <> '42501' then
+      res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: WRONG ERROR (not a policy refusal): '||sqlerrm;
+    else
+      res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+    end if;
   end;
   begin
     insert into monthly_adjustments (org_id, profile_id, period, adjustment_target, adjustment_type, amount, reason)
       values (v_org, v_master2, '2026-04-01', 'recharge', 'top_up', 100, 'cross-org check');
     res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: SUCCEEDED (bad)';
   exception when others then
-    res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+    if sqlstate <> '42501' then
+      res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: WRONG ERROR (not a policy refusal): '||sqlerrm;
+    else
+      res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+    end if;
   end;
   execute 'reset role';
 
@@ -2751,6 +2764,15 @@ $oldsalbody$;
   v_m6_expected_sha256 text := 'bcaeedaad27c6d99217b9300a53619ad41beba9a218aac694b40184b1de7acf8';
   v_old_inc_expected_sha256 text := '7abcd18ab1ccfb5ac753691a625d9c18108593b5aa56626c9b0b5806ee8d1c22';
   v_old_sal_expected_sha256 text := '01a84dda4fce7e768f7dc631d4526bc8f74d8557be84be5ebf84f7a364189bd6';
+  v_t1_expected_sha256 text := 'f6d6d81213ce29c081f3f09e67c4b0c0a2f113ec26dc88f012b300d9eda3194b';
+  v_t2_expected_sha256 text := 'd713517a76c70a5f3e33b080156a32b9ab81f44d4671a8cfb80300dcae04a821';
+  v_t3_expected_sha256 text := '595ac8acd57f0cbe379a95404ec95a22c4ae2fbe70b3c1318098b6b04d5ae0cd';
+  v_t4_expected_sha256 text := '16bf66e95a5ee571481665c9757d807c252880135e601394a81bc581ccbb506f';
+  v_t5_expected_sha256 text := '44eb5cdbc01b811ccd15896c050cd98e6976f71b8ac053c017d78161a667d369';
+  v_t6_expected_sha256 text := '0df7a8c7f7416d51f9293afce5250e58fe9baf6fee052b9d764c17dc261611f6';
+  v_t7_expected_sha256 text := '1da1b030e890d12e2670545c8996b1f90c7e2a824ab8fd0bcb40ec1d30f131fe';
+  v_t8_expected_sha256 text := 'c3148fc62c35bfb4cb4ae77d8a860696fbe0115189c01fde1378258724b7effe';
+  v_t9_expected_sha256 text := 'c3ef17ced16b34ed1f3d6e5be98e180b18a40d4202263d580565ad5107773bf5';
 begin
   if v_now_ist < '18:00:00'::time then
     raise exception 'rehearsal refused: run after 18:00 IST, current IST wall-clock time is %', v_now_ist;
@@ -2789,6 +2811,44 @@ begin
     raise exception 'rehearsal refused: embedded ORIGINAL compute_salary text does not match its pinned sha256 (expected %, got %) -- this wrapper''s claim about the live body is stale', v_old_sal_expected_sha256, v_actual_sha256;
   end if;
   res := res || E'\n' || 'all 8 embedded texts (6 migrations + 2 original function bodies) sha256-verified via encode(sha256(convert_to(text, ''UTF8'')), ''hex'')';
+
+  v_actual_sha256 := encode(sha256(convert_to(v_t1, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t1_expected_sha256 then
+    raise exception 'rehearsal refused: test 1 (technician_vehicles.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t1_expected_sha256, v_actual_sha256;
+  end if;
+  v_actual_sha256 := encode(sha256(convert_to(v_t2, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t2_expected_sha256 then
+    raise exception 'rehearsal refused: test 2 (technician_km_log.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t2_expected_sha256, v_actual_sha256;
+  end if;
+  v_actual_sha256 := encode(sha256(convert_to(v_t3, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t3_expected_sha256 then
+    raise exception 'rehearsal refused: test 3 (expense_claims.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t3_expected_sha256, v_actual_sha256;
+  end if;
+  v_actual_sha256 := encode(sha256(convert_to(v_t4, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t4_expected_sha256 then
+    raise exception 'rehearsal refused: test 4 (person_allowances_and_adjustments.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t4_expected_sha256, v_actual_sha256;
+  end if;
+  v_actual_sha256 := encode(sha256(convert_to(v_t5, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t5_expected_sha256 then
+    raise exception 'rehearsal refused: test 5 (compute_incentives_bike_allowance.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t5_expected_sha256, v_actual_sha256;
+  end if;
+  v_actual_sha256 := encode(sha256(convert_to(v_t6, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t6_expected_sha256 then
+    raise exception 'rehearsal refused: test 6 (compute_salary_itemised_expenses.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t6_expected_sha256, v_actual_sha256;
+  end if;
+  v_actual_sha256 := encode(sha256(convert_to(v_t7, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t7_expected_sha256 then
+    raise exception 'rehearsal refused: test 7 (monthly_expenses_report.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t7_expected_sha256, v_actual_sha256;
+  end if;
+  v_actual_sha256 := encode(sha256(convert_to(v_t8, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t8_expected_sha256 then
+    raise exception 'rehearsal refused: test 8 (monthly_expenses_end_to_end.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t8_expected_sha256, v_actual_sha256;
+  end if;
+  v_actual_sha256 := encode(sha256(convert_to(v_t9, 'UTF8')), 'hex');
+  if v_actual_sha256 is distinct from v_t9_expected_sha256 then
+    raise exception 'rehearsal refused: test 9 (acl_guard_monthly_expenses.test.sql) text does not match its pinned sha256 (expected %, got %)', v_t9_expected_sha256, v_actual_sha256;
+  end if;
+  res := res || E'\n' || 'all 9 embedded tests sha256-verified';
 
   select count(*) into v_org_count from organizations where name not ilike '\_\_TEST%';
   if v_org_count <> 1 then
@@ -3042,6 +3102,24 @@ begin
     and v_old_salary_baseline.revenue_component = v_new_salary_check.revenue_component
     and v_old_salary_baseline.late_deduction = v_new_salary_check.late_deduction
     and v_old_salary_baseline.incentives = v_new_salary_check.incentives);
+
+  -- Final fingerprint of the real organisation, after everything above --
+  -- all nine tests and the whole control comparison (which only ever
+  -- touched the throwaway __TEST_no_expense_control org). Same expression
+  -- as v_fp_before/v_fp_after_migrations: must still be identical, since
+  -- nothing in this rehearsal ever recomputed or wrote against the real
+  -- org's technicians.
+  select format('salaries=%s rows sum(net)=%s | incentives_earned=%s rows sum(amount)=%s | settings=%s',
+      (select count(*) from salaries where org_id = v_org),
+      (select coalesce(sum(net), 0) from salaries where org_id = v_org),
+      (select count(*) from incentives_earned where org_id = v_org),
+      (select coalesce(sum(amount), 0) from incentives_earned where org_id = v_org),
+      (select md5((to_jsonb(s) - 'own_bike_allowance_base')::text) from settings s where org_id = v_org))
+    into v_fp_final;
+  if v_fp_final is distinct from v_fp_before then
+    raise exception 'rehearsal refused: CHANGED -- final fingerprint of the real organisation differs from before-migration-1 (before=%, final=%) -- something in this rehearsal touched real data', v_fp_before, v_fp_final;
+  end if;
+  res := res || E'\n' || format('final fingerprint of the real organisation, after all nine tests and the control comparison (expect identical to before): %s -- identical: true', v_fp_final);
 
   raise exception E'RESULTS%', res;
 end
