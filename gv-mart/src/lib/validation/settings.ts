@@ -22,6 +22,10 @@ export const settingsSchema = z
     very_late_threshold_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     lunch_minutes_allowed: z.coerce.number().int().positive("settings.errors.positive"),
     lunch_minutes_red_threshold: z.coerce.number().int().positive("settings.errors.positive"),
+    // Technician leave request in advance (FEATURE_TECHNICIAN_LEAVE_REQUEST.md, 20261106100000):
+    // a request's leave days only stay out of the KPI if it was submitted at least this many days
+    // before the leave starts.
+    leave_notice_days: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     discount_tech_max: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
     discount_admin_max: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
     amc_book_window_days: z.coerce.number().int().positive("settings.errors.positive"),

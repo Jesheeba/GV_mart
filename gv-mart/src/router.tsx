@@ -64,6 +64,7 @@ const TasksPage = lazyPage(() => import("@/app/admin/tasks/TasksPage"), "TasksPa
 const HuddlePage = lazyPage(() => import("@/app/admin/huddle/HuddlePage"), "HuddlePage")
 const NotificationsPage = lazyPage(() => import("@/app/admin/notifications/NotificationsPage"), "NotificationsPage")
 const ApprovalsPage = lazyPage(() => import("@/app/admin/approvals/ApprovalsPage"), "ApprovalsPage")
+const LeaveRequestsPage = lazyPage(() => import("@/app/admin/leaveRequests/LeaveRequestsPage"), "LeaveRequestsPage")
 const ComplaintsPage = lazyPage(() => import("@/app/admin/complaints/ComplaintsPage"), "ComplaintsPage")
 const CampaignsPage = lazyPage(() => import("@/app/admin/campaigns/CampaignsPage"), "CampaignsPage")
 const ReturnsPage = lazyPage(() => import("@/app/admin/returns/ReturnsPage"), "ReturnsPage")
@@ -88,6 +89,8 @@ const DaySheetPage = lazyPage(() => import("@/app/technician/DaySheetPage"), "Da
 const TechnicianNotificationsPage = lazyPage(() => import("@/app/technician/NotificationsPage"), "NotificationsPage")
 const TechnicianTasksPage = lazyPage(() => import("@/app/technician/TasksPage"), "TasksPage")
 const TechnicianHuddlePage = lazyPage(() => import("@/app/technician/HuddlePage"), "HuddlePage")
+const MyLeavePage = lazyPage(() => import("@/app/technician/MyLeavePage"), "MyLeavePage")
+const RequestLeavePage = lazyPage(() => import("@/app/technician/RequestLeavePage"), "RequestLeavePage")
 
 // --- Customer ---
 const CustomerShell = lazyPage(() => import("@/app/customer/CustomerShell"), "CustomerShell")
@@ -188,6 +191,7 @@ export const router = createBrowserRouter([
                       { path: ":id", element: <TechnicianDetailPage /> },
                     ],
                   },
+                  { path: "leave-requests", element: <LeaveRequestsPage /> },
                   { path: "inventory", element: <InventoryPage /> },
                   { path: "suppliers", element: <SuppliersPage /> },
                   { path: "purchase", element: <PurchasePage /> },
@@ -257,6 +261,8 @@ export const router = createBrowserRouter([
               { path: "notifications", element: <TechnicianNotificationsPage /> },
               { path: "tasks", element: <TechnicianTasksPage /> },
               { path: "huddle", element: <TechnicianHuddlePage /> },
+              { path: "leave", element: <MyLeavePage /> },
+              { path: "leave/new", element: <RequestLeavePage /> },
             ],
           },
           // Full-screen on-site stepper — deliberately outside TechnicianShell

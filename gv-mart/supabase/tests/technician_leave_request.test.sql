@@ -1,0 +1,269 @@
+-- Rolled-back check for 20261106100000_technician_leave_request.sql. Uses its own throwaway
+-- organisation so this test's requests/availability/attendance rows never interact with another
+-- org's data. Run through the Management API (database/query); it always ends in a RAISE so
+-- nothing persists. Read the RESULTS in the error.
+--
+-- AMC leave trigger (zz_amc_release_on_leave): migration 20261025100000 is NOT applied in this
+-- branch's ancestry (it lives on the unmerged feat/amc-release-path only — see the migration's
+-- header note). There is nothing to test here; this is stated, not silently skipped.
+--
+-- TEST NOTE for when 20261025100000 is applied (add this case then, it cannot run today):
+-- decide_technician_leave's approval writes technician_availability per day in the range as an
+-- upsert: a day with NO existing row is a plain INSERT (status='leave') — the trigger's "after
+-- insert or update of status, date ... when (new.status='leave')" fires unconditionally on
+-- INSERT, so this day WILL release any already-assigned AMC visit. A day that already carried a
+-- pre-existing 'leave' row (only possible if an admin had created it directly first — any other
+-- pre-existing status aborts the whole approval before any write) instead takes the ON CONFLICT
+-- DO UPDATE branch, whose SET list is `leave_request_id, protected` only — it never touches
+-- `status` or `date`, so Postgres' "UPDATE OF status, date" trigger scoping means the trigger
+-- will NOT re-fire for that day (correctly: the day was already 'leave', nothing changed for the
+-- release path to react to). Once that migration is applied, assert: inserting a NEW leave day
+-- for a technician with a future assigned AMC visit releases it (trigger fired); approving a
+-- request whose day was already an admin-direct 'leave' row does not re-run the release logic a
+-- second time for that day.
+--
+-- KPI TEST DESIGN: the org's settings.lead_work_days is set to {1} (Monday only) for this test
+-- org, so "organisation working days" in March 2026 are exactly the five Mondays: 2, 9, 16, 23,
+-- 30. This keeps the fixtures small while exercising the real weekly-pattern logic (not a
+-- calendar-month's worth of working days). All KPI cases use these fixed 2026-03 dates so they
+-- do not depend on when the rehearsal actually runs.
+do $t$
+declare
+  res text := '';
+  v_org uuid; v_master uuid;
+  v_t1 uuid; v_t1id uuid; v_t2 uuid; v_t2id uuid; v_ctrl uuid; v_ctrlid uuid;
+  v_sun uuid; v_sunid uuid; v_extra uuid; v_extraid uuid; v_zero uuid; v_zeroid uuid;
+  v_today date := (now() at time zone 'Asia/Kolkata')::date;
+  v_req uuid; v_req2 uuid; v_req_sun uuid; v_req_zero uuid;
+  v_reject uuid; v_cancel uuid; v_revoke uuid;
+  v_row public.technician_leave_requests;
+  v_n int; v_ok boolean;
+  v_real_org uuid; v_fp_before int; v_fp_after int; v_setting_before int; v_setting_after int;
+begin
+  -- ── real-org fingerprint, taken before anything else ──────────────────────────────────────
+  select id into v_real_org from organizations where name not like '\_\_TEST\_%' limit 1;
+  select count(*) into v_fp_before from technician_availability where org_id = v_real_org;
+  select leave_notice_days into v_setting_before from settings where org_id = v_real_org;
+
+  -- ── throwaway org + actors ────────────────────────────────────────────────────────────────
+  insert into organizations (name) values ('__TEST_technician_leave_request') returning id into v_org;
+  insert into settings (org_id, leave_notice_days, lead_work_days) values (v_org, 3, '{1}');
+
+  v_master := gen_random_uuid();
+  insert into auth.users (id, aud, role, email) values (v_master, 'authenticated', 'authenticated', 'leave-master@test.invalid');
+  insert into profiles (id, org_id, full_name, role) values (v_master, v_org, '__TEST_ master', 'master');
+
+  v_t1 := gen_random_uuid(); v_t2 := gen_random_uuid(); v_ctrl := gen_random_uuid();
+  v_sun := gen_random_uuid(); v_extra := gen_random_uuid(); v_zero := gen_random_uuid();
+  insert into auth.users (id, aud, role, email) values (v_t1, 'authenticated', 'authenticated', 'leave-t1@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_t2, 'authenticated', 'authenticated', 'leave-t2@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_ctrl, 'authenticated', 'authenticated', 'leave-ctrl@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_sun, 'authenticated', 'authenticated', 'leave-sun@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_extra, 'authenticated', 'authenticated', 'leave-extra@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_zero, 'authenticated', 'authenticated', 'leave-zero@test.invalid');
+  insert into profiles (id, org_id, full_name, role) values (v_t1, v_org, '__TEST_ tech1', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_t2, v_org, '__TEST_ tech2', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_ctrl, v_org, '__TEST_ ctrl', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_sun, v_org, '__TEST_ sun', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_extra, v_org, '__TEST_ extra', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_zero, v_org, '__TEST_ zero', 'technician');
+  insert into technicians (org_id, profile_id) values (v_org, v_t1) returning id into v_t1id;
+  insert into technicians (org_id, profile_id) values (v_org, v_t2) returning id into v_t2id;
+  insert into technicians (org_id, profile_id) values (v_org, v_ctrl) returning id into v_ctrlid;
+  insert into technicians (org_id, profile_id) values (v_org, v_sun) returning id into v_sunid;
+  insert into technicians (org_id, profile_id) values (v_org, v_extra) returning id into v_extraid;
+  insert into technicians (org_id, profile_id) values (v_org, v_zero) returning id into v_zeroid;
+
+  -- ══ KPI exclusion (reward_candidates' "expected working days") ═══════════════════════════
+  -- organisation working days this month, per lead_work_days={1}: Mondays 2026-03-02/09/16/23/30
+  -- (5 days). Control technician present on all five.
+  insert into attendance (org_id, technician_id, date, check_in_at, is_late) values
+    (v_org, v_ctrlid, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_ctrlid, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_ctrlid, '2026-03-16', '2026-03-16 09:00+05:30', false),
+    (v_org, v_ctrlid, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    (v_org, v_ctrlid, '2026-03-30', '2026-03-30 09:00+05:30', false),
+    -- t1: present the first four Mondays, misses the fifth (2026-03-30) — will be protected leave
+    (v_org, v_t1id, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_t1id, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_t1id, '2026-03-16', '2026-03-16 09:00+05:30', false),
+    (v_org, v_t1id, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    -- t2: same shortfall, will be LATE (not protected) leave on 2026-03-30
+    (v_org, v_t2id, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_t2id, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_t2id, '2026-03-16', '2026-03-16 09:00+05:30', false),
+    (v_org, v_t2id, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    -- sun: same shortfall (misses 2026-03-30), will have a protected, in-advance leave on a
+    -- SUNDAY only (2026-03-29) — a non-working day, so it must not cover the missing Monday
+    (v_org, v_sunid, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_sunid, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_sunid, '2026-03-16', '2026-03-16 09:00+05:30', false),
+    (v_org, v_sunid, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    -- extra: same shortfall (misses 2026-03-30), but has EXTRA attendance on a non-working day
+    -- (2026-03-31, a Tuesday) — that extra day must not substitute for the missing Monday
+    (v_org, v_extraid, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_extraid, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_extraid, '2026-03-16', '2026-03-16 09:00+05:30', false),
+    (v_org, v_extraid, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    (v_org, v_extraid, '2026-03-31', '2026-03-31 09:00+05:30', false);
+    -- zero: no attendance rows at all (inserted below: a full-month protected leave instead)
+
+  -- t1: requested 2026-03-01 for 2026-03-30 (well ahead of leave_notice_days=3) -> protected
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_t1id, '2026-03-30', '2026-03-30', v_t1, '2026-03-01 10:00+05:30')
+    returning id into v_req;
+  -- t2: requested 2026-03-29 for 2026-03-30 (1 day's notice, < 3) -> NOT protected = "late"
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_t2id, '2026-03-30', '2026-03-30', v_t2, '2026-03-29 10:00+05:30')
+    returning id into v_req2;
+  -- sun: requested well ahead, but for 2026-03-29 (Sunday) only
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_sunid, '2026-03-29', '2026-03-29', v_sun, '2026-02-01 10:00+05:30')
+    returning id into v_req_sun;
+  -- zero: requested well ahead, 2026-03-01..2026-03-30 (29-day span, the max a single request
+  -- may cover) -- still covers all 5 Mondays
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_zeroid, '2026-03-01', '2026-03-30', v_zero, '2026-02-01 10:00+05:30')
+    returning id into v_req_zero;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+
+  select * into v_row from decide_technician_leave(v_req, 'approved');
+  res := res || E'\n' || format('t1 (in advance) approved, protected (expect true): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req2, 'approved');
+  res := res || E'\n' || format('t2 (late) approved, protected (expect false): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req_sun, 'approved');
+  res := res || E'\n' || format('sun (Sunday only, in advance) approved, protected (expect true): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req_zero, 'approved');
+  res := res || E'\n' || format('zero (whole month, in advance) approved, protected (expect true): %s', v_row.protected);
+
+  -- test 1: in-advance protected leave + attendance on every other working day -> eligible
+  select count(*) = 1 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_t1id;
+  res := res || E'\n' || format('test1 protected t1 eligible for attendance reward (expect true): %s', v_ok);
+
+  -- test 2: same shortfall, late (not in-advance) leave -> not eligible
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_t2id;
+  res := res || E'\n' || format('test2 late t2 NOT eligible (expect true): %s', v_ok);
+
+  -- test 3: protected leave on a Sunday does not count -- technician_protected_leave_days must
+  -- return 0 for it, and the technician (still missing a real Monday) must not be eligible
+  select technician_protected_leave_days(v_org, v_sunid, '2026-03-01', '2026-03-31') = 0 into v_ok;
+  res := res || E'\n' || format('test3 Sunday-only protected leave counts as 0 days (expect true): %s', v_ok);
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_sunid;
+  res := res || E'\n' || format('test3 sun NOT eligible -- Sunday leave does not cover the missing Monday (expect true): %s', v_ok);
+
+  -- test 4: extra attendance on a non-working day (2026-03-31, a Tuesday) does not cover the
+  -- missing working day (2026-03-30, the fifth Monday)
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_extraid;
+  res := res || E'\n' || format('test4 extra NOT eligible -- non-working-day attendance does not substitute (expect true): %s', v_ok);
+
+  -- test 5: zero real attendance, even with a full month of protected leave covering every
+  -- working day, is not eligible (never appears in attendance_agg at all, so never reaches
+  -- attendance_eligible regardless of how many protected days it has)
+  select technician_protected_leave_days(v_org, v_zeroid, '2026-03-01', '2026-03-31') = 5 into v_ok;
+  res := res || E'\n' || format('test5 zero''s whole-month leave covers all 5 working Mondays (expect true): %s', v_ok);
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_zeroid;
+  res := res || E'\n' || format('test5 zero NOT eligible -- zero real attendance (expect true): %s', v_ok);
+
+  select count(*) into v_n from technician_availability where leave_request_id = v_req and status = 'leave' and protected;
+  res := res || E'\n' || format('t1 approved leave materialised as protected technician_availability row (expect 1): %s', v_n);
+
+  execute 'reset role';
+
+  -- ══ status transitions: reject / cancel / revoke (today-relative, independent technician v_t1) ══
+  perform set_config('request.jwt.claims', json_build_object('sub', v_t1, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+
+  select (request_technician_leave(v_today + 15, v_today + 15, 'reject me')).id into v_reject;
+  select (request_technician_leave(v_today + 16, v_today + 16, 'cancel me')).id into v_cancel;
+  select (request_technician_leave(v_today + 17, v_today + 17, 'revoke me')).id into v_revoke;
+  res := res || E'\n' || 'three pending requests created for t1 (today+15/16/17)';
+
+  -- overlap with an existing pending request is refused by the database
+  begin
+    perform request_technician_leave(v_today + 17, v_today + 17, 'dup');
+    res := res || E'\n' || 'overlap: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'overlap: rejected ('||sqlerrm||')';
+  end;
+
+  -- date validation refused by the database
+  begin
+    perform request_technician_leave(v_today + 20, v_today + 19, null);
+    res := res || E'\n' || 'end before start: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'end before start: rejected ('||sqlerrm||')';
+  end;
+  begin
+    perform request_technician_leave(v_today, v_today, null);
+    res := res || E'\n' || 'start not in the future: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'start not in the future: rejected ('||sqlerrm||')';
+  end;
+  begin
+    perform request_technician_leave(v_today + 30, v_today + 65, null);
+    res := res || E'\n' || 'request over 30 days: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'request over 30 days: rejected ('||sqlerrm||')';
+  end;
+
+  -- a technician cannot approve their own request, or anyone else's
+  begin
+    perform decide_technician_leave(v_reject, 'approved', null);
+    res := res || E'\n' || 'technician approves own request: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'technician approves own request: rejected ('||sqlerrm||')';
+  end;
+
+  execute 'reset role';
+
+  -- master rejects / t1 cancels / master approves then revokes
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select * into v_row from decide_technician_leave(v_reject, 'rejected', 'not enough cover that week');
+  res := res || E'\n' || format('reject: status (expect rejected): %s', v_row.status);
+  select * into v_row from decide_technician_leave(v_revoke, 'approved');
+  res := res || E'\n' || format('pre-revoke approve: status (expect approved): %s', v_row.status);
+  select count(*) into v_n from technician_availability where leave_request_id = v_revoke and status = 'leave';
+  res := res || E'\n' || format('pre-revoke: availability row exists (expect 1): %s', v_n);
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_t1, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select * into v_row from cancel_technician_leave(v_cancel);
+  res := res || E'\n' || format('t1 cancels own pending request: status (expect cancelled): %s', v_row.status);
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select * into v_row from decide_technician_leave(v_revoke, 'revoked', 'cover arranged, leave withdrawn');
+  res := res || E'\n' || format('revoke: status (expect revoked): %s', v_row.status);
+  select count(*) into v_n from technician_availability where leave_request_id = v_revoke and status = 'leave';
+  res := res || E'\n' || format('post-revoke: availability row removed (expect 0): %s', v_n);
+  execute 'reset role';
+
+  -- ══ RLS: one technician cannot see another technician's requests ═══════════════════════════
+  perform set_config('request.jwt.claims', json_build_object('sub', v_t2, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select count(*) into v_n from technician_leave_requests where technician_id = v_t1id;
+  res := res || E'\n' || format('t2 sees t1''s requests (expect 0): %s', v_n);
+  select count(*) > 0 into v_ok from technician_leave_requests where technician_id = v_t2id;
+  res := res || E'\n' || format('t2 sees own requests (expect true): %s', v_ok);
+  -- t2 also cannot approve t1's untouched request, or anyone's
+  begin
+    perform decide_technician_leave(v_req, 'approved', null);
+    res := res || E'\n' || 'technician approves someone else''s request: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'technician approves someone else''s request: rejected ('||sqlerrm||')';
+  end;
+  execute 'reset role';
+
+  -- ══ real-org data unchanged ═════════════════════════════════════════════════════════════
+  select count(*) into v_fp_after from technician_availability where org_id = v_real_org;
+  select leave_notice_days into v_setting_after from settings where org_id = v_real_org;
+  res := res || E'\n' || format('real org technician_availability count unchanged (expect true): %s', v_fp_before = v_fp_after);
+  res := res || E'\n' || format('real org leave_notice_days unchanged (expect true): %s', v_setting_before = v_setting_after);
+
+  raise exception E'RESULTS%', res;
+end $t$;

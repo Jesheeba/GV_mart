@@ -14,6 +14,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { DOT_TONE_CLASS, StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { useSettings } from "@/hooks/useMasters"
+import { useProtectedLeaveDays } from "@/hooks/useTechnicianLeave"
 import { useTechnicianTierProgress, useTechnicianTiers } from "@/hooks/useTechnicianTiers"
 import { formatCurrency } from "@/lib/sale-calc"
 import {
@@ -484,7 +485,7 @@ export function TechnicianDetailPage() {
         </TabsContent>
 
         <TabsContent value="kpis" className="mt-3.5">
-          <KpisTab loading={kpiSummary.isLoading} summary={kpiSummary.data} />
+          <KpisTab loading={kpiSummary.isLoading} summary={kpiSummary.data} technicianId={id} orgId={orgId} />
         </TabsContent>
 
         <TabsContent value="availability" className="mt-3.5">
@@ -916,16 +917,35 @@ function ReferralsTab({
  * admin-tunable settings.review_flag_threshold_percent/min_visits (Settings →
  * amcReferral group), never a hardcoded cutoff.
  */
-function KpisTab({ loading, summary }: { loading: boolean; summary: TechnicianKpiSummary | null | undefined }) {
+function KpisTab({
+  loading,
+  summary,
+  technicianId,
+  orgId,
+}: {
+  loading: boolean
+  summary: TechnicianKpiSummary | null | undefined
+  technicianId: string | undefined
+  orgId: string | undefined
+}) {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
   const { data: orgSettings } = useSettings(profile?.org_id)
   // claim-rate flags and the rate footnote exist only while review incentives are switched on
   const showClaimRate = orgSettings?.review_incentives_enabled === true
+  // FEATURE_TECHNICIAN_LEAVE_REQUEST.md §2.3: "days excluded due to approved leave", this month.
+  const monthStart = new Date()
+  monthStart.setDate(1)
+  const monthStartIso = monthStart.toISOString().slice(0, 10)
+  const monthEndIso = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).toISOString().slice(0, 10)
+  const protectedDays = useProtectedLeaveDays(orgId, technicianId, monthStartIso, monthEndIso)
   if (loading) return <Skeleton className="h-32 w-full" />
   if (!summary) return <EmptyState label={t("technicians.detail.kpi.unavailable")} />
   return (
     <div className="space-y-3">
+      {protectedDays.data ? (
+        <p className="px-1 text-xs text-text-muted">{t("technicians.detail.kpi.protectedLeaveDays", { count: protectedDays.data })}</p>
+      ) : null}
       {summary.flagged ? (
         <div className="flex items-start gap-2 rounded-xl bg-warning/10 px-3 py-2.5 text-sm text-warning">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
