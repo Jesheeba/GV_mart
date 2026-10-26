@@ -51,9 +51,21 @@ alter table public.technician_vehicles enable row level security;
 -- read or write this table through any path.
 create policy technician_vehicles_select_ops on public.technician_vehicles
   for select using (org_id = public.current_org_id() and public.is_ops_staff());
+-- The existence check's outer-table qualification matters: technicians
+-- also has a column named org_id, so an unqualified `t.org_id = org_id`
+-- inside the subquery would resolve to `t.org_id = t.org_id` (always
+-- true) rather than comparing against the row actually being written.
 create policy technician_vehicles_write_ops on public.technician_vehicles for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
-  with check (org_id = public.current_org_id() and public.is_ops_staff());
+  with check (
+    org_id = public.current_org_id()
+    and public.is_ops_staff()
+    and exists (
+      select 1 from public.technicians t
+      where t.id = technician_vehicles.technician_id
+        and t.org_id = technician_vehicles.org_id
+    )
+  );
 
 -- Table-level grants: ops staff read, insert and update this table
 -- directly from the frontend (BikeAssignmentTab -- listTechnicianVehicle

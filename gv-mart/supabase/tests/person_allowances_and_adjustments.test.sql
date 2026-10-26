@@ -105,5 +105,28 @@ begin
   res := res || E'\n' || format('other-org master sees this org''s adjustments (expect 0): %s', v_n);
   execute 'reset role';
 
+  -- CROSS-ORG CHECKS (write_ops existence checks, this review's fix):
+  -- master (ops staff of v_org) tries to insert tagged with org_id = v_org
+  -- (their own org) but profile_id = v_master2, a real profile that
+  -- belongs to v_org2. Before this fix, neither write_ops policy verified
+  -- that relationship at all.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into person_allowances (org_id, profile_id, recharge_amount, effective_from)
+      values (v_org, v_master2, 300, '2026-04-01');
+    res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'CROSS-ORG person_allowances: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+  end;
+  begin
+    insert into monthly_adjustments (org_id, profile_id, period, adjustment_target, adjustment_type, amount, reason)
+      values (v_org, v_master2, '2026-04-01', 'recharge', 'top_up', 100, 'cross-org check');
+    res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'CROSS-ORG monthly_adjustments: master inserts for a profile from a different org: rejected ('||sqlerrm||')';
+  end;
+  execute 'reset role';
+
   raise exception E'RESULTS%', res;
 end $t$;

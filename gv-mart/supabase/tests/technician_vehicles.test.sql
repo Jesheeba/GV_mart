@@ -21,6 +21,7 @@ declare
   v_ok boolean;
   v_days int;
   v_row public.technician_vehicles;
+  v_org2 uuid; v_tech2org uuid; v_tech2orgp uuid;
 begin
   insert into organizations (name) values ('__TEST_technician_vehicles') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -36,6 +37,15 @@ begin
     v_techp := array_append(v_techp, null);
     insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
   end loop;
+
+  -- A second, unrelated organisation and its own technician -- used only
+  -- for the cross-org existence-check test below.
+  insert into organizations (name) values ('__TEST_technician_vehicles_other') returning id into v_org2;
+  insert into settings (org_id) values (v_org2);
+  v_tech2org := gen_random_uuid();
+  insert into auth.users (id, aud, role, email) values (v_tech2org, 'authenticated', 'authenticated', 'tv-tech-org2@test.invalid');
+  insert into profiles (id, org_id, full_name, role) values (v_tech2org, v_org2, '__TEST_ tech-org2', 'technician');
+  insert into technicians (org_id, profile_id) values (v_org2, v_tech2org) returning id into v_tech2orgp;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -105,6 +115,22 @@ begin
     res := res || E'\n' || 'technician INSERT: SUCCEEDED (bad)';
   exception when others then
     res := res || E'\n' || 'technician INSERT: rejected ('||sqlerrm||')';
+  end;
+  execute 'reset role';
+
+  -- CROSS-ORG CHECK (write_ops existence check, this review's fix):
+  -- master (ops staff of v_org) tries to insert a row with org_id = v_org
+  -- (their own org) but technician_id pointing at a technician who
+  -- actually belongs to v_org2. Before this fix, write_ops never
+  -- verified that relationship at all.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into technician_vehicles (org_id, technician_id, ownership, petrol_rate_per_km, effective_from)
+      values (v_org, v_tech2orgp, 'own', 2, '2026-04-01');
+    res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'CROSS-ORG: master inserts for a technician who belongs to a different org: rejected ('||sqlerrm||')';
   end;
   execute 'reset role';
 

@@ -43,13 +43,21 @@ create policy technician_km_log_insert_own on public.technician_km_log
     technician_id = public.current_technician_id()
     and org_id = public.current_org_id()
   );
+-- NOTE on the fix below: `t.org_id = org_id` (unqualified) inside this
+-- subquery would be a TAUTOLOGY, not a real check -- technicians also has
+-- a column named org_id, so Postgres resolves the unqualified reference
+-- to the subquery's OWN table (t.org_id), giving `t.org_id = t.org_id`
+-- (always true) instead of comparing against the outer row's org_id. The
+-- outer table name is qualified explicitly to force the comparison
+-- against the actual INSERTed row, not the subquery's own alias.
 create policy technician_km_log_insert_staff on public.technician_km_log
   for insert with check (
     org_id = public.current_org_id()
     and public.is_ops_staff()
     and exists (
       select 1 from public.technicians t
-      where t.id = technician_id and t.org_id = org_id
+      where t.id = technician_km_log.technician_id
+        and t.org_id = technician_km_log.org_id
     )
   );
 -- Deliberately no update/delete policy at all (for any role) — append-only.

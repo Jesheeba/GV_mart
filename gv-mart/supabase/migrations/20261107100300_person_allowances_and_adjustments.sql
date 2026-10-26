@@ -37,9 +37,21 @@ alter table public.person_allowances enable row level security;
 
 create policy person_allowances_select_ops on public.person_allowances
   for select using (org_id = public.current_org_id() and public.is_ops_staff());
+-- The existence check's outer-table qualification matters: profiles also
+-- has a column named org_id, so an unqualified `p.org_id = org_id` inside
+-- the subquery would resolve to `p.org_id = p.org_id` (always true)
+-- rather than comparing against the row actually being written.
 create policy person_allowances_write_ops on public.person_allowances for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
-  with check (org_id = public.current_org_id() and public.is_ops_staff());
+  with check (
+    org_id = public.current_org_id()
+    and public.is_ops_staff()
+    and exists (
+      select 1 from public.profiles p
+      where p.id = person_allowances.profile_id
+        and p.org_id = person_allowances.org_id
+    )
+  );
 
 -- Table-level grants: ops staff read, insert and update this table
 -- directly (AllowancesTab -- listPersonAllowances/setPersonAllowance/
@@ -104,9 +116,18 @@ alter table public.monthly_adjustments enable row level security;
 
 create policy monthly_adjustments_select_ops on public.monthly_adjustments
   for select using (org_id = public.current_org_id() and public.is_ops_staff());
+-- Same qualification reasoning as person_allowances_write_ops above.
 create policy monthly_adjustments_write_ops on public.monthly_adjustments for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
-  with check (org_id = public.current_org_id() and public.is_ops_staff());
+  with check (
+    org_id = public.current_org_id()
+    and public.is_ops_staff()
+    and exists (
+      select 1 from public.profiles p
+      where p.id = monthly_adjustments.profile_id
+        and p.org_id = monthly_adjustments.org_id
+    )
+  );
 
 -- Table-level grants: ops staff read and insert this table directly
 -- (AdjustmentsTab -- listMonthlyAdjustments/addMonthlyAdjustment); there
