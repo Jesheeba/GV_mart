@@ -627,6 +627,7 @@ declare
   v_today date := (now() at time zone 'Asia/Kolkata')::date;
   v_req uuid; v_req2 uuid; v_req_sun uuid; v_req_zero uuid; v_req_overlap uuid;
   v_req_closureleave uuid; v_req_below uuid; v_req_admin uuid; v_req_started uuid;
+  v_req_notice_hi uuid; v_req_notice_lo uuid;
   v_reject uuid; v_cancel uuid; v_revoke uuid;
   v_row public.technician_leave_requests;
   v_n int; v_ok boolean;
@@ -724,53 +725,39 @@ begin
     (v_org, v_belowid, '2026-03-02', '2026-03-02 09:00+05:30', false);
     -- zero / test (d) extreme: no attendance at all, inserted below via protected leave only.
 
-  -- t1: requested 2026-03-01 for 2026-03-30 (well ahead of leave_notice_days=3) -> protected
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_t1id, '2026-03-30', '2026-03-30', v_t1, '2026-03-01 10:00+05:30')
+  -- These seven KPI-case requests are inserted DIRECTLY as already-approved, with `protected`
+  -- set explicitly to what each case needs -- decide_technician_leave's "already started" guard
+  -- (added this round: approving requires start_date >= today IST) would refuse approving any of
+  -- these fixed 2026-03 dates through the RPC today, since they are long in the past relative to
+  -- the actual rehearsal run date. The protected/late FLAG COMPUTATION itself (via
+  -- _leave_request_is_protected, comparing created_at to leave_notice_days) is tested separately
+  -- below, through the real RPC, with today-relative dates -- these direct inserts only need to
+  -- exercise reward_candidates'/technician_protected_leave_days' CONSUMPTION of an already-decided
+  -- protected flag, not its computation.
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
+    values (v_org, v_t1id, '2026-03-30', '2026-03-30', v_t1, '2026-03-01 10:00+05:30', 'approved', true)
     returning id into v_req;
-  -- t2: requested 2026-03-29 for 2026-03-30 (1 day's notice, < 3) -> NOT protected = "late"
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_t2id, '2026-03-30', '2026-03-30', v_t2, '2026-03-29 10:00+05:30')
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
+    values (v_org, v_t2id, '2026-03-30', '2026-03-30', v_t2, '2026-03-29 10:00+05:30', 'approved', false)
     returning id into v_req2;
-  -- sun: requested well ahead, but for 2026-03-29 (Sunday) only
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_sunid, '2026-03-29', '2026-03-29', v_sun, '2026-02-01 10:00+05:30')
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
+    values (v_org, v_sunid, '2026-03-29', '2026-03-29', v_sun, '2026-02-01 10:00+05:30', 'approved', true)
     returning id into v_req_sun;
-  -- zero: requested well ahead, 2026-03-01..2026-03-30 (29-day span) -- test (d) extreme: zero
-  -- real attendance, every real org_day covered by leave alone
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_zeroid, '2026-03-01', '2026-03-30', v_zero, '2026-02-01 10:00+05:30')
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
+    values (v_org, v_zeroid, '2026-03-01', '2026-03-30', v_zero, '2026-02-01 10:00+05:30', 'approved', true)
     returning id into v_req_zero;
-  -- overlap: requested well ahead, for 2026-03-23 only -- the SAME day overlap already attends
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_overlapid, '2026-03-23', '2026-03-23', v_overlap, '2026-02-01 10:00+05:30')
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
+    values (v_org, v_overlapid, '2026-03-23', '2026-03-23', v_overlap, '2026-02-01 10:00+05:30', 'approved', true)
     returning id into v_req_overlap;
-  -- closureleave: requested well ahead, for 2026-03-16 only (the closure day)
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_closureleaveid, '2026-03-16', '2026-03-16', v_closureleave, '2026-02-01 10:00+05:30')
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
+    values (v_org, v_closureleaveid, '2026-03-16', '2026-03-16', v_closureleave, '2026-02-01 10:00+05:30', 'approved', true)
     returning id into v_req_closureleave;
-  -- below: requested well ahead, 2026-03-09..2026-03-30 -- covers org_days 09/23/30, nothing on 02
-  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
-    values (v_org, v_belowid, '2026-03-09', '2026-03-30', v_below, '2026-02-01 10:00+05:30')
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at, status, protected)
+    values (v_org, v_belowid, '2026-03-09', '2026-03-30', v_below, '2026-02-01 10:00+05:30', 'approved', true)
     returning id into v_req_below;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-
-  select * into v_row from decide_technician_leave(v_req, 'approved');
-  res := res || E'\n' || format('t1 (in advance) approved, protected (expect true): %s', v_row.protected);
-  select * into v_row from decide_technician_leave(v_req2, 'approved');
-  res := res || E'\n' || format('t2 (late) approved, protected (expect false): %s', v_row.protected);
-  select * into v_row from decide_technician_leave(v_req_sun, 'approved');
-  res := res || E'\n' || format('sun (Sunday only, in advance) approved, protected (expect true): %s', v_row.protected);
-  select * into v_row from decide_technician_leave(v_req_zero, 'approved');
-  res := res || E'\n' || format('zero (whole month, in advance) approved, protected (expect true): %s', v_row.protected);
-  select * into v_row from decide_technician_leave(v_req_overlap, 'approved');
-  res := res || E'\n' || format('overlap (same day as attendance, in advance) approved, protected (expect true): %s', v_row.protected);
-  select * into v_row from decide_technician_leave(v_req_closureleave, 'approved');
-  res := res || E'\n' || format('closureleave (closure day, in advance) approved, protected (expect true): %s', v_row.protected);
-  select * into v_row from decide_technician_leave(v_req_below, 'approved');
-  res := res || E'\n' || format('below (covers 3 of 4 real days, in advance) approved, protected (expect true): %s', v_row.protected);
 
   -- test 1: in-advance protected leave + attendance on every other real org_day -> eligible
   select count(*) = 1 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_t1id;
@@ -812,9 +799,13 @@ begin
   res := res || E'\n' || format('testD below-ratio NOT eligible -- 1 real day < minimum 2 (expect true): %s', v_ok);
 
   -- test 5 / (d) extreme: zero real attendance, even with every real org_day covered by
-  -- protected leave, is not eligible (0 attended days < minimum 2)
-  select technician_protected_leave_days(v_org, v_zeroid, '2026-03-01', '2026-03-31') = 4 into v_ok;
-  res := res || E'\n' || format('test5 zero''s leave covers all 4 real org_days (expect true): %s', v_ok);
+  -- protected leave, is not eligible (0 attended days < minimum 2). Note:
+  -- technician_protected_leave_days is a display figure, not reward_candidates' own stricter
+  -- org_days -- it counts every weekday matching settings.lead_work_days regardless of whether
+  -- anyone attended, so it counts all FIVE March Mondays (02,09,16,23,30), including the closure
+  -- day 2026-03-16, not the four real org_days reward_candidates uses.
+  select technician_protected_leave_days(v_org, v_zeroid, '2026-03-01', '2026-03-31') = 5 into v_ok;
+  res := res || E'\n' || format('test5 zero''s leave covers all 5 March Mondays, incl. the closure day (expect true): %s', v_ok);
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_zeroid;
   res := res || E'\n' || format('test5 zero NOT eligible -- zero real attendance (expect true): %s', v_ok);
 
@@ -827,18 +818,9 @@ begin
     res := res || E'\n' || 'testE cross-org technician_protected_leave_days: rejected ('||sqlerrm||')';
   end;
 
-  select count(*) into v_n from technician_availability where leave_request_id = v_req and status = 'leave' and protected;
-  res := res || E'\n' || format('t1 approved leave materialised as protected technician_availability row (expect 1): %s', v_n);
-
   -- technician_protected_leave_days(p_from > p_to) returns 0, never errors
   select technician_protected_leave_days(v_org, v_t1id, '2026-04-01', '2026-03-01') = 0 into v_ok;
   res := res || E'\n' || format('p_from > p_to returns 0 (expect true): %s', v_ok);
-
-  -- a request creates its notification row (role-targeted, to master/operation_admin)
-  select count(*) > 0 into v_ok from notifications where ref_id = v_req and type = 'technician_leave_requested';
-  res := res || E'\n' || format('approved-request notification row exists for t1''s request (expect true): %s', v_ok);
-  select count(*) > 0 into v_ok from notifications where ref_id = v_req and type = 'technician_leave_approved';
-  res := res || E'\n' || format('approval notification row exists (expect true): %s', v_ok);
 
   -- admin / "an admin-entered leave day inside an approved range survives revoke": a pre-existing
   -- technician_availability row (leave_request_id null, status='leave') on the exact day of a
@@ -878,6 +860,11 @@ begin
   select (request_technician_leave(v_today + 16, v_today + 16, 'cancel me')).id into v_cancel;
   select (request_technician_leave(v_today + 17, v_today + 17, 'revoke me')).id into v_revoke;
   res := res || E'\n' || 'three pending requests created for t1 (today+15/16/17)';
+
+  -- protected/late flag, computed for real through the RPC with today-relative dates:
+  -- requested >= leave_notice_days (3) before the start -> protected; < 3 days -> late.
+  select (request_technician_leave(v_today + 10, v_today + 10, 'in advance')).id into v_req_notice_hi;
+  select (request_technician_leave(v_today + 1, v_today + 1, 'late')).id into v_req_notice_lo;
 
   -- overlap with an existing pending request is refused by the database
   begin
@@ -928,6 +915,19 @@ begin
   res := res || E'\n' || format('pre-revoke approve: status (expect approved): %s', v_row.status);
   select count(*) into v_n from technician_availability where leave_request_id = v_revoke and status = 'leave';
   res := res || E'\n' || format('pre-revoke: availability row exists (expect 1): %s', v_n);
+
+  -- a request creates its notification row (role-targeted, to master/operation_admin) -- uses a
+  -- request created through the real RPC, not a direct insert.
+  select count(*) > 0 into v_ok from notifications where ref_id = v_req_notice_hi and type = 'technician_leave_requested';
+  res := res || E'\n' || format('request notification row exists (expect true): %s', v_ok);
+
+  select * into v_row from decide_technician_leave(v_req_notice_hi, 'approved');
+  res := res || E'\n' || format('notice test: today+10 (notice=3) approved, protected (expect true): %s', v_row.protected);
+  select count(*) > 0 into v_ok from notifications where ref_id = v_req_notice_hi and type = 'technician_leave_approved';
+  res := res || E'\n' || format('approval notification row exists (expect true): %s', v_ok);
+  select * into v_row from decide_technician_leave(v_req_notice_lo, 'approved');
+  res := res || E'\n' || format('notice test: today+1 (notice=3) approved, protected (expect false): %s', v_row.protected);
+
   execute 'reset role';
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_t1, 'role', 'authenticated')::text, true);
@@ -1100,7 +1100,8 @@ $ORIG_REWARD_CANDIDATES$;
   v_avail_count_after int;
   v_avail_fp_after text;
   v_leave_req_count_after int;
-  v_notice_days_before int;
+  v_notice_days_before text;
+  v_real_org_count int;
   v_month1 date;
   v_month2 date;
   v_month3 date;
@@ -1120,13 +1121,19 @@ begin
   if v_mig_hash <> '4c0908ed67fe05faa3f079652ec3cac2c2a2f76c7080a18a79d9637654fbf772' then
     raise exception 'migration hash mismatch: expected 4c0908ed67fe05faa3f079652ec3cac2c2a2f76c7080a18a79d9637654fbf772, got %', v_mig_hash;
   end if;
-  if v_test_hash <> '805b518747f741712f5c46c107ae878e651c32c64aba3c73f773e6598e54cb04' then
-    raise exception 'test hash mismatch: expected 805b518747f741712f5c46c107ae878e651c32c64aba3c73f773e6598e54cb04, got %', v_test_hash;
+  if v_test_hash <> '37b140f728c4a2fa655d7524f83b3134e397c284275315aedbfdfd50b412890a' then
+    raise exception 'test hash mismatch: expected 37b140f728c4a2fa655d7524f83b3134e397c284275315aedbfdfd50b412890a, got %', v_test_hash;
   end if;
 
   -- real org + a staff profile of that org, used both for the fingerprint and to impersonate a
-  -- real caller for the (otherwise is_staff()-gated) parity check below.
-  select id into v_real_org from organizations where name not like '\_\_TEST\_%' limit 1;
+  -- real caller for the (otherwise is_staff()-gated) parity check below. Refuses outright unless
+  -- exactly one non-__TEST_ organisation exists -- more than one makes "the real organisation"
+  -- ambiguous, and picking one silently (e.g. via LIMIT 1) would hide that ambiguity.
+  select count(*) into v_real_org_count from organizations where name not like '\_\_TEST\_%';
+  if v_real_org_count <> 1 then
+    raise exception 'rehearsal refused: expected exactly one non-test organisation, found %', v_real_org_count;
+  end if;
+  select id into v_real_org from organizations where name not like '\_\_TEST\_%';
   select id into v_real_staff from profiles where org_id = v_real_org and role in ('master', 'operation_admin', 'sales_admin') limit 1;
   v_month1 := date_trunc('month', (now() at time zone 'Asia/Kolkata') - interval '1 month')::date;
   v_month2 := date_trunc('month', (now() at time zone 'Asia/Kolkata') - interval '2 months')::date;
@@ -1177,7 +1184,10 @@ begin
          coalesce(md5(string_agg(technician_id::text || ':' || date::text || ':' || status, ',' order by technician_id, date)), '')
     into v_avail_count_before, v_avail_fp_before
     from technician_availability where org_id = v_real_org;
-  select leave_notice_days into v_notice_days_before from settings where org_id = v_real_org;
+  -- leave_notice_days does not exist on settings yet at this point -- read it defensively via
+  -- to_jsonb()->>'...', which returns null for a key that isn't there instead of erroring the
+  -- way a bare `select leave_notice_days` would.
+  select to_jsonb(s)->>'leave_notice_days' into v_notice_days_before from settings s where s.org_id = v_real_org;
   -- technician_leave_requests does not exist yet at this point -- there is nothing of this
   -- org's to fingerprint there before the migration creates the table.
 

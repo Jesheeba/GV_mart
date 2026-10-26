@@ -9,6 +9,18 @@
 -- are left exactly as they are — they are ordinary leave rows now, same as any admin-direct entry,
 -- and this rollback does not delete calendar data.
 
+-- ── refuse if any real request exists -- this rollback has no migration path for that data,
+--    so dropping the table under it would silently destroy it. Checked FIRST, before any other
+--    drop or replace, so a refusal here leaves everything completely untouched. ─────────────────
+do $$
+begin
+  if exists (select 1 from public.technician_leave_requests limit 1) then
+    raise exception 'rollback refused: technician_leave_requests has % row(s) -- this rollback does not know how to preserve them',
+      (select count(*) from public.technician_leave_requests);
+  end if;
+end;
+$$;
+
 -- ── reward_candidates: back to the live (pre-feature) body, unchanged from
 --    20261016110000_test_customer_flag.sql ──────────────────────────────────────────────────────
 create or replace function public.reward_candidates(p_org_id uuid, p_period date)
@@ -127,17 +139,6 @@ drop function if exists public._leave_request_is_protected(timestamptz, date, in
 alter table public.technician_availability
   drop column if exists leave_request_id,
   drop column if exists protected;
-
--- ── refuse if any real request exists -- this rollback has no migration path for that data,
---    so dropping the table under it would silently destroy it ─────────────────────────────────
-do $$
-begin
-  if exists (select 1 from public.technician_leave_requests limit 1) then
-    raise exception 'rollback refused: technician_leave_requests has % row(s) -- this rollback does not know how to preserve them',
-      (select count(*) from public.technician_leave_requests);
-  end if;
-end;
-$$;
 
 -- ── drop the audit trigger, then the request table (the trigger drops with the table too; kept
 --    explicit per the deploy checklist) ───────────────────────────────────────────────────────
