@@ -34,7 +34,7 @@ end $$;
 revoke all on function public.get_customer_health_condition(uuid) from public, anon, authenticated;
 drop function public.get_customer_health_condition(uuid);
 
-revoke all on public.customer_health_profile from authenticated;
+revoke all on public.customer_health_profile from public, anon, authenticated;
 drop policy if exists customer_health_profile_select_own on public.customer_health_profile;
 drop policy if exists customer_health_profile_staff_update on public.customer_health_profile;
 drop policy if exists customer_health_profile_staff_insert on public.customer_health_profile;

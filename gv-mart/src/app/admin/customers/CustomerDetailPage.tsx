@@ -568,8 +568,7 @@ export function CustomerDetailPage() {
               healthCondition={customer.health_condition}
               familyMemberCount={customer.customer_members.length}
               measuredReading={measured}
-              canEditWater={profile?.role === "master" || profile?.role === "operation_admin"}
-              canEditHealth={profile?.role === "master" || profile?.role === "operation_admin" || profile?.role === "sales_admin"}
+              canEdit={profile?.role === "master" || profile?.role === "operation_admin" || profile?.role === "sales_admin"}
             />
           </Card>
         </TabsContent>

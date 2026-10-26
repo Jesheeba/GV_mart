@@ -26,11 +26,8 @@ type WaterHouseholdPanelProps = {
   familyMemberCount: number
   /** The latest ro_checklists reading from a real service visit (separate, untouched table). */
   measuredReading?: CustomerMeasuredWaterReading | null
-  /** master/operation_admin only — see 20261108100000_customer_water_profile.sql. */
-  canEditWater: boolean
-  /** master/operation_admin/sales_admin (is_staff()) — customer_health_profile's own RLS,
-   *  a wider set than canEditWater since health_condition isn't a customers column. */
-  canEditHealth: boolean
+  /** master, operation_admin or sales_admin — see 20261108100000_customer_water_profile.sql. */
+  canEdit: boolean
 }
 
 /**
@@ -48,8 +45,7 @@ export function WaterHouseholdPanel({
   healthCondition,
   familyMemberCount,
   measuredReading,
-  canEditWater,
-  canEditHealth,
+  canEdit,
 }: WaterHouseholdPanelProps) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
@@ -78,7 +74,7 @@ export function WaterHouseholdPanel({
   const isSaving = updateProfile.isPending || upsertHealth.isPending
 
   const onSave = handleSubmit(async (values) => {
-    if (canEditWater) {
+    if (canEdit) {
       await updateProfile.mutateAsync({
         waterSource: values.waterSource || null,
         waterSourceOther: values.waterSource === "other" ? values.waterSourceOther?.trim() || null : null,
@@ -86,7 +82,7 @@ export function WaterHouseholdPanel({
         waterPh: values.waterPh == null || Number.isNaN(values.waterPh) ? null : values.waterPh,
       })
     }
-    if (canEditHealth && values.healthCondition && orgId) {
+    if (canEdit && values.healthCondition && orgId) {
       await upsertHealth.mutateAsync({ orgId, healthCondition: values.healthCondition })
     }
     setEditing(false)
@@ -97,7 +93,7 @@ export function WaterHouseholdPanel({
       <form onSubmit={onSave} className="space-y-3">
         <div className="space-y-1.5">
           <Label>{t("customers.detail.waterSource")}</Label>
-          {canEditWater ? (
+          {canEdit ? (
             <div className="flex flex-wrap gap-1 rounded-full bg-surface-alt p-1">
               {WATER_SOURCES.map((s) => (
                 <SegButton key={s} active={watchedSource === s} onClick={() => setValue("waterSource", s, { shouldValidate: true })}>
@@ -109,7 +105,7 @@ export function WaterHouseholdPanel({
             <p className="text-sm text-text">{waterSource ? t(`customers.detail.waterSourceOptions.${waterSource}`) : "—"}</p>
           )}
         </div>
-        {canEditWater && watchedSource === "other" ? (
+        {canEdit && watchedSource === "other" ? (
           <div className="space-y-1.5">
             <Input placeholder={t("customers.detail.waterSourceOtherPlaceholder")} {...register("waterSourceOther")} />
             {errors.waterSourceOther ? <p className="text-xs text-danger">{t(errors.waterSourceOther.message!)}</p> : null}
@@ -118,7 +114,7 @@ export function WaterHouseholdPanel({
         <div className="flex gap-2">
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="waterTdsPpm">{t("customers.detail.waterTds")}</Label>
-            {canEditWater ? (
+            {canEdit ? (
               <>
                 <Input id="waterTdsPpm" type="number" step="1" min={0} aria-invalid={!!errors.waterTdsPpm} {...register("waterTdsPpm", { valueAsNumber: true })} />
                 {errors.waterTdsPpm ? <p className="text-xs text-danger">{t(errors.waterTdsPpm.message!)}</p> : null}
@@ -129,7 +125,7 @@ export function WaterHouseholdPanel({
           </div>
           <div className="flex-1 space-y-1.5">
             <Label htmlFor="waterPh">{t("customers.detail.waterPh")}</Label>
-            {canEditWater ? (
+            {canEdit ? (
               <>
                 <Input id="waterPh" type="number" step="0.1" min={0} max={14} aria-invalid={!!errors.waterPh} {...register("waterPh", { valueAsNumber: true })} />
                 {errors.waterPh ? <p className="text-xs text-danger">{t(errors.waterPh.message!)}</p> : null}
@@ -141,7 +137,7 @@ export function WaterHouseholdPanel({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="healthCondition">{t("customers.detail.healthCondition")}</Label>
-          {canEditHealth ? (
+          {canEdit ? (
             <select
               id="healthCondition"
               defaultValue={healthCondition ?? ""}
@@ -177,7 +173,7 @@ export function WaterHouseholdPanel({
     <div className="space-y-3">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-lg font-semibold text-text">{t("customers.detail.waterHouseholdTitle")}</h2>
-        {canEditWater || canEditHealth ? (
+        {canEdit ? (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             <Pencil className="size-3.5" />
             {t("common.edit")}

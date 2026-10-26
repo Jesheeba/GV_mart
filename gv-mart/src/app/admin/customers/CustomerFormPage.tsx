@@ -512,8 +512,7 @@ export function CustomerFormPage() {
                   waterPh={existing.data!.water_ph}
                   healthCondition={existing.data!.health_condition}
                   familyMemberCount={existing.data!.customer_members.length}
-                  canEditWater={profile?.role === "master" || profile?.role === "operation_admin"}
-                  canEditHealth={profile?.role === "master" || profile?.role === "operation_admin" || profile?.role === "sales_admin"}
+                  canEdit={profile?.role === "master" || profile?.role === "operation_admin" || profile?.role === "sales_admin"}
                 />
               </div>
             </>
