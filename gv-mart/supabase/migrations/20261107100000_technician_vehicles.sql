@@ -112,11 +112,20 @@ begin
 end;
 $$;
 
-grant execute on function public.technician_vehicle_on(uuid, uuid, date) to authenticated;
-grant execute on function public.technician_own_bike_days(uuid, uuid, date) to authenticated;
+-- ACL audit: neither function checks who is calling or which org they
+-- belong to -- they trust p_org_id/p_technician_id exactly as passed. Both
+-- are internal-only (called from inside compute_salary/compute_incentives,
+-- which are SECURITY DEFINER and already did their own is_master()+org
+-- check before reaching here; a nested call from one SECURITY DEFINER
+-- function to another never needs an EXECUTE grant for the invoking role).
+-- The frontend never calls either by name as an RPC today --
+-- technician_own_bike_days has a service-layer wrapper and a React Query
+-- hook (getTechnicianOwnBikeDays / useTechnicianOwnBikeDays) but zero
+-- render call sites anywhere in src/app, so by "called directly" it does
+-- not qualify either. Neither is granted to authenticated.
 -- 20261024100000_close_public_and_anon_function_execute closed the default
 -- (a function postgres creates is no longer born PUBLIC-executable), but
--- these are stated explicitly anyway rather than relying on migration
+-- this is stated explicitly anyway rather than relying on migration
 -- ordering alone.
-revoke execute on function public.technician_vehicle_on(uuid, uuid, date) from public, anon;
-revoke execute on function public.technician_own_bike_days(uuid, uuid, date) from public, anon;
+revoke execute on function public.technician_vehicle_on(uuid, uuid, date) from public, anon, authenticated;
+revoke execute on function public.technician_own_bike_days(uuid, uuid, date) from public, anon, authenticated;

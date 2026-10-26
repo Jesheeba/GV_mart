@@ -64,8 +64,11 @@ as $$
   limit 1;
 $$;
 
-grant execute on function public.person_allowance_on(uuid, uuid, date) to authenticated;
-revoke execute on function public.person_allowance_on(uuid, uuid, date) from public, anon;
+-- ACL audit: no caller/org check, and not called directly from the
+-- frontend anywhere -- internal-only, called from inside compute_salary
+-- (which already did its own is_master()+org check). Not granted to
+-- authenticated.
+revoke execute on function public.person_allowance_on(uuid, uuid, date) from public, anon, authenticated;
 
 -- ── monthly_adjustments ────────────────────────────────────────────────────
 
@@ -143,10 +146,12 @@ as $$
   );
 $$;
 
-grant execute on function public.monthly_adjustment_top_up(uuid, uuid, date, text) to authenticated;
-grant execute on function public.monthly_adjustment_excluded(uuid, uuid, date, text) to authenticated;
-revoke execute on function public.monthly_adjustment_top_up(uuid, uuid, date, text) from public, anon;
-revoke execute on function public.monthly_adjustment_excluded(uuid, uuid, date, text) from public, anon;
+-- ACL audit: neither checks who is calling, and neither is called directly
+-- from the frontend anywhere -- both internal-only, called from inside
+-- compute_salary and compute_incentives (both already did their own
+-- is_master()+org check). Not granted to authenticated.
+revoke execute on function public.monthly_adjustment_top_up(uuid, uuid, date, text) from public, anon, authenticated;
+revoke execute on function public.monthly_adjustment_excluded(uuid, uuid, date, text) from public, anon, authenticated;
 
 -- ── Org setting: own-bike allowance base (§1.6/§3.6) ──────────────────────
 -- Appended to the existing single-row-per-org `settings` table, matching

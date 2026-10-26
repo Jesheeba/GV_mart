@@ -205,6 +205,16 @@ begin
   -- incentive total is unchanged" holds because this block only ever
   -- INSERTs a new is_bike_allowance row or UPDATEs one it already owns; it
   -- never touches a rule_id/installation_rate_id/credit_source row.
+  --
+  -- The existing-row lookup happens BEFORE the <= 0 check, deliberately: a
+  -- technician can be recomputed for a period more than once (an admin
+  -- switches them to a company bike or excludes them, then re-runs
+  -- compute_incentives for a month already touched). If a row from an
+  -- earlier, larger-amount run already exists and the new amount is <= 0,
+  -- it must be zeroed, not silently left stale — "continue"-ing straight
+  -- past it (the original shape of this block) would leave the technician
+  -- permanently overpaid in incentives_earned until some other code path
+  -- happened to delete the row, which none does.
   select own_bike_allowance_base into v_base_setting from public.settings where org_id = p_org_id;
   v_base_setting := coalesce(v_base_setting, 0);
   v_days_in_month := (v_period + interval '1 month')::date - v_period;
@@ -216,12 +226,16 @@ begin
     v_extra := public.monthly_adjustment_top_up(p_org_id, v_bike_tech.profile_id, v_period, 'bike_allowance');
     v_amount := (case when v_excluded then 0 else v_prorated end) + v_extra;
 
+    select id into v_existing_id from public.incentives_earned
+      where technician_id = v_bike_tech.id and period = v_period and is_bike_allowance;
+
     if v_amount <= 0 then
+      if v_existing_id is not null then
+        update public.incentives_earned set amount = 0 where id = v_existing_id and amount is distinct from 0;
+      end if;
       continue;
     end if;
 
-    select id into v_existing_id from public.incentives_earned
-      where technician_id = v_bike_tech.id and period = v_period and is_bike_allowance;
     if v_existing_id is null then
       insert into public.incentives_earned (org_id, technician_id, is_bike_allowance, amount, period)
       values (p_org_id, v_bike_tech.id, true, v_amount, v_period);
@@ -237,4 +251,7 @@ begin
 end;
 $function$;
 
+-- ACL audit: checked -- raises unless is_master() and the org matches.
+-- Called directly from the frontend (useComputeIncentives / hr.ts). Granted.
+revoke execute on function public.compute_incentives(uuid, date) from public, anon, authenticated;
 grant execute on function public.compute_incentives(uuid, date) to authenticated;

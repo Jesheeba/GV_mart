@@ -191,5 +191,8 @@ begin
 end;
 $$;
 
+-- ACL audit: checked -- raises unless is_master(), the org matches, and
+-- the technician exists in that org. Called directly from the frontend
+-- (useComputeSalary / hr.ts). Granted.
+revoke execute on function public.compute_salary(uuid, uuid, date) from public, anon, authenticated;
 grant execute on function public.compute_salary(uuid, uuid, date) to authenticated;
-revoke execute on function public.compute_salary(uuid, uuid, date) from public, anon;

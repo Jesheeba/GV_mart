@@ -1,43 +1,49 @@
 -- Unit 8 — end to end. One month, one organisation, seven technicians:
 -- own bike all month, company bike all month, mid-month switch, an excluded
 -- month, a top-up, a claim verified lower than submitted, and no expenses at
--- all. Rolled-back check — run through the Management API (database/query);
--- it always ends in a RAISE so nothing persists. Read the RESULTS in the
+-- all. Creates its own __TEST_ organisation, master, 7 technicians and a
+-- settings row -- never reads from or depends on whatever real data
+-- already exists, so this always has exactly the 7 technicians it needs.
+-- Rolled-back check — run through the Management API (database/query); it
+-- always ends in a RAISE so nothing persists. Read the RESULTS in the
 -- error.
 do $t$
 declare
   res text := '';
   v_org uuid; v_master uuid;
-  v_own uuid; v_own_p uuid;
-  v_company uuid; v_company_p uuid;
-  v_switch uuid; v_switch_p uuid;
-  v_excluded uuid; v_excluded_p uuid;
-  v_topup uuid; v_topup_p uuid;
-  v_lowball uuid; v_lowball_p uuid;
-  v_none uuid; v_none_p uuid;
+  v_tech uuid[] := '{}'; v_techp uuid[] := '{}';
+  i int;
+  v_own uuid; v_company uuid; v_switch uuid; v_excluded uuid;
+  v_topup uuid; v_lowball uuid; v_none uuid;
+  v_own_p uuid; v_company_p uuid; v_switch_p uuid; v_excluded_p uuid;
+  v_topup_p uuid; v_lowball_p uuid; v_none_p uuid;
   v_row salaries; v_none_before salaries; v_none_after salaries;
   v_claim public.expense_claims;
   v_base numeric;
   v_org_total numeric; v_manual_sum numeric;
   ids uuid[];
 begin
-  select org_id into v_org from profiles where role='master' limit 1;
-  select id into v_master from profiles where role='master' limit 1;
+  insert into organizations (name) values ('__TEST_monthly_expenses_end_to_end') returning id into v_org;
+  insert into settings (org_id) values (v_org);
   select own_bike_allowance_base into v_base from settings where org_id = v_org;
 
-  select array_agg(id) into ids from (select id from technicians where org_id = v_org limit 7) s;
-  if array_length(ids, 1) < 7 then
-    raise exception 'RESULTSUnit 8 skipped: this database has fewer than 7 technicians seeded (found %)', array_length(ids, 1);
-  end if;
-  v_own := ids[1]; v_company := ids[2]; v_switch := ids[3]; v_excluded := ids[4];
-  v_topup := ids[5]; v_lowball := ids[6]; v_none := ids[7];
-  select profile_id into v_own_p from technicians where id = v_own;
-  select profile_id into v_company_p from technicians where id = v_company;
-  select profile_id into v_switch_p from technicians where id = v_switch;
-  select profile_id into v_excluded_p from technicians where id = v_excluded;
-  select profile_id into v_topup_p from technicians where id = v_topup;
-  select profile_id into v_lowball_p from technicians where id = v_lowball;
-  select profile_id into v_none_p from technicians where id = v_none;
+  insert into auth.users (id, aud, role, email) values (gen_random_uuid(), 'authenticated', 'authenticated', 'e2e-master@test.invalid')
+    returning id into v_master;
+  insert into profiles (id, org_id, full_name, role) values (v_master, v_org, '__TEST_ master', 'master');
+
+  for i in 1..7 loop
+    v_tech := array_append(v_tech, gen_random_uuid());
+    insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('e2e-tech%s@test.invalid', i));
+    insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
+    v_techp := array_append(v_techp, null);
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+  end loop;
+  ids := v_techp;
+
+  v_own := v_techp[1]; v_company := v_techp[2]; v_switch := v_techp[3]; v_excluded := v_techp[4];
+  v_topup := v_techp[5]; v_lowball := v_techp[6]; v_none := v_techp[7];
+  v_own_p := v_tech[1]; v_company_p := v_tech[2]; v_switch_p := v_tech[3]; v_excluded_p := v_tech[4];
+  v_topup_p := v_tech[5]; v_lowball_p := v_tech[6]; v_none_p := v_tech[7];
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -74,6 +80,7 @@ begin
     values (v_org, v_topup_p, '2026-07-01', 'recharge', 'top_up', 100, 'extra SIM for the second line this month');
 
   -- A maintenance claim verified lower than submitted
+  execute 'reset role';
   perform set_config('request.jwt.claims', json_build_object('sub', v_lowball_p, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
   select * into v_claim from submit_expense_claim(v_org, 'maintenance', 1000, v_lowball::text || '/bill.jpg', '2026-07-01');

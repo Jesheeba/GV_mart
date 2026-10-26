@@ -121,8 +121,11 @@ begin
 end;
 $$;
 
+-- ACL audit: checked -- raises unless the caller resolves to a real
+-- technician (current_technician_id() is not null) and the org matches.
+-- Called directly from the frontend (submitExpenseClaim). Granted.
+revoke execute on function public.submit_expense_claim(uuid, text, numeric, text, date) from public, anon, authenticated;
 grant execute on function public.submit_expense_claim(uuid, text, numeric, text, date) to authenticated;
-revoke execute on function public.submit_expense_claim(uuid, text, numeric, text, date) from public, anon;
 
 -- ── verify_expense_claim: master/operation_admin sets the figure that pays ──
 -- `verified_amount = 0` with a reason IS the "rejected" state (§1.4) — no
@@ -168,8 +171,12 @@ begin
 end;
 $$;
 
+-- ACL audit: checked -- raises unless is_ops_staff(), and the claim lookup
+-- is scoped to current_org_id() (a cross-org claim id resolves v_claim.id
+-- to null and raises). Called directly from the frontend
+-- (verifyExpenseClaim). Granted.
+revoke execute on function public.verify_expense_claim(uuid, numeric, text) from public, anon, authenticated;
 grant execute on function public.verify_expense_claim(uuid, numeric, text) to authenticated;
-revoke execute on function public.verify_expense_claim(uuid, numeric, text) from public, anon;
 
 -- Monthly verified totals per technician, by claim type — the figures Units
 -- 6/7 read. Unverified rows are excluded by construction (verified_amount is
@@ -195,5 +202,9 @@ as $$
     and verified_amount is not null;
 $$;
 
-grant execute on function public.technician_expense_claims_total(uuid, uuid, date, text) to authenticated;
-revoke execute on function public.technician_expense_claims_total(uuid, uuid, date, text) from public, anon;
+-- ACL audit: no caller/org check at all, and confirmed not called directly
+-- from the frontend anywhere (grep of src/ for this name turns up nothing
+-- outside this file) -- internal-only, called from inside compute_salary,
+-- which already did its own is_master()+org check before reaching here.
+-- Not granted to authenticated.
+revoke execute on function public.technician_expense_claims_total(uuid, uuid, date, text) from public, anon, authenticated;

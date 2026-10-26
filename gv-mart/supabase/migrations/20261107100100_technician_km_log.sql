@@ -33,26 +33,51 @@ create policy technician_km_log_insert_staff on public.technician_km_log
   for insert with check (org_id = public.current_org_id() and public.is_ops_staff());
 -- Deliberately no update/delete policy at all (for any role) — append-only.
 
+-- ACL audit (this migration's three read functions, all genuinely called
+-- directly from the frontend as RPCs, confirmed against
+-- src/services/monthlyExpenses.ts and every component that imports its
+-- hooks): the first version of each had NO caller/org check at all — any
+-- authenticated user could pass an arbitrary org_id/technician_id and read
+-- another organisation's or another technician's monthly figures. All
+-- three are rewritten here as plpgsql with an explicit guard that RAISEs
+-- (loud refusal, matching submit_expense_claim/verify_expense_claim's own
+-- convention) rather than silently filtering to an empty/zero result. The
+-- guard is symmetric across all three: master/operation_admin may query
+-- any technician in their org; a technician may query only themself.
+
 -- Monthly sum of the manual log — informational total shown on the salary
 -- breakdown and the verification queue (§1.5). Payment for petrol is the
--- admin's verified claim amount (Unit 3/6), not this figure.
+-- admin's verified claim amount (Unit 3/6), not this figure. Called
+-- directly by both the admin KmLogTab (any technician) and the
+-- technician's own ExpensesPage (self) — see useKmLogMonthlySum.
 create or replace function public.technician_km_log_sum(
   p_org_id uuid,
   p_technician_id uuid,
   p_period date
 )
 returns numeric
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
 as $$
-  select coalesce(sum(km), 0)
-  from public.technician_km_log
-  where org_id = p_org_id
-    and technician_id = p_technician_id
-    and entry_date >= date_trunc('month', p_period)::date
-    and entry_date < (date_trunc('month', p_period)::date + interval '1 month');
+begin
+  if p_org_id is distinct from public.current_org_id() then
+    raise exception 'technician_km_log_sum: org mismatch';
+  end if;
+  if not (public.is_ops_staff() or p_technician_id = public.current_technician_id()) then
+    raise exception 'technician_km_log_sum: access denied';
+  end if;
+
+  return coalesce((
+    select sum(km)
+    from public.technician_km_log
+    where org_id = p_org_id
+      and technician_id = p_technician_id
+      and entry_date >= date_trunc('month', p_period)::date
+      and entry_date < (date_trunc('month', p_period)::date + interval '1 month')
+  ), 0);
+end;
 $$;
 
 grant execute on function public.technician_km_log_sum(uuid, uuid, date) to authenticated;
@@ -66,29 +91,41 @@ revoke execute on function public.technician_km_log_sum(uuid, uuid, date) from p
 -- 20261107100000_technician_vehicles.sql), not month-total-km x the rate at
 -- month end — a rate changed on the 10th must not re-price the first nine
 -- days, the same day-level precision technician_own_bike_days already uses
--- for ownership.
+-- for ownership. Called directly by the admin VerificationQueueTab for the
+-- claim's own technician — see usePetrolReferenceAmount.
 create or replace function public.technician_petrol_reference_amount(
   p_org_id uuid,
   p_technician_id uuid,
   p_period date
 )
 returns numeric
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
 as $$
-  select coalesce(sum(l.km * coalesce(v.petrol_rate_per_km, 0)), 0)
-  from public.technician_km_log l
-  left join public.technician_vehicles v
-    on v.org_id = p_org_id
-    and v.technician_id = p_technician_id
-    and v.effective_from <= l.entry_date
-    and coalesce(v.effective_to, 'infinity'::date) >= l.entry_date
-  where l.org_id = p_org_id
-    and l.technician_id = p_technician_id
-    and l.entry_date >= date_trunc('month', p_period)::date
-    and l.entry_date < (date_trunc('month', p_period)::date + interval '1 month');
+begin
+  if p_org_id is distinct from public.current_org_id() then
+    raise exception 'technician_petrol_reference_amount: org mismatch';
+  end if;
+  if not (public.is_ops_staff() or p_technician_id = public.current_technician_id()) then
+    raise exception 'technician_petrol_reference_amount: access denied';
+  end if;
+
+  return coalesce((
+    select sum(l.km * coalesce(v.petrol_rate_per_km, 0))
+    from public.technician_km_log l
+    left join public.technician_vehicles v
+      on v.org_id = p_org_id
+      and v.technician_id = p_technician_id
+      and v.effective_from <= l.entry_date
+      and coalesce(v.effective_to, 'infinity'::date) >= l.entry_date
+    where l.org_id = p_org_id
+      and l.technician_id = p_technician_id
+      and l.entry_date >= date_trunc('month', p_period)::date
+      and l.entry_date < (date_trunc('month', p_period)::date + interval '1 month')
+  ), 0);
+end;
 $$;
 
 grant execute on function public.technician_petrol_reference_amount(uuid, uuid, date) to authenticated;
@@ -102,37 +139,49 @@ revoke execute on function public.technician_petrol_reference_amount(uuid, uuid,
 -- straight sum of Haversine distances between consecutive pings in the
 -- month (R = 6371 km) — noisy by nature (GPS drift, gaps when the app is
 -- closed), which is exactly why the spec treats it as a reference, not a
--- source of payment.
+-- source of payment. Called directly by the admin KmLogTab for the
+-- selected technician — see useApproxDistanceKm.
 create or replace function public.technician_approx_distance_km(
   p_org_id uuid,
   p_technician_id uuid,
   p_period date
 )
 returns numeric
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
 as $$
-  with pings as (
-    select
-      lat, lng,
-      lag(lat) over (order by recorded_at) as prev_lat,
-      lag(lng) over (order by recorded_at) as prev_lng
-    from public.technician_locations
-    where org_id = p_org_id
-      and technician_id = p_technician_id
-      and recorded_at >= date_trunc('month', p_period)
-      and recorded_at < date_trunc('month', p_period) + interval '1 month'
-  )
-  select coalesce(round(sum(
-    2 * 6371 * asin(least(1, sqrt(
-      sin(radians(lat - prev_lat) / 2) ^ 2
-      + cos(radians(prev_lat)) * cos(radians(lat)) * sin(radians(lng - prev_lng) / 2) ^ 2
-    )))
-  )::numeric, 1), 0)
-  from pings
-  where prev_lat is not null and prev_lng is not null;
+begin
+  if p_org_id is distinct from public.current_org_id() then
+    raise exception 'technician_approx_distance_km: org mismatch';
+  end if;
+  if not (public.is_ops_staff() or p_technician_id = public.current_technician_id()) then
+    raise exception 'technician_approx_distance_km: access denied';
+  end if;
+
+  return coalesce((
+    with pings as (
+      select
+        lat, lng,
+        lag(lat) over (order by recorded_at) as prev_lat,
+        lag(lng) over (order by recorded_at) as prev_lng
+      from public.technician_locations
+      where org_id = p_org_id
+        and technician_id = p_technician_id
+        and recorded_at >= date_trunc('month', p_period)
+        and recorded_at < date_trunc('month', p_period) + interval '1 month'
+    )
+    select round(sum(
+      2 * 6371 * asin(least(1, sqrt(
+        sin(radians(lat - prev_lat) / 2) ^ 2
+        + cos(radians(prev_lat)) * cos(radians(lat)) * sin(radians(lng - prev_lng) / 2) ^ 2
+      )))
+    )::numeric, 1)
+    from pings
+    where prev_lat is not null and prev_lng is not null
+  ), 0);
+end;
 $$;
 
 grant execute on function public.technician_approx_distance_km(uuid, uuid, date) to authenticated;
