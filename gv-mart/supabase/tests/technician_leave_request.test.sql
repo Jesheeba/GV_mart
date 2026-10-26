@@ -22,19 +22,24 @@
 -- request whose day was already an admin-direct 'leave' row does not re-run the release logic a
 -- second time for that day.
 --
--- KPI TEST DESIGN: the org's settings.lead_work_days is set to {1} (Monday only) for this test
--- org, so "organisation working days" in March 2026 are exactly the five Mondays: 2, 9, 16, 23,
--- 30. This keeps the fixtures small while exercising the real weekly-pattern logic (not a
--- calendar-month's worth of working days). All KPI cases use these fixed 2026-03 dates so they
--- do not depend on when the rehearsal actually runs.
+-- KPI TEST DESIGN: settings.lead_work_days = {1} (Monday only) for this test org, and
+-- settings.attendance_reward_min_present_ratio is left at its default 0.5. March 2026's Mondays
+-- are 2, 9, 16, 23, 30 — but NO technician ever attends on 2026-03-16, so it is a genuine
+-- organisation-wide closure (a company holiday, say) and drops out of org_days entirely, even
+-- though it is a working weekday. The real organisation working days this month are therefore
+-- {02, 09, 23, 30} — four days (n = 4; ceil(4 * 0.5) = 2 minimum real attendance days). All KPI
+-- cases use these fixed 2026-03 dates so they do not depend on when the rehearsal actually runs.
 do $t$
 declare
   res text := '';
   v_org uuid; v_master uuid;
   v_t1 uuid; v_t1id uuid; v_t2 uuid; v_t2id uuid; v_ctrl uuid; v_ctrlid uuid;
   v_sun uuid; v_sunid uuid; v_extra uuid; v_extraid uuid; v_zero uuid; v_zeroid uuid;
+  v_overlap uuid; v_overlapid uuid; v_closureleave uuid; v_closureleaveid uuid;
+  v_below uuid; v_belowid uuid;
   v_today date := (now() at time zone 'Asia/Kolkata')::date;
-  v_req uuid; v_req2 uuid; v_req_sun uuid; v_req_zero uuid;
+  v_req uuid; v_req2 uuid; v_req_sun uuid; v_req_zero uuid; v_req_overlap uuid;
+  v_req_closureleave uuid; v_req_below uuid;
   v_reject uuid; v_cancel uuid; v_revoke uuid;
   v_row public.technician_leave_requests;
   v_n int; v_ok boolean;
@@ -55,58 +60,75 @@ begin
 
   v_t1 := gen_random_uuid(); v_t2 := gen_random_uuid(); v_ctrl := gen_random_uuid();
   v_sun := gen_random_uuid(); v_extra := gen_random_uuid(); v_zero := gen_random_uuid();
+  v_overlap := gen_random_uuid(); v_closureleave := gen_random_uuid(); v_below := gen_random_uuid();
   insert into auth.users (id, aud, role, email) values (v_t1, 'authenticated', 'authenticated', 'leave-t1@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_t2, 'authenticated', 'authenticated', 'leave-t2@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_ctrl, 'authenticated', 'authenticated', 'leave-ctrl@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_sun, 'authenticated', 'authenticated', 'leave-sun@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_extra, 'authenticated', 'authenticated', 'leave-extra@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_zero, 'authenticated', 'authenticated', 'leave-zero@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_overlap, 'authenticated', 'authenticated', 'leave-overlap@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_closureleave, 'authenticated', 'authenticated', 'leave-closure@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_below, 'authenticated', 'authenticated', 'leave-below@test.invalid');
   insert into profiles (id, org_id, full_name, role) values (v_t1, v_org, '__TEST_ tech1', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_t2, v_org, '__TEST_ tech2', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_ctrl, v_org, '__TEST_ ctrl', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_sun, v_org, '__TEST_ sun', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_extra, v_org, '__TEST_ extra', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_zero, v_org, '__TEST_ zero', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_overlap, v_org, '__TEST_ overlap', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_closureleave, v_org, '__TEST_ closure', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_below, v_org, '__TEST_ below', 'technician');
   insert into technicians (org_id, profile_id) values (v_org, v_t1) returning id into v_t1id;
   insert into technicians (org_id, profile_id) values (v_org, v_t2) returning id into v_t2id;
   insert into technicians (org_id, profile_id) values (v_org, v_ctrl) returning id into v_ctrlid;
   insert into technicians (org_id, profile_id) values (v_org, v_sun) returning id into v_sunid;
   insert into technicians (org_id, profile_id) values (v_org, v_extra) returning id into v_extraid;
   insert into technicians (org_id, profile_id) values (v_org, v_zero) returning id into v_zeroid;
+  insert into technicians (org_id, profile_id) values (v_org, v_overlap) returning id into v_overlapid;
+  insert into technicians (org_id, profile_id) values (v_org, v_closureleave) returning id into v_closureleaveid;
+  insert into technicians (org_id, profile_id) values (v_org, v_below) returning id into v_belowid;
 
-  -- ══ KPI exclusion (reward_candidates' "expected working days") ═══════════════════════════
-  -- organisation working days this month, per lead_work_days={1}: Mondays 2026-03-02/09/16/23/30
-  -- (5 days). Control technician present on all five.
+  -- ══ KPI exclusion (reward_candidates' per-day coverage) ══════════════════════════════════
+  -- 2026-03-16 (a Monday) is a deliberate org-wide closure: NO technician attends it below, so
+  -- it never becomes an org_day even though it is a working weekday. Real org_days = {02,09,23,30}.
   insert into attendance (org_id, technician_id, date, check_in_at, is_late) values
+    -- ctrl / test (a): full attendance on every real org_day -> eligible despite the closure
     (v_org, v_ctrlid, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_ctrlid, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_ctrlid, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_ctrlid, '2026-03-23', '2026-03-23 09:00+05:30', false),
     (v_org, v_ctrlid, '2026-03-30', '2026-03-30 09:00+05:30', false),
-    -- t1: present the first four Mondays, misses the fifth (2026-03-30) — will be protected leave
+    -- t1: present 02/09/23, misses 30 -- will be protected (in-advance) leave
     (v_org, v_t1id, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_t1id, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_t1id, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_t1id, '2026-03-23', '2026-03-23 09:00+05:30', false),
     -- t2: same shortfall, will be LATE (not protected) leave on 2026-03-30
     (v_org, v_t2id, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_t2id, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_t2id, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_t2id, '2026-03-23', '2026-03-23 09:00+05:30', false),
-    -- sun: same shortfall (misses 2026-03-30), will have a protected, in-advance leave on a
-    -- SUNDAY only (2026-03-29) — a non-working day, so it must not cover the missing Monday
+    -- sun: same shortfall, protected leave on a SUNDAY (2026-03-29) only -- not an org_day
     (v_org, v_sunid, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_sunid, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_sunid, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_sunid, '2026-03-23', '2026-03-23 09:00+05:30', false),
-    -- extra: same shortfall (misses 2026-03-30), but has EXTRA attendance on a non-working day
-    -- (2026-03-31, a Tuesday) — that extra day must not substitute for the missing Monday
+    -- extra: same shortfall, EXTRA attendance on a non-working day (2026-03-31, a Tuesday)
     (v_org, v_extraid, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_extraid, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_extraid, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_extraid, '2026-03-23', '2026-03-23 09:00+05:30', false),
-    (v_org, v_extraid, '2026-03-31', '2026-03-31 09:00+05:30', false);
-    -- zero: no attendance rows at all (inserted below: a full-month protected leave instead)
+    (v_org, v_extraid, '2026-03-31', '2026-03-31 09:00+05:30', false),
+    -- overlap / test (b): present 02/09/23 -- 23 will ALSO be inside a protected leave range,
+    -- and 30 is missing entirely (neither attended nor covered)
+    (v_org, v_overlapid, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_overlapid, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_overlapid, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    -- closureleave / test (c): present 02/09/23, misses 30 -- protected leave covers the
+    -- CLOSURE day (2026-03-16) only, which is not an org_day and so cannot help
+    (v_org, v_closureleaveid, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_closureleaveid, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_closureleaveid, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    -- below / test (d): exactly 1 of the 4 real org_days attended (below the ceil(4*0.5)=2
+    -- minimum), with protected leave covering the other 3
+    (v_org, v_belowid, '2026-03-02', '2026-03-02 09:00+05:30', false);
+    -- zero / test (d) extreme: no attendance at all, inserted below via protected leave only.
 
   -- t1: requested 2026-03-01 for 2026-03-30 (well ahead of leave_notice_days=3) -> protected
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
@@ -120,11 +142,23 @@ begin
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
     values (v_org, v_sunid, '2026-03-29', '2026-03-29', v_sun, '2026-02-01 10:00+05:30')
     returning id into v_req_sun;
-  -- zero: requested well ahead, 2026-03-01..2026-03-30 (29-day span, the max a single request
-  -- may cover) -- still covers all 5 Mondays
+  -- zero: requested well ahead, 2026-03-01..2026-03-30 (29-day span) -- test (d) extreme: zero
+  -- real attendance, every real org_day covered by leave alone
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
     values (v_org, v_zeroid, '2026-03-01', '2026-03-30', v_zero, '2026-02-01 10:00+05:30')
     returning id into v_req_zero;
+  -- overlap: requested well ahead, for 2026-03-23 only -- the SAME day overlap already attends
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_overlapid, '2026-03-23', '2026-03-23', v_overlap, '2026-02-01 10:00+05:30')
+    returning id into v_req_overlap;
+  -- closureleave: requested well ahead, for 2026-03-16 only (the closure day)
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_closureleaveid, '2026-03-16', '2026-03-16', v_closureleave, '2026-02-01 10:00+05:30')
+    returning id into v_req_closureleave;
+  -- below: requested well ahead, 2026-03-09..2026-03-30 -- covers org_days 09/23/30, nothing on 02
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_belowid, '2026-03-09', '2026-03-30', v_below, '2026-02-01 10:00+05:30')
+    returning id into v_req_below;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -137,34 +171,67 @@ begin
   res := res || E'\n' || format('sun (Sunday only, in advance) approved, protected (expect true): %s', v_row.protected);
   select * into v_row from decide_technician_leave(v_req_zero, 'approved');
   res := res || E'\n' || format('zero (whole month, in advance) approved, protected (expect true): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req_overlap, 'approved');
+  res := res || E'\n' || format('overlap (same day as attendance, in advance) approved, protected (expect true): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req_closureleave, 'approved');
+  res := res || E'\n' || format('closureleave (closure day, in advance) approved, protected (expect true): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req_below, 'approved');
+  res := res || E'\n' || format('below (covers 3 of 4 real days, in advance) approved, protected (expect true): %s', v_row.protected);
 
-  -- test 1: in-advance protected leave + attendance on every other working day -> eligible
+  -- test 1: in-advance protected leave + attendance on every other real org_day -> eligible
   select count(*) = 1 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_t1id;
-  res := res || E'\n' || format('test1 protected t1 eligible for attendance reward (expect true): %s', v_ok);
+  res := res || E'\n' || format('test1 protected t1 eligible (expect true): %s', v_ok);
 
   -- test 2: same shortfall, late (not in-advance) leave -> not eligible
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_t2id;
   res := res || E'\n' || format('test2 late t2 NOT eligible (expect true): %s', v_ok);
 
-  -- test 3: protected leave on a Sunday does not count -- technician_protected_leave_days must
-  -- return 0 for it, and the technician (still missing a real Monday) must not be eligible
+  -- test 3: protected leave on a Sunday does not count
   select technician_protected_leave_days(v_org, v_sunid, '2026-03-01', '2026-03-31') = 0 into v_ok;
   res := res || E'\n' || format('test3 Sunday-only protected leave counts as 0 days (expect true): %s', v_ok);
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_sunid;
-  res := res || E'\n' || format('test3 sun NOT eligible -- Sunday leave does not cover the missing Monday (expect true): %s', v_ok);
+  res := res || E'\n' || format('test3 sun NOT eligible -- Sunday leave does not cover the missing day (expect true): %s', v_ok);
 
-  -- test 4: extra attendance on a non-working day (2026-03-31, a Tuesday) does not cover the
-  -- missing working day (2026-03-30, the fifth Monday)
+  -- test 4: extra attendance on a non-working day does not cover the missing working day
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_extraid;
   res := res || E'\n' || format('test4 extra NOT eligible -- non-working-day attendance does not substitute (expect true): %s', v_ok);
 
-  -- test 5: zero real attendance, even with a full month of protected leave covering every
-  -- working day, is not eligible (never appears in attendance_agg at all, so never reaches
-  -- attendance_eligible regardless of how many protected days it has)
-  select technician_protected_leave_days(v_org, v_zeroid, '2026-03-01', '2026-03-31') = 5 into v_ok;
-  res := res || E'\n' || format('test5 zero''s whole-month leave covers all 5 working Mondays (expect true): %s', v_ok);
+  -- test (a): a closure day (working weekday, zero org-wide attendance) never becomes an
+  -- org_day -- full attendance on the remaining real days is eligible
+  select count(*) = 1 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_ctrlid;
+  res := res || E'\n' || format('testA ctrl eligible despite the 2026-03-16 closure (expect true): %s', v_ok);
+
+  -- test (b): attendance AND protected leave on the SAME day (2026-03-23), plus one genuinely
+  -- missed day (2026-03-30) -- per-day OR coverage = 3 of 4, not eligible (naive addition of
+  -- attended_days(3) + raw protected-day-count(1) would wrongly total 4 = n)
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_overlapid;
+  res := res || E'\n' || format('testB overlap NOT eligible -- same-day double count does not help (expect true): %s', v_ok);
+
+  -- test (c): protected leave on the closure day (2026-03-16, not an org_day) does not cover
+  -- the genuinely missed day (2026-03-30)
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_closureleaveid;
+  res := res || E'\n' || format('testC closureleave NOT eligible -- leave on a closure day does not help (expect true): %s', v_ok);
+
+  -- test (d): below the minimum-present ratio (1 of 4 real days attended; ceil(4*0.5)=2 required)
+  -- even though protected leave covers every other real day -- not eligible
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_belowid;
+  res := res || E'\n' || format('testD below-ratio NOT eligible -- 1 real day < minimum 2 (expect true): %s', v_ok);
+
+  -- test 5 / (d) extreme: zero real attendance, even with every real org_day covered by
+  -- protected leave, is not eligible (0 attended days < minimum 2)
+  select technician_protected_leave_days(v_org, v_zeroid, '2026-03-01', '2026-03-31') = 4 into v_ok;
+  res := res || E'\n' || format('test5 zero''s leave covers all 4 real org_days (expect true): %s', v_ok);
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_zeroid;
   res := res || E'\n' || format('test5 zero NOT eligible -- zero real attendance (expect true): %s', v_ok);
+
+  -- test (e): a cross-org call of technician_protected_leave_days is refused (master is in
+  -- v_org, not the real org fetched for the fingerprint above)
+  begin
+    perform technician_protected_leave_days(v_real_org, v_t1id, '2026-03-01', '2026-03-31');
+    res := res || E'\n' || 'testE cross-org technician_protected_leave_days: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'testE cross-org technician_protected_leave_days: rejected ('||sqlerrm||')';
+  end;
 
   select count(*) into v_n from technician_availability where leave_request_id = v_req and status = 'leave' and protected;
   res := res || E'\n' || format('t1 approved leave materialised as protected technician_availability row (expect 1): %s', v_n);

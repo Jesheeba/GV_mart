@@ -4,16 +4,20 @@
 -- escapes in the text, changing the hash out from under a byte-identical file. Recomputes sha256
 -- of the embedded migration and test text and compares against the pinned hashes below (must
 -- match the committed .sql files exactly, LF line endings, verified 0 CR bytes). Before touching
--- anything, verifies the recorded 'live' body of reward_candidates (the function this migration
--- redefines) still matches what is actually live, by recreating that recorded body in a
--- sub-block and comparing md5(pg_get_functiondef(...)), then rolling that sub-block back -- a
--- mismatch means reward_candidates changed since 20261016110000 and this migration's
--- create-or-replace would silently clobber an assumption we never verified, so it refuses. Also
--- takes a relative fingerprint of a real (non-__TEST_) organisation's technician_availability
--- and technician_leave_requests data before running anything, and compares it again at the very
--- end. Runs the migration and test via EXECUTE. No top-level BEGIN/COMMIT/SAVEPOINT/ROLLBACK: the
--- block always ends in an unconditional RAISE EXCEPTION, so the enclosing statement aborts and
--- nothing persists regardless of outcome.
+-- anything: (1) verifies the recorded 'live' body of reward_candidates (the function this
+-- migration redefines) still matches what is actually live, by recreating that recorded body in
+-- a sub-block and comparing md5(pg_get_functiondef(...)); (2) while that recorded-original body
+-- is still active in the same sub-block, runs a READ-ONLY parity check against the real
+-- organisation for the three previous calendar months, capturing per-category row counts (never
+-- names or ids); the whole sub-block is then rolled back regardless. After the real migration
+-- runs, the same parity queries run again against the NEW body, and the report compares old vs
+-- new counts per month per category, plus a differences count (computed from category+
+-- technician_id pairs internally, but only the count is ever reported). Also takes a relative
+-- fingerprint of the real organisation's technician_availability and technician_leave_requests
+-- data before running anything, compared again at the very end. Runs the migration and test via
+-- EXECUTE. No top-level BEGIN/COMMIT/SAVEPOINT/ROLLBACK: the block always ends in an
+-- unconditional RAISE EXCEPTION, so the enclosing statement aborts and nothing persists
+-- regardless of outcome.
 do $w$
 declare
   v_migration text := $MIGRATION_BODY$-- Technician leave request in advance (KPI-protected). Spec: FEATURE_TECHNICIAN_LEAVE_REQUEST.md.
@@ -51,10 +55,18 @@ declare
 -- configurable notice window only ever decides the `protected` flag, recomputed at approval time
 -- against the live setting value. Overlap and max-length ARE hard database constraints.
 
--- ── setting ──────────────────────────────────────────────────────────────────────────────────
+-- ── settings ─────────────────────────────────────────────────────────────────────────────────
 alter table public.settings
   add column if not exists leave_notice_days integer not null default 1
     check (leave_notice_days >= 0);
+
+-- reward_candidates' attendance category (below) requires a technician to actually have shown up
+-- for at least this fraction of the month's organisation working days, not just have every day
+-- covered by a mix of attendance and protected leave -- otherwise a technician who was on
+-- protected leave almost the entire month could still win "most reliable attendance".
+alter table public.settings
+  add column if not exists attendance_reward_min_present_ratio numeric not null default 0.5
+    check (attendance_reward_min_present_ratio > 0 and attendance_reward_min_present_ratio <= 1);
 
 -- ── the request table ───────────────────────────────────────────────────────────────────────
 create extension if not exists btree_gist;
@@ -340,16 +352,18 @@ $$;
 revoke all on function public.technician_assigned_visits_in_range(uuid, date, date) from public, anon, authenticated;
 grant execute on function public.technician_assigned_visits_in_range(uuid, date, date) to authenticated;
 
--- ── KPI exclusion: the shared count of protected leave days in a period, read by reward_candidates
---    below and callable by the front end to show "N day(s) excluded" on the technician table.
---    Counts only ORGANISATION WORKING DAYS within [p_from, p_to] -- the same weekly pattern
---    reward_candidates' org_days uses (settings.lead_work_days, ISO day-of-week 1=Mon..7=Sun; the
---    same column the lead-followup and AMC/rental "roll to next working day" logic already reads,
---    reused here rather than inventing a second org-working-day setting). A leave day that falls
---    on a day the org doesn't operate (e.g. Sunday) was never an "expected working day" to begin
---    with, so it is not protected leave either -- it must not inflate the exclusion. This schema
---    has no separate holiday calendar, so a gazetted holiday on an otherwise-working weekday is
---    NOT excluded here; that is a real gap, not something silently pretended to be handled. ──────
+-- ── KPI exclusion: the shared count of protected leave days in a period, callable by the front
+--    end to show "N day(s) excluded" on the technician table (reward_candidates below computes
+--    its own per-day coverage directly, it does not call this). Counts only days whose ISO
+--    weekday is in the org's weekly pattern (settings.lead_work_days — the same column the
+--    lead-followup and AMC/rental "roll to next working day" logic already reads, reused here
+--    rather than inventing a second org-working-day setting). A leave day that falls on a day the
+--    org doesn't operate (e.g. Sunday) was never an "expected working day" to begin with, so it
+--    is not protected leave either. Unlike reward_candidates' own org_days, this display helper
+--    does not also require that someone else attended that day — it's a simpler figure for a
+--    single technician's own history, not an eligibility gate. This schema has no separate
+--    holiday calendar, so a gazetted holiday on an otherwise-working weekday is NOT excluded
+--    here; that is a real gap, not something silently pretended to be handled. ─────────────────
 create or replace function public.technician_protected_leave_days(p_org_id uuid, p_technician_id uuid, p_from date, p_to date)
 returns integer
 language plpgsql
@@ -361,8 +375,10 @@ declare
   v_work_days smallint[];
   v_n integer;
 begin
-  -- is_staff(), not is_ops_staff(): this is also called internally by reward_candidates(), which
-  -- any staff role (incl. sales_admin) may invoke.
+  if p_org_id is distinct from public.current_org_id() then
+    raise exception 'technician_protected_leave_days: org mismatch';
+  end if;
+  -- is_staff(), not is_ops_staff(): a technician may also call this for their own id.
   if not (public.is_staff() or p_technician_id = public.current_technician_id()) then
     raise exception 'technician_protected_leave_days: access denied';
   end if;
@@ -395,19 +411,26 @@ grant execute on function public.technician_protected_leave_days(uuid, uuid, dat
 
 -- ── KPI wiring: reward_candidates' "expected working days" must not penalise protected leave.
 --    Same signature as the live function (20261016110000_test_customer_flag.sql:896). Changes:
---      1. org_days is redefined from the org's weekly working-day pattern (settings.lead_work_days)
---         instead of "any date anyone has an attendance row for". The old definition let a single
---         technician's own anomalous attendance on a non-working day (e.g. unscheduled Sunday
---         overtime) silently make that day "expected" for everyone else too, AND let that same
---         extra day substitute for a missing real working day in that technician's own count
---         (attendance_agg counted raw distinct dates, not distinct working dates). Both are closed
---         below. The review/revenue/referral CTEs have nothing to do with leave and are untouched.
---      2. attendance_agg now joins to org_days, so only attendance on an organisation working day
---         counts toward days_present.
---      3. protected_agg (new) adds technician_protected_leave_days(), which itself now only counts
---         protected-leave days that are organisation working days (see that function's own header).
---      4. attendance_agg's exact-equality `having` becomes a `>=` comparison against days_present +
---         protected days, in attendance_eligible. ──────────────────────────────────────────────
+--      1. org_days is now a weekly working-day pattern (settings.lead_work_days) AND-ed with
+--         "at least one technician actually has an attendance row that day" — a closed weekday
+--         (e.g. Sunday) with a stray attendance row never becomes an expected day (the weekday
+--         filter), and a normally-working weekday nobody attended at all (e.g. a company holiday
+--         — this schema has no separate holiday calendar) never becomes one either (the
+--         attendance-exists filter). This also closes the old bug where a single technician's
+--         own anomalous attendance on a non-working day silently made that day "expected" of
+--         everyone else too.
+--      2. Eligibility is now computed PER DAY, not by adding two separate counts. day_coverage
+--         cross-joins every technician against every org_day and marks each day covered if there
+--         is an attendance row OR the day falls inside an approved, protected leave range —
+--         OR'd, not added, so a day that happens to be both (nothing in this schema prevents a
+--         technician from both checking in and being on approved leave the same day) is never
+--         double-counted into "more covered days than there are days". coverage_agg then counts
+--         covered days and, separately, real attended days per technician.
+--      3. attendance_eligible now also requires attended_days >= ceil(org_day_count *
+--         settings.attendance_reward_min_present_ratio, default 0.5) — a technician on protected
+--         leave for nearly the whole month, with every day otherwise covered, still should not
+--         win "most reliable attendance" without a real minimum of actual attendance.
+--      4. The review/revenue/referral CTEs have nothing to do with leave and are untouched. ─────
 create or replace function public.reward_candidates(p_org_id uuid, p_period date)
  returns table(category reward_category, technician_id uuid, metric numeric)
  language plpgsql
@@ -418,6 +441,7 @@ declare
   v_period date := date_trunc('month', p_period)::date;
   v_period_end date := (date_trunc('month', p_period) + interval '1 month' - interval '1 day')::date;
   v_late_cutoff time;
+  v_min_present_ratio numeric;
 begin
   if not public.is_staff() then
     raise exception 'reward_candidates: staff role required';
@@ -426,24 +450,27 @@ begin
     raise exception 'reward_candidates: org mismatch';
   end if;
 
-  select late_cutoff into v_late_cutoff from public.settings where org_id = p_org_id;
+  select late_cutoff, attendance_reward_min_present_ratio
+    into v_late_cutoff, v_min_present_ratio
+    from public.settings where org_id = p_org_id;
   v_late_cutoff := coalesce(v_late_cutoff, '09:15:00'::time);
+  v_min_present_ratio := coalesce(v_min_present_ratio, 0.5);
 
   return query
   with org_days as (
-    -- "Expected working days" = the org's configured weekly working-day pattern
-    -- (settings.lead_work_days, ISO day-of-week 1=Mon..7=Sun — the same column the
-    -- lead-followup and AMC/rental "roll to next working day" logic already reads,
-    -- reused here rather than inventing a second org-working-day setting),
-    -- intersected with this month's calendar dates. Independent of whether anyone
-    -- actually has an attendance row that day (see header note 1 above). No
-    -- separate holiday calendar exists in this schema, so a gazetted holiday that
-    -- falls on an otherwise-working weekday is not excluded here.
+    -- An organisation working day: a calendar date this month whose ISO weekday is in the org's
+    -- configured weekly pattern (settings.lead_work_days — the same column the lead-followup and
+    -- AMC/rental "roll to next working day" logic already reads, reused here rather than
+    -- inventing a second org-working-day setting) AND on which at least one technician actually
+    -- has an attendance row. See the header note above for why both conditions are required.
     select d::date as date
     from generate_series(v_period, v_period_end, interval '1 day') d
     where extract(isodow from d)::smallint = any (
-      coalesce((select s.lead_work_days from public.settings s where s.org_id = p_org_id), '{1,2,3,4,5,6}'::smallint[])
-    )
+            coalesce((select s.lead_work_days from public.settings s where s.org_id = p_org_id), '{1,2,3,4,5,6}'::smallint[])
+          )
+      and exists (
+            select 1 from public.attendance a where a.org_id = p_org_id and a.date = d::date
+          )
   ),
   org_day_count as (
     select count(*) as n from org_days
@@ -463,29 +490,36 @@ begin
       and a.date < (v_period + interval '1 month')::date
     group by a.technician_id
   ),
-  -- NEW: protected leave (requested in advance per leave_notice_days, approved) excludes that many
-  -- days from the "must be present every org-operating day" requirement below.
-  protected_agg as (
-    select t.id as technician_id, public.technician_protected_leave_days(p_org_id, t.id, v_period, v_period_end) as days_protected
+  -- Per technician, per organisation working day: covered if there is an attendance row that day
+  -- OR the day falls inside an approved, protected leave request.
+  day_coverage as (
+    select t.id as technician_id, od.date,
+      exists (
+        select 1 from public.attendance a
+        where a.org_id = p_org_id and a.technician_id = t.id and a.date = od.date
+      ) as attended,
+      exists (
+        select 1 from public.technician_leave_requests r
+        where r.org_id = p_org_id and r.technician_id = t.id and r.status = 'approved' and r.protected
+          and r.period @> od.date
+      ) as on_protected_leave
     from public.technicians t
+    cross join org_days od
     where t.org_id = p_org_id
   ),
-  attendance_agg as (
-    -- Full attendance: a row on every organisation working day this month. Joined to org_days
-    -- (not just date-range-filtered) so attendance on a non-working day (e.g. unscheduled Sunday
-    -- overtime) is never counted — it must not be able to substitute for a missing working day.
-    select a.technician_id, count(distinct a.date) as days_present
-    from public.attendance a
-    join org_days od on od.date = a.date
-    where a.org_id = p_org_id
-    group by a.technician_id
+  coverage_agg as (
+    select technician_id,
+      count(*) filter (where attended or on_protected_leave) as covered_days,
+      count(*) filter (where attended) as attended_days
+    from day_coverage
+    group by technician_id
   ),
   attendance_eligible as (
-    select aa.technician_id, coalesce(lh.late_hours, 0) as late_hours
-    from attendance_agg aa
-    left join late_hours_agg lh on lh.technician_id = aa.technician_id
-    left join protected_agg pa on pa.technician_id = aa.technician_id
-    where aa.days_present + coalesce(pa.days_protected, 0) >= (select n from org_day_count)
+    select ca.technician_id, coalesce(lh.late_hours, 0) as late_hours
+    from coverage_agg ca
+    left join late_hours_agg lh on lh.technician_id = ca.technician_id
+    where ca.covered_days = (select n from org_day_count)
+      and ca.attended_days >= ceil((select n from org_day_count) * v_min_present_ratio)
       and coalesce(lh.late_hours, 0) <= 3
   ),
   review_agg as (
@@ -559,19 +593,24 @@ $MIGRATION_BODY$;
 -- request whose day was already an admin-direct 'leave' row does not re-run the release logic a
 -- second time for that day.
 --
--- KPI TEST DESIGN: the org's settings.lead_work_days is set to {1} (Monday only) for this test
--- org, so "organisation working days" in March 2026 are exactly the five Mondays: 2, 9, 16, 23,
--- 30. This keeps the fixtures small while exercising the real weekly-pattern logic (not a
--- calendar-month's worth of working days). All KPI cases use these fixed 2026-03 dates so they
--- do not depend on when the rehearsal actually runs.
+-- KPI TEST DESIGN: settings.lead_work_days = {1} (Monday only) for this test org, and
+-- settings.attendance_reward_min_present_ratio is left at its default 0.5. March 2026's Mondays
+-- are 2, 9, 16, 23, 30 — but NO technician ever attends on 2026-03-16, so it is a genuine
+-- organisation-wide closure (a company holiday, say) and drops out of org_days entirely, even
+-- though it is a working weekday. The real organisation working days this month are therefore
+-- {02, 09, 23, 30} — four days (n = 4; ceil(4 * 0.5) = 2 minimum real attendance days). All KPI
+-- cases use these fixed 2026-03 dates so they do not depend on when the rehearsal actually runs.
 do $t$
 declare
   res text := '';
   v_org uuid; v_master uuid;
   v_t1 uuid; v_t1id uuid; v_t2 uuid; v_t2id uuid; v_ctrl uuid; v_ctrlid uuid;
   v_sun uuid; v_sunid uuid; v_extra uuid; v_extraid uuid; v_zero uuid; v_zeroid uuid;
+  v_overlap uuid; v_overlapid uuid; v_closureleave uuid; v_closureleaveid uuid;
+  v_below uuid; v_belowid uuid;
   v_today date := (now() at time zone 'Asia/Kolkata')::date;
-  v_req uuid; v_req2 uuid; v_req_sun uuid; v_req_zero uuid;
+  v_req uuid; v_req2 uuid; v_req_sun uuid; v_req_zero uuid; v_req_overlap uuid;
+  v_req_closureleave uuid; v_req_below uuid;
   v_reject uuid; v_cancel uuid; v_revoke uuid;
   v_row public.technician_leave_requests;
   v_n int; v_ok boolean;
@@ -592,58 +631,75 @@ begin
 
   v_t1 := gen_random_uuid(); v_t2 := gen_random_uuid(); v_ctrl := gen_random_uuid();
   v_sun := gen_random_uuid(); v_extra := gen_random_uuid(); v_zero := gen_random_uuid();
+  v_overlap := gen_random_uuid(); v_closureleave := gen_random_uuid(); v_below := gen_random_uuid();
   insert into auth.users (id, aud, role, email) values (v_t1, 'authenticated', 'authenticated', 'leave-t1@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_t2, 'authenticated', 'authenticated', 'leave-t2@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_ctrl, 'authenticated', 'authenticated', 'leave-ctrl@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_sun, 'authenticated', 'authenticated', 'leave-sun@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_extra, 'authenticated', 'authenticated', 'leave-extra@test.invalid');
   insert into auth.users (id, aud, role, email) values (v_zero, 'authenticated', 'authenticated', 'leave-zero@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_overlap, 'authenticated', 'authenticated', 'leave-overlap@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_closureleave, 'authenticated', 'authenticated', 'leave-closure@test.invalid');
+  insert into auth.users (id, aud, role, email) values (v_below, 'authenticated', 'authenticated', 'leave-below@test.invalid');
   insert into profiles (id, org_id, full_name, role) values (v_t1, v_org, '__TEST_ tech1', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_t2, v_org, '__TEST_ tech2', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_ctrl, v_org, '__TEST_ ctrl', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_sun, v_org, '__TEST_ sun', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_extra, v_org, '__TEST_ extra', 'technician');
   insert into profiles (id, org_id, full_name, role) values (v_zero, v_org, '__TEST_ zero', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_overlap, v_org, '__TEST_ overlap', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_closureleave, v_org, '__TEST_ closure', 'technician');
+  insert into profiles (id, org_id, full_name, role) values (v_below, v_org, '__TEST_ below', 'technician');
   insert into technicians (org_id, profile_id) values (v_org, v_t1) returning id into v_t1id;
   insert into technicians (org_id, profile_id) values (v_org, v_t2) returning id into v_t2id;
   insert into technicians (org_id, profile_id) values (v_org, v_ctrl) returning id into v_ctrlid;
   insert into technicians (org_id, profile_id) values (v_org, v_sun) returning id into v_sunid;
   insert into technicians (org_id, profile_id) values (v_org, v_extra) returning id into v_extraid;
   insert into technicians (org_id, profile_id) values (v_org, v_zero) returning id into v_zeroid;
+  insert into technicians (org_id, profile_id) values (v_org, v_overlap) returning id into v_overlapid;
+  insert into technicians (org_id, profile_id) values (v_org, v_closureleave) returning id into v_closureleaveid;
+  insert into technicians (org_id, profile_id) values (v_org, v_below) returning id into v_belowid;
 
-  -- ══ KPI exclusion (reward_candidates' "expected working days") ═══════════════════════════
-  -- organisation working days this month, per lead_work_days={1}: Mondays 2026-03-02/09/16/23/30
-  -- (5 days). Control technician present on all five.
+  -- ══ KPI exclusion (reward_candidates' per-day coverage) ══════════════════════════════════
+  -- 2026-03-16 (a Monday) is a deliberate org-wide closure: NO technician attends it below, so
+  -- it never becomes an org_day even though it is a working weekday. Real org_days = {02,09,23,30}.
   insert into attendance (org_id, technician_id, date, check_in_at, is_late) values
+    -- ctrl / test (a): full attendance on every real org_day -> eligible despite the closure
     (v_org, v_ctrlid, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_ctrlid, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_ctrlid, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_ctrlid, '2026-03-23', '2026-03-23 09:00+05:30', false),
     (v_org, v_ctrlid, '2026-03-30', '2026-03-30 09:00+05:30', false),
-    -- t1: present the first four Mondays, misses the fifth (2026-03-30) — will be protected leave
+    -- t1: present 02/09/23, misses 30 -- will be protected (in-advance) leave
     (v_org, v_t1id, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_t1id, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_t1id, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_t1id, '2026-03-23', '2026-03-23 09:00+05:30', false),
     -- t2: same shortfall, will be LATE (not protected) leave on 2026-03-30
     (v_org, v_t2id, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_t2id, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_t2id, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_t2id, '2026-03-23', '2026-03-23 09:00+05:30', false),
-    -- sun: same shortfall (misses 2026-03-30), will have a protected, in-advance leave on a
-    -- SUNDAY only (2026-03-29) — a non-working day, so it must not cover the missing Monday
+    -- sun: same shortfall, protected leave on a SUNDAY (2026-03-29) only -- not an org_day
     (v_org, v_sunid, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_sunid, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_sunid, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_sunid, '2026-03-23', '2026-03-23 09:00+05:30', false),
-    -- extra: same shortfall (misses 2026-03-30), but has EXTRA attendance on a non-working day
-    -- (2026-03-31, a Tuesday) — that extra day must not substitute for the missing Monday
+    -- extra: same shortfall, EXTRA attendance on a non-working day (2026-03-31, a Tuesday)
     (v_org, v_extraid, '2026-03-02', '2026-03-02 09:00+05:30', false),
     (v_org, v_extraid, '2026-03-09', '2026-03-09 09:00+05:30', false),
-    (v_org, v_extraid, '2026-03-16', '2026-03-16 09:00+05:30', false),
     (v_org, v_extraid, '2026-03-23', '2026-03-23 09:00+05:30', false),
-    (v_org, v_extraid, '2026-03-31', '2026-03-31 09:00+05:30', false);
-    -- zero: no attendance rows at all (inserted below: a full-month protected leave instead)
+    (v_org, v_extraid, '2026-03-31', '2026-03-31 09:00+05:30', false),
+    -- overlap / test (b): present 02/09/23 -- 23 will ALSO be inside a protected leave range,
+    -- and 30 is missing entirely (neither attended nor covered)
+    (v_org, v_overlapid, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_overlapid, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_overlapid, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    -- closureleave / test (c): present 02/09/23, misses 30 -- protected leave covers the
+    -- CLOSURE day (2026-03-16) only, which is not an org_day and so cannot help
+    (v_org, v_closureleaveid, '2026-03-02', '2026-03-02 09:00+05:30', false),
+    (v_org, v_closureleaveid, '2026-03-09', '2026-03-09 09:00+05:30', false),
+    (v_org, v_closureleaveid, '2026-03-23', '2026-03-23 09:00+05:30', false),
+    -- below / test (d): exactly 1 of the 4 real org_days attended (below the ceil(4*0.5)=2
+    -- minimum), with protected leave covering the other 3
+    (v_org, v_belowid, '2026-03-02', '2026-03-02 09:00+05:30', false);
+    -- zero / test (d) extreme: no attendance at all, inserted below via protected leave only.
 
   -- t1: requested 2026-03-01 for 2026-03-30 (well ahead of leave_notice_days=3) -> protected
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
@@ -657,11 +713,23 @@ begin
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
     values (v_org, v_sunid, '2026-03-29', '2026-03-29', v_sun, '2026-02-01 10:00+05:30')
     returning id into v_req_sun;
-  -- zero: requested well ahead, 2026-03-01..2026-03-30 (29-day span, the max a single request
-  -- may cover) -- still covers all 5 Mondays
+  -- zero: requested well ahead, 2026-03-01..2026-03-30 (29-day span) -- test (d) extreme: zero
+  -- real attendance, every real org_day covered by leave alone
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
     values (v_org, v_zeroid, '2026-03-01', '2026-03-30', v_zero, '2026-02-01 10:00+05:30')
     returning id into v_req_zero;
+  -- overlap: requested well ahead, for 2026-03-23 only -- the SAME day overlap already attends
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_overlapid, '2026-03-23', '2026-03-23', v_overlap, '2026-02-01 10:00+05:30')
+    returning id into v_req_overlap;
+  -- closureleave: requested well ahead, for 2026-03-16 only (the closure day)
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_closureleaveid, '2026-03-16', '2026-03-16', v_closureleave, '2026-02-01 10:00+05:30')
+    returning id into v_req_closureleave;
+  -- below: requested well ahead, 2026-03-09..2026-03-30 -- covers org_days 09/23/30, nothing on 02
+  insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
+    values (v_org, v_belowid, '2026-03-09', '2026-03-30', v_below, '2026-02-01 10:00+05:30')
+    returning id into v_req_below;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -674,34 +742,67 @@ begin
   res := res || E'\n' || format('sun (Sunday only, in advance) approved, protected (expect true): %s', v_row.protected);
   select * into v_row from decide_technician_leave(v_req_zero, 'approved');
   res := res || E'\n' || format('zero (whole month, in advance) approved, protected (expect true): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req_overlap, 'approved');
+  res := res || E'\n' || format('overlap (same day as attendance, in advance) approved, protected (expect true): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req_closureleave, 'approved');
+  res := res || E'\n' || format('closureleave (closure day, in advance) approved, protected (expect true): %s', v_row.protected);
+  select * into v_row from decide_technician_leave(v_req_below, 'approved');
+  res := res || E'\n' || format('below (covers 3 of 4 real days, in advance) approved, protected (expect true): %s', v_row.protected);
 
-  -- test 1: in-advance protected leave + attendance on every other working day -> eligible
+  -- test 1: in-advance protected leave + attendance on every other real org_day -> eligible
   select count(*) = 1 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_t1id;
-  res := res || E'\n' || format('test1 protected t1 eligible for attendance reward (expect true): %s', v_ok);
+  res := res || E'\n' || format('test1 protected t1 eligible (expect true): %s', v_ok);
 
   -- test 2: same shortfall, late (not in-advance) leave -> not eligible
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_t2id;
   res := res || E'\n' || format('test2 late t2 NOT eligible (expect true): %s', v_ok);
 
-  -- test 3: protected leave on a Sunday does not count -- technician_protected_leave_days must
-  -- return 0 for it, and the technician (still missing a real Monday) must not be eligible
+  -- test 3: protected leave on a Sunday does not count
   select technician_protected_leave_days(v_org, v_sunid, '2026-03-01', '2026-03-31') = 0 into v_ok;
   res := res || E'\n' || format('test3 Sunday-only protected leave counts as 0 days (expect true): %s', v_ok);
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_sunid;
-  res := res || E'\n' || format('test3 sun NOT eligible -- Sunday leave does not cover the missing Monday (expect true): %s', v_ok);
+  res := res || E'\n' || format('test3 sun NOT eligible -- Sunday leave does not cover the missing day (expect true): %s', v_ok);
 
-  -- test 4: extra attendance on a non-working day (2026-03-31, a Tuesday) does not cover the
-  -- missing working day (2026-03-30, the fifth Monday)
+  -- test 4: extra attendance on a non-working day does not cover the missing working day
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_extraid;
   res := res || E'\n' || format('test4 extra NOT eligible -- non-working-day attendance does not substitute (expect true): %s', v_ok);
 
-  -- test 5: zero real attendance, even with a full month of protected leave covering every
-  -- working day, is not eligible (never appears in attendance_agg at all, so never reaches
-  -- attendance_eligible regardless of how many protected days it has)
-  select technician_protected_leave_days(v_org, v_zeroid, '2026-03-01', '2026-03-31') = 5 into v_ok;
-  res := res || E'\n' || format('test5 zero''s whole-month leave covers all 5 working Mondays (expect true): %s', v_ok);
+  -- test (a): a closure day (working weekday, zero org-wide attendance) never becomes an
+  -- org_day -- full attendance on the remaining real days is eligible
+  select count(*) = 1 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_ctrlid;
+  res := res || E'\n' || format('testA ctrl eligible despite the 2026-03-16 closure (expect true): %s', v_ok);
+
+  -- test (b): attendance AND protected leave on the SAME day (2026-03-23), plus one genuinely
+  -- missed day (2026-03-30) -- per-day OR coverage = 3 of 4, not eligible (naive addition of
+  -- attended_days(3) + raw protected-day-count(1) would wrongly total 4 = n)
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_overlapid;
+  res := res || E'\n' || format('testB overlap NOT eligible -- same-day double count does not help (expect true): %s', v_ok);
+
+  -- test (c): protected leave on the closure day (2026-03-16, not an org_day) does not cover
+  -- the genuinely missed day (2026-03-30)
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_closureleaveid;
+  res := res || E'\n' || format('testC closureleave NOT eligible -- leave on a closure day does not help (expect true): %s', v_ok);
+
+  -- test (d): below the minimum-present ratio (1 of 4 real days attended; ceil(4*0.5)=2 required)
+  -- even though protected leave covers every other real day -- not eligible
+  select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_belowid;
+  res := res || E'\n' || format('testD below-ratio NOT eligible -- 1 real day < minimum 2 (expect true): %s', v_ok);
+
+  -- test 5 / (d) extreme: zero real attendance, even with every real org_day covered by
+  -- protected leave, is not eligible (0 attended days < minimum 2)
+  select technician_protected_leave_days(v_org, v_zeroid, '2026-03-01', '2026-03-31') = 4 into v_ok;
+  res := res || E'\n' || format('test5 zero''s leave covers all 4 real org_days (expect true): %s', v_ok);
   select count(*) = 0 into v_ok from reward_candidates(v_org, '2026-03-01') where category = 'attendance' and technician_id = v_zeroid;
   res := res || E'\n' || format('test5 zero NOT eligible -- zero real attendance (expect true): %s', v_ok);
+
+  -- test (e): a cross-org call of technician_protected_leave_days is refused (master is in
+  -- v_org, not the real org fetched for the fingerprint above)
+  begin
+    perform technician_protected_leave_days(v_real_org, v_t1id, '2026-03-01', '2026-03-31');
+    res := res || E'\n' || 'testE cross-org technician_protected_leave_days: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'testE cross-org technician_protected_leave_days: rejected ('||sqlerrm||')';
+  end;
 
   select count(*) into v_n from technician_availability where leave_request_id = v_req and status = 'leave' and protected;
   res := res || E'\n' || format('t1 approved leave materialised as protected technician_availability row (expect 1): %s', v_n);
@@ -925,6 +1026,7 @@ $ORIG_REWARD_CANDIDATES$;
   v_live_def_md5 text;
   v_recreated_def_md5 text;
   v_real_org uuid;
+  v_real_staff uuid;
   v_avail_count_before int;
   v_avail_fp_before text;
   v_leave_req_count_before int;
@@ -932,6 +1034,14 @@ $ORIG_REWARD_CANDIDATES$;
   v_avail_fp_after text;
   v_leave_req_count_after int;
   v_notice_days_before int;
+  v_month1 date;
+  v_month2 date;
+  v_month3 date;
+  v_old_counts1 text; v_old_counts2 text; v_old_counts3 text;
+  v_new_counts1 text; v_new_counts2 text; v_new_counts3 text;
+  v_old_keys1 text[]; v_old_keys2 text[]; v_old_keys3 text[];
+  v_new_keys1 text[]; v_new_keys2 text[]; v_new_keys3 text[];
+  v_diff1 int; v_diff2 int; v_diff3 int;
 begin
   if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '18:00' then
     raise exception 'rehearsal refused: must run at or after 18:00 IST';
@@ -940,19 +1050,50 @@ begin
   v_mig_hash := encode(sha256(convert_to(v_migration, 'UTF8')), 'hex');
   v_test_hash := encode(sha256(convert_to(v_test, 'UTF8')), 'hex');
 
-  if v_mig_hash <> '3990cc41680ca3df71823be3aff15c41ff821024ebe9bfda8a9d5242564f6648' then
-    raise exception 'migration hash mismatch: expected 3990cc41680ca3df71823be3aff15c41ff821024ebe9bfda8a9d5242564f6648, got %', v_mig_hash;
+  if v_mig_hash <> 'bf481fbdfc7d01e4099f044d40c1696a4bbea5ce946a24d4ed0fc04d82303074' then
+    raise exception 'migration hash mismatch: expected bf481fbdfc7d01e4099f044d40c1696a4bbea5ce946a24d4ed0fc04d82303074, got %', v_mig_hash;
   end if;
-  if v_test_hash <> '77f622c5e63d01f3846e4d72403be4025096260380a49d92ae8ac2fbac61018e' then
-    raise exception 'test hash mismatch: expected 77f622c5e63d01f3846e4d72403be4025096260380a49d92ae8ac2fbac61018e, got %', v_test_hash;
+  if v_test_hash <> '01352a9d39d00bca5a8cea4e025f265fc4cec1a3cbad427796604e9834dcdfb5' then
+    raise exception 'test hash mismatch: expected 01352a9d39d00bca5a8cea4e025f265fc4cec1a3cbad427796604e9834dcdfb5, got %', v_test_hash;
   end if;
 
-  -- ── reward_candidates drift check: is our recorded 'original' body still the live one? ──────
+  -- real org + a staff profile of that org, used both for the fingerprint and to impersonate a
+  -- real caller for the (otherwise is_staff()-gated) parity check below.
+  select id into v_real_org from organizations where name not like '\_\_TEST\_%' limit 1;
+  select id into v_real_staff from profiles where org_id = v_real_org and role in ('master', 'operation_admin', 'sales_admin') limit 1;
+  v_month1 := date_trunc('month', (now() at time zone 'Asia/Kolkata') - interval '1 month')::date;
+  v_month2 := date_trunc('month', (now() at time zone 'Asia/Kolkata') - interval '2 months')::date;
+  v_month3 := date_trunc('month', (now() at time zone 'Asia/Kolkata') - interval '3 months')::date;
+
+  -- ── reward_candidates drift check + 3-month parity capture (OLD body), all one sub-block ────
   select md5(pg_get_functiondef('public.reward_candidates(uuid,date)'::regprocedure)) into v_live_def_md5;
 
   begin
     execute v_reward_candidates_recorded_original;
     select md5(pg_get_functiondef('public.reward_candidates(uuid,date)'::regprocedure)) into v_recreated_def_md5;
+
+    if v_real_staff is not null then
+      perform set_config('request.jwt.claims', json_build_object('sub', v_real_staff, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+
+      select coalesce(string_agg(category || '=' || cnt, ', ' order by category), '(none)') into v_old_counts1
+        from (select category::text, count(*) as cnt from reward_candidates(v_real_org, v_month1) group by category) s;
+      select coalesce(array_agg(category::text || ':' || technician_id::text), '{}') into v_old_keys1
+        from reward_candidates(v_real_org, v_month1);
+
+      select coalesce(string_agg(category || '=' || cnt, ', ' order by category), '(none)') into v_old_counts2
+        from (select category::text, count(*) as cnt from reward_candidates(v_real_org, v_month2) group by category) s;
+      select coalesce(array_agg(category::text || ':' || technician_id::text), '{}') into v_old_keys2
+        from reward_candidates(v_real_org, v_month2);
+
+      select coalesce(string_agg(category || '=' || cnt, ', ' order by category), '(none)') into v_old_counts3
+        from (select category::text, count(*) as cnt from reward_candidates(v_real_org, v_month3) group by category) s;
+      select coalesce(array_agg(category::text || ':' || technician_id::text), '{}') into v_old_keys3
+        from reward_candidates(v_real_org, v_month3);
+
+      execute 'reset role';
+    end if;
+
     raise exception 'rehearsal: forced rollback of the reward_candidates drift-check sub-block';
   exception when others then
     if sqlerrm <> 'rehearsal: forced rollback of the reward_candidates drift-check sub-block' then
@@ -965,7 +1106,6 @@ begin
   end if;
 
   -- ── real-org fingerprint, taken before anything else ──────────────────────────────────────
-  select id into v_real_org from organizations where name not like '\_\_TEST\_%' limit 1;
   select count(*),
          coalesce(md5(string_agg(technician_id::text || ':' || date::text || ':' || status, ',' order by technician_id, date)), '')
     into v_avail_count_before, v_avail_fp_before
@@ -975,6 +1115,45 @@ begin
   -- org's to fingerprint there before the migration creates the table.
 
   execute v_migration;
+
+  -- ── same 3-month parity capture, NEW body (now live for real after the migration above) ────
+  if v_real_staff is not null then
+    perform set_config('request.jwt.claims', json_build_object('sub', v_real_staff, 'role', 'authenticated')::text, true);
+    execute 'set local role authenticated';
+
+    select coalesce(string_agg(category || '=' || cnt, ', ' order by category), '(none)') into v_new_counts1
+      from (select category::text, count(*) as cnt from reward_candidates(v_real_org, v_month1) group by category) s;
+    select coalesce(array_agg(category::text || ':' || technician_id::text), '{}') into v_new_keys1
+      from reward_candidates(v_real_org, v_month1);
+
+    select coalesce(string_agg(category || '=' || cnt, ', ' order by category), '(none)') into v_new_counts2
+      from (select category::text, count(*) as cnt from reward_candidates(v_real_org, v_month2) group by category) s;
+    select coalesce(array_agg(category::text || ':' || technician_id::text), '{}') into v_new_keys2
+      from reward_candidates(v_real_org, v_month2);
+
+    select coalesce(string_agg(category || '=' || cnt, ', ' order by category), '(none)') into v_new_counts3
+      from (select category::text, count(*) as cnt from reward_candidates(v_real_org, v_month3) group by category) s;
+    select coalesce(array_agg(category::text || ':' || technician_id::text), '{}') into v_new_keys3
+      from reward_candidates(v_real_org, v_month3);
+
+    execute 'reset role';
+
+    select count(*) into v_diff1 from (
+      (select unnest(v_old_keys1) except select unnest(v_new_keys1))
+      union all
+      (select unnest(v_new_keys1) except select unnest(v_old_keys1))
+    ) d;
+    select count(*) into v_diff2 from (
+      (select unnest(v_old_keys2) except select unnest(v_new_keys2))
+      union all
+      (select unnest(v_new_keys2) except select unnest(v_old_keys2))
+    ) d;
+    select count(*) into v_diff3 from (
+      (select unnest(v_old_keys3) except select unnest(v_new_keys3))
+      union all
+      (select unnest(v_new_keys3) except select unnest(v_old_keys3))
+    ) d;
+  end if;
 
   begin
     execute v_test;
@@ -990,14 +1169,18 @@ begin
     from technician_availability where org_id = v_real_org;
   select count(*) into v_leave_req_count_after from technician_leave_requests where org_id = v_real_org;
 
-  v_result := v_result || E'
-' || format('real org technician_availability count unchanged (expect true): %s', v_avail_count_before = v_avail_count_after);
-  v_result := v_result || E'
-' || format('real org technician_availability content fingerprint unchanged (expect true): %s', v_avail_fp_before = v_avail_fp_after);
-  v_result := v_result || E'
-' || format('real org technician_leave_requests untouched by the migration/test (expect 0): %s', v_leave_req_count_after);
-  v_result := v_result || E'
-' || format('real org leave_notice_days before the migration (expect null -- column did not exist yet): %s', v_notice_days_before);
+  v_result := v_result || E'\n' || format('real org technician_availability count unchanged (expect true): %s', v_avail_count_before = v_avail_count_after);
+  v_result := v_result || E'\n' || format('real org technician_availability content fingerprint unchanged (expect true): %s', v_avail_fp_before = v_avail_fp_after);
+  v_result := v_result || E'\n' || format('real org technician_leave_requests untouched by the migration/test (expect 0): %s', v_leave_req_count_after);
+  v_result := v_result || E'\n' || format('real org leave_notice_days before the migration (expect null -- column did not exist yet): %s', v_notice_days_before);
+
+  if v_real_staff is null then
+    v_result := v_result || E'\n' || 'reward_candidates 3-month parity: SKIPPED -- real org has no master/operation_admin/sales_admin profile to impersonate';
+  else
+    v_result := v_result || E'\n' || format('reward_candidates parity %s: old[%s] new[%s] differing_rows=%s', v_month1, v_old_counts1, v_new_counts1, v_diff1);
+    v_result := v_result || E'\n' || format('reward_candidates parity %s: old[%s] new[%s] differing_rows=%s', v_month2, v_old_counts2, v_new_counts2, v_diff2);
+    v_result := v_result || E'\n' || format('reward_candidates parity %s: old[%s] new[%s] differing_rows=%s', v_month3, v_old_counts3, v_new_counts3, v_diff3);
+  end if;
 
   raise exception '%', v_result;
 end

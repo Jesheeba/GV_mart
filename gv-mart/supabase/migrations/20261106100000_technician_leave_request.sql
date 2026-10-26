@@ -33,10 +33,18 @@
 -- configurable notice window only ever decides the `protected` flag, recomputed at approval time
 -- against the live setting value. Overlap and max-length ARE hard database constraints.
 
--- ── setting ──────────────────────────────────────────────────────────────────────────────────
+-- ── settings ─────────────────────────────────────────────────────────────────────────────────
 alter table public.settings
   add column if not exists leave_notice_days integer not null default 1
     check (leave_notice_days >= 0);
+
+-- reward_candidates' attendance category (below) requires a technician to actually have shown up
+-- for at least this fraction of the month's organisation working days, not just have every day
+-- covered by a mix of attendance and protected leave -- otherwise a technician who was on
+-- protected leave almost the entire month could still win "most reliable attendance".
+alter table public.settings
+  add column if not exists attendance_reward_min_present_ratio numeric not null default 0.5
+    check (attendance_reward_min_present_ratio > 0 and attendance_reward_min_present_ratio <= 1);
 
 -- ── the request table ───────────────────────────────────────────────────────────────────────
 create extension if not exists btree_gist;
@@ -322,16 +330,18 @@ $$;
 revoke all on function public.technician_assigned_visits_in_range(uuid, date, date) from public, anon, authenticated;
 grant execute on function public.technician_assigned_visits_in_range(uuid, date, date) to authenticated;
 
--- ── KPI exclusion: the shared count of protected leave days in a period, read by reward_candidates
---    below and callable by the front end to show "N day(s) excluded" on the technician table.
---    Counts only ORGANISATION WORKING DAYS within [p_from, p_to] -- the same weekly pattern
---    reward_candidates' org_days uses (settings.lead_work_days, ISO day-of-week 1=Mon..7=Sun; the
---    same column the lead-followup and AMC/rental "roll to next working day" logic already reads,
---    reused here rather than inventing a second org-working-day setting). A leave day that falls
---    on a day the org doesn't operate (e.g. Sunday) was never an "expected working day" to begin
---    with, so it is not protected leave either -- it must not inflate the exclusion. This schema
---    has no separate holiday calendar, so a gazetted holiday on an otherwise-working weekday is
---    NOT excluded here; that is a real gap, not something silently pretended to be handled. ──────
+-- ── KPI exclusion: the shared count of protected leave days in a period, callable by the front
+--    end to show "N day(s) excluded" on the technician table (reward_candidates below computes
+--    its own per-day coverage directly, it does not call this). Counts only days whose ISO
+--    weekday is in the org's weekly pattern (settings.lead_work_days — the same column the
+--    lead-followup and AMC/rental "roll to next working day" logic already reads, reused here
+--    rather than inventing a second org-working-day setting). A leave day that falls on a day the
+--    org doesn't operate (e.g. Sunday) was never an "expected working day" to begin with, so it
+--    is not protected leave either. Unlike reward_candidates' own org_days, this display helper
+--    does not also require that someone else attended that day — it's a simpler figure for a
+--    single technician's own history, not an eligibility gate. This schema has no separate
+--    holiday calendar, so a gazetted holiday on an otherwise-working weekday is NOT excluded
+--    here; that is a real gap, not something silently pretended to be handled. ─────────────────
 create or replace function public.technician_protected_leave_days(p_org_id uuid, p_technician_id uuid, p_from date, p_to date)
 returns integer
 language plpgsql
@@ -343,8 +353,10 @@ declare
   v_work_days smallint[];
   v_n integer;
 begin
-  -- is_staff(), not is_ops_staff(): this is also called internally by reward_candidates(), which
-  -- any staff role (incl. sales_admin) may invoke.
+  if p_org_id is distinct from public.current_org_id() then
+    raise exception 'technician_protected_leave_days: org mismatch';
+  end if;
+  -- is_staff(), not is_ops_staff(): a technician may also call this for their own id.
   if not (public.is_staff() or p_technician_id = public.current_technician_id()) then
     raise exception 'technician_protected_leave_days: access denied';
   end if;
@@ -377,19 +389,26 @@ grant execute on function public.technician_protected_leave_days(uuid, uuid, dat
 
 -- ── KPI wiring: reward_candidates' "expected working days" must not penalise protected leave.
 --    Same signature as the live function (20261016110000_test_customer_flag.sql:896). Changes:
---      1. org_days is redefined from the org's weekly working-day pattern (settings.lead_work_days)
---         instead of "any date anyone has an attendance row for". The old definition let a single
---         technician's own anomalous attendance on a non-working day (e.g. unscheduled Sunday
---         overtime) silently make that day "expected" for everyone else too, AND let that same
---         extra day substitute for a missing real working day in that technician's own count
---         (attendance_agg counted raw distinct dates, not distinct working dates). Both are closed
---         below. The review/revenue/referral CTEs have nothing to do with leave and are untouched.
---      2. attendance_agg now joins to org_days, so only attendance on an organisation working day
---         counts toward days_present.
---      3. protected_agg (new) adds technician_protected_leave_days(), which itself now only counts
---         protected-leave days that are organisation working days (see that function's own header).
---      4. attendance_agg's exact-equality `having` becomes a `>=` comparison against days_present +
---         protected days, in attendance_eligible. ──────────────────────────────────────────────
+--      1. org_days is now a weekly working-day pattern (settings.lead_work_days) AND-ed with
+--         "at least one technician actually has an attendance row that day" — a closed weekday
+--         (e.g. Sunday) with a stray attendance row never becomes an expected day (the weekday
+--         filter), and a normally-working weekday nobody attended at all (e.g. a company holiday
+--         — this schema has no separate holiday calendar) never becomes one either (the
+--         attendance-exists filter). This also closes the old bug where a single technician's
+--         own anomalous attendance on a non-working day silently made that day "expected" of
+--         everyone else too.
+--      2. Eligibility is now computed PER DAY, not by adding two separate counts. day_coverage
+--         cross-joins every technician against every org_day and marks each day covered if there
+--         is an attendance row OR the day falls inside an approved, protected leave range —
+--         OR'd, not added, so a day that happens to be both (nothing in this schema prevents a
+--         technician from both checking in and being on approved leave the same day) is never
+--         double-counted into "more covered days than there are days". coverage_agg then counts
+--         covered days and, separately, real attended days per technician.
+--      3. attendance_eligible now also requires attended_days >= ceil(org_day_count *
+--         settings.attendance_reward_min_present_ratio, default 0.5) — a technician on protected
+--         leave for nearly the whole month, with every day otherwise covered, still should not
+--         win "most reliable attendance" without a real minimum of actual attendance.
+--      4. The review/revenue/referral CTEs have nothing to do with leave and are untouched. ─────
 create or replace function public.reward_candidates(p_org_id uuid, p_period date)
  returns table(category reward_category, technician_id uuid, metric numeric)
  language plpgsql
@@ -400,6 +419,7 @@ declare
   v_period date := date_trunc('month', p_period)::date;
   v_period_end date := (date_trunc('month', p_period) + interval '1 month' - interval '1 day')::date;
   v_late_cutoff time;
+  v_min_present_ratio numeric;
 begin
   if not public.is_staff() then
     raise exception 'reward_candidates: staff role required';
@@ -408,24 +428,27 @@ begin
     raise exception 'reward_candidates: org mismatch';
   end if;
 
-  select late_cutoff into v_late_cutoff from public.settings where org_id = p_org_id;
+  select late_cutoff, attendance_reward_min_present_ratio
+    into v_late_cutoff, v_min_present_ratio
+    from public.settings where org_id = p_org_id;
   v_late_cutoff := coalesce(v_late_cutoff, '09:15:00'::time);
+  v_min_present_ratio := coalesce(v_min_present_ratio, 0.5);
 
   return query
   with org_days as (
-    -- "Expected working days" = the org's configured weekly working-day pattern
-    -- (settings.lead_work_days, ISO day-of-week 1=Mon..7=Sun — the same column the
-    -- lead-followup and AMC/rental "roll to next working day" logic already reads,
-    -- reused here rather than inventing a second org-working-day setting),
-    -- intersected with this month's calendar dates. Independent of whether anyone
-    -- actually has an attendance row that day (see header note 1 above). No
-    -- separate holiday calendar exists in this schema, so a gazetted holiday that
-    -- falls on an otherwise-working weekday is not excluded here.
+    -- An organisation working day: a calendar date this month whose ISO weekday is in the org's
+    -- configured weekly pattern (settings.lead_work_days — the same column the lead-followup and
+    -- AMC/rental "roll to next working day" logic already reads, reused here rather than
+    -- inventing a second org-working-day setting) AND on which at least one technician actually
+    -- has an attendance row. See the header note above for why both conditions are required.
     select d::date as date
     from generate_series(v_period, v_period_end, interval '1 day') d
     where extract(isodow from d)::smallint = any (
-      coalesce((select s.lead_work_days from public.settings s where s.org_id = p_org_id), '{1,2,3,4,5,6}'::smallint[])
-    )
+            coalesce((select s.lead_work_days from public.settings s where s.org_id = p_org_id), '{1,2,3,4,5,6}'::smallint[])
+          )
+      and exists (
+            select 1 from public.attendance a where a.org_id = p_org_id and a.date = d::date
+          )
   ),
   org_day_count as (
     select count(*) as n from org_days
@@ -445,29 +468,36 @@ begin
       and a.date < (v_period + interval '1 month')::date
     group by a.technician_id
   ),
-  -- NEW: protected leave (requested in advance per leave_notice_days, approved) excludes that many
-  -- days from the "must be present every org-operating day" requirement below.
-  protected_agg as (
-    select t.id as technician_id, public.technician_protected_leave_days(p_org_id, t.id, v_period, v_period_end) as days_protected
+  -- Per technician, per organisation working day: covered if there is an attendance row that day
+  -- OR the day falls inside an approved, protected leave request.
+  day_coverage as (
+    select t.id as technician_id, od.date,
+      exists (
+        select 1 from public.attendance a
+        where a.org_id = p_org_id and a.technician_id = t.id and a.date = od.date
+      ) as attended,
+      exists (
+        select 1 from public.technician_leave_requests r
+        where r.org_id = p_org_id and r.technician_id = t.id and r.status = 'approved' and r.protected
+          and r.period @> od.date
+      ) as on_protected_leave
     from public.technicians t
+    cross join org_days od
     where t.org_id = p_org_id
   ),
-  attendance_agg as (
-    -- Full attendance: a row on every organisation working day this month. Joined to org_days
-    -- (not just date-range-filtered) so attendance on a non-working day (e.g. unscheduled Sunday
-    -- overtime) is never counted — it must not be able to substitute for a missing working day.
-    select a.technician_id, count(distinct a.date) as days_present
-    from public.attendance a
-    join org_days od on od.date = a.date
-    where a.org_id = p_org_id
-    group by a.technician_id
+  coverage_agg as (
+    select technician_id,
+      count(*) filter (where attended or on_protected_leave) as covered_days,
+      count(*) filter (where attended) as attended_days
+    from day_coverage
+    group by technician_id
   ),
   attendance_eligible as (
-    select aa.technician_id, coalesce(lh.late_hours, 0) as late_hours
-    from attendance_agg aa
-    left join late_hours_agg lh on lh.technician_id = aa.technician_id
-    left join protected_agg pa on pa.technician_id = aa.technician_id
-    where aa.days_present + coalesce(pa.days_protected, 0) >= (select n from org_day_count)
+    select ca.technician_id, coalesce(lh.late_hours, 0) as late_hours
+    from coverage_agg ca
+    left join late_hours_agg lh on lh.technician_id = ca.technician_id
+    where ca.covered_days = (select n from org_day_count)
+      and ca.attended_days >= ceil((select n from org_day_count) * v_min_present_ratio)
       and coalesce(lh.late_hours, 0) <= 3
   ),
   review_agg as (
