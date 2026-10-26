@@ -3,49 +3,60 @@
 -- all nine of this feature's SQL tests, all inside ONE DO block.
 --
 -- Fixed against the previous version per this review:
---   1. compute_incentives (migration 5) now zeroes an existing
---      is_bike_allowance row when the recomputed amount is <= 0, instead
---      of leaving it stale -- see the migration's own comment and the new
---      fix-check assertions inside compute_incentives_bike_allowance.test.sql.
---   2. Every function's grant to `authenticated` was re-audited: a
---      SECURITY DEFINER helper with no caller/org check of its own is
---      never granted (technician_vehicle_on, technician_own_bike_days,
---      technician_expense_claims_total, person_allowance_on, monthly_
---      adjustment_top_up, monthly_adjustment_excluded); the three the
---      frontend calls directly that previously had no check at all
---      (technician_km_log_sum, technician_petrol_reference_amount,
---      technician_approx_distance_km) now have one added.
---   3. All nine embedded tests create their own __TEST_ organisation,
---      master, 7 technicians and settings row -- none of them reads from
---      or depends on whatever real data already exists.
+--   1. Both expense-claim-photos storage policies (insert AND select) now
+--      also require (storage.foldername(name))[1] = current_org_id()::
+--      text -- the first version only checked the technician-id folder
+--      segment, so is_ops_staff() alone let staff read ANY org's photos.
+--   2. technician_km_log's insert_own policy now also requires org_id =
+--      current_org_id() (it previously had no org check at all); insert_
+--      staff now also requires the technician row to actually belong to
+--      org_id (it previously let staff log km against any technician in
+--      any org, as long as org_id matched their own).
+--   3. submit_expense_claim now refuses unless p_bill_photo_path starts
+--      with p_org_id::text || '/' || v_tech_id::text || '/'.
+--   4. settings.own_bike_allowance_base's default of 1000 is unchanged --
+--      confirmed against the spec text itself (GVMART_MONTHLY_EXPENSES_
+--      SPEC.md §1.6: "One organisation-wide base amount, defaulting to
+--      1000, editable by master.").
+--   5. Every new table now has an explicit `revoke all ... from public,
+--      anon, authenticated` followed by only the grants its own RLS
+--      policies and the frontend's actual calls require (see each
+--      migration's own grant comments for the per-table reasoning).
+--   6. btree_gist now installs `with schema extensions`.
 --
 -- Standard form: refuses before 18:00 IST, using
--- (clock_timestamp() at time zone 'Asia/Kolkata')::time (clock_timestamp(),
--- not now(), so the check reflects the actual wall-clock moment this
--- statement runs, not the start of the enclosing transaction). Each
--- migration's pinned sha256 is recomputed via
--- encode(sha256(convert_to(text, 'UTF8')), 'hex') -- sha256() is the
--- built-in core Postgres 13+ function (bytea -> bytea), not pgcrypto's
--- digest(). Before touching anything, this also recreates the believed-
--- live bodies of compute_incentives and compute_salary (also pinned by
--- sha256, same function) inside their own nested BEGIN/EXCEPTION
--- sub-blocks, comparing md5(pg_get_functiondef(...)) against what is
--- actually live and rolling each sub-block back regardless of the
--- outcome (PL/pgSQL has no bare SAVEPOINT; a nested block with a
--- deliberate raise-and-catch is the idiomatic equivalent) -- BEFORE
--- migrations 5 and 6 (or any other migration) ever runs. It then captures
--- a real control technician's compute_incentives/compute_salary result
--- under the still-live (old) functions, fingerprints the real
--- organisation's salaries, incentives_earned AND settings, EXECUTEs all
--- six migrations in order, runs all nine tests (each in its own nested
--- BEGIN/EXCEPTION, since every test is itself a `do $t$ ... end $t$;`
--- block ending in its own terminal RAISE), re-captures the same control
--- technician's result under the NEW functions and asserts equality,
--- fingerprints again, and ends in ONE unconditional final RAISE so every
--- migration and every already-caught-and-rolled-back test side effect is
--- undone together. Run through the Management API (database/query),
--- never psql. Read RESULTS in the error. No BEGIN/COMMIT at the top level
--- anywhere in this file: that would defeat the rollback.
+-- (clock_timestamp() at time zone 'Asia/Kolkata')::time. Each migration's
+-- and each original function body's pinned sha256 is recomputed via
+-- encode(sha256(convert_to(text, 'UTF8')), 'hex') -- the built-in core
+-- Postgres 13+ sha256() (bytea -> bytea), not pgcrypto's digest().
+--
+-- Order: fingerprint the real organisation's salaries/incentives_earned/
+-- settings (settings compared with the new own_bike_allowance_base key
+-- removed via jsonb `-`, since before migration 4 that column does not
+-- exist yet) BEFORE migration 1 runs; recreate the believed-live bodies
+-- of compute_incentives and compute_salary in their own nested BEGIN/
+-- EXCEPTION sub-blocks, comparing md5(pg_get_functiondef(...)) against
+-- what is actually live and rolling each sub-block back regardless of
+-- the outcome (PL/pgSQL has no bare SAVEPOINT; this is the idiomatic
+-- substitute) -- also before migration 1, which is before migrations 5
+-- and 6 a fortiori; EXECUTE all six migrations in order; fingerprint the
+-- real organisation again IMMEDIATELY, before any recompute or test, and
+-- assert it is IDENTICAL to the before-migration-1 fingerprint (true by
+-- construction: migrations 1-6 only add tables/columns/functions and
+-- never touch an existing salaries/incentives_earned row, and nothing
+-- has called compute_incentives/compute_salary yet); run all nine tests
+-- (each in its own nested BEGIN/EXCEPTION, since every test is itself a
+-- `do $t$ ... end $t$;` block ending in its own terminal RAISE); run the
+-- "a technician with no expenses is paid the same" comparison in its OWN
+-- throwaway __TEST_ organisation (its own technician, settings row and
+-- one incentive_rule) -- never against real technicians -- comparing
+-- that technician's result under the recreated OLD bodies against the
+-- NEW (now-live) bodies; end in ONE unconditional final RAISE so every
+-- migration and every test's/the control comparison's already-rolled-
+-- back-or-not side effect is undone together regardless. Run through the
+-- Management API (database/query), never psql. Read RESULTS in the
+-- error. No BEGIN/COMMIT at the top level anywhere in this file: that
+-- would defeat the rollback.
 do $combo$
 declare
   res text := '';
@@ -53,23 +64,20 @@ declare
   v_org uuid;
   v_org_count int;
   v_fp_before text;
-  v_fp_after text;
+  v_fp_after_migrations text;
   v_actual_sha256 text;
   v_test_result text;
   v_live_inc_md5 text;
   v_recreated_inc_md5 text;
   v_live_sal_md5 text;
   v_recreated_sal_md5 text;
-  v_control_tech uuid;
-  v_control_period date := date_trunc('month', (now() at time zone 'Asia/Kolkata'))::date;
-  v_baseline_incentives jsonb;
-  v_check_incentives jsonb;
-  v_bike_rows_after int;
-  v_baseline_net numeric; v_check_net numeric;
-  v_baseline_base numeric; v_check_base numeric;
-  v_baseline_rev numeric; v_check_rev numeric;
-  v_baseline_late numeric; v_check_late numeric;
-  v_baseline_inc numeric; v_check_inc numeric;
+  -- Control-comparison (throwaway org) variables
+  v_ctrl_org uuid; v_ctrl_master uuid; v_ctrl_tech uuid; v_ctrl_techp uuid;
+  v_ctrl_rule_id uuid;
+  v_ctrl_period date := '2026-09-01';
+  v_old_incentives_baseline jsonb; v_new_incentives_check jsonb;
+  v_old_salary_baseline salaries; v_new_salary_check salaries;
+  v_sub_result text;
   v_m1 text := $m1body$
 -- Monthly Expenses spec (GVMART_MONTHLY_EXPENSES_SPEC.md), Unit 1 — bike
 -- ownership and petrol rate per technician, effective-dated so a mid-month
@@ -83,8 +91,19 @@ declare
 -- A switch "on the 12th" means the OLD row's effective_to is the 11th and
 -- the NEW row's effective_from is the 12th — adjacent, non-overlapping,
 -- inclusive ranges.
+--
+-- Note on schema placement (this review): installed into Supabase's
+-- `extensions` schema, per this review's explicit instruction -- NOT the
+-- local convention this codebase otherwise follows (20260701090000_
+-- extensions_and_enums.sql installed pgcrypto into `public`, and every
+-- function here still unqualified-calls gen_random_uuid()/digest()
+-- relying on that). The EXCLUDE constraint below resolves btree_gist's
+-- gist support/operator classes at the moment this CREATE TABLE runs,
+-- using whatever the connection's search_path is then (Supabase's
+-- platform-managed default includes `public, extensions`), so this does
+-- not require `extensions` in any later function's own `set search_path`.
 
-create extension if not exists btree_gist;
+create extension if not exists btree_gist with schema extensions;
 
 create table public.technician_vehicles (
   id uuid primary key default gen_random_uuid(),
@@ -116,6 +135,18 @@ create policy technician_vehicles_select_ops on public.technician_vehicles
 create policy technician_vehicles_write_ops on public.technician_vehicles for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
   with check (org_id = public.current_org_id() and public.is_ops_staff());
+
+-- Table-level grants: ops staff read, insert and update this table
+-- directly from the frontend (BikeAssignmentTab -- listTechnicianVehicle
+-- History/setTechnicianVehicle/closeTechnicianVehicleRow; there is no
+-- delete anywhere in the service layer, a mistaken row is corrected by
+-- closing it with effective_to and opening a new one), so authenticated
+-- needs select/insert/update and nothing more. The write_ops policy
+-- above is what actually scopes all three to master/operation_admin
+-- within their own org; a technician has no policy at all, so RLS blocks
+-- every row for them regardless of this grant.
+revoke all on table public.technician_vehicles from public, anon, authenticated;
+grant select, insert, update on table public.technician_vehicles to authenticated;
 
 create trigger audit_technician_vehicles after insert or update or delete on public.technician_vehicles
   for each row execute function public.audit_master_change();
@@ -233,11 +264,40 @@ create policy technician_km_log_select_staff on public.technician_km_log
   for select using (org_id = public.current_org_id() and public.is_ops_staff());
 create policy technician_km_log_select_own on public.technician_km_log
   for select using (technician_id = public.current_technician_id());
+-- ACL audit (this review): insert_own previously checked only
+-- technician_id = current_technician_id(), with NO org_id check at all --
+-- a technician could insert a row for themself tagged with ANY org_id,
+-- not just their own. insert_staff checked org_id = current_org_id() but
+-- never verified the technician_id it was inserting for actually belongs
+-- to that org -- an ops staff member could log km against a technician
+-- from a different organisation entirely. Both now also require the row's
+-- org_id to genuinely match the technician: insert_own via current_org_id()
+-- (the technician's own org, resolved server-side, same as every other
+-- self-scoped check in this codebase), insert_staff via an explicit
+-- existence check against technicians.
 create policy technician_km_log_insert_own on public.technician_km_log
-  for insert with check (technician_id = public.current_technician_id());
+  for insert with check (
+    technician_id = public.current_technician_id()
+    and org_id = public.current_org_id()
+  );
 create policy technician_km_log_insert_staff on public.technician_km_log
-  for insert with check (org_id = public.current_org_id() and public.is_ops_staff());
+  for insert with check (
+    org_id = public.current_org_id()
+    and public.is_ops_staff()
+    and exists (
+      select 1 from public.technicians t
+      where t.id = technician_id and t.org_id = org_id
+    )
+  );
 -- Deliberately no update/delete policy at all (for any role) — append-only.
+
+-- Table-level grants: both the technician's own screen and the admin
+-- KmLogTab read and insert this table directly, so authenticated needs
+-- select/insert and nothing more -- no update/delete anywhere in the
+-- service layer (append-only by design), matching the absence of any
+-- update/delete policy above.
+revoke all on table public.technician_km_log from public, anon, authenticated;
+grant select, insert on table public.technician_km_log to authenticated;
 
 -- ACL audit (this migration's three read functions, all genuinely called
 -- directly from the frontend as RPCs, confirmed against
@@ -444,18 +504,30 @@ create policy expense_claims_select_staff on public.expense_claims
 create policy expense_claims_select_own on public.expense_claims
   for select using (technician_id = public.current_technician_id());
 -- No insert/update/delete policy on the table — every write goes through
--- submit_expense_claim / verify_expense_claim below.
+-- submit_expense_claim / verify_expense_claim below. Both are SECURITY
+-- DEFINER, so their internal INSERT/UPDATE run as the function owner, not
+-- as `authenticated` -- they need no table-level grant to work. The only
+-- thing a client ever does directly against this table is SELECT (the two
+-- policies above), so that is the only table grant given.
+revoke all on table public.expense_claims from public, anon, authenticated;
+grant select on table public.expense_claims to authenticated;
 
 create trigger audit_expense_claims after insert or update or delete on public.expense_claims
   for each row execute function public.audit_master_change();
 
--- ── Storage: private bucket, technician-scoped path ───────────────────────
+-- ── Storage: private bucket, org- AND technician-scoped path ─────────────
 -- Same 5MB/image-only limits as every other photo bucket in this codebase.
 -- Path shape `${orgId}/${technicianId}/${uuid}.${ext}` lets the storage
--- policy scope access per-technician without a lookup table, same idea as
--- payment-proofs' `current_technician_id() is not null` but tightened one
--- level further so a technician can't even upload into another technician's
--- folder, let alone read one by guessing a key.
+-- policy scope access per-org AND per-technician without a lookup table,
+-- same idea as payment-proofs' `current_technician_id() is not null` but
+-- tightened two levels further: [1] must be the caller's own org (this
+-- review's fix -- the first version checked only the technician-id folder
+-- segment, so a technician in org A could upload into or read from any
+-- path shaped `<any org>/<their own technician id>/...`, and an
+-- is_ops_staff() caller could read ANY org's photos, not just their own),
+-- and [2] must be the caller's own technician id, so a technician can't
+-- even upload into another technician's folder, let alone read one by
+-- guessing a key.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('expense-claim-photos', 'expense-claim-photos', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
@@ -463,10 +535,12 @@ on conflict (id) do nothing;
 create policy expense_claim_photos_storage_insert on storage.objects for insert to authenticated with check (
   bucket_id = 'expense-claim-photos'
   and public.current_technician_id() is not null
+  and (storage.foldername(name))[1] = public.current_org_id()::text
   and (storage.foldername(name))[2] = public.current_technician_id()::text
 );
 create policy expense_claim_photos_storage_select on storage.objects for select to authenticated using (
   bucket_id = 'expense-claim-photos'
+  and (storage.foldername(name))[1] = public.current_org_id()::text
   and (
     public.is_ops_staff()
     or (storage.foldername(name))[2] = public.current_technician_id()::text
@@ -507,6 +581,15 @@ begin
   end if;
   if nullif(btrim(p_bill_photo_path), '') is null then
     raise exception 'submit_expense_claim: bill_photo_path is required';
+  end if;
+  -- The row the technician submits must point at a photo actually in
+  -- their own org/technician folder -- otherwise a technician could save
+  -- a claim row referencing any storage path (their own upload rights are
+  -- already folder-scoped by the storage policies above, but nothing
+  -- before this review stopped them pointing the ROW at a path they
+  -- never uploaded to, e.g. another technician's or another org's).
+  if not starts_with(p_bill_photo_path, p_org_id::text || '/' || v_tech_id::text || '/') then
+    raise exception 'submit_expense_claim: bill_photo_path must be under the caller''s own org/technician folder';
   end if;
 
   insert into public.expense_claims (org_id, technician_id, period, claim_type, submitted_amount, bill_photo_path)
@@ -649,6 +732,14 @@ create policy person_allowances_write_ops on public.person_allowances for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
   with check (org_id = public.current_org_id() and public.is_ops_staff());
 
+-- Table-level grants: ops staff read, insert and update this table
+-- directly (AllowancesTab -- listPersonAllowances/setPersonAllowance/
+-- closePersonAllowanceRow by effective_to, same close-then-open pattern
+-- as technician_vehicles); there is no delete anywhere in the service
+-- layer, so authenticated needs select/insert/update and nothing more.
+revoke all on table public.person_allowances from public, anon, authenticated;
+grant select, insert, update on table public.person_allowances to authenticated;
+
 create trigger audit_person_allowances after insert or update or delete on public.person_allowances
   for each row execute function public.audit_master_change();
 
@@ -707,6 +798,15 @@ create policy monthly_adjustments_select_ops on public.monthly_adjustments
 create policy monthly_adjustments_write_ops on public.monthly_adjustments for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
   with check (org_id = public.current_org_id() and public.is_ops_staff());
+
+-- Table-level grants: ops staff read and insert this table directly
+-- (AdjustmentsTab -- listMonthlyAdjustments/addMonthlyAdjustment); there
+-- is no update or delete anywhere in the service layer (an adjustment is
+-- a permanent, dated record -- correcting one means adding a new
+-- adjustment row, not editing an old one), so authenticated needs select/
+-- insert and nothing more.
+revoke all on table public.monthly_adjustments from public, anon, authenticated;
+grant select, insert on table public.monthly_adjustments to authenticated;
 
 create trigger audit_monthly_adjustments after insert or update or delete on public.monthly_adjustments
   for each row execute function public.audit_master_change();
@@ -772,6 +872,11 @@ revoke execute on function public.monthly_adjustment_excluded(uuid, uuid, date, 
 -- whole row on every insert/update/delete — adding a second trigger here
 -- would double-write audit_log on every settings change, so this column
 -- just rides the existing trigger, no new one.
+--
+-- Default 1000, per spec (this review confirmed against the spec text
+-- rather than assuming it): GVMART_MONTHLY_EXPENSES_SPEC.md §1.6 reads
+-- "One organisation-wide base amount, defaulting to 1000, editable by
+-- master."
 alter table public.settings
   add column own_bike_allowance_base numeric(12, 2) not null default 1000 check (own_bike_allowance_base >= 0);
 $m4body$;
@@ -1361,6 +1466,7 @@ declare
   v_tech uuid[] := '{}'; v_techp uuid[] := '{}';
   i int;
   v_sum numeric; v_id uuid; v_n int;
+  v_org2 uuid; v_master2 uuid; v_tech2org uuid; v_tech2orgp uuid;
 begin
   insert into organizations (name) values ('__TEST_technician_km_log') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -1376,6 +1482,18 @@ begin
     v_techp := array_append(v_techp, null);
     insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
   end loop;
+
+  -- A second, unrelated organisation and its own technician -- used only
+  -- for the two cross-org insert checks below.
+  insert into organizations (name) values ('__TEST_technician_km_log_other') returning id into v_org2;
+  insert into settings (org_id) values (v_org2);
+  insert into auth.users (id, aud, role, email) values (gen_random_uuid(), 'authenticated', 'authenticated', 'kl-master2@test.invalid')
+    returning id into v_master2;
+  insert into profiles (id, org_id, full_name, role) values (v_master2, v_org2, '__TEST_ master2', 'master');
+  v_tech2org := gen_random_uuid();
+  insert into auth.users (id, aud, role, email) values (v_tech2org, 'authenticated', 'authenticated', 'kl-tech-org2@test.invalid');
+  insert into profiles (id, org_id, full_name, role) values (v_tech2org, v_org2, '__TEST_ tech-org2', 'technician');
+  insert into technicians (org_id, profile_id) values (v_org2, v_tech2org) returning id into v_tech2orgp;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -1447,6 +1565,38 @@ begin
   end;
   execute 'reset role';
 
+  -- CROSS-ORG CHECK 1 (insert_own, this review's fix): technician 3 (a
+  -- real member of v_org) tries to insert a km_log row tagged with
+  -- v_org2 -- their own org, not the row's. Before this fix, insert_own
+  -- checked only technician_id, with no org_id condition at all, so this
+  -- would have succeeded.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_tech[3], 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into technician_km_log (org_id, technician_id, entry_date, km) values (v_org2, v_techp[3], '2026-01-09', 5);
+    res := res || E'\n' || 'CROSS-ORG 1: technician3 inserts tagged with the OTHER org: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'CROSS-ORG 1: technician3 inserts tagged with the OTHER org: rejected ('||sqlerrm||')';
+  end;
+  execute 'reset role';
+
+  -- CROSS-ORG CHECK 2 (insert_staff, this review's fix): master (ops
+  -- staff of v_org) tries to insert a row with org_id = v_org (their own
+  -- org, satisfying the old check) but technician_id pointing at a
+  -- technician who actually belongs to v_org2. Before this fix,
+  -- insert_staff never verified that relationship, so this would have
+  -- succeeded and logged km against a technician in a different
+  -- organisation entirely.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into technician_km_log (org_id, technician_id, entry_date, km) values (v_org, v_tech2orgp, '2026-01-09', 5);
+    res := res || E'\n' || 'CROSS-ORG 2: master inserts for a technician who belongs to a different org: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'CROSS-ORG 2: master inserts for a technician who belongs to a different org: rejected ('||sqlerrm||')';
+  end;
+  execute 'reset role';
+
   raise exception E'RESULTS%', res;
 end $t$;
 $t2body$;
@@ -1484,12 +1634,33 @@ begin
     insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
   end loop;
 
-  -- Technician submits a claim via the RPC (identity resolved server-side)
+  -- Technician submits a claim via the RPC (identity resolved server-side).
+  -- bill_photo_path must be shaped <org_id>/<technician_id>/<file> -- this
+  -- review's fix (Unit 3) -- so it starts with the caller's own org and
+  -- technician id, exactly as the storage policies' folder layout and
+  -- uploadExpenseClaimPhoto() both already build it.
   perform set_config('request.jwt.claims', json_build_object('sub', v_tech[1], 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 500, v_techp[1]::text || '/bill1.jpg', '2026-01-01');
+
+  -- A path missing the org_id prefix (or any other shape) is refused.
+  begin
+    perform submit_expense_claim(v_org, 'maintenance', 500, v_techp[1]::text || '/bill1.jpg', '2026-01-01');
+    res := res || E'\n' || 'bill_photo_path without the org_id prefix: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'bill_photo_path without the org_id prefix: rejected ('||sqlerrm||')';
+  end;
+  -- A path under a DIFFERENT technician's folder (even the caller's own
+  -- org) is refused too.
+  begin
+    perform submit_expense_claim(v_org, 'maintenance', 500, v_org::text || '/' || v_techp[2]::text || '/bill1.jpg', '2026-01-01');
+    res := res || E'\n' || 'bill_photo_path under a different technician''s folder: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'bill_photo_path under a different technician''s folder: rejected ('||sqlerrm||')';
+  end;
+
+  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 500, v_org::text || '/' || v_techp[1]::text || '/bill1.jpg', '2026-01-01');
   execute 'reset role';
-  res := res || E'\n' || format('submitted claim: verified_amount is null = %s', v_claim.verified_amount is null);
+  res := res || E'\n' || format('submitted claim with the correct path shape: verified_amount is null = %s', v_claim.verified_amount is null);
 
   -- A claim with verified_amount null is invisible to salary/the report.
   -- technician_expense_claims_total itself is internal-only now (ACL
@@ -1883,8 +2054,8 @@ begin
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_tech[1], 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select * into v_petrol_claim from submit_expense_claim(v_org, 'petrol', 150, v_techp[1]::text || '/petrol_bill.jpg', '2026-05-01');
-  select * into v_maint_claim from submit_expense_claim(v_org, 'maintenance', 300, v_techp[1]::text || '/bill.jpg', '2026-05-01');
+  select * into v_petrol_claim from submit_expense_claim(v_org, 'petrol', 150, v_org::text || '/' || v_techp[1]::text || '/petrol_bill.jpg', '2026-05-01');
+  select * into v_maint_claim from submit_expense_claim(v_org, 'maintenance', 300, v_org::text || '/' || v_techp[1]::text || '/bill.jpg', '2026-05-01');
   execute 'reset role';
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
@@ -1927,7 +2098,7 @@ begin
     execute 'reset role';
     perform set_config('request.jwt.claims', json_build_object('sub', v_tech[3], 'role', 'authenticated')::text, true);
     execute 'set local role authenticated';
-    select * into v_pending from submit_expense_claim(v_org, 'petrol', 500, v_techp[3]::text || '/bill.jpg', '2026-05-01');
+    select * into v_pending from submit_expense_claim(v_org, 'petrol', 500, v_org::text || '/' || v_techp[3]::text || '/bill.jpg', '2026-05-01');
     execute 'reset role';
     perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
     execute 'set local role authenticated';
@@ -1980,7 +2151,7 @@ begin
   -- from current_technician_id(), so the caller must actually be one).
   perform set_config('request.jwt.claims', json_build_object('sub', v_tech[1], 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 400, v_techp[1]::text || '/bill.jpg', '2026-06-01');
+  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 400, v_org::text || '/' || v_techp[1]::text || '/bill.jpg', '2026-06-01');
   execute 'reset role';
 
   -- An unverified maintenance claim never reaches salary / the report
@@ -2103,7 +2274,7 @@ begin
   execute 'reset role';
   perform set_config('request.jwt.claims', json_build_object('sub', v_lowball_p, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 1000, v_lowball::text || '/bill.jpg', '2026-07-01');
+  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 1000, v_org::text || '/' || v_lowball::text || '/bill.jpg', '2026-07-01');
   execute 'reset role';
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -2478,10 +2649,10 @@ begin
 end;
 $$;
 $oldsalbody$;
-  v_m1_expected_sha256 text := '59ceb9cf38c2c8b958df7ad7e29b49288fbc688fa6b4505dff5e18a76b2e3542';
-  v_m2_expected_sha256 text := '410a09d2f4d54224b7b27511fe70157afb347c7ce322c183827ab6601e450afd';
-  v_m3_expected_sha256 text := '3bd6d930ad4301bb891546cbe9f99c057818d3ac600659e8b6c9f6d2a3373768';
-  v_m4_expected_sha256 text := '0a976a59d8448cbe997a33910a9215e869ceb210d4dfb2065f60fc4ad9882542';
+  v_m1_expected_sha256 text := '9c95078279d4de0d7c13235221cdfd47065c7c3c32136c5237633117bafa6f4f';
+  v_m2_expected_sha256 text := '489179a27641530bfe765fad7bb4a421d2777252897ec1e642205133449d71dd';
+  v_m3_expected_sha256 text := 'b3ac30147f8ab59d5d47c229f69b7e4ac1c55022a5c58baa6ba8ee02161f3aa1';
+  v_m4_expected_sha256 text := '9e0a2dedcb8ee9fc7b528d7702f74ab7d66d893106281b07ede36fc218cfeca7';
   v_m5_expected_sha256 text := '1fc60b3e25429d63d252f71d2d4a536cd352264ce1c87060d30cbd53c9732b45';
   v_m6_expected_sha256 text := 'bcaeedaad27c6d99217b9300a53619ad41beba9a218aac694b40184b1de7acf8';
   v_old_inc_expected_sha256 text := '7abcd18ab1ccfb5ac753691a625d9c18108593b5aa56626c9b0b5806ee8d1c22';
@@ -2531,8 +2702,23 @@ begin
   end if;
   select id into v_org from organizations where name not ilike '\_\_TEST%' limit 1;
 
-  -- ── Pre-check 1 of 2, BEFORE migration 5 (or any migration) runs: prove ──
-  -- the embedded ORIGINAL compute_incentives text really is the live body.
+  -- ── Fingerprint BEFORE migration 1 runs: real organisation's salaries, ──
+  -- incentives_earned AND settings (settings with the not-yet-existing
+  -- own_bike_allowance_base key removed via jsonb `-`, a no-op before
+  -- migration 4 adds it -- same expression used for the after-fingerprint
+  -- below, so both sides are computed identically).
+  select format('salaries=%s rows sum(net)=%s | incentives_earned=%s rows sum(amount)=%s | settings=%s',
+      (select count(*) from salaries where org_id = v_org),
+      (select coalesce(sum(net), 0) from salaries where org_id = v_org),
+      (select count(*) from incentives_earned where org_id = v_org),
+      (select coalesce(sum(amount), 0) from incentives_earned where org_id = v_org),
+      (select md5((to_jsonb(s) - 'own_bike_allowance_base')::text) from settings s where org_id = v_org))
+    into v_fp_before;
+  res := res || E'\n' || format('fingerprint before migration 1: %s', v_fp_before);
+
+  -- ── Pre-check 1 of 2, BEFORE migration 1 (hence trivially before 5 and ──
+  -- 6): prove the embedded ORIGINAL compute_incentives text really is the
+  -- live body.
   select md5(pg_get_functiondef('public.compute_incentives(uuid,date)'::regprocedure)) into v_live_inc_md5;
   begin
     execute v_old_incentives;
@@ -2546,10 +2732,10 @@ begin
   if v_recreated_inc_md5 is distinct from v_live_inc_md5 then
     raise exception 'rehearsal refused: recreating the embedded ORIGINAL compute_incentives body does not reproduce the live function (live md5=%, recreated md5=%) -- the live function has drifted since this wrapper was written', v_live_inc_md5, v_recreated_inc_md5;
   end if;
-  res := res || E'\n' || format('pre-check 1/2 verified and rolled back, before any migration ran: recreating the original compute_incentives body reproduces the live function exactly (md5 %s)', v_live_inc_md5);
+  res := res || E'\n' || format('pre-check 1/2 verified and rolled back, before migration 1 ran: recreating the original compute_incentives body reproduces the live function exactly (md5 %s)', v_live_inc_md5);
 
-  -- ── Pre-check 2 of 2, BEFORE migration 6 (or any migration) runs: prove ──
-  -- the embedded ORIGINAL compute_salary text really is the live body.
+  -- ── Pre-check 2 of 2, same timing: prove the embedded ORIGINAL ──────────
+  -- compute_salary text really is the live body.
   select md5(pg_get_functiondef('public.compute_salary(uuid,uuid,date)'::regprocedure)) into v_live_sal_md5;
   begin
     execute v_old_salary;
@@ -2563,46 +2749,7 @@ begin
   if v_recreated_sal_md5 is distinct from v_live_sal_md5 then
     raise exception 'rehearsal refused: recreating the embedded ORIGINAL compute_salary body does not reproduce the live function (live md5=%, recreated md5=%) -- the live function has drifted since this wrapper was written', v_live_sal_md5, v_recreated_sal_md5;
   end if;
-  res := res || E'\n' || format('pre-check 2/2 verified and rolled back, before any migration ran: recreating the original compute_salary body reproduces the live function exactly (md5 %s)', v_live_sal_md5);
-
-  -- ── Baseline: a real technician with no technician_vehicles, no ────────
-  -- person_allowances and no expense_claims row at all ("no expenses" for
-  -- this feature), measured under the STILL-LIVE (old) functions -- both
-  -- pre-checks above proved those are genuinely what is live right now.
-  select t.id into v_control_tech
-    from technicians t
-    where t.org_id = v_org
-      and not exists (select 1 from technician_vehicles tv where tv.technician_id = t.id)
-      and not exists (select 1 from person_allowances pa where pa.profile_id = t.profile_id)
-      and not exists (select 1 from expense_claims ec where ec.technician_id = t.id)
-    order by t.created_at limit 1;
-  if v_control_tech is null then
-    raise exception 'rehearsal refused: no real technician with zero vehicle/allowance/claim rows was found to use as the control';
-  end if;
-
-  perform compute_incentives(v_org, v_control_period);
-  select coalesce(jsonb_agg(jsonb_build_object('rule_id', rule_id, 'installation_rate_id', installation_rate_id, 'credit_source', credit_source, 'amount', amount) order by rule_id, installation_rate_id, credit_source), '[]'::jsonb)
-    into v_baseline_incentives
-    from incentives_earned where org_id = v_org and technician_id = v_control_tech and period = v_control_period;
-
-  perform compute_salary(v_org, v_control_tech, v_control_period);
-  select base, revenue_component, late_deduction, incentives, net
-    into v_baseline_base, v_baseline_rev, v_baseline_late, v_baseline_inc, v_baseline_net
-    from salaries where org_id = v_org and technician_id = v_control_tech and period = v_control_period;
-
-  res := res || E'\n' || format('control technician %s, period %s, baseline under the still-live (old) functions -- incentives=%s base=%s revenue=%s late_deduction=%s incentives_component=%s net=%s',
-    v_control_tech, v_control_period, v_baseline_incentives, v_baseline_base, v_baseline_rev, v_baseline_late, v_baseline_inc, v_baseline_net);
-
-  -- ── Fingerprint before: real organisation's salaries, incentives_earned ──
-  -- AND settings.
-  select format('salaries=%s rows sum(net)=%s | incentives_earned=%s rows sum(amount)=%s | settings=%s',
-      (select count(*) from salaries where org_id = v_org),
-      (select coalesce(sum(net), 0) from salaries where org_id = v_org),
-      (select count(*) from incentives_earned where org_id = v_org),
-      (select coalesce(sum(amount), 0) from incentives_earned where org_id = v_org),
-      (select md5(s::text) from settings s where org_id = v_org))
-    into v_fp_before;
-  res := res || E'\n' || format('fingerprint before any migration (salaries, incentives_earned, settings): %s', v_fp_before);
+  res := res || E'\n' || format('pre-check 2/2 verified and rolled back, before migration 1 ran: recreating the original compute_salary body reproduces the live function exactly (md5 %s)', v_live_sal_md5);
 
   execute v_m1;
   execute v_m2;
@@ -2611,6 +2758,24 @@ begin
   execute v_m5;
   execute v_m6;
   res := res || E'\n' || 'all six migrations executed, in order (20261107100000 through 20261107100500)';
+
+  -- ── Fingerprint immediately after migration 6, BEFORE any recompute or ──
+  -- test: must be IDENTICAL to the before-migration-1 fingerprint. True by
+  -- construction -- migrations 1-6 only add tables/columns/functions, and
+  -- nothing between the two fingerprints has called compute_incentives or
+  -- compute_salary, so no existing salaries/incentives_earned row (or
+  -- settings' pre-existing columns) can have changed.
+  select format('salaries=%s rows sum(net)=%s | incentives_earned=%s rows sum(amount)=%s | settings=%s',
+      (select count(*) from salaries where org_id = v_org),
+      (select coalesce(sum(net), 0) from salaries where org_id = v_org),
+      (select count(*) from incentives_earned where org_id = v_org),
+      (select coalesce(sum(amount), 0) from incentives_earned where org_id = v_org),
+      (select md5((to_jsonb(s) - 'own_bike_allowance_base')::text) from settings s where org_id = v_org))
+    into v_fp_after_migrations;
+  if v_fp_after_migrations is distinct from v_fp_before then
+    raise exception 'rehearsal refused: fingerprint changed by the six migrations alone, before any recompute or test ran (before=%, after=%) -- this should be impossible for a pure schema/function change', v_fp_before, v_fp_after_migrations;
+  end if;
+  res := res || E'\n' || format('fingerprint immediately after migration 6, before any recompute or test (expect identical to before): %s -- identical: true', v_fp_after_migrations);
 
   begin
     execute v_t1;
@@ -2684,45 +2849,69 @@ begin
   end;
   res := res || E'\n\n=== acl_guard_monthly_expenses.test.sql ===' || v_test_result;
 
-  -- ── No-expenses comparison: the same real control technician, measured ──
-  -- under the NEW functions, must give the same incentives and net the
-  -- live functions gave before any migration ran.
-  perform compute_incentives(v_org, v_control_period);
+  -- ── Control comparison: "a technician with no expenses is paid the ──────
+  -- same" -- run entirely in its own throwaway __TEST_ organisation (its
+  -- own technician, settings row and one incentive_rule), never against
+  -- real technicians. The migrations above are already live at this
+  -- point, so compute_incentives/compute_salary are now the NEW bodies;
+  -- to get the OLD-body baseline, this recreates both original bodies one
+  -- more time in a nested sub-block (rolled back together with whatever
+  -- they insert), captures the control technician's result under them,
+  -- then compares against the NEW bodies' result for the same technician.
+  insert into organizations (name) values ('__TEST_no_expense_control') returning id into v_ctrl_org;
+  insert into settings (org_id) values (v_ctrl_org);
+  insert into auth.users (id, aud, role, email) values (gen_random_uuid(), 'authenticated', 'authenticated', 'ctrl-master@test.invalid')
+    returning id into v_ctrl_master;
+  insert into profiles (id, org_id, full_name, role) values (v_ctrl_master, v_ctrl_org, '__TEST_ control master', 'master');
+  v_ctrl_tech := gen_random_uuid();
+  insert into auth.users (id, aud, role, email) values (v_ctrl_tech, 'authenticated', 'authenticated', 'ctrl-tech@test.invalid');
+  insert into profiles (id, org_id, full_name, role) values (v_ctrl_tech, v_ctrl_org, '__TEST_ control tech', 'technician');
+  insert into technicians (org_id, profile_id) values (v_ctrl_org, v_ctrl_tech) returning id into v_ctrl_techp;
+  -- One active incentive rule, threshold 0, so it deterministically pays
+  -- every active technician regardless of their (zero) revenue -- a real
+  -- nonzero baseline to compare, not a trivial zero-equals-zero check.
+  insert into incentive_rules (org_id, type, threshold, amount) values (v_ctrl_org, 'service_income', 0, 100)
+    returning id into v_ctrl_rule_id;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_ctrl_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+
+  begin
+    execute v_old_incentives;
+    execute v_old_salary;
+    perform compute_incentives(v_ctrl_org, v_ctrl_period);
+    select coalesce(jsonb_agg(jsonb_build_object('rule_id', rule_id, 'installation_rate_id', installation_rate_id, 'credit_source', credit_source, 'amount', amount) order by rule_id, installation_rate_id, credit_source), '[]'::jsonb)
+      into v_old_incentives_baseline
+      from incentives_earned where org_id = v_ctrl_org and technician_id = v_ctrl_techp and period = v_ctrl_period;
+    perform compute_salary(v_ctrl_org, v_ctrl_techp, v_ctrl_period);
+    select * into v_old_salary_baseline from salaries where org_id = v_ctrl_org and technician_id = v_ctrl_techp and period = v_ctrl_period;
+    raise exception 'SUBBLOCK_DONE_ROLLBACK';
+  exception when others then
+    if sqlerrm <> 'SUBBLOCK_DONE_ROLLBACK' then
+      raise;
+    end if;
+  end;
+  res := res || E'\n\n' || format('control technician %s, period %s, baseline under the recreated-then-rolled-back OLD bodies -- incentives=%s base=%s revenue=%s late_deduction=%s incentives_component=%s net=%s',
+    v_ctrl_techp, v_ctrl_period, v_old_incentives_baseline, v_old_salary_baseline.base, v_old_salary_baseline.revenue_component, v_old_salary_baseline.late_deduction, v_old_salary_baseline.incentives, v_old_salary_baseline.net);
+
+  -- NEW bodies are restored (the sub-block above rolled its recreate back).
+  perform compute_incentives(v_ctrl_org, v_ctrl_period);
   select coalesce(jsonb_agg(jsonb_build_object('rule_id', rule_id, 'installation_rate_id', installation_rate_id, 'credit_source', credit_source, 'amount', amount) order by rule_id, installation_rate_id, credit_source), '[]'::jsonb)
-    into v_check_incentives
-    from incentives_earned where org_id = v_org and technician_id = v_control_tech and period = v_control_period and not is_bike_allowance;
-  select count(*) into v_bike_rows_after from incentives_earned
-    where org_id = v_org and technician_id = v_control_tech and period = v_control_period and is_bike_allowance;
+    into v_new_incentives_check
+    from incentives_earned where org_id = v_ctrl_org and technician_id = v_ctrl_techp and period = v_ctrl_period and not is_bike_allowance;
+  perform compute_salary(v_ctrl_org, v_ctrl_techp, v_ctrl_period);
+  select * into v_new_salary_check from salaries where org_id = v_ctrl_org and technician_id = v_ctrl_techp and period = v_ctrl_period;
 
-  perform compute_salary(v_org, v_control_tech, v_control_period);
-  select base, revenue_component, late_deduction, incentives, net
-    into v_check_base, v_check_rev, v_check_late, v_check_inc, v_check_net
-    from salaries where org_id = v_org and technician_id = v_control_tech and period = v_control_period;
-
-  res := res || E'\n\n' || format('control technician %s under the NEW functions -- non-bike-allowance incentives=%s (identical to baseline %s: %s) | control bike-allowance rows (expect 0): %s',
-    v_control_tech, v_check_incentives, v_baseline_incentives, v_check_incentives = v_baseline_incentives, v_bike_rows_after);
-  res := res || E'\n' || format('control technician salary under the NEW functions -- base=%s revenue=%s late_deduction=%s incentives=%s net=%s',
-    v_check_base, v_check_rev, v_check_late, v_check_inc, v_check_net);
-  res := res || E'\n' || format('net unchanged from the pre-migration baseline (expect true): %s (before=%s after=%s)', v_baseline_net = v_check_net, v_baseline_net, v_check_net);
+  res := res || E'\n' || format('same control technician under the NEW bodies -- non-bike-allowance incentives=%s (identical to OLD baseline: %s) | base=%s revenue=%s late_deduction=%s incentives_component=%s net=%s',
+    v_new_incentives_check, v_new_incentives_check = v_old_incentives_baseline,
+    v_new_salary_check.base, v_new_salary_check.revenue_component, v_new_salary_check.late_deduction, v_new_salary_check.incentives, v_new_salary_check.net);
+  res := res || E'\n' || format('net unchanged, old body vs new body, same no-expense technician (expect true): %s (old=%s new=%s)', v_old_salary_baseline.net = v_new_salary_check.net, v_old_salary_baseline.net, v_new_salary_check.net);
   res := res || E'\n' || format('every other salary component also unchanged (expect true): %s',
-    v_baseline_base = v_check_base and v_baseline_rev = v_check_rev and v_baseline_late = v_check_late and v_baseline_inc = v_check_inc);
-
-  -- ── Fingerprint after: real organisation's salaries, incentives_earned ──
-  -- AND settings. Will NOT be identical to the "before" fingerprint --
-  -- the control-technician recompute above, and every compute_incentives/
-  -- compute_salary call made rehearsing the real organisation's own data,
-  -- legitimately changes salaries/incentives_earned rows for that org.
-  -- That is expected and is why this whole statement still ends in an
-  -- unconditional RAISE: every one of those changes, and all six
-  -- migrations, are undone together regardless.
-  select format('salaries=%s rows sum(net)=%s | incentives_earned=%s rows sum(amount)=%s | settings=%s',
-      (select count(*) from salaries where org_id = v_org),
-      (select coalesce(sum(net), 0) from salaries where org_id = v_org),
-      (select count(*) from incentives_earned where org_id = v_org),
-      (select coalesce(sum(amount), 0) from incentives_earned where org_id = v_org),
-      (select md5(s::text) from settings s where org_id = v_org))
-    into v_fp_after;
-  res := res || E'\n\n' || format('fingerprint after everything (salaries, incentives_earned, settings) -- NOT expected to equal the before fingerprint, see note above: %s', v_fp_after);
+    v_old_salary_baseline.base = v_new_salary_check.base
+    and v_old_salary_baseline.revenue_component = v_new_salary_check.revenue_component
+    and v_old_salary_baseline.late_deduction = v_new_salary_check.late_deduction
+    and v_old_salary_baseline.incentives = v_new_salary_check.incentives);
+  execute 'reset role';
 
   raise exception E'RESULTS%', res;
 end

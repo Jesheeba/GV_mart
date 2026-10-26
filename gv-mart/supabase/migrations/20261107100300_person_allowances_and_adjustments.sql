@@ -41,6 +41,14 @@ create policy person_allowances_write_ops on public.person_allowances for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
   with check (org_id = public.current_org_id() and public.is_ops_staff());
 
+-- Table-level grants: ops staff read, insert and update this table
+-- directly (AllowancesTab -- listPersonAllowances/setPersonAllowance/
+-- closePersonAllowanceRow by effective_to, same close-then-open pattern
+-- as technician_vehicles); there is no delete anywhere in the service
+-- layer, so authenticated needs select/insert/update and nothing more.
+revoke all on table public.person_allowances from public, anon, authenticated;
+grant select, insert, update on table public.person_allowances to authenticated;
+
 create trigger audit_person_allowances after insert or update or delete on public.person_allowances
   for each row execute function public.audit_master_change();
 
@@ -99,6 +107,15 @@ create policy monthly_adjustments_select_ops on public.monthly_adjustments
 create policy monthly_adjustments_write_ops on public.monthly_adjustments for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
   with check (org_id = public.current_org_id() and public.is_ops_staff());
+
+-- Table-level grants: ops staff read and insert this table directly
+-- (AdjustmentsTab -- listMonthlyAdjustments/addMonthlyAdjustment); there
+-- is no update or delete anywhere in the service layer (an adjustment is
+-- a permanent, dated record -- correcting one means adding a new
+-- adjustment row, not editing an old one), so authenticated needs select/
+-- insert and nothing more.
+revoke all on table public.monthly_adjustments from public, anon, authenticated;
+grant select, insert on table public.monthly_adjustments to authenticated;
 
 create trigger audit_monthly_adjustments after insert or update or delete on public.monthly_adjustments
   for each row execute function public.audit_master_change();
@@ -164,5 +181,10 @@ revoke execute on function public.monthly_adjustment_excluded(uuid, uuid, date, 
 -- whole row on every insert/update/delete — adding a second trigger here
 -- would double-write audit_log on every settings change, so this column
 -- just rides the existing trigger, no new one.
+--
+-- Default 1000, per spec (this review confirmed against the spec text
+-- rather than assuming it): GVMART_MONTHLY_EXPENSES_SPEC.md §1.6 reads
+-- "One organisation-wide base amount, defaulting to 1000, editable by
+-- master."
 alter table public.settings
   add column own_bike_allowance_base numeric(12, 2) not null default 1000 check (own_bike_allowance_base >= 0);

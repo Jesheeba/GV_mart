@@ -27,11 +27,40 @@ create policy technician_km_log_select_staff on public.technician_km_log
   for select using (org_id = public.current_org_id() and public.is_ops_staff());
 create policy technician_km_log_select_own on public.technician_km_log
   for select using (technician_id = public.current_technician_id());
+-- ACL audit (this review): insert_own previously checked only
+-- technician_id = current_technician_id(), with NO org_id check at all --
+-- a technician could insert a row for themself tagged with ANY org_id,
+-- not just their own. insert_staff checked org_id = current_org_id() but
+-- never verified the technician_id it was inserting for actually belongs
+-- to that org -- an ops staff member could log km against a technician
+-- from a different organisation entirely. Both now also require the row's
+-- org_id to genuinely match the technician: insert_own via current_org_id()
+-- (the technician's own org, resolved server-side, same as every other
+-- self-scoped check in this codebase), insert_staff via an explicit
+-- existence check against technicians.
 create policy technician_km_log_insert_own on public.technician_km_log
-  for insert with check (technician_id = public.current_technician_id());
+  for insert with check (
+    technician_id = public.current_technician_id()
+    and org_id = public.current_org_id()
+  );
 create policy technician_km_log_insert_staff on public.technician_km_log
-  for insert with check (org_id = public.current_org_id() and public.is_ops_staff());
+  for insert with check (
+    org_id = public.current_org_id()
+    and public.is_ops_staff()
+    and exists (
+      select 1 from public.technicians t
+      where t.id = technician_id and t.org_id = org_id
+    )
+  );
 -- Deliberately no update/delete policy at all (for any role) — append-only.
+
+-- Table-level grants: both the technician's own screen and the admin
+-- KmLogTab read and insert this table directly, so authenticated needs
+-- select/insert and nothing more -- no update/delete anywhere in the
+-- service layer (append-only by design), matching the absence of any
+-- update/delete policy above.
+revoke all on table public.technician_km_log from public, anon, authenticated;
+grant select, insert on table public.technician_km_log to authenticated;
 
 -- ACL audit (this migration's three read functions, all genuinely called
 -- directly from the frontend as RPCs, confirmed against

@@ -58,8 +58,8 @@ begin
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_tech[1], 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select * into v_petrol_claim from submit_expense_claim(v_org, 'petrol', 150, v_techp[1]::text || '/petrol_bill.jpg', '2026-05-01');
-  select * into v_maint_claim from submit_expense_claim(v_org, 'maintenance', 300, v_techp[1]::text || '/bill.jpg', '2026-05-01');
+  select * into v_petrol_claim from submit_expense_claim(v_org, 'petrol', 150, v_org::text || '/' || v_techp[1]::text || '/petrol_bill.jpg', '2026-05-01');
+  select * into v_maint_claim from submit_expense_claim(v_org, 'maintenance', 300, v_org::text || '/' || v_techp[1]::text || '/bill.jpg', '2026-05-01');
   execute 'reset role';
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
@@ -102,7 +102,7 @@ begin
     execute 'reset role';
     perform set_config('request.jwt.claims', json_build_object('sub', v_tech[3], 'role', 'authenticated')::text, true);
     execute 'set local role authenticated';
-    select * into v_pending from submit_expense_claim(v_org, 'petrol', 500, v_techp[3]::text || '/bill.jpg', '2026-05-01');
+    select * into v_pending from submit_expense_claim(v_org, 'petrol', 500, v_org::text || '/' || v_techp[3]::text || '/bill.jpg', '2026-05-01');
     execute 'reset role';
     perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
     execute 'set local role authenticated';

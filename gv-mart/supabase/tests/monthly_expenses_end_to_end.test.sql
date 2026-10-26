@@ -83,7 +83,7 @@ begin
   execute 'reset role';
   perform set_config('request.jwt.claims', json_build_object('sub', v_lowball_p, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 1000, v_lowball::text || '/bill.jpg', '2026-07-01');
+  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 1000, v_org::text || '/' || v_lowball::text || '/bill.jpg', '2026-07-01');
   execute 'reset role';
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';

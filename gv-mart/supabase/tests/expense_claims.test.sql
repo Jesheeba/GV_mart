@@ -31,12 +31,33 @@ begin
     insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
   end loop;
 
-  -- Technician submits a claim via the RPC (identity resolved server-side)
+  -- Technician submits a claim via the RPC (identity resolved server-side).
+  -- bill_photo_path must be shaped <org_id>/<technician_id>/<file> -- this
+  -- review's fix (Unit 3) -- so it starts with the caller's own org and
+  -- technician id, exactly as the storage policies' folder layout and
+  -- uploadExpenseClaimPhoto() both already build it.
   perform set_config('request.jwt.claims', json_build_object('sub', v_tech[1], 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 500, v_techp[1]::text || '/bill1.jpg', '2026-01-01');
+
+  -- A path missing the org_id prefix (or any other shape) is refused.
+  begin
+    perform submit_expense_claim(v_org, 'maintenance', 500, v_techp[1]::text || '/bill1.jpg', '2026-01-01');
+    res := res || E'\n' || 'bill_photo_path without the org_id prefix: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'bill_photo_path without the org_id prefix: rejected ('||sqlerrm||')';
+  end;
+  -- A path under a DIFFERENT technician's folder (even the caller's own
+  -- org) is refused too.
+  begin
+    perform submit_expense_claim(v_org, 'maintenance', 500, v_org::text || '/' || v_techp[2]::text || '/bill1.jpg', '2026-01-01');
+    res := res || E'\n' || 'bill_photo_path under a different technician''s folder: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'bill_photo_path under a different technician''s folder: rejected ('||sqlerrm||')';
+  end;
+
+  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 500, v_org::text || '/' || v_techp[1]::text || '/bill1.jpg', '2026-01-01');
   execute 'reset role';
-  res := res || E'\n' || format('submitted claim: verified_amount is null = %s', v_claim.verified_amount is null);
+  res := res || E'\n' || format('submitted claim with the correct path shape: verified_amount is null = %s', v_claim.verified_amount is null);
 
   -- A claim with verified_amount null is invisible to salary/the report.
   -- technician_expense_claims_total itself is internal-only now (ACL

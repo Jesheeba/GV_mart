@@ -38,7 +38,7 @@ begin
   -- from current_technician_id(), so the caller must actually be one).
   perform set_config('request.jwt.claims', json_build_object('sub', v_tech[1], 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 400, v_techp[1]::text || '/bill.jpg', '2026-06-01');
+  select * into v_claim from submit_expense_claim(v_org, 'maintenance', 400, v_org::text || '/' || v_techp[1]::text || '/bill.jpg', '2026-06-01');
   execute 'reset role';
 
   -- An unverified maintenance claim never reaches salary / the report

@@ -10,6 +10,7 @@ declare
   v_tech uuid[] := '{}'; v_techp uuid[] := '{}';
   i int;
   v_sum numeric; v_id uuid; v_n int;
+  v_org2 uuid; v_master2 uuid; v_tech2org uuid; v_tech2orgp uuid;
 begin
   insert into organizations (name) values ('__TEST_technician_km_log') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -25,6 +26,18 @@ begin
     v_techp := array_append(v_techp, null);
     insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
   end loop;
+
+  -- A second, unrelated organisation and its own technician -- used only
+  -- for the two cross-org insert checks below.
+  insert into organizations (name) values ('__TEST_technician_km_log_other') returning id into v_org2;
+  insert into settings (org_id) values (v_org2);
+  insert into auth.users (id, aud, role, email) values (gen_random_uuid(), 'authenticated', 'authenticated', 'kl-master2@test.invalid')
+    returning id into v_master2;
+  insert into profiles (id, org_id, full_name, role) values (v_master2, v_org2, '__TEST_ master2', 'master');
+  v_tech2org := gen_random_uuid();
+  insert into auth.users (id, aud, role, email) values (v_tech2org, 'authenticated', 'authenticated', 'kl-tech-org2@test.invalid');
+  insert into profiles (id, org_id, full_name, role) values (v_tech2org, v_org2, '__TEST_ tech-org2', 'technician');
+  insert into technicians (org_id, profile_id) values (v_org2, v_tech2org) returning id into v_tech2orgp;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -93,6 +106,38 @@ begin
     res := res || E'\n' || 'technician2 calls technician_km_log_sum for technician1: SUCCEEDED (bad)';
   exception when others then
     res := res || E'\n' || 'technician2 calls technician_km_log_sum for technician1: rejected ('||sqlerrm||')';
+  end;
+  execute 'reset role';
+
+  -- CROSS-ORG CHECK 1 (insert_own, this review's fix): technician 3 (a
+  -- real member of v_org) tries to insert a km_log row tagged with
+  -- v_org2 -- their own org, not the row's. Before this fix, insert_own
+  -- checked only technician_id, with no org_id condition at all, so this
+  -- would have succeeded.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_tech[3], 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into technician_km_log (org_id, technician_id, entry_date, km) values (v_org2, v_techp[3], '2026-01-09', 5);
+    res := res || E'\n' || 'CROSS-ORG 1: technician3 inserts tagged with the OTHER org: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'CROSS-ORG 1: technician3 inserts tagged with the OTHER org: rejected ('||sqlerrm||')';
+  end;
+  execute 'reset role';
+
+  -- CROSS-ORG CHECK 2 (insert_staff, this review's fix): master (ops
+  -- staff of v_org) tries to insert a row with org_id = v_org (their own
+  -- org, satisfying the old check) but technician_id pointing at a
+  -- technician who actually belongs to v_org2. Before this fix,
+  -- insert_staff never verified that relationship, so this would have
+  -- succeeded and logged km against a technician in a different
+  -- organisation entirely.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into technician_km_log (org_id, technician_id, entry_date, km) values (v_org, v_tech2orgp, '2026-01-09', 5);
+    res := res || E'\n' || 'CROSS-ORG 2: master inserts for a technician who belongs to a different org: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'CROSS-ORG 2: master inserts for a technician who belongs to a different org: rejected ('||sqlerrm||')';
   end;
   execute 'reset role';
 

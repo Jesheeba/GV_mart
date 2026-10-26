@@ -48,18 +48,30 @@ create policy expense_claims_select_staff on public.expense_claims
 create policy expense_claims_select_own on public.expense_claims
   for select using (technician_id = public.current_technician_id());
 -- No insert/update/delete policy on the table — every write goes through
--- submit_expense_claim / verify_expense_claim below.
+-- submit_expense_claim / verify_expense_claim below. Both are SECURITY
+-- DEFINER, so their internal INSERT/UPDATE run as the function owner, not
+-- as `authenticated` -- they need no table-level grant to work. The only
+-- thing a client ever does directly against this table is SELECT (the two
+-- policies above), so that is the only table grant given.
+revoke all on table public.expense_claims from public, anon, authenticated;
+grant select on table public.expense_claims to authenticated;
 
 create trigger audit_expense_claims after insert or update or delete on public.expense_claims
   for each row execute function public.audit_master_change();
 
--- ── Storage: private bucket, technician-scoped path ───────────────────────
+-- ── Storage: private bucket, org- AND technician-scoped path ─────────────
 -- Same 5MB/image-only limits as every other photo bucket in this codebase.
 -- Path shape `${orgId}/${technicianId}/${uuid}.${ext}` lets the storage
--- policy scope access per-technician without a lookup table, same idea as
--- payment-proofs' `current_technician_id() is not null` but tightened one
--- level further so a technician can't even upload into another technician's
--- folder, let alone read one by guessing a key.
+-- policy scope access per-org AND per-technician without a lookup table,
+-- same idea as payment-proofs' `current_technician_id() is not null` but
+-- tightened two levels further: [1] must be the caller's own org (this
+-- review's fix -- the first version checked only the technician-id folder
+-- segment, so a technician in org A could upload into or read from any
+-- path shaped `<any org>/<their own technician id>/...`, and an
+-- is_ops_staff() caller could read ANY org's photos, not just their own),
+-- and [2] must be the caller's own technician id, so a technician can't
+-- even upload into another technician's folder, let alone read one by
+-- guessing a key.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('expense-claim-photos', 'expense-claim-photos', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
@@ -67,10 +79,12 @@ on conflict (id) do nothing;
 create policy expense_claim_photos_storage_insert on storage.objects for insert to authenticated with check (
   bucket_id = 'expense-claim-photos'
   and public.current_technician_id() is not null
+  and (storage.foldername(name))[1] = public.current_org_id()::text
   and (storage.foldername(name))[2] = public.current_technician_id()::text
 );
 create policy expense_claim_photos_storage_select on storage.objects for select to authenticated using (
   bucket_id = 'expense-claim-photos'
+  and (storage.foldername(name))[1] = public.current_org_id()::text
   and (
     public.is_ops_staff()
     or (storage.foldername(name))[2] = public.current_technician_id()::text
@@ -111,6 +125,15 @@ begin
   end if;
   if nullif(btrim(p_bill_photo_path), '') is null then
     raise exception 'submit_expense_claim: bill_photo_path is required';
+  end if;
+  -- The row the technician submits must point at a photo actually in
+  -- their own org/technician folder -- otherwise a technician could save
+  -- a claim row referencing any storage path (their own upload rights are
+  -- already folder-scoped by the storage policies above, but nothing
+  -- before this review stopped them pointing the ROW at a path they
+  -- never uploaded to, e.g. another technician's or another org's).
+  if not starts_with(p_bill_photo_path, p_org_id::text || '/' || v_tech_id::text || '/') then
+    raise exception 'submit_expense_claim: bill_photo_path must be under the caller''s own org/technician folder';
   end if;
 
   insert into public.expense_claims (org_id, technician_id, period, claim_type, submitted_amount, bill_photo_path)

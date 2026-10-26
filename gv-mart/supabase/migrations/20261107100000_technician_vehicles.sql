@@ -10,8 +10,19 @@
 -- A switch "on the 12th" means the OLD row's effective_to is the 11th and
 -- the NEW row's effective_from is the 12th — adjacent, non-overlapping,
 -- inclusive ranges.
+--
+-- Note on schema placement (this review): installed into Supabase's
+-- `extensions` schema, per this review's explicit instruction -- NOT the
+-- local convention this codebase otherwise follows (20260701090000_
+-- extensions_and_enums.sql installed pgcrypto into `public`, and every
+-- function here still unqualified-calls gen_random_uuid()/digest()
+-- relying on that). The EXCLUDE constraint below resolves btree_gist's
+-- gist support/operator classes at the moment this CREATE TABLE runs,
+-- using whatever the connection's search_path is then (Supabase's
+-- platform-managed default includes `public, extensions`), so this does
+-- not require `extensions` in any later function's own `set search_path`.
 
-create extension if not exists btree_gist;
+create extension if not exists btree_gist with schema extensions;
 
 create table public.technician_vehicles (
   id uuid primary key default gen_random_uuid(),
@@ -43,6 +54,18 @@ create policy technician_vehicles_select_ops on public.technician_vehicles
 create policy technician_vehicles_write_ops on public.technician_vehicles for all
   using (org_id = public.current_org_id() and public.is_ops_staff())
   with check (org_id = public.current_org_id() and public.is_ops_staff());
+
+-- Table-level grants: ops staff read, insert and update this table
+-- directly from the frontend (BikeAssignmentTab -- listTechnicianVehicle
+-- History/setTechnicianVehicle/closeTechnicianVehicleRow; there is no
+-- delete anywhere in the service layer, a mistaken row is corrected by
+-- closing it with effective_to and opening a new one), so authenticated
+-- needs select/insert/update and nothing more. The write_ops policy
+-- above is what actually scopes all three to master/operation_admin
+-- within their own org; a technician has no policy at all, so RLS blocks
+-- every row for them regardless of this grant.
+revoke all on table public.technician_vehicles from public, anon, authenticated;
+grant select, insert, update on table public.technician_vehicles to authenticated;
 
 create trigger audit_technician_vehicles after insert or update or delete on public.technician_vehicles
   for each row execute function public.audit_master_change();
