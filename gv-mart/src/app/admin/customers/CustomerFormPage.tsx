@@ -505,13 +505,15 @@ export function CustomerFormPage() {
               <div className="border-t border-border pt-4">
                 <WaterHouseholdPanel
                   customerId={id!}
+                  orgId={orgId}
                   waterSource={existing.data!.water_source}
                   waterSourceOther={existing.data!.water_source_other}
                   waterTdsPpm={existing.data!.water_tds_ppm}
                   waterPh={existing.data!.water_ph}
                   healthCondition={existing.data!.health_condition}
                   familyMemberCount={existing.data!.customer_members.length}
-                  canEdit={profile?.role === "master" || profile?.role === "operation_admin"}
+                  canEditWater={profile?.role === "master" || profile?.role === "operation_admin"}
+                  canEditHealth={profile?.role === "master" || profile?.role === "operation_admin" || profile?.role === "sales_admin"}
                 />
               </div>
             </>

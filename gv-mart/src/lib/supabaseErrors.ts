@@ -7,3 +7,9 @@
 export function isUndefinedColumnError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "42703"
 }
+
+/** Same idea as isUndefinedColumnError, for a whole table/view that doesn't exist yet
+ *  (customer_health_profile, before its migration is applied) — Postgres code 42P01. */
+export function isUndefinedTableError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "42P01"
+}

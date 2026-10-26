@@ -230,10 +230,8 @@ export type Database = {
           // only when update_lead_status auto-creates this customer from a
           // won lead; staff clear it once address/family details are filled.
           needs_setup: boolean
-          // Customer water/household profile (20261108100000_customer_water_profile.sql).
-          // health_condition is deliberately absent here — it's column-select-revoked on the
-          // live table and only ever read via the get_customer_health_condition RPC function
-          // (see services/customers.ts); never add it to a raw select() against this table.
+          // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
+          // is NOT here — it lives in its own table, customer_health_profile, below.
           water_source: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other: string | null
           water_tds_ppm: number | null
@@ -258,10 +256,6 @@ export type Database = {
           water_source_other?: string | null
           water_tds_ppm?: number | null
           water_ph?: number | null
-          // health_condition is writable (master/operation_admin only, enforced by a trigger,
-          // not by column grants — UPDATE privilege is untouched) but never selectable, so it's
-          // typed here for .update({ health_condition }) call sites only, not on Row above.
-          health_condition?: Database["public"]["Enums"]["household_health_level"] | null
           created_at?: string
           updated_at?: string
         }
@@ -282,7 +276,6 @@ export type Database = {
           water_source_other?: string | null
           water_tds_ppm?: number | null
           water_ph?: number | null
-          health_condition?: Database["public"]["Enums"]["household_health_level"] | null
           created_at?: string
           updated_at?: string
         }
@@ -299,6 +292,47 @@ export type Database = {
             columns: ["primary_profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      // 20261108100000_customer_water_profile.sql — health_condition's own table (not a
+      // customers column). No column-level grant games on customers at all.
+      customer_health_profile: {
+        Row: {
+          customer_id: string
+          org_id: string
+          health_condition: Database["public"]["Enums"]["household_health_level"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          customer_id: string
+          org_id: string
+          health_condition: Database["public"]["Enums"]["household_health_level"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          customer_id?: string
+          org_id?: string
+          health_condition?: Database["public"]["Enums"]["household_health_level"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_health_profile_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_health_profile_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]

@@ -41,24 +41,28 @@ export function useCustomer(id: string | undefined) {
   })
 }
 
-/** Sensitive — only ever reads health_condition via get_customer_health_condition (column-
- *  select-revoked on the raw table), never the raw table. Used by screens that don't already
- *  get it bundled through useCustomer/getMyCustomerRecord (e.g. the technician app). */
-export function useCustomerHealthCondition(customerId: string | undefined) {
-  return useQuery({
-    queryKey: ["customers", "healthCondition", customerId],
-    queryFn: () => customers.getCustomerHealthCondition(customerId!),
-    enabled: !!customerId,
-  })
-}
-
+/** Water columns only (customers table) — see WaterHouseholdPanel. health_condition is
+ *  written separately via useUpsertCustomerHealthCondition below (its own table now). */
 export function useUpdateCustomerWaterProfile(customerId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (patch: Parameters<typeof customers.updateCustomerWaterProfile>[1]) => customers.updateCustomerWaterProfile(customerId, patch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
-      queryClient.invalidateQueries({ queryKey: ["customers", "healthCondition", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
+  })
+}
+
+/** customer_health_profile — master/operation_admin/sales_admin (is_staff()) only, per its
+ *  own RLS, not a customers column. */
+export function useUpsertCustomerHealthCondition(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, healthCondition }: { orgId: string; healthCondition: Parameters<typeof customers.upsertCustomerHealthCondition>[2] }) =>
+      customers.upsertCustomerHealthCondition(customerId, orgId, healthCondition),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
       queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
     },
   })

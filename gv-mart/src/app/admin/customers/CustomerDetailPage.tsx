@@ -560,6 +560,7 @@ export function CustomerDetailPage() {
           <Card size="default">
             <WaterHouseholdPanel
               customerId={customer.id}
+              orgId={orgId}
               waterSource={customer.water_source}
               waterSourceOther={customer.water_source_other}
               waterTdsPpm={customer.water_tds_ppm}
@@ -567,7 +568,8 @@ export function CustomerDetailPage() {
               healthCondition={customer.health_condition}
               familyMemberCount={customer.customer_members.length}
               measuredReading={measured}
-              canEdit={profile?.role === "master" || profile?.role === "operation_admin"}
+              canEditWater={profile?.role === "master" || profile?.role === "operation_admin"}
+              canEditHealth={profile?.role === "master" || profile?.role === "operation_admin" || profile?.role === "sales_admin"}
             />
           </Card>
         </TabsContent>

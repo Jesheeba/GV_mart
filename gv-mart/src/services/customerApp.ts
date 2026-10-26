@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import { isUndefinedColumnError } from "@/lib/supabaseErrors"
+import { isUndefinedTableError } from "@/lib/supabaseErrors"
 import type { Enums, Tables } from "@/types/database"
 
 /**
@@ -28,62 +28,33 @@ export type SettingsRow = Tables<"settings">
 
 // ── Profile / customer record ─────────────────────────────────────────────
 
-// health_condition is deliberately not selectable via the raw table at all (column-level
-// revoke — 20261108100000_customer_water_profile.sql); fetched separately below and merged in.
-//
-// Two full literal select strings (not built from a shared template) — supabase-js statically
-// parses the select() string's literal type to infer the result shape, and a template-
-// interpolated string loses that.
-type MyCustomerRow = CustomerRow & { addresses: AddressRow[]; customer_members: Tables<"customer_members">[] }
-type MyCustomerRowNoWater = Omit<CustomerRow, "water_source" | "water_source_other" | "water_tds_ppm" | "water_ph"> & {
-  addresses: AddressRow[]
-  customer_members: Tables<"customer_members">[]
-}
-
+// Reverted to the original select (reviewer feedback: no revoke/regrant of any kind on
+// customers; health_condition never lived there). Deploy-order safety for the 4 new water
+// columns comes for free with "*" — a column that doesn't exist yet simply isn't in the row.
 export async function getMyCustomerRecord(customerId: string) {
-  let waterColumnsUnavailable = false
-  let data: MyCustomerRow | MyCustomerRowNoWater
-  const full = await supabase
+  const { data, error } = await supabase
     .from("customers")
-    .select(
-      "id,org_id,primary_profile_id,name,mobile,profession,preferred_language,source,tags,notes,needs_setup,is_test,water_source,water_source_other,water_tds_ppm,water_ph,created_at,updated_at, addresses(*), customer_members(*)"
-    )
+    .select("*, addresses(*), customer_members(*)")
     .eq("id", customerId)
     .order("is_primary", { referencedTable: "addresses", ascending: false })
     .order("is_primary", { referencedTable: "customer_members", ascending: false })
     .single()
-  if (full.error && isUndefinedColumnError(full.error)) {
-    // Deploy-order safety (§6): the migration adding these columns hasn't landed yet.
-    waterColumnsUnavailable = true
-    const base = await supabase
-      .from("customers")
-      .select("id,org_id,primary_profile_id,name,mobile,profession,preferred_language,source,tags,notes,needs_setup,is_test,created_at,updated_at, addresses(*), customer_members(*)")
-      .eq("id", customerId)
-      .order("is_primary", { referencedTable: "addresses", ascending: false })
-      .order("is_primary", { referencedTable: "customer_members", ascending: false })
-      .single()
-    if (base.error) throw base.error
-    data = base.data as unknown as MyCustomerRowNoWater
-  } else {
-    if (full.error) throw full.error
-    data = full.data as unknown as MyCustomerRow
-  }
+  if (error) throw error
+  return { ...data, health_condition: await getMyHealthCondition(customerId) }
+}
 
-  let healthCondition: Enums<"household_health_level"> | null = null
-  if (!waterColumnsUnavailable) {
-    const healthResult = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
-    if (healthResult.error && (healthResult.error as { code?: string }).code !== "42883") throw healthResult.error
-    healthCondition = healthResult.data ?? null
+/**
+ * health_condition lives in customer_health_profile (not a customers column). The customer
+ * reads their own row directly, via that table's own RLS (customer_health_profile_select_own).
+ * Deploy-order safety: the table may not exist yet (42P01) — degrade to null.
+ */
+export async function getMyHealthCondition(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.from("customer_health_profile").select("health_condition").eq("customer_id", customerId).maybeSingle()
+  if (error) {
+    if (isUndefinedTableError(error)) return null
+    throw error
   }
-
-  return {
-    ...data,
-    water_source: waterColumnsUnavailable ? null : (data as MyCustomerRow).water_source,
-    water_source_other: waterColumnsUnavailable ? null : (data as MyCustomerRow).water_source_other,
-    water_tds_ppm: waterColumnsUnavailable ? null : (data as MyCustomerRow).water_tds_ppm,
-    water_ph: waterColumnsUnavailable ? null : (data as MyCustomerRow).water_ph,
-    health_condition: healthCondition,
-  }
+  return data?.health_condition ?? null
 }
 
 export async function updateMyProfession(customerId: string, profession: string) {
