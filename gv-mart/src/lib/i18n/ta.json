@@ -4489,7 +4489,8 @@
       "feedback": "கருத்து",
       "topCustomers": "முதன்மை வாடிக்கையாளர்கள்",
       "coverage": "உள்ளடக்கம்",
-      "insights": "விற்பனை நுண்ணறிவு"
+      "insights": "விற்பனை நுண்ணறிவு",
+      "monthlyExpenses": "மாதாந்திர செலவுகள்"
     },
     "filters": {
       "from": "இருந்து",
@@ -4697,6 +4698,15 @@
       "installPerProductFormula": "{{installs}} நிறுவல்கள் ÷ {{sold}} விற்ற பொருட்கள்",
       "installPerVisitFormula": "{{installs}} நிறுவல்கள் ÷ {{visits}} சேவை வருகைகள்",
       "installPerMonth": "மாதத்திற்கு"
+    },
+    "monthlyExpenses": {
+      "month": "மாதம்",
+      "technician": "தொழில்நுட்ப வல்லுநர்",
+      "recharge": "ரீசார்ஜ்",
+      "petrol": "பெட்ரோல்",
+      "maintenance": "பராமரிப்பு",
+      "bikeAllowance": "பைக் உதவித்தொகை",
+      "total": "மொத்தம்"
     },
     "insights": {
       "customersTitle": "வாடிக்கையாளர்கள்",

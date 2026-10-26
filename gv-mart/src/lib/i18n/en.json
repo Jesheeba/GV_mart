@@ -4482,7 +4482,8 @@
       "feedback": "Feedback",
       "topCustomers": "Top Customers",
       "coverage": "Coverage",
-      "insights": "Sales Insights"
+      "insights": "Sales Insights",
+      "monthlyExpenses": "Monthly Expenses"
     },
     "filters": {
       "from": "From",
@@ -4690,6 +4691,15 @@
       "installPerProductFormula": "{{installs}} installs ÷ {{sold}} product units sold",
       "installPerVisitFormula": "{{installs}} installs ÷ {{visits}} service visits",
       "installPerMonth": "Per month"
+    },
+    "monthlyExpenses": {
+      "month": "Month",
+      "technician": "Technician",
+      "recharge": "Recharge",
+      "petrol": "Petrol",
+      "maintenance": "Maintenance",
+      "bikeAllowance": "Bike allowance",
+      "total": "Total"
     },
     "insights": {
       "customersTitle": "Customers",
