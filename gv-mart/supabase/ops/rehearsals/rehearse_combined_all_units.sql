@@ -3003,6 +3003,17 @@ begin
   res := res || E'\n\n' || format('control technician %s, period %s, baseline under the recreated-then-rolled-back OLD bodies -- incentives=%s base=%s revenue=%s late_deduction=%s incentives_component=%s net=%s',
     v_ctrl_techp, v_ctrl_period, v_old_incentives_baseline, v_old_salary_baseline.base, v_old_salary_baseline.revenue_component, v_old_salary_baseline.late_deduction, v_old_salary_baseline.incentives, v_old_salary_baseline.net);
 
+  -- Guard against a vacuous pass: compute_incentives never deletes or
+  -- truncates incentives_earned anywhere (confirmed by inspection -- the
+  -- rule loop's existence check is skip-only, `continue`, never a
+  -- delete), so the fixed row inserted above should survive untouched.
+  -- Refuse rather than silently compare zero-to-zero if that assumption
+  -- is ever wrong.
+  if v_old_salary_baseline.incentives <= 0 or jsonb_array_length(v_old_incentives_baseline) = 0 then
+    raise exception 'rehearsal refused: control technician''s OLD-body incentives baseline is not > 0 (incentives_earned=%, salaries.incentives=%) -- the fixed seeded row appears to have been altered or removed, which would make the OLD-vs-NEW comparison below vacuous (0 = 0)', v_old_incentives_baseline, v_old_salary_baseline.incentives;
+  end if;
+  res := res || E'\n' || format('baseline sanity check passed: OLD-body incentives_component=%s (> 0) and net reflects it', v_old_salary_baseline.incentives);
+
   -- NEW bodies are restored (the sub-block above rolled its recreate
   -- back). Same discipline: switch to authenticated only for the
   -- compute_* calls, reset immediately after.
@@ -3018,6 +3029,12 @@ begin
 
   res := res || E'\n' || format('same control technician under the NEW bodies -- non-bike-allowance incentives=%s | base=%s revenue=%s late_deduction=%s incentives_component=%s net=%s',
     v_new_incentives_check, v_new_salary_check.base, v_new_salary_check.revenue_component, v_new_salary_check.late_deduction, v_new_salary_check.incentives, v_new_salary_check.net);
+
+  -- Same vacuous-pass guard, mirrored on the NEW side.
+  if v_new_salary_check.incentives <= 0 or jsonb_array_length(v_new_incentives_check) = 0 then
+    raise exception 'rehearsal refused: control technician''s NEW-body incentives check is not > 0 (incentives_earned=%, salaries.incentives=%) -- the fixed seeded row appears to have been altered or removed under the new function', v_new_incentives_check, v_new_salary_check.incentives;
+  end if;
+
   res := res || E'\n' || format('incentives equal, OLD body vs NEW body (expect true): %s (old=%s new=%s)', v_old_incentives_baseline = v_new_incentives_check, v_old_incentives_baseline, v_new_incentives_check);
   res := res || E'\n' || format('net equal, OLD body vs NEW body (expect true): %s (old=%s new=%s)', v_old_salary_baseline.net = v_new_salary_check.net, v_old_salary_baseline.net, v_new_salary_check.net);
   res := res || E'\n' || format('every other salary component also equal (expect true): %s',
