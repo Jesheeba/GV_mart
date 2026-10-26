@@ -1,7 +1,8 @@
 -- Rollback for 20261106100000_technician_leave_request.sql.
 -- Restores reward_candidates() to the body from 20261016110000_test_customer_flag.sql (no
--- protected-leave exclusion), drops every new function, drops the link columns on
--- technician_availability, drops the new table, and drops the leave_notice_days setting.
+-- protected-leave exclusion, no per-day coverage, no minimum-present ratio), drops every new
+-- function, drops the link columns on technician_availability, drops the new table, and drops
+-- the leave_notice_days and attendance_reward_min_present_ratio settings.
 -- Rows already written into technician_availability by decide_technician_leave (status='leave')
 -- are left exactly as they are — they are ordinary leave rows now, same as any admin-direct entry,
 -- and this rollback does not delete calendar data.
@@ -128,7 +129,8 @@ alter table public.technician_availability
 -- ── drop the request table ─────────────────────────────────────────────────────────────────
 drop table if exists public.technician_leave_requests;
 
--- ── drop the setting ────────────────────────────────────────────────────────────────────────
+-- ── drop the settings ───────────────────────────────────────────────────────────────────────
 alter table public.settings drop column if exists leave_notice_days;
+alter table public.settings drop column if exists attendance_reward_min_present_ratio;
 
 notify pgrst, 'reload schema';
