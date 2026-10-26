@@ -9,6 +9,7 @@ import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadge
 import { useCustomerHealthCondition, useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
 import { useProfile } from "@/hooks/useProfile"
 import { computeJobOverrun } from "@/lib/job-overrun"
+import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
 import { cn } from "@/lib/utils"
 import { computeTicketAllowedDuration, findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
@@ -38,7 +39,7 @@ export function JobDetailPage() {
   const history = useCustomerHistory(jobDetail.data?.customer_id, jobDetail.data?.product_id, ticketId)
   const technician = useMyTechnician()
   const logCall = useLogCall()
-  const showHealthCondition = settings.data?.show_health_condition_to_technicians ?? false
+  const showHealthCondition = technicianCanSeeHealthCondition(settings.data?.show_health_condition_to_technicians)
   const healthCondition = useCustomerHealthCondition(jobDetail.data?.customers?.id, showHealthCondition)
 
   const openVisit = jobDetail.data ? findOpenVisit(jobDetail.data.service_visits) : null

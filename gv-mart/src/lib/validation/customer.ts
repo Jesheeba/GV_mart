@@ -64,6 +64,27 @@ export const HEALTH_CONDITION_LEVELS = ["none", "normal", "medium", "high"] as c
 export type HealthConditionLevel = (typeof HEALTH_CONDITION_LEVELS)[number]
 
 /**
+ * Who may edit the water/household profile fields (water source/TDS/pH + health_condition) —
+ * master, operation_admin and sales_admin, per FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md.
+ * Mirrors the DB's actual enforcement (guard_water_profile_edit_roles trigger for the water
+ * columns; is_staff() RLS for customer_health_profile) — this is only the UI-level gate
+ * (show/hide edit controls), the DB is still the real authority either way.
+ */
+export function canEditWaterHousehold(role: string | null | undefined): boolean {
+  return role === "master" || role === "operation_admin" || role === "sales_admin"
+}
+
+/**
+ * Whether a technician's job/history detail should even query/render the health_condition
+ * row — gated on the org's show_health_condition_to_technicians setting (default off/absent,
+ * fails closed). This is only the UI-level gate; get_customer_health_condition additionally
+ * checks the technician actually has an appointment with that customer, server-side.
+ */
+export function technicianCanSeeHealthCondition(showHealthConditionSetting: boolean | null | undefined): boolean {
+  return showHealthConditionSetting === true
+}
+
+/**
  * Same "" vs undefined gotcha as memberSchema.relation above — a native <select> with a
  * placeholder option submits "", not undefined.
  */

@@ -21,6 +21,7 @@ import {
   addressStepSchema,
   peopleStepSchema,
   FAMILY_RELATIONS,
+  canEditWaterHousehold,
   type AddressStepInput,
   type PeopleStepInput,
 } from "@/lib/validation/customer"
@@ -512,7 +513,7 @@ export function CustomerFormPage() {
                   waterPh={existing.data!.water_ph}
                   healthCondition={existing.data!.health_condition}
                   familyMemberCount={existing.data!.customer_members.length}
-                  canEdit={profile?.role === "master" || profile?.role === "operation_admin" || profile?.role === "sales_admin"}
+                  canEdit={canEditWaterHousehold(profile?.role)}
                 />
               </div>
             </>

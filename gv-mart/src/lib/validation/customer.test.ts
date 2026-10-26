@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { memberSchema, waterProfileSchema } from "./customer"
+import { canEditWaterHousehold, memberSchema, technicianCanSeeHealthCondition, waterProfileSchema } from "./customer"
 import { customerMemberSchema } from "./customerApp"
 
 const base = { name: "Asha Rao", mobile: "9876543210" }
@@ -74,5 +74,30 @@ describe("waterProfileSchema (FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md)", () 
       expect(waterProfileSchema.safeParse({ healthCondition: level }).success, level).toBe(true)
     }
     expect(waterProfileSchema.safeParse({ healthCondition: "critical" }).success).toBe(false)
+  })
+})
+
+describe("canEditWaterHousehold (UI gate — DB is the real authority, see 20261108100000_customer_water_profile.sql)", () => {
+  it("allows master, operation_admin and sales_admin", () => {
+    expect(canEditWaterHousehold("master")).toBe(true)
+    expect(canEditWaterHousehold("operation_admin")).toBe(true)
+    expect(canEditWaterHousehold("sales_admin")).toBe(true)
+  })
+  it("refuses technician, customer, and no role", () => {
+    expect(canEditWaterHousehold("technician")).toBe(false)
+    expect(canEditWaterHousehold("customer")).toBe(false)
+    expect(canEditWaterHousehold(undefined)).toBe(false)
+    expect(canEditWaterHousehold(null)).toBe(false)
+  })
+})
+
+describe("technicianCanSeeHealthCondition (UI gate — fails closed)", () => {
+  it("is true only when the setting is explicitly true", () => {
+    expect(technicianCanSeeHealthCondition(true)).toBe(true)
+  })
+  it("is false when off, unset, or the settings row hasn't loaded yet", () => {
+    expect(technicianCanSeeHealthCondition(false)).toBe(false)
+    expect(technicianCanSeeHealthCondition(null)).toBe(false)
+    expect(technicianCanSeeHealthCondition(undefined)).toBe(false)
   })
 })

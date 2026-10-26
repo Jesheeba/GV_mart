@@ -9,6 +9,7 @@ import { JobTypeBadge, PriorityBadge } from "./components/JobBadges"
 import { PhotoCapture } from "./components/PhotoCapture"
 import { useCustomerHealthCondition, useJobDetail, useMyTechnician, useQueueGoogleReviewLog, useTechnicianSettings } from "@/hooks/useTechnician"
 import { useProfile } from "@/hooks/useProfile"
+import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
 import { formatCurrency } from "@/lib/sale-calc"
 import { minutesBetween } from "@/lib/visit-duration"
 
@@ -108,7 +109,7 @@ export function HistoryDetailPage() {
   const jobDetail = useJobDetail(ticketId)
   const technician = useMyTechnician()
   const settings = useTechnicianSettings(profile?.org_id)
-  const showHealthCondition = settings.data?.show_health_condition_to_technicians ?? false
+  const showHealthCondition = technicianCanSeeHealthCondition(settings.data?.show_health_condition_to_technicians)
   const healthCondition = useCustomerHealthCondition(jobDetail.data?.customers?.id, showHealthCondition)
 
   if (!ticketId) {

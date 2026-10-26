@@ -30,6 +30,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
+import { canEditWaterHousehold } from "@/lib/validation/customer"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
@@ -568,7 +569,7 @@ export function CustomerDetailPage() {
               healthCondition={customer.health_condition}
               familyMemberCount={customer.customer_members.length}
               measuredReading={measured}
-              canEdit={profile?.role === "master" || profile?.role === "operation_admin" || profile?.role === "sales_admin"}
+              canEdit={canEditWaterHousehold(profile?.role)}
             />
           </Card>
         </TabsContent>
