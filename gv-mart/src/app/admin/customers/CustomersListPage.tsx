@@ -15,10 +15,12 @@ import {
   useCustomerFilterCounts,
   useCustomerListEnrichment,
   useCustomersList,
+  useIsTestCustomerCount,
 } from "@/hooks/useCustomers"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { AMC_STATUS_TONE } from "@/lib/amc-status"
+import { computeCustomersListCount } from "@/lib/customers-list-count"
 import { cn } from "@/lib/utils"
 import { getCustomerListEnrichment, listCustomers } from "@/services/customers"
 import type { CustomerListItem, CustomerRowEnrichment } from "@/services/customers"
@@ -101,19 +103,22 @@ export function CustomersListPage() {
   const { data, isLoading, isFetching, isError, refetch } = useCustomersList(orgId, filters, page)
   const autocomplete = useCustomerAutocomplete(orgId, searchInput)
   const counts = useCustomerFilterCounts(orgId)
+  // The Customers list itself never excludes is_test customers (they stay
+  // visible, tagged with the TEST badge) but counts.data.total does
+  // (is_test = false) — see computeCustomersListCount's own doc comment for
+  // why the unfiltered pagination total needs this added back in.
+  const testCount = useIsTestCustomerCount(orgId)
   const enrichment = useCustomerListEnrichment(
     orgId,
     (data?.rows ?? []).map((r) => r.id)
   )
 
-  // queryCustomers (services/customers.ts) returns an exact count only when
-  // a filter/search is active (the full matching id list is already in
-  // hand, for free) — unfiltered, it's PostgREST's `count: "planned"` query-
-  // planner estimate, cheap but approximate. The exact unfiltered total is
-  // already being fetched anyway, in parallel, for the filter-chip row
-  // above (`counts`) — reuse it here instead of showing an estimate, at no
-  // extra network cost.
-  const effectiveCount = hasActiveFilters ? (data?.count ?? 0) : (counts.data?.total ?? data?.count ?? 0)
+  const effectiveCount = computeCustomersListCount({
+    hasActiveFilters,
+    queryCount: data?.count,
+    exactNonTestTotal: counts.data?.total,
+    testCustomerCount: testCount.data,
+  })
   const totalPages = data ? Math.max(1, Math.ceil(effectiveCount / (data.pageSize ?? 20))) : 1
 
   function clearFilters() {

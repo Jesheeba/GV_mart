@@ -159,6 +159,27 @@ export async function getCustomerFilterCounts(_orgId: string): Promise<CustomerF
   return data as CustomerFilterCounts
 }
 
+/**
+ * Exact count of the org's is_test customers — the Customers list itself
+ * never excludes them (they stay visible with the TEST badge; decision
+ * 2026-10-26), but customer_filter_counts().total does exclude them, so the
+ * unfiltered pagination total needs this added back on top. Filtered on the
+ * partial index customers_is_test_idx (org_id) where is_test
+ * (20261016110000_test_customer_flag.sql), so this stays a cheap head count
+ * even though it's a real COUNT(*) — unlike the unfiltered total count this
+ * page used to run (20261024171000_customers_org_created_index.sql), there
+ * is no sort/range alongside it to make a real scan expensive.
+ */
+export async function getIsTestCustomerCount(orgId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("customers")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("is_test", true)
+  if (error) throw error
+  return count ?? 0
+}
+
 export type CustomerRowEnrichment = {
   productCount: number
   amcStatus: Enums<"amc_status"> | null
