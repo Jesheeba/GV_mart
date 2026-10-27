@@ -1266,3 +1266,60 @@ export async function getTechnicianStats(technicianId: string, orgId: string, ra
   void orgId
   return { periodRevenue, periodJobs, avgRating, ratingCount: ratings.length }
 }
+
+// ── Item 1 (agentA 2026-10-27) — "customers waiting to review you" ─────────
+//
+// Display-only, read-only. No message/notification to the customer is sent
+// anywhere in this file — the technician just sees who from their own
+// completed visits hasn't left a rating yet. Reuses the existing schema
+// exactly as-is (no new table, no new migration, no new RLS):
+//   * service_visits.timer_end not null  = the visit is completed (same
+//     definition JobDetailPage/history already use for "done").
+//   * ratings.visit_id is unique and 1:1 with service_visits — a visit with
+//     no matching ratings row has not been reviewed (see
+//     computeTicketAllowedDuration's identical comment on this embed shape
+//     a few lines above).
+// RLS already covers every table this touches for a technician reading
+// their OWN jobs: service_visits (service_visits_write_own_technician, "for
+// all" — includes select), ratings (ratings_write_own_technician, "for
+// all"), service_tickets/customers (service_tickets_select_own_technician /
+// customers_select_own_technician, plus the broader is_technician_customer
+// history grant). No SQL migration needed for this item.
+export type PendingReviewCustomer = {
+  visitId: string
+  ticketId: string
+  customerName: string
+  customerMobile: string | null
+  productName: string | null
+  completedAt: string
+}
+
+export async function listPendingReviewCustomers(technicianId: string): Promise<PendingReviewCustomer[]> {
+  const { data, error } = await supabase
+    .from("service_visits")
+    .select(
+      "id, ticket_id, timer_end, ratings(id), service_tickets(customers(name, mobile), products(name))"
+    )
+    .eq("technician_id", technicianId)
+    .not("timer_end", "is", null)
+    .order("timer_end", { ascending: false })
+    .limit(200)
+  if (error) throw error
+  type Row = {
+    id: string
+    ticket_id: string
+    timer_end: string
+    ratings: { id: string } | null
+    service_tickets: { customers: { name: string; mobile: string } | null; products: { name: string } | null } | null
+  }
+  return ((data ?? []) as unknown as Row[])
+    .filter((row) => !row.ratings)
+    .map((row) => ({
+      visitId: row.id,
+      ticketId: row.ticket_id,
+      customerName: row.service_tickets?.customers?.name ?? "—",
+      customerMobile: row.service_tickets?.customers?.mobile ?? null,
+      productName: row.service_tickets?.products?.name ?? null,
+      completedAt: row.timer_end,
+    }))
+}

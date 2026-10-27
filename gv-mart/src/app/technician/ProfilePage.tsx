@@ -1,14 +1,14 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarRange, LogOut, Star, TrendingUp, UserPlus } from "lucide-react"
+import { CalendarRange, LogOut, Star, StarOff, TrendingUp, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SegButton } from "@/components/shared/SegButton"
 import { useLeads } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
-import { useMyTechnician, useTechnicianStats } from "@/hooks/useTechnician"
+import { useMyTechnician, usePendingReviewCustomers, useTechnicianStats } from "@/hooks/useTechnician"
 import { signOut } from "@/services/auth"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
@@ -40,6 +40,7 @@ export function ProfilePage() {
   const [earningsPreset, setEarningsPreset] = useState<EarningsPreset>("last30d")
   const stats = useTechnicianStats(technician.data?.id, profile?.org_id, rangeForEarningsPreset(earningsPreset))
   const referrals = useLeads(profile?.org_id, { source: "referral", ownerId: technician.data?.id })
+  const pendingReviews = usePendingReviewCustomers(technician.data?.id)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
@@ -117,6 +118,48 @@ export function ProfilePage() {
           </Card>
         </>
       )}
+
+      {/* Item 1 (agentA 2026-10-27) — display-only list of the technician's
+          own completed visits with no review yet. Nothing here sends
+          anything to the customer; it's purely informational, same spirit
+          as the Referrals card below it. */}
+      <Card className="gap-3">
+        <div className="flex items-center gap-2 px-1">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning">
+            <StarOff className="size-4" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-text">{t("technician.profile.pendingReviewsTitle")}</p>
+            {pendingReviews.data && pendingReviews.data.length > 0 ? (
+              <p className="text-xs text-text-muted">{t("technician.profile.pendingReviewsCount", { count: pendingReviews.data.length })}</p>
+            ) : null}
+          </div>
+        </div>
+        {pendingReviews.isLoading ? (
+          <p className="px-1 text-sm text-text-muted">{t("common.loading")}</p>
+        ) : pendingReviews.isError ? (
+          <div className="flex items-center justify-between gap-2 px-1">
+            <p className="text-sm text-danger">{t("technician.errors.loadFailed")}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => pendingReviews.refetch()}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : !pendingReviews.data || pendingReviews.data.length === 0 ? (
+          <p className="px-1 text-sm text-text-muted">{t("technician.profile.noPendingReviews")}</p>
+        ) : (
+          <div className="max-h-64 space-y-1.5 overflow-y-auto px-1">
+            {pendingReviews.data.map((r) => (
+              <div key={r.visitId} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-text">{r.customerName}</p>
+                  <p className="truncate text-xs text-text-muted">{r.productName ?? "—"}</p>
+                </div>
+                <p className="shrink-0 text-xs text-text-muted">{formatDate(r.completedAt)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card className="gap-3">
         <div className="flex items-center gap-2 px-1">

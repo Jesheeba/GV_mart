@@ -567,3 +567,13 @@ export function useTechnicianStats(technicianId: string | undefined, orgId: stri
     enabled: !!technicianId && !!orgId,
   })
 }
+
+/** Item 1 (agentA) — "customers waiting to review you", display-only. */
+export function usePendingReviewCustomers(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["pendingReviewCustomers", technicianId],
+    queryFn: () => tech.listPendingReviewCustomers(technicianId!),
+    enabled: !!technicianId,
+    staleTime: 60_000,
+  })
+}

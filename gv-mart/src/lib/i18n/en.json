@@ -3292,7 +3292,11 @@
       "referralsTitle": "My Referrals",
       "referralsCount_one": "{{count}} customer referred",
       "referralsCount_other": "{{count}} customers referred",
-      "noReferrals": "No referrals yet — refer a customer during a sale, service booking, or AMC sign-up to see it here."
+      "noReferrals": "No referrals yet — refer a customer during a sale, service booking, or AMC sign-up to see it here.",
+      "pendingReviewsTitle": "Customers waiting to review you",
+      "pendingReviewsCount_one": "{{count}} customer hasn't reviewed yet",
+      "pendingReviewsCount_other": "{{count}} customers haven't reviewed yet",
+      "noPendingReviews": "Every completed visit has been reviewed, or you have none completed yet."
     },
     "daySheet": {
       "title": "Day Sheet",
