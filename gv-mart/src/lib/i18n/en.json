@@ -4822,6 +4822,7 @@
       "all": "All"
     },
     "view": {
+      "myDay": "My Day",
       "list": "List",
       "calendar": "Calendar"
     },

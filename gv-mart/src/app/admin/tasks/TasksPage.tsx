@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { CalendarDays, CheckCircle2, ClipboardList, List, Loader2, Plus, Repeat, User } from "lucide-react"
+import { CalendarDays, CheckCircle2, ClipboardList, List, Loader2, Plus, Repeat, Sun, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -16,9 +17,10 @@ import { userColour } from "@/lib/user-colour"
 import { AssignTaskDialog } from "./AssignTaskDialog"
 import { TaskDetailDialog } from "./TaskDetailDialog"
 import { TaskCalendar } from "./TaskCalendar"
+import { MyDayTab } from "./MyDayTab"
 
 type PrimaryFilter = "all" | "open" | "done" | "mine"
-type ViewMode = "list" | "calendar"
+type ViewMode = "list" | "calendar" | "myDay"
 
 // Delete is ops-only under RLS (tasks_delete_ops) — mirrored here so the
 // button isn't even shown to a role that would just get rejected by the DB.
@@ -33,8 +35,12 @@ export function TasksPage() {
   const { data: tasks, isLoading, isError, refetch } = useOrgTasks(orgId)
   const setStatus = useSetOrgTaskStatus()
 
+  // /admin/workspace (the old "My Workspace" screen) redirects to /admin/tasks?view=myDay — client item 4:
+  // one place, not two. The query param only sets the initial tab; switching tabs afterwards doesn't rewrite it.
+  const [searchParams] = useSearchParams()
+  const initialView: ViewMode = searchParams.get("view") === "myDay" ? "myDay" : "list"
   const [filter, setFilter] = useState<PrimaryFilter>("open")
-  const [view, setView] = useState<ViewMode>("list")
+  const [view, setView] = useState<ViewMode>(initialView)
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<OrgTask | null>(null)
 
@@ -79,6 +85,7 @@ export function TasksPage() {
         </div>
         <div className="flex items-center gap-2.5">
           <div className="flex gap-[3px] rounded-full border border-border bg-surface p-1">
+            <ViewToggleButton active={view === "myDay"} onClick={() => setView("myDay")} icon={Sun} label={t("tasks.view.myDay")} />
             <ViewToggleButton active={view === "list"} onClick={() => setView("list")} icon={List} label={t("tasks.view.list")} />
             <ViewToggleButton active={view === "calendar"} onClick={() => setView("calendar")} icon={CalendarDays} label={t("tasks.view.calendar")} />
           </div>
@@ -89,70 +96,76 @@ export function TasksPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2.5">
-        <FilterChip active={filter === "open"} onClick={() => setFilter("open")}>
-          {t("tasks.filters.open")} · {openCount}
-        </FilterChip>
-        <FilterChip active={filter === "mine"} onClick={() => setFilter("mine")}>
-          {t("tasks.filters.mine")} · {mineCount}
-        </FilterChip>
-        <FilterChip active={filter === "done"} onClick={() => setFilter("done")}>
-          {t("tasks.filters.done")} · {doneCount}
-        </FilterChip>
-        <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
-          {t("tasks.filters.all")} · {allTasks.length}
-        </FilterChip>
-      </div>
-
-      {canSeeTeamTime && teamTimeRows.length > 0 ? (
-        <Card className="gap-2 px-4 py-3">
-          <p className="text-xs font-semibold text-text-muted">{t("tasks.teamTime.title")}</p>
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {teamTimeRows.map((row) => (
-              <p key={row.id} className="text-sm text-text">
-                <span className="font-medium">{row.name}</span>{" "}
-                <span className="text-text-muted">{t("tasks.teamTime.minutes", { count: row.minutes })}</span>
-              </p>
-            ))}
-          </div>
-        </Card>
-      ) : null}
-
-      {isError ? (
-        <Card className="items-center gap-2 py-8 text-center">
-          <p className="text-sm text-danger">{t("tasks.loadFailed")}</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
-            {t("common.retry")}
-          </Button>
-        </Card>
-      ) : isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : view === "calendar" ? (
-        <TaskCalendar tasks={visibleTasks} today={today} onTaskClick={setSelectedTask} />
-      ) : visibleTasks.length === 0 ? (
-        <Card className="items-center gap-2 py-10 text-center">
-          <ClipboardList className="size-6 text-text-muted" />
-          <p className="text-sm text-text-muted">{t("tasks.empty")}</p>
-        </Card>
+      {view === "myDay" ? (
+        <MyDayTab />
       ) : (
-        <div className="space-y-2">
-          {visibleTasks.map((tsk) => (
-            <TaskRow
-              key={tsk.id}
-              task={tsk}
-              isMutating={setStatus.isPending && setStatus.variables?.id === tsk.id}
-              overdue={isTaskOverdue(tsk, today)}
-              canComplete={canCompleteTask(tsk, profile ? { id: profile.id, role: profile.role } : null)}
-              blockReason={completeBlockReason(tsk, profile ? { id: profile.id, role: profile.role } : null)}
-              onToggle={() => setStatus.mutate({ id: tsk.id, status: tsk.status === "done" ? "open" : "done" })}
-              onOpen={() => setSelectedTask(tsk)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <FilterChip active={filter === "open"} onClick={() => setFilter("open")}>
+              {t("tasks.filters.open")} · {openCount}
+            </FilterChip>
+            <FilterChip active={filter === "mine"} onClick={() => setFilter("mine")}>
+              {t("tasks.filters.mine")} · {mineCount}
+            </FilterChip>
+            <FilterChip active={filter === "done"} onClick={() => setFilter("done")}>
+              {t("tasks.filters.done")} · {doneCount}
+            </FilterChip>
+            <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
+              {t("tasks.filters.all")} · {allTasks.length}
+            </FilterChip>
+          </div>
+
+          {canSeeTeamTime && teamTimeRows.length > 0 ? (
+            <Card className="gap-2 px-4 py-3">
+              <p className="text-xs font-semibold text-text-muted">{t("tasks.teamTime.title")}</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                {teamTimeRows.map((row) => (
+                  <p key={row.id} className="text-sm text-text">
+                    <span className="font-medium">{row.name}</span>{" "}
+                    <span className="text-text-muted">{t("tasks.teamTime.minutes", { count: row.minutes })}</span>
+                  </p>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {isError ? (
+            <Card className="items-center gap-2 py-8 text-center">
+              <p className="text-sm text-danger">{t("tasks.loadFailed")}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+                {t("common.retry")}
+              </Button>
+            </Card>
+          ) : isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : view === "calendar" ? (
+            <TaskCalendar tasks={visibleTasks} today={today} onTaskClick={setSelectedTask} />
+          ) : visibleTasks.length === 0 ? (
+            <Card className="items-center gap-2 py-10 text-center">
+              <ClipboardList className="size-6 text-text-muted" />
+              <p className="text-sm text-text-muted">{t("tasks.empty")}</p>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {visibleTasks.map((tsk) => (
+                <TaskRow
+                  key={tsk.id}
+                  task={tsk}
+                  isMutating={setStatus.isPending && setStatus.variables?.id === tsk.id}
+                  overdue={isTaskOverdue(tsk, today)}
+                  canComplete={canCompleteTask(tsk, profile ? { id: profile.id, role: profile.role } : null)}
+                  blockReason={completeBlockReason(tsk, profile ? { id: profile.id, role: profile.role } : null)}
+                  onToggle={() => setStatus.mutate({ id: tsk.id, status: tsk.status === "done" ? "open" : "done" })}
+                  onOpen={() => setSelectedTask(tsk)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {assignDialogOpen && orgId && userId ? <AssignTaskDialog orgId={orgId} userId={userId} onClose={() => setAssignDialogOpen(false)} /> : null}

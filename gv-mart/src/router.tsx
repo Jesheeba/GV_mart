@@ -60,7 +60,6 @@ const TechniciansSpareHandoverPage = lazyPage(() => import("@/app/admin/technici
 const HrPage = lazyPage(() => import("@/app/admin/hr/HrPage"), "HrPage")
 const AccountsPage = lazyPage(() => import("@/app/admin/accounts/AccountsPage"), "AccountsPage")
 const ReportsPage = lazyPage(() => import("@/app/admin/reports/ReportsPage"), "ReportsPage")
-const WorkspacePage = lazyPage(() => import("@/app/admin/workspace/WorkspacePage"), "WorkspacePage")
 const TasksPage = lazyPage(() => import("@/app/admin/tasks/TasksPage"), "TasksPage")
 const HuddlePage = lazyPage(() => import("@/app/admin/huddle/HuddlePage"), "HuddlePage")
 const NotificationsPage = lazyPage(() => import("@/app/admin/notifications/NotificationsPage"), "NotificationsPage")
@@ -218,7 +217,8 @@ export const router = createBrowserRouter([
               {
                 element: <RequireRole roles={[...STAFF_ROLES]} />,
                 children: [
-                  { path: "workspace", element: <WorkspacePage /> },
+                  // "My Workspace" is now the Tasks page's My Day tab (client item 4: one place, not two).
+                  { path: "workspace", element: <Navigate to="/admin/tasks?view=myDay" replace /> },
                   { path: "tasks", element: <TasksPage /> },
                   { path: "huddle", element: <HuddlePage /> },
                   { path: "notifications", element: <NotificationsPage /> },
