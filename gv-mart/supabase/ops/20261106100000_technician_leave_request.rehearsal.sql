@@ -1339,8 +1339,11 @@ begin
     raise exception 'rehearsal refused: must run at or after 18:00 IST';
   end if;
 
-  v_mig_hash := encode(sha256(convert_to(v_migration, 'UTF8')), 'hex');
-  v_test_hash := encode(sha256(convert_to(v_test, 'UTF8')), 'hex');
+  -- CR-tolerant: hash and execute the CR-stripped text, so a CRLF-mangled copy of this file
+  -- (e.g. checked out or pasted on Windows without LF normalisation) still matches the pinned
+  -- LF hashes below and still runs correctly -- the pins themselves stay the LF hashes.
+  v_mig_hash := encode(sha256(convert_to(replace(v_migration, E'\r', ''), 'UTF8')), 'hex');
+  v_test_hash := encode(sha256(convert_to(replace(v_test, E'\r', ''), 'UTF8')), 'hex');
 
   if v_mig_hash <> '7bc14e098a9292e2f8ba92314d3c2ce5b3bd8a6ba7629cc8dd7e58b69d828b80' then
     raise exception 'migration hash mismatch: expected 7bc14e098a9292e2f8ba92314d3c2ce5b3bd8a6ba7629cc8dd7e58b69d828b80, got %', v_mig_hash;
@@ -1367,7 +1370,7 @@ begin
   select md5(pg_get_functiondef('public.reward_candidates(uuid,date)'::regprocedure)) into v_live_def_md5;
 
   begin
-    execute v_reward_candidates_recorded_original;
+    execute replace(v_reward_candidates_recorded_original, E'\r', '');
     select md5(pg_get_functiondef('public.reward_candidates(uuid,date)'::regprocedure)) into v_recreated_def_md5;
 
     if v_real_staff is not null then
@@ -1415,7 +1418,7 @@ begin
   -- technician_leave_requests does not exist yet at this point -- there is nothing of this
   -- org's to fingerprint there before the migration creates the table.
 
-  execute v_migration;
+  execute replace(v_migration, E'\r', '');
 
   -- ── same 3-month parity capture, NEW body (now live for real after the migration above) ────
   if v_real_staff is not null then
@@ -1458,7 +1461,7 @@ begin
 
   begin
     perform set_config('request.jwt.claims', '', true);
-    execute v_test;
+    execute replace(v_test, E'\r', '');
     v_result := 'RESULTS(test did not raise -- unexpected, treat as FAIL)';
   exception when others then
     v_result := sqlerrm;
