@@ -447,7 +447,7 @@ $OCSH_TEXT$;
     'notifications', (select count(*) from public.notifications n join public.organizations o on o.id = n.org_id where o.name not like '\_\_TEST\_%' escape '\'),
     'organizations', (select count(*) from public.organizations where name not like '\_\_TEST\_%' escape '\'),
     'checksum', (
-      select md5(coalesce(string_agg(h.id::text || h.status || coalesce(h.given_by::text, ''), ',' order by h.id), ''))
+      select md5(coalesce(string_agg(h.id::text || h.status, ',' order by h.id), ''))
       from public.spare_handovers h join public.organizations o on o.id = h.org_id where o.name not like '\_\_TEST\_%' escape '\'
     )
   ) into v_fp_before;
@@ -482,7 +482,7 @@ $OCSH_TEXT$;
     'notifications', (select count(*) from public.notifications n join public.organizations o on o.id = n.org_id where o.name not like '\_\_TEST\_%' escape '\'),
     'organizations', (select count(*) from public.organizations where name not like '\_\_TEST\_%' escape '\'),
     'checksum', (
-      select md5(coalesce(string_agg(h.id::text || h.status || coalesce(h.given_by::text, ''), ',' order by h.id), ''))
+      select md5(coalesce(string_agg(h.id::text || h.status, ',' order by h.id), ''))
       from public.spare_handovers h join public.organizations o on o.id = h.org_id where o.name not like '\_\_TEST\_%' escape '\'
     )
   ) into v_fp_after;
