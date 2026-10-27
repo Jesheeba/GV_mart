@@ -534,11 +534,11 @@ begin
     where t.org_id = p_org_id
   ),
   coverage_agg as (
-    select technician_id,
-      count(*) filter (where attended or on_protected_leave) as covered_days,
-      count(*) filter (where attended) as attended_days
-    from day_coverage
-    group by technician_id
+    select dc.technician_id,
+      count(*) filter (where dc.attended or dc.on_protected_leave) as covered_days,
+      count(*) filter (where dc.attended) as attended_days
+    from day_coverage dc
+    group by dc.technician_id
   ),
   attendance_eligible as (
     select ca.technician_id, coalesce(lh.late_hours, 0) as late_hours
@@ -1345,8 +1345,8 @@ begin
   v_mig_hash := encode(sha256(convert_to(replace(v_migration, E'\r', ''), 'UTF8')), 'hex');
   v_test_hash := encode(sha256(convert_to(replace(v_test, E'\r', ''), 'UTF8')), 'hex');
 
-  if v_mig_hash <> '7bc14e098a9292e2f8ba92314d3c2ce5b3bd8a6ba7629cc8dd7e58b69d828b80' then
-    raise exception 'migration hash mismatch: expected 7bc14e098a9292e2f8ba92314d3c2ce5b3bd8a6ba7629cc8dd7e58b69d828b80, got %', v_mig_hash;
+  if v_mig_hash <> '025654ea3669c3f68500a1b0b901b5888c83d1ac5e5abd7f71b6af78e9ba7517' then
+    raise exception 'migration hash mismatch: expected 025654ea3669c3f68500a1b0b901b5888c83d1ac5e5abd7f71b6af78e9ba7517, got %', v_mig_hash;
   end if;
   if v_test_hash <> '4c60632d2d07ee6a12359984d5d111d68c10251da3b4b84a33b5c24181b02d26' then
     raise exception 'test hash mismatch: expected 4c60632d2d07ee6a12359984d5d111d68c10251da3b4b84a33b5c24181b02d26, got %', v_test_hash;

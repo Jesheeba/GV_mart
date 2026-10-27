@@ -512,11 +512,11 @@ begin
     where t.org_id = p_org_id
   ),
   coverage_agg as (
-    select technician_id,
-      count(*) filter (where attended or on_protected_leave) as covered_days,
-      count(*) filter (where attended) as attended_days
-    from day_coverage
-    group by technician_id
+    select dc.technician_id,
+      count(*) filter (where dc.attended or dc.on_protected_leave) as covered_days,
+      count(*) filter (where dc.attended) as attended_days
+    from day_coverage dc
+    group by dc.technician_id
   ),
   attendance_eligible as (
     select ca.technician_id, coalesce(lh.late_hours, 0) as late_hours
