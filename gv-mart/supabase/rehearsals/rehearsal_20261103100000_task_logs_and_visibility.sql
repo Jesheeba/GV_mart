@@ -56,13 +56,13 @@ begin
 returns uuid
 language sql stable security definer set search_path = public
 as $$ select id from public.technicians where profile_id = auth.uid() $$;$orig$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '8d4acb9ff750cbca42a26fc312c37f69a9c7bec8d5800f30efb9b22229b73aa1' then
     raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch: %', v_hash;
   end if;
   v_live := md5(pg_get_functiondef('public.current_technician_id()'::regprocedure));
   begin
-    execute v_text;
+    execute replace(v_text, E'\r', '');
     v_orig := md5(pg_get_functiondef('public.current_technician_id()'::regprocedure));
     raise exception 'GV_PRECHECK_PROBE';
   exception when others then
@@ -197,11 +197,11 @@ create policy tasks_update_assign on public.tasks
 
 notify pgrst, 'reload schema';
 $p1a$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> 'da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101100000_task_completion_rule.sql (P1a): %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   -- chain P1b (current_technician_id requires is_active) on top of P1a, so P3 is rehearsed on top of both.
   v_text := $p1b$-- P1b (security audit): a deactivated technician is not a technician for RLS.
@@ -218,11 +218,11 @@ returns uuid
 language sql stable security definer set search_path = public
 as $$ select t.id from public.technicians t where t.profile_id = auth.uid() and t.is_active $$;
 $p1b$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> 'a64bf7ad63d9ab2501a5da7147f95a9986945e73231c8b612f49769105523a40' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101110000_current_technician_id_active.sql (P1b): %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh0$-- P3 (client list 12-10-2026 items 4, 5, 6): who sees which task, and a work log on every task. Design: gv-mart/docs/design-p3-task-log-visibility.md
 --
@@ -375,11 +375,11 @@ create policy tasks_select_internal on public.tasks
 
 notify pgrst, 'reload schema';
 $rh0$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '99990dde17cceb8485d5adc12bc4776906557a615341a4c0dbd04bf65238d6d5' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261103100000_task_logs_and_visibility.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh1$-- DB tests for 20261103100000_task_logs_and_visibility. NOT RUN (written for review). Run only through the approved rehearsal wrapper
 -- (migration then this file, one request, ends in an unconditional RAISE). Throwaway __TEST_ organisations only.
@@ -626,11 +626,11 @@ begin
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
 $rh1$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '9ee0ff8755b45aef8db476d5344e4f6bf1bf1bd746691684e3a545433d0b8ec3' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_logs_and_visibility.test.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
 end
