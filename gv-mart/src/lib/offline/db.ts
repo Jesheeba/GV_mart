@@ -20,6 +20,7 @@ export type OutboxKind =
   | "attendance.lunch"
   | "attendance.checkout"
   | "spare_handover.confirm"
+  | "spare_handover.report_discrepancy"
   | "service_visit.start"
   | "service_visit.image"
   | "service_visit.arrive"

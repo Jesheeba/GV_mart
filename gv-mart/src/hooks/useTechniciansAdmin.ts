@@ -253,6 +253,15 @@ export function useTechnicianStock(orgId: string | undefined, technicianId: stri
   })
 }
 
+/** Requirement 7 (2026-11-14 gap fix) — staff ledger: handed over / used / returned / balance. */
+export function useTechnicianSpareLedger(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["technician_spare_ledger", orgId],
+    queryFn: () => techniciansAdmin.listTechnicianSpareLedger(orgId!),
+    enabled: !!orgId,
+  })
+}
+
 export function useSpareReturns(orgId: string | undefined) {
   return useQuery({
     queryKey: ["spare_returns", "list", orgId],

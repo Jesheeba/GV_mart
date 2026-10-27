@@ -131,6 +131,16 @@ async function runJob(job: OutboxJob): Promise<void> {
       if (error) throw error
       return
     }
+    case "spare_handover.report_discrepancy": {
+      const { error } = await supabase.rpc("report_spare_handover_discrepancy", {
+        p_org_id: p.orgId as string,
+        p_item_id: p.itemId as string,
+        p_received_qty: p.receivedQty as number,
+        p_note: (p.note as string | null) ?? null,
+      })
+      if (error) throw error
+      return
+    }
     case "service_visit.start": {
       const { error } = await supabase.from("service_visits").upsert(p as unknown as TablesInsert<"service_visits">, { onConflict: "id" })
       if (error) throw error

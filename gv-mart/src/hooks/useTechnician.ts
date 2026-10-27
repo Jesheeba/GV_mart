@@ -172,6 +172,27 @@ export function useConfirmHandover() {
   })
 }
 
+/** Requirement 2 (dispute flagging, 2026-11-14 gap fix). */
+export function useReportHandoverDiscrepancy() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { orgId: string; itemId: string; receivedQty: number; note: string | null }) => tech.queueReportHandoverDiscrepancy(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["spareHandovers", "today"] })
+      qc.invalidateQueries({ queryKey: ["spareHandovers", "mine"] })
+    },
+  })
+}
+
+/** Requirement 3 (2026-11-14 gap fix) — "My spares" screen. */
+export function useMyStock(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technicianStock", "mine", technicianId],
+    queryFn: () => tech.getMyStock(technicianId!),
+    enabled: !!technicianId,
+  })
+}
+
 // ── TECH-03 Home ─────────────────────────────────────────────────────────
 
 export function useTodaysJobs(technicianId: string | undefined) {

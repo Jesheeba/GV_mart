@@ -249,6 +249,45 @@ export async function queueConfirmHandover(handoverId: string, techSignUrl: stri
   await enqueue("spare_handover.confirm", { handoverId, techSignUrl, adminSignUrl })
 }
 
+/** Requirement 2 (dispute flagging, 2026-11-14 gap fix) — technician says the physical
+ * quantity received on a hand-over line differs from what the block says was given.
+ * Queued offline like confirmHandover above: the RPC itself (report_spare_handover_
+ * discrepancy) also inserts a staff notification, so this must reach the server exactly
+ * once the device is back online, same reasoning as every other outbox job here. */
+export async function queueReportHandoverDiscrepancy(input: { orgId: string; itemId: string; receivedQty: number; note: string | null }) {
+  await enqueue("spare_handover.report_discrepancy", input)
+}
+
+export type MyStockItem = Tables<"technician_stock_levels"> & { spares: { name: string; sku: string | null } | null }
+
+/** Requirement 3 (2026-11-14 gap fix) — "My spares": the technician's own current
+ * held balance per spare, straight from technician_stock_levels (RLS already scopes this
+ * to `technician_id = current_technician_id()`). Read-only, no offline queue needed.
+ *
+ * `item_id` is polymorphic (product | spare — no real FK, same as `inventory.item_id`),
+ * so it can't be embedded via PostgREST's `spares(...)` relationship syntax (confirmed
+ * live elsewhere: PGRST200 "no relationship found"). Same fix techniciansAdmin.ts's
+ * spareNameLookup already uses: fetch spare names separately and join client-side. */
+export async function getMyStock(technicianId: string): Promise<MyStockItem[]> {
+  const { data, error } = await supabase
+    .from("technician_stock_levels")
+    .select("*")
+    .eq("technician_id", technicianId)
+    .eq("item_type", "spare")
+    .gt("stock_qty", 0)
+    .order("updated_at", { ascending: false })
+  if (error) throw error
+  const rows = data ?? []
+  if (rows.length === 0) return []
+
+  const itemIds = [...new Set(rows.map((r) => r.item_id))]
+  const { data: spares, error: spareError } = await supabase.from("spares").select("id, name, sku").in("id", itemIds)
+  if (spareError) throw spareError
+  const spareById = new Map((spares ?? []).map((s) => [s.id, { name: s.name, sku: s.sku }]))
+
+  return rows.map((row) => ({ ...row, spares: spareById.get(row.item_id) ?? null }))
+}
+
 /** Past handovers (any date, not just today) — feeds SpareHandoverHistoryPage's
  * "find and print a past receipt" list. Plain read, not offline-queued like
  * confirm above (nothing to sync back). */
