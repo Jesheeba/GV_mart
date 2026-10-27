@@ -6,6 +6,24 @@
 -- for that visit, per ratings.visit_id's own unique-per-visit constraint). Nothing is sent, emailed or
 -- messaged from this -- it is a read-only follow-up list for the technician to act on in person.
 --
+-- Two additional filters (2026-11-13 review):
+--   * Test customers excluded via `not c.is_test` -- this codebase already flags throwaway/demo
+--     customers (`customers.is_test`, 20261016110000_test_customer_flag.sql) and keeps them out of
+--     real figures everywhere else (incentives, reports); this list is no exception. Deliberately NOT
+--     `public.is_test_customer(c.id)` (that migration's own helper): it is `security definer` but its
+--     EXECUTE grant is `service_role` only (20261016110000_test_customer_flag.sql:39-41) -- calling it
+--     from this function, which is `security invoker` on purpose (see above), would raise "permission
+--     denied" for every real technician, since the invoker here is `authenticated`, not service_role.
+--     Reading `c.is_test` directly off the already-joined, already-RLS-visible `customers` row needs no
+--     extra grant and has identical semantics.
+--   * Only visits completed in the last 60 days -- `sv.timer_end` compared against IST (Asia/Kolkata)
+--     midnight 60 days before today's IST date, so the cutoff is a calendar-day boundary in the
+--     technician's own timezone, not a bare 1440-hour window that would silently drift with UTC/IST
+--     offset or daylight-adjacent edge cases (IST itself has no DST, but every other date computation
+--     in this codebase that matters to a person -- incentive months, shift-end prompts -- is anchored
+--     to Asia/Kolkata for the same reason: calendar days must mean the same thing the technician sees
+--     on his own clock).
+--
 -- Strict ownership (technician B must never see technician A's customers) is enforced at the data layer,
 -- not just hidden in the UI, two ways at once:
 --   1. SECURITY INVOKER: this function carries no elevated privilege of its own -- every table it reads
@@ -55,6 +73,8 @@ as $$
   join public.customers c on c.id = t.customer_id
   where sv.technician_id = public.current_technician_id()
     and sv.timer_end is not null
+    and sv.timer_end >= (((now() at time zone 'Asia/Kolkata')::date - 60) at time zone 'Asia/Kolkata')
+    and not c.is_test
     and not exists (
       select 1 from public.ratings r where r.visit_id = sv.id
     )
