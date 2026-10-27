@@ -180,6 +180,7 @@ declare
   v_technician_id uuid := public.current_technician_id();
   v_today date := (now() at time zone 'Asia/Kolkata')::date;
   v_row public.technician_leave_requests;
+  v_was_approved boolean;
 begin
   if v_technician_id is null then
     raise exception 'cancel_technician_leave: caller is not a technician';
@@ -196,7 +197,8 @@ begin
     raise exception 'cancel_technician_leave: this request can no longer be cancelled';
   end if;
 
-  if v_row.status = 'approved' then
+  v_was_approved := (v_row.status = 'approved');
+  if v_was_approved then
     delete from public.technician_availability where leave_request_id = p_request_id and status = 'leave';
   end if;
 
@@ -210,6 +212,13 @@ begin
     format('Leave from %s to %s was cancelled.', to_char(v_row.start_date, 'DD Mon YYYY'), to_char(v_row.end_date, 'DD Mon YYYY')), v_row.id
   from public.technicians t join public.profiles p on p.id = t.profile_id
   where t.id = v_row.technician_id;
+
+  if v_was_approved then
+    insert into public.notifications (org_id, role, type, title, body, ref_id)
+    select v_row.org_id, r, 'technician_leave_cancelled_by_technician', 'Leave cancelled by technician',
+      format('An approved leave from %s to %s was cancelled by the technician.', to_char(v_row.start_date, 'DD Mon YYYY'), to_char(v_row.end_date, 'DD Mon YYYY')), v_row.id
+    from unnest(array['master', 'operation_admin']::user_role[]) as r;
+  end if;
 
   return v_row;
 end;

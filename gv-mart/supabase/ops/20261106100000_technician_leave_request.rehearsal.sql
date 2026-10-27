@@ -202,6 +202,7 @@ declare
   v_technician_id uuid := public.current_technician_id();
   v_today date := (now() at time zone 'Asia/Kolkata')::date;
   v_row public.technician_leave_requests;
+  v_was_approved boolean;
 begin
   if v_technician_id is null then
     raise exception 'cancel_technician_leave: caller is not a technician';
@@ -218,7 +219,8 @@ begin
     raise exception 'cancel_technician_leave: this request can no longer be cancelled';
   end if;
 
-  if v_row.status = 'approved' then
+  v_was_approved := (v_row.status = 'approved');
+  if v_was_approved then
     delete from public.technician_availability where leave_request_id = p_request_id and status = 'leave';
   end if;
 
@@ -232,6 +234,13 @@ begin
     format('Leave from %s to %s was cancelled.', to_char(v_row.start_date, 'DD Mon YYYY'), to_char(v_row.end_date, 'DD Mon YYYY')), v_row.id
   from public.technicians t join public.profiles p on p.id = t.profile_id
   where t.id = v_row.technician_id;
+
+  if v_was_approved then
+    insert into public.notifications (org_id, role, type, title, body, ref_id)
+    select v_row.org_id, r, 'technician_leave_cancelled_by_technician', 'Leave cancelled by technician',
+      format('An approved leave from %s to %s was cancelled by the technician.', to_char(v_row.start_date, 'DD Mon YYYY'), to_char(v_row.end_date, 'DD Mon YYYY')), v_row.id
+    from unnest(array['master', 'operation_admin']::user_role[]) as r;
+  end if;
 
   return v_row;
 end;
@@ -637,10 +646,11 @@ declare
   v_req uuid; v_req2 uuid; v_req_sun uuid; v_req_zero uuid; v_req_overlap uuid;
   v_req_closureleave uuid; v_req_below uuid; v_req_admin uuid; v_req_started uuid;
   v_req_notice_hi uuid; v_req_notice_lo uuid; v_other_pending uuid;
-  v_reject uuid; v_cancel uuid; v_revoke uuid;
+  v_reject uuid; v_cancel uuid; v_revoke uuid; v_selfcancel uuid;
   v_row public.technician_leave_requests;
   v_n int; v_ok boolean;
   v_real_org uuid; v_fp_before int; v_fp_after int; v_setting_before int; v_setting_after int;
+  v_cust uuid; v_ticket uuid; v_appt uuid; v_appt_date date;
 begin
   -- ── real-org fingerprint, taken before anything else ──────────────────────────────────────
   select id into v_real_org from organizations where name not like '\_\_TEST\_%' limit 1;
@@ -795,6 +805,110 @@ begin
   insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by, created_at)
     values (v_org, v_startedid, v_today - 5, v_today - 5, v_started, now() - interval '20 days')
     returning id into v_req_started;
+
+  -- test (d) fixture: a scheduled appointment for t1, used below to check
+  -- technician_assigned_visits_in_range (ops-only read of assigned visits in a date range).
+  v_appt_date := v_today + 5;
+  insert into customers (org_id, name, mobile) values (v_org, '__TEST_ visit customer', '9999999999') returning id into v_cust;
+  insert into service_tickets (org_id, customer_id, name_of_complaint) values (v_org, v_cust, '__TEST_ complaint') returning id into v_ticket;
+  insert into appointments (org_id, ticket_id, technician_id, scheduled_at, status)
+    values (v_org, v_ticket, v_t1id, (v_appt_date + time '10:00') at time zone 'Asia/Kolkata', 'scheduled')
+    returning id into v_appt;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+
+  -- test (d): ops sees the assigned visit in range
+  select count(*) = 1 into v_ok from technician_assigned_visits_in_range(v_t1id, v_appt_date, v_appt_date) where appointment_id = v_appt;
+  res := res || E'\n' || format('testD visits: ops sees the scheduled appointment in range (expect true): %s', v_ok);
+
+  -- items (a)/(e) direct DML on technician_leave_requests is refused by GRANT, SQLSTATE 42501,
+  -- for BOTH a technician and master -- there is no insert/update/delete grant to authenticated
+  -- at all, so this is a role-level privilege check, independent of who is impersonated.
+  begin
+    insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by)
+      values (v_org, v_t1id, v_today + 60, v_today + 60, v_master);
+    res := res || E'\n' || 'master direct INSERT: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || format('master direct INSERT refused (expect 42501): %s', sqlstate);
+  end;
+  begin
+    update technician_leave_requests set status = 'cancelled' where id = v_req;
+    res := res || E'\n' || 'master direct UPDATE: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || format('master direct UPDATE refused (expect 42501): %s', sqlstate);
+  end;
+  begin
+    delete from technician_leave_requests where id = v_req;
+    res := res || E'\n' || 'master direct DELETE: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || format('master direct DELETE refused (expect 42501): %s', sqlstate);
+  end;
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_t1, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into technician_leave_requests (org_id, technician_id, start_date, end_date, requested_by)
+      values (v_org, v_t1id, v_today + 61, v_today + 61, v_t1);
+    res := res || E'\n' || 'technician direct INSERT: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || format('technician direct INSERT refused (expect 42501): %s', sqlstate);
+  end;
+  begin
+    update technician_leave_requests set status = 'cancelled' where id = v_req;
+    res := res || E'\n' || 'technician direct UPDATE: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || format('technician direct UPDATE refused (expect 42501): %s', sqlstate);
+  end;
+  begin
+    delete from technician_leave_requests where id = v_req;
+    res := res || E'\n' || 'technician direct DELETE: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || format('technician direct DELETE refused (expect 42501): %s', sqlstate);
+  end;
+
+  -- test (d): a technician cannot call the ops-only visits-in-range helper
+  begin
+    perform technician_assigned_visits_in_range(v_t1id, v_appt_date, v_appt_date);
+    res := res || E'\n' || 'technician calls technician_assigned_visits_in_range: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'technician calls technician_assigned_visits_in_range: rejected ('||sqlerrm||')';
+  end;
+  execute 'reset role';
+
+  -- test (e): EXECUTE privilege matrix. anon and PUBLIC can execute none of the six leave
+  -- functions; authenticated can execute all of them except the internal helper
+  -- _leave_request_is_protected, which is never granted to anyone.
+  select
+      not has_function_privilege('anon', 'public.request_technician_leave(date,date,text)', 'EXECUTE')
+      and not has_function_privilege('anon', 'public.cancel_technician_leave(uuid)', 'EXECUTE')
+      and not has_function_privilege('anon', 'public.decide_technician_leave(uuid,text,text)', 'EXECUTE')
+      and not has_function_privilege('anon', 'public.technician_assigned_visits_in_range(uuid,date,date)', 'EXECUTE')
+      and not has_function_privilege('anon', 'public.technician_protected_leave_days(uuid,uuid,date,date)', 'EXECUTE')
+      and not has_function_privilege('anon', 'public._leave_request_is_protected(timestamptz,date,integer)', 'EXECUTE')
+    into v_ok;
+  res := res || E'\n' || format('testE privileges: anon cannot execute any of the six leave functions (expect true): %s', v_ok);
+
+  select
+      not has_function_privilege('public', 'public.request_technician_leave(date,date,text)', 'EXECUTE')
+      and not has_function_privilege('public', 'public.cancel_technician_leave(uuid)', 'EXECUTE')
+      and not has_function_privilege('public', 'public.decide_technician_leave(uuid,text,text)', 'EXECUTE')
+      and not has_function_privilege('public', 'public.technician_assigned_visits_in_range(uuid,date,date)', 'EXECUTE')
+      and not has_function_privilege('public', 'public.technician_protected_leave_days(uuid,uuid,date,date)', 'EXECUTE')
+      and not has_function_privilege('public', 'public._leave_request_is_protected(timestamptz,date,integer)', 'EXECUTE')
+    into v_ok;
+  res := res || E'\n' || format('testE privileges: PUBLIC cannot execute any of the six leave functions (expect true): %s', v_ok);
+
+  select
+      has_function_privilege('authenticated', 'public.request_technician_leave(date,date,text)', 'EXECUTE')
+      and has_function_privilege('authenticated', 'public.cancel_technician_leave(uuid)', 'EXECUTE')
+      and has_function_privilege('authenticated', 'public.decide_technician_leave(uuid,text,text)', 'EXECUTE')
+      and has_function_privilege('authenticated', 'public.technician_assigned_visits_in_range(uuid,date,date)', 'EXECUTE')
+      and has_function_privilege('authenticated', 'public.technician_protected_leave_days(uuid,uuid,date,date)', 'EXECUTE')
+      and not has_function_privilege('authenticated', 'public._leave_request_is_protected(timestamptz,date,integer)', 'EXECUTE')
+    into v_ok;
+  res := res || E'\n' || format('testE privileges: authenticated can execute all five RPCs but not the internal helper (expect true): %s', v_ok);
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -1005,6 +1119,38 @@ begin
    where ref_id = v_revoke and type = 'technician_leave_revoked' and (user_id is not null) <> (role is not null);
   res := res || E'\n' || format('revoke notification row exists, exactly one of user_id/role set (expect true): %s', v_ok);
 
+  -- ══ test (c): t1 self-cancels an APPROVED, not-yet-started request -- its linked
+  -- technician_availability rows are removed and master+operation_admin are notified, on top
+  -- of (not instead of) the technician's own technician_leave_cancelled notification ═════════
+  perform set_config('request.jwt.claims', json_build_object('sub', v_t1, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select (request_technician_leave(v_today + 25, v_today + 25, 'approve then self-cancel')).id into v_selfcancel;
+  execute 'reset role';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select * into v_row from decide_technician_leave(v_selfcancel, 'approved');
+  execute 'reset role';
+
+  select count(*) into v_n from technician_availability where leave_request_id = v_selfcancel and status = 'leave';
+  res := res || E'\n' || format('testC selfcancel: approved availability row exists before cancel (expect 1): %s', v_n);
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_t1, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select * into v_row from cancel_technician_leave(v_selfcancel);
+  res := res || E'\n' || format('testC selfcancel: status after self-cancel (expect cancelled): %s', v_row.status);
+  execute 'reset role';
+
+  select count(*) into v_n from technician_availability where leave_request_id = v_selfcancel and status = 'leave';
+  res := res || E'\n' || format('testC selfcancel: availability row removed after cancelling an approved request (expect 0): %s', v_n);
+
+  select count(*) into v_n from notifications
+   where ref_id = v_selfcancel and type = 'technician_leave_cancelled_by_technician' and role in ('master', 'operation_admin');
+  res := res || E'\n' || format('testC selfcancel: master+operation_admin notified of the technician-initiated cancel (expect 2): %s', v_n);
+  select count(*) > 0 into v_ok from notifications
+   where ref_id = v_selfcancel and type = 'technician_leave_cancelled' and (user_id is not null) <> (role is not null);
+  res := res || E'\n' || format('testC selfcancel: technician''s own cancellation notification still present too (expect true): %s', v_ok);
+
   -- ══ RLS: one technician cannot see another technician's requests ═══════════════════════════
   perform set_config('request.jwt.claims', json_build_object('sub', v_t2, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
@@ -1018,6 +1164,13 @@ begin
     res := res || E'\n' || 'technician approves someone else''s request: SUCCEEDED (bad)';
   exception when others then
     res := res || E'\n' || 'technician approves someone else''s request: rejected ('||sqlerrm||')';
+  end;
+  -- test (b): a technician cannot cancel someone else's request either
+  begin
+    perform cancel_technician_leave(v_other_pending);
+    res := res || E'\n' || 'technician cancels someone else''s request: SUCCEEDED (bad)';
+  exception when others then
+    res := res || E'\n' || 'technician cancels someone else''s request: rejected ('||sqlerrm||')';
   end;
   execute 'reset role';
 
@@ -1168,6 +1321,7 @@ $ORIG_REWARD_CANDIDATES$;
   v_new_keys1 text[]; v_new_keys2 text[]; v_new_keys3 text[];
   v_diff1 int; v_diff2 int; v_diff3 int;
 begin
+  perform set_config('lock_timeout', '5s', true);
   if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '18:00' then
     raise exception 'rehearsal refused: must run at or after 18:00 IST';
   end if;
@@ -1175,11 +1329,11 @@ begin
   v_mig_hash := encode(sha256(convert_to(v_migration, 'UTF8')), 'hex');
   v_test_hash := encode(sha256(convert_to(v_test, 'UTF8')), 'hex');
 
-  if v_mig_hash <> '4c0908ed67fe05faa3f079652ec3cac2c2a2f76c7080a18a79d9637654fbf772' then
-    raise exception 'migration hash mismatch: expected 4c0908ed67fe05faa3f079652ec3cac2c2a2f76c7080a18a79d9637654fbf772, got %', v_mig_hash;
+  if v_mig_hash <> '7bc14e098a9292e2f8ba92314d3c2ce5b3bd8a6ba7629cc8dd7e58b69d828b80' then
+    raise exception 'migration hash mismatch: expected 7bc14e098a9292e2f8ba92314d3c2ce5b3bd8a6ba7629cc8dd7e58b69d828b80, got %', v_mig_hash;
   end if;
-  if v_test_hash <> '8b3a11df30d31e94b155f0ef98840d536e82906f97ed9523ee8d97768b4c3846' then
-    raise exception 'test hash mismatch: expected 8b3a11df30d31e94b155f0ef98840d536e82906f97ed9523ee8d97768b4c3846, got %', v_test_hash;
+  if v_test_hash <> '4c60632d2d07ee6a12359984d5d111d68c10251da3b4b84a33b5c24181b02d26' then
+    raise exception 'test hash mismatch: expected 4c60632d2d07ee6a12359984d5d111d68c10251da3b4b84a33b5c24181b02d26, got %', v_test_hash;
   end if;
 
   -- real org + a staff profile of that org, used both for the fingerprint and to impersonate a
