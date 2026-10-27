@@ -10,6 +10,8 @@ import type { OrgTask } from "@/services/tasks"
 import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { cn } from "@/lib/utils"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
+import { type CompleteBlockReason, canCompleteTask, compareTasksOverdueFirst, completeBlockReason, isTaskOverdue } from "@/lib/task-rules"
+import { getIstNow } from "@/lib/ist"
 import { AssignTaskDialog } from "./AssignTaskDialog"
 import { TaskDetailDialog } from "./TaskDetailDialog"
 import { TaskCalendar } from "./TaskCalendar"
@@ -40,12 +42,15 @@ export function TasksPage() {
   const doneCount = allTasks.filter((tsk) => tsk.status === "done").length
   const mineCount = allTasks.filter((tsk) => tsk.assignee_id === userId).length
 
+  const today = getIstNow().date
   const visibleTasks = useMemo(() => {
-    if (filter === "open") return allTasks.filter((tsk) => tsk.status !== "done")
-    if (filter === "done") return allTasks.filter((tsk) => tsk.status === "done")
-    if (filter === "mine") return allTasks.filter((tsk) => tsk.assignee_id === userId)
-    return allTasks
-  }, [allTasks, filter, userId])
+    let rows = allTasks
+    if (filter === "open") rows = allTasks.filter((tsk) => tsk.status !== "done")
+    else if (filter === "done") rows = allTasks.filter((tsk) => tsk.status === "done")
+    else if (filter === "mine") rows = allTasks.filter((tsk) => tsk.assignee_id === userId)
+    // overdue first, then by due day, finished last
+    return [...rows].sort((a, b) => compareTasksOverdueFirst(a, b, today))
+  }, [allTasks, filter, userId, today])
 
   const canDelete = !!profile && CAN_DELETE_ROLES.has(profile.role)
 
@@ -97,7 +102,7 @@ export function TasksPage() {
           ))}
         </div>
       ) : view === "calendar" ? (
-        <TaskCalendar tasks={visibleTasks} onTaskClick={setSelectedTask} />
+        <TaskCalendar tasks={visibleTasks} today={today} onTaskClick={setSelectedTask} />
       ) : visibleTasks.length === 0 ? (
         <Card className="items-center gap-2 py-10 text-center">
           <ClipboardList className="size-6 text-text-muted" />
@@ -110,6 +115,9 @@ export function TasksPage() {
               key={tsk.id}
               task={tsk}
               isMutating={setStatus.isPending && setStatus.variables?.id === tsk.id}
+              overdue={isTaskOverdue(tsk, today)}
+              canComplete={canCompleteTask(tsk, profile ? { id: profile.id, role: profile.role } : null)}
+              blockReason={completeBlockReason(tsk, profile ? { id: profile.id, role: profile.role } : null)}
               onToggle={() => setStatus.mutate({ id: tsk.id, status: tsk.status === "done" ? "open" : "done" })}
               onOpen={() => setSelectedTask(tsk)}
             />
@@ -157,7 +165,23 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   )
 }
 
-function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onToggle: () => void; isMutating: boolean; onOpen: () => void }) {
+function TaskRow({
+  task,
+  onToggle,
+  isMutating,
+  onOpen,
+  overdue,
+  canComplete,
+  blockReason,
+}: {
+  task: OrgTask
+  onToggle: () => void
+  isMutating: boolean
+  onOpen: () => void
+  overdue: boolean
+  canComplete: boolean
+  blockReason: CompleteBlockReason | null
+}) {
   const { t } = useTranslation()
   const isDone = task.status === "done"
   const dueLabel = task.due_at
@@ -175,12 +199,21 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
   // keeps its own <button>, and a second <button> covers the rest of the
   // row for opening the task.
   return (
-    <div className={cn("flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3 hover:bg-surface-alt", isDone && "opacity-60")}>
+    <div
+      className={cn(
+        "flex items-start gap-3 rounded-xl border bg-surface px-4 py-3 hover:bg-surface-alt",
+        overdue ? "border-danger bg-danger/5" : "border-border",
+        isDone && "opacity-60"
+      )}
+      data-overdue={overdue ? "true" : undefined}
+    >
       <button
         type="button"
         onClick={onToggle}
-        disabled={isMutating}
+        disabled={isMutating || !canComplete}
+        title={!canComplete && !isDone ? t(`tasks.cannotFinish.${blockReason ?? "not_assignee"}`, { name: task.assignee?.full_name ?? t("tasks.unknownUser") }) : undefined}
         className={cn(
+          !canComplete && "cursor-not-allowed opacity-40",
           "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
           isDone ? "border-success bg-success text-white" : "border-border text-transparent hover:border-ink"
         )}
@@ -191,7 +224,8 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
 
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1 text-left">
         <div className="flex flex-wrap items-center gap-2">
-          <p className={cn("text-sm font-semibold text-text", isDone && "text-text-muted line-through")}>{task.title}</p>
+          <p className={cn("text-sm font-semibold text-text", overdue && "text-danger", isDone && "text-text-muted line-through")}>{task.title}</p>
+          {overdue ? <span className="rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-white">{t("tasks.overdue")}</span> : null}
           <PriorityBadge priority={task.priority} />
           {task.is_recurring ? <Repeat className="size-3.5 text-text-muted" aria-label={t("tasks.recurring")} /> : null}
         </div>
@@ -202,8 +236,9 @@ function TaskRow({ task, onToggle, isMutating, onOpen }: { task: OrgTask; onTogg
             {task.assignee?.full_name ?? t("tasks.unknownUser")}
           </span>
           {task.assigner ? <span>{t("tasks.assignedBy", { name: task.assigner.full_name })}</span> : null}
-          {dueLabel ? <span>{t("tasks.due", { date: dueLabel })}</span> : null}
+          {dueLabel ? <span className={cn(overdue && "font-semibold text-danger")}>{t("tasks.due", { date: dueLabel })}</span> : null}
         </div>
+        {!isDone && blockReason === "po_needs_master" ? <p className="text-xs font-medium text-warning">{t("tasks.cannotFinish.po_needs_master")}</p> : null}
       </button>
     </div>
   )

@@ -4742,6 +4742,13 @@
     "recentMeetings": "Recent meetings"
   },
   "tasks": {
+    "overdue": "Overdue",
+    "onlyAssigneeFinishes": "Only {{name}} can mark this finished",
+    "cannotFinish": {
+      "not_assignee": "Only {{name}} can mark this finished.",
+      "unassigned": "This task has no assignee. Ask operations to finish it.",
+      "po_needs_master": "Only the master can finish a purchase-order task, because the master approves and pays purchase orders. Ask the master to finish it, or reassign it."
+    },
     "subtitle": "Assign and track tasks across the whole team.",
     "assignTask": "Assign Task",
     "loadFailed": "Could not load tasks.",
@@ -4761,6 +4768,7 @@
       "calendar": "Calendar"
     },
     "detailDialog": {
+      "readOnly": "You can view this task but only its assignee, the person who assigned it, or operations can change it.",
       "title": "Task",
       "subtitle": "Reassign, reschedule, or update this task.",
       "statusOpen": "Open",
