@@ -14,7 +14,7 @@
 -- test code outside this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure
 -- and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
---   d55f64019566a08dd6c79241e984b22b97e34ff62fcff4190371cfe7c4611bad  gv-mart/supabase/migrations/20261024120000_standard_minutes_and_efficiency.sql
+--   8f72f88c3d71707319bdf17c5f89a72d25661068611bb9089c1b768977e5672e  gv-mart/supabase/migrations/20261024120000_standard_minutes_and_efficiency.sql
 --   34c7853753a552ada639ee5025dcde90a491174ac47affec41cde62aec9c81e0  gv-mart/supabase/tests/standard_minutes_and_efficiency.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
@@ -328,6 +328,31 @@ $orig1$;
 -- technician performance report; the overrun buffer and the ops-resolution SLA move from hard-coded constants to
 -- settings. INFORMATIONAL ONLY: nothing here is read by compute_incentives, technician_kpi_summary's "flagged"
 -- logic, or any review column — see the standing instruction this package was built under.
+--
+-- Version label (comment only; does not change report_performance_efficiency's return payload):
+--   (a) Migration version: this is the 3rd on-disk revision of this file (content byte-identical across the
+--       two renames — Nov-dated -> 20261024110000 -> 20261024120000, commits 996ee08, 2770919 — only the
+--       filename/pins/cross-references changed); the SQL itself last changed functionally in 37fb04e
+--       (sla_hours threaded through) and 6898e35 (test-only fix).
+--   (b) Live functions this migration redefines, and how the match is proven: report_ops_resolution (last live
+--       body: 20261016110000_test_customer_flag.sql) and report_kpi_tiles (last live body:
+--       20261022100000_amc_visits_unassigned_until_due.sql). Neither is pinned here as a static md5 of "the live
+--       definition" — the rehearsal wrapper (rehearsals/rehearsal_20261024120000_standard_minutes_and_efficiency.sql)
+--       embeds each ORIGINAL function's full text verbatim and, at rehearsal run time, recreates it under a
+--       sub-block and compares its pg_get_functiondef output against the function AS IT IS ACTUALLY LIVE right
+--       then, refusing on any mismatch. A pinned md5 of "the live definition" computed now would go stale the
+--       moment the live function changed and nothing would catch that; the wrapper's live, recomputed comparison
+--       is the actual safety property wanted here. What IS pinned (sha256, in the wrapper's own header) is the
+--       embedded ORIGINAL text itself, so the wrapper can't silently drift from what this file says it embeds.
+--       report_performance_efficiency is NOT in this list: it is a brand-new RPC with no live predecessor to
+--       diff against or prove a match for.
+--   (c) Diff baseline: this file (and its rollback/test/wrapper) were last reviewed by the owner at commit
+--       b355850 (chore(reports): P5 reconciliation). Everything from b355850 to this revision is summarized in
+--       the P5 handoff: the SLA-hours threading fix (37fb04e) and its tests (5d2fe2b, 42718d4), a test-only
+--       PL/pgSQL variable-shadow fix (6898e35), two pure migration renumberings with no SQL content change
+--       (996ee08 also restored report_kpi_tiles — not just report_ops_resolution — in the rollback, which the
+--       first sla_hours round had missed; 2770919), and the wrapper rewrite to the live-comparison shape
+--       described in (b) (cc5cf3a). Current tip: cc5cf3a.
 --
 -- 1. complaint_types.standard_minutes: nullable, master-edited in Masters > Complaint Types (ComplaintTypesTab.tsx,
 --    which already master-gates writes via complaint_types_write_master — no RLS change). Per-ITEM standard times
@@ -676,7 +701,7 @@ end;
 $function$;
 $rh0$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'd55f64019566a08dd6c79241e984b22b97e34ff62fcff4190371cfe7c4611bad' then
+  if v_hash <> '8f72f88c3d71707319bdf17c5f89a72d25661068611bb9089c1b768977e5672e' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261024120000_standard_minutes_and_efficiency.sql: %', v_hash;
   end if;
   execute v_text;
