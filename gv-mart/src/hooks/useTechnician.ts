@@ -558,6 +558,18 @@ export function useMyHistory(technicianId: string | undefined, filters: { from?:
   })
 }
 
+// "Pending reviews" — gated on technicianId (not just profile) the same way
+// useMyHistory is, so it only fires once we know the caller really is a
+// technician; the RPC itself takes no id (ownership is server-side, see
+// services/technician.ts's listMyPendingReviews doc comment).
+export function usePendingReviews(technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["pendingReviews", "mine", technicianId],
+    queryFn: () => tech.listMyPendingReviews(),
+    enabled: !!technicianId,
+  })
+}
+
 // ── TECH-10 Profile / stats ────────────────────────────────────────────────
 
 export function useTechnicianStats(technicianId: string | undefined, orgId: string | undefined, range: DateRange) {

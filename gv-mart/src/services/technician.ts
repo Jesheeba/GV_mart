@@ -1229,6 +1229,34 @@ export async function listMyHistory(technicianId: string, filters: { from?: stri
   return filters.type ? rows.filter((r) => r.service_tickets?.type === filters.type) : rows
 }
 
+// ── Pending reviews ──────────────────────────────────────────────────────────
+// "Pending reviews": customers from THIS technician's own completed visits
+// (service_visits.technician_id = his technicians.id, same "completed" test
+// get_technician_public_stats uses -- timer_end is not null) who have not
+// yet left a rating. Display-only: nothing is sent/messaged from this list,
+// it just tells the technician who to follow up with in person.
+//
+// Ownership is enforced server-side (RLS + an explicit filter inside
+// public.list_technician_pending_reviews(), a SECURITY INVOKER function --
+// see 20261112100000_technician_pending_reviews.sql), not here: this is a
+// plain, unparameterised RPC call, so there is no technicianId argument a
+// caller could tamper with to see another technician's customers.
+export type PendingReviewEntry = {
+  visit_id: string
+  ticket_id: string
+  customer_id: string
+  customer_name: string
+  customer_mobile: string
+  complaint: string | null
+  visit_completed_at: string
+}
+
+export async function listMyPendingReviews(): Promise<PendingReviewEntry[]> {
+  const { data, error } = await supabase.rpc("list_technician_pending_reviews")
+  if (error) throw error
+  return data ?? []
+}
+
 // ── TECH-10 Profile / stats ────────────────────────────────────────────────
 
 /** Owner request 2026-07-29: `range` used to be hardcoded to a trailing
