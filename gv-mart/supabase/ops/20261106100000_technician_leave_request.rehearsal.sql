@@ -1320,8 +1320,21 @@ $ORIG_REWARD_CANDIDATES$;
   v_old_keys1 text[]; v_old_keys2 text[]; v_old_keys3 text[];
   v_new_keys1 text[]; v_new_keys2 text[]; v_new_keys3 text[];
   v_diff1 int; v_diff2 int; v_diff3 int;
+  v_org_fingerprint text;
 begin
   perform set_config('lock_timeout', '5s', true);
+
+  -- Real-organisation fingerprint check, before anything else: refuses outright unless this
+  -- rehearsal is running against the one specific real organisation it was written for.
+  select md5(o.id::text || '|' || o.name) into v_org_fingerprint
+    from public.organizations o
+    where o.name not like '\_\_TEST%'
+    order by o.created_at asc
+    limit 1;
+  if v_org_fingerprint is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
+  end if;
+
   if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '18:00' then
     raise exception 'rehearsal refused: must run at or after 18:00 IST';
   end if;
