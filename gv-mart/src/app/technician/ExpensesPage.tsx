@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { InlineErrorState } from "@/components/shared/InlineErrorState"
 import { useProfile } from "@/hooks/useProfile"
 import { useMyTechnician } from "@/hooks/useTechnician"
 import { useAddKmLogEntry, useKmLogMonthlySum, useSubmitExpenseClaim } from "@/hooks/useMonthlyExpenses"
 import { uploadExpenseClaimPhoto } from "@/services/monthlyExpenses"
+import { isNotYetAvailableError } from "@/lib/supabaseErrors"
 
 /**
  * Monthly Expenses spec Units 2/3 — technician side: submit a petrol or
@@ -69,7 +71,9 @@ function ClaimForm({ orgId, technicianId, claimType }: { orgId: string | undefin
       setDone(true)
       setAmount("")
     } catch (e) {
-      setError((e as Error).message)
+      // Failed save keeps `amount` as entered (only cleared above, on success) — the
+      // message below tells the technician that explicitly instead of leaving it implicit.
+      setError(isNotYetAvailableError(e) ? t("technician.expenses.notAvailableYet") : t("common.actionFailed"))
     } finally {
       setUploading(false)
     }
@@ -109,9 +113,12 @@ function ClaimForm({ orgId, technicianId, claimType }: { orgId: string | undefin
         </>
       )}
       {error ? (
-        <p className="flex items-center gap-1.5 text-xs text-danger">
-          <TriangleAlert className="size-3.5 shrink-0" /> {error}
-        </p>
+        <div className="space-y-1">
+          <p className="flex items-center gap-1.5 text-xs text-danger">
+            <TriangleAlert className="size-3.5 shrink-0" /> {error}
+          </p>
+          <p className="text-xs text-text-muted">{t("technician.expenses.valuesKept")}</p>
+        </div>
       ) : null}
     </Card>
   )
@@ -124,19 +131,37 @@ function KmLogForm({ orgId, technicianId }: { orgId: string | undefined; technic
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10))
   const [km, setKm] = useState("")
   const [done, setDone] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   async function submit() {
     if (!orgId || !entryDate || !km) return
-    await addEntry.mutateAsync({ org_id: orgId, technician_id: technicianId, entry_date: entryDate, km: Number(km), note: null })
-    setKm("")
-    setDone(true)
-    setTimeout(() => setDone(false), 2000)
+    setSaveError(null)
+    try {
+      await addEntry.mutateAsync({ org_id: orgId, technician_id: technicianId, entry_date: entryDate, km: Number(km), note: null })
+      // `km` is only cleared here, on success — a failed save leaves it as entered.
+      setKm("")
+      setDone(true)
+      setTimeout(() => setDone(false), 2000)
+    } catch (e) {
+      setSaveError(isNotYetAvailableError(e) ? t("technician.expenses.notAvailableYet") : t("common.actionFailed"))
+    }
   }
 
   return (
     <Card className="gap-2.5">
       <p className="text-sm font-semibold text-text">{t("technician.expenses.kmLog.title")}</p>
-      <p className="text-xs text-text-muted">{t("technician.expenses.kmLog.monthlySum", { km: monthlySum.data ?? 0 })}</p>
+      {monthlySum.isLoading ? (
+        <p className="text-xs text-text-muted">{t("common.loading")}</p>
+      ) : monthlySum.isError ? (
+        <InlineErrorState
+          message={isNotYetAvailableError(monthlySum.error) ? t("technician.expenses.notAvailableYet") : t("technician.expenses.kmLog.monthlySumFailed")}
+          onRetry={() => monthlySum.refetch()}
+          retryLabel={t("common.retry")}
+          className="py-2"
+        />
+      ) : (
+        <p className="text-xs text-text-muted">{t("technician.expenses.kmLog.monthlySum", { km: monthlySum.data ?? 0 })}</p>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{t("technician.expenses.kmLog.date")}</Label>
@@ -151,6 +176,14 @@ function KmLogForm({ orgId, technicianId }: { orgId: string | undefined; technic
         {done ? <CheckCircle2 className="size-3.5" /> : null}
         {t("technician.expenses.kmLog.save")}
       </Button>
+      {saveError ? (
+        <div className="space-y-1">
+          <p className="flex items-center gap-1.5 text-xs text-danger">
+            <TriangleAlert className="size-3.5 shrink-0" /> {saveError}
+          </p>
+          <p className="text-xs text-text-muted">{t("technician.expenses.valuesKept")}</p>
+        </div>
+      ) : null}
     </Card>
   )
 }

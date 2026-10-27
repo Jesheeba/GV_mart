@@ -2935,12 +2935,15 @@
       "statusRejected": "Rejected",
       "myKmLog": "My kilometre log",
       "noKmEntries": "No entries in this period",
+      "notAvailableYet": "This feature isn't available yet. Please check back later.",
+      "valuesKept": "Your entered details are kept — you can try again.",
       "kmLog": {
         "title": "Kilometre log",
         "date": "Date travelled",
         "km": "Kilometres",
         "save": "Add entry",
-        "monthlySum": "This month so far: {{km}} km"
+        "monthlySum": "This month so far: {{km}} km",
+        "monthlySumFailed": "Couldn't load this month's total."
       }
     },
     "home": {
