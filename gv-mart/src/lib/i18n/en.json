@@ -183,6 +183,17 @@
     "myDay": "Daily Follow Up"
   },
   "auth": {
+    "forcedPassword": {
+      "title": "Choose your own password",
+      "hint": "Your account was set up with a password that was shared with you. Choose a new one that only you know before you continue.",
+      "newPassword": "New password",
+      "confirm": "Confirm new password",
+      "tooShort": "Use at least {{count}} characters.",
+      "mismatch": "The two passwords do not match.",
+      "submit": "Save and continue",
+      "failed": "The password could not be changed. Try again.",
+      "signOut": "Sign out"
+    },
     "heroTitle": "Sign in to your workspace",
     "heroSubtitle": "Each role has its own secure login. You'll only see the dashboard and tools your role allows — nothing more.",
     "secureAccessBadge": "Role-based secure access",
@@ -4263,6 +4274,9 @@
       "logged": "Logged"
     },
     "staffSalary": {
+      "designation": "Designation",
+      "address": "Full address",
+      "mustChangeHint": "The person must choose their own password the first time they sign in.",
       "inactive": "Inactive",
       "activate": "Activate",
       "deactivate": "Deactivate",
@@ -4672,6 +4686,17 @@
     "daysOverdue_other": "{{count}} days overdue"
   },
   "huddle": {
+    "raiseTitle": "Raise a problem",
+    "raisePlaceholder": "What is the problem? Say what happened and where.",
+    "raiseButton": "Raise problem",
+    "raised": "Problem raised. The master has been told.",
+    "proposeSolution": "Suggest a solution",
+    "proposeHint": "Your suggestion is shown on the problem and the master is told. Staff mark the problem solved.",
+    "proposePlaceholder": "What should be done to fix it?",
+    "proposeSend": "Send suggestion",
+    "proposed": "Suggestion sent. The master has been told.",
+    "solutionBy": "solution by {{name}}",
+    "solvedBy": "Solved by {{name}}",
     "subtitle": "Record the daily meeting: problems, root causes, solutions and action items. Open problems carry forward until solved.",
     "technicianSubtitle": "Read-only view of the daily meeting notes and open problems.",
     "view": {

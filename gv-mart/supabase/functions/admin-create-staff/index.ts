@@ -1,6 +1,6 @@
 // Master-only: create an office-staff login (operation_admin or sales_admin).
 //
-//   POST { fullName, email, phone?, role, password?, reason? }
+//   POST { fullName, email, phone, designation, address, role, password?, reason? }
 //   -> { ok: true, id, email, generated, password? }   (password is returned ONCE, only when generated)
 //
 // Guarded by _shared/staff-auth.ts and written to be reviewed as a unit:
@@ -75,8 +75,12 @@ Deno.serve(async (req) => {
     org_id: caller.orgId,
     full_name: input.fullName,
     phone: input.phone,
+    designation: input.designation,
     role: input.role,
     is_active: true,
+    // The password already exists (createUser above), so the flag is armed second: the database records a marker of THIS
+    // password's hash and only clears the flag once the hash has changed. Never reorder these two steps.
+    must_change_password: true,
   })
   if (profileErr) {
     // roll the login back: an auth user without a profile cannot sign in usefully and would block re-using the email
@@ -84,6 +88,16 @@ Deno.serve(async (req) => {
     await finishStaffAudit(admin, audit, false, { error: "profile_insert_failed", rolled_back: !rollbackErr }, userId)
     console.error("admin-create-staff: profile insert failed", profileErr.code ?? "", rollbackErr ? "ROLLBACK FAILED for " + userId : "rolled back")
     return json({ error: "Could not create the staff profile; nothing was created" }, 500)
+  }
+
+  // The address is personal: it lives in staff_private (readable only by the person, the master and operation_admin), never on profiles.
+  const { error: privateErr } = await admin.from("staff_private").insert({ profile_id: userId, org_id: caller.orgId, address: input.address })
+  if (privateErr) {
+    // deleting the login cascades the profile row: nothing half-created is left behind
+    const { error: rollbackErr } = await admin.auth.admin.deleteUser(userId)
+    await finishStaffAudit(admin, audit, false, { error: "private_insert_failed", rolled_back: !rollbackErr }, userId)
+    console.error("admin-create-staff: staff_private insert failed", privateErr.code ?? "", rollbackErr ? "ROLLBACK FAILED for " + userId : "rolled back")
+    return json({ error: "Could not save the staff details; nothing was created" }, 500)
   }
 
   await finishStaffAudit(admin, audit, true, {}, userId)

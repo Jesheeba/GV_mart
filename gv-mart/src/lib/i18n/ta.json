@@ -183,6 +183,17 @@
     "myDay": "தினசரி பின்தொடர்தல்"
   },
   "auth": {
+    "forcedPassword": {
+      "title": "Choose your own password",
+      "hint": "Your account was set up with a password that was shared with you. Choose a new one that only you know before you continue.",
+      "newPassword": "New password",
+      "confirm": "Confirm new password",
+      "tooShort": "Use at least {{count}} characters.",
+      "mismatch": "The two passwords do not match.",
+      "submit": "Save and continue",
+      "failed": "The password could not be changed. Try again.",
+      "signOut": "Sign out"
+    },
     "heroTitle": "உங்கள் பணியிடத்தில் உள்நுழையவும்",
     "heroSubtitle": "ஒவ்வொரு பாத்திரத்திற்கும் அதன் சொந்த பாதுகாப்பான உள்நுழைவு உண்டு. உங்கள் பாத்திரம் அனுமதிக்கும் டாஷ்போர்டு மற்றும் கருவிகளை மட்டுமே நீங்கள் காண்பீர்கள் — வேறு எதுவும் இல்லை.",
     "secureAccessBadge": "பாத்திர அடிப்படையிலான பாதுகாப்பான அணுகல்",
@@ -4258,6 +4269,9 @@
       "logged": "பதிவு செய்யப்பட்டது"
     },
     "staffSalary": {
+      "designation": "Designation",
+      "address": "Full address",
+      "mustChangeHint": "The person must choose their own password the first time they sign in.",
       "inactive": "செயலற்றது",
       "activate": "செயல்படுத்து",
       "deactivate": "செயலிழக்கச் செய்",
@@ -4667,6 +4681,17 @@
     "daysOverdue_other": "{{count}} நாட்கள் தாமதம்"
   },
   "huddle": {
+    "raiseTitle": "Raise a problem",
+    "raisePlaceholder": "What is the problem? Say what happened and where.",
+    "raiseButton": "Raise problem",
+    "raised": "Problem raised. The master has been told.",
+    "proposeSolution": "Suggest a solution",
+    "proposeHint": "Your suggestion is shown on the problem and the master is told. Staff mark the problem solved.",
+    "proposePlaceholder": "What should be done to fix it?",
+    "proposeSend": "Send suggestion",
+    "proposed": "Suggestion sent. The master has been told.",
+    "solutionBy": "solution by {{name}}",
+    "solvedBy": "Solved by {{name}}",
     "subtitle": "தினசரி கூட்டத்தைப் பதிவு செய்யுங்கள்: பிரச்சனைகள், மூல காரணம், தீர்வுகள், செயல் பணிகள். தீர்க்கப்படும் வரை திறந்த பிரச்சனைகள் தொடரும்.",
     "technicianSubtitle": "தினசரி கூட்டக் குறிப்புகள் மற்றும் திறந்த பிரச்சனைகள் (படிக்க மட்டும்).",
     "view": {

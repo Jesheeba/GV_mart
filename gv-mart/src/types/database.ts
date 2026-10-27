@@ -49,6 +49,27 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_private: {
+        Row: {
+          profile_id: string
+          org_id: string
+          address: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          org_id: string
+          address?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           id: string
@@ -59,6 +80,9 @@ export type Database = {
           photo_url: string | null
           language: string
           is_active: boolean
+          designation: string | null
+          must_change_password: boolean
+          task_color: string | null
           staff_role_key: string | null
           created_at: string
           updated_at: string
@@ -73,6 +97,8 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          designation?: string | null
+          task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
@@ -87,6 +113,8 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          designation?: string | null
+          task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
@@ -5965,6 +5993,8 @@ export type Database = {
           owner_id: string | null
           date_raised: string
           date_solved: string | null
+          solution_by: string | null
+          solved_by: string | null
           created_at: string
           updated_at: string
         }
@@ -5980,6 +6010,8 @@ export type Database = {
           owner_id?: string | null
           date_raised: string
           date_solved?: string | null
+          solution_by?: string | null
+          solved_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5995,6 +6027,8 @@ export type Database = {
           owner_id?: string | null
           date_raised?: string
           date_solved?: string | null
+          solution_by?: string | null
+          solved_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -7329,6 +7363,22 @@ export type Database = {
       // 20260925100100_po_paid_functions.sql; Docker-based `supabase gen
       // types` isn't available in this environment (see memory: hand-patch
       // instead).
+      arm_forced_password_change: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
+      raise_huddle_issue: {
+        Args: { p_description: string }
+        Returns: string
+      }
+      propose_huddle_solution: {
+        Args: { p_issue_id: string; p_solution: string }
+        Returns: undefined
+      }
+      complete_forced_password_change: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       mark_po_paid: {
         Args: { p_po_id: string }
         Returns: Database["public"]["Tables"]["purchase_orders"]["Row"]

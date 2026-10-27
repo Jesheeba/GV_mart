@@ -23,7 +23,15 @@ export async function getMeetingLog(orgId: string, date: string): Promise<Meetin
  * we fall back to reading the winner's row. */
 export async function ensureMeetingLog(orgId: string, date: string, userId: string): Promise<MeetingLog> {
   const existing = await getMeetingLog(orgId, date)
-  if (existing) return existing
+  if (existing) {
+    // a technician raising a problem creates the day's log with recorded_by NULL; staff recording the huddle takes it over, so the
+    // reminder (which ignores a log nobody on staff recorded) stops firing
+    if (!existing.recorded_by) {
+      const { data } = await supabase.from("meeting_logs").update({ recorded_by: userId }).eq("id", existing.id).is("recorded_by", null).select().maybeSingle()
+      if (data) return data
+    }
+    return existing
+  }
   const { data, error } = await supabase.from("meeting_logs").insert({ org_id: orgId, meeting_date: date, recorded_by: userId }).select().single()
   if (error) {
     const raced = await getMeetingLog(orgId, date)
@@ -136,6 +144,19 @@ export async function listRecentMeetings(orgId: string, limit = 14): Promise<Mee
   const { data, error } = await supabase.from("meeting_logs").select("*").eq("org_id", orgId).order("meeting_date", { ascending: false }).limit(limit)
   if (error) throw error
   return data ?? []
+}
+
+/** Staff or an active technician raises a problem; the database attaches it to today's huddle and tells the master. Returns the issue id. */
+export async function raiseHuddleIssue(description: string): Promise<string> {
+  const { data, error } = await supabase.rpc("raise_huddle_issue", { p_description: description })
+  if (error) throw error
+  return data as string
+}
+
+/** Staff or an active technician proposes a solution for an open problem (only when none is recorded yet). */
+export async function proposeHuddleSolution(issueId: string, solution: string): Promise<void> {
+  const { error } = await supabase.rpc("propose_huddle_solution", { p_issue_id: issueId, p_solution: solution })
+  if (error) throw error
 }
 
 export type IssueTask = {

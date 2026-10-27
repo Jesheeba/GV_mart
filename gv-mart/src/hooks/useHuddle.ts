@@ -56,4 +56,7 @@ export const useCreateIssue = (orgId: string, date: string, userId: string) =>
 export const useUpdateIssue = () => useHuddleMutation((v: { id: string; input: IssueInput }) => huddle.updateIssue(v.id, v.input))
 export const useSetIssueStatus = (date: string) =>
   useHuddleMutation((v: { id: string; status: IssueStatus }) => huddle.setIssueStatus(v.id, v.status, date))
+export const useRaiseHuddleIssue = () => useHuddleMutation((description: string) => huddle.raiseHuddleIssue(description))
+export const useProposeHuddleSolution = () =>
+  useHuddleMutation((v: { issueId: string; solution: string }) => huddle.proposeHuddleSolution(v.issueId, v.solution))
 export const useSetReminderTime = (orgId: string) => useHuddleMutation((time: string | null) => huddle.setHuddleReminderTime(orgId, time))

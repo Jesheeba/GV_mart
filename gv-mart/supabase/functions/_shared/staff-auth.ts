@@ -171,7 +171,11 @@ export type CreatableStaffRole = (typeof CREATABLE_STAFF_ROLES)[number]
 export type CreateStaffInput = {
   fullName: string
   email: string
-  phone: string | null
+  /** 10-digit mobile number: required for every new staff member. */
+  phone: string
+  designation: string
+  /** Full postal address. */
+  address: string
   role: CreatableStaffRole
   /** Typed password, or null when the server should generate one. */
   password: string | null
@@ -205,13 +209,17 @@ export function validateCreateStaffInput(body: unknown): CreateStaffValidation {
     return { ok: false, error: "Role must be operation_admin or sales_admin" }
   }
 
-  let phone: string | null = null
-  const rawPhone = str(b.phone)
-  if (rawPhone) {
-    let digits = rawPhone.replace(/\D/g, "")
-    if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2)
-    if (digits.length !== 10) return { ok: false, error: "Phone must be a 10-digit mobile number" }
-    phone = digits
+  let digits = str(b.phone).replace(/\D/g, "")
+  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2)
+  if (digits.length !== 10) return { ok: false, error: "A 10-digit mobile number is required" }
+  const phone = digits
+
+  const designation = str(b.designation)
+  if (designation.length < 2 || designation.length > 80 || hasControlChars(designation)) return { ok: false, error: "Designation must be 2-80 characters" }
+
+  const address = str(b.address)
+  if (address.length < 8 || address.length > 400 || /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(address)) {
+    return { ok: false, error: "The full address must be 8-400 characters" }
   }
 
   let password: string | null = null
@@ -224,7 +232,7 @@ export function validateCreateStaffInput(body: unknown): CreateStaffValidation {
   const rawReason = str(b.reason)
   if (rawReason.length > 200 || hasControlChars(rawReason)) return { ok: false, error: "Reason must be a single line of at most 200 characters" }
 
-  return { ok: true, value: { fullName, email, phone, role: role as CreatableStaffRole, password, reason: rawReason || null } }
+  return { ok: true, value: { fullName, email, phone, designation, address, role: role as CreatableStaffRole, password, reason: rawReason || null } }
 }
 
 /** 14 chars, at least one of each class, drawn from crypto randomness. */
