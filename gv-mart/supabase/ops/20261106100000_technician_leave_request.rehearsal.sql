@@ -1444,6 +1444,7 @@ begin
   end if;
 
   begin
+    perform set_config('request.jwt.claims', '', true);
     execute v_test;
     v_result := 'RESULTS(test did not raise -- unexpected, treat as FAIL)';
   exception when others then
