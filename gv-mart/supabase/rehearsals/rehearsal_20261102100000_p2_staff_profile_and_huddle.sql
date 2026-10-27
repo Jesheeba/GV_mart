@@ -11,6 +11,8 @@
 --   d65d7395d458ac117593cedf6c1e61638b261e0e8204773cf57b03f6ecf90bfc  (pre-check snippet: public.wa_send_huddle_reminder(uuid) as last defined in gv-mart/supabase/migrations/20260929100000_daily_huddle_log.sql)
 -- Pre-check: the live function must equal what that migration defined. The wrapper re-creates the pinned snippet inside a
 -- sub-block, takes md5(pg_get_functiondef()) of it, rolls the sub-block back, and refuses if it differs from the live md5.
+-- Real-organisation check: before anything else runs, the wrapper confirms it is pointed at the expected database by hashing the
+-- oldest non-__TEST organisation's id and name and refusing on any mismatch with the pinned value below.
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(p.id::text || ':' || p.org_id::text || ':' || p.role::text || ':' || p.is_active::text || ':' || p.full_name || ':' || coalesce(p.phone, ''), ',' order by p.id)
@@ -27,7 +29,19 @@ declare
   v_hash text;
   v_live text;
   v_orig text;
+  v_orgcheck text;
 begin
+  perform set_config('lock_timeout', '5s', true);
+
+  select md5(o.id::text || '|' || o.name) into v_orgcheck
+    from public.organizations o
+   where o.name not like '\_\_TEST%'
+   order by o.created_at asc
+   limit 1;
+  if v_orgcheck is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
+  end if;
+
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
   end if;
