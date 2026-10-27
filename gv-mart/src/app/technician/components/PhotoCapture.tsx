@@ -4,6 +4,7 @@ import { Camera, Loader2, RefreshCcw, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { captureWatermarkedPhoto } from "@/lib/offline/capture"
 import { getCurrentPosition } from "@/lib/offline/geo"
+import { getCameraPermissionState } from "@/lib/offline/cameraPermission"
 
 /**
  * `<input type=file accept="image/*" capture="environment">` is the native
@@ -11,6 +12,13 @@ import { getCurrentPosition } from "@/lib/offline/geo"
  * input itself) — see Integration Notes for why no camera library was added.
  * Captures best-effort geolocation and burns a geotag+timestamp watermark
  * into the photo before handing back a data URL (TECH-07 before/after images).
+ *
+ * Item 9 — camera-only: there is deliberately no second "choose from
+ * gallery" input here, only `capture="environment"`, so this is already
+ * camera-only. What this adds is an explicit permission-denied message:
+ * since a plain capture input has no JS-level error for a denied camera
+ * permission, we proactively check the Permissions API (where supported)
+ * before opening the camera, and again if the dialog returns with no file.
  */
 export function PhotoCapture({
   label,
@@ -27,6 +35,16 @@ export function PhotoCapture({
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  async function openCamera() {
+    setError(null)
+    const permission = await getCameraPermissionState()
+    if (permission === "denied") {
+      setError(t("technician.photo.permissionDenied"))
+      return
+    }
+    inputRef.current?.click()
+  }
 
   async function handleFile(file: File) {
     setBusy(true)
@@ -45,6 +63,14 @@ export function PhotoCapture({
     } finally {
       setBusy(false)
     }
+  }
+
+  async function handleNoFile() {
+    // The camera dialog closed without returning a file — either the
+    // technician cancelled, or permission was denied mid-flow. Re-check so
+    // a denial still surfaces a clear message rather than just doing nothing.
+    const permission = await getCameraPermissionState()
+    if (permission === "denied") setError(t("technician.photo.permissionDenied"))
   }
 
   return (
@@ -71,10 +97,11 @@ export function PhotoCapture({
         onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) void handleFile(file)
+          else void handleNoFile()
           e.target.value = ""
         }}
       />
-      <Button type="button" variant="outline" size="sm" disabled={disabled || busy} onClick={() => inputRef.current?.click()}>
+      <Button type="button" variant="outline" size="sm" disabled={disabled || busy} onClick={() => void openCamera()}>
         {busy ? <Loader2 className="size-3.5 animate-spin" /> : dataUrl ? <RefreshCcw className="size-3.5" /> : <Camera className="size-3.5" />}
         {dataUrl ? t("technician.photo.retake") : t("technician.photo.capture")}
       </Button>

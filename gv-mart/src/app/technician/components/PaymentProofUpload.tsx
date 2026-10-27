@@ -1,18 +1,23 @@
 import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Camera, CheckCircle2, ImagePlus, Loader2, TriangleAlert } from "lucide-react"
+import { Camera, CheckCircle2, Loader2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getCameraPermissionState } from "@/lib/offline/cameraPermission"
 
 /**
  * Task 2 — after a UPI payment is confirmed, the technician must attach
- * proof (screenshot from their gallery, or a fresh camera photo of the
- * customer's payment screen) before the visit can be completed. Two
- * distinct file inputs rather than one: a plain `accept="image/*"` input
- * opens the gallery/file picker (screenshot), while `capture="environment"`
- * forces the camera directly (see PhotoCapture.tsx for the same
- * `capture` mechanism used elsewhere in this app).
+ * proof (a fresh camera photo of the customer's payment screen) before the
+ * visit can be completed.
+ *
+ * Item 9 (camera-only capture) — this used to also offer a plain
+ * `accept="image/*"` input that opened the gallery/file picker (for a
+ * pre-existing screenshot). That gallery path has been removed so every
+ * technician photo-upload flow in the app is camera-only; `capture="environment"`
+ * is now the only input (see PhotoCapture.tsx for the same mechanism used
+ * elsewhere). Flagged to the owner: this does remove the ability to attach
+ * an already-taken screenshot as proof — see the build report.
  */
 export function PaymentProofUpload({
   uploaded,
@@ -26,14 +31,34 @@ export function PaymentProofUpload({
   onSelectFile: (file: File, transactionReference: string) => void
 }) {
   const { t } = useTranslation()
-  const galleryRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
   const [transactionReference, setTransactionReference] = useState("")
+  const [permissionError, setPermissionError] = useState<string | null>(null)
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) onSelectFile(file, transactionReference)
+    if (file) {
+      setPermissionError(null)
+      onSelectFile(file, transactionReference)
+    } else {
+      void handleNoFile()
+    }
     e.target.value = ""
+  }
+
+  async function openCamera() {
+    setPermissionError(null)
+    const permission = await getCameraPermissionState()
+    if (permission === "denied") {
+      setPermissionError(t("technician.photo.permissionDenied"))
+      return
+    }
+    cameraRef.current?.click()
+  }
+
+  async function handleNoFile() {
+    const permission = await getCameraPermissionState()
+    if (permission === "denied") setPermissionError(t("technician.photo.permissionDenied"))
   }
 
   return (
@@ -57,22 +82,17 @@ export function PaymentProofUpload({
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleChange} />
-            <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => galleryRef.current?.click()}>
-              {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
-              {t("technician.onsite.paymentProof.uploadScreenshot")}
-            </Button>
-            <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => cameraRef.current?.click()}>
+            <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => void openCamera()}>
               {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
               {t("technician.onsite.paymentProof.capturePhoto")}
             </Button>
           </div>
         </>
       )}
-      {error ? (
+      {permissionError || error ? (
         <p className="flex items-center gap-1.5 text-xs text-danger">
-          <TriangleAlert className="size-3.5 shrink-0" /> {error}
+          <TriangleAlert className="size-3.5 shrink-0" /> {permissionError || error}
         </p>
       ) : null}
     </div>

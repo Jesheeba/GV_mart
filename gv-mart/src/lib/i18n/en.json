@@ -2796,7 +2796,8 @@
     "photo": {
       "capture": "Capture",
       "retake": "Retake photo",
-      "error": "Couldn't process that photo. Please try again."
+      "error": "Couldn't process that photo. Please try again.",
+      "permissionDenied": "Camera access is blocked for this app. Open your phone's Settings and allow Camera access to continue."
     },
     "signature": {
       "placeholder": "Sign here",
@@ -3156,7 +3157,7 @@
       },
       "paymentProof": {
         "title": "Upload payment proof",
-        "hint": "Attach the UPI screenshot, receipt, or transaction confirmation before completing this visit.",
+        "hint": "Take a photo of the UPI confirmation screen or receipt before completing this visit.",
         "transactionReference": "Transaction reference (optional)",
         "transactionReferencePlaceholder": "UPI reference / transaction ID",
         "uploadScreenshot": "Upload screenshot",
