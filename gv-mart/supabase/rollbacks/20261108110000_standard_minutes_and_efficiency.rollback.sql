@@ -1,4 +1,36 @@
 -- Rollback for 20261108110000_standard_minutes_and_efficiency.sql
+--
+-- Safety guard (review fix): this migration's three new columns can hold real data that this rollback would
+-- otherwise silently drop. BEFORE any drop in this file, refuse if any REAL (non-__TEST_) organisation already
+-- has a complaint type with standard_minutes set, or a settings row whose job_overrun_buffer_minutes or
+-- ops_resolution_sla_hours differs from the migration's own default (5 / 24) -- either of those means master has
+-- actually used this feature, and this rollback is not the right tool to remove that data.
+do $guard$
+declare
+  v_bad_ct uuid;
+  v_bad_settings_org uuid;
+begin
+  select ct.id into v_bad_ct
+    from public.complaint_types ct
+    join public.organizations o on o.id = ct.org_id
+    where o.name not like '\_\_TEST%' and ct.standard_minutes is not null
+    limit 1;
+  if v_bad_ct is not null then
+    raise exception 'ROLLBACK_REFUSED: complaint_types % belongs to a real (non-__TEST_) organisation and has standard_minutes set -- dropping the column would silently lose that data', v_bad_ct;
+  end if;
+
+  select s.org_id into v_bad_settings_org
+    from public.settings s
+    join public.organizations o on o.id = s.org_id
+    where o.name not like '\_\_TEST%'
+      and (s.job_overrun_buffer_minutes <> 5 or s.ops_resolution_sla_hours <> 24)
+    limit 1;
+  if v_bad_settings_org is not null then
+    raise exception 'ROLLBACK_REFUSED: settings for real (non-__TEST_) organisation % has job_overrun_buffer_minutes or ops_resolution_sla_hours set away from this migration''s default (5 / 24) -- dropping the columns would silently lose that data', v_bad_settings_org;
+  end if;
+end;
+$guard$;
+
 drop function if exists public.report_performance_efficiency(date, date);
 
 -- restore report_ops_resolution to its definition in 20261016110000_test_customer_flag.sql (hard-coded 24h,
