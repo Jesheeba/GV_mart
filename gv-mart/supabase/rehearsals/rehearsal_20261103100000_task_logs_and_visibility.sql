@@ -1,13 +1,23 @@
--- REHEARSAL (NOT RUN; for the owner's approval of this exact text): P3 task work log and visibility: migration 20261103100000 + its tests
--- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()), (2) recomputes
--- the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) stores a baseline fingerprint of the REAL
--- organisations, (4) executes the migration text(s) and then the test file in order, (5) always ends in an unconditional
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): P3 task work log and visibility: migration 20261103100000 + its tests,
+-- chained ON TOP OF P1a (20261101100000) and P1b (20261101110000) so P3 is rehearsed against the state those two migrations leave,
+-- not against the already-dropped completion guard / pre-P1b current_technician_id(). P1a and P1b are applied here but their OWN
+-- test files are not re-run (that is each one's own wrapper's job); only their migration DDL is chained.
+-- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()), (2) pre-checks that the
+-- live public.current_technician_id() still matches its last migration before P1b replaces it, (3) recomputes the sha256 of every
+-- embedded file and refuses on any mismatch with the pinned value, (4) stores a baseline fingerprint of the REAL organisations,
+-- (5) executes P1a, then P1b, then the P3 migration, then the P3 test file, in that order, (6) always ends in an unconditional
 -- RAISE EXCEPTION, so nothing is ever committed.
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with test code outside
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
+--   8d4acb9ff750cbca42a26fc312c37f69a9c7bec8d5800f30efb9b22229b73aa1  (pre-check snippet: public.current_technician_id() as last defined in gv-mart/supabase/migrations/20260701091200_functions_triggers.sql)
+--   da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb  gv-mart/supabase/migrations/20261101100000_task_completion_rule.sql (P1a, chained)
+--   a64bf7ad63d9ab2501a5da7147f95a9986945e73231c8b612f49769105523a40  gv-mart/supabase/migrations/20261101110000_current_technician_id_active.sql (P1b, chained)
 --   99990dde17cceb8485d5adc12bc4776906557a615341a4c0dbd04bf65238d6d5  gv-mart/supabase/migrations/20261103100000_task_logs_and_visibility.sql
 --   9ee0ff8755b45aef8db476d5344e4f6bf1bf1bd746691684e3a545433d0b8ec3  gv-mart/supabase/tests/task_logs_and_visibility.test.sql
+-- Pre-check: the live public.current_technician_id() must equal what its last migration (20260701091200) defined, before P1b redefines
+-- it. The wrapper re-creates the pinned snippet inside a sub-block, takes md5(pg_get_functiondef()) of it, rolls the sub-block back,
+-- and refuses if it differs from the live md5.
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
@@ -19,9 +29,33 @@ declare
   v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   v_text text;
   v_hash text;
+  v_live text;
+  v_orig text;
 begin
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  end if;
+
+  -- pre-check: the live public.current_technician_id() is still the definition its last migration (20260701091200) gave it,
+  -- before P1b (below) replaces it. Same pattern as the wa_send_huddle_reminder pre-check in P2's wrapper.
+  v_text := $orig$create or replace function public.current_technician_id()
+returns uuid
+language sql stable security definer set search_path = public
+as $$ select id from public.technicians where profile_id = auth.uid() $$;$orig$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> '8d4acb9ff750cbca42a26fc312c37f69a9c7bec8d5800f30efb9b22229b73aa1' then
+    raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch: %', v_hash;
+  end if;
+  v_live := md5(pg_get_functiondef('public.current_technician_id()'::regprocedure));
+  begin
+    execute v_text;
+    v_orig := md5(pg_get_functiondef('public.current_technician_id()'::regprocedure));
+    raise exception 'GV_PRECHECK_PROBE';
+  exception when others then
+    if sqlerrm <> 'GV_PRECHECK_PROBE' then raise; end if;
+  end;
+  if v_orig is distinct from v_live then
+    raise exception 'REHEARSAL_REFUSED: live public.current_technician_id() (md5 %) differs from its last migration definition (md5 %)', v_live, v_orig;
   end if;
 
   execute $gvfp$create function pg_temp.gv_fingerprint() returns text language sql stable as $fpb$
@@ -30,6 +64,151 @@ select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':
        || '|' || (select count(*)::text from public.tasks t where t.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%'))
 $fpb$$gvfp$;
   perform set_config('gv.baseline', pg_temp.gv_fingerprint(), true);
+
+  -- chain P1a (task completion rule) on top of main, so P3 is rehearsed on top of it, not against the already-dropped guard.
+  v_text := $p1a$-- P1 (client list 12-10-2026, item 6 + security audit): who may finish a task, and the paths around it.
+-- Design: gv-mart/docs/design-p1-task-security.md
+--
+--   1. Only the person a task is assigned to can set it done. Master and operation_admin may reassign a task but cannot complete it
+--      on someone's behalf. An UNASSIGNED task can be completed by operations (someone must). Re-opening a finished task: the
+--      assignee or operations. A task cannot be INSERTED already done for someone else.
+--   2. A purchase_order task can be completed only by a master (the role that approves and pays POs, mark_po_paid / approve_purchase_order).
+--   3. Closing the PO through its task (_po_task_completed_marks_paid) is now conditional on the same: a signed-in non-master never marks
+--      a PO paid by ticking a task. Paths with no signed-in user (service role, scheduled jobs) are unchanged.
+--   4. tasks_update_assign: only operations, the assignee or the assigner may update a task (it was: any staff or technician).
+--   (current_technician_id() requires is_active: separate migration 20261101110000_current_technician_id_active, P1b.)
+--
+-- task_status has three values: open, done, rolled ('rolled' is in the enum but nothing in the app or the database writes it today).
+-- How the guard treats the transitions:
+--   open   -> done    : assignee only (unassigned: operations); purchase_order tasks: master only
+--   rolled -> done    : the same as open -> done (any non-done state is finished by the same rule)
+--   done   -> open    : the assignee or operations
+--   done   -> rolled  : the same as done -> open
+--   open   <-> rolled : not a completion, unrestricted by the guard (the update policy still decides who may update the row)
+--
+-- Exempt from the completion guard (current_user is not authenticated/anon): the service role, SECURITY DEFINER functions
+-- (mark_po_paid, advance_recurring_tasks, the escalation and PO-reminder jobs, the rollover RPCs) and any direct owner connection.
+--
+-- WHY THE EARLIER GUARD WAS DROPPED (20261006190000 -> 20261006200000) and how this one differs: that trigger froze every column except
+-- status / due_date for a non-ops assignee, which broke the app's own edit and reassign flow once task assignment (20260921160000)
+-- let any user create, edit and reassign tasks. This guard restricts ONLY the status transition to done / back from done and the
+-- insert-as-done case; it never looks at title, description, priority, due dates or assignee. The regression tests in
+-- tests/task_completion_rule.test.sql assert that an assignee can still edit and reassign their own task.
+--
+-- Rollback: supabase/rollbacks/20261101100000_task_completion_rule.rollback.sql
+
+-- 1. completion guard --------------------------------------------------------------------------------------------------
+create or replace function public.guard_task_completion()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  -- service role, SECURITY DEFINER jobs and the owner connection are not subject to this rule
+  if current_user not in ('authenticated', 'anon') then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if new.status = 'done' and new.assignee_id is distinct from auth.uid() then
+      raise exception 'tasks: a task cannot be created already finished for someone else';
+    end if;
+    return new;
+  end if;
+
+  if new.status = 'done' and old.status is distinct from 'done' then
+    if old.assignee_id is not null then
+      if old.assignee_id is distinct from auth.uid() then
+        raise exception 'tasks: only the person a task is assigned to can mark it finished';
+      end if;
+    elsif not public.is_ops_staff() then
+      raise exception 'tasks: only operations can finish a task that has no assignee';
+    end if;
+    -- both the old and the NEW ref_type: changing a task's ref_type in the same update must not slip past the rule
+    if (old.ref_type = 'purchase_order' or new.ref_type = 'purchase_order') and not public.is_master() then
+      raise exception 'tasks: only a master can finish a purchase-order task';
+    end if;
+  elsif old.status = 'done' and new.status is distinct from 'done' then
+    if old.assignee_id is distinct from auth.uid() and not public.is_ops_staff() then
+      raise exception 'tasks: only the assignee or operations can re-open a finished task';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.guard_task_completion() from public, anon, authenticated;
+
+drop trigger if exists aa_guard_task_completion on public.tasks;
+create trigger aa_guard_task_completion
+  before insert or update on public.tasks
+  for each row execute function public.guard_task_completion();
+
+-- 2. closing the PO through its task needs a master (or a system path) -------------------------------------------------
+create or replace function public._po_task_completed_marks_paid()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.ref_type = 'purchase_order' and new.status = 'done' and (old.status is distinct from 'done') then
+    -- a signed-in user who is not a master never marks a PO paid by ticking its task (the guard above already refuses the tick;
+    -- this is the second, independent check). No signed-in user = service role / scheduled job: unchanged.
+    if auth.uid() is not null and not public.is_master() then
+      return new;
+    end if;
+    update public.purchase_orders
+      set status = 'paid'
+      where id = new.ref_id and org_id = new.org_id and status in ('sent', 'received');
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public._po_task_completed_marks_paid() from public, anon, authenticated;
+
+-- 3. who may update a task ----------------------------------------------------------------------------------------------
+drop policy if exists tasks_update_assign on public.tasks;
+create policy tasks_update_assign on public.tasks
+  for update using (
+    org_id = public.current_org_id()
+    and (public.is_staff() or public.current_technician_id() is not null)
+    and (public.is_ops_staff() or assignee_id = auth.uid() or assigned_by = auth.uid())
+  )
+  with check (
+    org_id = public.current_org_id()
+    and (public.is_staff() or public.current_technician_id() is not null)
+  );
+
+notify pgrst, 'reload schema';
+$p1a$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> 'da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101100000_task_completion_rule.sql (P1a): %', v_hash;
+  end if;
+  execute v_text;
+
+  -- chain P1b (current_technician_id requires is_active) on top of P1a, so P3 is rehearsed on top of both.
+  v_text := $p1b$-- P1b (security audit): a deactivated technician is not a technician for RLS.
+-- Design: gv-mart/docs/design-p1-task-security.md
+--
+-- current_technician_id() now also requires technicians.is_active. Every policy and function that keys on it (tasks, jobs, customer
+-- history, ...) stops matching a deactivated technician immediately. create or replace keeps the existing ACL (one of the helper
+-- functions that must stay executable by the roles RLS runs as).
+--
+-- Rollback: supabase/rollbacks/20261101110000_current_technician_id_active.rollback.sql
+
+create or replace function public.current_technician_id()
+returns uuid
+language sql stable security definer set search_path = public
+as $$ select t.id from public.technicians t where t.profile_id = auth.uid() and t.is_active $$;
+$p1b$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> 'a64bf7ad63d9ab2501a5da7147f95a9986945e73231c8b612f49769105523a40' then
+    raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101110000_current_technician_id_active.sql (P1b): %', v_hash;
+  end if;
+  execute v_text;
 
   v_text := $rh0$-- P3 (client list 12-10-2026 items 4, 5, 6): who sees which task, and a work log on every task. Design: gv-mart/docs/design-p3-task-log-visibility.md
 --
