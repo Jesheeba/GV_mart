@@ -115,11 +115,11 @@ comment on column public.products.item_code is
 
 create unique index products_item_code_unique_idx on public.products (org_id, lower(item_code)) where item_code is not null;
 $rh0$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261104100000_product_item_code.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh1$-- P4 part 2: a SNAPSHOT of the item's identification code on each invoice/quotation LINE, stamped at line-creation
 -- time — not read from the live catalog at print time (that was the first cut of this package; replaced here).
@@ -192,11 +192,11 @@ create trigger aa_stamp_item_code
   before insert or update on public.quotation_items
   for each row execute function public._stamp_item_code();
 $rh1$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '4acedd9092e5fc40009709dcda9f65405c29c314913341ff32e24e6f25678a8d' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261104110000_invoice_quotation_item_code_snapshot.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh2$-- P4 part 3: a defense-in-depth UPDATE guard on products.item_code, same shape as guard_technician_tier_change /
 -- tier_id_master_guard (20261001140000).
@@ -249,11 +249,11 @@ create trigger guard_item_code_update before update of item_code on public.produ
 -- not relying on a function's shape to keep it un-callable.
 revoke all on function public.guard_item_code_update() from public, anon, authenticated;
 $rh2$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> 'b5fac0cfb851f31735e1f02cec04e4ce22aab9e7a8176c51c15353ce6be66f4f' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261104120000_item_code_master_update_guard.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   -- AFTER-MIGRATIONS fingerprint: must be identical to the before fingerprint. True by construction — all three
   -- migrations are pure DDL (new column, new trigger, revoke) and touch no existing row in any of these four
@@ -414,12 +414,12 @@ begin
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
 $rh3$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> 'd536b67e4b7c2d67f2c8533eac10b91b6a0b6c756d63ef7a29f0ec46e5cd240e' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for item_code_master_update_guard.test.sql: %', v_hash;
   end if;
   begin
-    execute v_text;
+    execute replace(v_text, E'\r', '');
     v_test_result := '(completed without its own terminating RAISE -- unexpected)';
   exception when others then
     v_test_result := sqlerrm;
