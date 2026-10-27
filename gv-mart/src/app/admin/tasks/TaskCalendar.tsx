@@ -8,6 +8,7 @@ import type { EventClickArg, EventInput } from "@fullcalendar/core"
 import { useTranslation } from "react-i18next"
 import type { OrgTask } from "@/services/tasks"
 import { isTaskOverdue } from "@/lib/task-rules"
+import { userColour } from "@/lib/user-colour"
 import "./task-calendar.css"
 
 const PRIORITY_EVENT_COLOR: Record<OrgTask["priority"], string> = {
@@ -30,6 +31,9 @@ function taskToEvent(task: OrgTask, today: string): EventInput | null {
     // overdue = red regardless of priority colour, with its own class so the stylesheet can mark it
     backgroundColor: isTaskOverdue(task, today) ? "var(--danger)" : PRIORITY_EVENT_COLOR[task.priority],
     textColor: "#fff",
+    // the assignee's own colour as a thick left edge, so a person's tasks can be picked out on a crowded month —
+    // a stable fallback colour (userColour) when they haven't picked one, so every assignee is distinguishable
+    borderColor: task.assignee ? userColour(task.assignee.id, task.assignee.task_color) : undefined,
     classNames: task.status === "done" ? ["gv-event-done"] : isTaskOverdue(task, today) ? ["gv-event-overdue"] : [],
   }
 }

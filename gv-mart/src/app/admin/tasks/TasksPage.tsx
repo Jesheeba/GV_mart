@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { type CompleteBlockReason, canCompleteTask, compareTasksOverdueFirst, completeBlockReason, isTaskOverdue } from "@/lib/task-rules"
 import { getIstNow } from "@/lib/ist"
+import { userColour } from "@/lib/user-colour"
 import { AssignTaskDialog } from "./AssignTaskDialog"
 import { TaskDetailDialog } from "./TaskDetailDialog"
 import { TaskCalendar } from "./TaskCalendar"
@@ -232,6 +233,11 @@ function TaskRow({
         {task.description ? <p className="truncate text-xs text-text-muted">{task.description}</p> : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
           <span className="flex items-center gap-1">
+            <span
+              aria-hidden="true"
+              className="size-2.5 shrink-0 rounded-full border border-border"
+              style={task.assignee ? { backgroundColor: userColour(task.assignee.id, task.assignee.task_color) } : undefined}
+            />
             <User className="size-3" />
             {task.assignee?.full_name ?? t("tasks.unknownUser")}
           </span>

@@ -6664,6 +6664,56 @@ export type Database = {
           },
         ]
       }
+      task_logs: {
+        Row: {
+          id: string
+          org_id: string
+          task_id: string
+          kind: string
+          created_by: string | null
+          actor_name: string | null
+          note: string | null
+          minutes_spent: number | null
+          next_planned_date: string | null
+          next_planned_note: string | null
+          from_user: string | null
+          to_user: string | null
+          from_name: string | null
+          to_name: string | null
+          from_value: string | null
+          to_value: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          task_id: string
+          kind?: string
+          created_by?: string | null
+          actor_name?: string | null
+          note?: string | null
+          minutes_spent?: number | null
+          next_planned_date?: string | null
+          next_planned_note?: string | null
+          from_user?: string | null
+          to_user?: string | null
+          from_name?: string | null
+          to_name?: string | null
+          from_value?: string | null
+          to_value?: string | null
+          created_at?: string
+        }
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "task_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           id: string
