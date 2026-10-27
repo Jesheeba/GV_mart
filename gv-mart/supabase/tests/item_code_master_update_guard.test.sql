@@ -52,6 +52,9 @@ begin
   perform pg_temp.chk('F1 guard_item_code_update is SECURITY INVOKER (prosecdef = false)', v_proc.prosecdef = false, v_proc.prosecdef::text);
   perform pg_temp.chk('F2 guard_item_code_update has search_path pinned to public',
     v_proc.proconfig is not null and 'search_path=public' = any(v_proc.proconfig), coalesce(v_proc.proconfig::text, 'null'));
+  perform pg_temp.chk('F3 neither anon nor authenticated holds EXECUTE on guard_item_code_update() (explicit revoke; belt-and-suspenders on top of it being un-callable outside trigger context anyway)',
+    not has_function_privilege('anon', 'public.guard_item_code_update()', 'execute')
+    and not has_function_privilege('authenticated', 'public.guard_item_code_update()', 'execute'));
 
   -- T: the trigger is BEFORE UPDATE OF item_code specifically, not a blanket BEFORE UPDATE.
   perform pg_temp.chk('T1 guard_item_code_update trigger exists on products, fires only when item_code is in the UPDATE''s column list',
@@ -99,6 +102,13 @@ begin
   alter table public.products enable row level security;
   select item_code into v_code from public.products where id = v_product;
   perform pg_temp.chk('G5 after re-enabling RLS, the value reflects only what master (G4) actually set', v_code = 'RO-STD-03', coalesce(v_code, 'null'));
+
+  -- S0: explicitly reset the session's claims before S1 — the G-block above ran pg_temp.act calls that each set
+  -- request.jwt.claims via set_config(..., true) (transaction-local), and 'reset role' only resets the ROLE, not
+  -- that GUC. Clearing it here, and proving auth.uid() actually reads back null afterward, is what makes S1 below
+  -- a genuine service-role/migration-write case rather than an accidental leftover claim from G4's master call.
+  perform set_config('request.jwt.claims', '', true);
+  perform pg_temp.chk('S0 request.jwt.claims is cleared and auth.uid() reads back null before the service-role/migration-write case below', auth.uid() is null, coalesce(auth.uid()::text, 'null'));
 
   -- S: service-role / migration writes (auth.uid() is null in this session — no request.jwt.claims was ever set
   -- for it) bypass the guard, exactly as specified. This is the plain test-runner session itself, not pg_temp.act.

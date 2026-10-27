@@ -11,16 +11,32 @@
 -- traffic) blocks waiting for that lock. This is deliberate (see the test file's own header: it is the only way
 -- to isolate the new trigger's own guard from products_write_master's RLS), but it is real production impact for
 -- however long the rest of this rehearsal takes to run, not a free isolation technique — run it at a quiet moment.
+-- A lock_timeout of 5s is set as the very first statement in this DO block (review fix, this round): if that
+-- ACCESS EXCLUSIVE lock is ever contended (another session already holds a conflicting lock on products when
+-- this rehearsal tries to take it), this rehearsal fails fast with a lock_timeout error instead of queuing
+-- indefinitely behind it and, in turn, becoming the thing everyone else queues behind.
 --
 -- This run changes no real data: every statement below runs inside one rolled-back transaction and the embedded
--- test file itself ends in an unconditional RAISE, so nothing is ever committed, on the real org or anywhere else.
--- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
--- (2) recomputes the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) recomputes
--- a RELATIVE fingerprint of the real organisation (its id + name, picking the earliest non-__TEST-named row — not an
--- exact snapshot of the whole table, so it survives new test orgs being added later) and refuses on any mismatch,
--- confirming this rehearsal is pointed at the real project, (4) executes the three migrations in order
--- (20261104100000, then 20261104110000, then 20261104120000) and then the test file, (5) always ends in an
--- unconditional RAISE EXCEPTION, so nothing is ever committed.
+-- test file's own RESULTS exception is caught (not let propagate) so this wrapper can append the real-organisation
+-- fingerprint comparison below to it; this whole DO block still always ends in ONE unconditional RAISE EXCEPTION,
+-- so nothing is ever committed. One request, one DO block. It: (1) sets lock_timeout to 5s, (2) refuses to run
+-- before 18:00 IST (the clock is read from clock_timestamp()), (3) recomputes the sha256 of every embedded file
+-- and refuses on any mismatch with the pinned value, (4) recomputes a RELATIVE fingerprint of the real
+-- organisation (its id + name, picking the earliest non-__TEST-named row — not an exact snapshot of the whole
+-- table, so it survives new test orgs being added later) and refuses on any mismatch, confirming this rehearsal
+-- is pointed at the real project, (5) takes a BEFORE fingerprint of that same real organisation's customers,
+-- service_tickets, invoices and products (count + an md5 checksum of their ids each, review fix this round — the
+-- new trigger only ever touches throwaway __TEST_ rows, so these four real-org tables must read back byte-for-byte
+-- identical at every checkpoint below; this is an independent cross-check on top of "the whole transaction rolls
+-- back regardless", not a substitute for it), (6) executes the three migrations in order (20261104100000, then
+-- 20261104110000, then 20261104120000), (7) takes the SAME fingerprint again immediately after the three
+-- migrations and refuses on any difference (migrations are pure DDL — new column/trigger/revoke — touching no
+-- existing row in any of those four tables, so this must be identical by construction), (8) runs the test file
+-- in a nested BEGIN/EXCEPTION, catching its own terminal RESULTS/other exception into a variable rather than
+-- letting it end the DO block, (9) takes the fingerprint a THIRD time, after the test file ran, and refuses on
+-- any difference (the test file only ever creates/mutates its own throwaway __TEST_ organisation), (10) always
+-- ends in ONE unconditional RAISE EXCEPTION carrying the test file's own RESULTS text with the two fingerprint
+-- comparisons appended, so nothing is ever committed.
 -- supabase/migrations/20261104100000_product_item_code.sql and 20261104110000_invoice_quotation_item_code_snapshot.sql
 -- are embedded here a SECOND time (both were already typed in full in the first two wrappers of this package)
 -- because nothing persists between separate rehearsal runs — this test file needs the columns and trigger those
@@ -32,23 +48,31 @@
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c  gv-mart/supabase/migrations/20261104100000_product_item_code.sql
 --   4acedd9092e5fc40009709dcda9f65405c29c314913341ff32e24e6f25678a8d  gv-mart/supabase/migrations/20261104110000_invoice_quotation_item_code_snapshot.sql
---   a800bbaf8522df4d872c257523862a69e32ae0a4d13bd19355f9e7a7127b2a37  gv-mart/supabase/migrations/20261104120000_item_code_master_update_guard.sql
---   fe9d55e17ac4cd152ab1599fdd4a4be468cd6c32693fe9eb5b7b8c441cdd44b4  gv-mart/supabase/tests/item_code_master_update_guard.test.sql
+--   b5fac0cfb851f31735e1f02cec04e4ce22aab9e7a8176c51c15353ce6be66f4f  gv-mart/supabase/migrations/20261104120000_item_code_master_update_guard.sql
+--   bc0f4067c7ad02ae9672f5ece5b9db95c456b86f8a047f5c85433dcba54be897  gv-mart/supabase/tests/item_code_master_update_guard.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
 
 do $rehearsal$
 declare
-  v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
+  v_ist time;
   v_text text;
   v_hash text;
   v_check text;
+  v_org uuid;
+  v_fp_before text;
+  v_fp_after_migrations text;
+  v_fp_final text;
+  v_test_result text;
 begin
+  perform set_config('lock_timeout', '5s', true);
+
+  v_ist := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
   end if;
 
-  select md5(o.id::text || '|' || o.name) into v_check
+  select o.id, md5(o.id::text || '|' || o.name) into v_org, v_check
     from public.organizations o
    where o.name not like '\_\_TEST%'
    order by o.created_at asc
@@ -56,6 +80,19 @@ begin
   if v_check is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch (expected the real GV Mart org, got %)', coalesce(v_check, 'null');
   end if;
+
+  -- BEFORE fingerprint of the real organisation's customers/service_tickets/invoices/products — count + md5
+  -- checksum of each table's ids, so this catches not just a row-count drift but any swap of which rows exist.
+  select format('customers=%s ids_md5=%s | service_tickets=%s ids_md5=%s | invoices=%s ids_md5=%s | products=%s ids_md5=%s',
+      (select count(*) from public.customers where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.customers where org_id = v_org),
+      (select count(*) from public.service_tickets where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.service_tickets where org_id = v_org),
+      (select count(*) from public.invoices where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.invoices where org_id = v_org),
+      (select count(*) from public.products where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.products where org_id = v_org))
+    into v_fp_before;
 
   v_text := $rh0$-- P4: an identification code per PRODUCT (spares already have one — `spares.sku`, 20260701090300). This is a
 -- code SET by master in Inventory/Masters, printed on invoice and quotation lines — NOT a per-unit serial/IMEI.
@@ -205,12 +242,35 @@ $$;
 drop trigger if exists guard_item_code_update on public.products;
 create trigger guard_item_code_update before update of item_code on public.products
   for each row execute function public.guard_item_code_update();
+
+-- Explicit, even though a trigger function is invoked by the executor regardless of EXECUTE grants on it (and a
+-- direct `select guard_item_code_update()` outside trigger context is already refused by Postgres itself,
+-- "trigger functions can only be called as triggers") — belt-and-suspenders, matching this schema's convention of
+-- not relying on a function's shape to keep it un-callable.
+revoke all on function public.guard_item_code_update() from public, anon, authenticated;
 $rh2$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'a800bbaf8522df4d872c257523862a69e32ae0a4d13bd19355f9e7a7127b2a37' then
+  if v_hash <> 'b5fac0cfb851f31735e1f02cec04e4ce22aab9e7a8176c51c15353ce6be66f4f' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261104120000_item_code_master_update_guard.sql: %', v_hash;
   end if;
   execute v_text;
+
+  -- AFTER-MIGRATIONS fingerprint: must be identical to the before fingerprint. True by construction — all three
+  -- migrations are pure DDL (new column, new trigger, revoke) and touch no existing row in any of these four
+  -- tables.
+  select format('customers=%s ids_md5=%s | service_tickets=%s ids_md5=%s | invoices=%s ids_md5=%s | products=%s ids_md5=%s',
+      (select count(*) from public.customers where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.customers where org_id = v_org),
+      (select count(*) from public.service_tickets where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.service_tickets where org_id = v_org),
+      (select count(*) from public.invoices where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.invoices where org_id = v_org),
+      (select count(*) from public.products where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.products where org_id = v_org))
+    into v_fp_after_migrations;
+  if v_fp_after_migrations is distinct from v_fp_before then
+    raise exception 'REHEARSAL_REFUSED: real-organisation fingerprint changed by the three migrations alone, before the test ran (before=%, after=%) -- this should be impossible for a pure schema/trigger/grant change', v_fp_before, v_fp_after_migrations;
+  end if;
 
   v_text := $rh3$-- Rolled-back DB tests for 20261104120000_item_code_master_update_guard (P4 part 3).
 -- NOT RUN (written for review). Run only through the rehearsal wrapper: it applies all three P4 migrations and
@@ -266,6 +326,9 @@ begin
   perform pg_temp.chk('F1 guard_item_code_update is SECURITY INVOKER (prosecdef = false)', v_proc.prosecdef = false, v_proc.prosecdef::text);
   perform pg_temp.chk('F2 guard_item_code_update has search_path pinned to public',
     v_proc.proconfig is not null and 'search_path=public' = any(v_proc.proconfig), coalesce(v_proc.proconfig::text, 'null'));
+  perform pg_temp.chk('F3 neither anon nor authenticated holds EXECUTE on guard_item_code_update() (explicit revoke; belt-and-suspenders on top of it being un-callable outside trigger context anyway)',
+    not has_function_privilege('anon', 'public.guard_item_code_update()', 'execute')
+    and not has_function_privilege('authenticated', 'public.guard_item_code_update()', 'execute'));
 
   -- T: the trigger is BEFORE UPDATE OF item_code specifically, not a blanket BEFORE UPDATE.
   perform pg_temp.chk('T1 guard_item_code_update trigger exists on products, fires only when item_code is in the UPDATE''s column list',
@@ -314,6 +377,13 @@ begin
   select item_code into v_code from public.products where id = v_product;
   perform pg_temp.chk('G5 after re-enabling RLS, the value reflects only what master (G4) actually set', v_code = 'RO-STD-03', coalesce(v_code, 'null'));
 
+  -- S0: explicitly reset the session's claims before S1 — the G-block above ran pg_temp.act calls that each set
+  -- request.jwt.claims via set_config(..., true) (transaction-local), and 'reset role' only resets the ROLE, not
+  -- that GUC. Clearing it here, and proving auth.uid() actually reads back null afterward, is what makes S1 below
+  -- a genuine service-role/migration-write case rather than an accidental leftover claim from G4's master call.
+  perform set_config('request.jwt.claims', '', true);
+  perform pg_temp.chk('S0 request.jwt.claims is cleared and auth.uid() reads back null before the service-role/migration-write case below', auth.uid() is null, coalesce(auth.uid()::text, 'null'));
+
   -- S: service-role / migration writes (auth.uid() is null in this session — no request.jwt.claims was ever set
   -- for it) bypass the guard, exactly as specified. This is the plain test-runner session itself, not pg_temp.act.
   update public.products set item_code = 'RO-STD-04' where id = v_product;
@@ -340,11 +410,36 @@ begin
 end $t$;
 $rh3$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'fe9d55e17ac4cd152ab1599fdd4a4be468cd6c32693fe9eb5b7b8c441cdd44b4' then
+  if v_hash <> 'bc0f4067c7ad02ae9672f5ece5b9db95c456b86f8a047f5c85433dcba54be897' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for item_code_master_update_guard.test.sql: %', v_hash;
   end if;
-  execute v_text;
+  begin
+    execute v_text;
+    v_test_result := '(completed without its own terminating RAISE -- unexpected)';
+  exception when others then
+    v_test_result := sqlerrm;
+  end;
 
-  raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
+  -- FINAL fingerprint, after the test file ran: must still be identical to the before fingerprint. True by
+  -- construction — the test file only ever creates/mutates its own throwaway __TEST_ organisation.
+  select format('customers=%s ids_md5=%s | service_tickets=%s ids_md5=%s | invoices=%s ids_md5=%s | products=%s ids_md5=%s',
+      (select count(*) from public.customers where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.customers where org_id = v_org),
+      (select count(*) from public.service_tickets where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.service_tickets where org_id = v_org),
+      (select count(*) from public.invoices where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.invoices where org_id = v_org),
+      (select count(*) from public.products where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.products where org_id = v_org))
+    into v_fp_final;
+  if v_fp_final is distinct from v_fp_before then
+    raise exception 'REHEARSAL_REFUSED: CHANGED -- final real-organisation fingerprint differs from before (before=%, final=%) -- something in this rehearsal touched real data', v_fp_before, v_fp_final;
+  end if;
+
+  raise exception 'RESULTS%', v_test_result
+    || E'\n\n=== real-organisation fingerprint (customers/service_tickets/invoices/products) ==='
+    || E'\nbefore:            ' || v_fp_before
+    || E'\nafter migrations:  ' || v_fp_after_migrations || ' -- identical to before: true'
+    || E'\nfinal (post-test): ' || v_fp_final || ' -- identical to before: true';
 end
 $rehearsal$;

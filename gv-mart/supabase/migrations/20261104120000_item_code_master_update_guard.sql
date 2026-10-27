@@ -42,3 +42,9 @@ $$;
 drop trigger if exists guard_item_code_update on public.products;
 create trigger guard_item_code_update before update of item_code on public.products
   for each row execute function public.guard_item_code_update();
+
+-- Explicit, even though a trigger function is invoked by the executor regardless of EXECUTE grants on it (and a
+-- direct `select guard_item_code_update()` outside trigger context is already refused by Postgres itself,
+-- "trigger functions can only be called as triggers") — belt-and-suspenders, matching this schema's convention of
+-- not relying on a function's shape to keep it un-callable.
+revoke all on function public.guard_item_code_update() from public, anon, authenticated;
