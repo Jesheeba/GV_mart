@@ -49,7 +49,7 @@
 --   117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c  gv-mart/supabase/migrations/20261104100000_product_item_code.sql
 --   4acedd9092e5fc40009709dcda9f65405c29c314913341ff32e24e6f25678a8d  gv-mart/supabase/migrations/20261104110000_invoice_quotation_item_code_snapshot.sql
 --   b5fac0cfb851f31735e1f02cec04e4ce22aab9e7a8176c51c15353ce6be66f4f  gv-mart/supabase/migrations/20261104120000_item_code_master_update_guard.sql
---   bc0f4067c7ad02ae9672f5ece5b9db95c456b86f8a047f5c85433dcba54be897  gv-mart/supabase/tests/item_code_master_update_guard.test.sql
+--   d536b67e4b7c2d67f2c8533eac10b91b6a0b6c756d63ef7a29f0ec46e5cd240e  gv-mart/supabase/tests/item_code_master_update_guard.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
 
@@ -288,6 +288,11 @@ $rh2$;
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+-- 20261024100000 (applied live) runs `alter default privileges for role postgres revoke execute on functions from public`, globally. That also
+-- removes PUBLIC execute from the helper functions below, which live in pg_temp and are called after `set local role authenticated`. This default
+-- makes every function created here executable again, including helpers added later. (pg_temp is not a name ALTER DEFAULT PRIVILEGES accepts, so
+-- the session's real temporary schema is looked up. The setting is rolled back with the wrapper, and disappears with the session otherwise.)
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
@@ -410,7 +415,7 @@ begin
 end $t$;
 $rh3$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> 'bc0f4067c7ad02ae9672f5ece5b9db95c456b86f8a047f5c85433dcba54be897' then
+  if v_hash <> 'd536b67e4b7c2d67f2c8533eac10b91b6a0b6c756d63ef7a29f0ec46e5cd240e' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for item_code_master_update_guard.test.sql: %', v_hash;
   end if;
   begin
