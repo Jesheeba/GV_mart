@@ -21,7 +21,7 @@ import {
 import type { TaskRow, UpcomingAppointmentForConfirmation } from "@/services/workspace"
 import { createTaskSchema } from "@/lib/validation/systemPages"
 import { cn } from "@/lib/utils"
-import { isTaskOverdue } from "@/lib/task-rules"
+import { canCompleteTask, completeBlockReason, isTaskOverdue, type ActorLike, type CompleteBlockReason } from "@/lib/task-rules"
 
 function todayIso() {
   return getIstNow().date
@@ -33,7 +33,19 @@ function todayIso() {
 // treats them as optional rather than requiring every caller to supply them.
 type WorkspaceTask = TaskRow & { original_due_date?: string | null; rolled_count?: number }
 
-function TaskItem({ task, onToggle, onMoveToToday, isMutating }: { task: WorkspaceTask; onToggle: () => void; onMoveToToday?: () => void; isMutating: boolean }) {
+function TaskItem({
+  task,
+  actor,
+  onToggle,
+  onMoveToToday,
+  isMutating,
+}: {
+  task: WorkspaceTask
+  actor: ActorLike | null | undefined
+  onToggle: () => void
+  onMoveToToday?: () => void
+  isMutating: boolean
+}) {
   const { t } = useTranslation()
   const isDone = task.status === "done"
   const rolledCount = task.rolled_count ?? 0
@@ -41,6 +53,10 @@ function TaskItem({ task, onToggle, onMoveToToday, isMutating }: { task: Workspa
   const overdue = isTaskOverdue(task, todayIso())
   const daysOverdue =
     overdue && task.due_date ? Math.max(1, Math.round((new Date(todayIso()).getTime() - new Date(task.due_date).getTime()) / 86_400_000)) : null
+  // A task landing on "my day" is normally the viewer's own, but a reopened/reassigned PO task can still need a master
+  // (guard_task_completion, mirrored by canCompleteTask/completeBlockReason) — same reason the admin Tasks screen shows.
+  const canComplete = isDone || canCompleteTask(task, actor)
+  const blockReason: CompleteBlockReason | null = isDone ? null : completeBlockReason(task, actor)
 
   return (
     <div
@@ -50,8 +66,10 @@ function TaskItem({ task, onToggle, onMoveToToday, isMutating }: { task: Workspa
       <button
         type="button"
         onClick={onToggle}
-        disabled={isMutating}
+        disabled={isMutating || !canComplete}
+        title={!canComplete ? t(`tasks.cannotFinish.${blockReason ?? "not_assignee"}`, { name: t("tasks.unknownUser") }) : undefined}
         className={cn(
+          !canComplete && "cursor-not-allowed opacity-40",
           "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
           isDone ? "border-success bg-success text-white" : "border-border text-transparent hover:border-ink"
         )}
@@ -72,6 +90,7 @@ function TaskItem({ task, onToggle, onMoveToToday, isMutating }: { task: Workspa
           ) : null}
           {task.source && task.source !== "manual" ? <span>· {task.source}</span> : null}
         </div>
+        {blockReason === "po_needs_master" ? <p className="text-xs font-medium text-warning">{t("tasks.cannotFinish.po_needs_master")}</p> : null}
       </div>
       {overdue && onMoveToToday ? (
         <Button type="button" size="sm" variant="outline" disabled={isMutating} onClick={onMoveToToday} className="shrink-0">
@@ -87,6 +106,7 @@ export function WorkspacePage() {
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
   const userId = profile?.id
+  const actor: ActorLike | null = profile ? { id: profile.id, role: profile.role } : null
 
   const todaysTasks = useMyWorkspaceTasks(orgId, userId)
   const upcomingTasks = useUpcomingWorkspaceTasks(orgId, userId)
@@ -165,6 +185,7 @@ export function WorkspacePage() {
                   <TaskItem
                     key={task.id}
                     task={task}
+                    actor={actor}
                     onToggle={() => handleToggle(task)}
                     onMoveToToday={() => moveToToday.mutate(task)}
                     isMutating={setTaskStatus.isPending || moveToToday.isPending}
@@ -179,7 +200,7 @@ export function WorkspacePage() {
               <p className="mb-3 text-sm font-semibold text-text">{t("workspace.upcoming")}</p>
               <div className="space-y-2">
                 {upcomingTasks.data!.map((task) => (
-                  <TaskItem key={task.id} task={task} onToggle={() => handleToggle(task)} isMutating={setTaskStatus.isPending} />
+                  <TaskItem key={task.id} task={task} actor={actor} onToggle={() => handleToggle(task)} isMutating={setTaskStatus.isPending} />
                 ))}
               </div>
             </Card>
@@ -190,7 +211,7 @@ export function WorkspacePage() {
               <p className="mb-3 text-sm font-semibold text-text">{t("workspace.completedToday")}</p>
               <div className="space-y-2">
                 {completedTasks.data!.slice(0, 10).map((task) => (
-                  <TaskItem key={task.id} task={task} onToggle={() => handleToggle(task)} isMutating={setTaskStatus.isPending} />
+                  <TaskItem key={task.id} task={task} actor={actor} onToggle={() => handleToggle(task)} isMutating={setTaskStatus.isPending} />
                 ))}
               </div>
             </Card>
