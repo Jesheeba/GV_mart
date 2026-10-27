@@ -7,7 +7,7 @@
 -- this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure and also rolls back.
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb  gv-mart/supabase/migrations/20261101100000_task_completion_rule.sql
---   4b2e844945ade1a2d9c129982635fd9e367619a636930f15bfdea7e2f58ba257  gv-mart/supabase/tests/task_completion_rule.test.sql
+--   4de23da6f03a58e37070f509c96345d70d70521552823b3a0bdd6df2a4bf1814  gv-mart/supabase/tests/task_completion_rule.test.sql
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
@@ -409,6 +409,20 @@ begin
   s := pg_temp.raises(format($q$update tasks set title = 'retitled', description = 'x', priority = 'urgent' where id = %L$q$, t3));
   perform pg_temp.as_pg();
   perform pg_temp.chk('PATH task detail: the assigner edits text and priority', s is null and (select assigned_by from tasks where id = t3) = v_sales, coalesce(s, 'ok'));
+
+  -- (d2) the regression this package ports in from pkg1: an unrelated edit by the ASSIGNEE (not the assigner —
+  -- the harder direction, since the assignee's own tasks_update_assign path doesn't need assigned_by at all) must
+  -- not touch assigned_by, and the original assigner must still hold their tasks_update_assign row afterwards.
+  perform pg_temp.as_user(v_tp);
+  s := pg_temp.raises(format($q$update tasks set priority = 'very_urgent' where id = %L$q$, t3));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('PATH d2a: the assignee''s own unrelated edit leaves assigned_by exactly as it was',
+    s is null and (select assigned_by from tasks where id = t3) = v_sales, coalesce(s, 'ok'));
+  perform pg_temp.as_user(v_sales);
+  s := pg_temp.raises(format($q$update tasks set description = 'still editable by the assigner' where id = %L$q$, t3));
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('PATH d2b: the original assigner can still update the row afterwards (tasks_update_assign''s assigned_by = auth.uid() branch was not displaced)',
+    s is null and (select description from tasks where id = t3) = 'still editable by the assigner', coalesce(s, 'ok'));
   -- (e) SECURITY DEFINER / service paths are not narrowed
   t4 := pg_temp.mk(v_org, v_master, v_master, 'purchase_order', gen_random_uuid());
   update tasks set due_at = now() - interval '4 days' where id = t4;
@@ -444,7 +458,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
-  if v_hash <> '4b2e844945ade1a2d9c129982635fd9e367619a636930f15bfdea7e2f58ba257' then
+  if v_hash <> '4de23da6f03a58e37070f509c96345d70d70521552823b3a0bdd6df2a4bf1814' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_completion_rule.test.sql: %', v_hash;
   end if;
   execute v_text;
