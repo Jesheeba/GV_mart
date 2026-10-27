@@ -57,12 +57,28 @@ begin
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
   end if;
 
-  execute $gvfp$create function pg_temp.gv_fingerprint() returns text language sql stable as $fpb$
-select md5(coalesce((select string_agg(n.id::text || ':' || n.type || ':' || coalesce(n.user_id::text,'-'), ',' order by n.id)
-                   from public.notifications n where n.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%') and n.type like 'huddle\_%'), ''))
-       || '|' || md5(coalesce((select string_agg(i.id::text || ':' || i.status || ':' || coalesce(i.solution,'-'), ',' order by i.id)
-                   from public.meeting_issues i where i.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%')), ''))
-       || '|' || (select count(*)::text from public.task_logs l where l.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%'))
+  -- gv_fingerprint() is plpgsql here (not plain sql) and guards the task_logs count behind to_regclass, because this wrapper's
+  -- baseline is captured BEFORE P3 (chained below) creates task_logs: on a live database where P3 has not actually been applied yet,
+  -- the table genuinely does not exist, and a plain `language sql` function referencing it would fail validation at CREATE time.
+  -- The three parts of the string keep the same order and format: when task_logs exists and has no rows for real organisations, the
+  -- value still ends in |0, exactly as it would have under the old definition, so the before/after comparison in the test is unaffected.
+  execute $gvfp$create function pg_temp.gv_fingerprint() returns text language plpgsql stable as $fpb$
+declare
+  v_notif text;
+  v_issues text;
+  v_logs text := '0';
+begin
+  select md5(coalesce((select string_agg(n.id::text || ':' || n.type || ':' || coalesce(n.user_id::text,'-'), ',' order by n.id)
+                     from public.notifications n where n.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%') and n.type like 'huddle\_%'), ''))
+    into v_notif;
+  select md5(coalesce((select string_agg(i.id::text || ':' || i.status || ':' || coalesce(i.solution,'-'), ',' order by i.id)
+                     from public.meeting_issues i where i.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%')), ''))
+    into v_issues;
+  if to_regclass('public.task_logs') is not null then
+    execute $dyn$select count(*)::text from public.task_logs l where l.org_id in (select o.id from public.organizations o where o.name not like '\_\_TEST\_%')$dyn$ into v_logs;
+  end if;
+  return v_notif || '|' || v_issues || '|' || v_logs;
+end;
 $fpb$$gvfp$;
   perform set_config('gv.baseline', pg_temp.gv_fingerprint(), true);
 
@@ -514,11 +530,11 @@ $$;
 
 notify pgrst, 'reload schema';
 $p2$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '17538d3073a53eb23ed65ee4f2e333f7f1aeb64a35a6b854920c63a5c704067e' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261102100000_p2_staff_profile_and_huddle.sql (P2): %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   -- pre-check: the live _trg_meeting_issue_notify (just created by the P2 chain above) is exactly P2's own definition, before this
   -- migration redefines it.
@@ -558,13 +574,13 @@ end;
 $$;
 revoke all on function public._trg_meeting_issue_notify() from public, anon, authenticated;
 $orig$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '7387ca52f06923b1e083eb6c30293a09fd91ab6f587ff2e0492b32091521cf4a' then
     raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch: %', v_hash;
   end if;
   v_live := md5(pg_get_functiondef('public._trg_meeting_issue_notify()'::regprocedure));
   begin
-    execute v_text;
+    execute replace(v_text, E'\r', '');
     v_orig := md5(pg_get_functiondef('public._trg_meeting_issue_notify()'::regprocedure));
     raise exception 'GV_PRECHECK_PROBE';
   exception when others then
@@ -726,11 +742,11 @@ create policy tasks_select_internal on public.tasks
 
 notify pgrst, 'reload schema';
 $p3$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '99990dde17cceb8485d5adc12bc4776906557a615341a4c0dbd04bf65238d6d5' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261103100000_task_logs_and_visibility.sql (P3): %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh0$-- Window P, Step 3 verification follow-up (client items 3 and 5).
 --
@@ -807,11 +823,11 @@ grant select on public.person_minute_totals to authenticated;
 
 notify pgrst, 'reload schema';
 $rh0$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '37d499edf565f3c140341888956c8341d45e73900b62b0a12a04baa7a9fed678' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261109100000_huddle_notify_ops_and_task_minute_totals.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh1$-- DB tests for 20261109100000_huddle_notify_ops_and_task_minute_totals. NOT RUN (written for review). Run only through the approved
 -- rehearsal wrapper (migration then this file, one request, ends in an unconditional RAISE). Throwaway __TEST_ organisation only.
@@ -936,11 +952,11 @@ begin
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
 $rh1$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '21a2b92549424730f1fdb60449117dffae8f8575791e1c5ffac7e3812814aafa' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for huddle_notify_ops_and_task_minute_totals.test.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
 end
