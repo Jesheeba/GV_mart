@@ -3917,7 +3917,7 @@ export type Database = {
           product_category: Database["public"]["Enums"]["brand_category"]
           product_id: string | null
           label: string
-          // Hand-patched, see 20261024120000_standard_minutes_and_efficiency.sql
+          // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
           standard_minutes: number | null
           created_at: string
           updated_at: string
@@ -6007,7 +6007,7 @@ export type Database = {
       settings: {
         Row: {
           review_incentives_enabled: boolean
-          // Hand-patched, see 20261024120000_standard_minutes_and_efficiency.sql
+          // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
           job_overrun_buffer_minutes: number
           ops_resolution_sla_hours: number
           id: string
@@ -7566,7 +7566,7 @@ export type Database = {
         Args: { p_from: string; p_to: string }
         Returns: Json
       }
-      // Hand-patched, see 20261024120000_standard_minutes_and_efficiency.sql
+      // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
       report_performance_efficiency: {
         Args: { p_from: string; p_to: string }
         Returns: Json

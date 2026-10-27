@@ -38,7 +38,7 @@ const NOT_OVERRUN: JobOverrunResult = { isOverrun: false, elapsedMinutes: null, 
  * job/call site, not just one; this is the single place that grace period
  * is defined so it never drifts between the technician and admin screens.
  *
- * P5 (20261024120000): this used to be the only value. It is now the
+ * P5 (20261108110000): this used to be the only value. It is now the
  * fallback a caller passes when settings.job_overrun_buffer_minutes hasn't
  * loaded yet — every real call site passes the live setting instead.
  */

@@ -1,4 +1,4 @@
--- Rolled-back DB tests for 20261024120000_standard_minutes_and_efficiency (P5).
+-- Rolled-back DB tests for 20261108110000_standard_minutes_and_efficiency (P5).
 -- NOT RUN (written for review). Run only through the rehearsal wrapper: it applies the migration and then this file in ONE
 -- request; this file ends in an unconditional RAISE, so nothing is committed. Throwaway __TEST_ organisation only.
 create temp table res (n serial, line text);
