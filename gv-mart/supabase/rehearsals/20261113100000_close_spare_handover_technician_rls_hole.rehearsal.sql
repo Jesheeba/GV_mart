@@ -28,7 +28,7 @@ do $rehearsal$
 declare
   v_now_ist time;
   v_migration_sha256 text := 'd582f42cd850986a7374333c60706d41973295deac5c710de9ad75dbc2b63778';
-  v_test_sha256 text := 'f642fd7937489d518907624027f6309b8effbb725044ceb3a912c18531723596';
+  v_test_sha256 text := '34f2fe5a0bb1627d02ba2e81893e216185dcea2d2ac0f67970d4a91159395778';
   v_migration_text text;
   v_test_text text;
   v_orig_csh_pgtemp text;
@@ -200,6 +200,7 @@ $MIG_TEXT$;
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
