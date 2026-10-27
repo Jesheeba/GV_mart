@@ -39,16 +39,17 @@ declare
   v_test_results text;
   v_lock_timeout_hit boolean := false;
 begin
+  -- ── 0. lock budget -- first executed statement, before even the time gate, so a real run
+  --      can never hang on a lock. This rehearsal touches spare_handovers / spare_handover_items
+  --      (DROP/CREATE POLICY needs an ACCESS EXCLUSIVE-ish lock briefly) and the
+  --      confirm_spare_handover function.
+  set local lock_timeout = '5s';
+
   -- ── 1. time gate ──────────────────────────────────────────────────────────────────────
   v_now_ist := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   if v_now_ist < time '18:00' then
     raise exception 'rehearsal refused: run only after 18:00 IST (Asia/Kolkata) -- current IST time is %', v_now_ist;
   end if;
-
-  -- ── 2. lock budget: this rehearsal touches spare_handovers / spare_handover_items (DROP/
-  --      CREATE POLICY needs an ACCESS EXCLUSIVE-ish lock briefly) and the confirm_spare_handover
-  --      function. Refuse fast rather than queue behind a live transaction indefinitely.
-  set local lock_timeout = '5s';
 
   -- ── 3. embedded text ──────────────────────────────────────────────────────────────────
   v_migration_text := $MIG_TEXT$
