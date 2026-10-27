@@ -1,6 +1,17 @@
 -- REHEARSAL (NOT RUN; for the owner's approval of this exact text): item_code master-only update guard (P4 part 3):
 -- 20261104100000_product_item_code.sql then 20261104110000_invoice_quotation_item_code_snapshot.sql then
 -- 20261104120000_item_code_master_update_guard.sql + its tests
+--
+-- LOCK WARNING: the embedded test file's G-block runs `alter table public.products disable row level security`
+-- and, later, `alter table public.products enable row level security`, inside this same rolled-back transaction.
+-- Each ALTER TABLE takes an ACCESS EXCLUSIVE lock on products, and Postgres holds that lock for the rest of the
+-- transaction regardless of the later re-enable — not just for the instant of the statement. From that first
+-- ALTER TABLE until this whole DO block's final RAISE EXCEPTION rolls everything back, every other session's
+-- read or write against products (the live app included, if this is ever run against a project taking real
+-- traffic) blocks waiting for that lock. This is deliberate (see the test file's own header: it is the only way
+-- to isolate the new trigger's own guard from products_write_master's RLS), but it is real production impact for
+-- however long the rest of this rehearsal takes to run, not a free isolation technique — run it at a quiet moment.
+--
 -- This run changes no real data: every statement below runs inside one rolled-back transaction and the embedded
 -- test file itself ends in an unconditional RAISE, so nothing is ever committed, on the real org or anywhere else.
 -- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
