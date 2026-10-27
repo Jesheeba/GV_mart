@@ -18,6 +18,8 @@
 -- Pre-check: the live public.current_technician_id() must equal what its last migration (20260701091200) defined, before P1b redefines
 -- it. The wrapper re-creates the pinned snippet inside a sub-block, takes md5(pg_get_functiondef()) of it, rolls the sub-block back,
 -- and refuses if it differs from the live md5.
+-- Real-organisation check: before anything else runs, the wrapper confirms it is pointed at the expected database by hashing the
+-- oldest non-__TEST organisation's id and name and refusing on any mismatch with the pinned value below.
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
@@ -31,7 +33,19 @@ declare
   v_hash text;
   v_live text;
   v_orig text;
+  v_orgcheck text;
 begin
+  perform set_config('lock_timeout', '5s', true);
+
+  select md5(o.id::text || '|' || o.name) into v_orgcheck
+    from public.organizations o
+   where o.name not like '\_\_TEST%'
+   order by o.created_at asc
+   limit 1;
+  if v_orgcheck is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
+  end if;
+
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
   end if;
