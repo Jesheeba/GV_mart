@@ -15,8 +15,9 @@ import { userColour } from "@/lib/user-colour"
 import { AssignTaskDialog } from "./AssignTaskDialog"
 import { TaskDetailDialog } from "./TaskDetailDialog"
 import { TaskCalendar } from "./TaskCalendar"
+import { MyDayView } from "./MyDayView"
 
-type PrimaryFilter = "all" | "open" | "done" | "mine"
+type PrimaryFilter = "myDay" | "all" | "open" | "done" | "mine"
 type ViewMode = "list" | "calendar"
 
 // Delete is ops-only under RLS (tasks_delete_ops) — mirrored here so the
@@ -32,7 +33,8 @@ export function TasksPage() {
   const { data: tasks, isLoading, isError, refetch } = useOrgTasks(orgId)
   const setStatus = useSetOrgTaskStatus()
 
-  const [filter, setFilter] = useState<PrimaryFilter>("open")
+  // Agent B item 4: My Day (the old standalone /admin/workspace page) is the default tab, for every role.
+  const [filter, setFilter] = useState<PrimaryFilter>("myDay")
   const [view, setView] = useState<ViewMode>("list")
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<OrgTask | null>(null)
@@ -62,10 +64,12 @@ export function TasksPage() {
           <p className="text-sm text-text-muted">{t("tasks.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2.5">
-          <div className="flex gap-[3px] rounded-full border border-border bg-surface p-1">
-            <ViewToggleButton active={view === "list"} onClick={() => setView("list")} icon={List} label={t("tasks.view.list")} />
-            <ViewToggleButton active={view === "calendar"} onClick={() => setView("calendar")} icon={CalendarDays} label={t("tasks.view.calendar")} />
-          </div>
+          {filter !== "myDay" ? (
+            <div className="flex gap-[3px] rounded-full border border-border bg-surface p-1">
+              <ViewToggleButton active={view === "list"} onClick={() => setView("list")} icon={List} label={t("tasks.view.list")} />
+              <ViewToggleButton active={view === "calendar"} onClick={() => setView("calendar")} icon={CalendarDays} label={t("tasks.view.calendar")} />
+            </div>
+          ) : null}
           <Button onClick={() => setAssignDialogOpen(true)}>
             <Plus className="size-3.5" />
             {t("tasks.assignTask")}
@@ -74,6 +78,9 @@ export function TasksPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
+        <FilterChip active={filter === "myDay"} onClick={() => setFilter("myDay")}>
+          {t("tasks.filters.myDay")}
+        </FilterChip>
         <FilterChip active={filter === "open"} onClick={() => setFilter("open")}>
           {t("tasks.filters.open")} · {openCount}
         </FilterChip>
@@ -101,6 +108,8 @@ export function TasksPage() {
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
         </div>
+      ) : filter === "myDay" ? (
+        orgId && userId && profile ? <MyDayView orgId={orgId} userId={userId} role={profile.role} /> : null
       ) : view === "calendar" ? (
         <TaskCalendar tasks={visibleTasks} today={today} onTaskClick={setSelectedTask} />
       ) : visibleTasks.length === 0 ? (

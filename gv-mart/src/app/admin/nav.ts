@@ -14,7 +14,6 @@ import {
   Wallet,
   BarChart3,
   Settings,
-  ClipboardList,
   Receipt,
   Bell,
   CheckSquare,
@@ -78,8 +77,8 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { key: "masters", labelKey: "nav.masters", path: "/admin/masters", icon: Settings, roles: ["master"] },
   { key: "approvals", labelKey: "nav.approvals", path: "/admin/approvals", icon: CheckSquare, roles: ["master"] },
   { key: "auditLog", labelKey: "nav.auditLog", path: "/admin/audit-log", icon: ScrollText, roles: ["master"] },
+  // Agent B item 4: My Workspace is merged into Tasks (My Day is its default tab) — one nav entry, not two.
   { key: "tasks", labelKey: "nav.tasks", path: "/admin/tasks", icon: ListChecks, roles: ALL_STAFF },
   { key: "huddle", labelKey: "nav.huddle", path: "/admin/huddle", icon: Users2, roles: ALL_STAFF },
-  { key: "workspace", labelKey: "nav.workspace", path: "/admin/workspace", icon: ClipboardList, roles: ALL_STAFF },
   { key: "notifications", labelKey: "nav.notifications", path: "/admin/notifications", icon: Bell, roles: ALL_STAFF },
 ]

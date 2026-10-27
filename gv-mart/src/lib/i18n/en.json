@@ -4785,6 +4785,7 @@
     "assignedBy": "Assigned by {{name}}",
     "due": "Due {{date}}",
     "filters": {
+      "myDay": "My Day",
       "open": "Open",
       "mine": "Assigned to me",
       "done": "Done",
