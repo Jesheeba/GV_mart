@@ -84,13 +84,13 @@ begin
   return 1;
 end;
 $$;$orig$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> 'd65d7395d458ac117593cedf6c1e61638b261e0e8204773cf57b03f6ecf90bfc' then
     raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch: %', v_hash;
   end if;
   v_live := md5(pg_get_functiondef('public.wa_send_huddle_reminder(uuid)'::regprocedure));
   begin
-    execute v_text;
+    execute replace(v_text, E'\r', '');
     v_orig := md5(pg_get_functiondef('public.wa_send_huddle_reminder(uuid)'::regprocedure));
     raise exception 'GV_PRECHECK_PROBE';
   exception when others then
@@ -557,11 +557,11 @@ $$;
 
 notify pgrst, 'reload schema';
 $rh0$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '17538d3073a53eb23ed65ee4f2e333f7f1aeb64a35a6b854920c63a5c704067e' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261102100000_p2_staff_profile_and_huddle.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh1$-- DB tests for 20261102100000_p2_staff_profile_and_huddle. NOT RUN (written for review). Run only through the approved rehearsal
 -- wrapper (migration then this file, one request, ends in an unconditional RAISE). Throwaway __TEST_ organisations only.
@@ -955,11 +955,11 @@ begin
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
 $rh1$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '92c5c039c12d28f65927400f753433f8a9965201804c42bfb2e877aa18e4962a' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for p2_staff_profile_and_huddle.test.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
 end
