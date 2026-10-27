@@ -5,12 +5,15 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast-context"
+import { InlineErrorState } from "@/components/shared/InlineErrorState"
 import { useProfile } from "@/hooks/useProfile"
 import { useOrgLeaveRequests, useDecideTechnicianLeave } from "@/hooks/useTechnicianLeave"
 import { useSettings } from "@/hooks/useMasters"
 import type { LeaveDecision, LeaveRequestListItem, LeaveRequestStatus } from "@/services/technicianLeave"
 import { formatDate } from "@/lib/formatDate"
 import { daysBetween, isInAdvance } from "@/lib/leaveNotice"
+import { isNotYetAvailableError } from "@/lib/supabaseErrors"
+import { resolveSectionState } from "@/lib/listState"
 import { DecideLeaveDialog } from "./DecideLeaveDialog"
 
 const FILTERS: { key: string; statuses: LeaveRequestStatus[] }[] = [
@@ -25,7 +28,7 @@ export function LeaveRequestsPage() {
   const { data: profile } = useProfile()
   const [filterKey, setFilterKey] = useState<string>("pending")
   const statuses = FILTERS.find((f) => f.key === filterKey)?.statuses
-  const { data, isLoading, isError, refetch } = useOrgLeaveRequests(profile?.org_id, statuses)
+  const { data, isLoading, isError, error, refetch } = useOrgLeaveRequests(profile?.org_id, statuses)
   const { data: settings } = useSettings(profile?.org_id)
   const noticeDays = settings?.leave_notice_days ?? 1
   const decide = useDecideTechnicianLeave()
@@ -41,12 +44,13 @@ export function LeaveRequestsPage() {
           toast.success(t(`leaveRequests.toast.${dialog.decision}`))
           setDialog(null)
         },
-        onError: (err) => toast.error(err instanceof Error && err.message ? err.message : t("common.actionFailed")),
+        onError: (err) => toast.error(isNotYetAvailableError(err) ? t("leaveRequests.notAvailableYet") : t("common.actionFailed")),
       }
     )
   }
 
   const rows = useMemo(() => data ?? [], [data])
+  const state = resolveSectionState({ isLoading, isError, isEmpty: rows.length === 0 })
 
   return (
     <div className="space-y-4 pt-2">
@@ -63,18 +67,17 @@ export function LeaveRequestsPage() {
         ))}
       </Card>
 
-      {isError ? (
-        <Card className="items-center gap-2 py-8 text-center">
-          <p className="text-sm text-danger">{t("leaveRequests.loadFailed")}</p>
-          <button type="button" className="text-sm text-text underline" onClick={() => refetch()}>
-            {t("common.retry")}
-          </button>
-        </Card>
-      ) : isLoading ? (
+      {state === "error" ? (
+        <InlineErrorState
+          message={isNotYetAvailableError(error) ? t("leaveRequests.notAvailableYet") : t("leaveRequests.loadFailed")}
+          onRetry={() => refetch()}
+          retryLabel={t("common.retry")}
+        />
+      ) : state === "loading" ? (
         <Card className="items-center py-8 text-center">
           <p className="text-sm text-text-muted">{t("common.loading")}</p>
         </Card>
-      ) : rows.length === 0 ? (
+      ) : state === "empty" ? (
         <Card className="items-center gap-2 py-10 text-center">
           <CalendarOff className="size-6 text-text-muted" />
           <p className="text-sm text-text-muted">{t("leaveRequests.empty")}</p>

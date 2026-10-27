@@ -4,9 +4,11 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { InlineErrorState } from "@/components/shared/InlineErrorState"
 import { useAssignedVisitsInRange } from "@/hooks/useTechnicianLeave"
 import type { LeaveDecision, LeaveRequestListItem } from "@/services/technicianLeave"
 import { formatDate } from "@/lib/formatDate"
+import { isNotYetAvailableError } from "@/lib/supabaseErrors"
 
 /**
  * One dialog for all three admin decisions. Approve shows the technician's already-assigned
@@ -62,6 +64,14 @@ export function DecideLeaveDialog({
         {decision === "approved" ? (
           visits.isLoading ? (
             <p className="text-sm text-text-muted">{t("common.loading")}</p>
+          ) : visits.isError ? (
+            // Never fall through to "no assigned visits" on a failed check — that would read as
+            // "nothing to warn about" when the truth is "we don't know, the check failed".
+            <InlineErrorState
+              message={isNotYetAvailableError(visits.error) ? t("leaveRequests.notAvailableYet") : t("leaveRequests.decideDialog.assignedVisitsCheckFailed")}
+              onRetry={() => visits.refetch()}
+              retryLabel={t("common.retry")}
+            />
           ) : visits.data && visits.data.length > 0 ? (
             <div className="space-y-1 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
               <p className="font-medium">{t("leaveRequests.decideDialog.assignedVisitsWarning", { count: visits.data.length })}</p>

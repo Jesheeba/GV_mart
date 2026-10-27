@@ -5,10 +5,13 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast-context"
-import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { FullPageLoader } from "@/components/shared/FullPageLoader"
+import { InlineErrorState } from "@/components/shared/InlineErrorState"
 import { useMyTechnician } from "@/hooks/useTechnician"
 import { useCancelTechnicianLeave, useMyLeaveRequests } from "@/hooks/useTechnicianLeave"
 import { formatDate } from "@/lib/formatDate"
+import { isNotYetAvailableError } from "@/lib/supabaseErrors"
+import { resolveSectionState } from "@/lib/listState"
 
 const STATUS_VARIANT = {
   pending: "warning",
@@ -23,14 +26,14 @@ export function MyLeavePage() {
   const { toast } = useToast()
   const navigate = useNavigate()
   const technician = useMyTechnician()
-  const { data, isLoading, isError, refetch } = useMyLeaveRequests(technician.data?.id)
+  const { data, isLoading, isError, error, refetch } = useMyLeaveRequests(technician.data?.id)
   const cancel = useCancelTechnicianLeave()
 
-  if (isLoading || technician.isLoading) return <FullPageLoader />
-  if (isError) return <FullPageError message={t("common.actionFailed")} onRetry={() => void refetch()} />
+  if (technician.isLoading) return <FullPageLoader />
 
   const today = new Date()
   const rows = data ?? []
+  const state = resolveSectionState({ isLoading, isError, isEmpty: rows.length === 0 })
 
   return (
     <div className="space-y-4 pt-2">
@@ -42,7 +45,15 @@ export function MyLeavePage() {
         </Button>
       </div>
 
-      {rows.length === 0 ? (
+      {state === "loading" ? (
+        <p className="text-sm text-text-muted">{t("common.loading")}</p>
+      ) : state === "error" ? (
+        <InlineErrorState
+          message={isNotYetAvailableError(error) ? t("technicianLeave.notAvailableYet") : t("technician.errors.loadFailed")}
+          onRetry={() => void refetch()}
+          retryLabel={t("common.retry")}
+        />
+      ) : state === "empty" ? (
         <Card className="items-center gap-2 py-10 text-center">
           <CalendarOff className="size-6 text-text-muted" />
           <p className="text-sm text-text-muted">{t("technicianLeave.myLeave.empty")}</p>
@@ -74,7 +85,7 @@ export function MyLeavePage() {
                     onClick={() =>
                       cancel.mutate(r.id, {
                         onSuccess: () => toast.success(t("technicianLeave.myLeave.cancelled")),
-                        onError: (err) => toast.error(err instanceof Error && err.message ? err.message : t("common.actionFailed")),
+                        onError: (err) => toast.error(isNotYetAvailableError(err) ? t("technicianLeave.notAvailableYet") : t("common.actionFailed")),
                       })
                     }
                   >

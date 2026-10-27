@@ -4099,7 +4099,8 @@
         "totalInstallations": "Total Installations",
         "reviewRateFootnote": "{{rate}}% review-claim rate over {{visits}} completed visits.",
         "flaggedBanner": "Review-claim rate ({{rate}}% over {{visits}} visits) looks unusually high — worth a manual check.",
-        "protectedLeaveDays": "{{count}} day(s) excluded this month (approved leave)"
+        "protectedLeaveDays": "{{count}} day(s) excluded this month (approved leave)",
+        "protectedLeaveDaysFailed": "Couldn't load excluded days."
       },
       "viewTicket": "View ticket",
       "outsideGeofence": "Outside office",
@@ -5140,6 +5141,7 @@
     "badgeTitle": "{{count}} leave request(s) pending",
     "filters": { "pending": "Pending", "approved": "Approved", "closed": "Rejected / revoked / cancelled" },
     "loadFailed": "Could not load leave requests.",
+    "notAvailableYet": "This feature isn't available yet. Please check back later.",
     "empty": "No leave requests here.",
     "status": { "pending": "Pending", "approved": "Approved", "rejected": "Rejected", "cancelled": "Cancelled", "revoked": "Revoked" },
     "badge": { "inAdvance": "In advance", "late": "Late (KPI not protected)" },
@@ -5153,6 +5155,7 @@
       "range": "{{technician}}: {{start}} – {{end}}",
       "assignedVisitsWarning": "{{count}} visit(s) already assigned on these days — reassign them yourself, nothing here does it automatically.",
       "noAssignedVisits": "No visits are assigned to this technician on these days.",
+      "assignedVisitsCheckFailed": "Couldn't check for assigned visits.",
       "noteLabel": "Note (required)",
       "notePlaceholder": "Why?",
       "confirm": { "approved": "Approve", "rejected": "Reject", "revoked": "Revoke" }
@@ -5169,6 +5172,8 @@
       "submitted": "Leave request submitted",
       "errors": { "endBeforeStart": "End date cannot be before start date.", "tooLong": "A single request cannot exceed 30 days." }
     },
+    "notAvailableYet": "This feature isn't available yet. Please check back later.",
+    "valuesKept": "Your entered details are kept — you can try again.",
     "myLeave": {
       "title": "My leave",
       "request": "Request leave",

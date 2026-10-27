@@ -15,6 +15,7 @@ import { DOT_TONE_CLASS, StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { useSettings } from "@/hooks/useMasters"
 import { useProtectedLeaveDays } from "@/hooks/useTechnicianLeave"
+import { isNotYetAvailableError } from "@/lib/supabaseErrors"
 import { useTechnicianTierProgress, useTechnicianTiers } from "@/hooks/useTechnicianTiers"
 import { formatCurrency } from "@/lib/sale-calc"
 import {
@@ -943,7 +944,11 @@ function KpisTab({
   if (!summary) return <EmptyState label={t("technicians.detail.kpi.unavailable")} />
   return (
     <div className="space-y-3">
-      {protectedDays.data ? (
+      {protectedDays.isError ? (
+        <p className="px-1 text-xs text-danger">
+          {isNotYetAvailableError(protectedDays.error) ? t("technicianLeave.notAvailableYet") : t("technicians.detail.kpi.protectedLeaveDaysFailed")}
+        </p>
+      ) : protectedDays.data ? (
         <p className="px-1 text-xs text-text-muted">{t("technicians.detail.kpi.protectedLeaveDays", { count: protectedDays.data })}</p>
       ) : null}
       {summary.flagged ? (

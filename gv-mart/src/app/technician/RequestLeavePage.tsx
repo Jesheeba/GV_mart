@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { Loader2 } from "lucide-react"
+import { Loader2, TriangleAlert } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast-context"
 import { useMyTechnician } from "@/hooks/useTechnician"
 import { useRequestTechnicianLeave } from "@/hooks/useTechnicianLeave"
+import { isNotYetAvailableError } from "@/lib/supabaseErrors"
 
 const MAX_REASON = 500
 
@@ -28,12 +29,14 @@ export function RequestLeavePage() {
   const [startDate, setStartDate] = useState(todayIsoPlus(1))
   const [endDate, setEndDate] = useState(todayIsoPlus(1))
   const [reason, setReason] = useState("")
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const minStart = todayIsoPlus(1)
   const endBeforeStart = endDate < startDate
   const tooLong = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000 > 29
 
   function submit() {
+    setSubmitError(null)
     requestLeave.mutate(
       { startDate, endDate, reason: reason.trim() || null },
       {
@@ -41,7 +44,11 @@ export function RequestLeavePage() {
           toast.success(t("technicianLeave.request.submitted"))
           navigate("/technician/leave")
         },
-        onError: (err) => toast.error(err instanceof Error && err.message ? err.message : t("common.actionFailed")),
+        // startDate/endDate/reason are only ever cleared on success (above) — a failed
+        // submission leaves everything exactly as the technician typed it.
+        onError: (err) => {
+          setSubmitError(isNotYetAvailableError(err) ? t("technicianLeave.notAvailableYet") : t("common.actionFailed"))
+        },
       }
     )
   }
@@ -79,6 +86,15 @@ export function RequestLeavePage() {
           />
           <p className="text-right text-xs text-text-muted">{reason.length}/{MAX_REASON}</p>
         </div>
+
+        {submitError ? (
+          <div className="space-y-1">
+            <p className="flex items-center gap-1.5 text-sm text-danger">
+              <TriangleAlert className="size-3.5 shrink-0" /> {submitError}
+            </p>
+            <p className="text-xs text-text-muted">{t("technicianLeave.valuesKept")}</p>
+          </div>
+        ) : null}
 
         <Button
           disabled={!technician.data || endBeforeStart || tooLong || requestLeave.isPending}
