@@ -6911,7 +6911,20 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      task_minute_totals: {
+        Row: {
+          task_id: string | null
+          total_minutes: number | null
+        }
+        Relationships: []
+      }
+      person_minute_totals: {
+        Row: {
+          profile_id: string | null
+          total_minutes: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       set_customer_preferred_language: {
@@ -7865,6 +7878,7 @@ export type Database = {
 
 type PublicSchema = Database["public"]
 
+export type Views<T extends keyof PublicSchema["Views"]> = PublicSchema["Views"][T]["Row"]
 export type Tables<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Row"]
 export type TablesInsert<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Insert"]
 export type TablesUpdate<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Update"]

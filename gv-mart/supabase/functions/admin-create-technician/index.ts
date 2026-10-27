@@ -29,7 +29,8 @@ type CreateBody = {
   fullName: string
   phone: string
   email: string
-  address?: string | null
+  designation: string
+  address: string
   city?: string | null
   state?: string | null
   pincode?: string | null
@@ -116,8 +117,11 @@ Deno.serve(async (req) => {
 
   try {
     if (body.action === "create") {
-      if (!body.fullName?.trim() || !body.phone?.trim() || !body.email?.trim()) {
-        return jsonError("fullName, phone and email are required", 400)
+      if (!body.fullName?.trim() || !body.phone?.trim() || !body.email?.trim() || !body.designation?.trim() || !body.address?.trim()) {
+        return jsonError("fullName, phone, email, designation and address are required", 400)
+      }
+      if (body.address.trim().length < 8) {
+        return jsonError("The full address must be at least 8 characters", 400)
       }
       const password = generatePassword()
 
@@ -140,6 +144,7 @@ Deno.serve(async (req) => {
         full_name: body.fullName.trim(),
         phone: body.phone.trim(),
         role: "technician",
+        designation: body.designation.trim(),
         photo_url: body.photoUrl ?? null,
         // The password already exists (createUser above), so the flag is armed second — same ordering as
         // admin-create-staff. guard_profile_staff_fields lets the service-role connection set it on INSERT.

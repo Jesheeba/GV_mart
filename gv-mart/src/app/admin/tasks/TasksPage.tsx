@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
-import { useOrgTasks, useSetOrgTaskStatus } from "@/hooks/useTasks"
+import { useOrgTasks, usePersonMinuteTotals, useSetOrgTaskStatus } from "@/hooks/useTasks"
 import type { OrgTask } from "@/services/tasks"
 import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { cn } from "@/lib/utils"
@@ -54,6 +54,21 @@ export function TasksPage() {
   }, [allTasks, filter, userId, today])
 
   const canDelete = !!profile && CAN_DELETE_ROLES.has(profile.role)
+  const canSeeTeamTime = !!profile && CAN_DELETE_ROLES.has(profile.role)
+  const personMinuteTotals = usePersonMinuteTotals(orgId, canSeeTeamTime)
+  const personNames = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const tsk of allTasks) if (tsk.assignee) m.set(tsk.assignee.id, tsk.assignee.full_name)
+    return m
+  }, [allTasks])
+  const teamTimeRows = useMemo(
+    () =>
+      (personMinuteTotals.data ?? [])
+        .filter((r) => r.profile_id && r.total_minutes)
+        .map((r) => ({ id: r.profile_id as string, name: personNames.get(r.profile_id as string) ?? t("tasks.unknownUser"), minutes: r.total_minutes as number }))
+        .sort((a, b) => b.minutes - a.minutes),
+    [personMinuteTotals.data, personNames, t]
+  )
 
   return (
     <div className="space-y-4 pt-2">
@@ -88,6 +103,20 @@ export function TasksPage() {
           {t("tasks.filters.all")} · {allTasks.length}
         </FilterChip>
       </div>
+
+      {canSeeTeamTime && teamTimeRows.length > 0 ? (
+        <Card className="gap-2 px-4 py-3">
+          <p className="text-xs font-semibold text-text-muted">{t("tasks.teamTime.title")}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {teamTimeRows.map((row) => (
+              <p key={row.id} className="text-sm text-text">
+                <span className="font-medium">{row.name}</span>{" "}
+                <span className="text-text-muted">{t("tasks.teamTime.minutes", { count: row.minutes })}</span>
+              </p>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {isError ? (
         <Card className="items-center gap-2 py-8 text-center">

@@ -1,8 +1,22 @@
 import { supabase } from "@/lib/supabase"
-import type { Enums, Tables } from "@/types/database"
+import type { Enums, Tables, Views } from "@/types/database"
 
 export type TaskRow = Tables<"tasks">
 export type PriorityLevel = Enums<"priority_level">
+export type PersonMinuteTotal = Views<"person_minute_totals">
+
+// Cumulative minutes logged across every task a person is assigned to, visible to master/operation_admin
+// (tasks_select_internal/task_logs_select already decide what each caller sees — the view is security_invoker,
+// so this is never more than what the caller could already see task by task, just summed). No org_id column
+// to filter on: the view joins tasks, whose RLS already scopes every row to the caller's organisation.
+export async function listPersonMinuteTotals(): Promise<PersonMinuteTotal[]> {
+  const { data, error } = await supabase
+    .from("person_minute_totals")
+    .select("profile_id, total_minutes")
+    .not("profile_id", "is", null)
+  if (error) throw error
+  return (data ?? []).filter((r) => r.total_minutes != null)
+}
 
 export type AssignableProfile = { id: string; full_name: string; role: Enums<"user_role"> }
 

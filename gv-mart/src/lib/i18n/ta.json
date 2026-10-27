@@ -4036,9 +4036,13 @@
       "addTechnicianHint": "இந்த ஆப்பிற்கு வெளியே (எ.கா. Supabase டாஷ்போர்டு மூலம்) ஏற்கனவே உருவாக்கப்பட்ட, ஆனால் இன்னும் தொழிலாளியாக இல்லாத உள்நுழைவுக்கு.",
       "noEligibleProfiles": "தகுதியான உள்நுழைவுகள் எதுவும் இல்லை.",
       "pickProfile": "ஒருவரைத் தேர்ந்தெடுக்கவும்",
+      "errors": {
+        "addressTooShort": "முழு முகவரி குறைந்தது 8 எழுத்துக்கள் இருக்க வேண்டும்"
+      },
       "fields": {
         "fullName": "முழுப்பெயர்",
         "email": "மின்னஞ்சல்",
+        "designation": "பதவி",
         "photo": "சுயவிவரப் புகைப்படம்",
         "photoUpload": "புகைப்படத்தைப் பதிவேற்று",
         "photoChange": "புகைப்படத்தை மாற்று",
@@ -4781,6 +4785,8 @@
       "next": "Next",
       "minutes_one": "{{count}} minute",
       "minutes_other": "{{count}} minutes",
+      "totalMinutes_one": "Total: {{count}} minute",
+      "totalMinutes_other": "Total: {{count}} minutes",
       "reassigned": "{{who}} reassigned this from {{from}} to {{to}}",
       "status": "{{who}} changed the status from {{from}} to {{to}}",
       "dueMoved": "{{who}} moved the due date from {{from}} to {{to}}",
@@ -4792,6 +4798,11 @@
       "po_needs_master": "Only the master can finish a purchase-order task, because the master approves and pays purchase orders. Ask the master to finish it, or reassign it."
     },
     "subtitle": "முழு குழுவிலும் பணிகளை ஒதுக்கி கண்காணிக்கவும்.",
+    "teamTime": {
+      "title": "ஒரு நபருக்கு பதிவு செய்யப்பட்ட மொத்த நேரம் (ஒட்டுமொத்தம்)",
+      "minutes_one": "{{count}} நிமிடம்",
+      "minutes_other": "{{count}} நிமிடங்கள்"
+    },
     "assignTask": "பணி ஒதுக்கு",
     "loadFailed": "பணிகளை ஏற்ற முடியவில்லை.",
     "empty": "இங்கு பணிகள் இல்லை.",

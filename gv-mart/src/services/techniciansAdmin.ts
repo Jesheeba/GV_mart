@@ -215,7 +215,8 @@ export type CreateTechnicianInput = {
   fullName: string
   phone: string
   email: string
-  address?: string | null
+  designation: string
+  address: string
   city?: string | null
   state?: string | null
   pincode?: string | null

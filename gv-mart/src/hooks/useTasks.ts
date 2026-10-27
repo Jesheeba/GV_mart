@@ -13,6 +13,14 @@ export function useOrgTasks(orgId: string | undefined) {
   })
 }
 
+export function usePersonMinuteTotals(orgId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["tasks", "personMinuteTotals", orgId],
+    queryFn: () => tasksService.listPersonMinuteTotals(),
+    enabled: !!orgId && enabled,
+  })
+}
+
 export function useAssignableProfiles(orgId: string | undefined) {
   return useQuery({
     queryKey: ["tasks", "assignableProfiles", orgId],

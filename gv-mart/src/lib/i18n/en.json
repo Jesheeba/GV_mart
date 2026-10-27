@@ -4041,9 +4041,13 @@
       "addTechnicianHint": "For a login already created outside this app (e.g. via the Supabase dashboard) that isn't a technician yet.",
       "noEligibleProfiles": "No eligible logins found.",
       "pickProfile": "Select a person",
+      "errors": {
+        "addressTooShort": "The full address must be at least 8 characters"
+      },
       "fields": {
         "fullName": "Full Name",
         "email": "Email",
+        "designation": "Designation",
         "photo": "Profile Photo",
         "photoUpload": "Upload photo",
         "photoChange": "Change photo",
@@ -4786,6 +4790,8 @@
       "next": "Next",
       "minutes_one": "{{count}} minute",
       "minutes_other": "{{count}} minutes",
+      "totalMinutes_one": "Total: {{count}} minute",
+      "totalMinutes_other": "Total: {{count}} minutes",
       "reassigned": "{{who}} reassigned this from {{from}} to {{to}}",
       "status": "{{who}} changed the status from {{from}} to {{to}}",
       "dueMoved": "{{who}} moved the due date from {{from}} to {{to}}",
@@ -4797,6 +4803,11 @@
       "po_needs_master": "Only the master can finish a purchase-order task, because the master approves and pays purchase orders. Ask the master to finish it, or reassign it."
     },
     "subtitle": "Assign and track tasks across the whole team.",
+    "teamTime": {
+      "title": "Total time logged, per person (cumulative)",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes"
+    },
     "assignTask": "Assign Task",
     "loadFailed": "Could not load tasks.",
     "empty": "No tasks here.",

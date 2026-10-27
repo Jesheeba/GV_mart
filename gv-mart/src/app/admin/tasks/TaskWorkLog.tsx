@@ -59,9 +59,14 @@ export function TaskWorkLog({ orgId, taskId }: { orgId: string; taskId: string }
     )
   }
 
+  const totalMinutes = (logs.data ?? []).reduce((sum, log) => sum + (log.minutes_spent ?? 0), 0)
+
   return (
     <div className="space-y-2 border-t border-border pt-3">
-      <p className="text-sm font-semibold text-text">{t("tasks.log.title")}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-text">{t("tasks.log.title")}</p>
+        {totalMinutes > 0 ? <p className="text-xs font-medium text-text-muted">{t("tasks.log.totalMinutes", { count: totalMinutes })}</p> : null}
+      </div>
       {logs.isLoading ? (
         <p className="text-xs text-text-muted">{t("common.loading")}</p>
       ) : logs.isError ? (
