@@ -49,7 +49,7 @@
 --   117108956dc0f12c49068c46e0a1ff2a4b489082d185e6ecaeb443acbf87ad0c  gv-mart/supabase/migrations/20261104100000_product_item_code.sql
 --   4acedd9092e5fc40009709dcda9f65405c29c314913341ff32e24e6f25678a8d  gv-mart/supabase/migrations/20261104110000_invoice_quotation_item_code_snapshot.sql
 --   b5fac0cfb851f31735e1f02cec04e4ce22aab9e7a8176c51c15353ce6be66f4f  gv-mart/supabase/migrations/20261104120000_item_code_master_update_guard.sql
---   d536b67e4b7c2d67f2c8533eac10b91b6a0b6c756d63ef7a29f0ec46e5cd240e  gv-mart/supabase/tests/item_code_master_update_guard.test.sql
+--   8b82114daf5e0009ec3a98db6a77e164febec8df1fcc4c4695e8b7240312ef36  gv-mart/supabase/tests/item_code_master_update_guard.test.sql
 -- Pinned (relative fingerprint of the real organisation; read-only, confirmed against the live project):
 --   6f891cf85011f08c2f22fb4a208d21bd  md5(organizations.id || '|' || organizations.name) of the earliest non-__TEST row
 
@@ -336,12 +336,17 @@ begin
     and not has_function_privilege('authenticated', 'public.guard_item_code_update()', 'execute'));
 
   -- T: the trigger is BEFORE UPDATE OF item_code specifically, not a blanket BEFORE UPDATE.
+  -- (review fix: compared via the TEXT form of tgattr/attnum, not tgattr::int2[] = array_agg(...)::int2[] --
+  -- int2vector::int2[] keeps a zero-based lower bound while array_agg(...)::int2[] is one-based, and Postgres
+  -- array equality compares bounds too, so the array-form comparison was false even for a correctly-scoped
+  -- trigger. tgattr is a vector of the column numbers the trigger is scoped to; this trigger is scoped to one
+  -- column, so comparing its text form to that one column's attnum, as text, is exact for this trigger's shape.)
   perform pg_temp.chk('T1 guard_item_code_update trigger exists on products, fires only when item_code is in the UPDATE''s column list',
     exists (
       select 1 from pg_trigger tg
+      join pg_attribute a on a.attrelid = tg.tgrelid and a.attname = 'item_code'
       where tg.tgrelid = 'public.products'::regclass and tg.tgname = 'guard_item_code_update'
-        and tg.tgattr::int2[] = (select array_agg(a.attnum order by a.attnum)::int2[]
-                          from pg_attribute a where a.attrelid = 'public.products'::regclass and a.attname = 'item_code')));
+        and tg.tgattr::text = a.attnum::text));
 
   insert into public.organizations(name) values ('__TEST_p4c') returning id into v_org;
   m := pg_temp.mkuser('master', v_org); o := pg_temp.mkuser('operation_admin', v_org); s := pg_temp.mkuser('sales_admin', v_org);
@@ -415,7 +420,7 @@ begin
 end $t$;
 $rh3$;
   v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
-  if v_hash <> 'd536b67e4b7c2d67f2c8533eac10b91b6a0b6c756d63ef7a29f0ec46e5cd240e' then
+  if v_hash <> '8b82114daf5e0009ec3a98db6a77e164febec8df1fcc4c4695e8b7240312ef36' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for item_code_master_update_guard.test.sql: %', v_hash;
   end if;
   begin
