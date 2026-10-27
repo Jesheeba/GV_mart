@@ -213,6 +213,34 @@ begin
   perform pg_temp.as_pg();
   perform pg_temp.chk('a master cannot call arm directly (service role only)', s like '%permission denied%', coalesce(s, 'accepted'));
 
+  -- the mechanism above is role-agnostic (no role check anywhere in it); admin-create-technician now calls it the
+  -- same way admin-create-staff/admin-reset-staff-password do — a technician is forced to change their password on
+  -- next login too, both when the login is first created and after a master resets it.
+  declare v_tech_profile uuid;
+  begin
+    insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+    values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '__t_newtech_' || gen_random_uuid() || '@test.invalid', 'brand-new-password', now(), now(), now(), '{}', '{}')
+    returning id into v_tech_profile;
+    -- admin-create-technician's own insert: profile row created with must_change_password already true (the password exists first, same ordering as staff)
+    insert into public.profiles (id, org_id, full_name, role, is_active, must_change_password)
+      values (v_tech_profile, v_org, '__TEST_ new technician', 'technician', true, true);
+    perform pg_temp.chk('a freshly-created technician is force-flagged on INSERT, same as a freshly-created staff member',
+      (select must_change_password from profiles where id = v_tech_profile)
+      and (select marker from profile_password_markers where profile_id = v_tech_profile) = md5('brand-new-password'));
+    update auth.users set encrypted_password = 'tech-changed-it' where id = v_tech_profile;
+    perform pg_temp.as_user(v_tech_profile);
+    s := pg_temp.raises($q$select public.complete_forced_password_change()$q$);
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('once that technician actually changes it, the flag clears exactly like it does for staff',
+      s is null and not (select must_change_password from profiles where id = v_tech_profile), coalesce(s, 'ok'));
+    -- admin-create-technician's "reset_password" action: password changed first, THEN arm_forced_password_change
+    update auth.users set encrypted_password = 'tech-reset-by-master' where id = v_tech_profile;
+    perform public.arm_forced_password_change(v_tech_profile);
+    perform pg_temp.chk('resetting an existing technician''s password re-arms the flag with the new hash, same as a staff reset',
+      (select must_change_password from profiles where id = v_tech_profile)
+      and (select marker from profile_password_markers where profile_id = v_tech_profile) = md5('tech-reset-by-master'));
+  end;
+
   -- ---------- huddle: technicians raise, the master is told, names are stamped ----------
   perform pg_temp.as_user(v_tp);
   select public.raise_huddle_issue('  The van GPS keeps dropping off during jobs  ') into v_issue;
