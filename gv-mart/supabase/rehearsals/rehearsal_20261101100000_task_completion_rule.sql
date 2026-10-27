@@ -8,6 +8,10 @@
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb  gv-mart/supabase/migrations/20261101100000_task_completion_rule.sql
 --   4de23da6f03a58e37070f509c96345d70d70521552823b3a0bdd6df2a4bf1814  gv-mart/supabase/tests/task_completion_rule.test.sql
+--   04010cb97582a59808233d2fb09e1e552de294de25398fddd603029df60a0ed3  (pre-check snippet: public._po_task_completed_marks_paid() as it stood before P1a, i.e. 20260925100100's definition)
+--   c40c406b744a9a48f7ac20c6878cabdfd512dfeb0affd0963e4e3fffdbeb4348  (pre-check snippet: policy tasks_update_assign on public.tasks as it stood before P1a, i.e. 20260921160000's definition)
+-- Real-organisation check: before anything else runs, the wrapper confirms it is pointed at the expected database by hashing the
+-- oldest non-__TEST organisation's id and name and refusing on any mismatch with the pinned value below.
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.status::text || ':' || coalesce(t.assignee_id::text, '-') || ':' || coalesce(t.assigned_by::text, '-'), ',' order by t.id)
@@ -21,9 +25,90 @@ declare
   v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   v_text text;
   v_hash text;
+  v_live text;
+  v_orig text;
+  v_orgcheck text;
 begin
+  perform set_config('lock_timeout', '5s', true);
+
+  select md5(o.id::text || '|' || o.name) into v_orgcheck
+    from public.organizations o
+   where o.name not like '\_\_TEST%'
+   order by o.created_at asc
+   limit 1;
+  if v_orgcheck is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
+  end if;
+
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  end if;
+
+  -- pre-check: the live public._po_task_completed_marks_paid() is still the pre-P1a definition (20260925100100), before this
+  -- migration redefines it. Same GV_PRECHECK_PROBE pattern as the Step 3 wrapper's _trg_meeting_issue_notify pre-check.
+  v_text := $pochk$create or replace function public._po_task_completed_marks_paid()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.ref_type = 'purchase_order' and new.status = 'done' and (old.status is distinct from 'done') then
+    update public.purchase_orders
+      set status = 'paid'
+      where id = new.ref_id and org_id = new.org_id and status in ('sent', 'received');
+  end if;
+  return new;
+end;
+$$;$pochk$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> '04010cb97582a59808233d2fb09e1e552de294de25398fddd603029df60a0ed3' then
+    raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch (_po_task_completed_marks_paid): %', v_hash;
+  end if;
+  v_live := md5(pg_get_functiondef('public._po_task_completed_marks_paid()'::regprocedure));
+  begin
+    execute v_text;
+    v_orig := md5(pg_get_functiondef('public._po_task_completed_marks_paid()'::regprocedure));
+    raise exception 'GV_PRECHECK_PROBE';
+  exception when others then
+    if sqlerrm <> 'GV_PRECHECK_PROBE' then raise; end if;
+  end;
+  if v_orig is distinct from v_live then
+    raise exception 'REHEARSAL_REFUSED: live public._po_task_completed_marks_paid() (md5 %) differs from its pre-P1a definition (md5 %)', v_live, v_orig;
+  end if;
+
+  -- pre-check: the live policy tasks_update_assign is still the pre-P1a definition (20260921160000), before this migration drops
+  -- and recreates it. Policies have no CREATE OR REPLACE, so the sub-block drops and recreates it, then rolls back the same way.
+  v_text := $polchk$create policy tasks_update_assign on public.tasks
+  for update using (
+    org_id = public.current_org_id()
+    and (public.is_staff() or public.current_technician_id() is not null)
+  )
+  with check (
+    org_id = public.current_org_id()
+    and (public.is_staff() or public.current_technician_id() is not null)
+  );$polchk$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> 'c40c406b744a9a48f7ac20c6878cabdfd512dfeb0affd0963e4e3fffdbeb4348' then
+    raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch (tasks_update_assign): %', v_hash;
+  end if;
+  select md5(pg_get_expr(pol.polqual, pol.polrelid) || '|' || coalesce(pg_get_expr(pol.polwithcheck, pol.polrelid), ''))
+    into v_live
+    from pg_policy pol
+    where pol.polrelid = 'public.tasks'::regclass and pol.polname = 'tasks_update_assign';
+  begin
+    drop policy if exists tasks_update_assign on public.tasks;
+    execute v_text;
+    select md5(pg_get_expr(pol.polqual, pol.polrelid) || '|' || coalesce(pg_get_expr(pol.polwithcheck, pol.polrelid), ''))
+      into v_orig
+      from pg_policy pol
+      where pol.polrelid = 'public.tasks'::regclass and pol.polname = 'tasks_update_assign';
+    raise exception 'GV_PRECHECK_PROBE';
+  exception when others then
+    if sqlerrm <> 'GV_PRECHECK_PROBE' then raise; end if;
+  end;
+  if v_orig is distinct from v_live then
+    raise exception 'REHEARSAL_REFUSED: live tasks_update_assign policy (md5 %) differs from its pre-P1a definition (md5 %)', v_live, v_orig;
   end if;
 
   execute $gvfp$create function pg_temp.gv_fingerprint() returns text language sql stable as $fpb$

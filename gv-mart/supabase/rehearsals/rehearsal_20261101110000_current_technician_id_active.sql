@@ -11,6 +11,9 @@
 -- Pinned (sha256 of the LF blob at the commit this wrapper was generated from):
 --   a64bf7ad63d9ab2501a5da7147f95a9986945e73231c8b612f49769105523a40  gv-mart/supabase/migrations/20261101110000_current_technician_id_active.sql
 --   10986439bf9078a214304d66eee416adb554d060c170993b1c431a90d7165e88  gv-mart/supabase/tests/current_technician_id_active.test.sql
+--   8d4acb9ff750cbca42a26fc312c37f69a9c7bec8d5800f30efb9b22229b73aa1  (pre-check snippet: public.current_technician_id() as it stood before P1b, i.e. 20260701091200's definition; same snippet P3's wrapper already pins)
+-- Real-organisation check: before anything else runs, the wrapper confirms it is pointed at the expected database by hashing the
+-- oldest non-__TEST organisation's id and name and refusing on any mismatch with the pinned value below.
 -- Baseline: before the migration the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(t.id::text || ':' || t.is_active::text, ',' order by t.id)
@@ -22,9 +25,45 @@ declare
   v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   v_text text;
   v_hash text;
+  v_live text;
+  v_orig text;
+  v_orgcheck text;
 begin
+  perform set_config('lock_timeout', '5s', true);
+
+  select md5(o.id::text || '|' || o.name) into v_orgcheck
+    from public.organizations o
+   where o.name not like '\_\_TEST%'
+   order by o.created_at asc
+   limit 1;
+  if v_orgcheck is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
+  end if;
+
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  end if;
+
+  -- pre-check: the live public.current_technician_id() is still the pre-P1b definition (20260701091200), before this migration
+  -- redefines it. Same GV_PRECHECK_PROBE pattern as the Step 3 wrapper's _trg_meeting_issue_notify pre-check.
+  v_text := $ctichk$create or replace function public.current_technician_id()
+returns uuid
+language sql stable security definer set search_path = public
+as $$ select id from public.technicians where profile_id = auth.uid() $$;$ctichk$;
+  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  if v_hash <> '8d4acb9ff750cbca42a26fc312c37f69a9c7bec8d5800f30efb9b22229b73aa1' then
+    raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch (current_technician_id): %', v_hash;
+  end if;
+  v_live := md5(pg_get_functiondef('public.current_technician_id()'::regprocedure));
+  begin
+    execute v_text;
+    v_orig := md5(pg_get_functiondef('public.current_technician_id()'::regprocedure));
+    raise exception 'GV_PRECHECK_PROBE';
+  exception when others then
+    if sqlerrm <> 'GV_PRECHECK_PROBE' then raise; end if;
+  end;
+  if v_orig is distinct from v_live then
+    raise exception 'REHEARSAL_REFUSED: live public.current_technician_id() (md5 %) differs from its pre-P1b definition (md5 %)', v_live, v_orig;
   end if;
 
   execute $gvfp$create function pg_temp.gv_fingerprint() returns text language sql stable as $fpb$
