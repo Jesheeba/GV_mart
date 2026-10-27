@@ -61,13 +61,13 @@ begin
   return new;
 end;
 $$;$pochk$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '04010cb97582a59808233d2fb09e1e552de294de25398fddd603029df60a0ed3' then
     raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch (_po_task_completed_marks_paid): %', v_hash;
   end if;
   v_live := md5(pg_get_functiondef('public._po_task_completed_marks_paid()'::regprocedure));
   begin
-    execute v_text;
+    execute replace(v_text, E'\r', '');
     v_orig := md5(pg_get_functiondef('public._po_task_completed_marks_paid()'::regprocedure));
     raise exception 'GV_PRECHECK_PROBE';
   exception when others then
@@ -88,7 +88,7 @@ $$;$pochk$;
     org_id = public.current_org_id()
     and (public.is_staff() or public.current_technician_id() is not null)
   );$polchk$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> 'c40c406b744a9a48f7ac20c6878cabdfd512dfeb0affd0963e4e3fffdbeb4348' then
     raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch (tasks_update_assign): %', v_hash;
   end if;
@@ -98,7 +98,7 @@ $$;$pochk$;
     where pol.polrelid = 'public.tasks'::regclass and pol.polname = 'tasks_update_assign';
   begin
     drop policy if exists tasks_update_assign on public.tasks;
-    execute v_text;
+    execute replace(v_text, E'\r', '');
     select md5(pg_get_expr(pol.polqual, pol.polrelid) || '|' || coalesce(pg_get_expr(pol.polwithcheck, pol.polrelid), ''))
       into v_orig
       from pg_policy pol
@@ -237,11 +237,11 @@ create policy tasks_update_assign on public.tasks
 
 notify pgrst, 'reload schema';
 $rh0$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> 'da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101100000_task_completion_rule.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh1$-- DB tests for 20261101100000_task_completion_rule. NOT RUN (written for review). Run only through the approved rehearsal wrapper
 -- (migration then this file, one request, ends in an unconditional RAISE). Throwaway __TEST_ organisation only.
@@ -542,11 +542,11 @@ begin
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
 $rh1$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '4de23da6f03a58e37070f509c96345d70d70521552823b3a0bdd6df2a4bf1814' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for task_completion_rule.test.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
 end

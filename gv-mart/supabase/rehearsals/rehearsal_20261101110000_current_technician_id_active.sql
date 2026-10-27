@@ -50,13 +50,13 @@ begin
 returns uuid
 language sql stable security definer set search_path = public
 as $$ select id from public.technicians where profile_id = auth.uid() $$;$ctichk$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '8d4acb9ff750cbca42a26fc312c37f69a9c7bec8d5800f30efb9b22229b73aa1' then
     raise exception 'REHEARSAL_REFUSED: pre-check snippet hash mismatch (current_technician_id): %', v_hash;
   end if;
   v_live := md5(pg_get_functiondef('public.current_technician_id()'::regprocedure));
   begin
-    execute v_text;
+    execute replace(v_text, E'\r', '');
     v_orig := md5(pg_get_functiondef('public.current_technician_id()'::regprocedure));
     raise exception 'GV_PRECHECK_PROBE';
   exception when others then
@@ -87,11 +87,11 @@ returns uuid
 language sql stable security definer set search_path = public
 as $$ select t.id from public.technicians t where t.profile_id = auth.uid() and t.is_active $$;
 $rh0$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> 'a64bf7ad63d9ab2501a5da7147f95a9986945e73231c8b612f49769105523a40' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for 20261101110000_current_technician_id_active.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   v_text := $rh1$-- DB tests for 20261101110000_current_technician_id_active. NOT RUN (written for review). Run only through the approved rehearsal wrapper
 -- (migration then this file, one request, ends in an unconditional RAISE). Throwaway __TEST_ organisation only.
@@ -190,11 +190,11 @@ begin
   raise exception 'RESULTS%', E'\n' || (select string_agg(r2.line, E'\n' order by r2.n) from pg_temp.res r2);
 end $t$;
 $rh1$;
-  v_hash := encode(sha256(convert_to(v_text, 'UTF8')), 'hex');
+  v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
   if v_hash <> '10986439bf9078a214304d66eee416adb554d060c170993b1c431a90d7165e88' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for current_technician_id_active.test.sql: %', v_hash;
   end if;
-  execute v_text;
+  execute replace(v_text, E'\r', '');
 
   raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
 end
