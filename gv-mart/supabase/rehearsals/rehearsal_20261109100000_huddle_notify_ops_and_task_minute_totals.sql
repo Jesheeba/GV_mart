@@ -17,6 +17,14 @@
 -- Pre-check: the live public._trg_meeting_issue_notify() must equal what P2's migration (20261102100000) defined, before this
 -- migration redefines it. The wrapper re-creates the pinned snippet inside a sub-block, takes md5(pg_get_functiondef()) of it,
 -- rolls the sub-block back, and refuses if it differs from the live md5.
+-- LIMITATION OF THIS PRE-CHECK IN A REHEARSAL: because P2 is CHAINED a few lines above (not applied for real), the "live" value this
+-- pre-check compares against is only the function P2's own text just created inside THIS rehearsal's own rolled-back transaction —
+-- it proves P2's text is internally self-consistent, not that it matches whatever is actually live in production right now. The
+-- GO APPLY version of this wrapper (run only after P2 has genuinely been applied to the target database) must drop the "chain P2"
+-- step entirely and run this same pre-check directly against the real live public._trg_meeting_issue_notify(), the way P2's own
+-- wrapper's wa_send_huddle_reminder pre-check and P3's own wrapper's current_technician_id pre-check already do against their targets.
+-- Real-organisation check: before anything else runs, the wrapper confirms it is pointed at the expected database by hashing the
+-- oldest non-__TEST organisation's id and name and refusing on any mismatch with the pinned value below.
 -- Baseline: before anything runs, the wrapper stores this fingerprint of the REAL organisations in gv.baseline; the test file
 -- recomputes it at the end and checks it is unchanged (a relative comparison, not an absolute count). Fingerprint SQL:
 --   select md5(coalesce((select string_agg(n.id::text || ':' || n.type || ':' || coalesce(n.user_id::text,'-'), ',' order by n.id)
@@ -32,7 +40,19 @@ declare
   v_hash text;
   v_live text;
   v_orig text;
+  v_orgcheck text;
 begin
+  perform set_config('lock_timeout', '5s', true);
+
+  select md5(o.id::text || '|' || o.name) into v_orgcheck
+    from public.organizations o
+   where o.name not like '\_\_TEST%'
+   order by o.created_at asc
+   limit 1;
+  if v_orgcheck is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
+  end if;
+
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
   end if;
