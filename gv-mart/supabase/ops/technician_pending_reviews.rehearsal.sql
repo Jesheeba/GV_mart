@@ -322,8 +322,8 @@ begin
   end if;
 
   -- 3. PIN -- both embedded files must match their recorded hash before anything runs.
-  v_actual_migration_hash := encode(sha256(convert_to(v_embedded_migration, 'UTF8')), 'hex');
-  v_actual_test_hash := encode(sha256(convert_to(v_embedded_test, 'UTF8')), 'hex');
+  v_actual_migration_hash := encode(sha256(convert_to(replace(v_embedded_migration, E'\r', ''), 'UTF8')), 'hex');
+  v_actual_test_hash := encode(sha256(convert_to(replace(v_embedded_test, E'\r', ''), 'UTF8')), 'hex');
 
   if v_actual_migration_hash is distinct from v_expected_migration_hash then
     raise exception 'REHEARSAL_REFUSED: embedded MIGRATION text does not match its pinned sha256 (expected %, got %)',
@@ -352,7 +352,7 @@ begin
   res := res || E'\nINFO real-row fingerprint BEFORE = ' || v_fp_before;
 
   -- 4. RUN -- apply the pinned migration verbatim (additive: create-or-replace function + revoke/grant).
-  execute v_embedded_migration;
+  execute replace(v_embedded_migration, E'\r', '');
   res := res || E'\nok   migration applied inside this still-open transaction';
 
   -- Then run the pinned test text verbatim. It is itself a complete `do $t$ ... end $t$;` statement that
@@ -360,7 +360,7 @@ begin
   -- here -- caught below, which also means every __TEST_ row the embedded test created is rolled back to
   -- this point before the AFTER fingerprint is taken.
   begin
-    execute v_embedded_test;
+    execute replace(v_embedded_test, E'\r', '');
     v_inner_result := 'FAIL embedded test returned without raising -- it must always end in RAISE EXCEPTION E''RESULTS:%''';
   exception when others then
     v_inner_result := sqlerrm;
