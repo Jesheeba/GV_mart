@@ -14,7 +14,12 @@
 -- in its own BEGIN ... ROLLBACK. A single unconditional raise at the very end of this block is what makes every
 -- exit path -- gate refusal, hash mismatch, or a full run -- equally safe to run by accident.
 --
--- Five guarantees, in order:
+-- Six guarantees, in order:
+--   0. ORG CHECK -- before anything else runs, the oldest real (non __TEST_) organisation's id+name must hash to
+--      the exact md5 recorded below. This is a second, independent check that this rehearsal is running against
+--      the expected real database, not some other project or a fixture-only database with no real rows at all --
+--      and it refuses immediately (RAISE EXCEPTION 'REHEARSAL_REFUSED: ...'), before the LOCK/GATE/PIN steps touch
+--      anything else.
 --   1. LOCK  -- set_config('lock_timeout', '5s', true) for this transaction only: a blocked DDL/DML wait
 --      (CREATE OR REPLACE FUNCTION, REVOKE/GRANT, or a locked row in the real tables this reads) aborts in 5s
 --      with a normal error instead of hanging the session indefinitely.
@@ -33,6 +38,10 @@
 --      __TEST_ rows the embedded test created (and which its own closing RAISE already rolled back to this
 --      savepoint) -- never a real customer or visit.
 --
+-- The GATE and PIN steps now raise their own 'REHEARSAL_REFUSED: ...' exception immediately on failure, instead of
+-- only appending a GATE-REFUSED line to the RESULTS text and continuing -- so a refusal is unambiguous even to a
+-- caller that only looks at whether the statement raised, not what it said.
+--
 -- v_embedded_migration / v_embedded_test are each declared with the dollar-quoted text starting immediately after
 -- the opening `$...$` tag (no blank line) and ending immediately before the closing tag -- so each string is
 -- byte-for-byte identical to its source file (confirmed locally via sha256sum before this file was written) and
@@ -40,8 +49,10 @@
 do $rehearsal$
 declare
   v_ist_hour            int;
-  v_expected_migration_hash text := '24802c1c66ac4889e10b907d5c1b38e0af15c943d686a13c09080d98a62df818';
-  v_expected_test_hash      text := 'cda672a547b1e0cd4f85a95cd78b9648dbf7f6162c1ebd21780db64fa7a6b128';
+  v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
+  v_actual_org_fingerprint   text;
+  v_expected_migration_hash text := '55b33aaf1d276984e3873b46a8e413393b87dbe3c094ddef67483d07a8c408a3';
+  v_expected_test_hash      text := '6656efea3430d2abe45bcfe9e3490109a9634f128c8787e222c7c5f9aa744d6f';
   v_actual_migration_hash   text;
   v_actual_test_hash        text;
   v_fp_before           text;
@@ -66,8 +77,8 @@ declare
 --     denied" for every real technician, since the invoker here is `authenticated`, not service_role.
 --     Reading `c.is_test` directly off the already-joined, already-RLS-visible `customers` row needs no
 --     extra grant and has identical semantics.
---   * Only visits completed in the last 60 days -- `sv.timer_end` compared against IST (Asia/Kolkata)
---     midnight 60 days before today's IST date, so the cutoff is a calendar-day boundary in the
+--   * Only visits completed in the last 60 days -- `sv.timer_end` compared against IST midnight 60
+--     days before today's IST date (Asia/Kolkata), so the cutoff is a calendar-day boundary in the
 --     technician's own timezone, not a bare 1440-hour window that would silently drift with UTC/IST
 --     offset or daylight-adjacent edge cases (IST itself has no DST, but every other date computation
 --     in this codebase that matters to a person -- incentive months, shift-end prompts -- is anchored
@@ -123,7 +134,7 @@ as $$
   join public.customers c on c.id = t.customer_id
   where sv.technician_id = public.current_technician_id()
     and sv.timer_end is not null
-    and sv.timer_end >= (((now() at time zone 'Asia/Kolkata')::date - 60) at time zone 'Asia/Kolkata')
+    and sv.timer_end >= (((now() at time zone 'Asia/Kolkata')::date - 60)::timestamp at time zone 'Asia/Kolkata')
     and not c.is_test
     and not exists (
       select 1 from public.ratings r where r.visit_id = sv.id
@@ -145,12 +156,12 @@ declare
   v_b_profile uuid := gen_random_uuid();
   v_a_tech uuid;
   v_b_tech uuid;
-  v_c1 uuid; v_c2 uuid; v_c3 uuid; v_c4 uuid; v_c5 uuid; v_c6 uuid;
-  v_t1 uuid; v_t2 uuid; v_t3 uuid; v_t4 uuid; v_t5 uuid; v_t6 uuid; v_t7 uuid;
-  v_v1 uuid; v_v2 uuid; v_v3 uuid; v_v4 uuid; v_v5 uuid; v_v6 uuid; v_v7 uuid;
+  v_c1 uuid; v_c2 uuid; v_c3 uuid; v_c4 uuid; v_c5 uuid; v_c6 uuid; v_c7 uuid; v_c8 uuid;
+  v_t1 uuid; v_t2 uuid; v_t3 uuid; v_t4 uuid; v_t5 uuid; v_t6 uuid; v_t7 uuid; v_t8 uuid; v_t9 uuid;
+  v_v1 uuid; v_v2 uuid; v_v3 uuid; v_v4 uuid; v_v5 uuid; v_v6 uuid; v_v7 uuid; v_v8 uuid; v_v9 uuid;
   v_rows_a int; v_rows_b int;
   v_a_sees_c1 boolean; v_a_sees_c2 boolean; v_a_sees_c3 boolean; v_a_sees_inprogress boolean;
-  v_a_sees_c4 boolean; v_a_sees_c5 boolean; v_a_sees_c6 boolean;
+  v_a_sees_c4 boolean; v_a_sees_c5 boolean; v_a_sees_c6 boolean; v_a_sees_c7 boolean; v_a_sees_c8 boolean;
   v_b_sees_c1 boolean; v_b_sees_c3 boolean;
 begin
   insert into organizations(name) values ('__TEST_pending_reviews_org') returning id into v_org;
@@ -210,7 +221,31 @@ begin
   insert into service_visits(org_id, ticket_id, technician_id, timer_start, timer_end)
     values (v_org, v_t7, v_a_tech, now() - interval '59 days' - interval '1 hour', now() - interval '59 days') returning id into v_v7;
 
-  -- ===== POSITIVE: technician A sees exactly his own unreviewed, non-test, <=60-day-old visits (c1, c6) =====
+  -- c7: A's visit, timer_end = 00:30 IST exactly 60 days ago (i.e. the cutoff instant plus 30 minutes) ->
+  -- inside the window (>=), must appear for A
+  insert into customers(org_id, name, mobile) values (v_org, '__TEST_customer_c7', '9000000007') returning id into v_c7;
+  insert into service_tickets(org_id, customer_id, status) values (v_org, v_c7, 'completed') returning id into v_t8;
+  insert into appointments(org_id, ticket_id, technician_id, status) values (v_org, v_t8, v_a_tech, 'completed');
+  insert into service_visits(org_id, ticket_id, technician_id, timer_start, timer_end)
+    values (
+      v_org, v_t8, v_a_tech,
+      ((((now() at time zone 'Asia/Kolkata')::date - 60)::timestamp + interval '30 minutes') at time zone 'Asia/Kolkata') - interval '1 hour',
+      ((((now() at time zone 'Asia/Kolkata')::date - 60)::timestamp + interval '30 minutes') at time zone 'Asia/Kolkata')
+    ) returning id into v_v8;
+
+  -- c8: A's visit, timer_end = 23:30 IST the day before the cutoff (i.e. the cutoff instant minus 30 minutes) ->
+  -- outside the window (< cutoff), must NOT appear for A
+  insert into customers(org_id, name, mobile) values (v_org, '__TEST_customer_c8', '9000000008') returning id into v_c8;
+  insert into service_tickets(org_id, customer_id, status) values (v_org, v_c8, 'completed') returning id into v_t9;
+  insert into appointments(org_id, ticket_id, technician_id, status) values (v_org, v_t9, v_a_tech, 'completed');
+  insert into service_visits(org_id, ticket_id, technician_id, timer_start, timer_end)
+    values (
+      v_org, v_t9, v_a_tech,
+      ((((now() at time zone 'Asia/Kolkata')::date - 60)::timestamp - interval '30 minutes') at time zone 'Asia/Kolkata') - interval '1 hour',
+      ((((now() at time zone 'Asia/Kolkata')::date - 60)::timestamp - interval '30 minutes') at time zone 'Asia/Kolkata')
+    ) returning id into v_v9;
+
+  -- ===== POSITIVE: technician A sees exactly his own unreviewed, non-test, <=60-day-old visits (c1, c6, c7) =====
   perform set_config('request.jwt.claims', json_build_object('sub', v_a_profile, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
 
@@ -222,8 +257,10 @@ begin
   select exists(select 1 from public.list_technician_pending_reviews() x where x.customer_id = v_c4) into v_a_sees_c4;
   select exists(select 1 from public.list_technician_pending_reviews() x where x.customer_id = v_c5) into v_a_sees_c5;
   select exists(select 1 from public.list_technician_pending_reviews() x where x.customer_id = v_c6) into v_a_sees_c6;
+  select exists(select 1 from public.list_technician_pending_reviews() x where x.customer_id = v_c7) into v_a_sees_c7;
+  select exists(select 1 from public.list_technician_pending_reviews() x where x.customer_id = v_c8) into v_a_sees_c8;
 
-  res := res || E'\n' || case when v_rows_a = 2 then 'ok   P1 technician A sees exactly 2 pending-review rows (c1, c6)' else 'FAIL P1 rows=' || v_rows_a end;
+  res := res || E'\n' || case when v_rows_a = 3 then 'ok   P1 technician A sees exactly 3 pending-review rows (c1, c6, c7)' else 'FAIL P1 rows=' || v_rows_a end;
   res := res || E'\n' || case when v_a_sees_c1 then 'ok   P2 technician A sees his own unreviewed customer c1' else 'FAIL P2' end;
   res := res || E'\n' || case when not v_a_sees_c2 then 'ok   P3 technician A does NOT see c2 (already rated)' else 'FAIL P3' end;
   res := res || E'\n' || case when not v_a_sees_c3 then 'ok   P4 technician A does NOT see c3 (another technician''s customer)' else 'FAIL P4' end;
@@ -231,6 +268,8 @@ begin
   res := res || E'\n' || case when not v_a_sees_c4 then 'ok   P6 technician A does NOT see c4 (flagged test customer)' else 'FAIL P6 test customer leaked' end;
   res := res || E'\n' || case when not v_a_sees_c5 then 'ok   P7 technician A does NOT see c5 (visit completed 61 days ago, outside the 60-day window)' else 'FAIL P7 stale visit leaked' end;
   res := res || E'\n' || case when v_a_sees_c6 then 'ok   P8 technician A sees c6 (visit completed 59 days ago, inside the 60-day window)' else 'FAIL P8 within-window visit missing' end;
+  res := res || E'\n' || case when v_a_sees_c7 then 'ok   P9 technician A sees c7 (timer_end = IST midnight 60 days ago + 30 minutes, inside the window)' else 'FAIL P9 boundary-inclusive visit missing' end;
+  res := res || E'\n' || case when not v_a_sees_c8 then 'ok   P10 technician A does NOT see c8 (timer_end = IST midnight 60 days ago - 30 minutes, outside the window)' else 'FAIL P10 boundary-exclusive visit leaked' end;
 
   execute 'reset role';
 
@@ -260,6 +299,17 @@ end
 $t$;
 $testbody$;
 begin
+  -- 0. ORG CHECK: confirm this is running against the expected real database before anything else happens.
+  select md5(o.id::text || '|' || o.name) into v_actual_org_fingerprint
+  from public.organizations o
+  where o.name not like '\_\_TEST%' escape '\'
+  order by o.created_at asc
+  limit 1;
+
+  if v_actual_org_fingerprint is distinct from v_expected_org_fingerprint then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
+  end if;
+
   -- 1. LOCK: scoped to this transaction only (the `true` arg to set_config) -- never leaks to the
   -- connection/session beyond this rehearsal.
   perform set_config('lock_timeout', '5s', true);
@@ -268,71 +318,73 @@ begin
 
   -- 2. GATE
   if v_ist_hour < 18 then
-    res := res || E'\nGATE-REFUSED this rehearsal only runs after 18:00 IST (current IST hour=' || v_ist_hour || E'); nothing executed, nothing read.';
-  else
-    -- 3. PIN -- both embedded files must match their recorded hash before anything runs.
-    v_actual_migration_hash := encode(sha256(convert_to(v_embedded_migration, 'UTF8')), 'hex');
-    v_actual_test_hash := encode(sha256(convert_to(v_embedded_test, 'UTF8')), 'hex');
-
-    if v_actual_migration_hash is distinct from v_expected_migration_hash then
-      res := res || E'\nGATE-REFUSED embedded MIGRATION text does not match its pinned sha256 (expected ' || v_expected_migration_hash
-                  || E', got ' || v_actual_migration_hash || E'); nothing executed, nothing read.';
-    elsif v_actual_test_hash is distinct from v_expected_test_hash then
-      res := res || E'\nGATE-REFUSED embedded TEST text does not match its pinned sha256 (expected ' || v_expected_test_hash
-                  || E', got ' || v_actual_test_hash || E'); nothing executed, nothing read.';
-    else
-      res := res || E'\nok   GATE passed: IST hour=' || v_ist_hour || E', both embedded-text sha256 hashes verified';
-
-      -- Real-organisation fingerprint BEFORE: every real (non __TEST_) row across the tables this feature reads,
-      -- reduced to one digest so "unchanged" is a single comparison. Scoped to service_visits/service_tickets/
-      -- customers/ratings -- the exact set public.list_technician_pending_reviews() (and this test) touches.
-      select encode(sha256(convert_to(coalesce(string_agg(x, ',' order by x), ''), 'UTF8')), 'hex') into v_fp_before
-      from (
-        select sv.id::text || ':' || coalesce(r.id::text, '-') as x
-        from public.service_visits sv
-        join public.service_tickets t on t.id = sv.ticket_id
-        join public.customers c on c.id = t.customer_id
-        left join public.ratings r on r.visit_id = sv.id
-        where c.name not like '\_\_TEST\_%' escape '\'
-      ) real_rows;
-      res := res || E'\nINFO real-row fingerprint BEFORE = ' || v_fp_before;
-
-      -- 4. RUN -- apply the pinned migration verbatim (additive: create-or-replace function + revoke/grant).
-      execute v_embedded_migration;
-      res := res || E'\nok   migration applied inside this still-open transaction';
-
-      -- Then run the pinned test text verbatim. It is itself a complete `do $t$ ... end $t$;` statement that
-      -- always ends in `raise exception E'RESULTS:%'` (see the PIN guarantee above), so EXECUTE always raises
-      -- here -- caught below, which also means every __TEST_ row the embedded test created is rolled back to
-      -- this point before the AFTER fingerprint is taken.
-      begin
-        execute v_embedded_test;
-        v_inner_result := 'FAIL embedded test returned without raising -- it must always end in RAISE EXCEPTION E''RESULTS:%''';
-      exception when others then
-        v_inner_result := sqlerrm;
-      end;
-      res := res || E'\n--- embedded test output ---\n' || coalesce(v_inner_result, '(no result captured)') || E'\n--- end embedded test output ---';
-
-      -- 5. PROVE -- fingerprint again now that the exception above has rolled the test's __TEST_ rows back to
-      -- the savepoint, then compare and append the result (never skipped, whichever way the comparison lands).
-      select encode(sha256(convert_to(coalesce(string_agg(x, ',' order by x), ''), 'UTF8')), 'hex') into v_fp_after
-      from (
-        select sv.id::text || ':' || coalesce(r.id::text, '-') as x
-        from public.service_visits sv
-        join public.service_tickets t on t.id = sv.ticket_id
-        join public.customers c on c.id = t.customer_id
-        left join public.ratings r on r.visit_id = sv.id
-        where c.name not like '\_\_TEST\_%' escape '\'
-      ) real_rows;
-      res := res || E'\nINFO real-row fingerprint AFTER  = ' || v_fp_after;
-      res := res || E'\n' || case when v_fp_after = v_fp_before
-                              then 'ok   real-organisation fingerprint unchanged -- this rehearsal mutated no real data'
-                              else 'FAIL real-organisation fingerprint CHANGED -- investigate before trusting anything above' end;
-    end if;
+    raise exception 'REHEARSAL_REFUSED: this rehearsal only runs after 18:00 IST (current IST hour=%)', v_ist_hour;
   end if;
 
-  -- Unconditional final line, every path (gate refusal, hash mismatch, or a full run) lands here exactly once,
-  -- with the fingerprint comparison already appended above whenever step 4 actually ran.
+  -- 3. PIN -- both embedded files must match their recorded hash before anything runs.
+  v_actual_migration_hash := encode(sha256(convert_to(v_embedded_migration, 'UTF8')), 'hex');
+  v_actual_test_hash := encode(sha256(convert_to(v_embedded_test, 'UTF8')), 'hex');
+
+  if v_actual_migration_hash is distinct from v_expected_migration_hash then
+    raise exception 'REHEARSAL_REFUSED: embedded MIGRATION text does not match its pinned sha256 (expected %, got %)',
+      v_expected_migration_hash, v_actual_migration_hash;
+  end if;
+
+  if v_actual_test_hash is distinct from v_expected_test_hash then
+    raise exception 'REHEARSAL_REFUSED: embedded TEST text does not match its pinned sha256 (expected %, got %)',
+      v_expected_test_hash, v_actual_test_hash;
+  end if;
+
+  res := res || E'\nok   ORG CHECK passed, GATE passed: IST hour=' || v_ist_hour || E', both embedded-text sha256 hashes verified';
+
+  -- Real-organisation fingerprint BEFORE: every real (non __TEST_) row across the tables this feature reads,
+  -- reduced to one digest so "unchanged" is a single comparison. Scoped to service_visits/service_tickets/
+  -- customers/ratings -- the exact set public.list_technician_pending_reviews() (and this test) touches.
+  select encode(sha256(convert_to(coalesce(string_agg(x, ',' order by x), ''), 'UTF8')), 'hex') into v_fp_before
+  from (
+    select sv.id::text || ':' || coalesce(r.id::text, '-') as x
+    from public.service_visits sv
+    join public.service_tickets t on t.id = sv.ticket_id
+    join public.customers c on c.id = t.customer_id
+    left join public.ratings r on r.visit_id = sv.id
+    where c.name not like '\_\_TEST\_%' escape '\'
+  ) real_rows;
+  res := res || E'\nINFO real-row fingerprint BEFORE = ' || v_fp_before;
+
+  -- 4. RUN -- apply the pinned migration verbatim (additive: create-or-replace function + revoke/grant).
+  execute v_embedded_migration;
+  res := res || E'\nok   migration applied inside this still-open transaction';
+
+  -- Then run the pinned test text verbatim. It is itself a complete `do $t$ ... end $t$;` statement that
+  -- always ends in `raise exception E'RESULTS:%'` (see the PIN guarantee above), so EXECUTE always raises
+  -- here -- caught below, which also means every __TEST_ row the embedded test created is rolled back to
+  -- this point before the AFTER fingerprint is taken.
+  begin
+    execute v_embedded_test;
+    v_inner_result := 'FAIL embedded test returned without raising -- it must always end in RAISE EXCEPTION E''RESULTS:%''';
+  exception when others then
+    v_inner_result := sqlerrm;
+  end;
+  res := res || E'\n--- embedded test output ---\n' || coalesce(v_inner_result, '(no result captured)') || E'\n--- end embedded test output ---';
+
+  -- 5. PROVE -- fingerprint again now that the exception above has rolled the test's __TEST_ rows back to
+  -- the savepoint, then compare and append the result (never skipped, whichever way the comparison lands).
+  select encode(sha256(convert_to(coalesce(string_agg(x, ',' order by x), ''), 'UTF8')), 'hex') into v_fp_after
+  from (
+    select sv.id::text || ':' || coalesce(r.id::text, '-') as x
+    from public.service_visits sv
+    join public.service_tickets t on t.id = sv.ticket_id
+    join public.customers c on c.id = t.customer_id
+    left join public.ratings r on r.visit_id = sv.id
+    where c.name not like '\_\_TEST\_%' escape '\'
+  ) real_rows;
+  res := res || E'\nINFO real-row fingerprint AFTER  = ' || v_fp_after;
+  res := res || E'\n' || case when v_fp_after = v_fp_before
+                          then 'ok   real-organisation fingerprint unchanged -- this rehearsal mutated no real data'
+                          else 'FAIL real-organisation fingerprint CHANGED -- investigate before trusting anything above' end;
+
+  -- Unconditional final line: the only path that reaches here is a full run (every refusal above raises
+  -- immediately instead), with the fingerprint comparison already appended.
   raise exception E'RESULTS:%', res;
 end
 $rehearsal$;

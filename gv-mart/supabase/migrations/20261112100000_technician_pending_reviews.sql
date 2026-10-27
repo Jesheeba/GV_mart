@@ -16,8 +16,8 @@
 --     denied" for every real technician, since the invoker here is `authenticated`, not service_role.
 --     Reading `c.is_test` directly off the already-joined, already-RLS-visible `customers` row needs no
 --     extra grant and has identical semantics.
---   * Only visits completed in the last 60 days -- `sv.timer_end` compared against IST (Asia/Kolkata)
---     midnight 60 days before today's IST date, so the cutoff is a calendar-day boundary in the
+--   * Only visits completed in the last 60 days -- `sv.timer_end` compared against IST midnight 60
+--     days before today's IST date (Asia/Kolkata), so the cutoff is a calendar-day boundary in the
 --     technician's own timezone, not a bare 1440-hour window that would silently drift with UTC/IST
 --     offset or daylight-adjacent edge cases (IST itself has no DST, but every other date computation
 --     in this codebase that matters to a person -- incentive months, shift-end prompts -- is anchored
@@ -73,7 +73,7 @@ as $$
   join public.customers c on c.id = t.customer_id
   where sv.technician_id = public.current_technician_id()
     and sv.timer_end is not null
-    and sv.timer_end >= (((now() at time zone 'Asia/Kolkata')::date - 60) at time zone 'Asia/Kolkata')
+    and sv.timer_end >= (((now() at time zone 'Asia/Kolkata')::date - 60)::timestamp at time zone 'Asia/Kolkata')
     and not c.is_test
     and not exists (
       select 1 from public.ratings r where r.visit_id = sv.id
