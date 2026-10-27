@@ -1,17 +1,28 @@
--- REHEARSAL (NOT RUN; for the owner's approval of this exact text): standard minutes + efficiency (P5, review round 3): migration 20261108110000 + its tests
+-- REHEARSAL (NOT RUN; for the owner's approval of this exact text): standard minutes + efficiency (P5, review round 4): migration 20261108110000 + its tests
 -- Renumbered from 20261024120000 (collision fix: main had merged 20261024171000_customers_org_created_index.sql,
 -- putting the old number at/before an already-live migration). Confirmed free across every local branch/worktree.
 -- This run changes no real data: every statement below runs inside one rolled-back transaction and the embedded
--- test file itself ends in an unconditional RAISE, so nothing is ever committed, on the real org or anywhere else.
--- One request, one DO block. It: (1) refuses to run before 18:00 IST (the clock is read from clock_timestamp()),
--- (2) recomputes the sha256 of every embedded file and refuses on any mismatch with the pinned value, (3) recomputes
--- a RELATIVE fingerprint of the real organisation (its id + name, picking the earliest non-__TEST-named row — not an
--- exact snapshot of the whole table, so it survives new test orgs being added later) and refuses on any mismatch,
--- confirming this rehearsal is pointed at the real project and that EVERY function this migration redefines
--- (report_ops_resolution, report_kpi_tiles) still equals the one embedded below, freshly re-proved at rehearsal time rather than a pinned
--- value,
--- (4) executes the migration text(s) and then the test file in order, (5) always ends in an unconditional RAISE
--- EXCEPTION, so nothing is ever committed.
+-- test file's own RESULTS exception is caught (not let propagate) so this wrapper can append the real-organisation
+-- fingerprint comparison below to it; this whole DO block still always ends in ONE unconditional RAISE EXCEPTION,
+-- so nothing is ever committed. One request, one DO block. It: (1) sets lock_timeout to 5s as the first statement
+-- (review fix, this round -- this migration's own DDL takes ordinary table-level locks, same as any ALTER TABLE
+-- ADD COLUMN; fail fast on contention rather than queue indefinitely), (2) refuses to run before 18:00 IST (the
+-- clock is read from clock_timestamp()), (3) recomputes the sha256 of every embedded file and refuses on any
+-- mismatch with the pinned value, (4) recomputes a RELATIVE fingerprint of the real organisation (its id + name,
+-- picking the earliest non-__TEST-named row — not an exact snapshot of the whole table, so it survives new test
+-- orgs being added later) and refuses on any mismatch, confirming this rehearsal is pointed at the real project
+-- and that EVERY function this migration redefines (report_ops_resolution, report_kpi_tiles) still equals the
+-- one embedded below, freshly re-proved at rehearsal time rather than a pinned value, (5) takes a BEFORE
+-- fingerprint of that same real organisation's customers, service_tickets, invoices and products (count + an md5
+-- checksum of their ids each, review fix this round — this migration's redefined RPCs only ever READ these four
+-- tables and the test file only ever creates/mutates its own throwaway __TEST_ organisation, so all three
+-- checkpoints below must read back byte-for-byte identical; an independent cross-check on top of "the whole
+-- transaction rolls back regardless", not a substitute for it), (6) executes the migration, (7) takes the SAME
+-- fingerprint again immediately after and refuses on any difference, (8) runs the test file in a nested
+-- BEGIN/EXCEPTION, catching its own terminal RESULTS/other exception into a variable rather than letting it end
+-- the DO block, (9) takes the fingerprint a THIRD time, after the test file ran, and refuses on any difference,
+-- (10) always ends in ONE unconditional RAISE EXCEPTION carrying the test file's own RESULTS text with the two
+-- fingerprint comparisons appended, so nothing is ever committed.
 -- No top-level begin / commit / savepoint / rollback. No schema_migrations row is written. Never concatenated with
 -- test code outside this wrapper. Expected error text starts with RESULTS (or TIMING); anything else is a failure
 -- and also rolls back.
@@ -27,20 +38,28 @@
 
 do $rehearsal$
 declare
-  v_ist time := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
+  v_ist time;
   v_text text;
   v_hash text;
   v_check text;
+  v_org uuid;
+  v_fp_before text;
+  v_fp_after_migrations text;
+  v_fp_final text;
+  v_test_result text;
   v_orig_text text;
   v_orig_hash text;
   v_check_def text;
   v_live_def text;
 begin
+  perform set_config('lock_timeout', '5s', true);
+
+  v_ist := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   if v_ist < time '18:00' then
     raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
   end if;
 
-  select md5(o.id::text || '|' || o.name) into v_check
+  select o.id, md5(o.id::text || '|' || o.name) into v_org, v_check
     from public.organizations o
    where o.name not like '\_\_TEST%'
    order by o.created_at asc
@@ -48,6 +67,22 @@ begin
   if v_check is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch (expected the real GV Mart org, got %)', coalesce(v_check, 'null');
   end if;
+
+  -- BEFORE fingerprint of the real organisation's customers/service_tickets/invoices/products — count + md5
+  -- checksum of each table's ids, so this catches not just a row-count drift but any swap of which rows exist.
+  -- This migration only touches complaint_types/settings (new columns) and redefines two report RPCs that READ
+  -- these four tables but never write them; the test file below only ever creates/mutates its own throwaway
+  -- __TEST_ organisation. All three checkpoints below are expected to be byte-identical.
+  select format('customers=%s ids_md5=%s | service_tickets=%s ids_md5=%s | invoices=%s ids_md5=%s | products=%s ids_md5=%s',
+      (select count(*) from public.customers where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.customers where org_id = v_org),
+      (select count(*) from public.service_tickets where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.service_tickets where org_id = v_org),
+      (select count(*) from public.invoices where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.invoices where org_id = v_org),
+      (select count(*) from public.products where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.products where org_id = v_org))
+    into v_fp_before;
 
   -- Live-definition precheck (1/2): report_ops_resolution is an EXISTING function this migration redefines.
   -- Re-create the ORIGINAL (embedded below VERBATIM, from the migration that last defined it) inside a sub-block
@@ -716,6 +751,23 @@ $rh0$;
   end if;
   execute v_text;
 
+  -- AFTER-MIGRATION fingerprint: must be identical to the before fingerprint. True by construction — this
+  -- migration adds columns to complaint_types/settings and redefines report_ops_resolution/report_kpi_tiles/
+  -- report_performance_efficiency, none of which write to customers, service_tickets, invoices or products.
+  select format('customers=%s ids_md5=%s | service_tickets=%s ids_md5=%s | invoices=%s ids_md5=%s | products=%s ids_md5=%s',
+      (select count(*) from public.customers where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.customers where org_id = v_org),
+      (select count(*) from public.service_tickets where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.service_tickets where org_id = v_org),
+      (select count(*) from public.invoices where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.invoices where org_id = v_org),
+      (select count(*) from public.products where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.products where org_id = v_org))
+    into v_fp_after_migrations;
+  if v_fp_after_migrations is distinct from v_fp_before then
+    raise exception 'REHEARSAL_REFUSED: real-organisation fingerprint changed by the migration alone, before the test ran (before=%, after=%) -- this should be impossible for a pure schema/function change', v_fp_before, v_fp_after_migrations;
+  end if;
+
   v_text := $rh1$-- Rolled-back DB tests for 20261108110000_standard_minutes_and_efficiency (P5).
 -- NOT RUN (written for review). Run only through the rehearsal wrapper: it applies the migration and then this file in ONE
 -- request; this file ends in an unconditional RAISE, so nothing is committed. Throwaway __TEST_ organisation only.
@@ -886,8 +938,33 @@ $rh1$;
   if v_hash <> 'a888c0735c6833ebdd9a62a3160ce4ea8436a0eceec167dd4b83676decf77cc6' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for standard_minutes_and_efficiency.test.sql: %', v_hash;
   end if;
-  execute v_text;
+  begin
+    execute v_text;
+    v_test_result := '(completed without its own terminating RAISE -- unexpected)';
+  exception when others then
+    v_test_result := sqlerrm;
+  end;
 
-  raise exception 'REHEARSAL_DID_NOT_RAISE: the test file should have raised RESULTS';
+  -- FINAL fingerprint, after the test file ran: must still be identical to the before fingerprint. True by
+  -- construction — the test file only ever creates/mutates its own throwaway __TEST_ organisation.
+  select format('customers=%s ids_md5=%s | service_tickets=%s ids_md5=%s | invoices=%s ids_md5=%s | products=%s ids_md5=%s',
+      (select count(*) from public.customers where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.customers where org_id = v_org),
+      (select count(*) from public.service_tickets where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.service_tickets where org_id = v_org),
+      (select count(*) from public.invoices where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.invoices where org_id = v_org),
+      (select count(*) from public.products where org_id = v_org),
+      (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.products where org_id = v_org))
+    into v_fp_final;
+  if v_fp_final is distinct from v_fp_before then
+    raise exception 'REHEARSAL_REFUSED: CHANGED -- final real-organisation fingerprint differs from before (before=%, final=%) -- something in this rehearsal touched real data', v_fp_before, v_fp_final;
+  end if;
+
+  raise exception 'RESULTS%', v_test_result
+    || E'\n\n=== real-organisation fingerprint (customers/service_tickets/invoices/products) ==='
+    || E'\nbefore:            ' || v_fp_before
+    || E'\nafter migration:   ' || v_fp_after_migrations || ' -- identical to before: true'
+    || E'\nfinal (post-test): ' || v_fp_final || ' -- identical to before: true';
 end
 $rehearsal$;
