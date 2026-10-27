@@ -24,13 +24,17 @@
 -- ambiguous-column bug a bare `technician_id` or `visit_id` could introduce once this function is read
 -- alongside sibling tables that share those column names.
 
+-- The caller gets only name, job type and completion date -- never the customer's phone number.
+-- This is a display-only follow-up list (no call/WhatsApp action anywhere downstream), so the
+-- mobile column is deliberately left out of the result rather than fetched and merely hidden by
+-- the UI -- the same "don't expose what the screen must not show" posture as this project's other
+-- technician-facing reads.
 create or replace function public.list_technician_pending_reviews()
 returns table (
   visit_id uuid,
   ticket_id uuid,
   customer_id uuid,
   customer_name text,
-  customer_mobile text,
   complaint text,
   visit_completed_at timestamptz
 )
@@ -44,7 +48,6 @@ as $$
     sv.ticket_id,
     t.customer_id,
     c.name as customer_name,
-    c.mobile as customer_mobile,
     t.name_of_complaint as complaint,
     sv.timer_end as visit_completed_at
   from public.service_visits sv

@@ -63,17 +63,9 @@ export function PendingReviewsPage() {
         <div className="space-y-2.5">
           {pendingReviews.data.map((row) => (
             <Card key={row.visit_id} className="gap-2">
-              <div className="flex items-start justify-between gap-2 px-1">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-text">{row.customer_name || t("technician.pendingReviews.customerFallback")}</p>
-                  <p className="truncate text-xs text-text-muted">{row.complaint || t("technician.pendingReviews.noComplaint")}</p>
-                </div>
-                <a
-                  href={`tel:${row.customer_mobile}`}
-                  className="shrink-0 rounded-full border border-border px-3 py-1 text-xs font-medium text-accent hover:bg-surface-alt"
-                >
-                  {row.customer_mobile}
-                </a>
+              <div className="min-w-0 px-1">
+                <p className="truncate text-sm font-semibold text-text">{row.customer_name || t("technician.pendingReviews.customerFallback")}</p>
+                <p className="truncate text-xs text-text-muted">{row.complaint || t("technician.pendingReviews.noComplaint")}</p>
               </div>
               <div className="flex items-center gap-2 px-1">
                 <Star className="size-3.5 text-text-muted" />

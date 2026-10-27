@@ -36,7 +36,6 @@ describe("listMyPendingReviews", () => {
         ticket_id: "t1",
         customer_id: "c1",
         customer_name: "__TEST_customer",
-        customer_mobile: "9000000001",
         complaint: "Leaking filter",
         visit_completed_at: "2026-11-01T10:00:00Z",
       },

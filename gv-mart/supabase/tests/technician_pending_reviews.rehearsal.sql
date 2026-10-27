@@ -1,8 +1,9 @@
--- Rehearsal wrapper for supabase/tests/technician_pending_reviews.test.sql.
+-- Rehearsal wrapper for 20261112100000_technician_pending_reviews.sql +
+-- supabase/tests/technician_pending_reviews.test.sql.
 --
 -- WRITTEN ONLY -- never executed against any database by the agent that produced this file (standing hard rule for
 -- this change: no DB access of any kind). The owner runs this by hand, after 18:00 IST, once satisfied the
--- sha256-pinned text embedded below is byte-for-byte the test file they reviewed.
+-- sha256-pinned text embedded below for BOTH files is byte-for-byte what they reviewed.
 --
 -- What this guards against (2026-10-13 incident -- see supabase/tests/staff_security_fixes.test.sql and this
 -- project's "migration + test concat accident" note): a test file that does NOT end in a guaranteed `raise
@@ -13,28 +14,107 @@
 -- in its own BEGIN ... ROLLBACK. A single unconditional raise at the very end of this block is what makes every
 -- exit path -- gate refusal, hash mismatch, or a full run -- equally safe to run by accident.
 --
--- Four guarantees, in order:
---   1. GATE   -- refuses to run before 18:00 IST (this project's standing convention for risky rehearsal scripts).
---   2. PIN    -- sha256(embedded test text) must equal the hash recorded below; a silent edit after review refuses.
---   3. RUN    -- executes the pinned text verbatim, as its own nested DO block, and captures its RESULTS line.
---   4. PROVE  -- a fingerprint (digest) of every REAL, non-__TEST_ row across service_visits / service_tickets /
---      customers / ratings is taken before and after, and asserted unchanged, proving the test above touched only
---      the __TEST_ rows it created and rolled back -- never a real customer or visit.
+-- Five guarantees, in order:
+--   1. LOCK  -- set_config('lock_timeout', '5s', true) for this transaction only: a blocked DDL/DML wait
+--      (CREATE OR REPLACE FUNCTION, REVOKE/GRANT, or a locked row in the real tables this reads) aborts in 5s
+--      with a normal error instead of hanging the session indefinitely.
+--   2. GATE   -- refuses to run before 18:00 IST (this project's standing convention for risky rehearsal scripts).
+--   3. PIN    -- sha256(embedded migration text) and sha256(embedded test text) must each equal the hash recorded
+--      below; a silent edit of EITHER file after review refuses the whole rehearsal, nothing executed.
+--   4. RUN    -- applies the pinned migration text verbatim (create-or-replace function + revoke/grant -- additive,
+--      no table/RLS change), then executes the pinned test text verbatim as its own nested DO block and captures
+--      its RESULTS line. Both run inside this same transaction, which this wrapper's own final line ALWAYS ends
+--      with an unconditional RAISE EXCEPTION -- so this rehearsal can never itself apply the migration for real;
+--      it only proves the migration and the test behave correctly together before the owner applies the real
+--      migration file separately through the normal path.
+--   5. PROVE  -- a fingerprint (digest) of every REAL, non-__TEST_ row across service_visits / service_tickets /
+--      customers / ratings is taken before step 4 and again immediately after the test's RESULTS exception is
+--      caught, and the two are compared and appended to the final result, proving step 4 touched only the
+--      __TEST_ rows the embedded test created (and which its own closing RAISE already rolled back to this
+--      savepoint) -- never a real customer or visit.
 --
--- v_embedded is intentionally declared with the dollar-quoted text starting immediately after the `$embed$` tag (no
--- blank line) and ending immediately before the closing `$embed$` tag -- so the string is byte-for-byte identical
--- to supabase/tests/technician_pending_reviews.test.sql (confirmed locally via sha256sum before this file was
--- written) and not off by a stray newline the pin would catch anyway.
+-- v_embedded_migration / v_embedded_test are each declared with the dollar-quoted text starting immediately after
+-- the opening `$...$` tag (no blank line) and ending immediately before the closing tag -- so each string is
+-- byte-for-byte identical to its source file (confirmed locally via sha256sum before this file was written) and
+-- not off by a stray newline the pin would catch anyway.
 do $rehearsal$
 declare
-  v_ist_hour      int;
-  v_expected_hash text := '15100464a760401e3824ad5d3df1e984285960d241b992428cf35dc053e0f0e8';
-  v_actual_hash   text;
-  v_fp_before     text;
-  v_fp_after      text;
-  v_inner_result  text;
-  res             text := '';
-  v_embedded      text := $embed$-- Rolled-back test for 20261112100000_technician_pending_reviews.sql (public.list_technician_pending_reviews()).
+  v_ist_hour            int;
+  v_expected_migration_hash text := '2263584e103892bb87166e80789d09fa72cf9249c46fdc81a40353985c64843e';
+  v_expected_test_hash      text := '15100464a760401e3824ad5d3df1e984285960d241b992428cf35dc053e0f0e8';
+  v_actual_migration_hash   text;
+  v_actual_test_hash        text;
+  v_fp_before           text;
+  v_fp_after             text;
+  v_inner_result         text;
+  res                    text := '';
+  v_embedded_migration   text := $migration$-- Technician "Pending reviews" list (2026-11-12).
+--
+-- Display-only feature: a technician's own dashboard shows customers from HIS OWN completed visits
+-- (service_visits.technician_id = his technicians.id, timer_end not null -- the same "completed" test
+-- get_technician_public_stats already uses) who have NOT yet left a rating (no row in public.ratings
+-- for that visit, per ratings.visit_id's own unique-per-visit constraint). Nothing is sent, emailed or
+-- messaged from this -- it is a read-only follow-up list for the technician to act on in person.
+--
+-- Strict ownership (technician B must never see technician A's customers) is enforced at the data layer,
+-- not just hidden in the UI, two ways at once:
+--   1. SECURITY INVOKER: this function carries no elevated privilege of its own -- every table it reads
+--      (service_visits, service_tickets, customers, ratings) is read under the CALLER's own role and is
+--      already subject to that table's real RLS (service_visits_write_own_technician restricts SELECT on
+--      service_visits to technician_id = current_technician_id(); customers_select_own_technician and
+--      service_tickets_select_own_technician/_customer_history_technician likewise scope the join tables --
+--      see 20260701091300_rls.sql, 20260704120000_technician_customer_address_rls.sql,
+--      20260723120000_technician_customer_history_rls.sql). A technician cannot make this function return
+--      another technician's row even by bypassing the app, because the underlying SELECT privilege simply
+--      isn't there for that row.
+--   2. An explicit `sv.technician_id = public.current_technician_id()` filter in the function body itself,
+--      as defense in depth on top of (1) and so a non-technician caller (current_technician_id() = null)
+--      always gets zero rows rather than relying on RLS alone.
+-- Every column referenced inside the query is table-qualified (sv./t./c./r.) to avoid the exact class of
+-- ambiguous-column bug a bare `technician_id` or `visit_id` could introduce once this function is read
+-- alongside sibling tables that share those column names.
+
+-- The caller gets only name, job type and completion date -- never the customer's phone number.
+-- This is a display-only follow-up list (no call/WhatsApp action anywhere downstream), so the
+-- mobile column is deliberately left out of the result rather than fetched and merely hidden by
+-- the UI -- the same "don't expose what the screen must not show" posture as this project's other
+-- technician-facing reads.
+create or replace function public.list_technician_pending_reviews()
+returns table (
+  visit_id uuid,
+  ticket_id uuid,
+  customer_id uuid,
+  customer_name text,
+  complaint text,
+  visit_completed_at timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = public, pg_temp
+as $$
+  select
+    sv.id as visit_id,
+    sv.ticket_id,
+    t.customer_id,
+    c.name as customer_name,
+    t.name_of_complaint as complaint,
+    sv.timer_end as visit_completed_at
+  from public.service_visits sv
+  join public.service_tickets t on t.id = sv.ticket_id
+  join public.customers c on c.id = t.customer_id
+  where sv.technician_id = public.current_technician_id()
+    and sv.timer_end is not null
+    and not exists (
+      select 1 from public.ratings r where r.visit_id = sv.id
+    )
+  order by sv.timer_end desc
+$$;
+
+revoke all on function public.list_technician_pending_reviews() from public, anon, authenticated;
+grant execute on function public.list_technician_pending_reviews() to authenticated;
+$migration$;
+  v_embedded_test text := $testbody$-- Rolled-back test for 20261112100000_technician_pending_reviews.sql (public.list_technician_pending_reviews()).
 -- The runner concatenates that migration file in front of this block in ONE transaction; the block ends in
 -- RAISE EXCEPTION, so nothing is committed regardless of pass/fail. Throwaway __TEST_ organisation and users only.
 do $t$
@@ -130,19 +210,30 @@ begin
   raise exception E'RESULTS:%', res;
 end
 $t$;
-$embed$;
+$testbody$;
 begin
+  -- 1. LOCK: scoped to this transaction only (the `true` arg to set_config) -- never leaks to the
+  -- connection/session beyond this rehearsal.
+  perform set_config('lock_timeout', '5s', true);
+
   v_ist_hour := extract(hour from (now() at time zone 'Asia/Kolkata'))::int;
 
+  -- 2. GATE
   if v_ist_hour < 18 then
     res := res || E'\nGATE-REFUSED this rehearsal only runs after 18:00 IST (current IST hour=' || v_ist_hour || E'); nothing executed, nothing read.';
   else
-    v_actual_hash := encode(sha256(convert_to(v_embedded, 'UTF8')), 'hex');
-    if v_actual_hash is distinct from v_expected_hash then
-      res := res || E'\nGATE-REFUSED embedded test text does not match its pinned sha256 (expected ' || v_expected_hash
-                  || E', got ' || v_actual_hash || E'); nothing executed, nothing read.';
+    -- 3. PIN -- both embedded files must match their recorded hash before anything runs.
+    v_actual_migration_hash := encode(sha256(convert_to(v_embedded_migration, 'UTF8')), 'hex');
+    v_actual_test_hash := encode(sha256(convert_to(v_embedded_test, 'UTF8')), 'hex');
+
+    if v_actual_migration_hash is distinct from v_expected_migration_hash then
+      res := res || E'\nGATE-REFUSED embedded MIGRATION text does not match its pinned sha256 (expected ' || v_expected_migration_hash
+                  || E', got ' || v_actual_migration_hash || E'); nothing executed, nothing read.';
+    elsif v_actual_test_hash is distinct from v_expected_test_hash then
+      res := res || E'\nGATE-REFUSED embedded TEST text does not match its pinned sha256 (expected ' || v_expected_test_hash
+                  || E', got ' || v_actual_test_hash || E'); nothing executed, nothing read.';
     else
-      res := res || E'\nok   GATE passed: IST hour=' || v_ist_hour || E', embedded-text sha256 verified';
+      res := res || E'\nok   GATE passed: IST hour=' || v_ist_hour || E', both embedded-text sha256 hashes verified';
 
       -- Real-organisation fingerprint BEFORE: every real (non __TEST_) row across the tables this feature reads,
       -- reduced to one digest so "unchanged" is a single comparison. Scoped to service_visits/service_tickets/
@@ -158,18 +249,24 @@ begin
       ) real_rows;
       res := res || E'\nINFO real-row fingerprint BEFORE = ' || v_fp_before;
 
-      -- Run the pinned test text verbatim. It is itself a complete `do $t$ ... end $t$;` statement that always
-      -- ends in `raise exception E'RESULTS:%'` (see the PIN guarantee above), so EXECUTE always raises here --
-      -- caught below as a savepoint-scoped exception, which also means every __TEST_ row the embedded test
-      -- created is rolled back to this point before the AFTER fingerprint is taken.
+      -- 4. RUN -- apply the pinned migration verbatim (additive: create-or-replace function + revoke/grant).
+      execute v_embedded_migration;
+      res := res || E'\nok   migration applied inside this still-open transaction';
+
+      -- Then run the pinned test text verbatim. It is itself a complete `do $t$ ... end $t$;` statement that
+      -- always ends in `raise exception E'RESULTS:%'` (see the PIN guarantee above), so EXECUTE always raises
+      -- here -- caught below, which also means every __TEST_ row the embedded test created is rolled back to
+      -- this point before the AFTER fingerprint is taken.
       begin
-        execute v_embedded;
+        execute v_embedded_test;
         v_inner_result := 'FAIL embedded test returned without raising -- it must always end in RAISE EXCEPTION E''RESULTS:%''';
       exception when others then
         v_inner_result := sqlerrm;
       end;
       res := res || E'\n--- embedded test output ---\n' || coalesce(v_inner_result, '(no result captured)') || E'\n--- end embedded test output ---';
 
+      -- 5. PROVE -- fingerprint again now that the exception above has rolled the test's __TEST_ rows back to
+      -- the savepoint, then compare and append the result (never skipped, whichever way the comparison lands).
       select encode(sha256(convert_to(coalesce(string_agg(x, ',' order by x), ''), 'UTF8')), 'hex') into v_fp_after
       from (
         select sv.id::text || ':' || coalesce(r.id::text, '-') as x
@@ -186,7 +283,8 @@ begin
     end if;
   end if;
 
-  -- Unconditional final line, every path (gate refusal, hash mismatch, or a full run) lands here exactly once.
+  -- Unconditional final line, every path (gate refusal, hash mismatch, or a full run) lands here exactly once,
+  -- with the fingerprint comparison already appended above whenever step 4 actually ran.
   raise exception E'RESULTS:%', res;
 end
 $rehearsal$;

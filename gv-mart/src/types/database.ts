@@ -7153,7 +7153,6 @@ export type Database = {
           ticket_id: string
           customer_id: string
           customer_name: string
-          customer_mobile: string
           complaint: string | null
           visit_completed_at: string
         }[]
