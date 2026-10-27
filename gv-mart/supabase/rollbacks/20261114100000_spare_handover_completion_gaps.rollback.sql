@@ -374,6 +374,9 @@ begin
   on conflict do nothing
   returning id into v_handover_id;
 
+  -- date has no unique constraint (a technician can have more than one
+  -- handover per day in principle), so on_conflict above never actually
+  -- fires today — kept defensive in case a future migration adds one.
   if v_handover_id is null then
     insert into public.spare_handovers (org_id, technician_id, date, status)
     values (p_org_id, p_technician_id, p_date, 'pending')
@@ -389,6 +392,7 @@ begin
       insert into public.spare_handover_items (org_id, handover_id, spare_id, qty_given)
       values (p_org_id, v_handover_id, v_item.spare_id, v_item.qty_given);
 
+      -- Warehouse-side decrement — unchanged conditional UPDATE.
       update public.inventory
         set stock_qty = stock_qty - v_item.qty_given
         where org_id = p_org_id and item_type = 'spare' and item_id = v_item.spare_id
@@ -404,6 +408,8 @@ begin
           v_item.spare_id, v_item.qty_given, coalesce(v_have, 0);
       end if;
 
+      -- Per-technician van-side increment — was a pooled `inventory`
+      -- location='van' upsert, now this technician's own ledger row.
       insert into public.technician_stock_levels (org_id, technician_id, item_type, item_id, stock_qty)
       values (p_org_id, p_technician_id, 'spare', v_item.spare_id, v_item.qty_given)
       on conflict (org_id, technician_id, item_type, item_id)
