@@ -32,6 +32,7 @@ declare
   v_migration_text text;
   v_test_text text;
   v_orig_csh_pgtemp text;
+  v_org_fp text;
   v_live_csh_def text;
   v_pgtemp_csh_def text;
   v_fp_before jsonb;
@@ -49,6 +50,19 @@ begin
   v_now_ist := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   if v_now_ist < time '18:00' then
     raise exception 'rehearsal refused: run only after 18:00 IST (Asia/Kolkata) -- current IST time is %', v_now_ist;
+  end if;
+
+  -- ── 2. organisation fingerprint pin -- the very first check after the lock budget and
+  --      time gate, before anything else including the sha256 file pins below. This literal
+  --      value was supplied by the reviewer who has real DB access; this rehearsal cannot and
+  --      does not attempt to verify or second-guess it -- it is wired in exactly as given.
+  select md5(o.id::text || '|' || o.name) into v_org_fp
+    from public.organizations o
+    where o.name not like '\_\_TEST\_%' escape '\'
+    order by o.created_at asc, o.id asc
+    limit 1;
+  if v_org_fp is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
+    raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
   end if;
 
   -- ── 3. embedded text ──────────────────────────────────────────────────────────────────
@@ -408,10 +422,13 @@ $$;
 $OCSH_TEXT$;
 
   -- ── 4. sha256 pins on the embedded files ────────────────────────────────────────────────
-  if encode(sha256(convert_to(v_migration_text, 'UTF8')), 'hex') <> v_migration_sha256 then
+  -- CR-tolerance: hashed and executed via replace(..., E'\r', '') so a CRLF-saved copy of this
+  -- same file still hashes and executes identically to the LF original. The pinned sha256
+  -- constants themselves are unchanged (still the LF hashes).
+  if encode(sha256(convert_to(replace(v_migration_text, E'\r', ''), 'UTF8')), 'hex') <> v_migration_sha256 then
     raise exception 'rehearsal refused: embedded migration text does not match its pinned sha256 (% expected) -- re-pin after any edit', v_migration_sha256;
   end if;
-  if encode(sha256(convert_to(v_test_text, 'UTF8')), 'hex') <> v_test_sha256 then
+  if encode(sha256(convert_to(replace(v_test_text, E'\r', ''), 'UTF8')), 'hex') <> v_test_sha256 then
     raise exception 'rehearsal refused: embedded test text does not match its pinned sha256 (% expected) -- re-pin after any edit', v_test_sha256;
   end if;
 
@@ -424,15 +441,25 @@ $OCSH_TEXT$;
   --      even for byte-identical bodies). Wrapped so a lock-timeout here is reported distinctly
   --      from a genuine drift failure.
   begin
-    execute v_orig_csh_pgtemp;
+    execute replace(v_orig_csh_pgtemp, E'\r', '');
   exception when sqlstate '55P03' then
     v_lock_timeout_hit := true;
     raise exception 'rehearsal refused: lock_timeout (5s) exceeded while preparing the pinned-original comparison for confirm_spare_handover -- this is a LOCK CONTENTION failure, not a logic or drift failure; retry when the table/function is not under contention';
   end;
 
+  -- Postgres renders a session's real temporary schema as pg_temp_N (e.g. pg_temp_3) in
+  -- pg_get_functiondef's output -- never literally "pg_temp", even though "pg_temp" is a
+  -- valid resolving alias when used in a type cast like 'pg_temp.confirm_spare_handover(...)'
+  -- ::regprocedure. The pattern below matches both the bare alias form and the real pg_temp_N
+  -- form it will actually see. Known, accepted limitation of this whole comparison mechanism:
+  -- pg_get_functiondef's output never includes the function owner or any COMMENT ON FUNCTION
+  -- text, so even after this fix it cannot catch an owner change or a comment-only edit to the
+  -- live function -- it only catches a change to the function's actual signature, language,
+  -- security, search_path, volatility, or body. That is accepted, not something to guard
+  -- against further here.
   v_pgtemp_csh_def := regexp_replace(
     pg_get_functiondef('pg_temp.confirm_spare_handover(uuid,text,text)'::regprocedure),
-    'pg_temp\.confirm_spare_handover', 'FN', 'g');
+    'pg_temp(_[0-9]+)?\.confirm_spare_handover', 'FN', 'g');
   v_live_csh_def := regexp_replace(
     pg_get_functiondef('public.confirm_spare_handover(uuid,text,text)'::regprocedure),
     'public\.confirm_spare_handover', 'FN', 'g');
@@ -458,14 +485,14 @@ $OCSH_TEXT$;
   --      transaction -- nothing here is ever committed; the final raise below undoes it all).
   --      Wrapped so a lock-timeout mid-apply is reported distinctly from a test/logic failure.
   begin
-    execute v_migration_text;
+    execute replace(v_migration_text, E'\r', '');
   exception when sqlstate '55P03' then
     v_lock_timeout_hit := true;
     raise exception 'rehearsal refused: lock_timeout (5s) exceeded while applying the migration (DROP/CREATE POLICY or CREATE OR REPLACE FUNCTION blocked by a concurrent transaction) -- this is a LOCK CONTENTION failure, not a migration logic failure; retry when the table/function is not under contention';
   end;
 
   begin
-    execute v_test_text;
+    execute replace(v_test_text, E'\r', '');
     v_test_results := '(test completed without raising -- unexpected: the test file always ends in its own RAISE EXCEPTION ''RESULTS...''; treat this as a WRONG ERROR condition, not a pass)';
   exception
     when sqlstate '55P03' then
