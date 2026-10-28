@@ -39,7 +39,7 @@ declare
   v_now_ist time;
   v_lock_timeout_hit boolean := false;
   v_mig1_sha256 text := 'd582f42cd850986a7374333c60706d41973295deac5c710de9ad75dbc2b63778';
-  v_test1_sha256 text := '34f2fe5a0bb1627d02ba2e81893e216185dcea2d2ac0f67970d4a91159395778';
+  v_test1_sha256 text := '8ff8b144a0c77819066cc023ed151d5d14bca7955d7366153322fb7b14f7c5f3';
   v_mig2_sha256 text := '08c734722e49ac7f47225f0547ac90d5bc9a075e1747a70e5aeac3715cab3bea';
   v_test2_sha256 text := 'b58dce801eb8890328c31be9e77de3a481a509bf1fcddeadaa9257e4bbc185b2';
   v_newtest_sha256 text := '905d597bd95c0e28778444d436b96c74e48360e205abc09a0b2180b66d40f83d';
@@ -374,8 +374,13 @@ begin
 
   -- ── confirm_spare_handover (now security definer) still works end to end for the owning
   -- technician, and is still refused for a handover that isn't theirs ─────────────────────
+  -- Schema-qualified by oid, not proname: once the live-definition pre-check has created
+  -- pg_temp.confirm_spare_handover (which persists for the rest of the session), a bare
+  -- `proname = 'confirm_spare_handover'` matches BOTH it and public.confirm_spare_handover,
+  -- and the scalar subquery raises "more than one row returned" (SQLSTATE 21000) -- found by
+  -- the reviewer, since both rehearsal wrappers run exactly that pre-check before this test.
   perform pg_temp.chk('confirm_spare_handover is now security definer',
-    (select prosecdef from pg_proc where proname = 'confirm_spare_handover'));
+    (select prosecdef from pg_proc where oid = 'public.confirm_spare_handover(uuid,text,text)'::regprocedure));
   perform pg_temp.chk('anon cannot execute confirm_spare_handover',
     not has_function_privilege('anon', 'public.confirm_spare_handover(uuid,text,text)', 'execute'));
   perform pg_temp.chk('authenticated can execute confirm_spare_handover',

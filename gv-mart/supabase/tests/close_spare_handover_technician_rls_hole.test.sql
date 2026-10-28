@@ -164,8 +164,13 @@ begin
 
   -- ── confirm_spare_handover (now security definer) still works end to end for the owning
   -- technician, and is still refused for a handover that isn't theirs ─────────────────────
+  -- Schema-qualified by oid, not proname: once the live-definition pre-check has created
+  -- pg_temp.confirm_spare_handover (which persists for the rest of the session), a bare
+  -- `proname = 'confirm_spare_handover'` matches BOTH it and public.confirm_spare_handover,
+  -- and the scalar subquery raises "more than one row returned" (SQLSTATE 21000) -- found by
+  -- the reviewer, since both rehearsal wrappers run exactly that pre-check before this test.
   perform pg_temp.chk('confirm_spare_handover is now security definer',
-    (select prosecdef from pg_proc where proname = 'confirm_spare_handover'));
+    (select prosecdef from pg_proc where oid = 'public.confirm_spare_handover(uuid,text,text)'::regprocedure));
   perform pg_temp.chk('anon cannot execute confirm_spare_handover',
     not has_function_privilege('anon', 'public.confirm_spare_handover(uuid,text,text)', 'execute'));
   perform pg_temp.chk('authenticated can execute confirm_spare_handover',
