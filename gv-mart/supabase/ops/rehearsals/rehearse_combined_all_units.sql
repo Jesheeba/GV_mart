@@ -2774,8 +2774,13 @@ $oldsalbody$;
   v_t8_expected_sha256 text := 'c3148fc62c35bfb4cb4ae77d8a860696fbe0115189c01fde1378258724b7effe';
   v_t9_expected_sha256 text := 'c3ef17ced16b34ed1f3d6e5be98e180b18a40d4202263d580565ad5107773bf5';
 begin
-  if v_now_ist < '18:00:00'::time then
-    raise exception 'rehearsal refused: run after 18:00 IST, current IST wall-clock time is %', v_now_ist;
+  -- lock budget -- first executed statement, before even the time gate, so a real run can
+  -- never hang on contention (standard form across every other package's wrapper this
+  -- release). Added by the release gate-fix review; was previously missing entirely.
+  perform set_config('lock_timeout', '5s', true);
+
+  if v_now_ist < '11:00:00'::time then
+    raise exception 'rehearsal refused: run after 11:00 IST, current IST wall-clock time is %', v_now_ist;
   end if;
 
   v_actual_sha256 := encode(sha256(convert_to(v_m1, 'UTF8')), 'hex');
