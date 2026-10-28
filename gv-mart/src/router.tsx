@@ -60,6 +60,7 @@ const TechniciansSpareHandoverPage = lazyPage(() => import("@/app/admin/technici
 const HrPage = lazyPage(() => import("@/app/admin/hr/HrPage"), "HrPage")
 const ExpensesPage = lazyPage(() => import("@/app/admin/expenses/ExpensesPage"), "ExpensesPage")
 const AccountsPage = lazyPage(() => import("@/app/admin/accounts/AccountsPage"), "AccountsPage")
+const CustomerOutstandingPage = lazyPage(() => import("@/app/admin/accounts/CustomerOutstandingPage"), "CustomerOutstandingPage")
 const ReportsPage = lazyPage(() => import("@/app/admin/reports/ReportsPage"), "ReportsPage")
 const TasksPage = lazyPage(() => import("@/app/admin/tasks/TasksPage"), "TasksPage")
 const HuddlePage = lazyPage(() => import("@/app/admin/huddle/HuddlePage"), "HuddlePage")
@@ -218,6 +219,7 @@ export const router = createBrowserRouter([
                   },
                   { path: "hr", element: <HrPage /> },
                   { path: "accounts", element: <AccountsPage /> },
+                  { path: "accounts/outstanding", element: <CustomerOutstandingPage /> },
                   { path: "reports", element: <ReportsPage /> },
                   { path: "masters", element: <MastersPage /> },
                   { path: "approvals", element: <ApprovalsPage /> },
