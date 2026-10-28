@@ -1772,7 +1772,8 @@
       "amc": "AMC",
       "warranty": "Warranty",
       "unassigned": "Unassigned",
-      "missingProduct": "Missing product"
+      "missingProduct": "Missing product",
+      "repeat": "Repeat complaint"
     },
     "table": {
       "ticket": "Ticket",
