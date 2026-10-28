@@ -219,11 +219,24 @@ export function AdminShell() {
           <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
         </span>
         <nav className={cn("flex flex-1 flex-col gap-1", sidebarCollapsed ? "items-center" : "items-stretch")}>
-          {items.map((item) => {
+          {items.map((item, index) => {
             const Icon = item.icon
+            // A group header divider renders right before the first item of
+            // a new group — collapsed into a plain spacer (no label) when
+            // the sidebar is icon-only, since there's no room for text.
+            const showGroupHeader = item.group && item.group !== items[index - 1]?.group
             return (
-              <NavLink
-                key={item.key}
+              <div key={item.key} className="contents">
+                {showGroupHeader ? (
+                  sidebarCollapsed ? (
+                    <div className="my-1 h-px w-8 shrink-0 bg-border" aria-hidden="true" />
+                  ) : (
+                    <div className="mt-3 mb-1 px-3 text-[10px] font-bold uppercase tracking-wide text-text-muted first:mt-1">
+                      {t(`navGroups.${item.group}`)}
+                    </div>
+                  )
+                ) : null}
+                <NavLink
                 to={item.path}
                 end={item.end}
                 aria-label={t(item.labelKey)}
@@ -263,7 +276,8 @@ export function AdminShell() {
                   ) : null}
                 </span>
                 {!sidebarCollapsed ? <span className="truncate text-sm font-medium">{t(item.labelKey)}</span> : null}
-              </NavLink>
+                </NavLink>
+              </div>
             )
           })}
         </nav>

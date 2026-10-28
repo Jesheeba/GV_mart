@@ -182,6 +182,15 @@
     "auditLog": "Audit Log",
     "myDay": "Daily Follow Up"
   },
+  "navGroups": {
+    "salesPipeline": "Sales Pipeline",
+    "myWork": "My Work",
+    "serviceOps": "Service Operations",
+    "supplyChain": "Supply Chain",
+    "money": "Money",
+    "marketing": "Marketing & Messaging",
+    "admin": "Admin / Oversight"
+  },
   "auth": {
     "heroTitle": "Sign in to your workspace",
     "heroSubtitle": "Each role has its own secure login. You'll only see the dashboard and tools your role allows — nothing more.",
@@ -4880,7 +4889,7 @@
     "loadFailed": "Could not load campaigns.",
     "empty": "No campaigns yet.",
     "newCampaign": "New Campaign",
-    "noSendIntegrationNote": "This app has no live send integration — campaigns here are create/track only.",
+    "noSendIntegrationNote": "Log only: nothing is sent to customers from here. Campaigns logged on this page are for planning and tracking only — no WhatsApp, SMS, email or call is actually dispatched.",
     "table": {
       "name": "Name",
       "channel": "Channel",
