@@ -32,6 +32,12 @@ import type { UserRole } from "@/lib/roles"
 
 export type AdminNavGroup = "salesPipeline" | "myWork" | "serviceOps" | "supplyChain" | "money" | "marketing" | "admin"
 
+/** "more" is never set on an item — it's the fallback bucket groupNavSections()
+ * assigns to anything that didn't name a real group. Keeping it out of
+ * AdminNavGroup means a future item can't accidentally hardcode `group: "more"`
+ * instead of just omitting `group`, which would hide it from this safety net. */
+export type AdminNavSection = AdminNavGroup | "more"
+
 export type AdminNavItem = {
   key: string
   labelKey: string
@@ -42,6 +48,34 @@ export type AdminNavItem = {
   end?: boolean
   /** Sidebar section this item renders under (a small-caps divider label). Omitted for Dashboard, which is pinned above every group. */
   group?: AdminNavGroup
+}
+
+// Canonical left-to-right/top-to-bottom section order. "more" is always
+// last: a nav item that ships without a `group` (future releases merging
+// in new modules — technician leave, pending reviews, spare handovers,
+// monthly expenses, water profile, etc.) must still be reachable by every
+// role that's allowed to see it, in a visible section, rather than
+// silently vanishing because nobody remembered to map it. See
+// groupNavSections() and nav.test.ts's "fallback group" coverage.
+const SECTION_ORDER: AdminNavSection[] = ["salesPipeline", "myWork", "serviceOps", "supplyChain", "money", "marketing", "admin", "more"]
+
+export type AdminNavSectionGroup = { section: AdminNavSection; items: AdminNavItem[] }
+
+/** Buckets already-role-filtered items into sections for the sidebar, in
+ * SECTION_ORDER. Dashboard (identified by key, not by an `end` check, since
+ * `end` is also meaningful on non-Dashboard items in principle) is excluded
+ * here — AdminShell pins it above every section itself. Pure function, no
+ * React, so it's unit-testable without rendering anything. */
+export function groupNavSections(items: AdminNavItem[]): AdminNavSectionGroup[] {
+  const buckets = new Map<AdminNavSection, AdminNavItem[]>()
+  for (const item of items) {
+    if (item.key === "dashboard") continue
+    const section: AdminNavSection = item.group ?? "more"
+    const bucket = buckets.get(section)
+    if (bucket) bucket.push(item)
+    else buckets.set(section, [item])
+  }
+  return SECTION_ORDER.filter((s) => buckets.has(s)).map((section) => ({ section, items: buckets.get(section)! }))
 }
 
 const ALL_STAFF: UserRole[] = ["master", "operation_admin", "sales_admin"]

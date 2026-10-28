@@ -82,13 +82,57 @@ New tests added: `src/app/admin/nav.test.ts` (sidebar visibility per role —
 master sees every item, operation_admin/sales_admin see role-scoped
 subsets, technician/customer see nothing because `ADMIN_NAV.roles` never
 lists those two roles) and `src/router.test.ts` (route-table check that
-`/admin/complaints` still resolves to `ComplaintsPage`, not a 404 or a
-redirect, using `matchRoutes` against the real exported `router` — no
-rendering, no jsdom, consistent with this repo's existing node-environment,
-logic-only test style). There is no separate "old P&L route" or "old
-Expenses route" to test: P&L was always a `Tabs` value inside `/admin/reports`,
-never its own URL, and the Expenses route doesn't exist on `origin/main` at
-all (see above) — both are noted here rather than silently skipped.
+`/admin/complaints`, `/admin/accounts`, `/admin/reports` and `/admin/hr`
+still resolve to their pages). That test can't actually import `router.tsx`
+and call `matchRoutes` against it — `createBrowserRouter` runs at module
+load and touches `document`, which doesn't exist in this repo's
+node-environment vitest setup (no jsdom/happy-dom dependency here, and
+adding one felt like scope creep for a nav change), and `src` isn't typed
+for Node builtins either (no `"node"` in `tsconfig.app.json`'s `types`, so
+`node:fs` wasn't an option). Settled on a text-match check against
+`router.tsx`'s source via Vite's `?raw` import instead — a regression guard
+on the route *shape*, not a renderer. There is no separate "old P&L route"
+or "old Expenses route" to test: P&L was always a `Tabs` value inside
+`/admin/reports`, never its own URL, and the Expenses route doesn't exist
+on `origin/main` at all (see above) — both are noted in the test file
+rather than silently skipped.
+
+## 2026-10-29 update — merge gate change + fallback "More" group
+
+Per owner instruction, received after the report above:
+
+**Merge gate narrowed.** The `feat/accounts-outstanding-followups` check is
+dropped — that branch is still in planning and its tip is currently
+identical to `origin/main`'s (0 commits ahead), which reads as "hasn't
+started," not "merged and cleaned up." Rather than resolve that ambiguity,
+the owner said to ignore it; it'll rebase onto `main` itself. **The only
+remaining gate is `release_log.md` showing the release's code phase
+finished** (all packages merged to `origin/main`). As of this update that
+log is still mid-Phase-2 (2 of 3 independent-reviewer results pending) —
+not finished.
+
+**Fallback "More" group added**, because the release about to land on
+`main` adds several nav items (technician leave, pending reviews, spare
+handovers, monthly expenses, water profile, possibly more) that this
+branch's grouping has no knowledge of yet. Any `ADMIN_NAV` item that omits
+`group` now renders under a visible "More" section at the bottom of the
+sidebar instead of silently disappearing — implemented as a new pure
+function, `groupNavSections()` in `nav.ts`, used by `AdminShell.tsx`. Items
+with a real group are unaffected; `AdminNavGroup` (the explicit section
+names) deliberately does NOT include `"more"` as a settable value, so a
+future edit can't accidentally type `group: "more"` instead of just
+omitting `group` — the fallback only ever happens by omission, never by
+choice.
+
+Added test coverage: `nav.test.ts` now has a `"fallback 'More' group"`
+describe block (a fake unmapped item lands in "More" for a role that can
+see it, is absent for a role that can't, "More" always sorts last, and an
+item with a real `group` never falls into "More" even if a fake one is
+added alongside it) and a `"permission parity vs origin/main"` describe
+block (a frozen `{key: roles[]}` snapshot taken from `origin/main`'s
+`nav.ts` at rebuild time, asserting every role's visible-key set today
+exactly equals that snapshot — catches any future edit that accidentally
+grants or revokes access to an item).
 
 ## 5) Commit split
 
@@ -100,10 +144,20 @@ the others:
 - `8ef16d4` — P&L move into Accounts
 - `e8d3b67` — Repeat Complaint chip on Service (additive, not one of the
   original four, added per instruction 2's "keep it if harmless")
+- (2026-10-29) one more commit — fallback "More" group + its tests (not one
+  of the original four either; added per the 2026-10-29 instruction, see
+  above)
 
-(b) Fuel & Bike Allowances rename is not a commit here — see §1.
+(b) Fuel & Bike Allowances rename is not a commit here — see §1 and
+instruction 3 of the 2026-10-29 update: apply it only once Monthly
+Expenses is itself on `main`.
 
-## 6) Merge gating
+## 6) Merge gating (updated 2026-10-29)
 
-Not pushed. See the final report for the exact READY TO MERGE commands and
-the two conditions this is waiting on.
+Not pushed. **Single remaining gate: `release_log.md` shows the release's
+code phase finished** (all packages merged to `origin/main`). The
+`feat/accounts-outstanding-followups` condition from the original report
+is dropped per instruction. Owner will say "MERGE NOW" in-session once the
+release log shows that; until then, stop after the fallback-group work
+above. See the latest chat report for the exact merge commands to run once
+that's true.

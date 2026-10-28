@@ -189,7 +189,8 @@
     "supplyChain": "Supply Chain",
     "money": "Money",
     "marketing": "Marketing & Messaging",
-    "admin": "Admin / Oversight"
+    "admin": "Admin / Oversight",
+    "more": "More"
   },
   "auth": {
     "heroTitle": "Sign in to your workspace",
