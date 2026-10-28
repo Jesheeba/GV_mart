@@ -29,7 +29,7 @@
 --      it inserts for this rule type), which would have made old-vs-new
 --      a trivial zero-equals-zero comparison.
 --
--- Standard form: refuses before 18:00 IST, using
+-- Standard form: refuses before 11:00 IST (owner decision, 2026-10-28), using
 -- (clock_timestamp() at time zone 'Asia/Kolkata')::time. Each migration's
 -- and each original function body's pinned sha256 is recomputed via
 -- encode(sha256(convert_to(text, 'UTF8')), 'hex') -- the built-in core
