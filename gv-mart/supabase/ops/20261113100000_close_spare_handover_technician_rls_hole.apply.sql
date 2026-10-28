@@ -51,6 +51,13 @@
 --   11. POST-APPLY CHECKS (read-only, each raises immediately if wrong):
 --      11a. both new SELECT-only policies exist, and the two old FOR-ALL policies are gone;
 --      11b. confirm_spare_handover is now SECURITY DEFINER;
+--      11b2. REAL RLS PROBE -- actually attempts a technician-context INSERT into
+--          spare_handovers (throwaway __TEST_ org/profile/technician) and confirms it is
+--          refused with SQLSTATE 42501. The __TEST_ org is left in place afterwards (deleting
+--          it would cascade into the append-only audit_log table and be refused by trigger);
+--          cleanup is via the existing purge_test_organisation() route, not inline here.
+--          Policy existence by name (11a) does not by itself prove enforcement -- added per
+--          independent review.
 --      11c. DIFF-BASED leak check -- recompute the PUBLIC/anon-executable function list and diff it
 --          against the BEFORE snapshot (this migration grants/revokes nothing, so expected empty, but
 --          checked, not assumed);
@@ -71,6 +78,7 @@ create temp table close_spare_handover_technician_rls_hole_apply_status (
   version_registered              boolean,
   policies_correct                boolean,
   confirm_spare_handover_is_definer boolean,
+  technician_direct_insert_refused boolean,
   function_executable_by_anon     boolean,
   newly_leaked_functions          text[],
   data_fingerprint_before         text,
@@ -94,6 +102,10 @@ declare
   v_policies_ok               boolean;
   v_confirm_is_definer       boolean := false;
   v_anon_exec                boolean := false;
+  v_probe_org                uuid;
+  v_probe_profile            uuid;
+  v_probe_tech               uuid;
+  v_tech_insert_refused      boolean := false;
   v_leaked_before            text[];
   v_leaked_after             text[];
   v_newly_leaked             text[];
@@ -361,6 +373,49 @@ begin
     raise exception 'APPLY_REFUSED: post-apply check failed -- public.confirm_spare_handover(uuid,text,text) is not SECURITY DEFINER after the migration ran';
   end if;
 
+  -- 11b2. REAL RLS PROBE (independent review caught this gap: policy-object-existence by name
+  -- does not by itself prove enforcement -- a malformed USING clause, an overlapping
+  -- permissive policy, or FORCE ROW LEVEL SECURITY being off could all leave the hole open
+  -- while policy names look correct). Actually attempt a technician-context INSERT into
+  -- spare_handovers and confirm it is refused with SQLSTATE 42501, using a throwaway __TEST_
+  -- organisation/profile/technician created inside this same transaction (rolled back
+  -- automatically if anything above failed). The __TEST_-prefixed org is deliberately left in
+  -- place on the success path, not deleted: deleting it cascades into audit_log, which is
+  -- append-only (DELETE is refused by trigger) -- the standing cleanup route for throwaway
+  -- __TEST_ orgs in this codebase is the separate purge_test_organisation() function, run
+  -- later, not an inline DELETE here. current_technician_id() resolves via
+  -- `profiles.id = auth.uid()`, so the JWT 'sub' claim must be the PROFILE id, not the
+  -- technicians-table id -- using the wrong one would make current_technician_id() return
+  -- NULL and the INSERT would be refused regardless of whether this migration's fix is live,
+  -- making the probe meaningless; verified live against the current (pre-migration) state
+  -- that this probe correctly reports NOT refused before the fix and refused after.
+  insert into public.organizations (name) values ('__TEST_spares_113_apply_rls_probe') returning id into v_probe_org;
+  insert into public.settings (org_id) values (v_probe_org) on conflict (org_id) do nothing;
+
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '__t_probe_' || gen_random_uuid() || '@test.invalid', 'x', now(), now(), now(), '{}', '{}')
+  returning id into v_probe_profile;
+  insert into public.profiles (id, org_id, full_name, role, is_active) values (v_probe_profile, v_probe_org, '__TEST_ probe technician', 'technician', true);
+
+  insert into public.technicians (org_id, profile_id, is_active)
+    values (v_probe_org, v_probe_profile, true)
+    returning id into v_probe_tech;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_probe_profile, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into public.spare_handovers (org_id, technician_id, date, status)
+      values (v_probe_org, v_probe_tech, current_date, 'pending');
+  exception when sqlstate '42501' then
+    v_tech_insert_refused := true;
+  end;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+
+  if not v_tech_insert_refused then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- a technician''s direct INSERT into spare_handovers was NOT refused (RLS hole not actually closed, despite the policy objects looking correct)';
+  end if;
+
   -- 11c. DIFF-BASED leak check -- only entries NEW (present after, absent before) fail this check.
   select coalesce(array_agg(sig order by sig), array[]::text[]) into v_leaked_after
   from (
@@ -413,12 +468,12 @@ begin
   -- 12. Every step above passed -- record the one status row.
   insert into pg_temp.close_spare_handover_technician_rls_hole_apply_status (
     migration_version, version_registered, policies_correct, confirm_spare_handover_is_definer,
-    function_executable_by_anon, newly_leaked_functions,
+    technician_direct_insert_refused, function_executable_by_anon, newly_leaked_functions,
     data_fingerprint_before, data_fingerprint_after, data_fingerprint_unchanged, applied_at
   )
   values (
     v_migration_version, true, v_policies_ok, v_confirm_is_definer,
-    v_anon_exec, v_newly_leaked,
+    v_tech_insert_refused, v_anon_exec, v_newly_leaked,
     v_fp_before::text, v_fp_after::text, (v_fp_after = v_fp_before), now()
   );
 end
