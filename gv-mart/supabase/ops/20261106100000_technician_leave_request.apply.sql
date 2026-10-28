@@ -1,9 +1,10 @@
 -- GO APPLY for 20261106100000_technician_leave_request.sql.
--- One DO block. Applies the migration FOR REAL and commits, but only if every one of the
--- following checks passes, in order; the first failure raises and the entire statement
--- (migration + registration + post-checks) rolls back atomically -- there is no forced
--- rollback at the end the way the rehearsal wrapper has one. No test file is embedded or run
--- here; the test already ran clean in the rehearsal (see leave_wrapper_run.sql.out.txt).
+-- One DO block, followed by one read-only status SELECT as a separate statement. The DO block
+-- applies the migration FOR REAL and commits, but only if every one of the following checks
+-- passes, in order; the first failure raises and the entire statement (migration +
+-- registration + post-checks) rolls back atomically -- there is no forced rollback at the end
+-- the way the rehearsal wrapper has one. No test file is embedded or run here; the test already
+-- ran clean in the rehearsal (see leave_wrapper_run.sql.out.txt).
 --
 -- Order of checks: lock_timeout -> real-organisation fingerprint -> exactly-one-real-org ->
 -- 18:00 IST gate -> CR-tolerant migration hash -> not-already-registered -> reward_candidates
@@ -13,6 +14,17 @@
 -- tables/columns exist, settings.leave_notice_days default is 1, zero public-schema functions
 -- executable by PUBLIC/anon, the six leave functions specifically refused to anon/PUBLIC,
 -- technician_availability row count and content fingerprint for the real org unchanged).
+--
+-- Read-only pre-apply review (2026-10-28, via the same Management API path, nothing changed):
+--   select count(*) from organizations where name not like '\_\_TEST\_%'           -> 1
+--   count(*) of pg_proc in public with EXECUTE granted to PUBLIC/anon via aclexplode -> 0
+--   supabase_migrations.schema_migrations columns: version text not null,
+--     name text, statements text[] (confirmed via information_schema.columns);
+--     3 most recent existing rows all have non-null statements.
+-- Because the public/anon-exec count was 0 at review time, the schema-wide post-check below is
+-- left as an absolute zero-count assertion (not a before/after new-functions-only diff) --
+-- if it is ever non-zero for an unrelated reason by the time this actually runs, refusing is
+-- the correct, intended behaviour, not a false positive to work around.
 do $go$
 declare
   v_migration text := $MIGRATION_BODY$-- Technician leave request in advance (KPI-protected). Spec: FEATURE_TECHNICIAN_LEAVE_REQUEST.md.
@@ -724,7 +736,7 @@ begin
   -- apply is running against the one specific real organisation it was written for.
   select md5(o.id::text || '|' || o.name) into v_org_fingerprint
     from public.organizations o
-    where o.name not like '\_\_TEST%'
+    where o.name not like '\_\_TEST\_%'
     order by o.created_at asc
     limit 1;
   if v_org_fingerprint is distinct from '6f891cf85011f08c2f22fb4a208d21bd' then
@@ -795,9 +807,23 @@ begin
   -- ══ APPLY FOR REAL ══════════════════════════════════════════════════════════════════════
   execute replace(v_migration, E'\r', '');
 
-  -- ── register the version. Same transaction as the migration above and every check below --
-  --    if anything from here on raises, this insert rolls back along with everything else.
-  insert into supabase_migrations.schema_migrations (version) values ('20261106100000');
+  -- ── register the version, matching the shape of the existing rows (version/name/statements
+  --    as supabase_migrations.schema_migrations actually uses them -- confirmed live:
+  --    version text not null, name text, statements text[]). name follows the same
+  --    timestamp_name convention as every sibling row (filename minus the "<version>_" prefix
+  --    and ".sql" suffix). statements is simplified to one element holding the whole
+  --    (CR-stripped) migration text, rather than attempting a semicolon-based split that would
+  --    misparse the dollar-quoted function bodies this migration is full of -- the column is
+  --    informational bookkeeping, not re-executed from here, so a single-element array is an
+  --    honest "shape match" without pretending a false per-statement precision. Same
+  --    transaction as the migration above and every check below -- if anything from here on
+  --    raises, this insert rolls back along with everything else.
+  insert into supabase_migrations.schema_migrations (version, name, statements)
+  values (
+    '20261106100000',
+    'technician_leave_request',
+    array[replace(v_migration, E'\r', '')]
+  );
 
   -- ══ post-migration read-only checks -- any failure here rolls back the whole apply ════════
 
@@ -892,3 +918,38 @@ begin
   -- All checks passed: the DO block falls through here and the statement commits for real.
 end
 $go$;
+
+-- ── read-only status check, run as its own statement right after the DO block (NOT a NOTICE:
+--    an actual SELECT with a real result row, so success/failure is visible however this file
+--    is run, including through an API that only surfaces the final statement's rows). If the
+--    DO block above raised, nothing it touched committed and this still only reports the
+--    unchanged pre-apply state -- it never claims success on its own, it only reports facts.
+select
+  (select exists(
+     select 1 from supabase_migrations.schema_migrations where version = '20261106100000'
+   )) as version_registered,
+  (select exists(
+     select 1 from information_schema.tables
+     where table_schema = 'public' and table_name = 'technician_leave_requests'
+   )) as table_exists,
+  (select exists(
+     select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'technician_availability' and column_name = 'leave_request_id'
+   )) as availability_leave_request_id_exists,
+  (select exists(
+     select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'technician_availability' and column_name = 'protected'
+   )) as availability_protected_exists,
+  (select exists(
+     select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'settings' and column_name = 'leave_notice_days'
+   )) as settings_leave_notice_days_exists,
+  (select exists(
+     select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'settings' and column_name = 'attendance_reward_min_present_ratio'
+   )) as settings_ratio_exists,
+  (select column_default from information_schema.columns
+     where table_schema = 'public' and table_name = 'settings' and column_name = 'leave_notice_days'
+   ) as leave_notice_days_default,
+  (select md5(pg_get_functiondef('public.reward_candidates(uuid,date)'::regprocedure))
+  ) as reward_candidates_def_md5;
