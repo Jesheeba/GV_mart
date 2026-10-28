@@ -1410,6 +1410,7 @@ declare
   v_days int;
   v_row public.technician_vehicles;
   v_org2 uuid; v_tech2org uuid; v_tech2orgp uuid;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_technician_vehicles') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -1423,7 +1424,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('tv-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   -- A second, unrelated organisation and its own technician -- used only
@@ -1528,6 +1530,7 @@ begin
 
   raise exception E'RESULTS%', res;
 end $t$;
+
 $t1body$;
   v_t2 text := $t2body$
 -- Rolled-back check for 20261107100100_technician_km_log.sql. Creates its
@@ -1543,6 +1546,7 @@ declare
   i int;
   v_sum numeric; v_id uuid; v_n int;
   v_org2 uuid; v_master2 uuid; v_tech2org uuid; v_tech2orgp uuid;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_technician_km_log') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -1556,7 +1560,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('kl-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   -- A second, unrelated organisation and its own technician -- used only
@@ -1675,6 +1680,7 @@ begin
 
   raise exception E'RESULTS%', res;
 end $t$;
+
 $t2body$;
   v_t3 text := $t3body$
 -- Rolled-back check for 20261107100200_expense_claims.sql. Creates its own
@@ -1694,6 +1700,7 @@ declare
   i int;
   v_claim public.expense_claims; v_n int;
   v_salary salaries;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_expense_claims') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -1707,7 +1714,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('ec-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   -- Technician submits a claim via the RPC (identity resolved server-side).
@@ -1800,6 +1808,7 @@ begin
 
   raise exception E'RESULTS%', res;
 end $t$;
+
 $t3body$;
   v_t4 text := $t4body$
 -- Rolled-back check for 20261107100300_person_allowances_and_adjustments.sql.
@@ -1826,6 +1835,7 @@ declare
   i int;
   v_row public.person_allowances;
   v_n int; v_base numeric; v_excluded boolean;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_person_allowances') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -1839,7 +1849,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('pa-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   -- A second organisation, for the cross-org visibility check at the end --
@@ -1942,6 +1953,7 @@ begin
 
   raise exception E'RESULTS%', res;
 end $t$;
+
 $t4body$;
   v_t5 text := $t5body$
 -- Rolled-back check for 20261107100400_compute_incentives_bike_allowance.sql,
@@ -1962,6 +1974,7 @@ declare
   v_before_count int; v_after_count int;
   v_rule_id uuid;
   v_credit_row incentives_earned;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_monthly_expenses_bike_allowance') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -1976,7 +1989,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('bike-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
@@ -2099,6 +2113,7 @@ begin
   execute 'reset role';
   raise exception E'RESULTS%', res;
 end $t$;
+
 $t5body$;
   v_t6 text := $t6body$
 -- Rolled-back check for 20261107100500_compute_salary_itemised_expenses.sql.
@@ -2120,6 +2135,7 @@ declare
   v_row salaries; v_row2 salaries;
   v_petrol_claim public.expense_claims;
   v_maint_claim public.expense_claims;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_compute_salary_itemised') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -2133,7 +2149,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('cs-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);
@@ -2216,6 +2233,7 @@ begin
   execute 'reset role';
   raise exception E'RESULTS%', res;
 end $t$;
+
 $t6body$;
   v_t7 text := $t7body$
 -- Rolled-back check for Unit 7 (monthly report). The report itself is a
@@ -2238,6 +2256,7 @@ declare
   i int;
   v_claim public.expense_claims;
   v_sum numeric; v_org_total numeric;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_monthly_expenses_report') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -2251,7 +2270,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('mr-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   -- Submitted as the technician (submit_expense_claim resolves identity
@@ -2294,6 +2314,7 @@ begin
   execute 'reset role';
   raise exception E'RESULTS%', res;
 end $t$;
+
 $t7body$;
   v_t8 text := $t8body$
 -- Unit 8 — end to end. One month, one organisation, seven technicians:
@@ -2320,6 +2341,7 @@ declare
   v_base numeric;
   v_org_total numeric; v_manual_sum numeric;
   ids uuid[];
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_monthly_expenses_end_to_end') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -2334,7 +2356,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('e2e-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
   ids := v_techp;
 
@@ -2436,6 +2459,7 @@ begin
   execute 'reset role';
   raise exception E'RESULTS%', res;
 end $t$;
+
 $t8body$;
   v_t9 text := $t9body$
 -- ACL guard, CASE13 pattern (from feat/master-time-slots) -- for every
@@ -2764,14 +2788,14 @@ $oldsalbody$;
   v_m6_expected_sha256 text := 'bcaeedaad27c6d99217b9300a53619ad41beba9a218aac694b40184b1de7acf8';
   v_old_inc_expected_sha256 text := '7abcd18ab1ccfb5ac753691a625d9c18108593b5aa56626c9b0b5806ee8d1c22';
   v_old_sal_expected_sha256 text := '01a84dda4fce7e768f7dc631d4526bc8f74d8557be84be5ebf84f7a364189bd6';
-  v_t1_expected_sha256 text := 'f6d6d81213ce29c081f3f09e67c4b0c0a2f113ec26dc88f012b300d9eda3194b';
-  v_t2_expected_sha256 text := 'd713517a76c70a5f3e33b080156a32b9ab81f44d4671a8cfb80300dcae04a821';
-  v_t3_expected_sha256 text := '595ac8acd57f0cbe379a95404ec95a22c4ae2fbe70b3c1318098b6b04d5ae0cd';
-  v_t4_expected_sha256 text := '16bf66e95a5ee571481665c9757d807c252880135e601394a81bc581ccbb506f';
-  v_t5_expected_sha256 text := '44eb5cdbc01b811ccd15896c050cd98e6976f71b8ac053c017d78161a667d369';
-  v_t6_expected_sha256 text := '0df7a8c7f7416d51f9293afce5250e58fe9baf6fee052b9d764c17dc261611f6';
-  v_t7_expected_sha256 text := '1da1b030e890d12e2670545c8996b1f90c7e2a824ab8fd0bcb40ec1d30f131fe';
-  v_t8_expected_sha256 text := 'c3148fc62c35bfb4cb4ae77d8a860696fbe0115189c01fde1378258724b7effe';
+  v_t1_expected_sha256 text := '0da2f193dc87b521e3bc97943ecd976612782bbfddbf7a91c660ad96f52ccee0';
+  v_t2_expected_sha256 text := '45b91836daaa988d2f0569ad6fbee6e141a4389d65455219262cdb7d802d069c';
+  v_t3_expected_sha256 text := 'c84cf98e04b559535ec0ce28b60da4aa359cf9176c68f7b0dcab36821fd01236';
+  v_t4_expected_sha256 text := '72784f9daa7810b0e689f1070f1f321468f2c09c195d0f0e81464e1995c31767';
+  v_t5_expected_sha256 text := '258b5f0c439e04534c6bab4b41e0d7c24a0ba07567f2e50fdb8a97be2d77a839';
+  v_t6_expected_sha256 text := '48a6e3006c685d9c4b2518450f43ca54fbaa7173db2f13d936f04cfd330475e4';
+  v_t7_expected_sha256 text := 'f9792748a7750170e5d35acf3a762cf10693447479507427c0acd21d155f013c';
+  v_t8_expected_sha256 text := '73fd0c0cc4b451e772d06fad5ac4c4b18e3320d3eb5e55ce5283842fabd26954';
   v_t9_expected_sha256 text := 'c3ef17ced16b34ed1f3d6e5be98e180b18a40d4202263d580565ad5107773bf5';
 begin
   -- lock budget -- first executed statement, before even the time gate, so a real run can
@@ -2782,6 +2806,32 @@ begin
   if v_now_ist < '11:00:00'::time then
     raise exception 'rehearsal refused: run after 11:00 IST, current IST wall-clock time is %', v_now_ist;
   end if;
+
+  -- Strip the single leading newline that Postgres's dollar-quoting includes whenever the
+  -- opening tag ($mNbody$/$tNbody$/$oldincbody$/$oldsalbody$) is on its own line and the
+  -- embedded text starts on the next line (true for every one of the 17 blocks below). Each
+  -- pin below is computed against the clean, on-disk file (no leading newline) -- without
+  -- this strip every single sha256 check fails (confirmed live: migration 1 came back as
+  -- 7769 bytes instead of the real file's 7768). This wrapper had never actually been run
+  -- against a live DB before; found during this release's Phase 1 rehearsal. Only ever
+  -- strips exactly one leading '\n', never more.
+  v_m1 := regexp_replace(v_m1, '^\n', '');
+  v_m2 := regexp_replace(v_m2, '^\n', '');
+  v_m3 := regexp_replace(v_m3, '^\n', '');
+  v_m4 := regexp_replace(v_m4, '^\n', '');
+  v_m5 := regexp_replace(v_m5, '^\n', '');
+  v_m6 := regexp_replace(v_m6, '^\n', '');
+  v_t1 := regexp_replace(v_t1, '^\n', '');
+  v_t2 := regexp_replace(v_t2, '^\n', '');
+  v_t3 := regexp_replace(v_t3, '^\n', '');
+  v_t4 := regexp_replace(v_t4, '^\n', '');
+  v_t5 := regexp_replace(v_t5, '^\n', '');
+  v_t6 := regexp_replace(v_t6, '^\n', '');
+  v_t7 := regexp_replace(v_t7, '^\n', '');
+  v_t8 := regexp_replace(v_t8, '^\n', '');
+  v_t9 := regexp_replace(v_t9, '^\n', '');
+  v_old_incentives := regexp_replace(v_old_incentives, '^\n', '');
+  v_old_salary := regexp_replace(v_old_salary, '^\n', '');
 
   v_actual_sha256 := encode(sha256(convert_to(v_m1, 'UTF8')), 'hex');
   if v_actual_sha256 is distinct from v_m1_expected_sha256 then
