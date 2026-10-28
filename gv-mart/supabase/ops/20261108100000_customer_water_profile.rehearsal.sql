@@ -1,5 +1,5 @@
 -- Rehearsal wrapper for 20261108100000_customer_water_profile.sql.
--- One DO block. Refuses before 18:00 IST. Recomputes sha256 of the embedded migration and test
+-- One DO block. Refuses before 11:00 IST (owner decision, 2026-10-28). Recomputes sha256 of the embedded migration and test
 -- text (encode(sha256(convert_to(text,'UTF8')),'hex') — explicit UTF8 bytes, not a bytea cast)
 -- and compares against the pinned hashes below (must match the committed .sql files exactly,
 -- LF line endings). Takes a real-org customers fingerprint before and after — both a plain row
