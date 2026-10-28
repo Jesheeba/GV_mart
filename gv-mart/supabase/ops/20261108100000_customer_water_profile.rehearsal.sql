@@ -265,6 +265,7 @@ $MIGRATION_BODY$;
 create temp table res (n serial, line text);
 grant all on res to public;
 grant usage on sequence res_n_seq to public;
+do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
 create function pg_temp.chk(p_name text, p_ok boolean, p_info text default '') returns void language plpgsql as $f$
 begin insert into pg_temp.res(line) values (case when coalesce(p_ok,false) then 'PASS  ' else 'FAIL  ' end || p_name || case when p_info <> '' then '  [' || p_info || ']' else '' end); end $f$;
 create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
@@ -573,8 +574,8 @@ begin
   if v_mig_hash <> '2bbcaeb398118e308def19ffec662c793f011ea48fe823314ed7aaefaef2ba0c' then
     raise exception 'migration hash mismatch: expected 2bbcaeb398118e308def19ffec662c793f011ea48fe823314ed7aaefaef2ba0c, got %', v_mig_hash;
   end if;
-  if v_test_hash <> '84aab1286dcd8f61f47ea16bc42bd62bd1ee55ad7a1ac5b929f3d87515a8f356' then
-    raise exception 'test hash mismatch: expected 84aab1286dcd8f61f47ea16bc42bd62bd1ee55ad7a1ac5b929f3d87515a8f356, got %', v_test_hash;
+  if v_test_hash <> '6e2b58c5bf4e63c40c5ce747cdc2ee95a49b294a7796f7ab7ce250e17aa529f2' then
+    raise exception 'test hash mismatch: expected 6e2b58c5bf4e63c40c5ce747cdc2ee95a49b294a7796f7ab7ce250e17aa529f2, got %', v_test_hash;
   end if;
 
   execute v_migration;
