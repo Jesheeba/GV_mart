@@ -58,6 +58,7 @@ const TechniciansMapPage = lazyPage(() => import("@/app/admin/technicians/Techni
 const TechniciansAttendancePage = lazyPage(() => import("@/app/admin/technicians/TechniciansAttendancePage"), "TechniciansAttendancePage")
 const TechniciansSpareHandoverPage = lazyPage(() => import("@/app/admin/technicians/TechniciansSpareHandoverPage"), "TechniciansSpareHandoverPage")
 const HrPage = lazyPage(() => import("@/app/admin/hr/HrPage"), "HrPage")
+const ExpensesPage = lazyPage(() => import("@/app/admin/expenses/ExpensesPage"), "ExpensesPage")
 const AccountsPage = lazyPage(() => import("@/app/admin/accounts/AccountsPage"), "AccountsPage")
 const ReportsPage = lazyPage(() => import("@/app/admin/reports/ReportsPage"), "ReportsPage")
 const TasksPage = lazyPage(() => import("@/app/admin/tasks/TasksPage"), "TasksPage")
@@ -77,6 +78,8 @@ const MapPage = lazyPage(() => import("@/app/technician/MapPage"), "MapPage")
 const SearchPage = lazyPage(() => import("@/app/technician/SearchPage"), "SearchPage")
 const SpareHandoverPage = lazyPage(() => import("@/app/technician/SpareHandoverPage"), "SpareHandoverPage")
 const SpareHandoverHistoryPage = lazyPage(() => import("@/app/technician/SpareHandoverHistoryPage"), "SpareHandoverHistoryPage")
+const TechnicianExpensesPage = lazyPage(() => import("@/app/technician/ExpensesPage"), "ExpensesPage")
+const TechnicianExpensesHistoryPage = lazyPage(() => import("@/app/technician/ExpensesHistoryPage"), "ExpensesHistoryPage")
 const JobDetailPage = lazyPage(() => import("@/app/technician/JobDetailPage"), "JobDetailPage")
 const JobRoutePage = lazyPage(() => import("@/app/technician/JobRoutePage"), "JobRoutePage")
 const OnSiteVisitPage = lazyPage(() => import("@/app/technician/onsite/OnSiteVisitPage"), "OnSiteVisitPage")
@@ -194,6 +197,7 @@ export const router = createBrowserRouter([
                   { path: "purchase", element: <PurchasePage /> },
                   { path: "complaints", element: <ComplaintsPage /> },
                   { path: "returns", element: <ReturnsPage /> },
+                  { path: "expenses", element: <ExpensesPage /> },
                 ],
               },
               {
@@ -251,6 +255,8 @@ export const router = createBrowserRouter([
               { path: "profile", element: <TechnicianProfilePage /> },
               { path: "spares", element: <SpareHandoverPage /> },
               { path: "spares/history", element: <SpareHandoverHistoryPage /> },
+              { path: "expenses", element: <TechnicianExpensesPage /> },
+              { path: "expenses/history", element: <TechnicianExpensesHistoryPage /> },
               { path: "search", element: <SearchPage /> },
               { path: "jobs/:ticketId", element: <JobDetailPage /> },
               { path: "jobs/:ticketId/route", element: <JobRoutePage /> },

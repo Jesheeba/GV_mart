@@ -25,6 +25,7 @@ import {
   CalendarClock,
   TrendingDown,
   Users2,
+  Fuel,
   type LucideIcon,
 } from "lucide-react"
 import type { UserRole } from "@/lib/roles"
@@ -72,6 +73,8 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { key: "complaints", labelKey: "nav.complaints", path: "/admin/complaints", icon: AlertTriangle, roles: ["master", "operation_admin"] },
   { key: "returns", labelKey: "nav.returns", path: "/admin/returns", icon: RotateCcw, roles: ["master", "operation_admin"] },
   { key: "hr", labelKey: "nav.hr", path: "/admin/hr", icon: Wallet, roles: ["master"] },
+  // Monthly Expenses (GVMART_MONTHLY_EXPENSES_SPEC.md) §1.8: master + operation_admin verify bills, assign bikes/rates.
+  { key: "expenses", labelKey: "nav.expenses", path: "/admin/expenses", icon: Fuel, roles: ["master", "operation_admin"] },
   { key: "accounts", labelKey: "nav.accounts", path: "/admin/accounts", icon: TrendingDown, roles: ["master"] },
   { key: "reports", labelKey: "nav.reports", path: "/admin/reports", icon: BarChart3, roles: ["master"] },
   { key: "masters", labelKey: "nav.masters", path: "/admin/masters", icon: Settings, roles: ["master"] },

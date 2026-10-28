@@ -8,6 +8,7 @@ import { FeedbackReportTab } from "./FeedbackReportTab"
 import { TopCustomersReportTab } from "./TopCustomersReportTab"
 import { CoverageReportTab } from "./CoverageReportTab"
 import { SalesInsightsReportTab } from "./SalesInsightsReportTab"
+import { MonthlyExpensesReportTab } from "./MonthlyExpensesReportTab"
 
 export function ReportsPage() {
   const { t } = useTranslation()
@@ -28,6 +29,7 @@ export function ReportsPage() {
           <TabsTrigger value="topCustomers">{t("reports.tabs.topCustomers")}</TabsTrigger>
           <TabsTrigger value="coverage">{t("reports.tabs.coverage")}</TabsTrigger>
           <TabsTrigger value="insights">{t("reports.tabs.insights")}</TabsTrigger>
+          <TabsTrigger value="monthlyExpenses">{t("reports.tabs.monthlyExpenses")}</TabsTrigger>
         </TabsList>
 
         <Card size="default" className="mt-3 print:m-0 print:border-0 print:p-0 print:shadow-none">
@@ -51,6 +53,9 @@ export function ReportsPage() {
           </TabsContent>
           <TabsContent value="insights">
             <SalesInsightsReportTab />
+          </TabsContent>
+          <TabsContent value="monthlyExpenses">
+            <MonthlyExpensesReportTab />
           </TabsContent>
         </Card>
       </Tabs>
