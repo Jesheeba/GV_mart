@@ -14,7 +14,6 @@ import {
   Wallet,
   BarChart3,
   Settings,
-  ClipboardList,
   Receipt,
   Bell,
   CheckSquare,
@@ -80,6 +79,5 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { key: "auditLog", labelKey: "nav.auditLog", path: "/admin/audit-log", icon: ScrollText, roles: ["master"] },
   { key: "tasks", labelKey: "nav.tasks", path: "/admin/tasks", icon: ListChecks, roles: ALL_STAFF },
   { key: "huddle", labelKey: "nav.huddle", path: "/admin/huddle", icon: Users2, roles: ALL_STAFF },
-  { key: "workspace", labelKey: "nav.workspace", path: "/admin/workspace", icon: ClipboardList, roles: ALL_STAFF },
   { key: "notifications", labelKey: "nav.notifications", path: "/admin/notifications", icon: Bell, roles: ALL_STAFF },
 ]

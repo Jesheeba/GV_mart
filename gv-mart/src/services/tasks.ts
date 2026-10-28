@@ -1,8 +1,22 @@
 import { supabase } from "@/lib/supabase"
-import type { Enums, Tables } from "@/types/database"
+import type { Enums, Tables, Views } from "@/types/database"
 
 export type TaskRow = Tables<"tasks">
 export type PriorityLevel = Enums<"priority_level">
+export type PersonMinuteTotal = Views<"person_minute_totals">
+
+// Cumulative minutes logged across every task a person is assigned to, visible to master/operation_admin
+// (tasks_select_internal/task_logs_select already decide what each caller sees — the view is security_invoker,
+// so this is never more than what the caller could already see task by task, just summed). No org_id column
+// to filter on: the view joins tasks, whose RLS already scopes every row to the caller's organisation.
+export async function listPersonMinuteTotals(): Promise<PersonMinuteTotal[]> {
+  const { data, error } = await supabase
+    .from("person_minute_totals")
+    .select("profile_id, total_minutes")
+    .not("profile_id", "is", null)
+  if (error) throw error
+  return (data ?? []).filter((r) => r.total_minutes != null)
+}
 
 export type AssignableProfile = { id: string; full_name: string; role: Enums<"user_role"> }
 
@@ -21,7 +35,7 @@ export async function listAssignableProfiles(orgId: string): Promise<AssignableP
 }
 
 export type OrgTask = TaskRow & {
-  assignee: { id: string; full_name: string; role: Enums<"user_role"> } | null
+  assignee: { id: string; full_name: string; role: Enums<"user_role">; task_color: string | null } | null
   assigner: { id: string; full_name: string } | null
 }
 
@@ -33,7 +47,7 @@ export type OrgTask = TaskRow & {
 export async function listOrgTasks(orgId: string): Promise<OrgTask[]> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, role), assigner:profiles!tasks_assigned_by_fkey(id, full_name)")
+    .select("*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, role, task_color), assigner:profiles!tasks_assigned_by_fkey(id, full_name)")
     .eq("org_id", orgId)
     .order("due_date", { ascending: true, nullsFirst: false })
   if (error) throw error
@@ -88,10 +102,16 @@ export type UpdateTaskInput = {
   title: string
   description: string | null
   assigneeId: string
-  // Set whenever assigneeId changes, so the tasks_notify_assigned trigger
-  // (UPDATE OF assignee_id) attributes the reassignment to whoever made it
-  // and skips the notification if they reassigned it to themselves.
-  assignedBy: string
+  // Pass ONLY when assigneeId is actually changing (reassignment), so the tasks_notify_assigned trigger
+  // (UPDATE OF assignee_id) attributes the reassignment to whoever made it and skips the notification if they
+  // reassigned it to themselves. Omitted, assigned_by is left untouched by the UPDATE entirely.
+  //
+  // This isn't only an attribution label: tasks_update_assign (20261101100000) grants UPDATE to
+  // `assignee_id = auth.uid() or assigned_by = auth.uid()`. Writing assignedBy on every save — even to the
+  // same value — used to mean any edit to an unrelated field (priority, due date, ...) silently moved update
+  // rights from the task's original assigner to whoever last saved it. Making this optional, and never writing
+  // it except on a real reassignment, keeps that permission with the person who actually holds it.
+  assignedBy?: string
   priority: PriorityLevel
   dueDate: string | null
   dueAt: string | null
@@ -105,7 +125,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskRow> {
       title: input.title,
       description: input.description,
       assignee_id: input.assigneeId,
-      assigned_by: input.assignedBy,
+      ...(input.assignedBy !== undefined ? { assigned_by: input.assignedBy } : {}),
       priority: input.priority,
       due_date: input.dueDate,
       due_at: input.dueAt,

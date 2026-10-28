@@ -10,6 +10,9 @@ import { useToast } from "@/components/ui/toast-context"
 import { useAssignableProfiles, useDeleteTask, useSetOrgTaskStatus, useUpdateTask } from "@/hooks/useTasks"
 import type { OrgTask, PriorityLevel } from "@/services/tasks"
 import { cn } from "@/lib/utils"
+import { useProfile } from "@/hooks/useProfile"
+import { canCompleteTask, completeBlockReason } from "@/lib/task-rules"
+import { TaskWorkLog } from "@/app/admin/tasks/TaskWorkLog"
 
 const PRIORITIES: PriorityLevel[] = ["normal", "urgent", "very_urgent"]
 
@@ -50,7 +53,12 @@ export function TaskDetailDialog({
   const [isRecurring, setIsRecurring] = useState(task.is_recurring)
 
   const isDone = task.status === "done"
-  const canSubmit = title.trim().length > 0 && assigneeId.length > 0 && !updateTask.isPending
+  const { data: me } = useProfile()
+  const canFinish = canCompleteTask(task, me ? { id: me.id, role: me.role } : null)
+  const blockReason = completeBlockReason(task, me ? { id: me.id, role: me.role } : null)
+  // mirrors tasks_update_assign: operations, the assignee or the assigner may edit; anyone else sees it read-only
+  const canEdit = !!me && (me.role === "master" || me.role === "operation_admin" || task.assignee_id === me.id || task.assigned_by === me.id)
+  const canSubmit = canEdit && title.trim().length > 0 && assigneeId.length > 0 && !updateTask.isPending
 
   function handleSave() {
     if (!canSubmit) return
@@ -61,7 +69,9 @@ export function TaskDetailDialog({
         title: title.trim(),
         description: description.trim() || null,
         assigneeId,
-        assignedBy: userId,
+        // only a reassignment changes who assigned it; omitted (not resent) otherwise, so an unrelated edit can
+        // never move tasks_update_assign's assigned_by-based update right off the original assigner
+        ...(assigneeId !== (task.assignee_id ?? "") ? { assignedBy: userId } : {}),
         priority,
         dueDate: dueDate || null,
         dueAt,
@@ -86,7 +96,8 @@ export function TaskDetailDialog({
           <button
             type="button"
             onClick={() => setStatus.mutate({ id: task.id, status: isDone ? "open" : "done" })}
-            disabled={setStatus.isPending}
+            disabled={setStatus.isPending || (!isDone && !canFinish)}
+            title={!isDone && !canFinish ? t(`tasks.cannotFinish.${blockReason ?? "not_assignee"}`, { name: task.assignee?.full_name ?? t("tasks.unknownUser") }) : undefined}
             className={cn(
               "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
               isDone ? "border-success bg-success text-white" : "border-border text-transparent hover:border-ink"
@@ -97,6 +108,12 @@ export function TaskDetailDialog({
           </button>
           <span className="text-xs font-medium text-text-muted">{t(isDone ? "tasks.detailDialog.statusDone" : "tasks.detailDialog.statusOpen")}</span>
         </div>
+
+        {!isDone && blockReason ? (
+          <p className="rounded-xl border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-text">
+            {t(`tasks.cannotFinish.${blockReason}`, { name: task.assignee?.full_name ?? t("tasks.unknownUser") })}
+          </p>
+        ) : null}
 
         <div className="space-y-1.5">
           <Label htmlFor="detailTitle">{t("tasks.assignDialog.taskTitle")}</Label>
@@ -176,6 +193,8 @@ export function TaskDetailDialog({
         </label>
         {!dueDate ? <p className="text-xs text-text-muted">{t("tasks.assignDialog.repeatMonthlyHint")}</p> : null}
 
+        <TaskWorkLog orgId={orgId} taskId={task.id} />
+
         <div className="flex items-center justify-between gap-2 pt-1">
           {canDelete ? (
             <Button type="button" variant="ghost" onClick={handleDelete} disabled={deleteTask.isPending} className="text-danger hover:text-danger">
@@ -189,6 +208,7 @@ export function TaskDetailDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               {t("common.cancel")}
             </Button>
+            {!canEdit ? <span className="mr-auto text-xs text-text-muted">{t("tasks.detailDialog.readOnly")}</span> : null}
             <Button type="button" onClick={handleSave} disabled={!canSubmit}>
               {updateTask.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
             </Button>

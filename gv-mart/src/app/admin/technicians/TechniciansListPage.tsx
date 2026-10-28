@@ -237,6 +237,7 @@ function AddTechnicianPanel({
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
+  const [designation, setDesignation] = useState("")
   const [address, setAddress] = useState("")
   const [city, setCity] = useState("")
   const [state, setState] = useState("")
@@ -265,7 +266,13 @@ function AddTechnicianPanel({
 
   const capacityValid = /^\d+$/.test(dailyCapacity.trim()) && Number(dailyCapacity) > 0
   const phoneValid = MOBILE_REGEX.test(phone.trim())
-  const formValid = fullName.trim().length > 0 && phoneValid && EMAIL_RE.test(email.trim()) && capacityValid
+  const formValid =
+    fullName.trim().length > 0 &&
+    phoneValid &&
+    EMAIL_RE.test(email.trim()) &&
+    capacityValid &&
+    designation.trim().length >= 2 &&
+    address.trim().length >= 8
 
   function handleCreate() {
     if (!formValid) return
@@ -274,7 +281,8 @@ function AddTechnicianPanel({
         fullName: fullName.trim(),
         phone: phone.trim(),
         email: email.trim(),
-        address: address.trim() || null,
+        designation: designation.trim(),
+        address: address.trim(),
         city: city.trim() || null,
         state: state.trim() || null,
         pincode: pincode.trim() || null,
@@ -319,9 +327,24 @@ function AddTechnicianPanel({
           <Label htmlFor="new-tech-email">{t("technicians.list.fields.email")}</Label>
           <Input id="new-tech-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!email && !EMAIL_RE.test(email)} />
         </div>
-        <div className="space-y-1 sm:col-span-3">
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-designation">{t("technicians.list.fields.designation")}</Label>
+          <Input
+            id="new-tech-designation"
+            value={designation}
+            onChange={(e) => setDesignation(e.target.value)}
+            aria-invalid={!!designation && designation.trim().length < 2}
+          />
+        </div>
+        <div className="space-y-1 sm:col-span-2">
           <Label htmlFor="new-tech-address">{t("technicians.detail.fields.address")}</Label>
-          <Input id="new-tech-address" value={address} onChange={(e) => setAddress(e.target.value)} />
+          <Input
+            id="new-tech-address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            aria-invalid={!!address && address.trim().length < 8}
+          />
+          {address && address.trim().length < 8 ? <p className="text-xs text-danger">{t("technicians.list.errors.addressTooShort")}</p> : null}
         </div>
         <div className="space-y-1">
           <Label htmlFor="new-tech-city">{t("technicians.detail.fields.city")}</Label>

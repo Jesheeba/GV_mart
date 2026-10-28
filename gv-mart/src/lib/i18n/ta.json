@@ -183,6 +183,17 @@
     "myDay": "தினசரி பின்தொடர்தல்"
   },
   "auth": {
+    "forcedPassword": {
+      "title": "Choose your own password",
+      "hint": "Your account was set up with a password that was shared with you. Choose a new one that only you know before you continue.",
+      "newPassword": "New password",
+      "confirm": "Confirm new password",
+      "tooShort": "Use at least {{count}} characters.",
+      "mismatch": "The two passwords do not match.",
+      "submit": "Save and continue",
+      "failed": "The password could not be changed. Try again.",
+      "signOut": "Sign out"
+    },
     "heroTitle": "உங்கள் பணியிடத்தில் உள்நுழையவும்",
     "heroSubtitle": "ஒவ்வொரு பாத்திரத்திற்கும் அதன் சொந்த பாதுகாப்பான உள்நுழைவு உண்டு. உங்கள் பாத்திரம் அனுமதிக்கும் டாஷ்போர்டு மற்றும் கருவிகளை மட்டுமே நீங்கள் காண்பீர்கள் — வேறு எதுவும் இல்லை.",
     "secureAccessBadge": "பாத்திர அடிப்படையிலான பாதுகாப்பான அணுகல்",
@@ -4031,9 +4042,13 @@
       "addTechnicianHint": "இந்த ஆப்பிற்கு வெளியே (எ.கா. Supabase டாஷ்போர்டு மூலம்) ஏற்கனவே உருவாக்கப்பட்ட, ஆனால் இன்னும் தொழிலாளியாக இல்லாத உள்நுழைவுக்கு.",
       "noEligibleProfiles": "தகுதியான உள்நுழைவுகள் எதுவும் இல்லை.",
       "pickProfile": "ஒருவரைத் தேர்ந்தெடுக்கவும்",
+      "errors": {
+        "addressTooShort": "முழு முகவரி குறைந்தது 8 எழுத்துக்கள் இருக்க வேண்டும்"
+      },
       "fields": {
         "fullName": "முழுப்பெயர்",
         "email": "மின்னஞ்சல்",
+        "designation": "பதவி",
         "photo": "சுயவிவரப் புகைப்படம்",
         "photoUpload": "புகைப்படத்தைப் பதிவேற்று",
         "photoChange": "புகைப்படத்தை மாற்று",
@@ -4264,6 +4279,9 @@
       "logged": "பதிவு செய்யப்பட்டது"
     },
     "staffSalary": {
+      "designation": "Designation",
+      "address": "Full address",
+      "mustChangeHint": "The person must choose their own password the first time they sign in.",
       "inactive": "செயலற்றது",
       "activate": "செயல்படுத்து",
       "deactivate": "செயலிழக்கச் செய்",
@@ -4667,12 +4685,24 @@
     },
     "markDone": "முடிந்ததாக குறி",
     "markOpen": "திறந்ததாக குறி",
+    "moveToToday": "Move to today",
     "rolledOverCount_one": "{{count}} நாள் தள்ளிவைக்கப்பட்டது",
     "rolledOverCount_other": "{{count}} நாட்கள் தள்ளிவைக்கப்பட்டது",
     "daysOverdue_one": "{{count}} நாள் தாமதம்",
     "daysOverdue_other": "{{count}} நாட்கள் தாமதம்"
   },
   "huddle": {
+    "raiseTitle": "Raise a problem",
+    "raisePlaceholder": "What is the problem? Say what happened and where.",
+    "raiseButton": "Raise problem",
+    "raised": "Problem raised. The master has been told.",
+    "proposeSolution": "Suggest a solution",
+    "proposeHint": "Your suggestion is shown on the problem and the master is told. Staff mark the problem solved.",
+    "proposePlaceholder": "What should be done to fix it?",
+    "proposeSend": "Send suggestion",
+    "proposed": "Suggestion sent. The master has been told.",
+    "solutionBy": "solution by {{name}}",
+    "solvedBy": "Solved by {{name}}",
     "subtitle": "தினசரி கூட்டத்தைப் பதிவு செய்யுங்கள்: பிரச்சனைகள், மூல காரணம், தீர்வுகள், செயல் பணிகள். தீர்க்கப்படும் வரை திறந்த பிரச்சனைகள் தொடரும்.",
     "technicianSubtitle": "தினசரி கூட்டக் குறிப்புகள் மற்றும் திறந்த பிரச்சனைகள் (படிக்க மட்டும்).",
     "view": {
@@ -4743,7 +4773,42 @@
     "recentMeetings": "சமீபத்திய கூட்டங்கள்"
   },
   "tasks": {
+    "overdue": "Overdue",
+    "onlyAssigneeFinishes": "Only {{name}} can mark this finished",
+    "log": {
+      "title": "Work log",
+      "empty": "Nothing logged yet.",
+      "loadFailed": "Could not load the work log.",
+      "system": "The system",
+      "nobody": "nobody",
+      "add": "Add to log",
+      "note": "Note",
+      "notePlaceholder": "What was done, or what is blocking it?",
+      "minutesSpent": "Minutes spent",
+      "minutesInvalid": "Minutes must be a whole number from 0 to 1440.",
+      "nextDate": "Next planned on",
+      "nextNote": "What next",
+      "next": "Next",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "totalMinutes_one": "Total: {{count}} minute",
+      "totalMinutes_other": "Total: {{count}} minutes",
+      "reassigned": "{{who}} reassigned this from {{from}} to {{to}}",
+      "status": "{{who}} changed the status from {{from}} to {{to}}",
+      "dueMoved": "{{who}} moved the due date from {{from}} to {{to}}",
+      "statusValue": { "open": "open", "done": "finished", "rolled": "rolled over" }
+    },
+    "cannotFinish": {
+      "not_assignee": "Only {{name}} can mark this finished.",
+      "unassigned": "This task has no assignee. Ask operations to finish it.",
+      "po_needs_master": "Only the master can finish a purchase-order task, because the master approves and pays purchase orders. Ask the master to finish it, or reassign it."
+    },
     "subtitle": "முழு குழுவிலும் பணிகளை ஒதுக்கி கண்காணிக்கவும்.",
+    "teamTime": {
+      "title": "ஒரு நபருக்கு பதிவு செய்யப்பட்ட மொத்த நேரம் (ஒட்டுமொத்தம்)",
+      "minutes_one": "{{count}} நிமிடம்",
+      "minutes_other": "{{count}} நிமிடங்கள்"
+    },
     "assignTask": "பணி ஒதுக்கு",
     "loadFailed": "பணிகளை ஏற்ற முடியவில்லை.",
     "empty": "இங்கு பணிகள் இல்லை.",
@@ -4758,10 +4823,12 @@
       "all": "அனைத்தும்"
     },
     "view": {
+      "myDay": "இன்றைய நாள்",
       "list": "பட்டியல்",
       "calendar": "நாட்காட்டி"
     },
     "detailDialog": {
+      "readOnly": "You can view this task but only its assignee, the person who assigned it, or operations can change it.",
       "title": "பணி",
       "subtitle": "இந்தப் பணியை மறு-ஒதுக்கீடு செய்யவும், தேதியை மாற்றவும் அல்லது புதுப்பிக்கவும்.",
       "statusOpen": "திறந்தது",

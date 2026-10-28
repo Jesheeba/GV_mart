@@ -79,10 +79,16 @@ Deno.serve(async (req) => {
     return json({ error: "Could not reset the password" }, 400)
   }
 
+  // ORDER MATTERS: the password was changed above, so arming second records the marker of the NEW hash. Arming first would record the
+  // old hash and the person could clear the flag without ever choosing a password. If arming fails the password is still reset and
+  // the response and the audit row say the change is not forced.
+  const { error: flagErr } = await admin.rpc("arm_forced_password_change", { p_profile_id: target!.id })
+  const forcedChange = !flagErr
+
   // A reset must also evict anyone already signed in with the old password.
   const sessionsRevoked = await revokeUserSessions(admin, target!.id)
-  await finishStaffAudit(admin, audit, true, { sessions_revoked: sessionsRevoked })
+  await finishStaffAudit(admin, audit, true, { sessions_revoked: sessionsRevoked, forced_change: forcedChange })
 
   console.log(`admin-reset-staff-password: master ${caller.userId} reset ${target!.id} sessions_revoked=${sessionsRevoked}`)
-  return json({ ok: true, generated: !typed, password: typed ? undefined : password, sessionsRevoked })
+  return json({ ok: true, generated: !typed, password: typed ? undefined : password, sessionsRevoked, forcedChange })
 })

@@ -3,12 +3,21 @@ import * as tasksService from "@/services/tasks"
 import type { AssignTaskInput, UpdateTaskInput } from "@/services/tasks"
 import { setTaskStatus } from "@/services/workspace"
 import type { Enums } from "@/types/database"
+import { useToast } from "@/components/ui/toast-context"
 
 export function useOrgTasks(orgId: string | undefined) {
   return useQuery({
     queryKey: ["tasks", "org", orgId],
     queryFn: () => tasksService.listOrgTasks(orgId!),
     enabled: !!orgId,
+  })
+}
+
+export function usePersonMinuteTotals(orgId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["tasks", "personMinuteTotals", orgId],
+    queryFn: () => tasksService.listPersonMinuteTotals(),
+    enabled: !!orgId && enabled,
   })
 }
 
@@ -52,8 +61,11 @@ export function useDeleteTask() {
 // ["tasks", "org", orgId] list.
 export function useSetOrgTaskStatus() {
   const qc = useQueryClient()
+  const { toast } = useToast()
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: Enums<"task_status"> }) => setTaskStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    // the database says why (only the assignee can finish a task, a PO task needs a master)
+    onError: (e) => toast.error(e instanceof Error && e.message ? e.message : "Could not update the task"),
   })
 }

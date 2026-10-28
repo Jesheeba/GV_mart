@@ -7,6 +7,8 @@ import interactionPlugin from "@fullcalendar/interaction"
 import type { EventClickArg, EventInput } from "@fullcalendar/core"
 import { useTranslation } from "react-i18next"
 import type { OrgTask } from "@/services/tasks"
+import { isTaskOverdue } from "@/lib/task-rules"
+import { userColour } from "@/lib/user-colour"
 import "./task-calendar.css"
 
 const PRIORITY_EVENT_COLOR: Record<OrgTask["priority"], string> = {
@@ -18,7 +20,7 @@ const PRIORITY_EVENT_COLOR: Record<OrgTask["priority"], string> = {
 // Only tasks with a due_date or due_at can be placed on a calendar grid at
 // all — undated tasks stay visible in the List view but are silently
 // dropped here rather than pinned to some arbitrary date.
-function taskToEvent(task: OrgTask): EventInput | null {
+function taskToEvent(task: OrgTask, today: string): EventInput | null {
   const start = task.due_at ?? (task.due_date ? `${task.due_date}T00:00:00` : null)
   if (!start) return null
   return {
@@ -26,15 +28,19 @@ function taskToEvent(task: OrgTask): EventInput | null {
     title: task.is_recurring ? `↻ ${task.title}` : task.title,
     start,
     allDay: !task.due_at,
-    backgroundColor: PRIORITY_EVENT_COLOR[task.priority],
+    // overdue = red regardless of priority colour, with its own class so the stylesheet can mark it
+    backgroundColor: isTaskOverdue(task, today) ? "var(--danger)" : PRIORITY_EVENT_COLOR[task.priority],
     textColor: "#fff",
-    classNames: task.status === "done" ? ["gv-event-done"] : [],
+    // the assignee's own colour as a thick left edge, so a person's tasks can be picked out on a crowded month —
+    // a stable fallback colour (userColour) when they haven't picked one, so every assignee is distinguishable
+    borderColor: task.assignee ? userColour(task.assignee.id, task.assignee.task_color) : undefined,
+    classNames: task.status === "done" ? ["gv-event-done"] : isTaskOverdue(task, today) ? ["gv-event-overdue"] : [],
   }
 }
 
-export function TaskCalendar({ tasks, onTaskClick }: { tasks: OrgTask[]; onTaskClick: (task: OrgTask) => void }) {
+export function TaskCalendar({ tasks, today, onTaskClick }: { tasks: OrgTask[]; today: string; onTaskClick: (task: OrgTask) => void }) {
   const { i18n } = useTranslation()
-  const events = useMemo(() => tasks.map(taskToEvent).filter((e): e is EventInput => e !== null), [tasks])
+  const events = useMemo(() => tasks.map((tsk) => taskToEvent(tsk, today)).filter((e): e is EventInput => e !== null), [tasks, today])
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
 
   function handleEventClick(arg: EventClickArg) {

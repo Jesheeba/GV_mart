@@ -197,7 +197,11 @@ export async function resetStaffPassword(profileId: string, password?: string): 
 export type CreateStaffInput = {
   fullName: string
   email: string
-  phone?: string
+  /** 10-digit mobile number, required. */
+  phone: string
+  designation: string
+  /** Full postal address. */
+  address: string
   role: "sales_admin" | "operation_admin"
   /** Typed password; omit to have the server generate one (returned once). */
   password?: string

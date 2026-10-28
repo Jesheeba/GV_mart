@@ -49,6 +49,27 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_private: {
+        Row: {
+          profile_id: string
+          org_id: string
+          address: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          org_id: string
+          address?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           id: string
@@ -59,6 +80,9 @@ export type Database = {
           photo_url: string | null
           language: string
           is_active: boolean
+          designation: string | null
+          must_change_password: boolean
+          task_color: string | null
           staff_role_key: string | null
           created_at: string
           updated_at: string
@@ -73,6 +97,8 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          designation?: string | null
+          task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
@@ -87,6 +113,8 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          designation?: string | null
+          task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
@@ -5965,6 +5993,8 @@ export type Database = {
           owner_id: string | null
           date_raised: string
           date_solved: string | null
+          solution_by: string | null
+          solved_by: string | null
           created_at: string
           updated_at: string
         }
@@ -5980,6 +6010,8 @@ export type Database = {
           owner_id?: string | null
           date_raised: string
           date_solved?: string | null
+          solution_by?: string | null
+          solved_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5995,6 +6027,8 @@ export type Database = {
           owner_id?: string | null
           date_raised?: string
           date_solved?: string | null
+          solution_by?: string | null
+          solved_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6630,6 +6664,56 @@ export type Database = {
           },
         ]
       }
+      task_logs: {
+        Row: {
+          id: string
+          org_id: string
+          task_id: string
+          kind: string
+          created_by: string | null
+          actor_name: string | null
+          note: string | null
+          minutes_spent: number | null
+          next_planned_date: string | null
+          next_planned_note: string | null
+          from_user: string | null
+          to_user: string | null
+          from_name: string | null
+          to_name: string | null
+          from_value: string | null
+          to_value: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          task_id: string
+          kind?: string
+          created_by?: string | null
+          actor_name?: string | null
+          note?: string | null
+          minutes_spent?: number | null
+          next_planned_date?: string | null
+          next_planned_note?: string | null
+          from_user?: string | null
+          to_user?: string | null
+          from_name?: string | null
+          to_name?: string | null
+          from_value?: string | null
+          to_value?: string | null
+          created_at?: string
+        }
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "task_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           id: string
@@ -6827,7 +6911,20 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      task_minute_totals: {
+        Row: {
+          task_id: string | null
+          total_minutes: number | null
+        }
+        Relationships: []
+      }
+      person_minute_totals: {
+        Row: {
+          profile_id: string | null
+          total_minutes: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       set_customer_preferred_language: {
@@ -7329,6 +7426,22 @@ export type Database = {
       // 20260925100100_po_paid_functions.sql; Docker-based `supabase gen
       // types` isn't available in this environment (see memory: hand-patch
       // instead).
+      arm_forced_password_change: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
+      raise_huddle_issue: {
+        Args: { p_description: string }
+        Returns: string
+      }
+      propose_huddle_solution: {
+        Args: { p_issue_id: string; p_solution: string }
+        Returns: undefined
+      }
+      complete_forced_password_change: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       mark_po_paid: {
         Args: { p_po_id: string }
         Returns: Database["public"]["Tables"]["purchase_orders"]["Row"]
@@ -7765,6 +7878,7 @@ export type Database = {
 
 type PublicSchema = Database["public"]
 
+export type Views<T extends keyof PublicSchema["Views"]> = PublicSchema["Views"][T]["Row"]
 export type Tables<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Row"]
 export type TablesInsert<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Insert"]
 export type TablesUpdate<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Update"]

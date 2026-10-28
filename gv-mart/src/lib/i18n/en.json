@@ -183,6 +183,17 @@
     "myDay": "Daily Follow Up"
   },
   "auth": {
+    "forcedPassword": {
+      "title": "Choose your own password",
+      "hint": "Your account was set up with a password that was shared with you. Choose a new one that only you know before you continue.",
+      "newPassword": "New password",
+      "confirm": "Confirm new password",
+      "tooShort": "Use at least {{count}} characters.",
+      "mismatch": "The two passwords do not match.",
+      "submit": "Save and continue",
+      "failed": "The password could not be changed. Try again.",
+      "signOut": "Sign out"
+    },
     "heroTitle": "Sign in to your workspace",
     "heroSubtitle": "Each role has its own secure login. You'll only see the dashboard and tools your role allows — nothing more.",
     "secureAccessBadge": "Role-based secure access",
@@ -4036,9 +4047,13 @@
       "addTechnicianHint": "For a login already created outside this app (e.g. via the Supabase dashboard) that isn't a technician yet.",
       "noEligibleProfiles": "No eligible logins found.",
       "pickProfile": "Select a person",
+      "errors": {
+        "addressTooShort": "The full address must be at least 8 characters"
+      },
       "fields": {
         "fullName": "Full Name",
         "email": "Email",
+        "designation": "Designation",
         "photo": "Profile Photo",
         "photoUpload": "Upload photo",
         "photoChange": "Change photo",
@@ -4269,6 +4284,9 @@
       "logged": "Logged"
     },
     "staffSalary": {
+      "designation": "Designation",
+      "address": "Full address",
+      "mustChangeHint": "The person must choose their own password the first time they sign in.",
       "inactive": "Inactive",
       "activate": "Activate",
       "deactivate": "Deactivate",
@@ -4672,12 +4690,24 @@
     },
     "markDone": "Mark done",
     "markOpen": "Mark open",
+    "moveToToday": "Move to today",
     "rolledOverCount_one": "Rolled over {{count}} day",
     "rolledOverCount_other": "Rolled over {{count}} days",
     "daysOverdue_one": "{{count}} day overdue",
     "daysOverdue_other": "{{count}} days overdue"
   },
   "huddle": {
+    "raiseTitle": "Raise a problem",
+    "raisePlaceholder": "What is the problem? Say what happened and where.",
+    "raiseButton": "Raise problem",
+    "raised": "Problem raised. The master has been told.",
+    "proposeSolution": "Suggest a solution",
+    "proposeHint": "Your suggestion is shown on the problem and the master is told. Staff mark the problem solved.",
+    "proposePlaceholder": "What should be done to fix it?",
+    "proposeSend": "Send suggestion",
+    "proposed": "Suggestion sent. The master has been told.",
+    "solutionBy": "solution by {{name}}",
+    "solvedBy": "Solved by {{name}}",
     "subtitle": "Record the daily meeting: problems, root causes, solutions and action items. Open problems carry forward until solved.",
     "technicianSubtitle": "Read-only view of the daily meeting notes and open problems.",
     "view": {
@@ -4748,7 +4778,42 @@
     "recentMeetings": "Recent meetings"
   },
   "tasks": {
+    "overdue": "Overdue",
+    "onlyAssigneeFinishes": "Only {{name}} can mark this finished",
+    "log": {
+      "title": "Work log",
+      "empty": "Nothing logged yet.",
+      "loadFailed": "Could not load the work log.",
+      "system": "The system",
+      "nobody": "nobody",
+      "add": "Add to log",
+      "note": "Note",
+      "notePlaceholder": "What was done, or what is blocking it?",
+      "minutesSpent": "Minutes spent",
+      "minutesInvalid": "Minutes must be a whole number from 0 to 1440.",
+      "nextDate": "Next planned on",
+      "nextNote": "What next",
+      "next": "Next",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "totalMinutes_one": "Total: {{count}} minute",
+      "totalMinutes_other": "Total: {{count}} minutes",
+      "reassigned": "{{who}} reassigned this from {{from}} to {{to}}",
+      "status": "{{who}} changed the status from {{from}} to {{to}}",
+      "dueMoved": "{{who}} moved the due date from {{from}} to {{to}}",
+      "statusValue": { "open": "open", "done": "finished", "rolled": "rolled over" }
+    },
+    "cannotFinish": {
+      "not_assignee": "Only {{name}} can mark this finished.",
+      "unassigned": "This task has no assignee. Ask operations to finish it.",
+      "po_needs_master": "Only the master can finish a purchase-order task, because the master approves and pays purchase orders. Ask the master to finish it, or reassign it."
+    },
     "subtitle": "Assign and track tasks across the whole team.",
+    "teamTime": {
+      "title": "Total time logged, per person (cumulative)",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes"
+    },
     "assignTask": "Assign Task",
     "loadFailed": "Could not load tasks.",
     "empty": "No tasks here.",
@@ -4763,10 +4828,12 @@
       "all": "All"
     },
     "view": {
+      "myDay": "My Day",
       "list": "List",
       "calendar": "Calendar"
     },
     "detailDialog": {
+      "readOnly": "You can view this task but only its assignee, the person who assigned it, or operations can change it.",
       "title": "Task",
       "subtitle": "Reassign, reschedule, or update this task.",
       "statusOpen": "Open",
