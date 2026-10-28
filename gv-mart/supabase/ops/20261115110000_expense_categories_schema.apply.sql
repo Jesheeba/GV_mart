@@ -278,8 +278,8 @@ begin
   from (select unnest(v_leaked_after) as x except select unnest(v_leaked_before)) d;
 
   if array_length(v_newly_leaked, 1) is not null then
-    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed %% function(s) to PUBLIC/anon: %',
-      v_newly_leaked;
+    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed % function(s) to PUBLIC/anon that were not executable before it ran: %',
+      array_length(v_newly_leaked, 1), v_newly_leaked;
   end if;
 
   -- 9y. real-organisation fingerprint unchanged (identity check, not a no-row-change guarantee --
