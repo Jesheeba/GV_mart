@@ -7,16 +7,23 @@
 -- sha256-pinned migration text embedded below is byte-for-byte the reviewed migration file (sha256
 -- 55b33aaf1d276984e3873b46a8e413393b87dbe3c094ddef67483d07a8c408a3).
 --
--- Unlike the rehearsal wrapper (supabase/ops/technician_pending_reviews.rehearsal.sql), THIS SCRIPT IS
--- MEANT TO COMMIT. The DO block is wrapped in an explicit BEGIN; ... COMMIT; (not an implicit
--- autocommit statement): any RAISE EXCEPTION inside the DO block -- gate refusal, hash mismatch,
--- already-registered version, live-definition drift, or a failed post-apply check -- rolls back the
--- WHOLE transaction (the migration itself and the schema_migrations row together), and the script falls
--- through to COMMIT only when every step inside has passed cleanly. There is no embedded test and no
--- forced closing RAISE; the exact Postgres error from whichever step failed is what the operator sees in
--- psql, and nothing is persisted.
+-- Structure (2026-11-15 revision): no top-level BEGIN;/COMMIT; -- a single standalone DO block run under
+-- autocommit is already atomic (a RAISE EXCEPTION inside it rolls back everything the block did -- the
+-- migration DDL, the schema_migrations row, all of it -- as one unit; reaching the end of the block
+-- without raising commits that same unit). Three statements total, run in order in the same session:
+--   1. CREATE TEMP TABLE for the status row -- a separate, already-autocommitted statement, so the table
+--      exists regardless of whether the DO block below succeeds or fails. On failure the DO block's own
+--      INSERT into it never ran (rolled back with everything else), so the table is simply empty --
+--      itself a correct, queryable signal that nothing was applied.
+--   2. The DO block itself -- does the actual work, and on success INSERTs exactly one status row.
+--   3. A read-only SELECT * from that temp table -- the thing to actually look at afterwards. Success is
+--      proven by this query returning one row with the expected values, never by a RAISE NOTICE (which a
+--      client can swallow or scroll past).
 --
--- Order of operations:
+-- Unlike the rehearsal wrapper (supabase/ops/technician_pending_reviews.rehearsal.sql), THIS SCRIPT IS
+-- MEANT TO COMMIT. There is no embedded test and no forced closing RAISE.
+--
+-- Order of operations inside the DO block:
 --   0. ORG CHECK   -- md5(id||'|'||name) of the oldest real (non __TEST_) organisation must equal the
 --      pinned fingerprint. Refuses immediately if this looks like the wrong database.
 --   1. LOCK        -- lock_timeout = 5s for this transaction only.
@@ -30,28 +37,49 @@
 --      "live before" definition for it (the rehearsal's own real-row fingerprint only covers table DATA,
 --      not function DEFINITIONS), so this script pins the only definition consistent with that rehearsal
 --      run and with this migration's own design: NULL, i.e. the function must not already exist live.
---      If it already exists -- under any definition -- that is a drift from what both the migration and
---      the rehearsal assumed, so this refuses rather than silently overwriting a live function nobody
---      reviewed.
---   5. PIN         -- CR-tolerant sha256 of the embedded migration text must equal the pinned LF hash
+--   5. LEAK SNAPSHOT (BEFORE) -- capture the full list of public-schema functions already executable by
+--      PUBLIC/anon, as an array of regprocedure signatures, before touching anything. This exists purely
+--      so step 8b below can tell "pre-existing, unrelated leak" apart from "this migration just
+--      introduced a new one" -- an old unrelated leaky function must never block this apply.
+--   6. PIN         -- CR-tolerant sha256 of the embedded migration text must equal the pinned LF hash
 --      above (same CR-tolerance fix as the rehearsal wrapper, commit 81621b7a).
---   6. RUN         -- EXECUTE the pinned migration text verbatim (CR-tolerant).
---   7. REGISTER    -- INSERT the version row into supabase_migrations.schema_migrations, in the same
+--   7. RUN         -- EXECUTE the pinned migration text verbatim (CR-tolerant).
+--   8. REGISTER    -- INSERT the version row into supabase_migrations.schema_migrations, in the same
 --      transaction as the migration itself, so the two can never go out of sync.
---   8. POST-APPLY CHECKS (read-only, each raises immediately if wrong):
---      8a. the new function exists;
---      8b. zero rows of "functions in public executable by PUBLIC/anon" (schema-wide invariant);
---      8c. the new function specifically is not executable by anon/PUBLIC (has_function_privilege also
---          reflects any grant made to the PUBLIC pseudo-role, since every role implicitly carries
---          PUBLIC's grants, so this one check covers both anon and PUBLIC for this function);
---      8d. the real organisation's fingerprint is unchanged (this migration touches no table ROWS at
+--   9. POST-APPLY CHECKS (read-only, each raises immediately if wrong):
+--      9a. the new function exists;
+--      9b. DIFF-BASED leak check -- recompute the same PUBLIC/anon-executable function list and diff it
+--          against the BEFORE snapshot (step 5). Only functions NEWLY present in that list fail this
+--          check; anything that was already leaky before this migration ran is left alone and reported,
+--          not enforced, so an old unrelated function can never block this apply.
+--      9c. the new function specifically is not executable by anon/PUBLIC, checked directly
+--          (has_function_privilege also reflects any grant made to the PUBLIC pseudo-role, since every
+--          role implicitly carries PUBLIC's grants, so this one check covers both anon and PUBLIC) --
+--          this is an absolute requirement regardless of what 9b finds;
+--      9d. the real organisation's fingerprint is unchanged (this migration touches no table ROWS at
 --          all -- only a function definition and its grants -- so this must be byte-identical to the
 --          value taken in step 0).
+--   10. On success, INSERT the one status row into pg_temp.technician_pending_reviews_apply_status.
 --
 -- No test file is embedded and there is no rollback script invoked here: the rollback for this migration
 -- already exists separately at supabase/rollbacks/20261112100000_technician_pending_reviews.rollback.sql
 -- and is run by hand, outside this script, only if the owner decides afterwards to undo the change.
-begin;
+
+-- 1. Status table -- autocommitted on its own, independent of the DO block's outcome.
+drop table if exists pg_temp.technician_pending_reviews_apply_status;
+create temp table technician_pending_reviews_apply_status (
+  migration_version            text,
+  version_registered            boolean,
+  function_exists                boolean,
+  function_executable_by_anon    boolean,
+  newly_leaked_functions         text[],
+  org_fingerprint_before         text,
+  org_fingerprint_after          text,
+  org_fingerprint_unchanged      boolean,
+  applied_at                     timestamptz
+);
+
+-- 2. The apply itself -- one DO block, atomic as a whole.
 do $apply$
 declare
   v_ist_hour                 int;
@@ -65,7 +93,9 @@ declare
   v_pre_def                  text;
   v_post_def                 text;
   v_anon_exec                boolean;
-  v_leaked_function_count    int;
+  v_leaked_before            text[];
+  v_leaked_after             text[];
+  v_newly_leaked             text[];
   v_embedded_migration       text := $migration$-- Technician "Pending reviews" list (2026-11-12).
 --
 -- Display-only feature: a technician's own dashboard shows customers from HIS OWN completed visits
@@ -196,21 +226,36 @@ begin
       v_pre_def;
   end if;
 
-  -- 5. PIN -- CR-tolerant sha256 of the embedded migration text must equal the pinned LF hash.
+  -- 5. LEAK SNAPSHOT (BEFORE) -- every public-schema function already executable by PUBLIC/anon, as
+  -- regprocedure signatures (schema-qualified, argument types included, so it is unambiguous). This is
+  -- a baseline, not an enforcement point: whatever is already leaky stays the operator's separate problem,
+  -- not a reason to block this apply.
+  select coalesce(array_agg(sig order by sig), array[]::text[]) into v_leaked_before
+  from (
+    select distinct (p.oid::regprocedure)::text as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+    where n.nspname = 'public'
+      and a.privilege_type = 'EXECUTE'
+      and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))
+  ) s;
+
+  -- 6. PIN -- CR-tolerant sha256 of the embedded migration text must equal the pinned LF hash.
   v_actual_migration_hash := encode(sha256(convert_to(replace(v_embedded_migration, E'\r', ''), 'UTF8')), 'hex');
   if v_actual_migration_hash is distinct from v_expected_migration_hash then
     raise exception 'APPLY_REFUSED: embedded migration text does not match its pinned sha256 (expected %, got %)',
       v_expected_migration_hash, v_actual_migration_hash;
   end if;
 
-  -- 6. RUN -- apply the pinned migration text verbatim (CR-tolerant).
+  -- 7. RUN -- apply the pinned migration text verbatim (CR-tolerant).
   execute replace(v_embedded_migration, E'\r', '');
 
-  -- 7. REGISTER -- record this migration as applied, in the same transaction as the migration itself.
+  -- 8. REGISTER -- record this migration as applied, in the same transaction as the migration itself.
   insert into supabase_migrations.schema_migrations (version, name, statements)
   values (v_migration_version, 'technician_pending_reviews', array[replace(v_embedded_migration, E'\r', '')]);
 
-  -- 8a. the new object exists
+  -- 9a. the new object exists
   select pg_get_functiondef(p.oid) into v_post_def
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
@@ -220,30 +265,41 @@ begin
     raise exception 'APPLY_REFUSED: post-apply check failed -- public.list_technician_pending_reviews() does not exist after the migration ran';
   end if;
 
-  -- 8b. zero rows of "functions in public executable by PUBLIC/anon" (schema-wide invariant; grantee = 0
-  -- is the special aclexplode() encoding for a grant to the PUBLIC pseudo-role).
-  select count(*) into v_leaked_function_count
-  from pg_proc p
-  join pg_namespace n on n.oid = p.pronamespace
-  cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
-  where n.nspname = 'public'
-    and a.privilege_type = 'EXECUTE'
-    and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'));
+  -- 9b. DIFF-BASED leak check -- same PUBLIC/anon-executable function list, recomputed after the
+  -- migration. Only entries that are NEW (present after, absent before) fail this check; a pre-existing,
+  -- unrelated leaky function is reported in neither direction and never blocks this apply.
+  select coalesce(array_agg(sig order by sig), array[]::text[]) into v_leaked_after
+  from (
+    select distinct (p.oid::regprocedure)::text as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+    where n.nspname = 'public'
+      and a.privilege_type = 'EXECUTE'
+      and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))
+  ) s;
 
-  if v_leaked_function_count <> 0 then
-    raise exception 'APPLY_REFUSED: post-apply check failed -- % function(s) in schema public are executable by PUBLIC/anon',
-      v_leaked_function_count;
+  select coalesce(array_agg(x order by x), array[]::text[]) into v_newly_leaked
+  from (
+    select unnest(v_leaked_after) as x
+    except
+    select unnest(v_leaked_before)
+  ) d;
+
+  if array_length(v_newly_leaked, 1) is not null then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed % function(s) to PUBLIC/anon that were not executable before it ran: %',
+      array_length(v_newly_leaked, 1), v_newly_leaked;
   end if;
 
-  -- 8c. the new function specifically is not executable by anon/PUBLIC. has_function_privilege() already
-  -- reflects any grant made to the PUBLIC pseudo-role (every role implicitly carries PUBLIC's grants), so
-  -- checking the 'anon' role alone covers both anon and PUBLIC for this one function.
+  -- 9c. the new function specifically is not executable by anon/PUBLIC -- absolute requirement,
+  -- independent of 9b. has_function_privilege() already reflects any grant made to the PUBLIC
+  -- pseudo-role (every role implicitly carries PUBLIC's grants), so checking 'anon' alone covers both.
   select has_function_privilege('anon', 'public.list_technician_pending_reviews()', 'EXECUTE') into v_anon_exec;
   if v_anon_exec then
     raise exception 'APPLY_REFUSED: post-apply check failed -- public.list_technician_pending_reviews() is executable by anon/PUBLIC';
   end if;
 
-  -- 8d. the real organisation's fingerprint is unchanged. This migration touches no table ROWS at all --
+  -- 9d. the real organisation's fingerprint is unchanged. This migration touches no table ROWS at all --
   -- only a function definition and its grants -- so this must be byte-identical to the value taken in
   -- step 0.
   select md5(o.id::text || '|' || o.name) into v_org_fingerprint_after
@@ -257,7 +313,21 @@ begin
       v_org_fingerprint_before, v_org_fingerprint_after;
   end if;
 
-  raise notice 'APPLY_OK: migration % applied, registered, and all post-apply checks passed', v_migration_version;
+  -- 10. Every step above passed -- record the one status row. Reaching this INSERT is only possible on
+  -- a fully clean run; any earlier RAISE EXCEPTION rolls this INSERT back along with everything else in
+  -- this DO block, leaving the step-1 temp table empty.
+  insert into pg_temp.technician_pending_reviews_apply_status (
+    migration_version, version_registered, function_exists, function_executable_by_anon,
+    newly_leaked_functions, org_fingerprint_before, org_fingerprint_after, org_fingerprint_unchanged,
+    applied_at
+  )
+  values (
+    v_migration_version, true, (v_post_def is not null), v_anon_exec,
+    v_newly_leaked, v_org_fingerprint_before, v_org_fingerprint_after,
+    (v_org_fingerprint_after = v_org_fingerprint_before), now()
+  );
 end
 $apply$;
-commit;
+
+-- 3. The actual thing to look at: one row on success, zero rows if the DO block raised and rolled back.
+select * from pg_temp.technician_pending_reviews_apply_status;
