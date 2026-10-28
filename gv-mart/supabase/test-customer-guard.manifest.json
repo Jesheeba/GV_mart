@@ -18,6 +18,7 @@
     "report_ops_resolution",
     "report_performance",
     "report_pnl",
+    "report_customer_outstanding",
     "report_product_sales",
     "report_sales_service",
     "reward_candidates",
@@ -29,6 +30,7 @@
     "technician_kpi_summary"
   ],
   "exempt": {
+    "report_customer_outstanding_detail": "looks up one specific customer_id passed by the caller (master opened them from the already-filtered list); there is no aggregate to leak a flagged customer into",
     "report_top_customers": "reads only through _report_invoice_base, which excludes flagged customers",
     "compute_salary": "sums incentives_earned and salary rows only; no customer-linked data",
     "report_expenses_salary_by_staff": "expenses/salary ledger; no customer-linked data",

@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { useToast } from "@/components/ui/toast-context"
 import { useAssignableProfiles, useDeleteTask, useSetOrgTaskStatus, useUpdateTask } from "@/hooks/useTasks"
+import { useCustomerOutstandingDetail } from "@/hooks/useAccountsFollowup"
+import { useProfile } from "@/hooks/useProfile"
+import { formatCurrency } from "@/lib/sale-calc"
 import type { OrgTask, PriorityLevel } from "@/services/tasks"
 import { cn } from "@/lib/utils"
 
@@ -36,10 +39,16 @@ export function TaskDetailDialog({
 }) {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const { data: profile } = useProfile()
   const { data: assignableProfiles } = useAssignableProfiles(orgId)
   const updateTask = useUpdateTask()
   const setStatus = useSetOrgTaskStatus()
   const deleteTask = useDeleteTask()
+
+  const isCustomerOutstandingTask = task.ref_type === "customer_outstanding"
+  const { data: outstandingDetail } = useCustomerOutstandingDetail(
+    isCustomerOutstandingTask && profile?.role === "master" ? (task.ref_id ?? undefined) : undefined
+  )
 
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description ?? "")
@@ -129,6 +138,30 @@ export function TaskDetailDialog({
           </select>
           {task.assigner ? <p className="text-xs text-text-muted">{t("tasks.assignedBy", { name: task.assigner.full_name })}</p> : null}
         </div>
+
+        {isCustomerOutstandingTask ? (
+          <div className="rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm">
+            <p className="font-medium text-text">{t("tasks.outstandingLinkTitle")}</p>
+            {profile?.role === "master" ? (
+              outstandingDetail ? (
+                <>
+                  <p className="text-text-muted">
+                    {t("tasks.outstandingLinkAmount", { amount: formatCurrency(outstandingDetail.outstanding_amount) })}
+                  </p>
+                  {outstandingDetail.outstanding_amount <= 0 ? (
+                    <span className="mt-1 inline-block rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                      {t("tasks.outstandingBadgePaymentReceived")}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-text-muted">{t("common.loading")}</p>
+              )
+            ) : (
+              <p className="text-text-muted">{t("tasks.outstandingLinkStaffNote")}</p>
+            )}
+          </div>
+        ) : null}
 
         <div className="space-y-1.5">
           <Label>{t("tasks.assignDialog.priority")}</Label>

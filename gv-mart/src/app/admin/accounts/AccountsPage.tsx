@@ -1,11 +1,13 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
-import { Loader2, Plus, TrendingDown } from "lucide-react"
+import { Loader2, Plus, TrendingDown, ListTodo } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { usePnlReport, useCreateExpense, useExpensesList, useExpensesYearOverYear, useOpenRecurringTasks, useSalarySpendByStaff } from "@/hooks/useReports"
+import { useExpenseCategories, useCreateExpenseCategory, useRenameExpenseCategory, useDeactivateExpenseCategory, useDeleteExpenseCategory } from "@/hooks/useAccountsFollowup"
 import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
 import { createExpenseSchema, expenseCategories, type CreateExpenseFormInput, type CreateExpenseOutput } from "@/lib/validation/reports"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -16,6 +18,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { PeriodFilter } from "../reports/PeriodFilter"
 
 /** Accounts / Expenses (money-out) dashboard — 2026-09-24 change request
@@ -25,10 +28,12 @@ import { PeriodFilter } from "../reports/PeriodFilter"
  * no bank_accounts table, no reconciliation, exists or is planned here. */
 export function AccountsPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { data: profile } = useProfile()
   const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
   const range = periodToRange(period)
   const [showLogExpense, setShowLogExpense] = useState(false)
+  const [showManageCategories, setShowManageCategories] = useState(false)
 
   const { data: pnl, isLoading: pnlLoading } = usePnlReport(profile?.org_id, range)
   const { data: yoy, isLoading: yoyLoading } = useExpensesYearOverYear(profile?.org_id, 3)
@@ -54,15 +59,26 @@ export function AccountsPage() {
           <h1 className="text-2xl font-bold text-text">{t("accounts.title")}</h1>
           <p className="text-sm text-text-muted">{t("accounts.subtitle")}</p>
         </div>
-        <Button onClick={() => setShowLogExpense((v) => !v)}>
-          <Plus className="size-4" />
-          {t("accounts.logExpense")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => navigate("/accounts/outstanding")}>
+            <ListTodo className="size-4" />
+            {t("accounts.outstanding.navLink")}
+          </Button>
+          <Button variant="outline" onClick={() => setShowManageCategories(true)}>
+            {t("accounts.manageCategories")}
+          </Button>
+          <Button onClick={() => setShowLogExpense((v) => !v)}>
+            <Plus className="size-4" />
+            {t("accounts.logExpense")}
+          </Button>
+        </div>
       </div>
 
       {showLogExpense ? (
         <LogExpensePanel orgId={profile?.org_id} onClose={() => setShowLogExpense(false)} onLogged={() => setShowLogExpense(false)} />
       ) : null}
+
+      {showManageCategories ? <ManageCategoriesDialog orgId={profile?.org_id} onClose={() => setShowManageCategories(false)} /> : null}
 
       <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label={t("accounts.thisMonth")} value={pnlLoading ? "—" : formatCurrency(pnl?.totalExpenses ?? 0)} />
@@ -112,6 +128,7 @@ export function AccountsPage() {
                   <tr className="border-b border-border text-left text-xs font-semibold text-text-muted">
                     <th className="py-2 pr-3">{t("reports.pnl.date")}</th>
                     <th className="py-2 pr-3">{t("reports.pnl.category")}</th>
+                    <th className="py-2 pr-3">{t("accounts.underCategory")}</th>
                     <th className="py-2 pr-3">{t("accounts.staff")}</th>
                     <th className="py-2 pr-3">{t("accounts.note")}</th>
                     <th className="py-2 pr-3">{t("accounts.loggedBy")}</th>
@@ -123,6 +140,7 @@ export function AccountsPage() {
                     <tr key={e.id} className="border-b border-[#F1EDE6]">
                       <td className="py-2 pr-3 text-text-muted">{e.date}</td>
                       <td className="py-2 pr-3 font-medium text-text">{t(`reports.pnl.expenseCategory.${e.category}`)}</td>
+                      <td className="py-2 pr-3 text-text-muted">{e.categoryName ?? t("accounts.uncategorised")}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.staffName ?? "—"}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.note ?? "—"}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.loggedByName ?? "—"}</td>
@@ -255,6 +273,11 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
   const { data: profile } = useProfile()
   const createExpense = useCreateExpense()
   const { data: openTasks } = useOpenRecurringTasks(orgId)
+  const { data: expenseCategoryOptions } = useExpenseCategories(orgId)
+  const [categoryId, setCategoryId] = useState("")
+  const [showCreateCategory, setShowCreateCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const createCategory = useCreateExpenseCategory()
 
   const form = useForm<CreateExpenseFormInput, unknown, CreateExpenseOutput>({
     resolver: zodResolver(createExpenseSchema),
@@ -272,8 +295,17 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
       note: values.note?.trim() ? values.note.trim() : null,
       recurringTaskId: values.recurringTaskId || null,
       loggedBy: profile?.id ?? null,
+      categoryId: categoryId || null,
     })
     onLogged()
+  }
+
+  async function handleCreateCategory() {
+    if (!newCategoryName.trim()) return
+    const created = await createCategory.mutateAsync(newCategoryName.trim())
+    setCategoryId(created.id)
+    setNewCategoryName("")
+    setShowCreateCategory(false)
   }
 
   return (
@@ -285,7 +317,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5">
           <Label htmlFor="accounts-expense-category">{t("reports.pnl.category")}</Label>
           <select
@@ -300,6 +332,48 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
             ))}
           </select>
           {form.formState.errors.category ? <p className="text-xs text-danger">{t(form.formState.errors.category.message!)}</p> : null}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="accounts-expense-under-category">{t("accounts.underCategory")}</Label>
+          {showCreateCategory ? (
+            <div className="flex gap-1.5">
+              <Input
+                autoFocus
+                placeholder={t("accounts.newCategoryName")}
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+              />
+              <Button type="button" size="sm" onClick={handleCreateCategory} disabled={createCategory.isPending}>
+                {t("common.save")}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setShowCreateCategory(false)}>
+                {t("common.cancel")}
+              </Button>
+            </div>
+          ) : (
+            <select
+              id="accounts-expense-under-category"
+              value={categoryId}
+              onChange={(e) => {
+                if (e.target.value === "__create__") {
+                  setShowCreateCategory(true)
+                } else {
+                  setCategoryId(e.target.value)
+                }
+              }}
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            >
+              <option value="">{t("accounts.noCategory")}</option>
+              {(expenseCategoryOptions ?? [])
+                .filter((c) => c.is_active)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              <option value="__create__">{t("accounts.createNewCategory")}</option>
+            </select>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="accounts-expense-amount">{t("reports.pnl.amount")}</Label>
@@ -347,5 +421,124 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
         </Button>
       </div>
     </Card>
+  )
+}
+
+/** Manage Categories — add/rename/deactivate/delete-if-unused. System
+ * categories (one per existing expense_category enum value, plus
+ * Incentives) are locked at the DB level and show as read-only here. */
+function ManageCategoriesDialog({ orgId, onClose }: { orgId: string | undefined; onClose: () => void }) {
+  const { t } = useTranslation()
+  const { data: categories, isLoading } = useExpenseCategories(orgId)
+  const renameCategory = useRenameExpenseCategory()
+  const deactivateCategory = useDeactivateExpenseCategory()
+  const deleteCategory = useDeleteExpenseCategory()
+  const createCategory = useCreateExpenseCategory()
+  const [newName, setNewName] = useState("")
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleCreate() {
+    if (!newName.trim()) return
+    setError(null)
+    try {
+      await createCategory.mutateAsync(newName.trim())
+      setNewName("")
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setError(null)
+    try {
+      await deleteCategory.mutateAsync(id)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogTitle>{t("accounts.manageCategories")}</DialogTitle>
+        <DialogDescription>{t("accounts.manageCategoriesHint")}</DialogDescription>
+
+        <div className="flex gap-1.5">
+          <Input placeholder={t("accounts.newCategoryName")} value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <Button size="sm" onClick={handleCreate} disabled={createCategory.isPending}>
+            {t("accounts.createNewCategory")}
+          </Button>
+        </div>
+
+        {error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{error}</p> : null}
+
+        {isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <div className="max-h-80 space-y-1.5 overflow-y-auto">
+            {(categories ?? []).map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2">
+                {editingId === c.id ? (
+                  <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} className="h-8" />
+                ) : (
+                  <span className={cn("text-sm", !c.is_active && "text-text-muted line-through")}>
+                    {c.name}
+                    {c.is_system ? <span className="ml-1.5 text-xs text-text-muted">({t("accounts.systemCategory")})</span> : null}
+                  </span>
+                )}
+                {!c.is_system ? (
+                  editingId === c.id ? (
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          await renameCategory.mutateAsync({ id: c.id, name: editingName })
+                          setEditingId(null)
+                        }}
+                      >
+                        {t("common.save")}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                        {t("common.cancel")}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingId(c.id)
+                          setEditingName(c.name)
+                        }}
+                      >
+                        {t("accounts.rename")}
+                      </Button>
+                      {c.is_active ? (
+                        <Button size="sm" variant="ghost" onClick={() => deactivateCategory.mutate(c.id)}>
+                          {t("accounts.deactivate")}
+                        </Button>
+                      ) : null}
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id)}>
+                        {t("common.delete")}
+                      </Button>
+                    </div>
+                  )
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

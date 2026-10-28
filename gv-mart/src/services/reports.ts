@@ -907,6 +907,9 @@ export type CreateExpenseInput = {
    * spend is one combined figure with per-person drill-down. Unset for
    * every other category. */
   staffId?: string | null
+  /** "Under Category" (Accounts follow-up spec) — owner-managed, additive
+   * alongside the enum above; null leaves the expense uncategorised. */
+  categoryId?: string | null
 }
 
 export async function createExpense(input: CreateExpenseInput) {
@@ -922,6 +925,7 @@ export async function createExpense(input: CreateExpenseInput) {
       is_recurring: !!input.recurringTaskId,
       logged_by: input.loggedBy ?? null,
       staff_id: input.staffId ?? null,
+      category_id: input.categoryId ?? null,
     })
     .select()
     .single()
@@ -942,13 +946,15 @@ export type ExpenseEntry = {
   staffId: string | null
   staffName: string | null
   createdAt: string
+  categoryId: string | null
+  categoryName: string | null
 }
 
 export async function getExpensesList(orgId: string, range: DateRange): Promise<ExpenseEntry[]> {
   const { data, error } = await supabase
     .from("expenses")
     .select(
-      "id, category, amount, date, note, is_recurring, recurring_task_id, created_at, staff_id, logged_by_profile:profiles!expenses_logged_by_fkey(full_name), staff:profiles!expenses_staff_id_fkey(full_name)"
+      "id, category, amount, date, note, is_recurring, recurring_task_id, created_at, staff_id, category_id, logged_by_profile:profiles!expenses_logged_by_fkey(full_name), staff:profiles!expenses_staff_id_fkey(full_name), expense_category:expense_categories!expenses_category_id_fkey(name)"
     )
     .eq("org_id", orgId)
     .gte("date", range.from)
@@ -967,6 +973,8 @@ export async function getExpensesList(orgId: string, range: DateRange): Promise<
     staffId: e.staff_id,
     staffName: (e.staff as { full_name: string } | null)?.full_name ?? null,
     createdAt: e.created_at,
+    categoryId: e.category_id,
+    categoryName: (e.expense_category as { name: string } | null)?.name ?? null,
   }))
 }
 

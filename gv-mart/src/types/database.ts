@@ -5858,6 +5858,8 @@ export type Database = {
           recurring_task_id: string | null
           logged_by: string | null
           staff_id: string | null
+          // Accounts follow-up (20261115110000) — hand-patched, no Docker to regenerate.
+          category_id: string | null
           created_at: string
           updated_at: string
         }
@@ -5873,6 +5875,7 @@ export type Database = {
           recurring_task_id?: string | null
           logged_by?: string | null
           staff_id?: string | null
+          category_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5888,6 +5891,7 @@ export type Database = {
           recurring_task_id?: string | null
           logged_by?: string | null
           staff_id?: string | null
+          category_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5918,6 +5922,13 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
             referencedColumns: ["id"]
           },
         ]
@@ -6825,6 +6836,83 @@ export type Database = {
           },
         ]
       }
+      // Accounts follow-up (20261115100000) — hand-patched, no Docker to regenerate.
+      customer_outstanding_reminders: {
+        Row: {
+          id: string
+          org_id: string
+          customer_id: string
+          due_at: string
+          note: string | null
+          status: Database["public"]["Enums"]["customer_outstanding_reminder_status"]
+          source: string
+          created_by: string | null
+          created_at: string
+          closed_by: string | null
+          closed_at: string | null
+          close_reason: string | null
+          updated_at: string
+        }
+        // Read-only from the client: writes go through the create/reschedule/close/cancel RPCs only.
+        Insert: never
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "customer_outstanding_reminders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_outstanding_links: {
+        Row: {
+          id: string
+          org_id: string
+          task_id: string | null
+          reminder_id: string | null
+          customer_id: string
+          invoice_id: string | null
+          amount_snapshot: number
+          created_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "customer_outstanding_links_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_outstanding_links_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: true
+            referencedRelation: "customer_outstanding_reminders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_categories: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          is_system: boolean
+          enum_value: Database["public"]["Enums"]["expense_category"] | null
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        // Read-only from the client: writes go through the create/rename/deactivate/delete RPCs only.
+        Insert: never
+        Update: never
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -7688,9 +7776,77 @@ export type Database = {
         Args: { p_org_id: string; p_period: string }
         Returns: { category: Database["public"]["Enums"]["reward_category"]; technician_id: string; metric: number }[]
       }
+      // Accounts follow-up (20261115100200-100300) — hand-patched, no Docker to regenerate.
+      report_customer_outstanding: {
+        Args: { p_cursor: string | null; p_limit: number }
+        Returns: {
+          customer_id: string
+          customer_name: string
+          outstanding_amount: number
+          oldest_invoice_date: string | null
+          open_reminder_count: number
+          next_reminder_at: string | null
+          open_task_count: number
+          task_assignee_name: string | null
+          task_status: string | null
+        }[]
+      }
+      report_customer_outstanding_detail: {
+        Args: { p_customer: string }
+        Returns: {
+          customer_id: string
+          customer_name: string
+          outstanding_amount: number
+          oldest_invoice_date: string | null
+          open_reminder_count: number
+          next_reminder_at: string | null
+          open_task_count: number
+        }[]
+      }
+      create_customer_outstanding_reminder: {
+        Args: { p_customer: string; p_due_at: string; p_note?: string | null; p_invoice?: string | null; p_amount?: number }
+        Returns: Database["public"]["Tables"]["customer_outstanding_reminders"]["Row"]
+      }
+      reschedule_customer_outstanding_reminder: {
+        Args: { p_reminder: string; p_due_at: string; p_note?: string | null }
+        Returns: Database["public"]["Tables"]["customer_outstanding_reminders"]["Row"]
+      }
+      close_customer_outstanding_reminder: {
+        Args: { p_reminder: string }
+        Returns: Database["public"]["Tables"]["customer_outstanding_reminders"]["Row"]
+      }
+      cancel_customer_outstanding_reminder: {
+        Args: { p_reminder: string; p_reason?: string | null }
+        Returns: Database["public"]["Tables"]["customer_outstanding_reminders"]["Row"]
+      }
+      create_customer_outstanding_task: {
+        Args: { p_customer: string; p_assignee: string | null; p_title: string; p_due_date: string; p_invoice?: string | null; p_amount?: number }
+        Returns: Database["public"]["Tables"]["tasks"]["Row"]
+      }
+      close_outstanding_reminders_if_zero: {
+        Args: { p_customer: string }
+        Returns: number
+      }
+      create_expense_category: {
+        Args: { p_name: string }
+        Returns: Database["public"]["Tables"]["expense_categories"]["Row"]
+      }
+      rename_expense_category: {
+        Args: { p_id: string; p_name: string }
+        Returns: Database["public"]["Tables"]["expense_categories"]["Row"]
+      }
+      deactivate_expense_category: {
+        Args: { p_id: string }
+        Returns: Database["public"]["Tables"]["expense_categories"]["Row"]
+      }
+      delete_expense_category: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       user_role: "master" | "operation_admin" | "sales_admin" | "technician" | "customer"
+      customer_outstanding_reminder_status: "open" | "done" | "cancelled"
       brand_category: "ro" | "ac" | "inverter" | "battery"
       item_type: "product" | "spare" | "gift"
       location_type: "warehouse" | "van"
