@@ -16,6 +16,7 @@ declare
   v_before_count int; v_after_count int;
   v_rule_id uuid;
   v_credit_row incentives_earned;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_monthly_expenses_bike_allowance') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -30,7 +31,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('bike-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_master, 'role', 'authenticated')::text, true);

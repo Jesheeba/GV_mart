@@ -22,6 +22,7 @@ declare
   v_days int;
   v_row public.technician_vehicles;
   v_org2 uuid; v_tech2org uuid; v_tech2orgp uuid;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_technician_vehicles') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -35,7 +36,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('tv-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   -- A second, unrelated organisation and its own technician -- used only

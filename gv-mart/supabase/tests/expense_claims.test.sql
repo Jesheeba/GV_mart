@@ -15,6 +15,7 @@ declare
   i int;
   v_claim public.expense_claims; v_n int;
   v_salary salaries;
+  v_new_id uuid;
 begin
   insert into organizations (name) values ('__TEST_expense_claims') returning id into v_org;
   insert into settings (org_id) values (v_org);
@@ -28,7 +29,8 @@ begin
     insert into auth.users (id, aud, role, email) values (v_tech[i], 'authenticated', 'authenticated', format('ec-tech%s@test.invalid', i));
     insert into profiles (id, org_id, full_name, role) values (v_tech[i], v_org, format('__TEST_ tech%s', i), 'technician');
     v_techp := array_append(v_techp, null);
-    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_techp[i];
+    insert into technicians (org_id, profile_id) values (v_org, v_tech[i]) returning id into v_new_id;
+    v_techp[i] := v_new_id;
   end loop;
 
   -- Technician submits a claim via the RPC (identity resolved server-side).
