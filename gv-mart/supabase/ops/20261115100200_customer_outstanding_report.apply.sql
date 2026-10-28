@@ -15,15 +15,15 @@
 -- 1. Status table -- autocommitted on its own, independent of the DO block's outcome.
 drop table if exists pg_temp.customer_outstanding_report_apply_status;
 create temp table customer_outstanding_report_apply_status (
-  migration_version           text,
-  version_registered          boolean,
-  functions_exist             boolean,
-  index_exists                boolean,
-  functions_not_anon_executableboolean,
-  newly_leaked_functions      text[],
-  org_fingerprint_before      text,
-  org_fingerprint_after       text,
-  applied_at                  timestamptz
+  migration_version text,
+  version_registered boolean,
+  functions_exist boolean,
+  index_exists boolean,
+  functions_not_anon_executable boolean,
+  newly_leaked_functions text[],
+  org_fingerprint_before text,
+  org_fingerprint_after text,
+  applied_at timestamptz
 );
 
 -- 2. The apply itself -- one DO block, atomic as a whole.
@@ -33,7 +33,7 @@ declare
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
   v_org_fingerprint_before   text;
   v_org_fingerprint_after    text;
-  v_expected_migration_hash  text := '08cddc0f4f1756cf596e8c24f819d43def9d15dde646df5b658d6ca7078edb7f';
+  v_expected_migration_hash  text := 'fb3392259e43c103d720a8b59faaf49d63e271f6a48b5b27b96a39217a379e11';
   v_actual_migration_hash    text;
   v_migration_version        text := '20261115100200';
   v_already_registered       boolean;
@@ -161,9 +161,11 @@ begin
     coalesce((
       select sum(i.total - i.amount_paid) from public.invoices i
       where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0
+        and not public.is_test_customer(i.customer_id)
     ), 0),
     (select min((i.created_at at time zone 'Asia/Kolkata')::date) from public.invoices i
-      where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0),
+      where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0
+        and not public.is_test_customer(i.customer_id)),
     (select count(*)::int from public.customer_outstanding_reminders r
       where r.org_id = v_org and r.customer_id = p_customer and r.status = 'open'),
     (select min(r.due_at) from public.customer_outstanding_reminders r
@@ -219,6 +221,21 @@ begin
   end if;
   if to_regclass('public.invoices_org_customer_outstanding_idx') is not null then
     raise exception 'APPLY_REFUSED: index invoices_org_customer_outstanding_idx already exists before this migration ran';
+  end if;
+  if to_regclass('public.tasks') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tasks' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.tasks (uuid id) not found -- this migration reads it';
+  end if;
+  if to_regclass('public.customer_outstanding_reminders') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customer_outstanding_reminders' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.customer_outstanding_reminders (uuid id) not found -- run 20261115100000_customer_outstanding_reminders_schema first';
+  end if;
+  if to_regclass('public.customer_outstanding_links') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customer_outstanding_links' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.customer_outstanding_links (uuid id) not found -- run 20261115100100_customer_outstanding_links_schema first';
   end if;
 
   -- 5. LEAK SNAPSHOT (BEFORE)
@@ -276,7 +293,7 @@ begin
   from (select unnest(v_leaked_after) as x except select unnest(v_leaked_before)) d;
 
   if array_length(v_newly_leaked, 1) is not null then
-    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed function(s) to PUBLIC/anon: %',
+    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed %% function(s) to PUBLIC/anon: %',
       v_newly_leaked;
   end if;
 

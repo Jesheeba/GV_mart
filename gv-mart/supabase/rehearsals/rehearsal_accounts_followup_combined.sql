@@ -12,12 +12,12 @@
 -- Pinned (CR-tolerant sha256, recomputed at the commit this wrapper was built from):
 --   17e597fb5904b0c3bc8999bf99a47c86ed2c1793f56f07d4d7a07a3a26acf351  Feature B migration 1/5: 20261115100000_customer_outstanding_reminders_schema.sql
 --   4ebe905dc61bca52aca8edfd1425f5a75b824fbda6d17d6bbc68b5125ea03f8d  Feature B migration 2/5: 20261115100100_customer_outstanding_links_schema.sql
---   08cddc0f4f1756cf596e8c24f819d43def9d15dde646df5b658d6ca7078edb7f  Feature B migration 3/5: 20261115100200_customer_outstanding_report.sql
+--   fb3392259e43c103d720a8b59faaf49d63e271f6a48b5b27b96a39217a379e11  Feature B migration 3/5: 20261115100200_customer_outstanding_report.sql
 --   cff1fb33c32550521ed261c8de26bc270c83e4119535f8fdbb6d3eb251e65f50  Feature B migration 4/5: 20261115100300_customer_outstanding_rpcs.sql
 --   c791fdc658476f22908a3f213bdcc6584e481de6c910d47cfb1dc67cacef0678  Feature B migration 5/5: 20261115100400_tasks_customer_outstanding_guard.sql
---   08602c4654ec49e6dae5641ae7ab8fd301a78e4d6262ba92b1a409b26ea39acf  Feature A migration 1/2: 20261115110000_expense_categories_schema.sql
+--   d13b526f1c143ae7e4514f8ed2fc32f2c3056d365ccf7a7ee3c879b04a5a9104  Feature A migration 1/2: 20261115110000_expense_categories_schema.sql
 --   c7c523fc9afb8cf384aa15f331ef232fb5518745032cab90acf869eb8d827a5a  Feature A migration 2/2: 20261115110100_expense_categories_rpcs.sql
---   1fb0264005f6a56b337b7431e2d8e056f19fe71ea4e860dfa9564533f4b8e614  combined test file: accounts_followup_combined.test.sql
+--   6fa5ec5ade2bd6a138ee248970a6d31fe217daf7373ae31681c2a8f0755d07e9  combined test file: accounts_followup_combined.test.sql
 
 do $rehearsal$
 declare
@@ -278,9 +278,11 @@ begin
     coalesce((
       select sum(i.total - i.amount_paid) from public.invoices i
       where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0
+        and not public.is_test_customer(i.customer_id)
     ), 0),
     (select min((i.created_at at time zone 'Asia/Kolkata')::date) from public.invoices i
-      where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0),
+      where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0
+        and not public.is_test_customer(i.customer_id)),
     (select count(*)::int from public.customer_outstanding_reminders r
       where r.org_id = v_org and r.customer_id = p_customer and r.status = 'open'),
     (select min(r.due_at) from public.customer_outstanding_reminders r
@@ -296,7 +298,7 @@ revoke all on function public.report_customer_outstanding_detail(uuid) from publ
 grant execute on function public.report_customer_outstanding_detail(uuid) to authenticated;
 $m3tag$;
   v_hash := encode(sha256(convert_to(replace(v_text, E'', ''), 'UTF8')), 'hex');
-  if v_hash <> '08cddc0f4f1756cf596e8c24f819d43def9d15dde646df5b658d6ca7078edb7f' then
+  if v_hash <> 'fb3392259e43c103d720a8b59faaf49d63e271f6a48b5b27b96a39217a379e11' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for Feature B migration 3/5: %', v_hash;
   end if;
   execute v_text;
@@ -640,8 +642,12 @@ begin
     end if;
     return old;
   end if;
-  if old.is_system and (new.name is distinct from old.name or new.is_active is distinct from old.is_active) then
-    raise exception 'expense_categories: a system category cannot be renamed or deactivated';
+  if old.is_system and (
+    new.name is distinct from old.name
+    or new.is_active is distinct from old.is_active
+    or new.is_system is distinct from old.is_system
+  ) then
+    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, or have its system flag changed';
   end if;
   return new;
 end;
@@ -712,7 +718,7 @@ update public.expenses e
   where e.category_id is null;
 $m6tag$;
   v_hash := encode(sha256(convert_to(replace(v_text, E'', ''), 'UTF8')), 'hex');
-  if v_hash <> '08602c4654ec49e6dae5641ae7ab8fd301a78e4d6262ba92b1a409b26ea39acf' then
+  if v_hash <> 'd13b526f1c143ae7e4514f8ed2fc32f2c3056d365ccf7a7ee3c879b04a5a9104' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for Feature A migration 1/2: %', v_hash;
   end if;
   execute v_text;
@@ -951,6 +957,22 @@ begin
     (select outstanding_amount from public.report_customer_outstanding(null, 50) where customer_id = v_cust) = 600);
   perform pg_temp.as_pg();
 
+  -- a test customer's unpaid invoice must be excluded by BOTH the list and the detail
+  -- function, identically to report_kpi_tiles' own formula -- this is the exact
+  -- reconciliation guarantee the owner's condition 3 requires.
+  declare v_test_cust uuid; v_detail_amt numeric;
+  begin
+    insert into customers (org_id, name, mobile, is_test) values (v_org, '__TEST_ Flagged Test Customer', '9400000112', true) returning id into v_test_cust;
+    insert into invoices (org_id, customer_id, type, subtotal, gst, total, amount_paid, payment_status)
+      values (v_org, v_test_cust, 'product', 1000, 0, 1000, 0, 'due');
+    perform pg_temp.as_user(v_master);
+    select outstanding_amount into v_detail_amt from public.report_customer_outstanding_detail(v_test_cust);
+    perform pg_temp.chk('report_customer_outstanding_detail excludes a test customer''s outstanding, same as the list', v_detail_amt = 0, v_detail_amt::text);
+    perform pg_temp.chk('report_customer_outstanding also excludes the test customer entirely',
+      not exists (select 1 from public.report_customer_outstanding(null, 50) where customer_id = v_test_cust));
+    perform pg_temp.as_pg();
+  end;
+
   -- role gate: operation_admin / sales_admin / technician cannot call the report
   perform pg_temp.as_user(v_ops);
   v_s := pg_temp.raises('select * from public.report_customer_outstanding_detail(''' || v_cust || ''')');
@@ -1116,6 +1138,17 @@ begin
   v_s := pg_temp.raises(format('delete from expense_categories where id = %L', v_cat_marketing));
   perform pg_temp.chk('DB TRIGGER: a raw DELETE of a system category is refused', v_s like '%system category%', coalesce(v_s, 'allowed'));
 
+  -- two-step unlock attempt: flip is_system to false first, THEN rename/deactivate/delete
+  -- in a separate statement -- must fail at step 1 already (is_system itself is locked)
+  v_s := pg_temp.raises(format('update expense_categories set is_system = false where id = %L', v_cat_marketing));
+  perform pg_temp.chk('DB TRIGGER: a raw UPDATE flipping is_system to false on a system category is refused', v_s like '%system category%', coalesce(v_s, 'allowed'));
+  -- a combined single statement (is_system=false AND name changed) must also still fail
+  v_s := pg_temp.raises(format('update expense_categories set is_system = false, name = %L where id = %L', 'Hacked2', v_cat_marketing));
+  perform pg_temp.chk('DB TRIGGER: a combined is_system-unlock-and-rename in one statement is refused', v_s like '%system category%', coalesce(v_s, 'allowed'));
+  -- confirm the category genuinely survived all of the above untouched
+  perform pg_temp.chk('the system category is still is_system=true, unchanged, after every unlock attempt',
+    (select is_system and name = 'Marketing Expenses' and is_active from expense_categories where id = v_cat_marketing));
+
   -- ordinary (non-system) category: create/rename/deactivate/delete-if-unused
   perform pg_temp.as_user(v_master);
   declare v_cat2 public.expense_categories;
@@ -1190,7 +1223,7 @@ begin
 end $t$;
 $tsttag$;
   v_hash := encode(sha256(convert_to(replace(v_text, E'', ''), 'UTF8')), 'hex');
-  if v_hash <> '1fb0264005f6a56b337b7431e2d8e056f19fe71ea4e860dfa9564533f4b8e614' then
+  if v_hash <> '6fa5ec5ade2bd6a138ee248970a6d31fe217daf7373ae31681c2a8f0755d07e9' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for combined test file: %', v_hash;
   end if;
   execute v_text;

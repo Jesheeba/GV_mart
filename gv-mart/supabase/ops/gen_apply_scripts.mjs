@@ -19,6 +19,18 @@ function readMig(name) {
   return fs.readFileSync(path.join(MIGDIR, name + '.sql'), 'utf8');
 }
 
+// A pre-check block confirming a table this migration's DDL/functions depend
+// on (but don't themselves create) already exists in the expected shape --
+// so a misordered run refuses cleanly with APPLY_REFUSED instead of failing
+// deep inside the DO block with a raw "relation does not exist".
+function depCheck(table, hint) {
+  return `  if to_regclass('public.${table}') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = '${table}' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.${table} (uuid id) not found -- ${hint}';
+  end if;`;
+}
+
 // Postgres dollar-quote-safe embed: pick a tag not present in the text.
 function pickTag(text, base) {
   let tag = base;
@@ -52,7 +64,12 @@ function buildApply({
 }) {
   const tableName = title + '_apply_status';
   const migTag = pickTag(migrationText, 'migration');
-  const colDefs = statusCols.map((c) => `  ${c.name.padEnd(28)}${c.type}`).join(',\n');
+  // padEnd(28) silently produces zero separating space when a column name is
+  // itself >= 28 chars (e.g. real_org_seeded_12_system_categories), which
+  // concatenates the name directly onto its type into one invalid identifier
+  // -- a hard CREATE TABLE syntax error found by review. Guarantee at least
+  // one space regardless of name length.
+  const colDefs = statusCols.map((c) => `  ${c.name.padEnd(28)} `.replace(/ +$/, ' ') + c.type).join(',\n');
   const colNames = statusCols.map((c) => c.name).join(', ');
   const colVals = statusCols.map((c) => c.value).join(',\n    ');
 
@@ -240,7 +257,9 @@ const COMMIT = '72b86b90423bda68c25559566b981a920798b750';
   const migrationText = readMig(version + '_' + title);
   const preChecks = `  if to_regclass('public.customer_outstanding_links') is not null then
     raise exception 'APPLY_REFUSED: public.customer_outstanding_links already exists before this migration ran';
-  end if;`;
+  end if;
+${depCheck('tasks', 'this migration adds a FK to it')}
+${depCheck('customer_outstanding_reminders', 'run 20261115100000_customer_outstanding_reminders_schema first')}`;
   const postChecks = `  if to_regclass('public.customer_outstanding_links') is null then
     raise exception 'APPLY_REFUSED: post-apply check failed -- public.customer_outstanding_links does not exist';
   end if;
@@ -282,7 +301,10 @@ const COMMIT = '72b86b90423bda68c25559566b981a920798b750';
   end if;
   if to_regclass('public.invoices_org_customer_outstanding_idx') is not null then
     raise exception 'APPLY_REFUSED: index invoices_org_customer_outstanding_idx already exists before this migration ran';
-  end if;`;
+  end if;
+${depCheck('tasks', 'this migration reads it')}
+${depCheck('customer_outstanding_reminders', 'run 20261115100000_customer_outstanding_reminders_schema first')}
+${depCheck('customer_outstanding_links', 'run 20261115100100_customer_outstanding_links_schema first')}`;
   const postChecks = `  if to_regprocedure('public.report_customer_outstanding(uuid,int)') is null
      or to_regprocedure('public.report_customer_outstanding_detail(uuid)') is null then
     raise exception 'APPLY_REFUSED: post-apply check failed -- report functions do not both exist';
@@ -326,7 +348,10 @@ const COMMIT = '72b86b90423bda68c25559566b981a920798b750';
   ];
   const existsExpr = (fn) => `to_regprocedure('${fn}') is not null`;
   const notAnonExpr = (fn) => `not has_function_privilege('anon', '${fn}', 'EXECUTE')`;
-  const preChecks = FNS.map((fn) => `  if ${existsExpr(fn)} then\n    raise exception 'APPLY_REFUSED: ${fn} already exists before this migration ran';\n  end if;`).join('\n');
+  const preChecks = FNS.map((fn) => `  if ${existsExpr(fn)} then\n    raise exception 'APPLY_REFUSED: ${fn} already exists before this migration ran';\n  end if;`).join('\n')
+    + `\n${depCheck('tasks', 'this migration reads/writes it')}`
+    + `\n${depCheck('customer_outstanding_reminders', 'run 20261115100000_customer_outstanding_reminders_schema first')}`
+    + `\n${depCheck('customer_outstanding_links', 'run 20261115100100_customer_outstanding_links_schema first')}`;
   const postChecks = `  if not (${FNS.map(existsExpr).join(' and ')}) then
     raise exception 'APPLY_REFUSED: post-apply check failed -- not all 6 RPCs exist';
   end if;
@@ -406,6 +431,12 @@ const COMMIT = '72b86b90423bda68c25559566b981a920798b750';
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'expenses' and column_name = 'category_id') then
     raise exception 'APPLY_REFUSED: expenses.category_id already exists before this migration ran';
   end if;`;
+  const CAT_FNS = [
+    'public.seed_system_expense_categories(uuid)',
+    'public._guard_expense_category_system_locked()',
+    'public._trg_seed_system_expense_categories()',
+  ];
+  const catNotAnonExpr = (fn) => `not has_function_privilege('anon', '${fn}', 'EXECUTE')`;
   const postChecks = `  if to_regclass('public.expense_categories') is null then
     raise exception 'APPLY_REFUSED: post-apply check failed -- public.expense_categories does not exist';
   end if;
@@ -419,6 +450,12 @@ const COMMIT = '72b86b90423bda68c25559566b981a920798b750';
         select o.id from public.organizations o where o.name not like '\\_\\_TEST%' escape '\\' order by o.created_at asc limit 1
       ) and ec.is_system) <> 12 then
     raise exception 'APPLY_REFUSED: post-apply check failed -- the real organisation was not seeded with exactly 12 system categories';
+  end if;
+  if not exists (select 1 from pg_trigger where tgname = 'aaa_guard_expense_category_system_locked' and tgrelid = 'public.expense_categories'::regclass and not tgisinternal) then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- the system-category lock trigger is missing';
+  end if;
+  if not (${CAT_FNS.map(catNotAnonExpr).join(' and ')}) then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- at least one of the 3 new functions is executable by anon/PUBLIC';
   end if;`;
   const statusCols = [
     { name: 'migration_version', type: 'text', value: 'v_migration_version' },
@@ -426,6 +463,8 @@ const COMMIT = '72b86b90423bda68c25559566b981a920798b750';
     { name: 'table_and_column_exist', type: 'boolean', value: `(to_regclass('public.expense_categories') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'expenses' and column_name = 'category_id'))` },
     { name: 'anon_select_denied', type: 'boolean', value: `(not has_table_privilege('anon', 'public.expense_categories', 'SELECT'))` },
     { name: 'real_org_seeded_12_system_categories', type: 'boolean', value: `((select count(*) from public.expense_categories ec where ec.org_id = (select o.id from public.organizations o where o.name not like '\\_\\_TEST%' escape '\\' order by o.created_at asc limit 1) and ec.is_system) = 12)` },
+    { name: 'lock_trigger_exists', type: 'boolean', value: `(exists (select 1 from pg_trigger where tgname = 'aaa_guard_expense_category_system_locked' and tgrelid = 'public.expense_categories'::regclass and not tgisinternal))` },
+    { name: 'new_functions_not_anon_executable', type: 'boolean', value: `(${CAT_FNS.map(catNotAnonExpr).join(' and ')})` },
     { name: 'newly_leaked_functions', type: 'text[]', value: 'v_newly_leaked' },
     { name: 'org_fingerprint_before', type: 'text', value: 'v_org_fingerprint_before' },
     { name: 'org_fingerprint_after', type: 'text', value: 'v_org_fingerprint_after' },
@@ -450,7 +489,12 @@ const COMMIT = '72b86b90423bda68c25559566b981a920798b750';
   ];
   const existsExpr = (fn) => `to_regprocedure('${fn}') is not null`;
   const notAnonExpr = (fn) => `not has_function_privilege('anon', '${fn}', 'EXECUTE')`;
-  const preChecks = FNS.map((fn) => `  if ${existsExpr(fn)} then\n    raise exception 'APPLY_REFUSED: ${fn} already exists before this migration ran';\n  end if;`).join('\n');
+  const preChecks = FNS.map((fn) => `  if ${existsExpr(fn)} then\n    raise exception 'APPLY_REFUSED: ${fn} already exists before this migration ran';\n  end if;`).join('\n')
+    + `\n  if to_regclass('public.expense_categories') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'expenses' and column_name = 'category_id')
+  then
+    raise exception 'APPLY_REFUSED: public.expense_categories / expenses.category_id not found -- run 20261115110000_expense_categories_schema first';
+  end if;`;
   const postChecks = `  if not (${FNS.map(existsExpr).join(' and ')}) then
     raise exception 'APPLY_REFUSED: post-apply check failed -- not all 4 category RPCs exist';
   end if;

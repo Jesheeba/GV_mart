@@ -15,14 +15,14 @@
 -- 1. Status table -- autocommitted on its own, independent of the DO block's outcome.
 drop table if exists pg_temp.customer_outstanding_links_schema_apply_status;
 create temp table customer_outstanding_links_schema_apply_status (
-  migration_version           text,
-  version_registered          boolean,
-  table_exists                boolean,
-  anon_select_denied          boolean,
-  newly_leaked_functions      text[],
-  org_fingerprint_before      text,
-  org_fingerprint_after       text,
-  applied_at                  timestamptz
+  migration_version text,
+  version_registered boolean,
+  table_exists boolean,
+  anon_select_denied boolean,
+  newly_leaked_functions text[],
+  org_fingerprint_before text,
+  org_fingerprint_after text,
+  applied_at timestamptz
 );
 
 -- 2. The apply itself -- one DO block, atomic as a whole.
@@ -105,15 +105,10 @@ begin
   if to_regclass('public.customer_outstanding_links') is not null then
     raise exception 'APPLY_REFUSED: public.customer_outstanding_links already exists before this migration ran';
   end if;
-
-  -- This migration's CREATE TABLE adds FKs to public.tasks(id) and
-  -- public.customer_outstanding_reminders(id). Confirm both exist in the
-  -- expected shape first, so a misordered run refuses cleanly instead of
-  -- failing deep inside the DO block with a raw "relation does not exist".
   if to_regclass('public.tasks') is null
      or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tasks' and column_name = 'id' and data_type = 'uuid')
   then
-    raise exception 'APPLY_REFUSED: public.tasks (uuid id) not found -- this migration depends on it already existing';
+    raise exception 'APPLY_REFUSED: public.tasks (uuid id) not found -- this migration adds a FK to it';
   end if;
   if to_regclass('public.customer_outstanding_reminders') is null
      or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customer_outstanding_reminders' and column_name = 'id' and data_type = 'uuid')
@@ -177,7 +172,7 @@ begin
   from (select unnest(v_leaked_after) as x except select unnest(v_leaked_before)) d;
 
   if array_length(v_newly_leaked, 1) is not null then
-    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed function(s) to PUBLIC/anon: %',
+    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed %% function(s) to PUBLIC/anon: %',
       v_newly_leaked;
   end if;
 

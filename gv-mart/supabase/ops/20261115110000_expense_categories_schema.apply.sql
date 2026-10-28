@@ -15,15 +15,17 @@
 -- 1. Status table -- autocommitted on its own, independent of the DO block's outcome.
 drop table if exists pg_temp.expense_categories_schema_apply_status;
 create temp table expense_categories_schema_apply_status (
-  migration_version           text,
-  version_registered          boolean,
-  table_and_column_exist      boolean,
-  anon_select_denied          boolean,
-  real_org_seeded_12_system_categoriesboolean,
-  newly_leaked_functions      text[],
-  org_fingerprint_before      text,
-  org_fingerprint_after       text,
-  applied_at                  timestamptz
+  migration_version text,
+  version_registered boolean,
+  table_and_column_exist boolean,
+  anon_select_denied boolean,
+  real_org_seeded_12_system_categories boolean,
+  lock_trigger_exists boolean,
+  new_functions_not_anon_executable boolean,
+  newly_leaked_functions text[],
+  org_fingerprint_before text,
+  org_fingerprint_after text,
+  applied_at timestamptz
 );
 
 -- 2. The apply itself -- one DO block, atomic as a whole.
@@ -33,7 +35,7 @@ declare
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
   v_org_fingerprint_before   text;
   v_org_fingerprint_after    text;
-  v_expected_migration_hash  text := '08602c4654ec49e6dae5641ae7ab8fd301a78e4d6262ba92b1a409b26ea39acf';
+  v_expected_migration_hash  text := 'd13b526f1c143ae7e4514f8ed2fc32f2c3056d365ccf7a7ee3c879b04a5a9104';
   v_actual_migration_hash    text;
   v_migration_version        text := '20261115110000';
   v_already_registered       boolean;
@@ -97,8 +99,12 @@ begin
     end if;
     return old;
   end if;
-  if old.is_system and (new.name is distinct from old.name or new.is_active is distinct from old.is_active) then
-    raise exception 'expense_categories: a system category cannot be renamed or deactivated';
+  if old.is_system and (
+    new.name is distinct from old.name
+    or new.is_active is distinct from old.is_active
+    or new.is_system is distinct from old.is_system
+  ) then
+    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, or have its system flag changed';
   end if;
   return new;
 end;
@@ -249,6 +255,12 @@ begin
       ) and ec.is_system) <> 12 then
     raise exception 'APPLY_REFUSED: post-apply check failed -- the real organisation was not seeded with exactly 12 system categories';
   end if;
+  if not exists (select 1 from pg_trigger where tgname = 'aaa_guard_expense_category_system_locked' and tgrelid = 'public.expense_categories'::regclass and not tgisinternal) then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- the system-category lock trigger is missing';
+  end if;
+  if not (not has_function_privilege('anon', 'public.seed_system_expense_categories(uuid)', 'EXECUTE') and not has_function_privilege('anon', 'public._guard_expense_category_system_locked()', 'EXECUTE') and not has_function_privilege('anon', 'public._trg_seed_system_expense_categories()', 'EXECUTE')) then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- at least one of the 3 new functions is executable by anon/PUBLIC';
+  end if;
 
   -- 9x. DIFF-BASED leak check -- only NEW anon/PUBLIC-executable functions fail this.
   select coalesce(array_agg(sig order by sig), array[]::text[]) into v_leaked_after
@@ -266,7 +278,7 @@ begin
   from (select unnest(v_leaked_after) as x except select unnest(v_leaked_before)) d;
 
   if array_length(v_newly_leaked, 1) is not null then
-    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed function(s) to PUBLIC/anon: %',
+    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed %% function(s) to PUBLIC/anon: %',
       v_newly_leaked;
   end if;
 
@@ -284,13 +296,15 @@ begin
   end if;
 
   -- 10. Every step above passed -- record the one status row.
-  insert into pg_temp.expense_categories_schema_apply_status (migration_version, version_registered, table_and_column_exist, anon_select_denied, real_org_seeded_12_system_categories, newly_leaked_functions, org_fingerprint_before, org_fingerprint_after, applied_at)
+  insert into pg_temp.expense_categories_schema_apply_status (migration_version, version_registered, table_and_column_exist, anon_select_denied, real_org_seeded_12_system_categories, lock_trigger_exists, new_functions_not_anon_executable, newly_leaked_functions, org_fingerprint_before, org_fingerprint_after, applied_at)
   values (
     v_migration_version,
     true,
     (to_regclass('public.expense_categories') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'expenses' and column_name = 'category_id')),
     (not has_table_privilege('anon', 'public.expense_categories', 'SELECT')),
     ((select count(*) from public.expense_categories ec where ec.org_id = (select o.id from public.organizations o where o.name not like '\_\_TEST%' escape '\' order by o.created_at asc limit 1) and ec.is_system) = 12),
+    (exists (select 1 from pg_trigger where tgname = 'aaa_guard_expense_category_system_locked' and tgrelid = 'public.expense_categories'::regclass and not tgisinternal)),
+    (not has_function_privilege('anon', 'public.seed_system_expense_categories(uuid)', 'EXECUTE') and not has_function_privilege('anon', 'public._guard_expense_category_system_locked()', 'EXECUTE') and not has_function_privilege('anon', 'public._trg_seed_system_expense_categories()', 'EXECUTE')),
     v_newly_leaked,
     v_org_fingerprint_before,
     v_org_fingerprint_after,

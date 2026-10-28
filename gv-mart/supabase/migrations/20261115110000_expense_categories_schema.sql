@@ -54,8 +54,12 @@ begin
     end if;
     return old;
   end if;
-  if old.is_system and (new.name is distinct from old.name or new.is_active is distinct from old.is_active) then
-    raise exception 'expense_categories: a system category cannot be renamed or deactivated';
+  if old.is_system and (
+    new.name is distinct from old.name
+    or new.is_active is distinct from old.is_active
+    or new.is_system is distinct from old.is_system
+  ) then
+    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, or have its system flag changed';
   end if;
   return new;
 end;

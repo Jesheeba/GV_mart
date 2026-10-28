@@ -15,14 +15,14 @@
 -- 1. Status table -- autocommitted on its own, independent of the DO block's outcome.
 drop table if exists pg_temp.tasks_customer_outstanding_guard_apply_status;
 create temp table tasks_customer_outstanding_guard_apply_status (
-  migration_version           text,
-  version_registered          boolean,
-  guard_trigger_exists        boolean,
-  policy_matches_expected_final_shapeboolean,
-  newly_leaked_functions      text[],
-  org_fingerprint_before      text,
-  org_fingerprint_after       text,
-  applied_at                  timestamptz
+  migration_version text,
+  version_registered boolean,
+  guard_trigger_exists boolean,
+  policy_matches_expected_final_shape boolean,
+  newly_leaked_functions text[],
+  org_fingerprint_before text,
+  org_fingerprint_after text,
+  applied_at timestamptz
 );
 
 -- 2. The apply itself -- one DO block, atomic as a whole.
@@ -214,7 +214,7 @@ begin
   from (select unnest(v_leaked_after) as x except select unnest(v_leaked_before)) d;
 
   if array_length(v_newly_leaked, 1) is not null then
-    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed function(s) to PUBLIC/anon: %',
+    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed %% function(s) to PUBLIC/anon: %',
       v_newly_leaked;
   end if;
 

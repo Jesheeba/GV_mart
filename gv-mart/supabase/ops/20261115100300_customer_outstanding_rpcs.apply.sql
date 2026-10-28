@@ -15,14 +15,14 @@
 -- 1. Status table -- autocommitted on its own, independent of the DO block's outcome.
 drop table if exists pg_temp.customer_outstanding_rpcs_apply_status;
 create temp table customer_outstanding_rpcs_apply_status (
-  migration_version           text,
-  version_registered          boolean,
-  all_6_functions_exist       boolean,
-  none_anon_executable        boolean,
-  newly_leaked_functions      text[],
-  org_fingerprint_before      text,
-  org_fingerprint_after       text,
-  applied_at                  timestamptz
+  migration_version text,
+  version_registered boolean,
+  all_6_functions_exist boolean,
+  none_anon_executable boolean,
+  newly_leaked_functions text[],
+  org_fingerprint_before text,
+  org_fingerprint_after text,
+  applied_at timestamptz
 );
 
 -- 2. The apply itself -- one DO block, atomic as a whole.
@@ -288,6 +288,21 @@ begin
   if to_regprocedure('public.close_outstanding_reminders_if_zero(uuid)') is not null then
     raise exception 'APPLY_REFUSED: public.close_outstanding_reminders_if_zero(uuid) already exists before this migration ran';
   end if;
+  if to_regclass('public.tasks') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tasks' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.tasks (uuid id) not found -- this migration reads/writes it';
+  end if;
+  if to_regclass('public.customer_outstanding_reminders') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customer_outstanding_reminders' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.customer_outstanding_reminders (uuid id) not found -- run 20261115100000_customer_outstanding_reminders_schema first';
+  end if;
+  if to_regclass('public.customer_outstanding_links') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customer_outstanding_links' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.customer_outstanding_links (uuid id) not found -- run 20261115100100_customer_outstanding_links_schema first';
+  end if;
 
   -- 5. LEAK SNAPSHOT (BEFORE)
   select coalesce(array_agg(sig order by sig), array[]::text[]) into v_leaked_before
@@ -339,7 +354,7 @@ begin
   from (select unnest(v_leaked_after) as x except select unnest(v_leaked_before)) d;
 
   if array_length(v_newly_leaked, 1) is not null then
-    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed function(s) to PUBLIC/anon: %',
+    raise exception 'APPLY_REFUSED: post-apply check failed -- this migration newly exposed %% function(s) to PUBLIC/anon: %',
       v_newly_leaked;
   end if;
 

@@ -118,9 +118,11 @@ begin
     coalesce((
       select sum(i.total - i.amount_paid) from public.invoices i
       where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0
+        and not public.is_test_customer(i.customer_id)
     ), 0),
     (select min((i.created_at at time zone 'Asia/Kolkata')::date) from public.invoices i
-      where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0),
+      where i.org_id = v_org and i.customer_id = p_customer and i.payment_status <> 'paid' and i.total - i.amount_paid > 0
+        and not public.is_test_customer(i.customer_id)),
     (select count(*)::int from public.customer_outstanding_reminders r
       where r.org_id = v_org and r.customer_id = p_customer and r.status = 'open'),
     (select min(r.due_at) from public.customer_outstanding_reminders r

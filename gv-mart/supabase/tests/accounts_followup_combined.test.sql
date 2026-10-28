@@ -87,6 +87,22 @@ begin
     (select outstanding_amount from public.report_customer_outstanding(null, 50) where customer_id = v_cust) = 600);
   perform pg_temp.as_pg();
 
+  -- a test customer's unpaid invoice must be excluded by BOTH the list and the detail
+  -- function, identically to report_kpi_tiles' own formula -- this is the exact
+  -- reconciliation guarantee the owner's condition 3 requires.
+  declare v_test_cust uuid; v_detail_amt numeric;
+  begin
+    insert into customers (org_id, name, mobile, is_test) values (v_org, '__TEST_ Flagged Test Customer', '9400000112', true) returning id into v_test_cust;
+    insert into invoices (org_id, customer_id, type, subtotal, gst, total, amount_paid, payment_status)
+      values (v_org, v_test_cust, 'product', 1000, 0, 1000, 0, 'due');
+    perform pg_temp.as_user(v_master);
+    select outstanding_amount into v_detail_amt from public.report_customer_outstanding_detail(v_test_cust);
+    perform pg_temp.chk('report_customer_outstanding_detail excludes a test customer''s outstanding, same as the list', v_detail_amt = 0, v_detail_amt::text);
+    perform pg_temp.chk('report_customer_outstanding also excludes the test customer entirely',
+      not exists (select 1 from public.report_customer_outstanding(null, 50) where customer_id = v_test_cust));
+    perform pg_temp.as_pg();
+  end;
+
   -- role gate: operation_admin / sales_admin / technician cannot call the report
   perform pg_temp.as_user(v_ops);
   v_s := pg_temp.raises('select * from public.report_customer_outstanding_detail(''' || v_cust || ''')');
@@ -251,6 +267,17 @@ begin
   perform pg_temp.chk('DB TRIGGER: a raw UPDATE deactivating a system category is refused', v_s like '%system category%', coalesce(v_s, 'allowed'));
   v_s := pg_temp.raises(format('delete from expense_categories where id = %L', v_cat_marketing));
   perform pg_temp.chk('DB TRIGGER: a raw DELETE of a system category is refused', v_s like '%system category%', coalesce(v_s, 'allowed'));
+
+  -- two-step unlock attempt: flip is_system to false first, THEN rename/deactivate/delete
+  -- in a separate statement -- must fail at step 1 already (is_system itself is locked)
+  v_s := pg_temp.raises(format('update expense_categories set is_system = false where id = %L', v_cat_marketing));
+  perform pg_temp.chk('DB TRIGGER: a raw UPDATE flipping is_system to false on a system category is refused', v_s like '%system category%', coalesce(v_s, 'allowed'));
+  -- a combined single statement (is_system=false AND name changed) must also still fail
+  v_s := pg_temp.raises(format('update expense_categories set is_system = false, name = %L where id = %L', 'Hacked2', v_cat_marketing));
+  perform pg_temp.chk('DB TRIGGER: a combined is_system-unlock-and-rename in one statement is refused', v_s like '%system category%', coalesce(v_s, 'allowed'));
+  -- confirm the category genuinely survived all of the above untouched
+  perform pg_temp.chk('the system category is still is_system=true, unchanged, after every unlock attempt',
+    (select is_system and name = 'Marketing Expenses' and is_active from expense_categories where id = v_cat_marketing));
 
   -- ordinary (non-system) category: create/rename/deactivate/delete-if-unused
   perform pg_temp.as_user(v_master);
