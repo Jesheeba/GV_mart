@@ -4378,7 +4378,8 @@
     }
   },
   "reports": {
-    "subtitle": "Sales, service, P&L and performance — all in one place.",
+    "subtitle": "Sales, service and performance — all in one place.",
+    "pnlMovedNote": "Looking for P&L? It now lives under",
     "empty": "No data for this range yet.",
     "loadFailed": "Could not load report data.",
     "invoicedLabel": "Invoiced",
@@ -4639,6 +4640,10 @@
   "accounts": {
     "title": "Accounts",
     "subtitle": "What the business spends — salaries, rent, EB, and everything else, tracked and totalled over time.",
+    "tabs": {
+      "overview": "Overview",
+      "pnl": "P&L"
+    },
     "masterOnlyNote": "Visible to master role only.",
     "logExpense": "Log Expense",
     "thisMonth": "This Month",
