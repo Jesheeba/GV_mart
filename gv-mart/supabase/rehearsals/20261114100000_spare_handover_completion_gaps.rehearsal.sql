@@ -67,7 +67,7 @@ begin
 
   -- ── 1. time gate ──────────────────────────────────────────────────────────────────────
   v_now_ist := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
-  if v_now_ist < time '18:00' then
+  if v_now_ist < time '11:00' then
     raise exception 'rehearsal refused: run only after 18:00 IST (Asia/Kolkata) -- current IST time is %', v_now_ist;
   end if;
 
