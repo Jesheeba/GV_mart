@@ -1484,9 +1484,6 @@ begin
   on conflict do nothing
   returning id into v_handover_id;
 
-  -- date has no unique constraint (a technician can have more than one
-  -- handover per day in principle), so on_conflict above never actually
-  -- fires today — kept defensive in case a future migration adds one.
   if v_handover_id is null then
     insert into public.spare_handovers (org_id, technician_id, date, status)
     values (p_org_id, p_technician_id, p_date, 'pending')
