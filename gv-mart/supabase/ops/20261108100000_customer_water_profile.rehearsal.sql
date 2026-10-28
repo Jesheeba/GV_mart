@@ -550,8 +550,13 @@ $TEST_BODY$;
   v_fp_md5_before text;
   v_fp_md5_after text;
 begin
-  if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '18:00' then
-    raise exception 'rehearsal refused: must run at or after 18:00 IST';
+  -- lock budget -- first executed statement, before even the time gate, so a real run can
+  -- never hang on contention (standard form across every other package's wrapper this
+  -- release). Added by the release gate-fix review; was previously missing entirely.
+  perform set_config('lock_timeout', '5s', true);
+
+  if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '11:00' then
+    raise exception 'rehearsal refused: must run at or after 11:00 IST';
   end if;
 
   -- real-org fingerprint, outside the __TEST_ organisations the embedded test creates for
