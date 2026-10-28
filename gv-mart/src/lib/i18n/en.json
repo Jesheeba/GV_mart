@@ -3364,6 +3364,16 @@
         "submitted": "Review logged — pending sync."
       }
     },
+    "pendingReviews": {
+      "title": "Pending Reviews",
+      "viewLink": "Pending Reviews",
+      "subtitle": "Customers from your own completed visits who haven't left a review yet.",
+      "emptyTitle": "All caught up",
+      "emptyBody": "Every customer from your completed visits has left a review.",
+      "customerFallback": "Customer",
+      "completedOn": "Completed {{date}}",
+      "noComplaint": "—"
+    },
     "profile": {
       "title": "Profile",
       "earningsTitle": "Earnings",

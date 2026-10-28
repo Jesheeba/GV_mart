@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarRange, LogOut, Star, TrendingUp, UserPlus } from "lucide-react"
+import { CalendarRange, LogOut, Star, StarOff, TrendingUp, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -149,6 +149,11 @@ export function ProfilePage() {
       <Button type="button" variant="outline" onClick={() => navigate("/technician/day-sheet")}>
         <CalendarRange className="size-4" />
         {t("technician.daySheet.viewLink")}
+      </Button>
+
+      <Button type="button" variant="outline" onClick={() => navigate("/technician/pending-reviews")}>
+        <StarOff className="size-4" />
+        {t("technician.pendingReviews.viewLink")}
       </Button>
 
       <Button type="button" variant="destructive" onClick={() => signOut()}>

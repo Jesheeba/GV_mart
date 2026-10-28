@@ -7595,6 +7595,21 @@ export type Database = {
         Args: { p_org_id: string; p_visit_id: string }
         Returns: undefined
       }
+      // Technician "Pending reviews" (2026-11-12) — hand-patched, see
+      // 20261112100000_technician_pending_reviews.sql; this file predates
+      // that migration and Docker-based `supabase gen types` isn't
+      // available in this environment (see memory: hand-patch instead).
+      list_technician_pending_reviews: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          visit_id: string
+          ticket_id: string
+          customer_id: string
+          customer_name: string
+          complaint: string | null
+          visit_completed_at: string
+        }[]
+      }
       // Hand-patched, see 20260922120000_technician_kpi_review_attribution.sql
       // (Docker-based `supabase gen types` isn't available in this environment).
       log_technician_google_review: {

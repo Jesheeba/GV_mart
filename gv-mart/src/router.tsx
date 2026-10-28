@@ -86,6 +86,7 @@ const OnSiteVisitPage = lazyPage(() => import("@/app/technician/onsite/OnSiteVis
 const RatingPage = lazyPage(() => import("@/app/technician/RatingPage"), "RatingPage")
 const HistoryPage = lazyPage(() => import("@/app/technician/HistoryPage"), "HistoryPage")
 const HistoryDetailPage = lazyPage(() => import("@/app/technician/HistoryDetailPage"), "HistoryDetailPage")
+const PendingReviewsPage = lazyPage(() => import("@/app/technician/PendingReviewsPage"), "PendingReviewsPage")
 const TechnicianProfilePage = lazyPage(() => import("@/app/technician/ProfilePage"), "ProfilePage")
 const DaySheetPage = lazyPage(() => import("@/app/technician/DaySheetPage"), "DaySheetPage")
 const TechnicianNotificationsPage = lazyPage(() => import("@/app/technician/NotificationsPage"), "NotificationsPage")
@@ -252,6 +253,7 @@ export const router = createBrowserRouter([
               { path: "attendance", element: <AttendancePage /> },
               { path: "history", element: <HistoryPage /> },
               { path: "history/:visitId", element: <HistoryDetailPage /> },
+              { path: "pending-reviews", element: <PendingReviewsPage /> },
               { path: "profile", element: <TechnicianProfilePage /> },
               { path: "spares", element: <SpareHandoverPage /> },
               { path: "spares/history", element: <SpareHandoverHistoryPage /> },
