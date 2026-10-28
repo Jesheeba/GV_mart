@@ -580,7 +580,10 @@
       "map": {
         "title": "Pin location on map",
         "autoLocating": "Locating from the address above…",
+        "pinned": "Location pinned",
+        "notPinned": "Exact location not pinned",
         "pinRequired": "This address has no confirmed pin yet — search or drag the pin below so the technician navigates to the right place.",
+        "pinOptionalMasterNote": "No exact pin yet — you can save without one, but technicians won't get a map location for this address until it's pinned.",
         "searchPlaceholder": "Search for the address…",
         "searchError": "Couldn't search right now. Check your connection and try again.",
         "selectError": "Couldn't get details for that place. Try another result.",
@@ -2954,6 +2957,8 @@
       "lowAccuracyWarning": "Location accuracy is low (~{{accuracy}} m) — distance and ETA may be off. This is common on desktop/laptop browsers, which use Wi-Fi/IP-based location instead of real GPS. Try a mobile device outdoors for an accurate fix.",
       "noDestinationTitle": "No destination selected",
       "noDestinationBody": "Open this from a job card to navigate to a customer.",
+      "noPinTitle": "Exact location not pinned",
+      "noPinBody": "This customer's address has no confirmed map pin yet — ask the office to add one.",
       "jobClosedTitle": "This job is already completed",
       "jobClosedBody": "It's already been finished and rated — no need to navigate or start it again.",
       "distance": "Distance",
@@ -2980,7 +2985,8 @@
       "hint": "Search by area, door number or PIN code.",
       "empty": "No matches found.",
       "call": "Call",
-      "navigate": "Navigate"
+      "navigate": "Navigate",
+      "notPinned": "Exact location not pinned"
     },
     "jobDetail": {
       "title": "Job Detail",

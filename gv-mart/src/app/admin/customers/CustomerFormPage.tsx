@@ -15,10 +15,12 @@ import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
+import { StatusDot } from "@/components/shared/StatusDot"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import {
   addressStepSchema,
   peopleStepSchema,
+  canSkipAddressPin,
   FAMILY_RELATIONS,
   type AddressStepInput,
   type PeopleStepInput,
@@ -177,6 +179,7 @@ export function CustomerFormPage() {
   const mode: "create" | "edit" = id ? "edit" : "create"
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
+  const pinOptional = canSkipAddressPin(profile?.role)
 
   const existing = useCustomer(mode === "edit" ? id : undefined)
   const [step, setStep] = useState(0)
@@ -571,8 +574,13 @@ export function CustomerFormPage() {
           </div>
 
           <div className="space-y-1.5 border-t border-border px-1 pt-3">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <Label>{t("customers.form.map.title")}</Label>
+              {lat != null && lng != null ? (
+                <StatusDot tone="success" label={t("customers.form.map.pinned")} />
+              ) : (
+                <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
+              )}
               {autoLocate.isPending && lat == null ? (
                 <span className="flex items-center gap-1 text-xs text-text-muted">
                   <Loader2 className="size-3 animate-spin" />
@@ -609,7 +617,9 @@ export function CustomerFormPage() {
               }}
             />
             {lat == null && lng == null && !autoLocate.isPending && hasAddressText(addressForm.getValues()) ? (
-              <p className="text-xs text-warning">{t("customers.form.map.pinRequired")}</p>
+              <p className="text-xs text-warning">
+                {pinOptional ? t("customers.form.map.pinOptionalMasterNote") : t("customers.form.map.pinRequired")}
+              </p>
             ) : null}
           </div>
 
@@ -652,7 +662,7 @@ export function CustomerFormPage() {
           <Button
             type="button"
             onClick={handleSaveAndFinish}
-            disabled={isSaving || (lat == null && lng == null && hasAddressText(addressForm.getValues()))}
+            disabled={isSaving || (!pinOptional && lat == null && lng == null && hasAddressText(addressForm.getValues()))}
           >
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
           </Button>

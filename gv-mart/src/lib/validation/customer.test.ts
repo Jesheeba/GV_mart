@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { memberSchema } from "./customer"
+import { canSkipAddressPin, memberSchema } from "./customer"
 import { customerMemberSchema } from "./customerApp"
 
 const base = { name: "Asha Rao", mobile: "9876543210" }
@@ -31,5 +31,17 @@ describe("member email (optional)", () => {
     const r = customerMemberSchema.safeParse({ ...base, email: "nope" })
     expect(r.success).toBe(false)
     if (!r.success) expect(r.error.issues[0].message).toBe("customerApp.errors.emailInvalid")
+  })
+})
+
+describe("canSkipAddressPin", () => {
+  it("allows master to save without a confirmed pin", () => {
+    expect(canSkipAddressPin("master")).toBe(true)
+  })
+
+  it("still requires a pin for every other role", () => {
+    expect(canSkipAddressPin("sales_admin")).toBe(false)
+    expect(canSkipAddressPin("operation_admin")).toBe(false)
+    expect(canSkipAddressPin(undefined)).toBe(false)
   })
 })

@@ -390,8 +390,10 @@ export function MapPage() {
       ) : !dest ? (
         <Card className="items-center gap-2 py-8 text-center">
           <MapPin className="size-8 text-text-muted" />
-          <p className="text-sm font-medium text-text">{t("technician.map.noDestinationTitle")}</p>
-          <p className="text-xs text-text-muted">{t("technician.map.noDestinationBody")}</p>
+          <p className="text-sm font-medium text-text">
+            {destTicketId ? t("technician.map.noPinTitle") : t("technician.map.noDestinationTitle")}
+          </p>
+          <p className="text-xs text-text-muted">{destTicketId ? t("technician.map.noPinBody") : t("technician.map.noDestinationBody")}</p>
         </Card>
       ) : (
         <>

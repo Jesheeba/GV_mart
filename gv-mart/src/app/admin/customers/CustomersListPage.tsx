@@ -198,7 +198,17 @@ export function CustomersListPage() {
       header: t("customers.table.area"),
       render: (c) => {
         const primary = c.addresses.find((a) => a.is_primary) ?? c.addresses[0]
-        return primary?.area ?? "—"
+        if (!primary) return "—"
+        return (
+          <div className="space-y-0.5">
+            <div>{primary.area ?? "—"}</div>
+            {primary.lat != null && primary.lng != null ? (
+              <StatusDot tone="success" label={t("customers.form.map.pinned")} />
+            ) : (
+              <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
+            )}
+          </div>
+        )
       },
     },
     {
