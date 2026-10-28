@@ -16,29 +16,61 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PeriodFilter } from "../reports/PeriodFilter"
+import { PnlReportTab } from "../reports/PnlReportTab"
 
 /** Accounts / Expenses (money-out) dashboard — 2026-09-24 change request
  * against the v2.2 scope guard's "bank-payment-tracking screen" item (see
  * 20260924120000_expense_tracking_change_request.sql). This tracks what the
  * business spent (salary/rent/EB/other), not anything about a bank account —
- * no bank_accounts table, no reconciliation, exists or is planned here. */
+ * no bank_accounts table, no reconciliation, exists or is planned here.
+ *
+ * 2026-10-28 nav audit: the full P&L report moved here from Reports (both
+ * pulled the same usePnlReport data, just styled differently — one home now)
+ * as a second tab, alongside this page's existing overview. */
 export function AccountsPage() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
-  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
-  const range = periodToRange(period)
-  const [showLogExpense, setShowLogExpense] = useState(false)
-
-  const { data: pnl, isLoading: pnlLoading } = usePnlReport(profile?.org_id, range)
-  const { data: yoy, isLoading: yoyLoading } = useExpensesYearOverYear(profile?.org_id, 3)
-  const { data: expenses, isLoading: expensesLoading, isError: expensesError, refetch } = useExpensesList(profile?.org_id, range)
-  const { data: salaryByStaff, isLoading: salaryByStaffLoading } = useSalarySpendByStaff(profile?.org_id, range)
   const isMaster = profile?.role === "master"
 
   if (!isMaster) {
     return <p className="text-sm text-text-muted">{t("accounts.masterOnlyNote")}</p>
   }
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div>
+        <h1 className="text-2xl font-bold text-text">{t("accounts.title")}</h1>
+        <p className="text-sm text-text-muted">{t("accounts.subtitle")}</p>
+      </div>
+
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">{t("accounts.tabs.overview")}</TabsTrigger>
+          <TabsTrigger value="pnl">{t("accounts.tabs.pnl")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview" className="mt-3">
+          <AccountsOverviewTab orgId={profile?.org_id} />
+        </TabsContent>
+        <TabsContent value="pnl" className="mt-3">
+          <PnlReportTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
+function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
+  const { t } = useTranslation()
+  const [period, setPeriod] = useState<PeriodValue>(defaultPeriodValue())
+  const range = periodToRange(period)
+  const [showLogExpense, setShowLogExpense] = useState(false)
+
+  const { data: pnl, isLoading: pnlLoading } = usePnlReport(orgId, range)
+  const { data: yoy, isLoading: yoyLoading } = useExpensesYearOverYear(orgId, 3)
+  const { data: expenses, isLoading: expensesLoading, isError: expensesError, refetch } = useExpensesList(orgId, range)
+  const { data: salaryByStaff, isLoading: salaryByStaffLoading } = useSalarySpendByStaff(orgId, range)
 
   const currentYearRow = yoy?.[0]
   const priorYearRow = yoy?.[1]
@@ -48,12 +80,8 @@ export function AccountsPage() {
       : null
 
   return (
-    <div className="space-y-4 pt-2">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-text">{t("accounts.title")}</h1>
-          <p className="text-sm text-text-muted">{t("accounts.subtitle")}</p>
-        </div>
+    <div className="space-y-4">
+      <div className="flex justify-end">
         <Button onClick={() => setShowLogExpense((v) => !v)}>
           <Plus className="size-4" />
           {t("accounts.logExpense")}
@@ -61,7 +89,7 @@ export function AccountsPage() {
       </div>
 
       {showLogExpense ? (
-        <LogExpensePanel orgId={profile?.org_id} onClose={() => setShowLogExpense(false)} onLogged={() => setShowLogExpense(false)} />
+        <LogExpensePanel orgId={orgId} onClose={() => setShowLogExpense(false)} onLogged={() => setShowLogExpense(false)} />
       ) : null}
 
       <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2 lg:grid-cols-4">

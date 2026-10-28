@@ -185,7 +185,17 @@
     "returns": "Returns",
     "auditLog": "Audit Log",
     "myDay": "Daily Follow Up",
-    "expenses": "Expenses"
+    "expenses": "Fuel & Bike Allowances"
+  },
+  "navGroups": {
+    "salesPipeline": "Sales Pipeline",
+    "myWork": "My Work",
+    "serviceOps": "Service Operations",
+    "supplyChain": "Supply Chain",
+    "money": "Money",
+    "marketing": "Marketing & Messaging",
+    "admin": "Admin / Oversight",
+    "more": "More"
   },
   "auth": {
     "forcedPassword": {
@@ -1811,7 +1821,8 @@
       "amc": "AMC",
       "warranty": "Warranty",
       "unassigned": "Unassigned",
-      "missingProduct": "Missing product"
+      "missingProduct": "Missing product",
+      "repeat": "Repeat complaint"
     },
     "table": {
       "ticket": "Ticket",
@@ -4579,7 +4590,8 @@
     }
   },
   "reports": {
-    "subtitle": "Sales, service, P&L and performance — all in one place.",
+    "subtitle": "Sales, service and performance — all in one place.",
+    "pnlMovedNote": "Looking for P&L? It now lives under",
     "empty": "No data for this range yet.",
     "loadFailed": "Could not load report data.",
     "invoicedLabel": "Invoiced",
@@ -4851,6 +4863,10 @@
   "accounts": {
     "title": "Accounts",
     "subtitle": "What the business spends — salaries, rent, EB, and everything else, tracked and totalled over time.",
+    "tabs": {
+      "overview": "Overview",
+      "pnl": "P&L"
+    },
     "masterOnlyNote": "Visible to master role only.",
     "logExpense": "Log Expense",
     "thisMonth": "This Month",
@@ -5150,7 +5166,7 @@
     "loadFailed": "Could not load campaigns.",
     "empty": "No campaigns yet.",
     "newCampaign": "New Campaign",
-    "noSendIntegrationNote": "This app has no live send integration — campaigns here are create/track only.",
+    "noSendIntegrationNote": "Log only: nothing is sent to customers from here. Campaigns logged on this page are for planning and tracking only — no WhatsApp, SMS, email or call is actually dispatched.",
     "table": {
       "name": "Name",
       "channel": "Channel",

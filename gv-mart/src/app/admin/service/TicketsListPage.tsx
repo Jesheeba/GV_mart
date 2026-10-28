@@ -43,9 +43,14 @@ export function TicketsListPage() {
 
   const [view, setView] = useState<"table" | "kanban">("table")
   const [primaryFilter, setPrimaryFilter] = useState<PrimaryFilter>("pending")
-  // Independent toggle — ANDs with the primary filter instead of being
-  // mutually exclusive with it.
+  // Independent toggles — AND with the primary filter instead of being
+  // mutually exclusive with it. `repeatOnly` surfaces the same
+  // repeat-customer set this page already used for row badges as a
+  // selectable filter too (2026-10-28 proposal — see PHASE2_PROPOSALS.md
+  // for retiring the separate Complaints tab's own "Repeat Complaint" view
+  // in favor of this; Complaints itself is untouched here).
   const [missingProductOnly, setMissingProductOnly] = useState(false)
+  const [repeatOnly, setRepeatOnly] = useState(false)
 
   const { data: rows, isLoading, isError, refetch } = useTicketsList(orgId, NO_SERVER_FILTERS)
   const { data: repeatCustomers } = useRepeatComplaintCustomers(orgId)
@@ -61,15 +66,18 @@ export function TicketsListPage() {
   const counts = countByPrimaryFilter(allRows, now, amcWindowDays)
   const missingProductCount = allRows.filter(isMissingProduct).length
 
-  const visibleRows = useMemo(
+  const repeatFilteredRows = useMemo(
     () => filterTickets(allRows, primaryFilter, now, { missingProductOnly, windowDays: amcWindowDays }),
     [allRows, primaryFilter, missingProductOnly, now, amcWindowDays]
   )
+  const visibleRows = repeatOnly ? repeatFilteredRows.filter((r) => repeatCustomers?.has(r.customer_id)) : repeatFilteredRows
+  const repeatCount = allRows.filter((r) => repeatCustomers?.has(r.customer_id)).length
 
-  const hasActiveFilters = primaryFilter !== "pending" || missingProductOnly
+  const hasActiveFilters = primaryFilter !== "pending" || missingProductOnly || repeatOnly
   function clearAllFilters() {
     setPrimaryFilter("pending")
     setMissingProductOnly(false)
+    setRepeatOnly(false)
   }
 
   return (
@@ -149,6 +157,13 @@ export function TicketsListPage() {
 
         <QuickFilterChip active={missingProductOnly} onClick={() => setMissingProductOnly((v) => !v)}>
           {t("service.quickFilters.missingProduct")} · {missingProductCount}
+        </QuickFilterChip>
+
+        <QuickFilterChip active={repeatOnly} onClick={() => setRepeatOnly((v) => !v)}>
+          <span className="inline-flex items-center gap-1.5">
+            <Repeat className="size-3" />
+            {t("service.quickFilters.repeat")} · {repeatCount}
+          </span>
         </QuickFilterChip>
 
         {hasActiveFilters ? (
