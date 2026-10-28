@@ -22,7 +22,7 @@ const sales: NonNullable<KpiTiles["sales"]> = {
 }
 const service: NonNullable<KpiTiles["service"]> = {
   openTickets: { count: 3, urgent: 2, pastSla: 1 },
-  resolvedWithin24h: { resolved: 1, completed: 2, percent: 50 },
+  resolvedWithin24h: { resolved: 1, completed: 2, percent: 50, slaHours: 24 },
   rating: { average: 4, count: 3, below45: 2 },
   amc: { active: 2, renewalWindow: 1, revenue: 2360 },
 }
@@ -111,7 +111,7 @@ describe("buildKpiView - empty window (the real org has no invoices yet)", () =>
       leads: { new: 0, won: 0, lost: 0, wonPercent: null },
       repeatBuyers: { buying: 0, repeat: 0, new: 0, ratePercent: null },
     },
-    service: { openTickets: { count: 0, urgent: 0, pastSla: 0 }, resolvedWithin24h: { resolved: 0, completed: 0, percent: null }, rating: { average: null, count: 0, below45: 0 }, amc: { active: 0, renewalWindow: 0, revenue: 0 } },
+    service: { openTickets: { count: 0, urgent: 0, pastSla: 0 }, resolvedWithin24h: { resolved: 0, completed: 0, percent: null, slaHours: 24 }, rating: { average: null, count: 0, below45: 0 }, amc: { active: 0, renewalWindow: 0, revenue: 0 } },
     moneyOut: { spendTotal: 0, spendByCategory: [], operatingSpendExclPurchase: 0, cashProfit: 0, itemMargin: { revenue: 0, cost: 0, giftsCost: 0, profit: 0, marginPercent: null, missingCostCount: 0, costMissing: false } },
   }
   const v = buildKpiView(empty)

@@ -11,6 +11,8 @@ import {
   getFeedbackReportLegacy,
   getOpsResolutionKpi,
   getOpsResolutionKpiLegacy,
+  getOpsResolutionParitySlaHours,
+  opsResolutionParitySkipReason,
   getPerformanceReport,
   getPerformanceReportLegacy,
   getPnlReport,
@@ -73,22 +75,39 @@ describe.skipIf(!email || !password || !org)("legacy vs SQL (live throwaway org)
     expect(np.map((r) => [r.itemType, r.itemId, r.qty, r.revenue, r.cost, r.profit])).toEqual(op.map((r) => [r.itemType, r.itemId, r.qty, r.revenue, r.cost, r.profit]))
   })
 
-  it("Performance matches except a lead owner with no visits now has a real name", async () => {
+  it("Performance matches except a lead owner with no visits now has a real name, and efficiency (P5, new-path only)", async () => {
     const [o, n] = await Promise.all([getPerformanceReportLegacy(org, oct), getPerformanceReport(org, oct)])
     expect(n.length).toBe(o.length)
     for (const row of n) {
       const old = o.find((x) => x.id === row.id)!
       expect(old).toBeTruthy()
-      const { name, ...rest } = row
-      const { name: oldName, ...oldRest } = old
+      // efficiencyPercent/efficiencySampleCount come from report_performance_efficiency, a SEPARATE RPC the legacy
+      // browser-side path never had and never will — excluded from parity on purpose, not a regression.
+      const { name, efficiencyPercent: _ep, efficiencySampleCount: _esc, ...rest } = row
+      const { name: oldName, efficiencyPercent: _oep, efficiencySampleCount: _oesc, ...oldRest } = old
       expect(rest).toEqual(oldRest)
       if (oldName === "—") expect(name).not.toBe("—")
       else expect(name).toBe(oldName)
     }
   })
 
-  it("Ops resolution matches", async () => {
-    expect(await getOpsResolutionKpi(org, oct)).toEqual(await getOpsResolutionKpiLegacy(org, oct))
+  it("Ops resolution matches — only meaningful while this org's SLA is still the legacy-assumed 24h", async (ctx) => {
+    // getOpsResolutionKpiLegacy hardcodes 24 hours IN ITS FILTER (reports.ts), not just in a label — it predates
+    // settings.ops_resolution_sla_hours entirely and has no way to read it. So this comparison only holds while
+    // the org's setting is still the default; once someone changes it, resolved_within_24h/percent genuinely
+    // diverge between the two paths, and that is correct new behaviour, not a bug. Skip (not fail, not delete)
+    // so the parity signal survives for every org that hasn't touched the setting, and a change to the setting
+    // shows up here as a skip, not a mystery red test with no visible cause.
+    // getOpsResolutionParitySlaHours/opsResolutionParitySkipReason (reports.ts) are unit-tested on their own in
+    // reports.opsResolutionParity.test.ts, with the settings fetch mocked — covering the null-column, 24,
+    // 48, and no-settings-row cases without touching a live DB. This test only wires that decision in.
+    const slaHours = await getOpsResolutionParitySlaHours(org)
+    const skipReason = opsResolutionParitySkipReason(slaHours)
+    if (skipReason) ctx.skip(skipReason)
+    // slaHours comes from the same setting (P5, new-path only) — the legacy path has no equivalent field at all;
+    // excluded from parity on purpose, not a regression.
+    const { slaHours: _sh, ...n } = await getOpsResolutionKpi(org, oct)
+    expect(n).toEqual(await getOpsResolutionKpiLegacy(org, oct))
   })
 
   it("Feedback matches except the trend, which is now grouped by IST day", async () => {

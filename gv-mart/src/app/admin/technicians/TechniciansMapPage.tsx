@@ -145,13 +145,14 @@ function useTicker(intervalMs: number) {
  * meaningful "destination" to compare position against) while still
  * overrunning.
  */
-function useJobOverrunAlert(openVisit: TechnicianOpenVisit | undefined, nowMs: number) {
+function useJobOverrunAlert(openVisit: TechnicianOpenVisit | undefined, nowMs: number, overrunBufferMinutes: number | undefined) {
   // GV.md 1.2: allowedDurationMinutes (estimate + earned allowances — see
   // src/lib/job-allowance.ts, precomputed in listTechniciansOpenVisits)
   // replaces the raw estimatedDurationMinutes as the overrun comparison.
   return computeJobOverrun(
     { timerStart: openVisit?.timerStart, timerEnd: openVisit?.timerEnd, estimatedDurationMinutes: openVisit?.allowedDurationMinutes },
-    nowMs
+    nowMs,
+    overrunBufferMinutes
   )
 }
 
@@ -380,6 +381,7 @@ export function TechniciansMapPage() {
                   history={history[row.id] ?? []}
                   selected={selectedId === row.id}
                   onSelect={() => handleSelect(row)}
+                  overrunBufferMinutes={settings?.job_overrun_buffer_minutes}
                 />
               ))}
             </div>
@@ -418,6 +420,7 @@ export function TechniciansMapPage() {
                       activeJob={activeJobs?.get(row.id)}
                       openVisit={openVisits?.get(row.id)}
                       history={history[row.id] ?? []}
+                      overrunBufferMinutes={settings?.job_overrun_buffer_minutes}
                     />
                   ))}
                   {tracked
@@ -480,15 +483,17 @@ function TechnicianMarker({
   activeJob,
   openVisit,
   history,
+  overrunBufferMinutes,
 }: {
   row: TechnicianWithLatestLocation
   activeJob: TechnicianActiveJob | undefined
   openVisit: TechnicianOpenVisit | undefined
   history: TechnicianLocationRow[]
+  overrunBufferMinutes: number | undefined
 }) {
   const now = useTicker(15_000)
   const { status } = useTechnicianTrackingStatus(row.latestLocation, activeJob, history, now)
-  const overrun = useJobOverrunAlert(openVisit, now)
+  const overrun = useJobOverrunAlert(openVisit, now, overrunBufferMinutes)
   if (!row.latestLocation) return null
   const name = row.profiles?.full_name ?? undefined
   return (
@@ -510,6 +515,7 @@ function TechnicianRow({
   history,
   selected,
   onSelect,
+  overrunBufferMinutes,
 }: {
   row: TechnicianWithLatestLocation
   activeJob: TechnicianActiveJob | undefined
@@ -517,11 +523,12 @@ function TechnicianRow({
   history: TechnicianLocationRow[]
   selected: boolean
   onSelect: () => void
+  overrunBufferMinutes: number | undefined
 }) {
   const { t } = useTranslation()
   const now = useTicker(15_000)
   const { status, idleMinutes } = useTechnicianTrackingStatus(row.latestLocation, activeJob, history, now)
-  const overrun = useJobOverrunAlert(openVisit, now)
+  const overrun = useJobOverrunAlert(openVisit, now, overrunBufferMinutes)
   const minutesAgo = row.latestLocation ? Math.round((now - new Date(row.latestLocation.recorded_at).getTime()) / 60_000) : null
 
   const label =

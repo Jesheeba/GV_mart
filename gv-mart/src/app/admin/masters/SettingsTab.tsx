@@ -64,6 +64,8 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     default_duration_warranty_minutes: settings.default_duration_warranty_minutes,
     default_duration_amc_minutes: settings.default_duration_amc_minutes,
     default_duration_installation_minutes: settings.default_duration_installation_minutes,
+    job_overrun_buffer_minutes: settings.job_overrun_buffer_minutes,
+    ops_resolution_sla_hours: settings.ops_resolution_sla_hours,
     narrow_window_threshold_minutes: settings.narrow_window_threshold_minutes,
     po_approval_threshold: Number(settings.po_approval_threshold),
     po_requires_approval: settings.po_requires_approval,
@@ -96,6 +98,8 @@ const FIELD_GROUPS = {
     "default_duration_installation_minutes",
     "review_time_allowance_minutes",
     "enquiry_time_allowance_minutes",
+    "job_overrun_buffer_minutes",
+    "ops_resolution_sla_hours",
   ],
   booking: ["narrow_window_threshold_minutes"],
   amcReferral: [
@@ -303,6 +307,11 @@ export function SettingsTab() {
           {field("enquiry_time_allowance_minutes", t("settings.enquiryTimeAllowance"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.allowanceHint")}</p>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("job_overrun_buffer_minutes", t("settings.jobOverrunBuffer"), "number", "1")}
+          {field("ops_resolution_sla_hours", t("settings.opsResolutionSla"), "number", "1")}
+        </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.overrunSlaHint")}</p>
         <GroupSaveRow groupKey="jobDuration" />
       </Card>
 

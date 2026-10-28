@@ -14,7 +14,7 @@ const sales: NonNullable<KpiTilesRpc["sales"]> = {
 }
 const service: NonNullable<KpiTilesRpc["service"]> = {
   open_tickets: { count: 3, urgent: 2, past_sla: 1 },
-  resolved_within_24h: { resolved: 1, completed: 2, percent: 50 },
+  resolved_within_24h: { resolved: 1, completed: 2, percent: 50, sla_hours: 24 },
   rating: { average: 4, count: 3, below_4_5: 2 },
   amc: { active: 2, renewal_window: 1, revenue: 2360 },
 }
@@ -50,7 +50,7 @@ describe("mapKpiTiles", () => {
         repeat_buyers: { buying_customers: 0, repeat_buyers: 0, new_buyers: 0, repeat_rate_percent: null },
         outstanding: { amount: 0, invoice_count: 0, oldest_invoice_date: null },
       },
-      service: { ...service, rating: { average: null, count: 0, below_4_5: 0 }, resolved_within_24h: { resolved: 0, completed: 0, percent: null } },
+      service: { ...service, rating: { average: null, count: 0, below_4_5: 0 }, resolved_within_24h: { resolved: 0, completed: 0, percent: null, sla_hours: 24 } },
       money_out: { ...money, item_margin: { ...money.item_margin, margin_percent: null, cost_missing: false, missing_cost_count: 0 } },
     })
     expect(t.sales?.leads.wonPercent).toBeNull()

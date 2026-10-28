@@ -119,7 +119,8 @@ function JobListItem({
   const allowedDuration = openVisit ? computeTicketAllowedDuration(ticket, openVisit, settings) : null
   const overrun = computeJobOverrun(
     { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
-    now
+    now,
+    settings?.job_overrun_buffer_minutes
   )
   const overdue = isOverdueJob(ticket, now)
 

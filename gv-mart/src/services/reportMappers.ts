@@ -152,6 +152,27 @@ export type PerformanceRpcRow = {
   installations: number
 }
 
+/**
+ * P5 (20261108110000) — a SEPARATE RPC (report_performance_efficiency), merged client-side into PerformanceRow
+ * rather than added to report_performance's own body. Informational only: see getPerformanceReport.
+ */
+export type PerformanceEfficiencyRpcRow = {
+  id: string
+  efficiency_percent: number | null
+  efficiency_sample_count: number
+}
+
+/** Merges report_performance_efficiency's rows into an already-mapped PerformanceRow[] by technician id. A
+ * technician with no row (no resolvable standard for any of their visits) keeps the null/0 default. */
+export function mergePerformanceEfficiency(rows: PerformanceRow[], efficiencyRows: PerformanceEfficiencyRpcRow[]): PerformanceRow[] {
+  const byId = new Map(efficiencyRows.map((r) => [r.id, r]))
+  return rows.map((row) => {
+    const e = byId.get(row.id)
+    if (!e) return row
+    return { ...row, efficiencyPercent: numOrNull(e.efficiency_percent), efficiencySampleCount: num(e.efficiency_sample_count) }
+  })
+}
+
 export function mapPerformance(rows: PerformanceRpcRow[]): PerformanceRow[] {
   return (rows ?? []).map((r) => ({
     id: r.id,
@@ -166,12 +187,17 @@ export function mapPerformance(rows: PerformanceRpcRow[]): PerformanceRow[] {
     avgCompletionMinutes: numOrNull(r.avg_completion_minutes),
     productivityJobsPerHour: numOrNull(r.productivity_jobs_per_hour),
     installations: num(r.installations),
+    efficiencyPercent: null,
+    efficiencySampleCount: 0,
   }))
 }
 
-export type OpsResolutionRpc = { resolved_within_24h: number; total_completed: number; percent: number | null }
+// resolved_within_24h keeps its name for compatibility with every existing reader, but the window behind it is now
+// configurable (settings.ops_resolution_sla_hours) — sla_hours is the real figure a label should be built from,
+// not an assumed 24.
+export type OpsResolutionRpc = { resolved_within_24h: number; total_completed: number; percent: number | null; sla_hours: number }
 export function mapOpsResolution(d: OpsResolutionRpc) {
-  return { resolvedWithin24h: num(d.resolved_within_24h), totalCompleted: num(d.total_completed), percent: numOrNull(d.percent) }
+  return { resolvedWithin24h: num(d.resolved_within_24h), totalCompleted: num(d.total_completed), percent: numOrNull(d.percent), slaHours: num(d.sla_hours) }
 }
 
 // ── report_feedback ──────────────────────────────────────────────────────
@@ -374,7 +400,7 @@ export type KpiTilesRpc = {
   } | null
   service: {
     open_tickets: { count: number; urgent: number; past_sla: number }
-    resolved_within_24h: { resolved: number; completed: number; percent: number | null }
+    resolved_within_24h: { resolved: number; completed: number; percent: number | null; sla_hours: number }
     rating: { average: number | null; count: number; below_4_5: number }
     amc: { active: number; renewal_window: number; revenue: number }
   } | null
@@ -406,7 +432,7 @@ export type KpiTiles = {
   } | null
   service: {
     openTickets: { count: number; urgent: number; pastSla: number }
-    resolvedWithin24h: { resolved: number; completed: number; percent: number | null }
+    resolvedWithin24h: { resolved: number; completed: number; percent: number | null; slaHours: number }
     rating: { average: number | null; count: number; below45: number }
     amc: { active: number; renewalWindow: number; revenue: number }
   } | null
@@ -460,7 +486,12 @@ export function mapKpiTiles(d: KpiTilesRpc): KpiTiles {
     service: v
       ? {
           openTickets: { count: num(v.open_tickets.count), urgent: num(v.open_tickets.urgent), pastSla: num(v.open_tickets.past_sla) },
-          resolvedWithin24h: { resolved: num(v.resolved_within_24h.resolved), completed: num(v.resolved_within_24h.completed), percent: numOrNull(v.resolved_within_24h.percent) },
+          resolvedWithin24h: {
+            resolved: num(v.resolved_within_24h.resolved),
+            completed: num(v.resolved_within_24h.completed),
+            percent: numOrNull(v.resolved_within_24h.percent),
+            slaHours: num(v.resolved_within_24h.sla_hours),
+          },
           rating: { average: numOrNull(v.rating.average), count: num(v.rating.count), below45: num(v.rating.below_4_5) },
           amc: { active: num(v.amc.active), renewalWindow: num(v.amc.renewal_window), revenue: num(v.amc.revenue) },
         }

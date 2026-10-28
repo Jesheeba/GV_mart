@@ -4279,6 +4279,8 @@ export type Database = {
           product_category: Database["public"]["Enums"]["brand_category"]
           product_id: string | null
           label: string
+          // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
+          standard_minutes: number | null
           created_at: string
           updated_at: string
         }
@@ -4288,6 +4290,7 @@ export type Database = {
           product_category: Database["public"]["Enums"]["brand_category"]
           product_id?: string | null
           label: string
+          standard_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -4297,6 +4300,7 @@ export type Database = {
           product_category?: Database["public"]["Enums"]["brand_category"]
           product_id?: string | null
           label?: string
+          standard_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -6374,6 +6378,9 @@ export type Database = {
           // 20261108100000_customer_water_profile.sql — gates whether a technician's job/
           // history detail shows the customer's health_condition level. Default false.
           show_health_condition_to_technicians: boolean
+          // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
+          job_overrun_buffer_minutes: number
+          ops_resolution_sla_hours: number
           id: string
           org_id: string
           per_km_minutes: number
@@ -6471,6 +6478,8 @@ export type Database = {
         Insert: {
           review_incentives_enabled?: boolean
           show_health_condition_to_technicians?: boolean
+          job_overrun_buffer_minutes?: number
+          ops_resolution_sla_hours?: number
           id?: string
           org_id: string
           per_km_minutes?: number
@@ -6549,6 +6558,8 @@ export type Database = {
         Update: {
           review_incentives_enabled?: boolean
           show_health_condition_to_technicians?: boolean
+          job_overrun_buffer_minutes?: number
+          ops_resolution_sla_hours?: number
           id?: string
           org_id?: string
           per_km_minutes?: number
@@ -8019,6 +8030,11 @@ export type Database = {
         Returns: Json
       }
       report_performance: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
+      report_performance_efficiency: {
         Args: { p_from: string; p_to: string }
         Returns: Json
       }

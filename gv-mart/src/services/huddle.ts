@@ -188,6 +188,8 @@ export type HuddlePerformance = {
   invoiced: number
   completedVisits: number
   resolvedWithin24hPercent: number | null
+  /** The hour window the percent above is actually measured against (settings.ops_resolution_sla_hours) — not assumed 24. */
+  resolvedWithinSlaHours: number
   openTickets: number
 }
 
@@ -214,6 +216,7 @@ export async function getHuddlePerformance(orgId: string, meetingDate: string): 
     invoiced: sales.totalRevenue,
     completedVisits: ops.totalCompleted,
     resolvedWithin24hPercent: ops.percent,
+    resolvedWithinSlaHours: ops.slaHours,
     openTickets: open.count ?? 0,
   }
 }
