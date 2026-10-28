@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { resolveSectionState } from "./listState"
 
-// Covers the branching used by ExpensesHistoryPage's claims list and km-log
-// list: a failed query must never render the same "nothing here" message as
-// a query that succeeded with zero rows (the bug the Capacitor-build audit
-// found — expense_claims/technician_km_log missing was indistinguishable
-// from the technician genuinely having no history).
+// Covers the branching used by ExpensesHistoryPage's claims/km-log lists and
+// by MyLeavePage's/LeaveRequestsPage's leave-request lists: a failed query
+// must never render the same "nothing here" message as a query that
+// succeeded with zero rows (the bug the Capacitor-build audit found —
+// expense_claims/technician_km_log missing was indistinguishable from the
+// technician genuinely having no history, and the same risk applies to a
+// missing leave-request migration hiding behind a genuine-empty state).
 
 describe("resolveSectionState", () => {
   it("is 'loading' while the query is in flight, regardless of error/empty flags", () => {

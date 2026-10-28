@@ -4,10 +4,14 @@ import { isNotYetAvailableError, isUndefinedColumnError, isUndefinedFunctionErro
 // These codes are what the expenses screens see before their migration
 // (20261107100000-20261107100500) is applied: technician_km_log / expense_claims
 // missing entirely (42P01), own_bike_allowance_base missing (42703), or
-// technician_km_log_sum / submit_expense_claim not defined yet (42883).
+// technician_km_log_sum / submit_expense_claim not defined yet (42883). The
+// same three codes are what the technician/admin leave screens see before
+// 20261106100000_technician_leave_request is applied: technician_leave_requests
+// missing (42P01), a missing column on it (42703), or a leave RPC (e.g.
+// request_technician_leave, decide_technician_leave) not defined yet (42883).
 
 describe("isUndefinedTableError", () => {
-  it("is true for Postgres 42P01 (missing-table failure, e.g. technician_km_log not migrated yet)", () => {
+  it("is true for Postgres 42P01 (missing-table failure, e.g. technician_km_log/technician_leave_requests not migrated yet)", () => {
     expect(isUndefinedTableError({ code: "42P01" })).toBe(true)
   })
   it("is false for an unrelated error code", () => {
@@ -25,7 +29,7 @@ describe("isUndefinedColumnError", () => {
 })
 
 describe("isUndefinedFunctionError", () => {
-  it("is true for Postgres 42883 (missing RPC, e.g. technician_km_log_sum not migrated yet)", () => {
+  it("is true for Postgres 42883 (missing RPC, e.g. technician_km_log_sum/request_technician_leave not migrated yet)", () => {
     expect(isUndefinedFunctionError({ code: "42883" })).toBe(true)
   })
   it("is false for an unrelated error code", () => {
@@ -34,13 +38,13 @@ describe("isUndefinedFunctionError", () => {
 })
 
 describe("isNotYetAvailableError", () => {
-  it("is true for any of the three deploy-order codes (missing-table failure)", () => {
+  it("is true for any of the three deploy-order codes (missing-table/missing-feature failure)", () => {
     expect(isNotYetAvailableError({ code: "42P01" })).toBe(true)
     expect(isNotYetAvailableError({ code: "42703" })).toBe(true)
     expect(isNotYetAvailableError({ code: "42883" })).toBe(true)
   })
 
-  it("is false for a genuine save/load failure unrelated to a missing schema object", () => {
+  it("is false for a genuine save/load failure unrelated to a missing schema object (generic failure)", () => {
     // e.g. a unique-constraint violation on submit, or a plain network error —
     // these should show the generic failure message, never the calm
     // "not available yet" one.

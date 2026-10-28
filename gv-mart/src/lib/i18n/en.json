@@ -166,6 +166,7 @@
     "amcWarranty": "AMC & Warranty",
     "rentals": "Rentals",
     "technicians": "Technicians",
+    "leaveRequests": "Leave requests",
     "inventory": "Inventory",
     "suppliers": "Suppliers",
     "automation": "Automation",
@@ -1332,6 +1333,8 @@
     "attendanceStatusHint": "A technician's check-in is automatically classified Early / On Time / Late / Very Late against these times — no code change needed when you update them here.",
     "lunchAllowed": "Lunch allowed (minutes)",
     "lunchRed": "Lunch shows red after (minutes)",
+    "leaveNoticeDays": "Leave notice (days)",
+    "leaveNoticeDaysHint": "A technician's leave request only stays out of the KPI if it was submitted at least this many days before the leave starts.",
     "discountTechMax": "Technician discount cap (%)",
     "discountAdminMax": "Admin discount cap (%)",
     "gstRate": "GST rate (%)",
@@ -4217,7 +4220,9 @@
         "totalReviews": "Total Google Reviews",
         "totalInstallations": "Total Installations",
         "reviewRateFootnote": "{{rate}}% review-claim rate over {{visits}} completed visits.",
-        "flaggedBanner": "Review-claim rate ({{rate}}% over {{visits}} visits) looks unusually high — worth a manual check."
+        "flaggedBanner": "Review-claim rate ({{rate}}% over {{visits}} visits) looks unusually high — worth a manual check.",
+        "protectedLeaveDays": "{{count}} day(s) excluded this month (approved leave)",
+        "protectedLeaveDaysFailed": "Couldn't load excluded days."
       },
       "viewTicket": "View ticket",
       "outsideGeofence": "Outside office",
@@ -5400,6 +5405,52 @@
         "present": "Yes, we have these options: {{names}}. Reply \"buy\" if you'd like to know more!",
         "none": "We don't currently have any {{category}} products listed. Reply \"expert\" to check with our team."
       }
+    }
+  },
+  "leaveRequests": {
+    "subtitle": "Approve, reject or revoke technician leave requested in advance.",
+    "badgeTitle": "{{count}} leave request(s) pending",
+    "filters": { "pending": "Pending", "approved": "Approved", "closed": "Rejected / revoked / cancelled" },
+    "loadFailed": "Could not load leave requests.",
+    "notAvailableYet": "This feature isn't available yet. Please check back later.",
+    "empty": "No leave requests here.",
+    "status": { "pending": "Pending", "approved": "Approved", "rejected": "Rejected", "cancelled": "Cancelled", "revoked": "Revoked" },
+    "badge": { "inAdvance": "In advance", "late": "Late (KPI not protected)" },
+    "days": "day(s)",
+    "requestedAt": "Requested {{date}}",
+    "decisionNote": "Note: {{note}}",
+    "actions": { "approve": "Approve", "reject": "Reject", "revoke": "Revoke" },
+    "toast": { "approved": "Leave approved", "rejected": "Leave rejected", "revoked": "Leave revoked" },
+    "decideDialog": {
+      "title": { "approved": "Approve leave", "rejected": "Reject leave", "revoked": "Revoke leave" },
+      "range": "{{technician}}: {{start}} – {{end}}",
+      "assignedVisitsWarning": "{{count}} visit(s) already assigned on these days — reassign them yourself, nothing here does it automatically.",
+      "noAssignedVisits": "No visits are assigned to this technician on these days.",
+      "assignedVisitsCheckFailed": "Couldn't check for assigned visits.",
+      "noteLabel": "Note (required)",
+      "notePlaceholder": "Why?",
+      "confirm": { "approved": "Approve", "rejected": "Reject", "revoked": "Revoke" }
+    }
+  },
+  "technicianLeave": {
+    "request": {
+      "title": "Request leave",
+      "subtitle": "Submit in advance so your leave does not affect your KPI.",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "reason": "Reason (optional)",
+      "submit": "Submit request",
+      "submitted": "Leave request submitted",
+      "errors": { "endBeforeStart": "End date cannot be before start date.", "tooLong": "A single request cannot exceed 30 days." }
+    },
+    "notAvailableYet": "This feature isn't available yet. Please check back later.",
+    "valuesKept": "Your entered details are kept — you can try again.",
+    "myLeave": {
+      "title": "My leave",
+      "request": "Request leave",
+      "empty": "You have no leave requests yet.",
+      "cancel": "Cancel request",
+      "cancelled": "Leave request cancelled"
     }
   }
 }

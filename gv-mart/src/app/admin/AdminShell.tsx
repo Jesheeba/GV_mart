@@ -8,6 +8,7 @@ import { ADMIN_NAV } from "./nav"
 import { useProfile } from "@/hooks/useProfile"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { canWorkFollowups, useFollowupCounts } from "@/hooks/useLeadFollowups"
+import { usePendingLeaveRequestCount } from "@/hooks/useTechnicianLeave"
 import { CallReturnPrompt } from "./leads/CallReturnPrompt"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useTicketSearch, useServiceTicketsRealtimeInvalidate } from "@/hooks/useService"
@@ -125,6 +126,9 @@ export function AdminShell() {
   const { data: profile, isLoading, isError, refetch } = useProfile()
   const { data: unreadCount } = useUnreadNotificationCount(profile?.org_id, profile?.id, profile?.role)
   const { data: followupCounts } = useFollowupCounts(profile?.role)
+  const { data: pendingLeaveCount } = usePendingLeaveRequestCount(
+    profile?.role === "master" || profile?.role === "operation_admin" ? profile?.org_id : undefined
+  )
   useServiceTicketsRealtimeInvalidate(profile?.org_id)
 
   // Job-overrun popup: this used to run only inside TechniciansMapPage, so an
@@ -262,6 +266,15 @@ export function AdminShell() {
                       title={t("leads.myDay.badgeTitle", { overdue: followupCounts.overdue, today: followupCounts.today })}
                     >
                       {followupCounts.total > 99 ? "99+" : followupCounts.total}
+                    </span>
+                  ) : null}
+                  {item.key === "leaveRequests" && pendingLeaveCount ? (
+                    <span
+                      data-testid="leave-requests-badge"
+                      className="absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold leading-4 text-white"
+                      title={t("leaveRequests.badgeTitle", { count: pendingLeaveCount })}
+                    >
+                      {pendingLeaveCount > 99 ? "99+" : pendingLeaveCount}
                     </span>
                   ) : null}
                 </span>

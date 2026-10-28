@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarCheck, ChevronRight, ClipboardList, Fuel, ListChecks, MapPin, Users2, TriangleAlert, Wrench } from "lucide-react"
+import { CalendarCheck, CalendarOff, ChevronRight, ClipboardList, Fuel, ListChecks, MapPin, Users2, TriangleAlert, Wrench } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { Card } from "@/components/ui/card"
@@ -238,6 +238,15 @@ export function TechnicianHomePage() {
         >
           <Users2 className="size-3.5" />
           {t("nav.huddle")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          onClick={() => navigate("/technician/leave")}
+        >
+          <CalendarOff className="size-3.5" />
+          {t("technicianLeave.myLeave.title")}
         </Button>
       </div>
 

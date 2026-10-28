@@ -47,6 +47,7 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     very_late_threshold_minutes: settings.very_late_threshold_minutes,
     lunch_minutes_allowed: settings.lunch_minutes_allowed,
     lunch_minutes_red_threshold: settings.lunch_minutes_red_threshold,
+    leave_notice_days: settings.leave_notice_days,
     discount_tech_max: Number(settings.discount_tech_max),
     discount_admin_max: Number(settings.discount_admin_max),
     amc_book_window_days: settings.amc_book_window_days,
@@ -88,7 +89,15 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
 const FIELD_GROUPS = {
   discountGift: ["discount_tech_max", "discount_admin_max"],
   travel: ["per_km_minutes", "geofence_radius_m", "geofence_radius_job_m", "office_lat", "office_lng"],
-  attendance: ["work_start", "work_end", "late_cutoff", "very_late_threshold_minutes", "lunch_minutes_allowed", "lunch_minutes_red_threshold"],
+  attendance: [
+    "work_start",
+    "work_end",
+    "late_cutoff",
+    "very_late_threshold_minutes",
+    "lunch_minutes_allowed",
+    "lunch_minutes_red_threshold",
+    "leave_notice_days",
+  ],
   gst: ["gst_rate"],
   sla: ["sla_hours_very_urgent", "sla_hours_urgent", "sla_hours_normal"],
   jobDuration: [
@@ -268,8 +277,10 @@ export function SettingsTab() {
           {field("very_late_threshold_minutes", t("settings.veryLateThreshold"), "number", "1")}
           {field("lunch_minutes_allowed", t("settings.lunchAllowed"), "number", "1")}
           {field("lunch_minutes_red_threshold", t("settings.lunchRed"), "number", "1")}
+          {field("leave_notice_days", t("settings.leaveNoticeDays"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.attendanceStatusHint")}</p>
+        <p className="px-1 text-xs text-text-muted">{t("settings.leaveNoticeDaysHint")}</p>
         <GroupSaveRow groupKey="attendance" />
       </Card>
 
