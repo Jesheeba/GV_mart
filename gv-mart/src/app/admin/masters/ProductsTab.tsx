@@ -27,6 +27,7 @@ type ProductWithRefs = {
   price: number
   cost_price: number | null
   hsn_code: string | null
+  item_code: string | null
   description: string | null
   warranty_months: number
   // GV.md 1.1 — same admin-set standard time as spares (SparesTab.tsx).
@@ -67,7 +68,7 @@ export function ProductsTab() {
     return ((rows ?? []) as ProductWithRefs[]).filter((r) => {
       if (statusFilter === "active" && !r.is_active) return false
       if (statusFilter === "inactive" && r.is_active) return false
-      if (term && !r.name.toLowerCase().includes(term)) return false
+      if (term && !r.name.toLowerCase().includes(term) && !(r.item_code ?? "").toLowerCase().includes(term)) return false
       return true
     })
   }, [rows, search, statusFilter])
@@ -119,6 +120,7 @@ export function ProductsTab() {
     { key: "price", label: t("masters.products.price"), type: "number", step: "0.01", required: true, min: 0 },
     { key: "cost_price", label: t("masters.products.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet"), min: 0 },
     { key: "hsn_code", label: t("masters.products.hsn"), type: "text", pattern: "\\d{4,8}", patternMessage: t("masters.errors.hsnInvalid") },
+    { key: "item_code", label: t("masters.products.itemCode"), type: "text", pattern: "[A-Za-z0-9_-]+", patternMessage: t("masters.errors.skuInvalid") },
     { key: "warranty_months", label: t("masters.products.warrantyMonths"), type: "number", step: "1", min: 0 },
     { key: "standard_time_minutes", label: t("masters.products.standardTime"), type: "number", step: "1", min: 0 },
     { key: "installation_charge", label: t("masters.products.installationCharge"), type: "number", step: "0.01", min: 0, placeholder: t("masters.products.installationChargeHint") },
@@ -163,6 +165,7 @@ export function ProductsTab() {
           price: String(r.price),
           cost_price: r.cost_price != null ? String(r.cost_price) : "",
           hsn_code: r.hsn_code ?? "",
+          item_code: r.item_code ?? "",
           warranty_months: String(r.warranty_months),
           standard_time_minutes: r.standard_time_minutes != null ? String(r.standard_time_minutes) : "",
           installation_charge: r.installation_charge != null ? String(r.installation_charge) : "",
@@ -174,6 +177,7 @@ export function ProductsTab() {
           { key: "model", header: t("masters.products.model"), render: (r) => r.models?.name ?? "—" },
           { key: "price", header: t("masters.products.price"), render: (r) => `₹${r.price}` },
           { key: "cost_price", header: t("masters.products.costPrice"), render: (r) => (r.cost_price != null ? `₹${r.cost_price}` : t("masters.costPriceNotSet")) },
+          { key: "item_code", header: t("masters.products.itemCode"), render: (r) => r.item_code || "—" },
           { key: "warranty", header: t("masters.products.warrantyMonths"), render: (r) => r.warranty_months },
           {
             key: "standard_time_minutes",
@@ -272,6 +276,7 @@ export function ProductsTab() {
             price: Number(v.price) || 0,
             cost_price: v.cost_price ? Number(v.cost_price) : null,
             hsn_code: v.hsn_code || null,
+            item_code: v.item_code || null,
             warranty_months: Number(v.warranty_months) || 12,
             standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
             installation_charge: v.installation_charge ? Number(v.installation_charge) : null,
@@ -289,6 +294,7 @@ export function ProductsTab() {
               price: Number(v.price) || 0,
               cost_price: v.cost_price ? Number(v.cost_price) : null,
               hsn_code: v.hsn_code || null,
+              item_code: v.item_code || null,
               warranty_months: Number(v.warranty_months) || 12,
               standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
               installation_charge: v.installation_charge ? Number(v.installation_charge) : null,

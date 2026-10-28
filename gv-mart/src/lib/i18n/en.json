@@ -723,6 +723,7 @@
       "price": "Price",
       "costPrice": "Cost price",
       "hsn": "HSN code",
+      "itemCode": "Item code",
       "warrantyMonths": "Warranty (months)",
       "standardTime": "Standard time (min)",
       "installationCharge": "Installation charge (technician incentive per unit)",

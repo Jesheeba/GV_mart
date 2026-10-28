@@ -148,7 +148,11 @@ export type InvoiceAddress = {
 export type InvoiceDetail = InvoiceRow & {
   customers: { name: string; mobile: string; addresses: InvoiceAddress[] } | null
   gifts: { name: string } | null
-  invoice_items: (InvoiceItemRow & { itemName: string })[]
+  // itemCode: a camelCase alias of invoice_items.item_code (20261104110000), stamped by a BEFORE INSERT trigger
+  // from the product's item_code or the spare's sku at the moment the line was created. Read straight off the row
+  // — NOT looked up from the live catalog — so an old invoice keeps printing the code that was true when it was
+  // made even if the product's code is edited later.
+  invoice_items: (InvoiceItemRow & { itemName: string; itemCode: string | null })[]
 }
 
 export async function getInvoice(orgId: string, id: string): Promise<InvoiceDetail> {
@@ -162,7 +166,7 @@ export async function getInvoice(orgId: string, id: string): Promise<InvoiceDeta
   const names = await itemNameLookup(orgId, data.invoice_items)
   return {
     ...data,
-    invoice_items: data.invoice_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—" })),
+    invoice_items: data.invoice_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—", itemCode: it.item_code ?? null })),
   } as InvoiceDetail
 }
 
