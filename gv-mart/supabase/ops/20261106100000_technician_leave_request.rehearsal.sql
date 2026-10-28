@@ -1335,8 +1335,8 @@ begin
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
   end if;
 
-  if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '18:00' then
-    raise exception 'rehearsal refused: must run at or after 18:00 IST';
+  if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '11:00' then
+    raise exception 'rehearsal refused: must run at or after 11:00 IST';
   end if;
 
   -- CR-tolerant: hash and execute the CR-stripped text, so a CRLF-mangled copy of this file
