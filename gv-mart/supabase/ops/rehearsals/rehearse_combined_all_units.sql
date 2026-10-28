@@ -1530,7 +1530,6 @@ begin
 
   raise exception E'RESULTS%', res;
 end $t$;
-
 $t1body$;
   v_t2 text := $t2body$
 -- Rolled-back check for 20261107100100_technician_km_log.sql. Creates its
@@ -1680,7 +1679,6 @@ begin
 
   raise exception E'RESULTS%', res;
 end $t$;
-
 $t2body$;
   v_t3 text := $t3body$
 -- Rolled-back check for 20261107100200_expense_claims.sql. Creates its own
@@ -1808,7 +1806,6 @@ begin
 
   raise exception E'RESULTS%', res;
 end $t$;
-
 $t3body$;
   v_t4 text := $t4body$
 -- Rolled-back check for 20261107100300_person_allowances_and_adjustments.sql.
@@ -1953,7 +1950,6 @@ begin
 
   raise exception E'RESULTS%', res;
 end $t$;
-
 $t4body$;
   v_t5 text := $t5body$
 -- Rolled-back check for 20261107100400_compute_incentives_bike_allowance.sql,
@@ -2113,7 +2109,6 @@ begin
   execute 'reset role';
   raise exception E'RESULTS%', res;
 end $t$;
-
 $t5body$;
   v_t6 text := $t6body$
 -- Rolled-back check for 20261107100500_compute_salary_itemised_expenses.sql.
@@ -2233,7 +2228,6 @@ begin
   execute 'reset role';
   raise exception E'RESULTS%', res;
 end $t$;
-
 $t6body$;
   v_t7 text := $t7body$
 -- Rolled-back check for Unit 7 (monthly report). The report itself is a
@@ -2314,7 +2308,6 @@ begin
   execute 'reset role';
   raise exception E'RESULTS%', res;
 end $t$;
-
 $t7body$;
   v_t8 text := $t8body$
 -- Unit 8 — end to end. One month, one organisation, seven technicians:
@@ -2459,7 +2452,6 @@ begin
   execute 'reset role';
   raise exception E'RESULTS%', res;
 end $t$;
-
 $t8body$;
   v_t9 text := $t9body$
 -- ACL guard, CASE13 pattern (from feat/master-time-slots) -- for every
