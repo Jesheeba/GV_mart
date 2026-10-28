@@ -1644,27 +1644,37 @@ begin
   end if;
 
   -- 4. LIVE-DEFINITION PRE-CHECK -- compute_incentives, compute_salary.
+  --
+  -- FIXED (independent review caught this): the embedded v_old_incentives/v_old_salary texts
+  -- are literally `create or replace function public.compute_incentives(...)` /
+  -- `public.compute_salary(...)` -- they target public directly, NOT pg_temp (confirmed by
+  -- reading the actual embedded text; there is no pg_temp.* recreation anywhere in this
+  -- script). The previous version of this check executed them and then looked up
+  -- 'pg_temp.compute_incentives(...)'::regprocedure, which was never created -- that cast
+  -- always raises "function does not exist", so the script could never get past this step.
+  --
+  -- Correct mechanism (exactly what the rehearsal wrapper itself does, and what the "2/2
+  -- live-def pre-checks OK" result in the header actually refers to): capture the REAL live
+  -- definition FIRST, via a plain read-only SELECT, before touching anything. Only THEN
+  -- execute the pinned "original" text (which overwrites public.compute_incentives/
+  -- compute_salary with that pinned body) and re-capture the definition. If the pinned text
+  -- is truly byte-identical to what was live a moment ago, the overwrite is a no-op and the
+  -- two md5s match; if live had drifted, they differ and the RAISE below aborts this entire
+  -- top-level DO block (autocommit = one implicit transaction) before anything -- including
+  -- this temporary overwrite -- ever commits. The real NEW migration body (executed in step 8)
+  -- is what actually changes the function going forward.
+  select md5(pg_get_functiondef('public.compute_incentives(uuid,date)'::regprocedure)) into v_live_inc_def;
   execute replace(v_old_incentives, E'\r', '');
-  execute replace(v_old_salary, E'\r', '');
-
-  v_pin_inc_def := regexp_replace(
-    pg_get_functiondef('pg_temp.compute_incentives(uuid,date)'::regprocedure),
-    'pg_temp(_[0-9]+)?\.compute_incentives', 'FN', 'g');
-  v_live_inc_def := regexp_replace(
-    pg_get_functiondef('public.compute_incentives(uuid,date)'::regprocedure),
-    'public\.compute_incentives', 'FN', 'g');
-  if md5(v_pin_inc_def) <> md5(v_live_inc_def) then
-    raise exception 'APPLY_REFUSED: live compute_incentives no longer matches the pinned ORIGINAL body -- refusing to redefine it blindly';
+  select md5(pg_get_functiondef('public.compute_incentives(uuid,date)'::regprocedure)) into v_pin_inc_def;
+  if v_pin_inc_def is distinct from v_live_inc_def then
+    raise exception 'APPLY_REFUSED: live compute_incentives no longer matches the pinned ORIGINAL body (live md5=%, recreated md5=%) -- refusing to redefine it blindly', v_live_inc_def, v_pin_inc_def;
   end if;
 
-  v_pin_sal_def := regexp_replace(
-    pg_get_functiondef('pg_temp.compute_salary(uuid,uuid,date)'::regprocedure),
-    'pg_temp(_[0-9]+)?\.compute_salary', 'FN', 'g');
-  v_live_sal_def := regexp_replace(
-    pg_get_functiondef('public.compute_salary(uuid,uuid,date)'::regprocedure),
-    'public\.compute_salary', 'FN', 'g');
-  if md5(v_pin_sal_def) <> md5(v_live_sal_def) then
-    raise exception 'APPLY_REFUSED: live compute_salary no longer matches the pinned ORIGINAL body -- refusing to redefine it blindly';
+  select md5(pg_get_functiondef('public.compute_salary(uuid,uuid,date)'::regprocedure)) into v_live_sal_def;
+  execute replace(v_old_salary, E'\r', '');
+  select md5(pg_get_functiondef('public.compute_salary(uuid,uuid,date)'::regprocedure)) into v_pin_sal_def;
+  if v_pin_sal_def is distinct from v_live_sal_def then
+    raise exception 'APPLY_REFUSED: live compute_salary no longer matches the pinned ORIGINAL body (live md5=%, recreated md5=%) -- refusing to redefine it blindly', v_live_sal_def, v_pin_sal_def;
   end if;
 
   -- 5. REAL-ORG FINGERPRINT (BEFORE) -- same formula the rehearsal uses, for the single real org.
