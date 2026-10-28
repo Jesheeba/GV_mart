@@ -106,6 +106,21 @@ begin
     raise exception 'APPLY_REFUSED: public.customer_outstanding_links already exists before this migration ran';
   end if;
 
+  -- This migration's CREATE TABLE adds FKs to public.tasks(id) and
+  -- public.customer_outstanding_reminders(id). Confirm both exist in the
+  -- expected shape first, so a misordered run refuses cleanly instead of
+  -- failing deep inside the DO block with a raw "relation does not exist".
+  if to_regclass('public.tasks') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tasks' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.tasks (uuid id) not found -- this migration depends on it already existing';
+  end if;
+  if to_regclass('public.customer_outstanding_reminders') is null
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customer_outstanding_reminders' and column_name = 'id' and data_type = 'uuid')
+  then
+    raise exception 'APPLY_REFUSED: public.customer_outstanding_reminders (uuid id) not found -- run 20261115100000_customer_outstanding_reminders_schema first';
+  end if;
+
   -- 5. LEAK SNAPSHOT (BEFORE)
   select coalesce(array_agg(sig order by sig), array[]::text[]) into v_leaked_before
   from (
