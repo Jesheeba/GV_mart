@@ -1,6 +1,6 @@
 -- Rehearsal wrapper for 20261113100000_close_spare_handover_technician_rls_hole.sql.
 -- NOT run against any database by this agent. Intended usage: a reviewer with real DB access
--- runs this file after 18:00 IST; it refuses before that, refuses if the lock it needs isn't
+-- runs this file after 11:00 IST (owner decision, 2026-10-28); it refuses before that, refuses if the lock it needs isn't
 -- available within 5 seconds (reported distinctly, not folded into a generic failure), refuses
 -- if either embedded file (migration, test) no longer matches its pinned sha256 (re-pin after
 -- any edit to either file), refuses if the live confirm_spare_handover no longer matches its
@@ -49,7 +49,7 @@ begin
   -- ── 1. time gate ──────────────────────────────────────────────────────────────────────
   v_now_ist := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   if v_now_ist < time '11:00' then
-    raise exception 'rehearsal refused: run only after 18:00 IST (Asia/Kolkata) -- current IST time is %', v_now_ist;
+    raise exception 'rehearsal refused: run only after 11:00 IST (Asia/Kolkata) -- current IST time is %', v_now_ist;
   end if;
 
   -- ── 2. organisation fingerprint pin -- the very first check after the lock budget and

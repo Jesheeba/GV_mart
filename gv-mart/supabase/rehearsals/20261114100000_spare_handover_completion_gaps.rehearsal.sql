@@ -11,7 +11,7 @@
 -- follow.
 --
 -- NOT run against any database by this agent. Intended usage: a reviewer with real DB access
--- runs this file after 18:00 IST; it refuses before that, refuses if the lock budget (5s,
+-- runs this file after 11:00 IST (owner decision, 2026-10-28); it refuses before that, refuses if the lock budget (5s,
 -- set first thing, before the time gate even) is exceeded, refuses if any of the five
 -- embedded files (two migrations, two of their own tests, one new chained test) no longer
 -- matches its pinned sha256 (re-pin after any edit to any of them), refuses if any of the
@@ -68,7 +68,7 @@ begin
   -- ── 1. time gate ──────────────────────────────────────────────────────────────────────
   v_now_ist := (clock_timestamp() at time zone 'Asia/Kolkata')::time;
   if v_now_ist < time '11:00' then
-    raise exception 'rehearsal refused: run only after 18:00 IST (Asia/Kolkata) -- current IST time is %', v_now_ist;
+    raise exception 'rehearsal refused: run only after 11:00 IST (Asia/Kolkata) -- current IST time is %', v_now_ist;
   end if;
 
   -- ── 1b. organisation fingerprint pin -- the very first check after the lock budget and
