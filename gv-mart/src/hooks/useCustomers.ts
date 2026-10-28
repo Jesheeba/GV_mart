@@ -76,6 +76,14 @@ export function useCustomerFilterCounts(orgId: string | undefined) {
   })
 }
 
+export function useIsTestCustomerCount(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "isTestCount", orgId],
+    queryFn: () => customers.getIsTestCustomerCount(orgId!),
+    enabled: !!orgId,
+  })
+}
+
 export function useCustomerListEnrichment(orgId: string | undefined, customerIds: string[]) {
   const key = [...customerIds].sort()
   return useQuery({

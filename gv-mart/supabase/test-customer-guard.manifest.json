@@ -37,6 +37,7 @@
     "_report_ist_start": "date helper",
     "_report_org": "org helper",
     "_org_active_master_count": "counts active master profiles (last-master guard); no customer-linked data",
-    "report_spare_handover_discrepancy": "records a technician's disputed hand-over quantity and notifies staff; no customer-linked data at all"
+    "report_spare_handover_discrepancy": "records a technician's disputed hand-over quantity and notifies staff; no customer-linked data at all",
+    "customer_filter_counts": "mixed, not full exclusion: total excludes is_test customers (is_test = false); hasAmc, amcDueSoon and dormant do not -- documented known gap carried over unchanged from the client-side code this replaced, see docs/backlog-product-gaps.md 'Customers quick-filter counts don't exclude test customers consistently'"
   }
 }

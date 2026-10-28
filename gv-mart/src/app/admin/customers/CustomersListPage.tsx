@@ -15,10 +15,12 @@ import {
   useCustomerFilterCounts,
   useCustomerListEnrichment,
   useCustomersList,
+  useIsTestCustomerCount,
 } from "@/hooks/useCustomers"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { AMC_STATUS_TONE } from "@/lib/amc-status"
+import { computeCustomersListCount } from "@/lib/customers-list-count"
 import { cn } from "@/lib/utils"
 import { getCustomerListEnrichment, listCustomers } from "@/services/customers"
 import type { CustomerListItem, CustomerRowEnrichment } from "@/services/customers"
@@ -101,12 +103,23 @@ export function CustomersListPage() {
   const { data, isLoading, isFetching, isError, refetch } = useCustomersList(orgId, filters, page)
   const autocomplete = useCustomerAutocomplete(orgId, searchInput)
   const counts = useCustomerFilterCounts(orgId)
+  // The Customers list itself never excludes is_test customers (they stay
+  // visible, tagged with the TEST badge) but counts.data.total does
+  // (is_test = false) — see computeCustomersListCount's own doc comment for
+  // why the unfiltered pagination total needs this added back in.
+  const testCount = useIsTestCustomerCount(orgId)
   const enrichment = useCustomerListEnrichment(
     orgId,
     (data?.rows ?? []).map((r) => r.id)
   )
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.count / (data.pageSize ?? 20))) : 1
+  const effectiveCount = computeCustomersListCount({
+    hasActiveFilters,
+    queryCount: data?.count,
+    exactNonTestTotal: counts.data?.total,
+    testCustomerCount: testCount.data,
+  })
+  const totalPages = data ? Math.max(1, Math.ceil(effectiveCount / (data.pageSize ?? 20))) : 1
 
   function clearFilters() {
     setSearchInput("")
@@ -119,11 +132,11 @@ export function CustomersListPage() {
   }
 
   async function exportCsv() {
-    if (!orgId || !data?.count) return
+    if (!orgId || !effectiveCount) return
     setIsExporting(true)
     try {
-      const pageSize = data.pageSize ?? 20
-      const pageCount = Math.max(1, Math.ceil(data.count / pageSize))
+      const pageSize = data?.pageSize ?? 20
+      const pageCount = Math.max(1, Math.ceil(effectiveCount / pageSize))
       const pages = await Promise.all(
         Array.from({ length: pageCount }, (_, i) => listCustomers(orgId, filters, i + 1))
       )
@@ -412,10 +425,10 @@ export function CustomersListPage() {
           />
         )}
 
-        {data && data.count > 0 ? (
+        {data && effectiveCount > 0 ? (
           <div className="flex items-center justify-between px-1 pt-1">
             <p className="text-xs text-text-muted">
-              {t("customers.pagination.pageInfo", { page, totalPages, count: data.count })}
+              {t("customers.pagination.pageInfo", { page, totalPages, count: effectiveCount })}
               {isFetching ? ` · ${t("common.loading")}` : ""}
             </p>
             <div className="flex gap-2">
