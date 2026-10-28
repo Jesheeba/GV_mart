@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { itemNameLookup } from "@/services/sales"
 import { pickHistoryVisit } from "@/services/techniciansAdmin"
+import { isUndefinedTableError } from "@/lib/supabaseErrors"
 import type { Enums, Tables } from "@/types/database"
 import type { FamilyRelation } from "@/lib/validation/customer"
 
@@ -272,6 +273,11 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
   return { rows: (data ?? []) as CustomerListItem[], count: ids ? ids.length : (count ?? 0), pageSize: PAGE_SIZE }
 }
 
+// Reverted to the original select list (reviewer feedback: do not touch customers' grants or
+// column privileges at all — health_condition never lived on customers in the applied design,
+// so there's nothing to carve out of "*" here). Deploy-order safety for the 4 new water
+// columns (20261108100000_customer_water_profile.sql) comes for free with "*" — a column that
+// doesn't exist yet simply isn't in the row, no error, nothing to special-case.
 export async function getCustomer(id: string) {
   const { data, error } = await supabase
     .from("customers")
@@ -289,7 +295,71 @@ export async function getCustomer(id: string) {
   // customer_members(*) is typed from the pre-`relation`-column generated
   // schema (see MemberRow comment) — the column IS in the actual row, just
   // not the generated type.
-  return { ...data, customer_members: data.customer_members as MemberRow[] }
+  return { ...data, customer_members: data.customer_members as MemberRow[], health_condition: await getCustomerHealthProfile(id) }
+}
+
+/**
+ * health_condition lives in its own table, customer_health_profile (not a customers column —
+ * reviewer feedback: no revoke/regrant of any kind on customers). Staff/the customer read it
+ * directly here, via customer_health_profile's own RLS (staff: is_staff(); the customer: their
+ * own row). A technician instead goes through get_customer_health_condition below, the only
+ * path that respects show_health_condition_to_technicians — that RPC is not called from here.
+ * Deploy-order safety (§2): the table may not exist yet (42P01) — degrade to null.
+ */
+export async function getCustomerHealthProfile(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.from("customer_health_profile").select("health_condition").eq("customer_id", customerId).maybeSingle()
+  if (error) {
+    if (isUndefinedTableError(error)) return null
+    throw error
+  }
+  return data?.health_condition ?? null
+}
+
+export async function upsertCustomerHealthCondition(customerId: string, orgId: string, healthCondition: Enums<"household_health_level">) {
+  const { error } = await supabase
+    .from("customer_health_profile")
+    .upsert({ customer_id: customerId, org_id: orgId, health_condition: healthCondition }, { onConflict: "customer_id" })
+  if (error) throw error
+}
+
+/**
+ * A technician's ONLY path to health_condition — SECURITY DEFINER, bypasses
+ * customer_health_profile's RLS/grants entirely; checks org, role (is_staff()/the customer's
+ * own id), and show_health_condition_to_technicians internally. Staff/customer reads go
+ * through getCustomerHealthProfile above instead; this is kept for services/technician.ts.
+ */
+export async function getCustomerHealthCondition(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
+  if (error) {
+    // Postgres "function does not exist" (42883) — deploy-order safety, same idea as the
+    // 42P01 table-not-found case above, just for a function instead of a table.
+    if ((error as { code?: string }).code === "42883") return null
+    throw error
+  }
+  return data ?? null
+}
+
+// health_condition is deliberately not accepted here — it lives in customer_health_profile
+// now, written via upsertCustomerHealthCondition above, not this customers update.
+export async function updateCustomerWaterProfile(
+  customerId: string,
+  patch: {
+    waterSource?: Enums<"water_source_type"> | null
+    waterSourceOther?: string | null
+    waterTdsPpm?: number | null
+    waterPh?: number | null
+  }
+) {
+  const { error } = await supabase
+    .from("customers")
+    .update({
+      water_source: patch.waterSource,
+      water_source_other: patch.waterSourceOther,
+      water_tds_ppm: patch.waterTdsPpm,
+      water_ph: patch.waterPh,
+    })
+    .eq("id", customerId)
+  if (error) throw error
 }
 
 /**

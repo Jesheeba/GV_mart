@@ -114,6 +114,7 @@
     "retry": "Retry",
     "search": "Search",
     "save": "Save",
+    "edit": "Edit",
     "cancel": "Cancel",
     "remove": "Remove",
     "back": "Back",
@@ -481,11 +482,32 @@
         "products": "Products",
         "service": "Service History",
         "invoices": "Invoices",
+        "water": "Water & Household",
         "family": "Family",
         "exemptions": "Exemptions",
         "rentals": "Rentals",
         "whatsapp": "WhatsApp"
       },
+      "waterHouseholdTitle": "Water & household",
+      "waterSource": "Water source",
+      "waterSourceOtherPlaceholder": "Describe the source",
+      "waterSourceOptions": {
+        "corporation": "Corporation",
+        "borewater": "Borewell",
+        "other": "Other"
+      },
+      "waterTds": "Water TDS (ppm)",
+      "waterPh": "Water pH",
+      "healthCondition": "Health condition",
+      "healthConditionPlaceholder": "Not asked yet",
+      "healthConditionLevels": {
+        "none": "No",
+        "normal": "Normal",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "familyMembersCount": "Family members",
+      "latestReadingTitle": "Latest on-site reading ({{date}})",
       "rentals": {
         "startDate": "Started {{date}}",
         "nextBilling": "Next billing {{date}}",
@@ -621,7 +643,10 @@
       "memberMax": "A customer can have at most 5 members",
       "doorNoRequired": "Door/Flat number is required",
       "areaRequired": "Area is required",
-      "pincodeInvalid": "Enter a valid 6-digit PIN code"
+      "pincodeInvalid": "Enter a valid 6-digit PIN code",
+      "waterPhInvalid": "pH must be between 0 and 14",
+      "waterTdsInvalid": "TDS cannot be negative",
+      "waterSourceOtherRequiresOther": "Only set this when the source is \"Other\""
     }
   },
   "masters": {
@@ -2328,6 +2353,7 @@
       "addressesTitle": "Addresses",
       "addAddress": "Add address",
       "noAddresses": "No addresses yet. Add one so we know where to send the technician.",
+      "waterHouseholdTitle": "Water & household",
       "primary": "Primary",
       "setPrimary": "Set primary",
       "confirm": "Confirm",
@@ -3042,6 +3068,12 @@
       "product": "Product",
       "brand": "Brand",
       "model": "Model",
+      "waterHouseholdTitle": "Water & household",
+      "waterSource": "Water source",
+      "waterTds": "Water TDS (ppm)",
+      "waterPh": "Water pH",
+      "healthCondition": "Health condition",
+      "familyMembersCount": "Family members",
       "complaintTitle": "Complaint",
       "raised": "Raised {{date}}",
       "costingRuleTitle": "Costing rule",

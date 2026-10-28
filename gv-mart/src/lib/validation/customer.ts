@@ -53,6 +53,65 @@ export const peopleStepSchema = z.object({
 // (which transforms relation), so useForm needs the input shape.
 export type PeopleStepInput = z.input<typeof peopleStepSchema>
 
+// Mirrors the public.water_source_type Postgres enum (reused from ro_checklists —
+// 20260915180000_ro_water_quality_readings.sql, not redefined for this feature).
+export const WATER_SOURCES = ["corporation", "borewater", "other"] as const
+export type WaterSource = (typeof WATER_SOURCES)[number]
+
+// Mirrors the public.household_health_level Postgres enum
+// (20261108100000_customer_water_profile.sql).
+export const HEALTH_CONDITION_LEVELS = ["none", "normal", "medium", "high"] as const
+export type HealthConditionLevel = (typeof HEALTH_CONDITION_LEVELS)[number]
+
+/**
+ * Who may edit the water/household profile fields (water source/TDS/pH + health_condition) —
+ * master, operation_admin and sales_admin, per FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md.
+ * Mirrors the DB's actual enforcement (guard_water_profile_edit_roles trigger for the water
+ * columns; is_staff() RLS for customer_health_profile) — this is only the UI-level gate
+ * (show/hide edit controls), the DB is still the real authority either way.
+ */
+export function canEditWaterHousehold(role: string | null | undefined): boolean {
+  return role === "master" || role === "operation_admin" || role === "sales_admin"
+}
+
+/**
+ * Whether a technician's job/history detail should even query/render the health_condition
+ * row — gated on the org's show_health_condition_to_technicians setting (default off/absent,
+ * fails closed). This is only the UI-level gate; get_customer_health_condition additionally
+ * checks the technician actually has an appointment with that customer, server-side.
+ */
+export function technicianCanSeeHealthCondition(showHealthConditionSetting: boolean | null | undefined): boolean {
+  return showHealthConditionSetting === true
+}
+
+/**
+ * Same "" vs undefined gotcha as memberSchema.relation above — a native <select> with a
+ * placeholder option submits "", not undefined.
+ */
+export const waterProfileSchema = z
+  .object({
+    waterSource: z
+      .union([z.enum(WATER_SOURCES), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    waterSourceOther: z.string().trim().max(100).optional().or(z.literal("")),
+    // DB check constraint mirrors this range (customers_water_ph_check); kept here too so the
+    // form shows an error immediately instead of round-tripping to the server first.
+    waterPh: z
+      .union([z.number().min(0, "customers.errors.waterPhInvalid").max(14, "customers.errors.waterPhInvalid"), z.nan()])
+      .optional(),
+    waterTdsPpm: z.union([z.number().min(0, "customers.errors.waterTdsInvalid"), z.nan()]).optional(),
+    healthCondition: z
+      .union([z.enum(HEALTH_CONDITION_LEVELS), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+  })
+  .refine((v) => !v.waterSourceOther || v.waterSource === "other", {
+    message: "customers.errors.waterSourceOtherRequiresOther",
+    path: ["waterSourceOther"],
+  })
+export type WaterProfileInput = z.input<typeof waterProfileSchema>
+
 export const addressStepSchema = z.object({
   // The whole address is optional — a contact can be saved without one and is
   // flagged needs_setup until an address is filled in. Pincode is only checked

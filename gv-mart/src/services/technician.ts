@@ -5,6 +5,7 @@ import { enqueue } from "@/lib/offline/outbox"
 import { distanceKm, expectedMinutes, type GeoPoint } from "@/lib/offline/geo"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { isTicketOverdue } from "@/lib/ticketOverdue"
+import { isUndefinedColumnError } from "@/lib/supabaseErrors"
 import type { DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Enums, Tables } from "@/types/database"
 import type { DateRange } from "./reports"
@@ -379,6 +380,13 @@ export type JobDetail = ServiceTicketRow & {
     id: string
     name: string
     mobile: string
+    // Water and household profile (20261108100000_customer_water_profile.sql) — read-only
+    // here (technicians have no write access). null both when genuinely unset and when the
+    // migration hasn't been applied yet (deploy-order safety, see getJobDetail below).
+    water_source: Enums<"water_source_type"> | null
+    water_source_other: string | null
+    water_tds_ppm: number | null
+    water_ph: number | null
     customer_members: {
       id: string
       name: string
@@ -439,15 +447,43 @@ export type JobDetail = ServiceTicketRow & {
   }[]
 }
 
+const JOB_DETAIL_CUSTOMER_COLUMNS_BASE = "id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
+const JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER = "id,name,mobile,water_source,water_source_other,water_tds_ppm,water_ph,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
+const JOB_DETAIL_REST =
+  "addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
+
+/**
+ * Sensitive (FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md §3.5) — routed through
+ * get_customer_health_condition rather than a raw column select (column-select-revoked on
+ * customers for everyone). The function itself only returns a value to a technician when the
+ * org's show_health_condition_to_technicians setting is on AND they have an appointment for
+ * that customer — both checked server-side, not trusted from this layer.
+ */
+export async function getCustomerHealthConditionForTechnician(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
+  if (error) {
+    if ((error as { code?: string }).code === "42883") return null // deploy-order safety (§6)
+    throw error
+  }
+  return data ?? null
+}
+
 export async function getJobDetail(ticketId: string): Promise<JobDetail> {
   if (navigator.onLine) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("service_tickets")
-      .select(
-        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
-      )
+      .select(`*, customers(${JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER}), ${JOB_DETAIL_REST}`)
       .eq("id", ticketId)
       .single()
+    if (error && isUndefinedColumnError(error)) {
+      // Deploy-order safety (§6): the water-profile columns migration hasn't landed on the
+      // customers table yet — fall back so the job-detail page still loads.
+      ;({ data, error } = await supabase
+        .from("service_tickets")
+        .select(`*, customers(${JOB_DETAIL_CUSTOMER_COLUMNS_BASE}), ${JOB_DETAIL_REST}`)
+        .eq("id", ticketId)
+        .single())
+    }
     if (!error && data) {
       const row = data as unknown as JobDetail
       await db.jobDetailCache.put({ ticketId, data: row, updatedAt: Date.now() })

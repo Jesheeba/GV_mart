@@ -203,6 +203,16 @@ export function useJobDetail(ticketId: string | undefined) {
   })
 }
 
+/** Only fetched when `enabled` (the show_health_condition_to_technicians setting) is true — see
+ *  JobDetailPage/HistoryDetailPage. */
+export function useCustomerHealthCondition(customerId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["jobDetail", "healthCondition", customerId],
+    queryFn: () => tech.getCustomerHealthConditionForTechnician(customerId!),
+    enabled: !!customerId && enabled,
+  })
+}
+
 /** Build Order A3: `productId` narrows history to the current ticket's product (see getCustomerHistory doc). */
 export function useCustomerHistory(customerId: string | undefined, productId?: string | null, excludeTicketId?: string) {
   return useQuery({

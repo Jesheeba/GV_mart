@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
-import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
+import { useCustomerHealthCondition, useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
 import { useProfile } from "@/hooks/useProfile"
 import { computeJobOverrun } from "@/lib/job-overrun"
+import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
 import { cn } from "@/lib/utils"
 import { computeTicketAllowedDuration, findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
@@ -38,6 +39,8 @@ export function JobDetailPage() {
   const history = useCustomerHistory(jobDetail.data?.customer_id, jobDetail.data?.product_id, ticketId)
   const technician = useMyTechnician()
   const logCall = useLogCall()
+  const showHealthCondition = technicianCanSeeHealthCondition(settings.data?.show_health_condition_to_technicians)
+  const healthCondition = useCustomerHealthCondition(jobDetail.data?.customers?.id, showHealthCondition)
 
   const openVisit = jobDetail.data ? findOpenVisit(jobDetail.data.service_visits) : null
   const now = useNowTick(!!openVisit)
@@ -197,6 +200,34 @@ export function JobDetailPage() {
           <span className="text-text">{ticket.brands?.name ?? "—"}</span>
           <span className="text-text-muted">{t("technician.jobDetail.model")}</span>
           <span className="text-text">{ticket.models?.name ?? "—"}</span>
+        </div>
+      </Card>
+
+      <Card className="gap-2">
+        <p className="px-1 text-sm font-semibold text-text">{t("technician.jobDetail.waterHouseholdTitle")}</p>
+        <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
+          <span className="text-text-muted">{t("technician.jobDetail.waterSource")}</span>
+          <span className="text-text">
+            {ticket.customers?.water_source
+              ? ticket.customers.water_source === "other" && ticket.customers.water_source_other
+                ? ticket.customers.water_source_other
+                : t(`customers.detail.waterSourceOptions.${ticket.customers.water_source}`)
+              : "—"}
+          </span>
+          <span className="text-text-muted">{t("technician.jobDetail.waterTds")}</span>
+          <span className="text-text">{ticket.customers?.water_tds_ppm ?? "—"}</span>
+          <span className="text-text-muted">{t("technician.jobDetail.waterPh")}</span>
+          <span className="text-text">{ticket.customers?.water_ph ?? "—"}</span>
+          <span className="text-text-muted">{t("technician.jobDetail.familyMembersCount")}</span>
+          <span className="text-text">{members.length}</span>
+          {showHealthCondition ? (
+            <>
+              <span className="text-text-muted">{t("technician.jobDetail.healthCondition")}</span>
+              <span className="text-text">
+                {healthCondition.data ? t(`customers.detail.healthConditionLevels.${healthCondition.data}`) : "—"}
+              </span>
+            </>
+          ) : null}
         </div>
       </Card>
 

@@ -523,6 +523,12 @@ export type Database = {
           // only when update_lead_status auto-creates this customer from a
           // won lead; staff clear it once address/family details are filled.
           needs_setup: boolean
+          // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
+          // is NOT here — it lives in its own table, customer_health_profile, below.
+          water_source: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other: string | null
+          water_tds_ppm: number | null
+          water_ph: number | null
           created_at: string
           updated_at: string
         }
@@ -539,6 +545,10 @@ export type Database = {
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
+          water_source?: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other?: string | null
+          water_tds_ppm?: number | null
+          water_ph?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -555,6 +565,10 @@ export type Database = {
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
+          water_source?: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other?: string | null
+          water_tds_ppm?: number | null
+          water_ph?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -571,6 +585,47 @@ export type Database = {
             columns: ["primary_profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      // 20261108100000_customer_water_profile.sql — health_condition's own table (not a
+      // customers column). No column-level grant games on customers at all.
+      customer_health_profile: {
+        Row: {
+          customer_id: string
+          org_id: string
+          health_condition: Database["public"]["Enums"]["household_health_level"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          customer_id: string
+          org_id: string
+          health_condition: Database["public"]["Enums"]["household_health_level"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          customer_id?: string
+          org_id?: string
+          health_condition?: Database["public"]["Enums"]["household_health_level"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_health_profile_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_health_profile_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -6316,6 +6371,9 @@ export type Database = {
       settings: {
         Row: {
           review_incentives_enabled: boolean
+          // 20261108100000_customer_water_profile.sql — gates whether a technician's job/
+          // history detail shows the customer's health_condition level. Default false.
+          show_health_condition_to_technicians: boolean
           id: string
           org_id: string
           per_km_minutes: number
@@ -6412,6 +6470,7 @@ export type Database = {
         }
         Insert: {
           review_incentives_enabled?: boolean
+          show_health_condition_to_technicians?: boolean
           id?: string
           org_id: string
           per_km_minutes?: number
@@ -6489,6 +6548,7 @@ export type Database = {
         }
         Update: {
           review_incentives_enabled?: boolean
+          show_health_condition_to_technicians?: boolean
           id?: string
           org_id?: string
           per_km_minutes?: number
@@ -7237,6 +7297,12 @@ export type Database = {
           p_org_id: string
         }
         Returns: Json
+      }
+      get_customer_health_condition: {
+        Args: {
+          p_customer_id: string
+        }
+        Returns: Database["public"]["Enums"]["household_health_level"] | null
       }
       link_customer_google_account: {
         Args: {
@@ -8092,6 +8158,7 @@ export type Database = {
       quotation_status: "open" | "converted" | "lost"
       invoice_type: "product" | "spare" | "amc" | "rent"
       water_source_type: "corporation" | "borewater" | "other"
+      household_health_level: "none" | "normal" | "medium" | "high"
       payment_method: "cash" | "transfer" | "upi"
       payment_status: "paid" | "partial" | "due"
       ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"

@@ -7,7 +7,9 @@ import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { JobTypeBadge, PriorityBadge } from "./components/JobBadges"
 import { PhotoCapture } from "./components/PhotoCapture"
-import { useJobDetail, useMyTechnician, useQueueGoogleReviewLog } from "@/hooks/useTechnician"
+import { useCustomerHealthCondition, useJobDetail, useMyTechnician, useQueueGoogleReviewLog, useTechnicianSettings } from "@/hooks/useTechnician"
+import { useProfile } from "@/hooks/useProfile"
+import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
 import { formatCurrency } from "@/lib/sale-calc"
 import { minutesBetween } from "@/lib/visit-duration"
 
@@ -103,8 +105,12 @@ export function HistoryDetailPage() {
   const location = useLocation()
   const ticketId = (location.state as { ticketId?: string } | null)?.ticketId
 
+  const { data: profile } = useProfile()
   const jobDetail = useJobDetail(ticketId)
   const technician = useMyTechnician()
+  const settings = useTechnicianSettings(profile?.org_id)
+  const showHealthCondition = technicianCanSeeHealthCondition(settings.data?.show_health_condition_to_technicians)
+  const healthCondition = useCustomerHealthCondition(jobDetail.data?.customers?.id, showHealthCondition)
 
   if (!ticketId) {
     return (
@@ -152,6 +158,34 @@ export function HistoryDetailPage() {
           <span className="text-text">{ticket.products?.name ?? "—"}</span>
           <span className="text-text-muted">{t("technician.jobDetail.brand")}</span>
           <span className="text-text">{ticket.brands?.name ?? "—"}</span>
+        </div>
+      </Card>
+
+      <Card className="gap-2">
+        <p className="px-1 text-sm font-semibold text-text">{t("technician.jobDetail.waterHouseholdTitle")}</p>
+        <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
+          <span className="text-text-muted">{t("technician.jobDetail.waterSource")}</span>
+          <span className="text-text">
+            {ticket.customers?.water_source
+              ? ticket.customers.water_source === "other" && ticket.customers.water_source_other
+                ? ticket.customers.water_source_other
+                : t(`customers.detail.waterSourceOptions.${ticket.customers.water_source}`)
+              : "—"}
+          </span>
+          <span className="text-text-muted">{t("technician.jobDetail.waterTds")}</span>
+          <span className="text-text">{ticket.customers?.water_tds_ppm ?? "—"}</span>
+          <span className="text-text-muted">{t("technician.jobDetail.waterPh")}</span>
+          <span className="text-text">{ticket.customers?.water_ph ?? "—"}</span>
+          <span className="text-text-muted">{t("technician.jobDetail.familyMembersCount")}</span>
+          <span className="text-text">{ticket.customers?.customer_members.length ?? 0}</span>
+          {showHealthCondition ? (
+            <>
+              <span className="text-text-muted">{t("technician.jobDetail.healthCondition")}</span>
+              <span className="text-text">
+                {healthCondition.data ? t(`customers.detail.healthConditionLevels.${healthCondition.data}`) : "—"}
+              </span>
+            </>
+          ) : null}
         </div>
       </Card>
 

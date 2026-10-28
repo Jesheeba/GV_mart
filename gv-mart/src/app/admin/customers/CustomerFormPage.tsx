@@ -17,11 +17,13 @@ import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
+import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import {
   addressStepSchema,
   peopleStepSchema,
   canSkipAddressPin,
   FAMILY_RELATIONS,
+  canEditWaterHousehold,
   type AddressStepInput,
   type PeopleStepInput,
 } from "@/lib/validation/customer"
@@ -502,7 +504,22 @@ export function CustomerFormPage() {
               />
             </div>
           ) : (
-            <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
+            <>
+              <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
+              <div className="border-t border-border pt-4">
+                <WaterHouseholdPanel
+                  customerId={id!}
+                  orgId={orgId}
+                  waterSource={existing.data!.water_source}
+                  waterSourceOther={existing.data!.water_source_other}
+                  waterTdsPpm={existing.data!.water_tds_ppm}
+                  waterPh={existing.data!.water_ph}
+                  healthCondition={existing.data!.health_condition}
+                  familyMemberCount={existing.data!.customer_members.length}
+                  canEdit={canEditWaterHousehold(profile?.role)}
+                />
+              </div>
+            </>
           )}
         </Card>
       ) : (

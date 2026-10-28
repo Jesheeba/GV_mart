@@ -114,6 +114,7 @@
     "retry": "மீண்டும் முயற்சிக்கவும்",
     "search": "தேடு",
     "save": "சேமி",
+    "edit": "திருத்து",
     "cancel": "ரத்துசெய்",
     "remove": "அகற்று",
     "back": "பின்",
@@ -481,11 +482,32 @@
         "products": "பொருட்கள்",
         "service": "சேவை வரலாறு",
         "invoices": "இன்வாய்ஸ்கள்",
+        "water": "நீர் & வீட்டு விவரம்",
         "family": "குடும்பம்",
         "exemptions": "விலக்குகள்",
         "rentals": "வாடகைகள்",
         "whatsapp": "வாட்ஸ்அப்"
       },
+      "waterHouseholdTitle": "நீர் & வீட்டு விவரம்",
+      "waterSource": "நீர் மூலம்",
+      "waterSourceOtherPlaceholder": "மூலத்தை விவரிக்கவும்",
+      "waterSourceOptions": {
+        "corporation": "கார்ப்பரேஷன்",
+        "borewater": "பாறைக் கிணறு",
+        "other": "மற்றவை"
+      },
+      "waterTds": "நீர் TDS (ppm)",
+      "waterPh": "நீர் pH",
+      "healthCondition": "உடல்நலம்",
+      "healthConditionPlaceholder": "இன்னும் கேட்கப்படவில்லை",
+      "healthConditionLevels": {
+        "none": "இல்லை",
+        "normal": "சாதாரணம்",
+        "medium": "நடுத்தரம்",
+        "high": "அதிகம்"
+      },
+      "familyMembersCount": "குடும்ப உறுப்பினர்கள்",
+      "latestReadingTitle": "சமீபத்திய பரிசோதனை ({{date}})",
       "rentals": {
         "startDate": "{{date}} அன்று தொடங்கியது",
         "nextBilling": "அடுத்த பில்லிங் {{date}}",
@@ -621,7 +643,10 @@
       "memberMax": "ஒரு வாடிக்கையாளருக்கு அதிகபட்சம் 5 உறுப்பினர்கள் மட்டுமே",
       "doorNoRequired": "கதவு/ஃபிளாட் எண் தேவை",
       "areaRequired": "பகுதி தேவை",
-      "pincodeInvalid": "சரியான 6-இலக்க பின் கோடை உள்ளிடவும்"
+      "pincodeInvalid": "சரியான 6-இலக்க பின் கோடை உள்ளிடவும்",
+      "waterPhInvalid": "pH 0 முதல் 14 வரை இருக்க வேண்டும்",
+      "waterTdsInvalid": "TDS எதிர்மறையாக இருக்க முடியாது",
+      "waterSourceOtherRequiresOther": "மூலம் \"மற்றவை\" என இருக்கும்போது மட்டும் இதை அமைக்கவும்"
     }
   },
   "masters": {
@@ -2328,6 +2353,7 @@
       "addressesTitle": "முகவரிகள்",
       "addAddress": "முகவரியைச் சேர்",
       "noAddresses": "இன்னும் முகவரிகள் இல்லை. தொழில்நுட்பரை எங்கு அனுப்புவது என அறிய ஒன்றைச் சேர்க்கவும்.",
+      "waterHouseholdTitle": "நீர் & வீட்டு விவரம்",
       "primary": "முதன்மை",
       "setPrimary": "முதன்மையாக அமை",
       "confirm": "உறுதிப்படுத்து",
@@ -3040,6 +3066,12 @@
       "product": "பொருள்",
       "brand": "பிராண்ட்",
       "model": "மாடல்",
+      "waterHouseholdTitle": "நீர் & வீட்டு விவரம்",
+      "waterSource": "நீர் மூலம்",
+      "waterTds": "நீர் TDS (ppm)",
+      "waterPh": "நீர் pH",
+      "healthCondition": "உடல்நலம்",
+      "familyMembersCount": "குடும்ப உறுப்பினர்கள்",
       "complaintTitle": "புகார்",
       "raised": "பதிவு செய்யப்பட்டது {{date}}",
       "costingRuleTitle": "விலை நிர்ணய விதி",
