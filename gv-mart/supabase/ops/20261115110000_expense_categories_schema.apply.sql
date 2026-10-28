@@ -35,7 +35,7 @@ declare
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
   v_org_fingerprint_before   text;
   v_org_fingerprint_after    text;
-  v_expected_migration_hash  text := 'd13b526f1c143ae7e4514f8ed2fc32f2c3056d365ccf7a7ee3c879b04a5a9104';
+  v_expected_migration_hash  text := 'f46ebed9599a94e20efede122484645fd0d0e077f19c533a77cb30c5d8ba6fe1';
   v_actual_migration_hash    text;
   v_migration_version        text := '20261115110000';
   v_already_registered       boolean;
@@ -103,8 +103,10 @@ begin
     new.name is distinct from old.name
     or new.is_active is distinct from old.is_active
     or new.is_system is distinct from old.is_system
+    or new.enum_value is distinct from old.enum_value
+    or new.org_id is distinct from old.org_id
   ) then
-    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, or have its system flag changed';
+    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, moved to another organisation, or have its system flag or enum mapping changed';
   end if;
   return new;
 end;

@@ -58,8 +58,10 @@ begin
     new.name is distinct from old.name
     or new.is_active is distinct from old.is_active
     or new.is_system is distinct from old.is_system
+    or new.enum_value is distinct from old.enum_value
+    or new.org_id is distinct from old.org_id
   ) then
-    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, or have its system flag changed';
+    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, moved to another organisation, or have its system flag or enum mapping changed';
   end if;
   return new;
 end;

@@ -15,7 +15,7 @@
 --   fb3392259e43c103d720a8b59faaf49d63e271f6a48b5b27b96a39217a379e11  Feature B migration 3/5: 20261115100200_customer_outstanding_report.sql
 --   cff1fb33c32550521ed261c8de26bc270c83e4119535f8fdbb6d3eb251e65f50  Feature B migration 4/5: 20261115100300_customer_outstanding_rpcs.sql
 --   c791fdc658476f22908a3f213bdcc6584e481de6c910d47cfb1dc67cacef0678  Feature B migration 5/5: 20261115100400_tasks_customer_outstanding_guard.sql
---   d13b526f1c143ae7e4514f8ed2fc32f2c3056d365ccf7a7ee3c879b04a5a9104  Feature A migration 1/2: 20261115110000_expense_categories_schema.sql
+--   f46ebed9599a94e20efede122484645fd0d0e077f19c533a77cb30c5d8ba6fe1  Feature A migration 1/2: 20261115110000_expense_categories_schema.sql
 --   c7c523fc9afb8cf384aa15f331ef232fb5518745032cab90acf869eb8d827a5a  Feature A migration 2/2: 20261115110100_expense_categories_rpcs.sql
 --   6fa5ec5ade2bd6a138ee248970a6d31fe217daf7373ae31681c2a8f0755d07e9  combined test file: accounts_followup_combined.test.sql
 
@@ -646,8 +646,10 @@ begin
     new.name is distinct from old.name
     or new.is_active is distinct from old.is_active
     or new.is_system is distinct from old.is_system
+    or new.enum_value is distinct from old.enum_value
+    or new.org_id is distinct from old.org_id
   ) then
-    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, or have its system flag changed';
+    raise exception 'expense_categories: a system category cannot be renamed, deactivated, deleted, moved to another organisation, or have its system flag or enum mapping changed';
   end if;
   return new;
 end;
@@ -718,7 +720,7 @@ update public.expenses e
   where e.category_id is null;
 $m6tag$;
   v_hash := encode(sha256(convert_to(replace(v_text, E'', ''), 'UTF8')), 'hex');
-  if v_hash <> 'd13b526f1c143ae7e4514f8ed2fc32f2c3056d365ccf7a7ee3c879b04a5a9104' then
+  if v_hash <> 'f46ebed9599a94e20efede122484645fd0d0e077f19c533a77cb30c5d8ba6fe1' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for Feature A migration 1/2: %', v_hash;
   end if;
   execute v_text;
