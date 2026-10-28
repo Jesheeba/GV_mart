@@ -53,8 +53,8 @@ begin
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
   end if;
 
-  if v_ist < time '18:00' then
-    raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 18:00 IST', to_char(v_ist, 'HH24:MI:SS');
+  if v_ist < time '11:00' then
+    raise exception 'REHEARSAL_REFUSED: the clock reads % IST, before 11:00 IST', to_char(v_ist, 'HH24:MI:SS');
   end if;
 
   -- gv_fingerprint() is plpgsql here (not plain sql) and guards the task_logs count behind to_regclass, because this wrapper's
