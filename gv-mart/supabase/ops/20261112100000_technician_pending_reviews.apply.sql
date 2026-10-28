@@ -3,7 +3,7 @@
 -- feat/technician-pending-reviews.
 --
 -- WRITTEN ONLY -- never executed against any database by the agent that produced this file (standing hard
--- rule: no DB access of any kind). The owner runs this by hand, after 18:00 IST, once satisfied the
+-- rule: no DB access of any kind). The owner runs this by hand, after 11:00 IST, once satisfied the
 -- sha256-pinned migration text embedded below is byte-for-byte the reviewed migration file (sha256
 -- 55b33aaf1d276984e3873b46a8e413393b87dbe3c094ddef67483d07a8c408a3).
 --
@@ -27,8 +27,8 @@
 --   0. ORG CHECK   -- md5(id||'|'||name) of the oldest real (non __TEST_) organisation must equal the
 --      pinned fingerprint. Refuses immediately if this looks like the wrong database.
 --   1. LOCK        -- lock_timeout = 5s for this transaction only.
---   2. GATE        -- refuses before 18:00 IST (same convention, and the same hour, as the rehearsal --
---      NOT 11:00).
+--   2. GATE        -- refuses before 11:00 IST (same convention, and now the same hour, as the
+--      rehearsals).
 --   3. ALREADY-REGISTERED CHECK -- if supabase_migrations.schema_migrations already has a row for version
 --      20261112100000, refuse immediately. Re-running this script after a successful apply is always a
 --      safe no-op refusal, never a double-apply.
@@ -198,10 +198,10 @@ begin
   -- 1. LOCK: scoped to this transaction only.
   perform set_config('lock_timeout', '5s', true);
 
-  -- 2. GATE -- 18:00 IST, same as the rehearsal.
+  -- 2. GATE -- 11:00 IST, same as the rehearsal.
   v_ist_hour := extract(hour from (now() at time zone 'Asia/Kolkata'))::int;
-  if v_ist_hour < 18 then
-    raise exception 'APPLY_REFUSED: this script only runs after 18:00 IST (current IST hour=%)', v_ist_hour;
+  if v_ist_hour < 11 then
+    raise exception 'APPLY_REFUSED: this script only runs after 11:00 IST (current IST hour=%)', v_ist_hour;
   end if;
 
   -- 3. ALREADY-REGISTERED CHECK
