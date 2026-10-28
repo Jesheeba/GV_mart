@@ -53,6 +53,8 @@ select
     where t.tgrelid = 'public.tasks'::regclass and t.tgname = 'aa_guard_task_completion' and not t.tgisinternal
       and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 4 and (t.tgtype & 16) = 16
   ) as trigger_exists_before_insert_or_update,
-  has_function_privilege('authenticated', 'public.guard_task_completion()', 'execute') as guard_executable_by_authenticated,
-  has_function_privilege('anon', 'public.guard_task_completion()', 'execute') as guard_executable_by_anon,
+  case when to_regprocedure('public.guard_task_completion()') is null then null
+       else has_function_privilege('authenticated', 'public.guard_task_completion()', 'execute') end as guard_executable_by_authenticated,
+  case when to_regprocedure('public.guard_task_completion()') is null then null
+       else has_function_privilege('anon', 'public.guard_task_completion()', 'execute') end as guard_executable_by_anon,
   has_function_privilege('anon', 'public._po_task_completed_marks_paid()', 'execute') as po_marks_paid_executable_by_anon;
