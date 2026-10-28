@@ -426,6 +426,17 @@ end;
 $$;
 $OCSH_TEXT$;
 
+  -- Strip the single leading newline that Postgres's dollar-quoting includes whenever the
+  -- opening tag ($MIG_TEXT$/$TEST_TEXT$/$OCSH_TEXT$) is on its own line and the embedded text
+  -- starts on the next line (true for all three blocks above). Each pin below is computed
+  -- against the clean, on-disk file (no leading newline) -- without this strip every sha256
+  -- check fails live. This rehearsal wrapper had never actually been run against a live DB
+  -- before; found during this release's Phase 1 rehearsal. Only ever strips exactly one
+  -- leading '\n', never more.
+  v_migration_text := regexp_replace(v_migration_text, '^\n', '');
+  v_test_text := regexp_replace(v_test_text, '^\n', '');
+  v_orig_csh_pgtemp := regexp_replace(v_orig_csh_pgtemp, '^\n', '');
+
   -- ── 4. sha256 pins on the embedded files ────────────────────────────────────────────────
   -- CR-tolerance: hashed and executed via replace(..., E'\r', '') so a CRLF-saved copy of this
   -- same file still hashes and executes identically to the LF original. The pinned sha256
