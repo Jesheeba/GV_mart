@@ -36,6 +36,7 @@
     "report_expenses_year_over_year": "expenses ledger; no customer-linked data",
     "_report_ist_start": "date helper",
     "_report_org": "org helper",
-    "_org_active_master_count": "counts active master profiles (last-master guard); no customer-linked data"
+    "_org_active_master_count": "counts active master profiles (last-master guard); no customer-linked data",
+    "report_spare_handover_discrepancy": "records a technician's disputed hand-over quantity and notifies staff; no customer-linked data at all"
   }
 }

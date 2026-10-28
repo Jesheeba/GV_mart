@@ -80,6 +80,7 @@ const SpareHandoverPage = lazyPage(() => import("@/app/technician/SpareHandoverP
 const SpareHandoverHistoryPage = lazyPage(() => import("@/app/technician/SpareHandoverHistoryPage"), "SpareHandoverHistoryPage")
 const TechnicianExpensesPage = lazyPage(() => import("@/app/technician/ExpensesPage"), "ExpensesPage")
 const TechnicianExpensesHistoryPage = lazyPage(() => import("@/app/technician/ExpensesHistoryPage"), "ExpensesHistoryPage")
+const MySparesPage = lazyPage(() => import("@/app/technician/MySparesPage"), "MySparesPage")
 const JobDetailPage = lazyPage(() => import("@/app/technician/JobDetailPage"), "JobDetailPage")
 const JobRoutePage = lazyPage(() => import("@/app/technician/JobRoutePage"), "JobRoutePage")
 const OnSiteVisitPage = lazyPage(() => import("@/app/technician/onsite/OnSiteVisitPage"), "OnSiteVisitPage")
@@ -259,6 +260,7 @@ export const router = createBrowserRouter([
               { path: "spares/history", element: <SpareHandoverHistoryPage /> },
               { path: "expenses", element: <TechnicianExpensesPage /> },
               { path: "expenses/history", element: <TechnicianExpensesHistoryPage /> },
+              { path: "spares/mine", element: <MySparesPage /> },
               { path: "search", element: <SearchPage /> },
               { path: "jobs/:ticketId", element: <JobDetailPage /> },
               { path: "jobs/:ticketId/route", element: <JobRoutePage /> },

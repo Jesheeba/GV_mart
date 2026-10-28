@@ -2961,7 +2961,28 @@
       "confirmedTitle": "Handover confirmed",
       "techSignTitle": "Your signature",
       "confirmButton": "Confirm received",
-      "history": "Past handovers"
+      "history": "Past handovers",
+      "myStock": "My spares",
+      "reportProblem": "Report a quantity problem",
+      "reportProblemTitle": "Report a quantity problem — {{name}}",
+      "givenQtyLabel": "Handed over: {{qty}}",
+      "receivedQtyLabel": "Quantity you actually received",
+      "noteLabel": "Note (optional)",
+      "reportSubmit": "Flag for staff",
+      "reportCancel": "Cancel",
+      "reportSuccess": "Staff has been notified of the mismatch.",
+      "reportFailed": "Could not report the problem. Try again.",
+      "receivedQtyRequired": "Enter the quantity you actually received.",
+      "receivedQtyMatches": "That matches the quantity given — nothing to report.",
+      "disputedBadge": "Flagged",
+      "disputedNote": "You reported receiving {{received}} (handed over: {{given}})."
+    },
+    "myStock": {
+      "title": "My Spares",
+      "subtitle": "Spares currently in your van, from every confirmed hand-over",
+      "qty": "Qty: {{qty}}",
+      "empty": "You have no spares in hand right now.",
+      "loadFailed": "Could not load your spares."
     },
     "expenses": {
       "title": "Expenses",
@@ -4335,7 +4356,15 @@
       "logKindHandover": "Handover",
       "logKindReturn": "Return",
       "print": "Print",
-      "printTitle": "Spare Handover Receipt"
+      "printTitle": "Spare Handover Receipt",
+      "givenBy": "Given By",
+      "disputedBadge": "Technician flagged a quantity mismatch",
+      "ledgerTitle": "Technician Ledger",
+      "ledgerSubtitle": "Handed over, used, returned and current balance, per technician and spare",
+      "ledgerHandedOver": "Handed Over",
+      "ledgerUsed": "Used",
+      "ledgerReturned": "Returned",
+      "ledgerBalance": "Balance"
     }
   },
   "expenses": {

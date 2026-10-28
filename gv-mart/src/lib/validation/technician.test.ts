@@ -6,6 +6,7 @@ import {
   ratingSchema,
   roChecklistSchema,
   servicePaymentSchema,
+  spareHandoverDiscrepancySchema,
 } from "./technician"
 
 describe("isDiscountBlocked", () => {
@@ -234,5 +235,42 @@ describe("ratingSchema", () => {
   it("rejects stars below 1 or above 5", () => {
     expect(ratingSchema.safeParse({ stars: 0 }).success).toBe(false)
     expect(ratingSchema.safeParse({ stars: 6 }).success).toBe(false)
+  })
+})
+
+// Requirement 2 (dispute flagging, 2026-11-14 gap fix).
+describe("spareHandoverDiscrepancySchema", () => {
+  it("accepts a received quantity lower than the given quantity", () => {
+    const result = spareHandoverDiscrepancySchema(5).safeParse({ receivedQty: "3", note: "short by 2" })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.receivedQty).toBe(3)
+  })
+
+  it("accepts a received quantity higher than the given quantity", () => {
+    expect(spareHandoverDiscrepancySchema(5).safeParse({ receivedQty: "7" }).success).toBe(true)
+  })
+
+  it("rejects a received quantity equal to the given quantity (nothing to report)", () => {
+    const result = spareHandoverDiscrepancySchema(5).safeParse({ receivedQty: "5" })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error.issues[0]?.message).toBe("technician.spareHandover.receivedQtyMatches")
+  })
+
+  it("rejects a negative received quantity", () => {
+    expect(spareHandoverDiscrepancySchema(5).safeParse({ receivedQty: "-1" }).success).toBe(false)
+  })
+
+  it("rejects a missing received quantity", () => {
+    expect(spareHandoverDiscrepancySchema(5).safeParse({}).success).toBe(false)
+  })
+
+  it("accepts a zero received quantity (received none at all) as a valid dispute", () => {
+    const result = spareHandoverDiscrepancySchema(5).safeParse({ receivedQty: "0" })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.receivedQty).toBe(0)
+  })
+
+  it("the note is optional", () => {
+    expect(spareHandoverDiscrepancySchema(5).safeParse({ receivedQty: "3" }).success).toBe(true)
   })
 })

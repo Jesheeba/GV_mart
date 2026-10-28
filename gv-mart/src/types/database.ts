@@ -4993,6 +4993,7 @@ export type Database = {
           admin_sign_url: string | null
           tech_sign_url: string | null
           status: string
+          given_by: string | null
           created_at: string
           updated_at: string
         }
@@ -5004,6 +5005,7 @@ export type Database = {
           admin_sign_url?: string | null
           tech_sign_url?: string | null
           status?: string
+          given_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5015,6 +5017,7 @@ export type Database = {
           admin_sign_url?: string | null
           tech_sign_url?: string | null
           status?: string
+          given_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5033,6 +5036,13 @@ export type Database = {
             referencedRelation: "technicians"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "spare_handovers_given_by_fkey"
+            columns: ["given_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       spare_handover_items: {
@@ -5043,6 +5053,8 @@ export type Database = {
           spare_id: string
           qty_given: number
           qty_returned: number
+          received_qty: number | null
+          dispute_note: string | null
           created_at: string
           updated_at: string
         }
@@ -5053,6 +5065,8 @@ export type Database = {
           spare_id: string
           qty_given?: number
           qty_returned?: number
+          received_qty?: number | null
+          dispute_note?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5063,6 +5077,8 @@ export type Database = {
           spare_id?: string
           qty_given?: number
           qty_returned?: number
+          received_qty?: number | null
+          dispute_note?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -7275,6 +7291,22 @@ export type Database = {
         }
         Relationships: []
       }
+      technician_spare_ledger: {
+        Row: {
+          org_id: string
+          technician_id: string
+          profile_id: string | null
+          technician_name: string | null
+          spare_id: string
+          spare_name: string | null
+          spare_sku: string | null
+          qty_handed_over: number
+          qty_used: number
+          qty_returned: number
+          balance: number
+        }
+        Relationships: []
+      }
     }
     Functions: {
       set_customer_preferred_language: {
@@ -8128,6 +8160,10 @@ export type Database = {
       create_spare_handover: {
         Args: { p_org_id: string; p_technician_id: string; p_date: string; p_items: Json }
         Returns: string
+      }
+      report_spare_handover_discrepancy: {
+        Args: { p_org_id: string; p_item_id: string; p_received_qty: number; p_note: string | null }
+        Returns: undefined
       }
       admin_sign_spare_handover: {
         Args: { p_handover_id: string; p_admin_sign_url: string }

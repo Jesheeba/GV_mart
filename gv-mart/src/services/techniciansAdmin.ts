@@ -825,13 +825,19 @@ export async function listAttendanceForDate(orgId: string, date: string): Promis
 
 export type SpareHandoverListItem = SpareHandoverRow & {
   technicians: { id: string; profiles: { full_name: string } | null } | null
+  // Requirement 2 (2026-11-14 gap fix) — "who gave it." Aliased to disambiguate from the
+  // RECEIVING technician's own profiles(full_name) embed above: both are FKs into
+  // `profiles`, so PostgREST needs the explicit FK name to pick the right one.
+  given_by_profile: { full_name: string } | null
   spare_handover_items: (SpareHandoverItemRow & { spares: { name: string; sku: string | null } | null })[]
 }
 
 export async function listSpareHandovers(orgId: string): Promise<SpareHandoverListItem[]> {
   const { data, error } = await supabase
     .from("spare_handovers")
-    .select("*, technicians(id, profiles(full_name)), spare_handover_items(*, spares(name, sku))")
+    .select(
+      "*, technicians(id, profiles(full_name)), given_by_profile:profiles!spare_handovers_given_by_fkey(full_name), spare_handover_items(*, spares(name, sku))"
+    )
     .eq("org_id", orgId)
     .order("date", { ascending: false })
     .limit(100)
@@ -1000,8 +1006,8 @@ export async function createSpareReturn(input: CreateSpareReturnInput) {
  * new RPC/view: both lists are already capped at 100 most-recent rows and
  * already fetched for their own tabs, so there's no extra round-trip. */
 export type StockLogEntry =
-  | { kind: "handover"; id: string; date: string; technicianName: string; items: { name: string; qty: number }[] }
-  | { kind: "return"; id: string; date: string; technicianName: string; items: { name: string; qty: number }[] }
+  | { kind: "handover"; id: string; date: string; technicianName: string; givenByName: string | null; disputed: boolean; items: { name: string; qty: number }[] }
+  | { kind: "return"; id: string; date: string; technicianName: string; givenByName: null; disputed: false; items: { name: string; qty: number }[] }
 
 export function buildStockLog(handovers: SpareHandoverListItem[], returns: SpareReturnListItem[]): StockLogEntry[] {
   const handoverEntries: StockLogEntry[] = handovers.map((h) => ({
@@ -1009,6 +1015,10 @@ export function buildStockLog(handovers: SpareHandoverListItem[], returns: Spare
     id: h.id,
     date: h.date,
     technicianName: h.technicians?.profiles?.full_name ?? "—",
+    // Requirement 2 (2026-11-14 gap fix): who gave it, and whether the technician flagged
+    // any line's received quantity as different from what this row says was given.
+    givenByName: h.given_by_profile?.full_name ?? null,
+    disputed: h.spare_handover_items.some((i) => i.received_qty != null),
     items: h.spare_handover_items.map((i) => ({ name: i.spares?.name ?? "?", qty: i.qty_given })),
   }))
   const returnEntries: StockLogEntry[] = returns.map((r) => ({
@@ -1016,9 +1026,42 @@ export function buildStockLog(handovers: SpareHandoverListItem[], returns: Spare
     id: r.id,
     date: r.date,
     technicianName: r.technicians?.profiles?.full_name ?? "—",
+    givenByName: null,
+    disputed: false,
     items: r.spare_return_items.map((i) => ({ name: i.spares?.name ?? "?", qty: i.qty_returned })),
   }))
   return [...handoverEntries, ...returnEntries].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+}
+
+// ── Requirement 7 (2026-11-14 gap fix): full per-technician ledger ─────────────────────────
+// technician_spare_ledger (new VIEW, 20261114100000_spare_handover_completion_gaps.sql) adds
+// the "used" figure the Log table above never had — handed-over and returned were already
+// visible in some form, used never was. security_invoker + no RLS of its own: visibility is
+// entirely inherited from inventory_movements' staff-only policy, so this is naturally
+// staff-only without any extra filtering here.
+export type TechnicianSpareLedgerRow = {
+  org_id: string
+  technician_id: string
+  profile_id: string | null
+  technician_name: string | null
+  spare_id: string
+  spare_name: string | null
+  spare_sku: string | null
+  qty_handed_over: number
+  qty_used: number
+  qty_returned: number
+  balance: number
+}
+
+export async function listTechnicianSpareLedger(orgId: string): Promise<TechnicianSpareLedgerRow[]> {
+  const { data, error } = await supabase
+    .from("technician_spare_ledger")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("technician_name")
+    .order("spare_name")
+  if (error) throw error
+  return data ?? []
 }
 
 // ── Phase 1 assignment-engine data: technician_availability ───────────────
