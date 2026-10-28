@@ -73,7 +73,7 @@ begin
   select count(*) into n from notifications where org_id = v_org and user_id = v_ops and type = 'huddle_solution_given' and ref_id = v_issue;
   perform pg_temp.chk('operation_admin is notified when a solution is given', n = 1, n::text);
   perform pg_temp.as_user(v_sales);
-  s := pg_temp.raises(format($q$update meeting_issues set status = 'solved' where id = %L$q$, v_issue));
+  s := pg_temp.raises(format($q$update meeting_issues set status = 'solved', date_solved = current_date where id = %L$q$, v_issue));
   perform pg_temp.as_pg();
   perform pg_temp.chk('the update itself succeeds', s is null, coalesce(s, 'ok'));
   select count(*) into n from notifications where org_id = v_org and user_id = v_ops and type = 'huddle_issue_solved' and ref_id = v_issue;

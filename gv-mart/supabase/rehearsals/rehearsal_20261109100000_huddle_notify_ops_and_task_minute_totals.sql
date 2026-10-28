@@ -13,7 +13,7 @@
 --   17538d3073a53eb23ed65ee4f2e333f7f1aeb64a35a6b854920c63a5c704067e  gv-mart/supabase/migrations/20261102100000_p2_staff_profile_and_huddle.sql (P2, chained)
 --   99990dde17cceb8485d5adc12bc4776906557a615341a4c0dbd04bf65238d6d5  gv-mart/supabase/migrations/20261103100000_task_logs_and_visibility.sql (P3, chained)
 --   37d499edf565f3c140341888956c8341d45e73900b62b0a12a04baa7a9fed678  gv-mart/supabase/migrations/20261109100000_huddle_notify_ops_and_task_minute_totals.sql
---   21a2b92549424730f1fdb60449117dffae8f8575791e1c5ffac7e3812814aafa  gv-mart/supabase/tests/huddle_notify_ops_and_task_minute_totals.test.sql
+--   845b8d7108682440a292f7c2fd0c982cb86caf9e76899dfd53ca56250785702e  gv-mart/supabase/tests/huddle_notify_ops_and_task_minute_totals.test.sql
 -- Pre-check: the live public._trg_meeting_issue_notify() must equal what P2's migration (20261102100000) defined, before this
 -- migration redefines it. The wrapper re-creates the pinned snippet inside a sub-block, takes md5(pg_get_functiondef()) of it,
 -- rolls the sub-block back, and refuses if it differs from the live md5.
@@ -904,7 +904,7 @@ begin
   select count(*) into n from notifications where org_id = v_org and user_id = v_ops and type = 'huddle_solution_given' and ref_id = v_issue;
   perform pg_temp.chk('operation_admin is notified when a solution is given', n = 1, n::text);
   perform pg_temp.as_user(v_sales);
-  s := pg_temp.raises(format($q$update meeting_issues set status = 'solved' where id = %L$q$, v_issue));
+  s := pg_temp.raises(format($q$update meeting_issues set status = 'solved', date_solved = current_date where id = %L$q$, v_issue));
   perform pg_temp.as_pg();
   perform pg_temp.chk('the update itself succeeds', s is null, coalesce(s, 'ok'));
   select count(*) into n from notifications where org_id = v_org and user_id = v_ops and type = 'huddle_issue_solved' and ref_id = v_issue;
@@ -953,7 +953,7 @@ begin
 end $t$;
 $rh1$;
   v_hash := encode(sha256(convert_to(replace(v_text, E'\r', ''), 'UTF8')), 'hex');
-  if v_hash <> '21a2b92549424730f1fdb60449117dffae8f8575791e1c5ffac7e3812814aafa' then
+  if v_hash <> '845b8d7108682440a292f7c2fd0c982cb86caf9e76899dfd53ca56250785702e' then
     raise exception 'REHEARSAL_REFUSED: hash mismatch for huddle_notify_ops_and_task_minute_totals.test.sql: %', v_hash;
   end if;
   execute replace(v_text, E'\r', '');
