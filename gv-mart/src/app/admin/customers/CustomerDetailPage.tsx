@@ -359,6 +359,13 @@ export function CustomerDetailPage() {
                           .filter(Boolean)
                           .join(", ")}
                       </span>
+                      <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold">
+                        {primaryAddress.lat != null && primaryAddress.lng != null ? (
+                          <StatusDot tone="success" label={t("customers.form.map.pinned")} />
+                        ) : (
+                          <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
+                        )}
+                      </span>
                     </>
                   ) : (
                     <span className="text-sm text-text-muted">{t("customers.detail.noAddress")}</span>

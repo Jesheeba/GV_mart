@@ -74,3 +74,12 @@ export const addressStepSchema = z.object({
   lng: z.number().min(-180).max(180).optional(),
 })
 export type AddressStepInput = z.infer<typeof addressStepSchema>
+
+/**
+ * Only the master role may save a customer address without pinning an exact
+ * map location — every other role (sales_admin included) must still confirm
+ * a pin before saving, exactly as before this was added.
+ */
+export function canSkipAddressPin(role: string | undefined) {
+  return role === "master"
+}

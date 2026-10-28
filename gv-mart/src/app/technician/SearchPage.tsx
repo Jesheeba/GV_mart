@@ -117,7 +117,12 @@ export function SearchPage() {
                       <MapPin className="size-3.5" />
                       {t("technician.search.navigate")}
                     </Button>
-                  ) : null}
+                  ) : (
+                    <p className="flex flex-1 items-center justify-center gap-1 text-xs text-warning">
+                      <MapPin className="size-3.5" />
+                      {t("technician.search.notPinned")}
+                    </p>
+                  )}
                 </div>
               </Card>
             )

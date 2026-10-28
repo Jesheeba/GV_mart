@@ -30,7 +30,7 @@ export type MemberRow = Tables<"customer_members"> & {
 export type AddressRow = Tables<"addresses">
 
 export type CustomerListItem = CustomerRow & {
-  addresses: Pick<AddressRow, "area" | "pincode" | "address_type" | "is_primary">[]
+  addresses: Pick<AddressRow, "area" | "pincode" | "address_type" | "is_primary" | "lat" | "lng">[]
   member_count: { count: number }[]
 }
 
@@ -258,7 +258,7 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
   //     exact to the row for a count this large.
   let query = supabase
     .from("customers")
-    .select("*, addresses(area,pincode,address_type,is_primary), member_count:customer_members(count)", {
+    .select("*, addresses(area,pincode,address_type,is_primary,lat,lng), member_count:customer_members(count)", {
       count: ids ? undefined : "planned",
     })
     .eq("org_id", orgId)
