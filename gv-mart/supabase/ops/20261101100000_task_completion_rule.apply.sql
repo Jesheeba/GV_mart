@@ -2,7 +2,7 @@
 -- PO-close hardening, tasks_update_assign narrowing), commit aba6c61 on integration/p-series.
 --
 -- WRITTEN ONLY -- never executed against any database by the agent that produced this file (standing hard
--- rule: no DB access of any kind). The owner runs this by hand, after 18:00 IST, once satisfied the
+-- rule: no DB access of any kind). The owner runs this by hand, after 11:00 IST, once satisfied the
 -- sha256-pinned migration text embedded below is byte-for-byte the reviewed migration file (sha256
 -- da86f82365ef3efbadfefd7622275877ce048f57ef3e9a6c401d420286818cdb), and that the live rehearsal of this
 -- exact migration (rehearsal_20261101100000_task_completion_rule.sql, wrapper sha256
@@ -30,8 +30,8 @@
 --      pinned fingerprint 6f891cf85011f08c2f22fb4a208d21bd. Refuses immediately if this looks like the
 --      wrong database.
 --   1. LOCK         -- lock_timeout = 5s for this transaction only.
---   2. GATE         -- refuses before 18:00 IST (same hour as every other GO APPLY script -- NOT the 11:00
---      gate that was used for the Step 3 REHEARSAL only).
+--   2. GATE         -- refuses before 11:00 IST (owner decision, 2026-10-28, applies to every GO APPLY
+--      script in this release window -- supersedes the earlier "18:00, never lowered for GO APPLY" rule).
 --   3. ALREADY-REGISTERED CHECK -- if supabase_migrations.schema_migrations already has a row for version
 --      20261101100000, refuse immediately. Re-running this script after a successful apply is always a
 --      safe no-op refusal, never a double-apply.
@@ -245,10 +245,10 @@ begin
   -- 1. LOCK: scoped to this transaction only.
   perform set_config('lock_timeout', '5s', true);
 
-  -- 2. GATE -- 18:00 IST.
+  -- 2. GATE -- 11:00 IST (owner decision, 2026-10-28).
   v_ist_hour := extract(hour from (now() at time zone 'Asia/Kolkata'))::int;
-  if v_ist_hour < 18 then
-    raise exception 'APPLY_REFUSED: this script only runs after 18:00 IST (current IST hour=%)', v_ist_hour;
+  if v_ist_hour < 11 then
+    raise exception 'APPLY_REFUSED: this script only runs after 11:00 IST (current IST hour=%)', v_ist_hour;
   end if;
 
   -- 3. ALREADY-REGISTERED CHECK

@@ -1,6 +1,6 @@
 -- READ-ONLY snapshot for migration 20261101100000_task_completion_rule.sql (P1a). Run by hand, before and
 -- after the GO APPLY script, to eyeball state independently of the apply script's own checks. Nothing here
--- writes anything. Safe to run at any time, including before 18:00 IST.
+-- writes anything. Safe to run at any time, including before 11:00 IST.
 
 -- Real-organisation fingerprint (must match 6f891cf85011f08c2f22fb4a208d21bd before you run anything).
 select md5(o.id::text || '|' || o.name) as org_fingerprint, o.id, o.name, o.created_at
