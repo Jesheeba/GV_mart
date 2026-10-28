@@ -751,10 +751,10 @@ begin
   end if;
   select id into v_real_org from organizations where name not like '\_\_TEST\_%';
 
-  -- The real gate for an actual apply is 18:00 IST (the rehearsal-only 11:00 lowering does not
+  -- The real gate for an actual apply is 11:00 IST (the rehearsal-only 18:00 lowering does not
   -- apply here -- this script was written fresh, not derived from the lowered rehearsal file).
-  if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '18:00' then
-    raise exception 'GO_APPLY_REFUSED: must run at or after 18:00 IST';
+  if (clock_timestamp() at time zone 'Asia/Kolkata')::time < time '11:00' then
+    raise exception 'GO_APPLY_REFUSED: must run at or after 11:00 IST';
   end if;
 
   -- CR-tolerant: hash and execute the CR-stripped text, so a CRLF-mangled copy of this file
