@@ -65,6 +65,38 @@ export function useComputeSalary() {
   })
 }
 
+// Incentive audit, Findings H-01/H-03 — replaces the plain useCreateExpense()
+// call SalaryTab/StaffSalaryTab used to make for category='salary' rows. Both
+// `salaries` (locked_at) and the salary-spend report depend on this, so both
+// query keys are invalidated on success.
+export function useLogSalaryToAccounts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: Parameters<typeof hr.logSalaryToAccounts>[0]) => hr.logSalaryToAccounts(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["salaries"] })
+      qc.invalidateQueries({ queryKey: ["reports", "salaryByStaff"] })
+      qc.invalidateQueries({ queryKey: ["reports", "pnl"] })
+      qc.invalidateQueries({ queryKey: ["reports", "expensesList"] })
+      qc.invalidateQueries({ queryKey: ["reports", "expensesYoY"] })
+    },
+  })
+}
+
+export function useReopenSalaryPosting() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ salaryId, reason }: { salaryId: string; reason: string }) => hr.reopenSalaryPosting(salaryId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["salaries"] })
+      qc.invalidateQueries({ queryKey: ["reports", "salaryByStaff"] })
+      qc.invalidateQueries({ queryKey: ["reports", "pnl"] })
+      qc.invalidateQueries({ queryKey: ["reports", "expensesList"] })
+      qc.invalidateQueries({ queryKey: ["reports", "expensesYoY"] })
+    },
+  })
+}
+
 // ── Incentives ─────────────────────────────────────────────────────────────
 
 export function useIncentivesEarned(orgId: string | undefined, period: string) {

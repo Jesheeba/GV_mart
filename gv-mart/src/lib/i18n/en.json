@@ -4494,7 +4494,17 @@
       "empty": "No salary records for this month",
       "loadFailed": "Failed to load salaries",
       "logToAccounts": "Log to Accounts",
-      "logged": "Logged"
+      "logged": "Logged",
+      "logFailed": "Couldn't log this salary to Accounts.",
+      "locked": "Locked",
+      "lockedHint": "Already logged to Accounts — recompute is refused until this is reopened.",
+      "reopen": "Reopen",
+      "reopened": "Reopened — the posted expense was voided.",
+      "reopenFailed": "Couldn't reopen this salary.",
+      "reopenDialogTitle": "Reopen this salary",
+      "reopenDialogHint": "This voids the expense already posted to Accounts for {{name}} and unlocks the row so it can be recomputed. A reason is required and is kept on an audit record.",
+      "reopenReason": "Reason",
+      "reopenConfirm": "Reopen and void"
     },
     "staffSalary": {
       "designation": "Designation",
@@ -4535,6 +4545,7 @@
       "role": "Role",
       "amount": "Amount",
       "logSalary": "Log Salary",
+      "logFailed": "Couldn't log this salary to Accounts.",
       "logged": "Logged this month: {{amount}}",
       "notLoggedYet": "Not logged this month",
       "empty": "No staff found",

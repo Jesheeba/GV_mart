@@ -236,3 +236,144 @@ itself, not by this merge); `oxlint` — no new warnings on any touched file;
 moved again before the push landed, the plan was: fetch, re-merge onto the
 new tip, re-run the full verification above, push once more — see the
 final chat report for whether that happened.
+
+---
+
+# Payroll-fixes decisions (incentive audit High findings H-01/H-02/H-03, 2026-10-29)
+
+Unrelated to the admin-nav-restructure work logged above — this section is a
+**separate** work stream, branch `feat/payroll-fixes`, worktree
+`GV_mart/_local_only/worktrees/payroll-fixes`, created fresh from `origin/main` at
+`db1638e`. Scope: the 3 HIGH findings from the incentive audit only, per the
+owner's own instruction — nothing else from the audit was touched.
+
+## D1 — H-01 link column shape
+
+The audit's suggested fix mentioned populating the existing (unused) `ref_id`
+column. Used a dedicated `expenses.salary_id uuid references salaries(id)` column
+instead, additive and nullable. `ref_id` already means different things for other
+`expenses` categories in this codebase (no FK, no documented single meaning) —
+overloading it for salary specifically would have made it less clear, not more.
+`salary_id` is self-describing and lets the unique index be a straightforward
+partial index on one column.
+
+## D2 — Idempotency key differs by path
+
+Technician path keys off `salary_id` (one `salaries` row -> at most one posted
+expense, ever, while non-voided). Non-technician staff path has no `salaries` row
+at all, so it keys off `(staff_id, calendar month)` instead. Both are partial
+unique indexes with `voided_at is null` in the predicate (see D4) so a corrected
+re-log after a reopen/void is never blocked by the row it replaced.
+
+## D3 — One RPC for both paths
+
+`log_salary_to_accounts(p_org_id, p_staff_id, p_amount, p_date, p_note,
+p_salary_id)` — `p_salary_id` null distinguishes the staff path from the technician
+path, rather than two separate RPCs. Keeps one master-only ACL surface and one
+idempotency-handling code path (unique-violation caught, reported as a clean
+no-op) instead of two near-duplicates.
+
+## D4 — Independent-review fix: voided_at must be excluded from expenses_salary_once_idx
+
+An independent reviewer agent caught, before apply, that the technician-path
+unique index (`expenses_salary_once_idx`) did NOT exclude voided rows the way the
+staff-month index did. Combined with `reopen_salary_posting` voiding the old
+expense but never clearing its `salary_id`, this would have permanently blocked
+re-logging a corrected salary after every reopen — the entire point of the H-03
+fix. Fixed by adding `and voided_at is null` to that index's predicate (matching
+the staff-month index) and to the unique-violation lookup inside
+`log_salary_to_accounts`. A regression test (test2's T8/T8b/T8c) now covers
+exactly this path. Rehearsed again after the fix — all green.
+
+## D5 — Void convention for a plain `expenses` row
+
+No void/reversal convention exists for `expenses` in this codebase today (only
+`installation_incentive_credits` has one, for a different table).
+`expenses.amount` also has `check (amount >= 0)`, ruling out a reversing negative
+entry without also leaving the original figure visibly overstated to any report
+that doesn't know to net the two against each other. Chose the smallest change:
+`voided_at`/`voided_by`/`void_reason` flag columns, mirroring
+`installation_incentive_credits`' shape in spirit. Every report function that
+sums `expenses.amount` (`report_expenses_salary_by_staff`,
+`report_expenses_year_over_year`, `report_pnl`, `report_kpi_tiles` — confirmed via
+grep to be the only 4 functions that read `public.expenses` at all) now filters
+`voided_at is null`, so a voided salary stops counting in every money total, not
+just the ones specific to this feature.
+
+## D6 — Audit table FK semantics (independent-review fix, non-blocking but applied)
+
+`salary_reopen_audit.salary_id`/`technician_id` use `on delete restrict`, not
+`cascade` — an append-only audit trail must not vanish because something it
+references was later deleted. `org_id` keeps `cascade`, matching every other
+org-scoped FK in this schema (org deletion already cascades everything; there is
+nothing to restrict against). Confirmed via grep that no code path in this
+codebase ever hard-deletes a `salaries` or `technicians` row, so this changes no
+existing behaviour.
+
+## D7 — H-02 "referral type" and scope of the capture-layer fix
+
+The task decided a referral bonus may be earned "at most once per (customer,
+technician, referral type)". This codebase has exactly ONE referral bonus
+mechanism (`finder_credit`), so `leads.referral_type` is a new text column with a
+single value today, `'finder_credit'` — a column rather than a hard-coded literal
+in the index purely so a future second referral-bonus type could get its own
+independent one-per-pair slot without a schema change.
+
+**The real fix is at the metric layer**, not the capture layer:
+`technician_finder_conversions()` now counts `distinct st.customer_id` instead of
+`distinct v.ticket_id`. This closes the double-count regardless of which function
+created the duplicate `leads` row, and regardless of `leads.source` — it is the
+one function this incentive's money actually reads.
+
+The capture-layer DB guard (partial unique index on
+`leads(customer_id, owner_id, referral_type) where source='referral' and
+owner_id is not null`, enforced via a `BEFORE INSERT` trigger) was deliberately
+implemented as a trigger that strips `NEW.owner_id` to null on a duplicate,
+**not** by skipping the insert and **not** by editing the 4 functions that use
+this `source='referral'` pattern (`create_sale`, `sell_amc_plan`, `renew_amc_plan`,
+`_create_complaint_ticket_internal`):
+- Skipping the insert was the first design, but `lead_activities.lead_id uuid not
+  null` would have raised inside all 4 callers on every duplicate, turning a
+  silent-tolerance requirement into an outright sale-blocking bug. Nulling
+  `owner_id` instead lets the row insert succeed normally — every downstream
+  `returning id into v_lead_id` gets a real id — while the row is simply no
+  longer attributed to that technician, exactly how these functions already treat
+  an unknown/invalid `p_referred_by_technician_id`.
+- Editing all 4 callers (hundreds of lines each, many historical revisions) to add
+  matching `ON CONFLICT` clauses was rejected as a far larger, far riskier diff for
+  no improvement over the trigger, and a plain unique index without that handling
+  would have made a legitimate second sale (e.g. an AMC renewed a year later) throw
+  an unhandled `unique_violation` and abort the whole sale — a regression.
+
+## D8 — sell_amc_plan_onsite is out of scope for the capture-layer guard
+
+Its CURRENT live body (`20261016100000_amc_cancel_visit_scheduling_overlap.sql`)
+no longer takes an optional referring-technician id at all — every on-site AMC
+sale attributes to the acting technician under `source='field'`, a different,
+mandatory mechanism, not the optional `source='referral'` pattern the other 4
+functions use. Left untouched. The metric-layer fix (D7) still protects its money
+either way, since `technician_finder_conversions()` doesn't filter by
+`leads.source`.
+
+## D9 — Reporting functions redefined are byte-faithful except the one stated change
+
+`compute_salary`, `report_expenses_salary_by_staff`, `report_expenses_year_over_year`,
+`report_pnl`, `report_kpi_tiles` were each re-fetched live via
+`_local_only/reports/run_rehearsal.mjs` (`_local_only/reports/payroll_fixes/
+backup_before.sql.out.txt`) before being edited, confirming the worktree's own
+source files were already byte-identical to the live definitions, and the
+independent reviewer separately diffed each redefinition against that same
+live-fetched body.
+
+## Status at hand-off
+
+All 3 migrations: rehearsed (pass), independently reviewed (1 blocking issue found
+and fixed, re-rehearsed pass), DRYRUN OK pre-check passed for migration 1. **Live
+apply was blocked by Claude Code's own permission-gate classifier
+("Production Deploy") before any migration touched the live database** — see the
+final report for the exact denial and what is needed to proceed. Nothing has been
+applied live. Frontend code, tests, lint, and build are complete and passing in
+this worktree, but the branch is deliberately NOT pushed to origin/main: the new
+frontend code calls `log_salary_to_accounts`/`reopen_salary_posting`, which do not
+exist in production yet — pushing (and deploying) before the migrations are
+applied would break those two buttons live.
