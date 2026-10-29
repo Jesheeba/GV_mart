@@ -515,3 +515,21 @@ export function mapKpiTiles(d: KpiTilesRpc): KpiTiles {
       : null,
   }
 }
+
+/** Accounts follow-up, Feature A -- read-only display fallback for an expense
+ * whose legacy `category` enum was written without ever setting the new
+ * `category_id` (every HR Salary/Staff Salary "Log to Accounts" row, and any
+ * other write path nobody has updated to pick a category yet). The one-time
+ * migration backfill only covers rows that existed at apply time; nothing
+ * keeps category_id in sync with `category` going forward (no trigger, by
+ * owner's condition 2 -- no triggers on money tables), so this resolves the
+ * display name on every read instead: the owner-managed category's name when
+ * `category_id` is set, otherwise the system category seeded for that same
+ * legacy enum value, otherwise genuinely uncategorised (null). */
+export function resolveExpenseCategoryName(
+  category: Enums<"expense_category">,
+  categoryIdName: string | null,
+  systemCategoryNameByEnum: Record<string, string>
+): string | null {
+  return categoryIdName ?? systemCategoryNameByEnum[category] ?? null
+}
