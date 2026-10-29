@@ -1150,11 +1150,17 @@ begin
   execute v_mig6_text;
   execute v_mig7_text;
 
-  -- ---- test-fixture helpers (same pattern as
+  -- ---- test-fixture helpers (copied EXACTLY from the already-proven-live
   -- supabase/rehearsals/20261114100000_spare_handover_completion_gaps.rehearsal.sql's
-  -- pg_temp.mkuser/as_user/as_pg -- a throwaway auth.users row is required because
+  -- pg_temp.mkuser/as_user/as_pg mechanism -- a throwaway auth.users row is required because
   -- public.profiles.id is a hard FK to auth.users(id), and record_part_replacement's
-  -- is_staff()/current_technician_id() checks read auth.uid() via the request.jwt.claims GUC) ----
+  -- is_staff()/current_technician_id() checks read auth.uid() via the request.jwt.claims GUC.
+  -- CRITICAL, previously missing: this ALTER DEFAULT PRIVILEGES statement MUST run before the
+  -- pg_temp functions below are created, or 'set local role authenticated' (inside as_user) later
+  -- loses permission to EXECUTE pg_temp.as_pg() itself -- that exact 42501 is what the first
+  -- corrected run of this file hit, because this line was missing. Copied verbatim from the
+  -- precedent file's own identical line (its $g$ tag, same placement, same reasoning). ----
+  do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
   create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
   declare v uuid := gen_random_uuid();
   begin
