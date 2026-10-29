@@ -199,13 +199,36 @@ begin
   -- Rate limits (checked before any lookup, so a limited request costs this function nothing
   -- beyond the count queries themselves — no challenge row, no outbox row, no customer lookup
   -- result is observable from outside either way since the response is identical regardless).
+  --
+  -- SECURITY REVIEW FINDING (independent adversarial review, see DECISIONS.md section 7,
+  -- finding 1): these counters originally only counted decision = 'sent' rows. Since a
+  -- no-match/test/already-linked call never logs 'sent', none of these caps ever engaged for a
+  -- caller probing numbers that don't match a real, unlinked, non-test customer — so one
+  -- authenticated user could call this function as fast as they liked against an arbitrary list
+  -- of candidate numbers with NO throttling at all, and use the request's own latency (the
+  -- true-match branch below does measurably more work: an UPDATE, two crypto calls, two more
+  -- INSERTs and an audit-log write) to tell "this number is a real customer" apart from
+  -- everything else — reopening, via timing, the exact enumeration oracle this whole feature
+  -- exists to close via response content. Fixed by counting EVERY outcome (every branch below
+  -- always logs a row, whatever its decision), not just successful sends: an attacker's probing
+  -- rate itself is now capped at the same 5/hour-per-user and 5-distinct-numbers/24h limits
+  -- regardless of whether any individual guess matches, which bounds how many timing samples
+  -- one signed-in account can ever collect. (A determined attacker could still spin up many
+  -- throwaway Google accounts to get more samples — public sign-up is open — so this reduces
+  -- rather than eliminates the timing signal; see the dummy-work mitigation below for the other
+  -- half of the fix, and DECISIONS.md section 7 for why full elimination is out of scope here.)
+  -- The three COUNT-based caps below count EVERY attempt (any decision), which is the actual
+  -- fix: they throttle the PROBING RATE itself, whatever its outcome. The cooldown stays scoped
+  -- to decision = 'sent' only, deliberately — it exists for a different reason (don't re-send a
+  -- fresh WhatsApp message to the same number seconds after the last one went out) and must not
+  -- let an unrelated wrong/no-match guess on some OTHER number force a legitimate resend to wait.
   select count(*) into v_user_sends_last_hour
   from public.customer_link_otp_send_log
-  where user_id = v_user_id and created_at > v_now - interval '1 hour' and decision = 'sent';
+  where user_id = v_user_id and created_at > v_now - interval '1 hour';
 
   select count(*) into v_phone_sends_last_hour
   from public.customer_link_otp_send_log
-  where phone_hash = v_phone_hash and created_at > v_now - interval '1 hour' and decision = 'sent';
+  where phone_hash = v_phone_hash and created_at > v_now - interval '1 hour';
 
   select max(created_at) into v_last_send_at
   from public.customer_link_otp_send_log
@@ -213,7 +236,7 @@ begin
 
   select count(distinct phone_hash) into v_distinct_numbers_24h
   from public.customer_link_otp_send_log
-  where user_id = v_user_id and created_at > v_now - interval '24 hours' and decision = 'sent';
+  where user_id = v_user_id and created_at > v_now - interval '24 hours';
 
   if v_last_send_at is not null and v_last_send_at > v_now - interval '30 seconds' then
     insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
@@ -254,6 +277,17 @@ begin
   if v_match_count <> 1
      or v_match_primary_profile_id is not null
      or v_match_is_test then
+    -- SECURITY REVIEW FINDING (DECISIONS.md section 7, finding 1, timing side-channel): the
+    -- true-match branch below does measurably more work (an UPDATE, two crypto calls, two more
+    -- INSERTs, an audit-log write) than this one did before this fix — a wall-clock timing
+    -- difference an attacker could use as a second enumeration oracle even with an identical
+    -- response body. Doing the SAME crypto calls here (on values that are immediately discarded
+    -- and never stored or returned) narrows that gap without creating any new write of its own;
+    -- it does not claim to make the two branches provably constant-time — see DECISIONS.md
+    -- section 7 for why full equalization (matching the extra UPDATE/INSERT/audit-log cost too)
+    -- is out of scope for this phase, and why the rate-limit counters above, which now throttle
+    -- every attempt regardless of outcome, are the primary defense against this class of probe.
+    perform encode(digest(encode(gen_random_bytes(16), 'hex') || lpad(floor(random() * 1000000)::text, 6, '0'), 'sha256'), 'hex');
     insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
     values (v_user_id, v_phone_hash, v_phone_last4, 'no_match');
     return v_generic;
@@ -265,7 +299,12 @@ begin
   set superseded_at = v_now
   where customer_id = v_match_id and used_at is null and superseded_at is null;
 
-  v_code := lpad(floor(random() * 1000000)::text, 6, '0');
+  -- SECURITY REVIEW FINDING (DECISIONS.md section 7, finding 3): the 6-digit code is the actual
+  -- secret an attacker guesses — it must come from the same CSPRNG as the salt below
+  -- (gen_random_bytes, pgcrypto), not Postgres' own random(), which the Postgres documentation
+  -- itself says is not cryptographically secure. 4 random bytes -> an unsigned 32-bit integer via
+  -- a bit-string cast -> mod 1,000,000 gives a 6-digit code from a CSPRNG source instead.
+  v_code := lpad((('x' || encode(gen_random_bytes(4), 'hex'))::bit(32)::bigint % 1000000)::text, 6, '0');
   v_salt := encode(gen_random_bytes(16), 'hex');
 
   insert into public.customer_link_otp_challenges (org_id, user_id, customer_id, code_salt, code_hash, expires_at)
