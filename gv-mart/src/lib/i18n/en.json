@@ -4886,6 +4886,8 @@
     "noTaskLink": "No task — standalone expense",
     "underCategory": "Under Category",
     "noCategory": "No category",
+    "chooseCategory": "Choose a category",
+    "allCategories": "All categories",
     "uncategorised": "Uncategorised",
     "createNewCategory": "+ Create new category",
     "newCategoryName": "Category name",
@@ -4914,7 +4916,21 @@
       "dueDate": "Due date",
       "assignee": "Assignee",
       "noAssignee": "Unassigned",
-      "taskTitle": "Follow up: outstanding payment — {{name}}"
+      "taskTitle": "Follow up: outstanding payment — {{name}}",
+      "tabOutstanding": "Outstanding",
+      "tabReminders": "Reminders",
+      "noReminders": "No reminders here",
+      "status": "Status",
+      "statusOpen": "Open",
+      "statusDone": "Done",
+      "statusCancelled": "Cancelled",
+      "markDone": "Mark done",
+      "reminderFilter": {
+        "dueToday": "Due today",
+        "overdue": "Overdue",
+        "upcoming": "Upcoming",
+        "doneOrCancelled": "Done / Cancelled"
+      }
     }
   },
   "workspace": {

@@ -7,9 +7,17 @@ import { Controller, useForm } from "react-hook-form"
 import { Loader2, Plus, TrendingDown, ListTodo } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { usePnlReport, useCreateExpense, useExpensesList, useExpensesYearOverYear, useOpenRecurringTasks, useSalarySpendByStaff } from "@/hooks/useReports"
-import { useExpenseCategories, useCreateExpenseCategory, useRenameExpenseCategory, useDeactivateExpenseCategory, useDeleteExpenseCategory } from "@/hooks/useAccountsFollowup"
+import {
+  useExpenseCategories,
+  useCreateExpenseCategory,
+  useRenameExpenseCategory,
+  useDeactivateExpenseCategory,
+  useDeleteExpenseCategory,
+  useOverdueOrDueTodayReminderCount,
+} from "@/hooks/useAccountsFollowup"
 import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
-import { createExpenseSchema, expenseCategories, type CreateExpenseFormInput, type CreateExpenseOutput } from "@/lib/validation/reports"
+import { createExpenseSchema, type CreateExpenseFormInput, type CreateExpenseOutput } from "@/lib/validation/reports"
+import { resolveLegacyExpenseCategoryEnum } from "@/services/reportMappers"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -71,11 +79,27 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
   const range = periodToRange(period)
   const [showLogExpense, setShowLogExpense] = useState(false)
   const [showManageCategories, setShowManageCategories] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState("")
 
   const { data: pnl, isLoading: pnlLoading } = usePnlReport(orgId, range)
   const { data: yoy, isLoading: yoyLoading } = useExpensesYearOverYear(orgId, 3)
   const { data: expenses, isLoading: expensesLoading, isError: expensesError, refetch } = useExpensesList(orgId, range)
   const { data: salaryByStaff, isLoading: salaryByStaffLoading } = useSalarySpendByStaff(orgId, range)
+
+  // Reminder-management batch, item 3: ONE resolved "Category" per expense (see
+  // resolveExpenseCategoryName), with a filter and a per-category total for the
+  // selected date range -- both computed client-side from the already-fetched list.
+  const categoryTotals = (() => {
+    const totals = new Map<string, number>()
+    for (const e of expenses ?? []) {
+      const name = e.categoryName ?? t("accounts.uncategorised")
+      totals.set(name, (totals.get(name) ?? 0) + e.amount)
+    }
+    return Array.from(totals.entries())
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total)
+  })()
+  const filteredExpenses = categoryFilter ? (expenses ?? []).filter((e) => (e.categoryName ?? t("accounts.uncategorised")) === categoryFilter) : expenses
 
   const currentYearRow = yoy?.[0]
   const priorYearRow = yoy?.[1]
@@ -84,12 +108,19 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
       ? Math.round(((currentYearRow.ytdComparableTotal - priorYearRow.ytdComparableTotal) / priorYearRow.ytdComparableTotal) * 100)
       : null
 
+  const overdueOrDueTodayCount = useOverdueOrDueTodayReminderCount()
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="outline" onClick={() => navigate("/accounts/outstanding")}>
+        <Button variant="outline" onClick={() => navigate("/accounts/outstanding")} className="relative">
           <ListTodo className="size-4" />
           {t("accounts.outstanding.navLink")}
+          {overdueOrDueTodayCount > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-[11px] font-bold text-white">
+              {overdueOrDueTodayCount > 9 ? "9+" : overdueOrDueTodayCount}
+            </span>
+          ) : null}
         </Button>
         <Button variant="outline" onClick={() => setShowManageCategories(true)}>
           {t("accounts.manageCategories")}
@@ -129,7 +160,33 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
 
       <div className="rounded-card border border-border bg-surface p-6 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
         <h3 className="mb-[18px] text-[17px] font-bold tracking-tight text-text">{t("accounts.expensesForPeriod")}</h3>
-        <PeriodFilter value={period} onChange={setPeriod} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <PeriodFilter value={period} onChange={setPeriod} />
+          {categoryTotals.length > 0 ? (
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            >
+              <option value="">{t("accounts.allCategories")}</option>
+              {categoryTotals.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+        </div>
+
+        {categoryTotals.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {categoryTotals.map((c) => (
+              <span key={c.name} className="rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-text">
+                {c.name}: <span className="font-bold tabular-nums">{formatCurrency(c.total)}</span>
+              </span>
+            ))}
+          </div>
+        ) : null}
 
         <div className="mt-4">
           {expensesError ? (
@@ -147,6 +204,8 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
             </div>
           ) : !expenses || expenses.length === 0 ? (
             <p className="text-sm text-text-muted">{t("reports.empty")}</p>
+          ) : !filteredExpenses || filteredExpenses.length === 0 ? (
+            <p className="text-sm text-text-muted">{t("reports.empty")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -154,7 +213,6 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
                   <tr className="border-b border-border text-left text-xs font-semibold text-text-muted">
                     <th className="py-2 pr-3">{t("reports.pnl.date")}</th>
                     <th className="py-2 pr-3">{t("reports.pnl.category")}</th>
-                    <th className="py-2 pr-3">{t("accounts.underCategory")}</th>
                     <th className="py-2 pr-3">{t("accounts.staff")}</th>
                     <th className="py-2 pr-3">{t("accounts.note")}</th>
                     <th className="py-2 pr-3">{t("accounts.loggedBy")}</th>
@@ -162,11 +220,10 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {expenses.map((e) => (
+                  {filteredExpenses.map((e) => (
                     <tr key={e.id} className="border-b border-[#F1EDE6]">
                       <td className="py-2 pr-3 text-text-muted">{e.date}</td>
-                      <td className="py-2 pr-3 font-medium text-text">{t(`reports.pnl.expenseCategory.${e.category}`)}</td>
-                      <td className="py-2 pr-3 text-text-muted">{e.categoryName ?? t("accounts.uncategorised")}</td>
+                      <td className="py-2 pr-3 font-medium text-text">{e.categoryName ?? t("accounts.uncategorised")}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.staffName ?? "—"}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.note ?? "—"}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.loggedByName ?? "—"}</td>
@@ -300,7 +357,6 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
   const createExpense = useCreateExpense()
   const { data: openTasks } = useOpenRecurringTasks(orgId)
   const { data: expenseCategoryOptions } = useExpenseCategories(orgId)
-  const [categoryId, setCategoryId] = useState("")
   const [showCreateCategory, setShowCreateCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState("")
   const createCategory = useCreateExpenseCategory()
@@ -308,20 +364,24 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
   const form = useForm<CreateExpenseFormInput, unknown, CreateExpenseOutput>({
     resolver: zodResolver(createExpenseSchema),
     mode: "onChange",
-    defaultValues: { category: "salary", amount: 0, date: toLocalDateString(new Date()), note: "", recurringTaskId: "" },
+    defaultValues: { categoryId: "", amount: 0, date: toLocalDateString(new Date()), note: "", recurringTaskId: "" },
   })
 
   async function onSubmit(values: CreateExpenseOutput) {
     if (!orgId) return
+    const category = (expenseCategoryOptions ?? []).find((c) => c.id === values.categoryId)
+    if (!category) return
     await createExpense.mutateAsync({
       orgId,
-      category: values.category,
+      // "Under Category" is the one field the user picks; the legacy enum this
+      // table still requires is derived from it, never shown or chosen directly.
+      category: resolveLegacyExpenseCategoryEnum(category),
       amount: values.amount,
       date: values.date,
       note: values.note?.trim() ? values.note.trim() : null,
       recurringTaskId: values.recurringTaskId || null,
       loggedBy: profile?.id ?? null,
-      categoryId: categoryId || null,
+      categoryId: values.categoryId,
     })
     onLogged()
   }
@@ -329,7 +389,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
   async function handleCreateCategory() {
     if (!newCategoryName.trim()) return
     const created = await createCategory.mutateAsync(newCategoryName.trim())
-    setCategoryId(created.id)
+    form.setValue("categoryId", created.id, { shouldValidate: true })
     setNewCategoryName("")
     setShowCreateCategory(false)
   }
@@ -344,21 +404,6 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="accounts-expense-category">{t("reports.pnl.category")}</Label>
-          <select
-            id="accounts-expense-category"
-            {...form.register("category")}
-            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          >
-            {expenseCategories.map((c) => (
-              <option key={c} value={c}>
-                {t(`reports.pnl.expenseCategory.${c}`)}
-              </option>
-            ))}
-          </select>
-          {form.formState.errors.category ? <p className="text-xs text-danger">{t(form.formState.errors.category.message!)}</p> : null}
-        </div>
         <div className="space-y-1.5">
           <Label htmlFor="accounts-expense-under-category">{t("accounts.underCategory")}</Label>
           {showCreateCategory ? (
@@ -377,29 +422,39 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
               </Button>
             </div>
           ) : (
-            <select
-              id="accounts-expense-under-category"
-              value={categoryId}
-              onChange={(e) => {
-                if (e.target.value === "__create__") {
-                  setShowCreateCategory(true)
-                } else {
-                  setCategoryId(e.target.value)
-                }
-              }}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            >
-              <option value="">{t("accounts.noCategory")}</option>
-              {(expenseCategoryOptions ?? [])
-                .filter((c) => c.is_active)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+            <Controller
+              control={form.control}
+              name="categoryId"
+              render={({ field }) => (
+                <select
+                  id="accounts-expense-under-category"
+                  value={field.value}
+                  onChange={(e) => {
+                    if (e.target.value === "__create__") {
+                      setShowCreateCategory(true)
+                    } else {
+                      field.onChange(e.target.value)
+                    }
+                  }}
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                >
+                  <option value="" disabled>
+                    {t("accounts.chooseCategory")}
                   </option>
-                ))}
-              <option value="__create__">{t("accounts.createNewCategory")}</option>
-            </select>
+                  {(expenseCategoryOptions ?? [])
+                    .filter((c) => c.is_active)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.is_system ? ` (${t("accounts.systemCategory")})` : ""}
+                      </option>
+                    ))}
+                  <option value="__create__">{t("accounts.createNewCategory")}</option>
+                </select>
+              )}
+            />
           )}
+          {form.formState.errors.categoryId ? <p className="text-xs text-danger">{t(form.formState.errors.categoryId.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="accounts-expense-amount">{t("reports.pnl.amount")}</Label>

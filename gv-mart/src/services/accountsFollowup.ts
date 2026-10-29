@@ -112,6 +112,54 @@ export async function closeOutstandingRemindersIfZero(customerId: string) {
   }
 }
 
+/** Reminder-management batch, item 2 -- the same reconciliation as above, but
+ * for every customer with an open reminder at once (migration 20261116100000),
+ * called whenever the Customer Outstanding list or the Reminders view loads
+ * (still computed on read, still no trigger, still no background job). */
+export async function closeOutstandingRemindersIfZeroBulk() {
+  const { error } = await supabase.rpc("close_outstanding_reminders_if_zero_bulk")
+  if (error) {
+    // not master -- never surface this as a user-facing error
+    return 0
+  }
+}
+
+export type OutstandingReminderRow = {
+  id: string
+  customer_id: string
+  customer_name: string
+  due_at: string
+  note: string | null
+  status: "open" | "done" | "cancelled"
+  source: "manual" | "system"
+  closed_at: string | null
+  close_reason: string | null
+}
+
+/** Reminder-management batch, item 1 -- lists every reminder (any status)
+ * for the Reminders view, newest-due first. The table's own
+ * customer_outstanding_reminders_select_master RLS policy already scopes
+ * this to master + the caller's org; no new RPC or migration needed for a
+ * plain read. */
+export async function listOutstandingReminders(): Promise<OutstandingReminderRow[]> {
+  const { data, error } = await supabase
+    .from("customer_outstanding_reminders")
+    .select("id, customer_id, due_at, note, status, source, closed_at, close_reason, customers(name)")
+    .order("due_at", { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    customer_id: r.customer_id,
+    customer_name: (r.customers as { name: string } | null)?.name ?? "—",
+    due_at: r.due_at,
+    note: r.note,
+    status: r.status,
+    source: r.source as "manual" | "system",
+    closed_at: r.closed_at,
+    close_reason: r.close_reason,
+  }))
+}
+
 export type ExpenseCategoryRow = {
   id: string
   org_id: string

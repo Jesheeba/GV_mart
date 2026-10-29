@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as accountsFollowup from "@/services/accountsFollowup"
+import { classifyReminderBucket } from "@/services/reportMappers"
+import { toLocalDateString } from "@/lib/local-date"
 
 export function useCustomerOutstandingList(cursor: string | null) {
   return useQuery({
@@ -76,6 +78,42 @@ export function useReconcileOutstandingOnLoad(customerId: string | undefined) {
     enabled: !!customerId,
     staleTime: 60_000,
   })
+}
+
+/** Reminder-management batch, item 2 — the bulk reconciliation sweep, fired
+ * whenever the Customer Outstanding list or the Reminders view loads (not
+ * only one customer's own dialog). Silent no-op for anyone but master. */
+export function useReconcileAllOutstandingOnLoad() {
+  const qc = useQueryClient()
+  useQuery({
+    queryKey: ["accounts", "outstanding", "reconcileAll"],
+    queryFn: async () => {
+      await accountsFollowup.closeOutstandingRemindersIfZeroBulk()
+      qc.invalidateQueries({ queryKey: ["accounts", "outstanding"] })
+      return true
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useOutstandingReminders() {
+  return useQuery({
+    queryKey: ["accounts", "outstanding", "reminders"],
+    queryFn: accountsFollowup.listOutstandingReminders,
+  })
+}
+
+/** Reminder-management batch, item 1 -- the overdue+due-today count badge
+ * shown on the Accounts entry/Customer Outstanding button, so master sees
+ * it without opening anything. */
+export function useOverdueOrDueTodayReminderCount() {
+  const { data: reminders } = useOutstandingReminders()
+  const today = toLocalDateString(new Date())
+  if (!reminders) return 0
+  return reminders.filter((r) => {
+    const bucket = classifyReminderBucket(r.status, toLocalDateString(new Date(r.due_at)), today)
+    return bucket === "overdue" || bucket === "dueToday"
+  }).length
 }
 
 export function useExpenseCategories(orgId: string | undefined) {

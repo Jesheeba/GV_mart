@@ -4893,6 +4893,8 @@
     "noTaskLink": "பணி இல்லை — தனித்த செலவு",
     "underCategory": "துணை வகை",
     "noCategory": "வகை இல்லை",
+    "chooseCategory": "ஒரு வகையைத் தேர்ந்தெடுக்கவும்",
+    "allCategories": "அனைத்து வகைகளும்",
     "uncategorised": "வகைப்படுத்தப்படாதது",
     "createNewCategory": "+ புதிய வகையை உருவாக்கு",
     "newCategoryName": "வகையின் பெயர்",
@@ -4921,7 +4923,21 @@
       "dueDate": "நிலுவைத் தேதி",
       "assignee": "ஒதுக்கப்பட்டவர்",
       "noAssignee": "ஒதுக்கப்படாதது",
-      "taskTitle": "பின்தொடரவும்: நிலுவைக் கட்டணம் — {{name}}"
+      "taskTitle": "பின்தொடரவும்: நிலுவைக் கட்டணம் — {{name}}",
+      "tabOutstanding": "நிலுவை",
+      "tabReminders": "நினைவூட்டல்கள்",
+      "noReminders": "இங்கே நினைவூட்டல்கள் இல்லை",
+      "status": "நிலை",
+      "statusOpen": "திறந்துள்ளது",
+      "statusDone": "முடிந்தது",
+      "statusCancelled": "ரத்துசெய்யப்பட்டது",
+      "markDone": "முடிந்ததாகக் குறி",
+      "reminderFilter": {
+        "dueToday": "இன்று நிலுவை",
+        "overdue": "கடந்த நிலுவை",
+        "upcoming": "வரவிருக்கும்",
+        "doneOrCancelled": "முடிந்தது / ரத்துசெய்யப்பட்டது"
+      }
     }
   },
   "workspace": {
