@@ -42,3 +42,42 @@ describe("admin route table (static contract check)", () => {
     expect(routerSource).toMatch(/\{\s*path:\s*"workspace",\s*element:\s*<Navigate\s+to="\/admin\/tasks\?view=myDay"\s+replace\s*\/>\s*\}/)
   })
 })
+
+describe("technician route table (static contract check)", () => {
+  // QA smoke test bug #2 (2026-10-29): TechnicianHomePage grew a "Pending
+  // Reviews" tile linking to this same route. "Renders for technician, never
+  // for other roles" is a routing-level guarantee in this app (RequireRole
+  // gates the whole /technician subtree, not a per-component check) -- see
+  // router.test.ts's own header comment on why this file checks the route
+  // table as text rather than rendering components. These two checks are
+  // the route-table half of that guarantee: TechnicianHomePage and
+  // PendingReviewsPage both live only inside the "/technician" block whose
+  // element is <RequireRole roles={["technician"]} />, so neither is
+  // reachable under any other role's route tree at all.
+  function technicianBlock(): string {
+    const start = routerSource.indexOf('path: "/technician"')
+    expect(start).toBeGreaterThan(-1)
+    const nextTopLevelRoute = routerSource.indexOf('path: "/', start + 1)
+    return routerSource.slice(start, nextTopLevelRoute > -1 ? nextTopLevelRoute : undefined)
+  }
+
+  it('the "/technician" route is gated by RequireRole roles={["technician"]} -- not any broader role list', () => {
+    const block = technicianBlock()
+    const guardIndex = block.indexOf("RequireRole")
+    expect(guardIndex).toBeGreaterThan(-1)
+    expect(block.slice(guardIndex, guardIndex + 60)).toMatch(/RequireRole\s+roles=\{\["technician"\]\}/)
+  })
+
+  it("TechnicianHomePage (index route) and PendingReviewsPage both live inside that technician-only block", () => {
+    const block = technicianBlock()
+    expect(block).toMatch(/\{\s*index:\s*true,\s*element:\s*<TechnicianHomePage\s*\/>\s*\}/)
+    expect(block).toMatch(/\{\s*path:\s*"pending-reviews",\s*element:\s*<PendingReviewsPage\s*\/>\s*\}/)
+  })
+
+  it("TechnicianHomePage and PendingReviewsPage appear nowhere outside the technician block (e.g. not also mounted under /admin)", () => {
+    const block = technicianBlock()
+    const outsideBlock = routerSource.slice(0, routerSource.indexOf('path: "/technician"')) + routerSource.slice(routerSource.indexOf('path: "/technician"') + block.length)
+    expect(outsideBlock).not.toContain("<TechnicianHomePage")
+    expect(outsideBlock).not.toContain("<PendingReviewsPage")
+  })
+})

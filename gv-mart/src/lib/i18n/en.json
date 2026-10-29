@@ -3057,6 +3057,7 @@
       "unknownCustomer": "Customer",
       "inProgress": "In progress",
       "spareReceipt": "Spare receipt",
+      "pendingReviews": "Pending Reviews",
       "searchCustomers": "Search customers",
       "todaysJobs": "Today's jobs",
       "jobCount_one": "{{count}} job",

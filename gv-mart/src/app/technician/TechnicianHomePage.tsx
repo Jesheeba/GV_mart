@@ -2,14 +2,14 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import { useNavigate } from "react-router-dom"
-import { CalendarCheck, CalendarOff, ChevronRight, ClipboardList, Fuel, ListChecks, MapPin, Users2, TriangleAlert, Wrench } from "lucide-react"
+import { CalendarCheck, CalendarOff, ChevronRight, ClipboardList, Fuel, ListChecks, MapPin, Star, Users2, TriangleAlert, Wrench } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { JobTypeBadge, OverdueBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
-import { useMyTechnician, useTechnicianSettings, useTodayAttendance, useTodaysJobCounts, useTodaysJobs } from "@/hooks/useTechnician"
+import { useMyTechnician, usePendingReviews, useTechnicianSettings, useTodayAttendance, useTodaysJobCounts, useTodaysJobs } from "@/hooks/useTechnician"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeTicketAllowedDuration, findOpenVisit, isOverdueJob, type JobCard } from "@/services/technician"
 import type { Tables } from "@/types/database"
@@ -172,6 +172,14 @@ export function TechnicianHomePage() {
   const counts = useTodaysJobCounts(profile?.org_id, technician.data?.id)
   const settings = useTechnicianSettings(profile?.org_id)
   const attendance = useTodayAttendance(technician.data?.id)
+  // QA smoke test bug #2 (2026-10-29): Pending Reviews had no entry point from
+  // home at all (Spare Handover did). Reuses the exact same query the Pending
+  // Reviews page itself already runs -- no new hook, no new RPC. A badge only
+  // ever renders once that query has actually resolved with a non-empty
+  // array; while offline/loading it silently shows no badge, same as every
+  // other home tile here having no data dependency of its own.
+  const pendingReviews = usePendingReviews(technician.data?.id)
+  const pendingReviewsCount = pendingReviews.data?.length ?? 0
 
   if (isLoading || technician.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
@@ -202,6 +210,20 @@ export function TechnicianHomePage() {
         >
           <Wrench className="size-3.5" />
           {t("technician.home.spareReceipt")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="relative h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          onClick={() => navigate("/technician/pending-reviews")}
+        >
+          <Star className="size-3.5" />
+          {t("technician.home.pendingReviews")}
+          {pendingReviewsCount > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-[11px] font-bold text-white">
+              {pendingReviewsCount > 9 ? "9+" : pendingReviewsCount}
+            </span>
+          ) : null}
         </Button>
         <Button
           type="button"

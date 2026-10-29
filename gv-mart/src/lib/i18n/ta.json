@@ -3058,6 +3058,7 @@
       "unknownCustomer": "வாடிக்கையாளர்",
       "inProgress": "செயலில் உள்ளது",
       "spareReceipt": "உதிரிபாக பெறுதல்",
+      "pendingReviews": "நிலுவையில் உள்ள மதிப்புரைகள்",
       "searchCustomers": "வாடிக்கையாளர்களைத் தேடு",
       "todaysJobs": "இன்றைய பணிகள்",
       "jobCount_one": "{{count}} பணி",

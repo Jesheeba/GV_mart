@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { guardReentry } from "@/lib/async-guard"
 import { useNavigate } from "react-router-dom"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
@@ -359,7 +360,15 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
   const { data: expenseCategoryOptions } = useExpenseCategories(orgId)
   const [showCreateCategory, setShowCreateCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState("")
+  const [createCategoryError, setCreateCategoryError] = useState<string | null>(null)
   const createCategory = useCreateExpenseCategory()
+  // Synchronous re-entrancy guard (QA smoke test bug #1): createCategory.isPending
+  // only flips after React re-renders with the button's disabled prop, which leaves
+  // a window where two clicks fired before that render both call this handler --
+  // the first create succeeds, the second correctly refuses as a duplicate, and
+  // only the second's error ends up on screen. A ref read/written synchronously at
+  // the top of the handler closes that window regardless of render timing.
+  const creatingCategoryRef = useRef(false)
 
   const form = useForm<CreateExpenseFormInput, unknown, CreateExpenseOutput>({
     resolver: zodResolver(createExpenseSchema),
@@ -388,10 +397,18 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
 
   async function handleCreateCategory() {
     if (!newCategoryName.trim()) return
-    const created = await createCategory.mutateAsync(newCategoryName.trim())
-    form.setValue("categoryId", created.id, { shouldValidate: true })
-    setNewCategoryName("")
-    setShowCreateCategory(false)
+    await guardReentry(creatingCategoryRef, async () => {
+      setCreateCategoryError(null)
+      try {
+        const created = await createCategory.mutateAsync(newCategoryName.trim())
+        form.setValue("categoryId", created.id, { shouldValidate: true })
+        setNewCategoryName("")
+        setCreateCategoryError(null)
+        setShowCreateCategory(false)
+      } catch (e) {
+        setCreateCategoryError((e as Error).message)
+      }
+    })
   }
 
   return (
@@ -417,7 +434,15 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
               <Button type="button" size="sm" onClick={handleCreateCategory} disabled={createCategory.isPending}>
                 {t("common.save")}
               </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setShowCreateCategory(false)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setShowCreateCategory(false)
+                  setCreateCategoryError(null)
+                }}
+              >
                 {t("common.cancel")}
               </Button>
             </div>
@@ -454,6 +479,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
               )}
             />
           )}
+          {showCreateCategory && createCategoryError ? <p className="text-xs text-danger">{createCategoryError}</p> : null}
           {form.formState.errors.categoryId ? <p className="text-xs text-danger">{t(form.formState.errors.categoryId.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
@@ -519,16 +545,23 @@ function ManageCategoriesDialog({ orgId, onClose }: { orgId: string | undefined;
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
   const [error, setError] = useState<string | null>(null)
+  // Synchronous re-entrancy guard (QA smoke test bug #1) -- see the matching
+  // comment on LogExpensePanel's creatingCategoryRef for why this can't just
+  // rely on createCategory.isPending/the button's disabled prop alone.
+  const creatingRef = useRef(false)
 
   async function handleCreate() {
     if (!newName.trim()) return
-    setError(null)
-    try {
-      await createCategory.mutateAsync(newName.trim())
-      setNewName("")
-    } catch (e) {
-      setError((e as Error).message)
-    }
+    await guardReentry(creatingRef, async () => {
+      setError(null)
+      try {
+        await createCategory.mutateAsync(newName.trim())
+        setNewName("")
+        setError(null)
+      } catch (e) {
+        setError((e as Error).message)
+      }
+    })
   }
 
   async function handleDelete(id: string) {
