@@ -368,12 +368,69 @@ live-fetched body.
 ## Status at hand-off
 
 All 3 migrations: rehearsed (pass), independently reviewed (1 blocking issue found
-and fixed, re-rehearsed pass), DRYRUN OK pre-check passed for migration 1. **Live
-apply was blocked by Claude Code's own permission-gate classifier
-("Production Deploy") before any migration touched the live database** — see the
-final report for the exact denial and what is needed to proceed. Nothing has been
-applied live. Frontend code, tests, lint, and build are complete and passing in
-this worktree, but the branch is deliberately NOT pushed to origin/main: the new
-frontend code calls `log_salary_to_accounts`/`reopen_salary_posting`, which do not
-exist in production yet — pushing (and deploying) before the migrations are
-applied would break those two buttons live.
+and fixed, re-rehearsed pass), DRYRUN OK pre-check passed for all three. **Applied
+live 2026-10-29** (09:31:32 / 09:31:53 / 09:32:10 UTC respectively, after the owner
+added the required permission rule), verified post-apply via the approved template's
+own checks, then re-verified end-to-end via a live RLS-impersonation pass on
+throwaway TEST data (6 scenarios, 15 sub-checks, all green —
+`_local_only/reports/payroll_fixes/live_verify_PASS.out.txt`), cleaned up (minus an
+empty `__TEST_` org shell — see D10 below), and pushed to `origin/main` as a genuine
+fast-forward (`316c182..7d04c00`).
+
+## D10 — purge_test_organisation() cannot delete a test org's expense_categories rows
+
+Found during the live-verification cleanup, unrelated to this task's own 3
+findings: the project's shared `purge_test_organisation(uuid)` function (added
+2026-10-11) refuses with "expense_categories: a system category cannot be
+deleted" when it tries to cascade-delete an org, because a LATER migration
+(`20261115110000`, expense categories) added a BEFORE DELETE guard on
+`expense_categories` that `purge_test_organisation()` was never updated to get
+past. Not fixed here (out of scope) — flagged for whoever owns test-data hygiene
+next. Worked around for this task's own cleanup by deleting every other table
+directly (same `app.audit_purge_ok` technique that function itself uses for
+`audit_log`) and leaving the org + its auto-seeded, contentless category rows in
+place, consistent with this project's existing "leftover `__TEST_` org" norm.
+
+## D11 — follow-up: every expenses reader must exclude voided rows, not just the 4 SQL functions
+
+A second pass (same day) found 4 MORE places that sum/list `expenses.amount` and
+did NOT exclude `voided_at` — all client-side TypeScript, none requiring a new
+migration (the SQL side was already complete):
+- `getExpensesList()` (`src/services/reports.ts`) — the LIVE function behind the
+  Accounts page's expense list, its "Under Category" per-category totals, and
+  its category filter (all three are computed client-side FROM this list's
+  result). This was a real, live, user-facing gap: a voided salary expense
+  would still have shown up in the Accounts screen and counted into its
+  category total. Fixed with the same `.is("voided_at", null)` every SQL
+  function already applies.
+- `getPnlReportLegacy()`, `getSalarySpendByStaffLegacy()`,
+  `getExpensesYearOverYearLegacy()` — all three explicitly `@deprecated`, kept
+  only so `reports.parity.test.ts` can assert the new RPC-based reports produce
+  identical numbers to the old browser-side aggregation. Not reachable from any
+  live page (confirmed: grepped every `.tsx` under `src/app/` for each name —
+  zero hits outside `reports.ts`/`useReports.ts`/the parity test itself), but
+  left unfixed they would have made that parity test start failing the moment
+  any org ever has a voided expense — fixed to keep genuinely proving parity,
+  not accidentally proving a false equivalence.
+- Confirmed NOT in scope / correctly unaffected: `createExpense()` (insert
+  only), `delete_expense_category()` (an existence check for referential
+  integrity, not a money total — a category that was ever used, voided or not,
+  should still refuse deletion), `create_bill_entry()`'s 5 historical
+  redefinitions (insert only, never reads), and the Monthly-Expenses-feature
+  `ExpensesPage.tsx` (technician/admin) — that screen is `expense_claims` +
+  vehicle/allowance tables, a completely different domain from the `expenses`
+  accounting ledger table this finding is about, confirmed via grep (zero
+  `"expenses"` table references in either file).
+
+Proven correct via a rehearsal (not a migration — nothing new to apply) on
+throwaway `__TEST_` data: baseline → post a salary → reopen (void) → re-post,
+checking `report_pnl`, `report_kpi_tiles`, `report_expenses_salary_by_staff`,
+`report_expenses_year_over_year`, and a raw SQL query identical to
+`getExpensesList`'s own filter, all in the same pass. All 16 checks passed —
+`_local_only/reports/payroll_fixes/rehearsal_voided_proof_PASS.out.txt`.
+
+`src/types/database.ts`'s hand-patched `expenses` Row/Insert/Update (the
+established convention in this file for a post-codegen column — see the
+existing `category_id` precedent right above it) gained `salary_id`/
+`voided_at`/`voided_by`/`void_reason`, so `getExpensesList`'s new
+`.is("voided_at", null)` typechecks without a local cast.

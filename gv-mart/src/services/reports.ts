@@ -406,7 +406,12 @@ export async function getPnlReportLegacy(orgId: string, range: DateRange): Promi
       .select("category, amount, date")
       .eq("org_id", orgId)
       .gte("date", range.from)
-      .lte("date", range.to),
+      .lte("date", range.to)
+      // Incentive audit, Finding H-03 follow-up (2026-10-29) — must match
+      // report_pnl()'s own `voided_at is null` filter exactly, or this
+      // deprecated-but-still-exercised-by-the-parity-test twin would diverge
+      // from the RPC the moment any expense is ever voided.
+      .is("voided_at", null),
     supabase
       .from("invoice_items")
       .select("qty, price, discount, cost")
@@ -998,6 +1003,12 @@ export async function getExpensesList(orgId: string, range: DateRange): Promise<
       .eq("org_id", orgId)
       .gte("date", range.from)
       .lte("date", range.to)
+      // Incentive audit, Finding H-03 follow-up (2026-10-29) — a voided expense
+      // (reopen_salary_posting's reversal of a "Log to Accounts" post) must drop
+      // out of the Accounts list, its "Under Category" totals, and every filter
+      // derived from this list client-side — same exclusion every report
+      // RPC that sums expenses.amount already applies.
+      .is("voided_at", null)
       .order("date", { ascending: false }),
     // Read-only fallback source (owner's condition: resolve "Uncategorised" on
     // read, never write category_id for a row that doesn't already have it).
@@ -1058,6 +1069,9 @@ export async function getSalarySpendByStaffLegacy(orgId: string, range: DateRang
     .not("staff_id", "is", null)
     .gte("date", range.from)
     .lte("date", range.to)
+    // Incentive audit, Finding H-03 follow-up (2026-10-29) — matches
+    // report_expenses_salary_by_staff()'s own `voided_at is null` filter.
+    .is("voided_at", null)
   if (error) throw error
   const byStaff = new Map<string, StaffSalaryTotal>()
   for (const row of data ?? []) {
@@ -1093,6 +1107,9 @@ export async function getExpensesYearOverYearLegacy(orgId: string, yearsBack = 3
     .select("category, amount, date")
     .eq("org_id", orgId)
     .gte("date", `${earliestYear}-01-01`)
+    // Incentive audit, Finding H-03 follow-up (2026-10-29) — matches
+    // report_expenses_year_over_year()'s own `voided_at is null` filter.
+    .is("voided_at", null)
   if (error) throw error
 
   const years = new Map<number, { full: number; ytd: number; byCategory: Map<Enums<"expense_category">, number> }>()

@@ -6316,6 +6316,12 @@ export type Database = {
           staff_id: string | null
           // Accounts follow-up (20261115110000) — hand-patched, no Docker to regenerate.
           category_id: string | null
+          // Incentive audit, Findings H-01/H-03 (20261117100000/20261117100001) —
+          // hand-patched, same reason as category_id above.
+          salary_id: string | null
+          voided_at: string | null
+          voided_by: string | null
+          void_reason: string | null
           created_at: string
           updated_at: string
         }
@@ -6332,6 +6338,10 @@ export type Database = {
           logged_by?: string | null
           staff_id?: string | null
           category_id?: string | null
+          salary_id?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          void_reason?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6348,6 +6358,10 @@ export type Database = {
           logged_by?: string | null
           staff_id?: string | null
           category_id?: string | null
+          salary_id?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          void_reason?: string | null
           created_at?: string
           updated_at?: string
         }
