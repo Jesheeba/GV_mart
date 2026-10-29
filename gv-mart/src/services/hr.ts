@@ -36,6 +36,10 @@ export type SalaryRow = Tables<"salaries"> & {
   // file's last real codegen the same way the other fields above do.
   locked_at: string | null
   logged_expense_id: string | null
+  // Connection-map follow-up, Finding F-01 (payroll-fixes2, 2026-10-29) — net
+  // is floored at zero; this is the amount the floor absorbed (0 when nothing
+  // was floored). Shown on the HR Salary screen, never hidden.
+  shortfall_amount: number
 }
 export type IncentiveEarnedRow = Tables<"incentives_earned"> & { is_bike_allowance: boolean }
 export type IncentiveRuleRow = Tables<"incentive_rules">

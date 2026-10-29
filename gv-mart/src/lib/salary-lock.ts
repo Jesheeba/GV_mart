@@ -40,3 +40,15 @@ export function canReopen(row: SalaryLockState): boolean {
 export function alreadyLoggedMessage(date: string | null): string {
   return `already logged on ${date ?? "an earlier date"}`
 }
+
+// Connection-map follow-up, Finding F-01 (payroll-fixes2, 2026-10-29) — pure
+// predicate for the HR Salary screen's shortfall warning, so the "do not just
+// hide it" requirement is covered by a test independent of any network call.
+export type SalaryShortfallState = { shortfall_amount: number }
+
+/** compute_salary() floors `net` at zero and records whatever the floor
+ * absorbed in `shortfall_amount` (0 when nothing was floored). This is the
+ * single source of truth for whether the UI shows the warning line. */
+export function hasShortfall(row: SalaryShortfallState): boolean {
+  return row.shortfall_amount > 0
+}

@@ -10,7 +10,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useActiveTechnicians, useComputeSalary, useLogSalaryToAccounts, useReopenSalaryPosting, useSalaries } from "@/hooks/useHr"
 import { formatCurrency } from "@/lib/sale-calc"
-import { canLogToAccounts, canRecompute, canReopen } from "@/lib/salary-lock"
+import { canLogToAccounts, canRecompute, canReopen, hasShortfall } from "@/lib/salary-lock"
 import { useToast } from "@/components/ui/toast-context"
 import type { SalaryListItem } from "@/services/hr"
 
@@ -130,7 +130,24 @@ export function SalaryTab() {
     { key: "revenueComponent", header: t("hr.salary.revenueComponent"), render: (r) => formatCurrency(r.revenue_component) },
     { key: "lateDeduction", header: t("hr.salary.lateDeduction"), render: (r) => `-${formatCurrency(r.late_deduction)}` },
     { key: "incentives", header: t("hr.salary.incentives"), render: (r) => `+${formatCurrency(r.incentives)}` },
-    { key: "net", header: t("hr.salary.net"), render: (r) => <span className="font-semibold text-text">{formatCurrency(r.net)}</span> },
+    {
+      key: "net",
+      header: t("hr.salary.net"),
+      // F-01 — net is floored at zero server-side; shortfall_amount is the
+      // amount the floor absorbed, shown here as a visible warning rather
+      // than hidden (a technician whose deductions exceeded their pay needs
+      // this surfaced, not silently zeroed).
+      render: (r) => (
+        <div className="flex flex-col items-end">
+          <span className="font-semibold text-text">{formatCurrency(r.net)}</span>
+          {hasShortfall(r) ? (
+            <span className="text-xs font-medium text-danger" title={t("hr.salary.shortfallHint")}>
+              {t("hr.salary.shortfall", { amount: formatCurrency(r.shortfall_amount) })}
+            </span>
+          ) : null}
+        </div>
+      ),
+    },
     {
       key: "__actions",
       header: "",
@@ -258,6 +275,12 @@ export function SalaryTab() {
                 <span className="text-text">{t("hr.salary.net")}</span>
                 <span className="text-text">{formatCurrency(printing.net)}</span>
               </div>
+              {hasShortfall(printing) ? (
+                <div className="flex justify-between text-xs font-medium text-danger">
+                  <span>{t("hr.salary.shortfallHint")}</span>
+                  <span>{formatCurrency(printing.shortfall_amount)}</span>
+                </div>
+              ) : null}
             </div>
             <div className="flex justify-end gap-2 print:hidden">
               <Button size="sm" variant="ghost" onClick={() => setPrinting(null)}>

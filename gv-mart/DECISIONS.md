@@ -434,3 +434,134 @@ established convention in this file for a post-codegen column — see the
 existing `category_id` precedent right above it) gained `salary_id`/
 `voided_at`/`voided_by`/`void_reason`, so `getExpensesList`'s new
 `.is("voided_at", null)` typechecks without a local cast.
+
+---
+
+# payroll-fixes2 (2026-10-29) — new findings, incident investigation, F-01/F-02/F-05
+
+Separate work stream, branch `feat/payroll-fixes2`, worktree
+`GV_mart\_local_only\worktrees\payroll-fixes2`, fresh from `origin/main` at
+`d2d28f7`. Builds on the H-01/H-02/H-03 work above and a separate
+`incentive-map` connection-map audit another agent ran.
+
+## Standing rule (owner-mandated, applies to all remaining work in this task)
+
+Every rehearsal or live-verification step that calls a MUTATING function must be
+proven rolled back by an INDEPENDENT read-only re-query of the affected real
+tables — row counts AND a content fingerprint (md5/sha256 digest of the actual
+rows) — taken BEFORE and AFTER the call. The before/after must be byte-identical.
+If they differ, stop immediately and report rather than continuing or
+self-correcting.
+
+## Incident: connection-map audit's "Part 3 preview" posted real ₹0 salaries to the real org
+
+Investigated per owner's explicit request (items 1-4 of the follow-up task). Full
+detail in the chat handback; summary here for the written record:
+
+- The `incentive-map` audit's own report (`connection_map.md` §3) describes
+  running `compute_salary` "for real, live, on the real technicians" and asserts
+  this was "confirmed rolled back." The real database shows otherwise: 2 real
+  `salaries` rows (technicians `48a3dc54…`/`cee294f0…`, period 2026-10) were
+  INSERTED and then LOCKED (via `log_salary_to_accounts`) at 10:17:50/
+  10:18:00-10:18:06 UTC on 2026-10-29, each with a real `expenses` row
+  (category='salary', amount=0.00) still live and un-voided as of this
+  investigation.
+- A third, pre-existing real row (technician `e4b0986f…`, salary id
+  `cadac3d9-db7a-4458-a071-7a0c126b3360`) was recomputed in place at the same
+  time, net going from **0.00** (its value since 2026-10-06, confirmed via
+  `audit_log` — this IS the same row the original `incentive_audit.md` saw as
+  "exactly one salaries row at net 0.00") to **-39.30** (real attendance-driven
+  late deduction, no base tier configured to offset it). Not locked, no expense
+  created for it — left untouched per owner's instruction; will self-correct
+  once F-01 (floor-at-zero) ships and it's recomputed.
+- No double-posting: each locked row has exactly one, never-voided expense.
+  Exact amounts posted: ₹0.00 and ₹0.00 — zero real money moved.
+- Root cause (best determination from available evidence — the actual wrapper
+  SQL file was NOT found saved anywhere in `_local_only/reports/incentive_map/`,
+  only its two output CSVs and the markdown report, so the literal script could
+  not be read line-by-line as asked): the hard rule this project's rehearsal
+  convention exists specifically to enforce is ONE DO block per script, ending
+  in an unconditional `RAISE EXCEPTION`, so a mid-script failure OR a deliberate
+  final raise rolls back everything atomically. The evidence is consistent with
+  that convention having been violated for the October leg of that script
+  specifically: `compute_salary`/`log_salary_to_accounts` calls for the 2
+  technicians committed independently (each got its own real, persisted
+  `audit_log` entry with its own timestamp seconds apart — 10:17:50, then
+  10:18:00, then 10:18:06 — rather than one atomic block), while the September
+  leg of the SAME investigation left zero trace in `salaries` at all, meaning
+  THAT leg genuinely rolled back. Two different pieces of the same investigation
+  behaving differently is the strongest evidence available that the script was
+  not structured as the required single atomic block throughout — most likely
+  separate top-level statements/DO blocks per period or per technician, where
+  only the final one's rollback was unconditional and the earlier ones had
+  already committed by the time it ran. This is a determination from indirect
+  evidence (timestamps + the asymmetry between what persisted and what didn't),
+  not a confirmed line-by-line reading of the script, because that script is not
+  available to read.
+- Sweep for any OTHER leak this week (mine or others'): read-only, see
+  `_local_only/reports/payroll_fixes2/step3_leak_sweep.sql.out.txt`. Exactly 3
+  `__TEST_`-named orgs exist; 2 predate this entire incident by 11-17 days
+  (`2026-10-12`, `2026-10-28`, unrelated prior work) and 1 is my own documented
+  `__TEST_live_verify_payroll_fixes` shell from the FIRST payroll-fixes round
+  (created 09:34 UTC today, expected per that round's own DECISIONS.md D10 —
+  purge_test_organisation()'s pre-existing gap, not a new leak). Zero
+  test-looking rows found in tasks/expenses/incentives_earned/rewards/
+  notifications/leads for the real org. Zero notifications or whatsapp_outbox
+  rows created in the 10:15+ UTC window (and neither `log_salary_to_accounts`
+  nor `reopen_salary_posting` nor `compute_salary` ever write to either table —
+  confirmed by reading their bodies, not just the empty query result). Row-count
+  comparison against my own first-round baseline
+  (`_local_only/reports/payroll_fixes/backup_before_counts.sql.out.txt`) shows
+  every single delta is fully explained by this one incident: `salaries` +2 rows
+  / -39.30 net, `expenses` +2 rows / +0.00 sum — nothing else moved.
+
+## Item 1 (reopen the 2 erroneous rows) — skipped per owner decision
+
+Owner decided to skip reopening the 2 real ₹0 locked salary rows — the gate
+blocking it ("Modify Shared Resources") is a separate safety gate, not a
+missing permission rule, and doesn't clear even with the run_rehearsal.mjs
+rule the owner had already added. Left exactly as found: 2 rows locked, 2
+real ₹0 expenses un-voided, no money impact. The exact command the owner can
+run themselves whenever ready is in the final chat report (same one blocked
+here, nothing has changed about it).
+
+## F-01/F-02/F-05 — fixes shipped
+
+- F-01 (floor at zero + visible shortfall) and F-02 (deactivated-technician
+  guard): one migration, `20261118100000_compute_salary_floor_and_inactive_guard.sql`
+  — adds `salaries.shortfall_amount`, floors `net` at
+  `greatest(raw_net, 0)`, records `shortfall_amount = greatest(-raw_net, 0)`,
+  and refuses a technician that is `not ... is_active` with the same
+  raised-exception shape as the existing "not found" case (mirrors
+  `compute_incentives`'s own `is_active` loop filter exactly). Proven
+  byte-identical for a currently-positive-net technician, and correctly
+  floored+recorded for a would-be-negative one, in the same rehearsal run
+  (`rehearsal1_PASS.out.txt`).
+- F-05 (referral validated-list-or-warning): one migration,
+  `20261118100001_renew_amc_referral_match_signal.sql`. Audited all 5 capture
+  points (see the migration's own header) — 3 already use a real `<select>`
+  bound to the technicians list (`create_sale`/`NewSalePage.tsx`,
+  `sell_amc_plan`/`SellAmcPanel.tsx`, `create_complaint_ticket`/
+  `NewComplaintPage.tsx`), nothing to fix there; `sell_amc_plan_onsite`'s
+  current body no longer takes an optional referrer at all, not an instance
+  of this pattern; `renew_amc_plan` (customer self-service, free-typed name —
+  a customer only knows a name, not an id) was the one genuine gap, now
+  returns `referral_matched` (null/true/false) so the frontend
+  (`AmcBookingPanel.tsx`) can warn on a miss instead of staying silent.
+  **Bonus fix found while rehearsing this migration**: the pre-existing
+  `select count(*), min(t.id) into ...` raised `function min(uuid) does not
+  exist` on this Postgres version — ANY renewal where a customer typed ANY
+  referring-technician name (match or not) crashed the ENTIRE renewal, not
+  just the referral part. Fixed in the same migration (plain count + a
+  separate lookup only when count=1).
+
+## Apply status
+
+- `20261118100001_renew_amc_referral_match_signal.sql` (F-05) — **applied
+  live** 2026-10-29 13:19:10 UTC, verified, registered.
+- `20261118100000_compute_salary_floor_and_inactive_guard.sql` (F-01/F-02) —
+  **blocked**. The exact same "Production Deploy" permission-gate classifier
+  from the first payroll-fixes round fired again on this specific command;
+  not retried, not worked around. Fully rehearsed, independently reviewed (no
+  blocking findings), DRYRUN-OK-checked, and ready — see the final chat
+  report for the exact command to run once the owner clears this gate.

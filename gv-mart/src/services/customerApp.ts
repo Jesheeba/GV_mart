@@ -456,8 +456,12 @@ export type RenewAmcInput = {
    * technician's name, not their id) — renew_amc_plan resolves it
    * server-side to a real technicians.id -> leads.owner_id so it feeds the
    * existing finder-credit incentive plumbing, never stored as a raw column
-   * nothing reads. Silently ignored (no attribution, sale still succeeds)
-   * if the name doesn't match exactly one active technician in the org.
+   * nothing reads. If the name doesn't match exactly one active technician
+   * in the org, the sale still succeeds (never blocked by this), but the
+   * RPC now reports it via `referral_matched: false` (connection-map
+   * follow-up finding F-05) instead of silently dropping the credit with no
+   * signal — see `renewAmcPlan`'s return type and `AmcBookingPanel.tsx`'s
+   * warning toast.
    */
   referredByTechnicianName?: string
   /** Task 3 (2026-07-30) — customer-picked service address; falls back to
@@ -476,7 +480,10 @@ export async function renewAmcPlan(input: RenewAmcInput) {
     p_address_id: input.addressId ?? null,
   })
   if (error) throw error
-  return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }
+  // referral_matched: null when no name was given at all; true when given and
+  // matched; false when given but did not match exactly one active technician
+  // (F-05 — the caller should warn the customer in this case, not stay silent).
+  return data as { contract_id: string; ticket_ids: string[]; expiry_date: string; referral_matched: boolean | null }
 }
 
 export type AmcHistoryVisit = {
