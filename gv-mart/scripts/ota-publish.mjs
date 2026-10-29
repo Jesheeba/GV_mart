@@ -13,10 +13,17 @@
 
 import { execFileSync } from "node:child_process"
 import { createHash, sign } from "node:crypto"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import AdmZip from "adm-zip"
+
+// Keep only this many most-recent bundle files per channel (owner decision,
+// 2026-10-29): bounds how much the repo grows per release, and keeps the
+// previous build's zip around so a rollback (point the manifest back at
+// it) never needs a rebuild. 2 is the minimum that allows "roll back one
+// release" at all — raise it if that's ever not enough.
+const BUNDLES_TO_KEEP_PER_CHANNEL = 2
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
@@ -32,6 +39,25 @@ function parseArgs(argv) {
     else if (a === "--private-key") args.privateKeyPath = argv[++i]
   }
   return args
+}
+
+function pruneOldBundles(outDir, justPublishedBuildNumber) {
+  const bundleFiles = readdirSync(outDir)
+    .map((name) => {
+      const match = /^bundle-(\d+)\.zip$/.exec(name)
+      return match ? { name, buildNumber: Number(match[1]) } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.buildNumber - a.buildNumber)
+
+  const toDelete = bundleFiles.slice(BUNDLES_TO_KEEP_PER_CHANNEL)
+  for (const { name, buildNumber } of toDelete) {
+    // Never delete the one the manifest we're about to write points at,
+    // even if --build was re-run with an old number for some reason.
+    if (buildNumber === justPublishedBuildNumber) continue
+    rmSync(join(outDir, name))
+    console.log(`  pruned old bundle: ${name}`)
+  }
 }
 
 function canonicalManifestString(m) {
@@ -56,7 +82,10 @@ function main() {
   }
 
   console.log("> npm run build")
-  execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"], { cwd: repoRoot, stdio: "inherit" })
+  // shell:true is required for npm.cmd to spawn correctly from some Windows
+  // shells (git-bash included); safe here since the command/args are fixed
+  // literals, never derived from this script's own CLI input.
+  execFileSync("npm", ["run", "build"], { cwd: repoRoot, stdio: "inherit", shell: true })
 
   const distDir = join(repoRoot, "dist")
   if (!existsSync(distDir)) throw new Error("dist/ not found after build")
@@ -69,10 +98,15 @@ function main() {
   const version = `${new Date().toISOString().slice(0, 10)}-b${args.buildNumber}`
   const outDir = join(repoRoot, "public", "ota", args.channel)
   mkdirSync(outDir, { recursive: true })
-  const bundleFileName = "bundle.zip"
+  // Versioned filename (not a fixed "bundle.zip") so the last
+  // BUNDLES_TO_KEEP_PER_CHANNEL builds can coexist — that's what makes a
+  // rollback possible without rebuilding an old bundle from source.
+  const bundleFileName = `bundle-${args.buildNumber}.zip`
   writeFileSync(join(outDir, bundleFileName), zipBuffer)
 
   const checksum = createHash("sha256").update(zipBuffer).digest("hex")
+
+  pruneOldBundles(outDir, args.buildNumber)
 
   // Filled in by the owner's deploy — the publish script doesn't know the
   // final Vercel domain, so it writes a placeholder the deploy step (or a
@@ -98,7 +132,7 @@ function main() {
   const manifest = { ...payload, signature }
   writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2))
 
-  console.log(`\nWrote public/ota/${args.channel}/manifest.json and bundle.zip`)
+  console.log(`\nWrote public/ota/${args.channel}/manifest.json and ${bundleFileName}`)
   console.log(`  version: ${version}  buildNumber: ${args.buildNumber}  checksum: ${checksum}`)
   if (siteOrigin.includes("REPLACE_WITH_VERCEL_DOMAIN")) {
     console.log(`\n  WARNING: manifest.url uses a placeholder domain. Re-run with OTA_SITE_ORIGIN=https://<your-vercel-domain> before committing, or hand-edit the url field.`)
