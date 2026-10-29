@@ -558,10 +558,25 @@ here, nothing has changed about it).
 ## Apply status
 
 - `20261118100001_renew_amc_referral_match_signal.sql` (F-05) — **applied
-  live** 2026-10-29 13:19:10 UTC, verified, registered.
+  live** 2026-10-29 13:19:10 UTC (by this agent), verified, registered.
 - `20261118100000_compute_salary_floor_and_inactive_guard.sql` (F-01/F-02) —
-  **blocked**. The exact same "Production Deploy" permission-gate classifier
-  from the first payroll-fixes round fired again on this specific command;
-  not retried, not worked around. Fully rehearsed, independently reviewed (no
-  blocking findings), DRYRUN-OK-checked, and ready — see the final chat
-  report for the exact command to run once the owner clears this gate.
+  blocked for this agent twice by the same "Production Deploy" permission-
+  gate classifier (not retried, not worked around either time — the owner
+  confirmed a chat-level authorization alone does not clear a Claude-Code-
+  level classifier). **Applied live by the owner themselves**, running the
+  prepared `apply1_live.sql` command directly, confirmed registered in
+  `supabase_migrations.schema_migrations`. Post-apply, this agent
+  independently re-verified: `compute_salary`'s live body contains the exact
+  reviewed floor/shortfall/is_active logic, is not anon-executable,
+  `salaries.shortfall_amount` exists, and a full real-data row-count/sum
+  comparison against every prior snapshot this session (`salaries` n=3
+  sum_net=-39.30, `expenses(salary)` n=2 sum=0.00, `expenses(all)` n=3
+  sum=4500.00, `incentives_earned`/`rewards`/`leads_referral` all 0) is
+  byte-identical before and after — confirming the apply changed ONLY the
+  function definition and added ONLY the new column, touching no existing
+  row's data. A rolled-back TEST-data rehearsal against the now-live function
+  proved F-01 (positive-net unaffected; would-be-negative floored to 0 with
+  shortfall_amount=10.00 recorded) and F-02 (deactivated technician refused)
+  both behave exactly as designed, while a before/after fingerprint of the
+  3 real technicians' own `salaries` rows (net/shortfall_amount/locked_at)
+  proved they were never touched by any of this verification work.

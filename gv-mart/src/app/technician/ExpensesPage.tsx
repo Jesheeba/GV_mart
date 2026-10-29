@@ -101,11 +101,11 @@ function ClaimForm({ orgId, technicianId, claimType }: { orgId: string | undefin
           <div className="flex flex-wrap gap-2">
             <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onChange} />
-            <Button type="button" variant="outline" size="sm" disabled={uploading || !amount} onClick={() => galleryRef.current?.click()}>
+            <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => galleryRef.current?.click()}>
               {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
               {t("technician.expenses.uploadFromGallery")}
             </Button>
-            <Button type="button" variant="outline" size="sm" disabled={uploading || !amount} onClick={() => cameraRef.current?.click()}>
+            <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => cameraRef.current?.click()}>
               {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
               {t("technician.expenses.takePhoto")}
             </Button>

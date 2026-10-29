@@ -86,9 +86,10 @@ export function LoginPage() {
     if (profileLoading) return <FullPageLoader label={t("common.loading")} />
     if (profile) return <Navigate to={roleHomePath(profile.role)} replace />
     // First-time Google sign-in: an auth user exists but no profiles row —
-    // admin-created customers never get one until linked by mobile number.
+    // admin-created customers never get one until linked (interim notice
+    // only right now, see GoogleLinkAccountCard's own doc comment).
     if ((profileError as { code?: string } | null)?.code === NO_PROFILE_ROW_CODE) {
-      return <GoogleLinkAccountCard userId={session.user.id} />
+      return <GoogleLinkAccountCard />
     }
   }
 

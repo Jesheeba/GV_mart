@@ -252,7 +252,11 @@
     "linkAccountRequestFailed": "Something went wrong sending the code. Please try again.",
     "linkAccountVerifyFailed": "Something went wrong checking the code. Please try again.",
     "linkAccountUnavailableTitle": "Account linking is not available yet",
-    "linkAccountUnavailableBody": "Account linking is not available yet, please contact the shop."
+    "linkAccountUnavailableBody": "Account linking is not available yet. Please contact the shop and they will help you.",
+    "linkAccountNotFound": "We couldn't find a customer account with this mobile number. Please contact us to get set up.",
+    "linkAccountAlreadyLinked": "This mobile number is already linked to another account.",
+    "linkAccountGenericError": "Couldn't link your account. Please try again.",
+    "linkAccountUnavailable": "Account linking is not available yet. Please contact the shop and they will help you."
   },
   "shell": {
     "searchPlaceholder": "Search customers, tickets, invoices…",

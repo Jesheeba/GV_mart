@@ -1,0 +1,70 @@
+# PROPOSED — NOT INSTALLED, AND NOT TO BE INSTALLED AS A GITHUB ACTIONS
+# WORKFLOW. Jesheeba/GV_mart is a PUBLIC repository; a BYPASSRLS
+# credential that reads every customer record does not go into a public
+# repo's Actions secrets. This file exists only to record the
+# dump/upload logic so it can be transplanted onto whatever scheduler is
+# actually chosen (a cron job on an always-on machine, a self-hosted
+# runner, a small always-on VM, or a separate private repo dedicated to
+# this one job — not yet decided). Adjust the trigger/secrets syntax for
+# whichever of those it ends up running on; everything from "Dump" down
+# is scheduler-agnostic shell.
+name: Nightly database backup
+
+on:
+  schedule:
+    - cron: "17 20 * * *"  # ~01:47 IST
+  workflow_dispatch: {}      # manual trigger for testing, no schedule risk
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install postgresql-client and the B2 CLI
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client python3-pip
+          pip install --quiet b2
+
+      - name: Authenticate to B2 (write-only key, one bucket, no delete/list capability)
+        env:
+          B2_APPLICATION_KEY_ID: ${{ secrets.BACKUP_B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.BACKUP_B2_KEY }}
+        run: b2 account authorize "$B2_APPLICATION_KEY_ID" "$B2_APPLICATION_KEY"
+
+      - name: Dump public schema (compressed, custom format)
+        env:
+          # Sensitive: BYPASSRLS, reads every row in every public table.
+          # See supabase/ops/BACKUP_PLAN.md §2 before treating this as a
+          # low-sensitivity secret — it is not one.
+          BACKUP_READER_DB_URL: ${{ secrets.BACKUP_READER_DB_URL }}
+        run: |
+          pg_dump "$BACKUP_READER_DB_URL" -n public --format=custom --compress=9 \
+            -f gv_mart_daily.dump
+
+      - name: Upload (fixed filename — B2 versioning + a bucket lifecycle
+          rule handle retention; this job never deletes anything)
+        env:
+          BUCKET: ${{ secrets.BACKUP_BUCKET }}
+        run: |
+          b2 file upload "$BUCKET" gv_mart_daily.dump daily/gv_mart.dump
+          if [ "$(date +%u)" = "7" ]; then
+            b2 file upload "$BUCKET" gv_mart_daily.dump weekly/gv_mart.dump
+          fi
+
+# No prune/delete step exists anywhere in this job, deliberately — the
+# B2 key it runs with has no deleteFiles capability and could not prune
+# even if asked to. Retention (7 daily, 4 weekly) is a B2 lifecycle rule
+# set on the bucket itself by an admin key, not by this workflow. See
+# supabase/ops/BACKUP_PLAN.md §3 for the exact rule and why fixed
+# filenames (not date-stamped ones) are what make that rule work.
+#
+# Secrets this needs, none of which exist anywhere yet, and none of
+# which belong in THIS (public) repository regardless of scheduler:
+#   BACKUP_READER_DB_URL        — the backup_reader connection string
+#                                  (§2 of BACKUP_PLAN.md). BYPASSRLS.
+#                                  Treat as highly sensitive, not as a
+#                                  harmless read-only detail.
+#   BACKUP_B2_KEY_ID / BACKUP_B2_KEY — the write-only B2 application key,
+#                                  capability writeFiles only, scoped to
+#                                  one bucket.
+#   BACKUP_BUCKET                — the bucket name.
+# SUPABASE_ACCESS_TOKEN is not used anywhere in this workflow.
