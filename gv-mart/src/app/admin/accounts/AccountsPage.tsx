@@ -113,7 +113,7 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="outline" onClick={() => navigate("/accounts/outstanding")} className="relative">
+        <Button variant="outline" onClick={() => navigate("/admin/accounts/outstanding")} className="relative">
           <ListTodo className="size-4" />
           {t("accounts.outstanding.navLink")}
           {overdueOrDueTodayCount > 0 ? (
