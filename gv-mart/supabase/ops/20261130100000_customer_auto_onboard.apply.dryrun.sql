@@ -352,7 +352,7 @@ begin
   -- 0. ORG CHECK
   select md5(o.id::text || '|' || o.name) into v_org_fingerprint
   from public.organizations o
-  where o.name not like '\_\_TEST%' escape '\'
+  where o.name not like '\_\_TEST\_%' escape '\'
   order by o.created_at asc
   limit 1;
   if v_org_fingerprint is distinct from v_expected_org_fingerprint then
