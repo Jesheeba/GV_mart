@@ -123,6 +123,16 @@ begin
     raise exception 'customer_auto_onboard: no organisation to onboard into';
   end if;
 
+  -- SECURITY REVIEW (2026-11-30) -- accepted single-org limitation, documented not fixed: this
+  -- match (and v_matched below) is NOT scoped to v_default_org or any org at all -- it searches
+  -- every organisation. Harmless today because v_default_org IS the only real organisation
+  -- (same premise this whole function's org-selection already depends on), but if a second
+  -- real organisation is ever created, a sign-in intended for org B could match and link to a
+  -- customer that actually belongs to org A, with no client-supplied org to validate against
+  -- (this function has no parameters at all, so there is nothing to scope the match TO until
+  -- after it already ran). Revisit before this project is ever multi-org: either scope both
+  -- queries to v_default_org, or add a loud guard that refuses outright if more than one real
+  -- organisation exists.
   select count(*) into v_match_count
     from public.customers c
    where c.is_test = false
@@ -130,12 +140,17 @@ begin
      and lower(trim(c.email)) = v_email;
 
   if v_match_count = 1 then
+    -- FOR UPDATE: closes the race between two DIFFERENT callers whose emails both match this
+    -- same unlinked customer at the same time (admin_link_customer_google_account locks its
+    -- matched row the same way, for the same reason) -- without it, both could read
+    -- primary_profile_id IS NULL before either writes, and both would try to link.
     select c.* into v_matched
       from public.customers c
      where c.is_test = false
        and c.email is not null
        and lower(trim(c.email)) = v_email
-     limit 1;
+     limit 1
+     for update;
 
     if v_matched.primary_profile_id is null then
       -- Link: same data effects as admin_link_customer_google_account's own link path.
@@ -164,15 +179,17 @@ begin
   end if;
   -- v_match_count = 0 falls through with v_reason still null (not flagged).
 
+  -- profiles row MUST be inserted first -- customers.primary_profile_id is a foreign key to it,
+  -- so referencing v_uid in the customers insert before this would violate that constraint.
+  insert into public.profiles (id, org_id, full_name, phone, role, language)
+  values (v_uid, v_default_org, coalesce(v_name, 'Customer'), null, 'customer', 'en');
+
   insert into public.customers (org_id, name, mobile, email, source, is_test, needs_review, needs_review_reason, primary_profile_id)
   values (
     v_default_org, coalesce(v_name, 'Customer'), null, v_email, 'customer_app', false,
     v_reason is not null, v_reason, v_uid
   )
   returning * into v_new;
-
-  insert into public.profiles (id, org_id, full_name, phone, role, language)
-  values (v_uid, v_default_org, coalesce(v_name, 'Customer'), null, 'customer', 'en');
 
   insert into public.audit_log (org_id, actor_id, action, table_name, row_id, before, after)
   values (
