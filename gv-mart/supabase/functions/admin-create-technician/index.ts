@@ -43,7 +43,7 @@ type CreateBody = {
   aadharDocumentPath?: string | null
   drivingLicenceDocumentPath?: string | null
 }
-type ResetPasswordBody = { action: "reset_password"; technicianId: string }
+type ResetPasswordBody = { action: "reset_password"; technicianId: string; password?: string | null }
 type DeleteBody = { action: "delete"; technicianId: string }
 type RequestBody = CreateBody | ResetPasswordBody | DeleteBody
 
@@ -200,11 +200,24 @@ Deno.serve(async (req) => {
       if (techErr || !technician) return jsonError("Technician not found", 404)
       if (technician.org_id !== orgId) return jsonError("Technician not found", 404)
 
-      const password = generatePassword()
-      const { error: updateErr } = await admin.auth.admin.updateUserById(technician.profile_id, { password })
-      if (updateErr) return jsonError(updateErr.message, 400)
+      const resetGenerated = body.password == null
+      let resetPassword: string
+      if (resetGenerated) {
+        resetPassword = generatePassword()
+      } else {
+        const passwordError = validateTypedPassword(body.password)
+        if (passwordError) return jsonError(passwordError, 400)
+        resetPassword = body.password as string
+      }
 
-      return jsonOk({ password })
+      const { error: updateErr } = await admin.auth.admin.updateUserById(technician.profile_id, { password: resetPassword })
+      if (updateErr) {
+        const kind = classifyAuthError(updateErr)
+        if (kind === "weak_password") return jsonError("That password is not accepted; choose another or let the system generate one", 400)
+        return jsonError("Could not reset the password", 400)
+      }
+
+      return jsonOk({ generated: resetGenerated, password: resetGenerated ? resetPassword : undefined })
     }
 
     if (body.action === "delete") {

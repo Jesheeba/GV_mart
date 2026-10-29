@@ -50,7 +50,8 @@ export function useCreateTechnicianAccount() {
 
 export function useResetTechnicianPassword() {
   return useMutation({
-    mutationFn: (technicianId: string) => techniciansAdmin.resetTechnicianPassword(technicianId),
+    mutationFn: ({ technicianId, password }: { technicianId: string; password?: string }) =>
+      techniciansAdmin.resetTechnicianPassword(technicianId, password),
   })
 }
 

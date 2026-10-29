@@ -255,8 +255,8 @@ export async function createTechnicianAccount(input: CreateTechnicianInput): Pro
   return invokeAdminCreateTechnician<CreateTechnicianResult>({ action: "create", ...input })
 }
 
-export async function resetTechnicianPassword(technicianId: string): Promise<{ password: string }> {
-  return invokeAdminCreateTechnician<{ password: string }>({ action: "reset_password", technicianId })
+export async function resetTechnicianPassword(technicianId: string, password?: string): Promise<{ generated: boolean; password?: string }> {
+  return invokeAdminCreateTechnician<{ generated: boolean; password?: string }>({ action: "reset_password", technicianId, password })
 }
 
 export async function deleteTechnicianAccount(technicianId: string): Promise<void> {
