@@ -57,6 +57,7 @@ declare
   v_dryrun_marker text := 'unused';
   v_ist_hour int;
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
+  v_org_id_before uuid;
   v_org_fingerprint_before text;
   v_org_fingerprint_after text;
   v_expected_kpi_hash text := '678b4f865db828a5e6ac0e9c4221e0530fc0bc67e5793a0c1da69b62f37909a8';
@@ -1163,16 +1164,18 @@ $mig7$;
 
 begin
   raise exception 'DRYRUN OK';
-  -- 0. ORG CHECK
-  select encode(digest(o.id::text || '|' || o.name, 'sha256'), 'hex') into v_org_fingerprint_before
+  -- 0. ORG CHECK -- md5(id||'|'||name) of the oldest non-__TEST_ org, per the owner's own pin
+  -- (6f891cf85011f08c2f22fb4a208d21bd is 32 hex chars = md5 length, not sha256 -- fixed after the
+  -- rehearsal run surfaced this script never actually compared the computed value to the pin).
+  select o.id, md5(o.id::text || '|' || o.name) into v_org_id_before, v_org_fingerprint_before
   from public.organizations o
   where o.name not like '%__TEST_%'
   order by o.created_at asc limit 1;
-  -- NOTE: the pinned fingerprint in the owner's brief was given as an md5-style 32-char hex; confirm the
-  -- exact hash function (md5 vs sha256) against q_fetch_kpi_def.sql.out.txt's own methodology before
-  -- running -- do not blindly trust this placeholder comparison without re-deriving it live first.
   if v_org_fingerprint_before is null then
     raise exception 'ORG CHECK: no non-test organisation found -- refusing, this does not look like the right database';
+  end if;
+  if v_org_fingerprint_before <> v_expected_org_fingerprint then
+    raise exception 'ORG CHECK: fingerprint mismatch (expected %, got % for org id %) -- refusing, this does not look like the pinned database', v_expected_org_fingerprint, v_org_fingerprint_before, v_org_id_before;
   end if;
 
   -- 1. LOCK
@@ -1273,7 +1276,7 @@ begin
 
   -- 9c. org fingerprint unchanged (this migration set touches installations_logged/service_visits only
   -- via READS in the backfill step -- it never writes to organizations, so this must be identical)
-  select encode(digest(o.id::text || '|' || o.name, 'sha256'), 'hex') into v_org_fingerprint_after
+  select md5(o.id::text || '|' || o.name) into v_org_fingerprint_after
   from public.organizations o where o.name not like '%__TEST_%' order by o.created_at asc limit 1;
   if v_org_fingerprint_after is distinct from v_org_fingerprint_before then
     raise exception 'POST-APPLY: real organisation fingerprint changed (% -> %) -- this must never happen for this migration set', v_org_fingerprint_before, v_org_fingerprint_after;
@@ -1300,3 +1303,24 @@ end;
 $apply$;
 
 select * from pg_temp.product_lifecycle_drop1_apply_status;
+
+-- Objects / RLS / anon-exec listing (read-only, run after the DO block commits) -- the actual thing
+-- to eyeball for the security review, not just the boolean flags above.
+select c.relname as object_name, 'table' as kind, c.relrowsecurity as rls_enabled,
+       has_table_privilege('anon', c.oid, 'SELECT') as anon_can_select
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relname in (
+  'product_lifecycle_configs', 'product_spare_schedules', 'customer_installed_products',
+  'customer_part_schedules', 'part_replacement_history', 'lifecycle_reminder_events',
+  'lifecycle_expiry_reminder_events'
+)
+union all
+select p.oid::regprocedure::text, 'function', null, has_function_privilege('anon', p.oid, 'EXECUTE')
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname in (
+  '_lifecycle_add_interval', 'create_installed_product', 'correct_installation_date',
+  'apply_updated_schedule_preview', 'apply_updated_schedule', 'record_part_replacement',
+  'get_customer_due_parts', 'log_installed_products_for_invoice',
+  'generate_lifecycle_reminders', 'lifecycle_reminders_cron_tick'
+)
+order by kind, object_name;

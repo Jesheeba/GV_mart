@@ -14,8 +14,11 @@ declare
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
   v_org_fingerprint text;
   v_test_org_id uuid;
+  v_test_brand_id uuid;
+  v_test_model_id uuid;
   v_test_product_id uuid;
   v_test_customer_id uuid;
+  v_test_master_id uuid;
   v_test_config_id uuid;
   v_test_schedule_id uuid;
   v_installed_id uuid;
@@ -1119,11 +1122,15 @@ where n.nspname = 'public'
 $mig7$;
 
 begin
-  -- ORG CHECK (same as apply -- refuse if this doesn't look like the right database)
-  select encode(digest(o.id::text || '|' || o.name, 'sha256'), 'hex') into v_org_fingerprint
+  -- ORG CHECK (same as apply -- md5(id||'|'||name), matches the owner's pin, refuse if this
+  -- doesn't look like the right database)
+  select md5(o.id::text || '|' || o.name) into v_org_fingerprint
   from public.organizations o where o.name not like '%__TEST_%' order by o.created_at asc limit 1;
   if v_org_fingerprint is null then
     raise exception 'ORG CHECK: no non-test organisation found -- refusing';
+  end if;
+  if v_org_fingerprint <> v_expected_org_fingerprint then
+    raise exception 'ORG CHECK: fingerprint mismatch (expected %, got %) -- refusing, this does not look like the pinned database', v_expected_org_fingerprint, v_org_fingerprint;
   end if;
 
   set lock_timeout = '5s';
@@ -1143,14 +1150,52 @@ begin
   execute v_mig6_text;
   execute v_mig7_text;
 
-  -- ---- throwaway test fixtures ----
+  -- ---- test-fixture helpers (same pattern as
+  -- supabase/rehearsals/20261114100000_spare_handover_completion_gaps.rehearsal.sql's
+  -- pg_temp.mkuser/as_user/as_pg -- a throwaway auth.users row is required because
+  -- public.profiles.id is a hard FK to auth.users(id), and record_part_replacement's
+  -- is_staff()/current_technician_id() checks read auth.uid() via the request.jwt.claims GUC) ----
+  create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
+  declare v uuid := gen_random_uuid();
+  begin
+    insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+    values (v, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '__t_' || p_role || '_' || v || '@test.invalid', 'x', now(), now(), now(), '{}', '{}');
+    insert into public.profiles (id, org_id, full_name, role, is_active) values (v, p_org, '__TEST_ ' || p_role, p_role::public.user_role, true);
+    return v;
+  end $f$;
+  create function pg_temp.as_user(p_uid uuid) returns void language plpgsql as $f$
+  begin perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true); execute 'set local role authenticated'; end $f$;
+  create function pg_temp.as_pg() returns void language plpgsql as $f$
+  begin execute 'reset role'; perform set_config('request.jwt.claims', '', true); end $f$;
+
+  -- ---- throwaway test fixtures -- every NOT-NULL column without a default and every FK on each
+  -- table touched below was read directly from its create-table migration before writing this:
+  --   organizations (20260701090100_core_tables.sql): name not null -- only column with no default.
+  --   brands (20260701090300_catalog_inventory.sql): org_id, name, category (brand_category enum) not null.
+  --   models (20260701090300_catalog_inventory.sql): org_id, brand_id (FK brands), name not null.
+  --   products (20260701090300_catalog_inventory.sql): org_id, brand_id (FK brands, not null, restrict),
+  --     model_id (FK models, not null, restrict), name, category, price (check >= 0) not null.
+  --   customers (20260701090200_customers.sql): org_id, name, mobile not null.
+  --   profiles (20260701090100_core_tables.sql): id (FK auth.users), org_id, full_name, role not null --
+  --     created by pg_temp.mkuser above, needed only so is_staff()/is_master() resolve true for the
+  --     impersonated session below; not inserted directly here.
+  -- product_lifecycle_configs / product_spare_schedules / customer_installed_products /
+  -- customer_part_schedules / part_replacement_history / lifecycle_reminder_events are this
+  -- migration's own tables (defined above in this same transaction) -- their NOT NULL/FK/unique
+  -- constraints are satisfied by create_installed_product()/record_part_replacement() themselves,
+  -- which is exactly the behaviour this rehearsal is proving.
   insert into public.organizations (name) values ('__TEST_lifecycle_rehearsal_' || gen_random_uuid())
     returning id into v_test_org_id;
-  insert into public.products (org_id, name, category, price)
-    values (v_test_org_id, '__TEST_ RO Purifier', 'ro', 10000)
+  insert into public.brands (org_id, name, category) values (v_test_org_id, '__TEST_ Brand', 'ro')
+    returning id into v_test_brand_id;
+  insert into public.models (org_id, brand_id, name) values (v_test_org_id, v_test_brand_id, '__TEST_ Model')
+    returning id into v_test_model_id;
+  insert into public.products (org_id, brand_id, model_id, name, category, price)
+    values (v_test_org_id, v_test_brand_id, v_test_model_id, '__TEST_ RO Purifier', 'ro', 10000)
     returning id into v_test_product_id;
-  insert into public.customers (org_id, mobile) values (v_test_org_id, '9999999999')
+  insert into public.customers (org_id, name, mobile) values (v_test_org_id, '__TEST_ Customer', '9999999999')
     returning id into v_test_customer_id;
+  v_test_master_id := pg_temp.mkuser('master', v_test_org_id);
 
   -- 5-year lifetime, 3-month spun filter -- the worked example from plan.md section 4
   insert into public.product_lifecycle_configs (org_id, product_id, lifetime_value, lifetime_unit)
@@ -1166,8 +1211,14 @@ begin
     raise exception 'MONTH-END CLAMP FAILED: expected next_due_date 2026-04-30, got %', v_next_due_1;
   end if;
 
-  -- Early replacement on 2026-04-20 -> next due computed from the ACTUAL date, not the old due date
+  -- Early replacement on 2026-04-20 -> next due computed from the ACTUAL date, not the old due date.
+  -- Impersonate the throwaway master profile for this call: record_part_replacement requires
+  -- is_staff() or a matching technician, which reads auth.uid() -- a plain superuser session has
+  -- neither, so the call would otherwise fail its own authorization check (that check is itself
+  -- part of what this rehearsal needs to prove works, not something to bypass).
+  perform pg_temp.as_user(v_test_master_id);
   perform public.record_part_replacement(v_part_schedule_id, '2026-04-20'::date);
+  perform pg_temp.as_pg();
   select next_due_date into v_next_due_2 from public.customer_part_schedules where id = v_part_schedule_id;
   if v_next_due_2 <> '2026-07-20'::date then
     raise exception 'ACTUAL-DATE RECOMPUTE FAILED: expected next_due_date 2026-07-20 after early replacement, got %', v_next_due_2;
