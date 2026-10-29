@@ -643,3 +643,51 @@ Independent post-apply verification (separate read-only queries, not the apply s
 - Anon-exposure sweep (every public-schema function executable by `PUBLIC`/`anon`, project-wide): **empty result set** -- zero functions, not just these two.
 
 Backup note (recorded here since it's a standing-pipeline step this task couldn't fully satisfy): the only live-DB tool available (`run_rehearsal.mjs`) runs a single SQL query via the Management API -- it cannot take a `pg_dump`-style snapshot. Treated the proven, byte-identical before/after fingerprints (customers/profiles unchanged; audit_log's one delta independently confirmed unrelated) plus the rollback script (`supabase/rollbacks/20261121100000_admin_link_customer_google_account.rollback.sql`, a clean two-function `DROP FUNCTION`, safe since nothing else references them yet) as the practical substitute, since this migration is purely additive and touches no existing row. Flagged to the owner before applying rather than skipped silently.
+
+# customer-auto-onboard: auto-onboarding on first Google sign-in (2026-11-30)
+
+Worktree `GV_mart\_local_only\worktrees\customer-auto-onboard`, branch `feat/customer-auto-onboard` off `origin/main` (03cb43a). Reports in `GV_mart\_local_only\reports\customer_auto_onboard\` (and ad-hoc one-off check files directly in `reports\`).
+
+## 1) Zero-argument trust model
+
+`customer_auto_onboard()` takes no parameters at all — mechanically proven in the test (`pg_get_function_arguments(...) = ''`), not just claimed. The only input is `auth.uid()`, unforgeable from a verified JWT. Everything else (email, name) is read server-side from `auth.identities`/`auth.users` for that same uid. This is deliberately stricter than `admin_link_customer_google_account` (20261121100000), which trusts a human master's judgment on two explicit parameters — this function has no human in the loop, so it has no parameters to abuse.
+
+## 2) Match rule reuses admin_link_customer_google_account's link mechanism
+
+0 matches → create (`source='customer_app'`, not flagged). 1 unlinked match → link (identical data effects to the admin tool: create `profiles`, set `customers.primary_profile_id`). 1 match already linked elsewhere, or >1 matches → never guesses, never takes over an existing login — creates a new customer instead, flagged `needs_review` with a specific reason. Test customers (`is_test=true`) are excluded from the match set by construction, not a post-hoc check.
+
+## 3) `source='customer_app'`, not a new `'app'` enum value
+
+The task asked to inspect for an existing source/tag column and use it if one fits. `lead_source` already has `'customer_app'` (20260701090000) — used verbatim rather than adding a new enum value for `'app'`.
+
+## 4) customers.email — new column, customers only, never customer_members.email
+
+Family members' own optional email (20261012110000) is a different field for a different person. Matching is strictly against the account holder's own `customers.email`.
+
+## 5) customers.mobile relaxed to nullable
+
+An auto-onboarded customer has no phone until the existing OTP flow (flag OFF, untouched by this feature) or staff provide one. The pre-existing format CHECK (`mobile ~ '^\d{10}$'`) already tolerates NULL unmodified — a CHECK passes when its expression evaluates to NULL. Audited every `.mobile` call site in `src/`; fixed the one null-unsafe spot (`CustomerDetailPage.tsx`'s WhatsApp-link derivation) and widened two `mobile: string`-typed call sites (autocomplete result shape, `AdminShell`'s global search type) to `string | null`.
+
+## 6) Bug caught by the rehearsal itself, not a reviewer
+
+First rehearsal run hit `insert or update on table "customers" violates foreign key constraint "customers_primary_profile_id_fkey"` — the zero-match create path inserted into `customers` with `primary_profile_id = v_uid` BEFORE the `profiles` row for `v_uid` existed. Fixed by inserting `profiles` first. Second rehearsal run: 28/28 PASS.
+
+## 7) Security review — findings and resolution
+
+Independent fresh-context review: **no unresolved High findings.**
+
+- **M-1 (Medium) — missing `FOR UPDATE` on the matched-customer read**, enabling a race against a concurrent `admin_link_customer_google_account`/`admin_unlink_customer_google_account` call (or a second `customer_auto_onboard()` caller) on the same customer row. **Already fixed** before the review's snapshot was taken (the review ran against an earlier state of the file, mid-edit) — confirmed the `for update` clause is present in the final, hash-pinned, rehearsed version. Re-rehearsed after the fix: 28/28 PASS, same as before.
+- **M-2 (Low/latent) — the email-match query is not org-scoped.** Accepted as a documented single-org limitation (matches this project's existing single-real-org convention everywhere else), not fixed — would need revisiting before this project is ever multi-org. Comment added directly above the match query explaining this, same treatment as the admin-link feature's own M1.
+- L-1 through L-5 (Low/informational): a repair-path gap for the theoretical "profile with no linked customer" dead end (reachable only by direct admin error outside both linking RPCs, not by an external attacker), a loose-but-practically-sufficient email-confirmation check, no length cap on the Google-supplied display name (no injection risk, React escapes it), a 32-bit advisory-lock hash collision class (harmless, adds at most a brief wait), and no retry affordance on a transient RPC failure in the frontend. None required a code change to close this review.
+
+## 8) Rehearsal — a false-positive worth documenting
+
+The rehearsal wrapper's own built-in real-org fingerprint check reproducibly reported "changed" (customers 16476→16480, profiles 7→11, audit_log 3015→3023, identical delta on two separate runs) — **this is not a persistence bug.** `customer_auto_onboard()` has no org parameter by design (see §1) and always targets "the one real organisation" for its CREATE path — so even a rolled-back test run of it writes real-org rows WITHIN the still-open rehearsal transaction, which the wrapper's own before/after SELECTs (run inside that same transaction) correctly see, before the final unconditional RAISE undoes all of it. Proved this is genuinely harmless the way the task's own instructions asked — an **independent** read-only re-query, in a **separate** request after the rehearsal's HTTP call had already returned — run twice (once after the rehearsal, once after the DRYRUN apply): zero trace both times (no `__TEST_auto_onboard` org, no throwaway `auth.users` rows, `customer_auto_onboard()` doesn't exist, `customers.mobile` still `NOT NULL`, zero `schema_migrations` rows for either version). The 3 `telltale_customers` matches found both times are pre-existing rows from 2026-10-12, unrelated to this work.
+
+## 9) Backup note
+
+Same gap as the admin-link feature: the only live-DB tool available (`run_rehearsal.mjs`) runs a single SQL query — no `pg_dump`-style snapshot possible. This migration pair is additive for two of its three column changes (nullable, defaulted) and the function is brand new; the one non-additive change (`customers.mobile` NOT NULL → nullable) is backward-compatible for every existing row (no existing row has a NULL mobile, and none will unless the new function creates one). Treated the proven before/after fingerprints plus the rollback script (`supabase/rollbacks/20261130100000_customer_auto_onboard.rollback.sql`, with an explicit warning about re-tightening `mobile` NOT NULL only after confirming no row has gone NULL) as the practical substitute.
+
+## 10) STOPPED HERE per instruction
+
+Migration + rehearsal (28/28 PASS, live) + apply script + DRYRUN copy (DRYRUN_OK, live, nothing persisted) + both independent reviews are done. **Not applied for real.** Waiting for the owner to type "APPROVED".
