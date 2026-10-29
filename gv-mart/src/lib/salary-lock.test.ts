@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { alreadyLoggedMessage, canLogToAccounts, canRecompute, canReopen, isSalaryLocked } from "./salary-lock"
+import { alreadyLoggedMessage, canLogToAccounts, canRecompute, canReopen, hasShortfall, isSalaryLocked } from "./salary-lock"
 
 describe("isSalaryLocked", () => {
   it("is false for a freshly computed, never-posted row", () => {
@@ -31,5 +31,14 @@ describe("alreadyLoggedMessage", () => {
   })
   it("falls back to a generic phrase when no date is available", () => {
     expect(alreadyLoggedMessage(null)).toBe("already logged on an earlier date")
+  })
+})
+
+describe("hasShortfall (F-01 — net floored at zero, shortfall recorded visibly)", () => {
+  it("is false when nothing was floored", () => {
+    expect(hasShortfall({ shortfall_amount: 0 })).toBe(false)
+  })
+  it("is true whenever any amount was absorbed by the floor", () => {
+    expect(hasShortfall({ shortfall_amount: 39.3 })).toBe(true)
   })
 })

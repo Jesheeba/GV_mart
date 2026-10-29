@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { AddressPickerModal } from "@/components/shared/AddressPickerModal"
 import { isAmcRenewalOpen, pricePerYearOf } from "@/lib/amc-window"
 import { useMyAddresses, useRenewAmcPlan } from "@/hooks/useCustomerApp"
+import { useToast } from "@/components/ui/toast-context"
+import { shouldWarnReferralMismatch } from "@/lib/referral-match"
 import type { AmcPlanRow } from "@/services/customerApp"
 
 function formatCurrency(amount: number) {
@@ -38,6 +40,7 @@ export function AmcBookingPanel({
   ctaLabel: string
 }) {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const [selectedPlanId, setSelectedPlanId] = useState("")
   const [selectedYears, setSelectedYears] = useState(1)
   const [confirming, setConfirming] = useState(false)
@@ -185,15 +188,27 @@ export function AmcBookingPanel({
                   // credentials exist in this environment. Wiring a real gateway is a
                   // follow-up that only needs to replace this onClick.
                   const simulatedPaymentReference = `SIMULATED-${Date.now()}`
-                  renewAmc.mutate({
-                    orgId,
-                    productId,
-                    planId: selectedPlanId,
-                    paymentReference: simulatedPaymentReference,
-                    years: selectedYears,
-                    referredByTechnicianName: referredByTechnicianName.trim() || undefined,
-                    addressId: addressId || undefined,
-                  })
+                  renewAmc.mutate(
+                    {
+                      orgId,
+                      productId,
+                      planId: selectedPlanId,
+                      paymentReference: simulatedPaymentReference,
+                      years: selectedYears,
+                      referredByTechnicianName: referredByTechnicianName.trim() || undefined,
+                      addressId: addressId || undefined,
+                    },
+                    {
+                      // F-05: a name was typed but didn't match exactly one active
+                      // technician — warn instead of silently dropping the credit.
+                      // The renewal itself still succeeded either way.
+                      onSuccess: (result) => {
+                        if (shouldWarnReferralMismatch(result.referral_matched)) {
+                          toast.error(t("customerApp.amc.referralNotMatched"))
+                        }
+                      },
+                    }
+                  )
                 }}
               >
                 {renewAmc.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("customerApp.amc.payAmount", { amount: formatCurrency(computedTotal) })}

@@ -2558,6 +2558,7 @@
       "bookNow": "Book AMC",
       "paymentSimulatedNote": "This is a simulated payment confirmation for this environment — no real charge will occur.",
       "payAmount": "Pay {{amount}}",
+      "referralNotMatched": "We couldn't find a technician with that name, so no referral credit was applied this time. Your renewal was completed successfully.",
       "status": {
         "active": "Active",
         "due_soon": "Due soon",
@@ -4609,7 +4610,9 @@
       "reopenDialogTitle": "Reopen this salary",
       "reopenDialogHint": "This voids the expense already posted to Accounts for {{name}} and unlocks the row so it can be recomputed. A reason is required and is kept on an audit record.",
       "reopenReason": "Reason",
-      "reopenConfirm": "Reopen and void"
+      "reopenConfirm": "Reopen and void",
+      "shortfall": "Shortfall: {{amount}}",
+      "shortfallHint": "Deductions exceeded pay — net was floored at zero; this is the unrecovered amount."
     },
     "staffSalary": {
       "designation": "Designation",

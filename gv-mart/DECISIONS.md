@@ -514,3 +514,54 @@ detail in the chat handback; summary here for the written record:
   (`_local_only/reports/payroll_fixes/backup_before_counts.sql.out.txt`) shows
   every single delta is fully explained by this one incident: `salaries` +2 rows
   / -39.30 net, `expenses` +2 rows / +0.00 sum — nothing else moved.
+
+## Item 1 (reopen the 2 erroneous rows) — skipped per owner decision
+
+Owner decided to skip reopening the 2 real ₹0 locked salary rows — the gate
+blocking it ("Modify Shared Resources") is a separate safety gate, not a
+missing permission rule, and doesn't clear even with the run_rehearsal.mjs
+rule the owner had already added. Left exactly as found: 2 rows locked, 2
+real ₹0 expenses un-voided, no money impact. The exact command the owner can
+run themselves whenever ready is in the final chat report (same one blocked
+here, nothing has changed about it).
+
+## F-01/F-02/F-05 — fixes shipped
+
+- F-01 (floor at zero + visible shortfall) and F-02 (deactivated-technician
+  guard): one migration, `20261118100000_compute_salary_floor_and_inactive_guard.sql`
+  — adds `salaries.shortfall_amount`, floors `net` at
+  `greatest(raw_net, 0)`, records `shortfall_amount = greatest(-raw_net, 0)`,
+  and refuses a technician that is `not ... is_active` with the same
+  raised-exception shape as the existing "not found" case (mirrors
+  `compute_incentives`'s own `is_active` loop filter exactly). Proven
+  byte-identical for a currently-positive-net technician, and correctly
+  floored+recorded for a would-be-negative one, in the same rehearsal run
+  (`rehearsal1_PASS.out.txt`).
+- F-05 (referral validated-list-or-warning): one migration,
+  `20261118100001_renew_amc_referral_match_signal.sql`. Audited all 5 capture
+  points (see the migration's own header) — 3 already use a real `<select>`
+  bound to the technicians list (`create_sale`/`NewSalePage.tsx`,
+  `sell_amc_plan`/`SellAmcPanel.tsx`, `create_complaint_ticket`/
+  `NewComplaintPage.tsx`), nothing to fix there; `sell_amc_plan_onsite`'s
+  current body no longer takes an optional referrer at all, not an instance
+  of this pattern; `renew_amc_plan` (customer self-service, free-typed name —
+  a customer only knows a name, not an id) was the one genuine gap, now
+  returns `referral_matched` (null/true/false) so the frontend
+  (`AmcBookingPanel.tsx`) can warn on a miss instead of staying silent.
+  **Bonus fix found while rehearsing this migration**: the pre-existing
+  `select count(*), min(t.id) into ...` raised `function min(uuid) does not
+  exist` on this Postgres version — ANY renewal where a customer typed ANY
+  referring-technician name (match or not) crashed the ENTIRE renewal, not
+  just the referral part. Fixed in the same migration (plain count + a
+  separate lookup only when count=1).
+
+## Apply status
+
+- `20261118100001_renew_amc_referral_match_signal.sql` (F-05) — **applied
+  live** 2026-10-29 13:19:10 UTC, verified, registered.
+- `20261118100000_compute_salary_floor_and_inactive_guard.sql` (F-01/F-02) —
+  **blocked**. The exact same "Production Deploy" permission-gate classifier
+  from the first payroll-fixes round fired again on this specific command;
+  not retried, not worked around. Fully rehearsed, independently reviewed (no
+  blocking findings), DRYRUN-OK-checked, and ready — see the final chat
+  report for the exact command to run once the owner clears this gate.
