@@ -59,6 +59,24 @@ begin
     raise exception 'already_linked';
   end if;
 
+  -- SECURITY REVIEW (2026-10-29) — deliberate trust boundary, accepted not fixed:
+  -- this lookup is NOT org-scoped (auth.identities has no org_id; it is shared
+  -- across every tenant). A master could in principle type an arbitrary email
+  -- for one of their own customers and learn, from which of no_matching_signin /
+  -- ambiguous_signin / signin_already_linked / success comes back, whether that
+  -- exact email has ever signed in via Google anywhere in the system, and
+  -- whether it's already attached to some profile — without ever being told
+  -- which org. Accepted because: (a) a master is already one of the most
+  -- privileged roles in this system, with standing access to every one of
+  -- their own org's customers' full records; (b) the task this RPC exists for
+  -- explicitly calls for a clear, specific refusal message to the master in
+  -- each of these cases ("since the master is trusted") — collapsing them into
+  -- one generic error would directly contradict that and make the tool harder
+  -- to use for its actual job with no corresponding benefit, since the
+  -- information this leaks (an email's bare existence somewhere, not which
+  -- org) is not itself sensitive in the way an org's customer list is. Revisit
+  -- if masters are ever a less-trusted role than they are today.
+  --
   -- Reject on >1 match too: an ambiguous email should never silently pick
   -- "the first one", it should refuse and say so.
   select count(*) into v_match_count

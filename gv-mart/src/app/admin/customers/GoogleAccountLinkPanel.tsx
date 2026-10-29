@@ -38,6 +38,7 @@ export function GoogleAccountLinkPanel({ customerId, linked }: { customerId: str
   }
 
   function submitLink() {
+    if (!window.confirm(t("customers.detail.googleLink.confirmLink", { email }))) return
     setDone(null)
     link.mutate(email, {
       onSuccess: () => {
@@ -48,6 +49,7 @@ export function GoogleAccountLinkPanel({ customerId, linked }: { customerId: str
   }
 
   function submitUnlink() {
+    if (!window.confirm(t("customers.detail.googleLink.confirmUnlink"))) return
     setDone(null)
     unlink.mutate(reason, {
       onSuccess: () => {

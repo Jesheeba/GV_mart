@@ -507,10 +507,12 @@
         "emailLabel": "Google email",
         "emailPlaceholder": "customer@gmail.com",
         "linkAction": "Link",
+        "confirmLink": "Link this customer to {{email}}? Double-check this is the right customer and the right email before continuing — this grants that Google account full access to this customer's record.",
         "alreadyLinked": "This customer's login is linked.",
         "unlinkReasonLabel": "Reason for unlinking",
         "unlinkReasonPlaceholder": "e.g. linked the wrong customer by mistake",
         "unlinkAction": "Unlink",
+        "confirmUnlink": "Unlink this customer's Google sign-in? They won't be able to sign in with it again until it's relinked.",
         "linkSuccess": "Linked. The customer can now sign in with that Google account.",
         "unlinkSuccess": "Unlinked.",
         "errors": {
