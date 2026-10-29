@@ -189,6 +189,45 @@ with the 11:00 IST gate this task specified (not that older file's original 18:0
   re-run after this and is unchanged. **The real apply script itself (not just the migration) is
   proven to work end-to-end without having been run for real.**
 
+### 4b. Re-run after a test-setup bug fix (commit `c59874d`)
+
+Re-rehearsing after the section 7 security fixes above hit a real failure:
+`insert or update on table "audit_log" violates foreign key constraint
+"audit_log_actor_id_fkey"`. Root cause, found by bisection: a NEW line this phase added to the
+test's setup (`insert`/`update` on `public.settings`, needed because
+`is_customer_link_otp_enabled()` now also requires `wa_dispatch_v2_enabled`) ran while
+`request.jwt.claims` still held an earlier test step's profile-less user — `reset role` resets
+the SQL role but not that GUC. `settings` carries the generic `audit_master_change` trigger,
+which (unlike `profiles`' own `audit_profile_changes`) writes `actor_id = auth.uid()` with no
+existence check, so the audit insert itself violated the FK. This was a bug in the TEST file,
+not the migration — fixed by moving/clearing `request.jwt.claims` around every direct `settings`
+write; the `G0b` and `P14` assertions from section 7 were restored alongside the fix.
+
+Current pinned hashes (superseding the ones quoted in section 4 above): migration
+`a75b901e79a44233e4422bc1e386040ef0a82db69a5b86b53c09b39096d48222`, test
+`9e78ec0250f739bab304e03dee3d1d2700ffdd7403c89dccb8e2229a1ba423e5`. Rehearsal re-run clean:
+**26 of 26 assertions passed** (`G0`, `G0b`, `P1`–`P14`, `G1`, `G2`), real-row fingerprint
+unchanged before/after. The DRYRUN-OK copy of the apply script was re-run against this same
+migration content and still raises cleanly on its first statement.
+
+Two independent fresh reviews were then run against this exact commit:
+- **Adversarial security review**: no CRITICAL/HIGH findings; verdict READY FOR LIVE APPLY. Two
+  informational items for the record: (1) the known `whatsapp_outbox` plaintext-OTP exposure
+  window between enqueue and cron dispatch is real but already at this codebase's practical
+  minimum (redact-on-send and now redact-on-give-up both confirmed implemented); (2)
+  `is_customer_link_otp_enabled()`'s `wa_dispatch_v2_enabled` check is organisation-existential
+  (any org having it on satisfies the check), not scoped to the matched customer's own org — a
+  latent gap that is inert today (effectively single-organisation product) but would reopen the
+  plaintext-exposure issue for an org with v2 dispatch off if a second organisation is ever
+  onboarded. Worth a follow-up ticket, not a blocker.
+- **Apply-script/syntax review**: no BLOCKING findings; verdict APPROVED FOR LIVE APPLY. Confirmed
+  by direct hash computation (not by trusting this document) that `apply.sql`/`apply.dryrun.sql`/
+  `rehearsal.sql` all embed migration/test text byte-identical to the current source files, with
+  correctly matching pinned hashes; grants, one-shot/idempotency-refusal behavior, and the
+  anon-exposure sweep's whole-schema scope all meet this project's convention. Found three stale
+  prose comments (a leftover "24/24" count, a leftover "five tables + four functions" count, and
+  this section's own now-superseded hashes) — fixed in the same pass that added this subsection.
+
 ## 5. Dispatcher redaction — scope of the fix
 
 `wa-milestone-dispatch-core.ts`'s v2 path (`runMilestoneDispatchV2`) redacts `payload.body` to a

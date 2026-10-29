@@ -620,7 +620,7 @@ begin
   -- any of its logic, any real DDL, or any pre/post check. The deeper proof that the MIGRATION
   -- and TEST themselves behave correctly end to end (including running the real DDL inside an
   -- uncommitted, then-rolled-back transaction) already comes from the separate rehearsal wrapper
-  -- (supabase/ops/customer_link_otp.rehearsal.sql, run independently, 24/24 embedded assertions
+  -- (supabase/ops/customer_link_otp.rehearsal.sql, run independently, 26/26 embedded assertions
   -- passing against the live project) -- this file's only remaining job is confirming the apply
   -- script itself parses and compiles cleanly.
   raise exception 'DRYRUN_OK: this exact apply script compiles cleanly -- stopped at the first statement by design, nothing below this line ran, nothing committed';

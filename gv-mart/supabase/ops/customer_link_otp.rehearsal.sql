@@ -19,7 +19,7 @@
 --   3. PIN        -- sha256(embedded migration text) and sha256(embedded test text) must each
 --      equal the hash recorded below; a silent edit of EITHER file after review refuses the
 --      whole rehearsal, nothing executed.
---   4. RUN        -- applies the pinned migration text verbatim (five new tables + four new
+--   4. RUN        -- applies the pinned migration text verbatim (three new tables + three new
 --      functions, all additive -- no existing table/column/RLS is touched), then executes the
 --      pinned test text verbatim as its own nested DO block and captures its RESULTS line. Both
 --      run inside this same transaction, which this wrapper's own final line ALWAYS ends with an
