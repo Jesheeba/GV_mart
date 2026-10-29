@@ -13,7 +13,6 @@ import { useProfile } from "@/hooks/useProfile"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { OrgTask, PriorityLevel } from "@/services/tasks"
 import { cn } from "@/lib/utils"
-import { useProfile } from "@/hooks/useProfile"
 import { canCompleteTask, completeBlockReason } from "@/lib/task-rules"
 import { TaskWorkLog } from "@/app/admin/tasks/TaskWorkLog"
 
