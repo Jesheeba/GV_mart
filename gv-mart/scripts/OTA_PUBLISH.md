@@ -32,7 +32,11 @@ There is no separate rollback tooling. Both of these are a hand-edit of `public/
 2. Starting from the push, repeatedly `curl -s https://gv-mart.vercel.app/ota/technician-test/manifest.json` (or open it in a browser with cache disabled) and note the wall-clock time until the response shows `"frozen": true`. That's your real kill-switch latency on this Vercel project — Vercel's own deploy step plus whatever CDN caching applies to a plain static JSON file (static assets can have their own cache-control; if the measured latency is uncomfortably long, add a `Cache-Control: no-store` rewrite/header for `/ota/**` in `vercel.json` and re-measure).
 3. Record the measured number here or in the OTA release report before flipping `frozen` back to `false` and shipping the first real production bundle.
 
-This step could not be completed in this pass — this environment can read the live site over plain HTTPS (confirmed `https://gv-mart.vercel.app` is real and serving the app, via the public GitHub Deployments API), but has no Vercel CLI/API credentials to actually push a change and watch it deploy end-to-end from here. It's the one concrete action item for whoever has deploy access before the first production OTA push.
+**Measured for real on 2026-10-29** (publish → push → poll the live URL, on `technician-test`, this repo's actual `git push` access):
+- First manifest live (`buildNumber: 1`, `frozen: false`): **95s** from push to the live URL serving it, signature re-verified against the embedded public key over the real network.
+- Kill switch flip (`frozen: true`, same build republished): **74s** from push to the live URL reflecting it.
+- No `Cache-Control: no-store` override was needed to get these numbers — Vercel's default static-asset caching for `/ota/**` is already fast enough. Re-measure if that ever changes (new caching rule, CDN config, etc.).
+- Channel was reset to `frozen: false` (`buildNumber: 2`) immediately after, so `technician-test` isn't left frozen.
 
 ## First production OTA push — exact commands
 
