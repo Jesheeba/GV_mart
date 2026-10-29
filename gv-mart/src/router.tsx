@@ -46,6 +46,7 @@ const TicketDetailPage = lazyPage(() => import("@/app/admin/service/TicketDetail
 const AppointmentsPage = lazyPage(() => import("@/app/admin/service/AppointmentsPage"), "AppointmentsPage")
 const AmcWarrantyListPage = lazyPage(() => import("@/app/admin/amc/AmcWarrantyListPage"), "AmcWarrantyListPage")
 const AmcContractDetailPage = lazyPage(() => import("@/app/admin/amc/AmcContractDetailPage"), "AmcContractDetailPage")
+const LifecycleOverviewPage = lazyPage(() => import("@/app/admin/lifecycle/LifecycleOverviewPage"), "LifecycleOverviewPage")
 const RentalsListPage = lazyPage(() => import("@/app/admin/rentals/RentalsListPage"), "RentalsListPage")
 const LeadsPage = lazyPage(() => import("@/app/admin/leads/LeadsPage"), "LeadsPage")
 const LeadDetailPage = lazyPage(() => import("@/app/admin/leads/LeadDetailPage"), "LeadDetailPage")
@@ -199,6 +200,7 @@ export const router = createBrowserRouter([
                     ],
                   },
                   { path: "leave-requests", element: <LeaveRequestsPage /> },
+                  { path: "lifecycle", element: <LifecycleOverviewPage /> },
                   { path: "inventory", element: <InventoryPage /> },
                   { path: "suppliers", element: <SuppliersPage /> },
                   { path: "purchase", element: <PurchasePage /> },
