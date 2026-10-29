@@ -533,3 +533,34 @@ export function resolveExpenseCategoryName(
 ): string | null {
   return categoryIdName ?? systemCategoryNameByEnum[category] ?? null
 }
+
+/** Reminder-management batch, item 3 -- "Under Category" is now the ONE
+ * category field the user sees on Log Expense; the legacy `category` enum
+ * column is still written on every insert (never removed, never left null),
+ * derived here instead of picked directly. A system category always carries
+ * its own enum_value (one per legacy value, seeded by
+ * seed_system_expense_categories); any category the user created themselves
+ * has no enum_value, so it maps to 'other' -- the same catch-all the enum
+ * already had before this feature existed. */
+export function resolveLegacyExpenseCategoryEnum(category: { is_system: boolean; enum_value: string | null }): Enums<"expense_category"> {
+  if (category.is_system && category.enum_value) return category.enum_value as Enums<"expense_category">
+  return "other"
+}
+
+/** Reminder-management batch, item 1 -- the Reminders view's filters (Due
+ * today, Overdue, Upcoming, Done/Cancelled) and the sidebar badge count both
+ * need the same bucket for a reminder; this is that one rule, kept pure and
+ * testable. Callers pass already-formatted local-calendar-date strings
+ * (toLocalDateString) rather than Date objects, so a test can assert on
+ * plain strings instead of fighting the test runner's timezone. */
+export type ReminderBucket = "overdue" | "dueToday" | "upcoming" | "doneOrCancelled"
+export function classifyReminderBucket(
+  status: "open" | "done" | "cancelled",
+  dueAtLocalDateStr: string,
+  todayLocalDateStr: string
+): ReminderBucket {
+  if (status !== "open") return "doneOrCancelled"
+  if (dueAtLocalDateStr < todayLocalDateStr) return "overdue"
+  if (dueAtLocalDateStr === todayLocalDateStr) return "dueToday"
+  return "upcoming"
+}

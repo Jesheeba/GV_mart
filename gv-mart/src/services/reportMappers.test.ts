@@ -10,9 +10,11 @@ import {
   mapProductSales,
   mapSalaryByStaff,
   mapSalesService,
+  classifyReminderBucket,
   mapTopCustomers,
   mapYearOverYear,
   resolveExpenseCategoryName,
+  resolveLegacyExpenseCategoryEnum,
   type SalesServiceRpc,
 } from "./reportMappers"
 
@@ -316,5 +318,51 @@ describe("resolveExpenseCategoryName", () => {
 
   it("never consults the enum fallback once category_id already resolved a name", () => {
     expect(resolveExpenseCategoryName("other", "Hand-picked", systemMap)).toBe("Hand-picked")
+  })
+})
+
+describe("resolveLegacyExpenseCategoryEnum", () => {
+  it("maps a system category to its own enum_value", () => {
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: true, enum_value: "salary" })).toBe("salary")
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: true, enum_value: "electricity" })).toBe("electricity")
+  })
+
+  it("maps a user-created category (no enum_value) to 'other'", () => {
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: false, enum_value: null })).toBe("other")
+  })
+
+  it("maps the one system category with no enum mapping (Incentives) to 'other'", () => {
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: true, enum_value: null })).toBe("other")
+  })
+
+  it("never returns the legacy enum for a category flagged is_system=false even if enum_value were somehow set", () => {
+    // defensive: is_system is the real gate (system categories are DB-locked, see
+    // _guard_expense_category_system_locked), not enum_value alone
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: false, enum_value: "salary" })).toBe("other")
+  })
+})
+
+describe("classifyReminderBucket", () => {
+  const today = "2026-10-29"
+
+  it("buckets a done reminder as doneOrCancelled regardless of its due date", () => {
+    expect(classifyReminderBucket("done", "2026-10-29", today)).toBe("doneOrCancelled")
+    expect(classifyReminderBucket("done", "2026-11-05", today)).toBe("doneOrCancelled")
+  })
+
+  it("buckets a cancelled reminder as doneOrCancelled regardless of its due date", () => {
+    expect(classifyReminderBucket("cancelled", "2026-10-01", today)).toBe("doneOrCancelled")
+  })
+
+  it("buckets an open reminder due before today as overdue", () => {
+    expect(classifyReminderBucket("open", "2026-10-28", today)).toBe("overdue")
+  })
+
+  it("buckets an open reminder due exactly today as dueToday", () => {
+    expect(classifyReminderBucket("open", "2026-10-29", today)).toBe("dueToday")
+  })
+
+  it("buckets an open reminder due after today as upcoming", () => {
+    expect(classifyReminderBucket("open", "2026-10-30", today)).toBe("upcoming")
   })
 })

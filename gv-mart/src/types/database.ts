@@ -8430,6 +8430,10 @@ export type Database = {
         Args: { p_customer: string }
         Returns: number
       }
+      close_outstanding_reminders_if_zero_bulk: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       create_expense_category: {
         Args: { p_name: string }
         Returns: Database["public"]["Tables"]["expense_categories"]["Row"]
