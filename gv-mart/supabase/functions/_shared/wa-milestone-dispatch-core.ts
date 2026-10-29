@@ -26,7 +26,24 @@ import { v2Active, v2AppliesTo, type DispatchV2Scope } from "./wa-dispatch-scope
 import { runDispatchV2, type DispatchDeps, type PendingRow } from "./wa-dispatch-v2.ts"
 import { resolveEventContext } from "./wa-event-context.ts"
 
-export const MILESTONE_REF_TYPES = ["service_ticket", "service_visit", "invoice", "purchase_quote_request"] as const
+// 'customer_link_otp' added 2026-11-20 (OTP-verified customer Google account linking,
+// docs/backlog-product-gaps.md): request_customer_link_code() writes a row with this ref_type
+// directly into whatsapp_outbox (status 'pending'), the same way the milestone triggers above
+// already do — no new send path, this function is the one that was already picking those up.
+export const MILESTONE_REF_TYPES = ["service_ticket", "service_visit", "invoice", "purchase_quote_request", "customer_link_otp"] as const
+
+// Ref types whose payload.body contains a secret (the OTP code itself) that must not sit in
+// plaintext in whatsapp_outbox any longer than it has to — any staff/master user can read that
+// table via whatsapp_outbox_select_staff (20260702170000_automation_purchase_schema.sql). Once a
+// send genuinely succeeds, the body has done its job and is redacted in place. See
+// DECISIONS.md section 5 in the customer-OTP-link branch: this redaction only runs in the v2
+// dispatch path below (runMilestoneDispatchV2), because that is the one place this scan loop
+// updates a row BY THE SAME id it sent with (outboxId) — the legacy path inserts a fresh row
+// per attempt via sendMessage()'s own stub/legacy insert and isn't safe to retrofit here without
+// risking every other milestone type that path also serves. If settings.wa_dispatch_v2_enabled
+// is off for an org, this redaction does not happen — recorded as a residual, documented
+// exposure, not a silent gap.
+const REDACT_BODY_AFTER_SEND_REF_TYPES = new Set<string>(["customer_link_otp"])
 
 // 2026-09-08 incident: a Wasi-side 409 for one supplier's number retried
 // every 5 minutes forever (each attempt inserting a fresh failed row that
@@ -119,7 +136,16 @@ async function runMilestoneDispatchV2(admin: SupabaseClient, orgId: string, scop
         vars: ctx.vars,
         outboxId: row.id,
       })
-      return { status: r.status ?? (r.dispatched ? "sent" : "pending") }
+      const status = r.status ?? (r.dispatched ? "sent" : "pending")
+      if (status === "sent" && row.ref_type && REDACT_BODY_AFTER_SEND_REF_TYPES.has(row.ref_type)) {
+        // Best-effort: a failure here just leaves the code visible a little longer, it must
+        // never undo or fail the send itself, which has already happened.
+        await admin.from("whatsapp_outbox").update({ payload: { body: "[redacted after send]" } }).eq("id", row.id).then(
+          () => {},
+          (e) => console.error("wa-milestone-dispatch-core: post-send redaction failed for", row.id, e)
+        )
+      }
+      return { status }
     },
     nowIso: () => new Date().toISOString(),
   }

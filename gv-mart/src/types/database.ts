@@ -7533,6 +7533,22 @@ export type Database = {
         }
         Returns: string
       }
+      is_customer_link_otp_enabled: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      request_customer_link_code: {
+        Args: {
+          p_mobile: string
+        }
+        Returns: Json
+      }
+      verify_customer_link_code: {
+        Args: {
+          p_code: string
+        }
+        Returns: Json
+      }
       create_customer_with_details: {
         Args: {
           p_org_id: string
