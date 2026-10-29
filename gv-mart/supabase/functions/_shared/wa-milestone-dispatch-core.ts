@@ -71,11 +71,22 @@ type StuckOutboxRow = {
 
 export async function notifyGaveUpOnSend(
   admin: SupabaseClient,
-  row: { id: string; org_id: string; to_mobile: string | null; template: string; ref_id: string | null },
+  row: { id: string; org_id: string; to_mobile: string | null; template: string; ref_id: string | null; ref_type?: string | null },
   reason: string
 ) {
   console.error("wa-milestone-dispatch-core: giving up on row after", MAX_SEND_ATTEMPTS, "attempts —", reason, row.id)
-  await admin.from("whatsapp_outbox").update({ retried_at: new Date().toISOString() }).eq("id", row.id)
+  // SECURITY REVIEW FINDING (independent adversarial review, 2026-11-20, MEDIUM): redaction after
+  // a successful send (REDACT_BODY_AFTER_SEND_REF_TYPES, above) only fires on status 'sent' — a
+  // row that permanently exhausts MAX_SEND_ATTEMPTS and ends up here instead previously kept its
+  // plaintext body (the OTP code, for customer_link_otp rows) in whatsapp_outbox forever, long
+  // past the challenge's own 10-minute expiry, readable by any staff/master. Redact the same way
+  // on give-up, not just on send — the content was never delivered either way, so there is
+  // nothing lost by clearing it here too.
+  const patch: Record<string, unknown> = { retried_at: new Date().toISOString() }
+  if (row.ref_type && REDACT_BODY_AFTER_SEND_REF_TYPES.has(row.ref_type)) {
+    patch.payload = { body: "[redacted after gave up retrying]" }
+  }
+  await admin.from("whatsapp_outbox").update(patch).eq("id", row.id)
   await admin.from("notifications").insert({
     org_id: row.org_id,
     role: "operation_admin",

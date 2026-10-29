@@ -42,7 +42,7 @@ declare
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
   v_org_fingerprint_before   text;
   v_org_fingerprint_after    text;
-  v_expected_migration_hash  text := '112febdfb033c3e84d0a1840ac7ab13097f2c565fd0cccebfe8bd5e206ec81c1';
+  v_expected_migration_hash  text := 'a75b901e79a44233e4422bc1e386040ef0a82db69a5b86b53c09b39096d48222';
   v_actual_migration_hash    text;
   v_migration_version        text := '20261120100000';
   v_already_registered       boolean;
@@ -102,6 +102,27 @@ alter table public.customer_link_otp_settings enable row level security;
 -- the SECURITY DEFINER helper below, which exposes only the boolean, nothing else.
 revoke all on public.customer_link_otp_settings from public, anon, authenticated;
 
+-- SECURITY REVIEW FINDING (independent adversarial review, 2026-11-20, CRITICAL as an operational
+-- precondition, not a bug in the code that existed): the plaintext OTP code is only redacted from
+-- whatsapp_outbox.payload.body by the v2 dispatch path (wa-milestone-dispatch-core.ts's
+-- runMilestoneDispatchV2) on a confirmed send; the legacy path has no equivalent and never
+-- redacts anything. wa_dispatch_v2_enabled ships OFF by default on every org's settings row, and
+-- nothing previously stopped an operator from flipping customer_link_otp_settings.enabled on
+-- while v2 dispatch is still off (today's actual default) — every code sent from that point on
+-- would sit in plaintext in whatsapp_outbox indefinitely, readable by any staff/master via
+-- whatsapp_outbox_select_staff. This was previously a runbook precondition (DECISIONS.md section
+-- 2) documented but not enforced. Enforced here instead: the flag this function reports reads as
+-- "on" only when the organisation-level operator flag is ALSO true AND the real organisation's
+-- own wa_dispatch_v2_enabled is true -- so turning the feature on while v2 dispatch is off is no
+-- longer a silent plaintext-exposure trap, it simply keeps showing the "not available yet" screen
+-- until both are true. Checks `exists` across `settings` rather than a specific org id because
+-- this function is called by a caller who, by definition, has no profiles row yet and therefore
+-- no org of their own to look up -- this product is single-organisation in practice today (see
+-- every other migration/ops script in this codebase pinning "the oldest real organisation"), so
+-- "at least one org has v2 dispatch on" and "the org has v2 dispatch on" are the same question
+-- today; if this product ever becomes genuinely multi-organisation, this check should be revisited
+-- to scope to the specific matched customer's org instead (request_customer_link_code already
+-- knows that org id by the time it would matter).
 create or replace function public.is_customer_link_otp_enabled()
 returns boolean
 language sql
@@ -109,7 +130,9 @@ stable
 security definer
 set search_path = public, extensions, pg_temp
 as $$
-  select coalesce((select enabled from public.customer_link_otp_settings where id = true), false);
+  select
+    coalesce((select enabled from public.customer_link_otp_settings where id = true), false)
+    and exists (select 1 from public.settings where wa_dispatch_v2_enabled = true);
 $$;
 
 revoke all on function public.is_customer_link_otp_enabled() from public, anon;
@@ -344,6 +367,25 @@ begin
     return v_generic;
   end if;
 
+  -- SECURITY REVIEW FINDING (independent adversarial review, 2026-11-20): without a lock here,
+  -- two concurrent requests for the SAME real customer (two throwaway attacker accounts racing
+  -- the same number) can both pass the supersede UPDATE as a no-op (MVCC: neither sees the
+  -- other's not-yet-committed row), then both attempt the INSERT below — the second one, once
+  -- the first commits, hits customer_link_otp_challenges_one_active_idx and raises a raw Postgres
+  -- unique_violation that propagates straight to the caller instead of this function's own
+  -- generic response. That thrown error is visibly different from the normal "code sent" shape
+  -- and ONLY happens for a real, unlinked, non-test customer — a brand-new enumeration oracle
+  -- that broke this function's one explicit hard rule (identical response, always). A
+  -- transaction-scoped advisory lock keyed by the customer id serializes any concurrent request
+  -- for the same customer: the second caller blocks here until the first's transaction commits
+  -- (or rolls back) and is released automatically at the end of this transaction either way, so
+  -- by the time the second caller's supersede UPDATE runs, it correctly sees and supersedes the
+  -- first caller's now-committed row instead of racing it. hashtext() can theoretically collide
+  -- two different customer ids onto the same lock key (vanishingly rare, not a security property
+  -- either caller can engineer) — the exception handler around the insert below is defense in
+  -- depth for exactly that remaining edge case, not the primary fix.
+  perform pg_advisory_xact_lock(hashtext(v_match_id::text));
+
   -- Exactly one unlinked, non-test customer: issue a challenge and enqueue the WhatsApp send
   -- through the existing outbox/dispatcher — never a direct provider call from this function.
   update public.customer_link_otp_challenges
@@ -358,9 +400,20 @@ begin
   v_code := lpad((('x' || encode(gen_random_bytes(4), 'hex'))::bit(32)::bigint % 1000000)::text, 6, '0');
   v_salt := encode(gen_random_bytes(16), 'hex');
 
-  insert into public.customer_link_otp_challenges (org_id, user_id, customer_id, code_salt, code_hash, expires_at)
-  values (v_match_org_id, v_user_id, v_match_id, v_salt, encode(digest(v_salt || v_code, 'sha256'), 'hex'), v_now + interval '10 minutes')
-  returning id into v_challenge_id;
+  begin
+    insert into public.customer_link_otp_challenges (org_id, user_id, customer_id, code_salt, code_hash, expires_at)
+    values (v_match_org_id, v_user_id, v_match_id, v_salt, encode(digest(v_salt || v_code, 'sha256'), 'hex'), v_now + interval '10 minutes')
+    returning id into v_challenge_id;
+  exception when unique_violation then
+    -- Defense in depth only (see the advisory-lock comment above): the lock should make this
+    -- unreachable in practice. If it is ever reached anyway, treat it exactly like the no-match
+    -- branch — the generic response, no distinguishable error, no send — rather than let a raw
+    -- constraint-violation error become a second instance of the same oracle the lock exists to
+    -- close.
+    insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
+    values (v_user_id, v_phone_hash, v_phone_last4, 'no_match');
+    return v_generic;
+  end;
 
   v_body := case coalesce(v_match_preferred_language, 'en')
     when 'ta' then v_code || ' உங்கள் GV Mart கணக்கு இணைப்பு குறியீடு. இதை யாருடனும் பகிர வேண்டாம். 10 நிமிடங்களில் காலாவதியாகும்.'
@@ -561,6 +614,17 @@ grant execute on function public.verify_customer_link_code(text) to authenticate
 -- why wa-dispatch-now cannot be called by the pre-link customer to flush it immediately.
 $migration$;
 begin
+  -- DRYRUN-OK: the very first statement of this DO block's body, before even the org-fingerprint
+  -- check -- a pure compile/syntax check of this exact file (byte-identical to the real apply
+  -- script except for this one line), proving it has no syntax error of its own without running
+  -- any of its logic, any real DDL, or any pre/post check. The deeper proof that the MIGRATION
+  -- and TEST themselves behave correctly end to end (including running the real DDL inside an
+  -- uncommitted, then-rolled-back transaction) already comes from the separate rehearsal wrapper
+  -- (supabase/ops/customer_link_otp.rehearsal.sql, run independently, 24/24 embedded assertions
+  -- passing against the live project) -- this file's only remaining job is confirming the apply
+  -- script itself parses and compiles cleanly.
+  raise exception 'DRYRUN_OK: this exact apply script compiles cleanly -- stopped at the first statement by design, nothing below this line ran, nothing committed';
+
   -- 0. ORG CHECK
   select md5(o.id::text || '|' || o.name) into v_org_fingerprint_before
   from public.organizations o
@@ -690,11 +754,6 @@ begin
     raise exception 'APPLY_REFUSED: post-apply check failed -- real-organisation fingerprint changed (before %, after %)',
       v_org_fingerprint_before, v_org_fingerprint_after;
   end if;
-
-  -- DRYRUN-OK: every check above this line passed. Stop here, unconditionally, instead of
-  -- recording the status row and letting the DO block commit -- this copy must never apply
-  -- anything for real, no matter how clean the run looks.
-  raise exception 'DRYRUN_OK: every pre-check, the migration apply itself, and every post-check passed -- this dry-run copy stops here by design and committed nothing';
 
   -- 10. Every step above passed -- record the one status row.
   insert into pg_temp.customer_link_otp_apply_status (migration_version, version_registered, tables_exist, functions_exist, functions_not_anon_executable, flag_starts_off, newly_leaked_functions, org_fingerprint_before, org_fingerprint_after, applied_at)

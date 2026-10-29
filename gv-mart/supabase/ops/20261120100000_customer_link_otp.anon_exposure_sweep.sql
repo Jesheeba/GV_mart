@@ -1,11 +1,25 @@
--- Anon/PUBLIC exposure sweep for the customer-link-otp feature, to run AFTER the real apply
--- (not part of this phase's rehearsal — the apply script's own step 9x already runs an
--- equivalent diff-based check automatically at apply time and refuses the apply if it finds a
--- newly-leaked function; this is the same check made runnable on its own afterwards, e.g. days
--- later as a standing health check, without needing to re-run the whole apply script).
+-- Anon/PUBLIC exposure sweep for the customer-link-otp feature, to run AFTER the real apply.
 --
--- Read-only. Safe to run at any time, including against the live project, with no rehearsal
--- wrapper needed (nothing here writes anything).
+-- Two parts, run as two separate SELECTs in this one file (the runner executes the whole file
+-- as one request and the Management API returns only the LAST statement's result set, so each
+-- part below is read independently by running this file, commenting out the other SELECT, or by
+-- reading both result sets if the caller's tooling supports it -- see the second query for the
+-- actual whole-schema sweep the task requires).
+--
+-- Part 1 (immediately below): this migration's OWN named objects specifically -- a quick,
+-- targeted check, kept from the original version of this file. NOT a substitute for part 2.
+-- Part 2 (second query): a genuine WHOLE-`public`-SCHEMA absolute listing of every function
+-- currently executable by anon or PUBLIC, the same pg_proc/pg_namespace/aclexplode pattern the
+-- apply script's own step 9x already uses for its before/after diff -- but here, standalone with
+-- no stored "before" snapshot to diff against (this script can run days after the apply, with no
+-- rehearsal-session state available), it is an ABSOLUTE listing, not a diff: the reviewer (human
+-- or a future run comparing two saved listings by hand) is meant to eyeball it for anything that
+-- doesn't belong, not expect an automatic pass/fail the way the diff-based apply-time check gives.
+-- This is the part the task's "run the anon-exposure sweep for the whole schema" requirement
+-- actually asks for; part 1 alone (the previous version of this file) could not have caught a
+-- newly-anon-executable function anywhere else in `public`.
+
+-- ───────────────────────── Part 1: this migration's own named objects ─────────────────────────
 select
   -- 1. The 3 new tables must grant nothing to anon or to a bare authenticated role (every access
   -- must go through the SECURITY DEFINER RPCs, never a direct table read).
@@ -40,3 +54,20 @@ select
   -- must never accidentally re-grant it.
   (not has_function_privilege('authenticated', 'public.link_customer_google_account(text)', 'EXECUTE')) as old_vulnerable_function_still_revoked,
   (not has_function_privilege('anon', 'public.link_customer_google_account(text)', 'EXECUTE')) as old_vulnerable_function_still_revoked_anon;
+
+-- ───────────────── Part 2: whole-`public`-schema absolute anon/PUBLIC-EXECUTE listing ─────────
+-- Every function in `public` currently executable by anon or by PUBLIC (grantee = 0), whole
+-- schema, not scoped to this migration's own objects -- the real requirement. Compare this
+-- listing's count/contents against a listing taken before this migration (e.g. the apply script's
+-- own pre-apply leak snapshot, step 5, or an earlier run of this same query saved to a file) to
+-- spot anything NEW; on its own this is an absolute inventory for a human to read, not a diff.
+select coalesce(jsonb_agg(sig order by sig), '[]'::jsonb) as anon_or_public_executable_functions_whole_public_schema
+from (
+  select distinct (p.oid::regprocedure)::text as sig
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+  where n.nspname = 'public'
+    and a.privilege_type = 'EXECUTE'
+    and (a.grantee = 0 or a.grantee = (select oid from pg_roles where rolname = 'anon'))
+) s;
