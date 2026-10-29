@@ -23,6 +23,7 @@
 //     than deactivation being silently bypassed.
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
+import { classifyAuthError } from "../_shared/staff-auth.ts"
 
 type CreateBody = {
   action: "create"
@@ -128,7 +129,12 @@ Deno.serve(async (req) => {
         user_metadata: { full_name: body.fullName.trim() },
       })
       if (createErr || !created?.user) {
-        return jsonError(createErr?.message ?? "Could not create the login", 400)
+        // GoTrue's raw message/code (e.g. the bare "validation_failed" code for a malformed
+        // address) is never shown to the admin directly - map it to a fixed, actionable message.
+        const kind = classifyAuthError(createErr)
+        if (kind === "duplicate_email") return jsonError("A login with this email already exists", 409)
+        if (kind === "invalid_email") return jsonError("Please enter a valid email address", 400)
+        return jsonError("Could not create the login", 400)
       }
       const userId = created.user.id
 
