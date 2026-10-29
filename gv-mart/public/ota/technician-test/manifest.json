@@ -3,9 +3,9 @@
   "version": "2026-10-29-b1",
   "buildNumber": 1,
   "url": "https://gv-mart.vercel.app/ota/technician-test/bundle-1.zip",
-  "checksum": "0ea1eed0bd4983e752697826fb81bb0d37ba8827df736826247369e5069b7936",
+  "checksum": "070252e971a3476f7009cd7248dd9c94fa7b2998c00d406a2c34b2317430d2d0",
   "minNativeBuild": 1,
-  "frozen": false,
-  "publishedAt": "2026-10-29T08:37:35.284Z",
-  "signature": "X3mGvq45lYgiFr0LCxUEPNcOK2ka3qOFYKn8cYUp89uEh/jlIPBHvrT0l35w+odcOabLMUA96UBlC/++NY7dAw=="
+  "frozen": true,
+  "publishedAt": "2026-10-29T08:42:59.198Z",
+  "signature": "WPjU+eqdv/pFl6HT19C5MlK2CSXiCzfJ5emyWPqpFXqsXxyPNxNrKumZXIDeIYa2kDnYpjN9RW2qX7LNMZdCCw=="
 }
