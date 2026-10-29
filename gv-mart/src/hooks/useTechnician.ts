@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { getIstNow } from "@/lib/ist"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as tech from "@/services/technician"
@@ -6,6 +6,7 @@ import { uploadPaymentProof } from "@/services/paymentProofs"
 import type { DateRange } from "@/services/reports"
 import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { useGeoPermissionRecheck } from "@/hooks/useGeoPermissionRecheck"
 import { subscribeAttendanceSync, subscribeSyncState } from "@/lib/offline/sync"
 import { watchPendingCount, watchStuckJobs } from "@/lib/offline/outbox"
 import { classifyGeoError, distanceKm, watchPosition, type GeoErrorKind } from "@/lib/offline/geo"
@@ -292,39 +293,68 @@ const SPEED_SLOW_KMH = 3
 export function useLiveLocationStream(orgId: string | undefined, technicianId: string | undefined) {
   const lastSentRef = useRef(0)
   const lastFixRef = useRef<{ lat: number; lng: number; at: number } | null>(null)
+  const stopRef = useRef<(() => void) | null>(null)
   const [error, setError] = useState<GeoErrorKind | null>(null)
+
+  // Extracted so it can be called both on mount/technician-change AND from
+  // useGeoPermissionRecheck below -- a browser does not resume a dead
+  // watchPosition on its own once the user grants permission mid-session
+  // (see src/hooks/useGeoPermissionRecheck.ts's doc comment), so recovering
+  // from an error means starting an entirely new watch, not waiting on the
+  // old one.
+  const startWatch = useCallback(() => {
+    if (!orgId || !technicianId) return
+    stopRef.current?.()
+    stopRef.current = watchPosition(
+      (pos) => {
+        setError(null)
+        const now = Date.now()
+        const prevFix = lastFixRef.current
+        let speedKmh: number | null = pos.speed != null ? pos.speed * 3.6 : null
+        if (speedKmh == null && prevFix) {
+          const elapsedHours = (now - prevFix.at) / 3_600_000
+          speedKmh = elapsedHours > 0 ? distanceKm(prevFix, pos) / elapsedHours : 0
+        }
+        const throttleMs =
+          speedKmh == null
+            ? THROTTLE_STATIONARY_MS
+            : speedKmh >= SPEED_FAST_KMH
+              ? THROTTLE_MOVING_FAST_MS
+              : speedKmh >= SPEED_SLOW_KMH
+                ? THROTTLE_MOVING_SLOW_MS
+                : THROTTLE_STATIONARY_MS
+        if (now - lastSentRef.current < throttleMs) return
+        lastSentRef.current = now
+        lastFixRef.current = { lat: pos.lat, lng: pos.lng, at: now }
+        void tech.pingLiveLocation(orgId, technicianId, pos.lat, pos.lng, { heading: pos.heading, speed: pos.speed, accuracy: pos.accuracy })
+      },
+      (err) => setError(classifyGeoError(err))
+    )
+  }, [orgId, technicianId])
+
   useEffect(() => {
     if (!orgId || !technicianId) {
       setError(null)
+      stopRef.current?.()
+      stopRef.current = null
       return
     }
     lastSentRef.current = 0
     lastFixRef.current = null
     setError(null)
-    const stop = watchPosition((pos) => {
-      setError(null)
-      const now = Date.now()
-      const prevFix = lastFixRef.current
-      let speedKmh: number | null = pos.speed != null ? pos.speed * 3.6 : null
-      if (speedKmh == null && prevFix) {
-        const elapsedHours = (now - prevFix.at) / 3_600_000
-        speedKmh = elapsedHours > 0 ? distanceKm(prevFix, pos) / elapsedHours : 0
-      }
-      const throttleMs =
-        speedKmh == null
-          ? THROTTLE_STATIONARY_MS
-          : speedKmh >= SPEED_FAST_KMH
-            ? THROTTLE_MOVING_FAST_MS
-            : speedKmh >= SPEED_SLOW_KMH
-              ? THROTTLE_MOVING_SLOW_MS
-              : THROTTLE_STATIONARY_MS
-      if (now - lastSentRef.current < throttleMs) return
-      lastSentRef.current = now
-      lastFixRef.current = { lat: pos.lat, lng: pos.lng, at: now }
-      void tech.pingLiveLocation(orgId, technicianId, pos.lat, pos.lng, { heading: pos.heading, speed: pos.speed, accuracy: pos.accuracy })
-    }, (err) => setError(classifyGeoError(err)))
-    return stop
-  }, [orgId, technicianId])
+    startWatch()
+    return () => {
+      stopRef.current?.()
+      stopRef.current = null
+    }
+  }, [orgId, technicianId, startWatch])
+
+  // Self-heal: once an error is showing, restart the watch when the tab
+  // regains focus/visibility or the OS-level permission itself changes, so
+  // a technician who grants permission after the initial denial sees the
+  // banner clear on its own instead of it staying stuck until reload.
+  useGeoPermissionRecheck(!!error, startWatch)
+
   return { error }
 }
 
