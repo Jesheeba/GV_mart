@@ -1,17 +1,17 @@
 import { useState } from "react"
 import { getIstNow } from "@/lib/ist"
-import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
-import { CheckCircle2, Loader2, Printer, Wallet } from "lucide-react"
+import { CheckCircle2, Loader2, Printer, Unlock, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
-import { useActiveTechnicians, useComputeSalary, useSalaries } from "@/hooks/useHr"
-import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
+import { useActiveTechnicians, useComputeSalary, useLogSalaryToAccounts, useReopenSalaryPosting, useSalaries } from "@/hooks/useHr"
 import { formatCurrency } from "@/lib/sale-calc"
+import { canLogToAccounts, canRecompute, canReopen } from "@/lib/salary-lock"
+import { useToast } from "@/components/ui/toast-context"
 import type { SalaryListItem } from "@/services/hr"
 
 function currentMonthIso() {
@@ -20,13 +20,6 @@ function currentMonthIso() {
 
 function monthToPeriodDate(month: string) {
   return `${month}-01`
-}
-
-function monthToRange(month: string) {
-  const [y, m] = month.split("-").map(Number)
-  const from = `${month}-01`
-  const to = toLocalDateString(new Date(y, m, 0))
-  return { from, to }
 }
 
 /**
@@ -38,6 +31,7 @@ function monthToRange(month: string) {
  */
 export function SalaryTab() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
   const [month, setMonth] = useState(currentMonthIso())
@@ -49,39 +43,60 @@ export function SalaryTab() {
   const [computingIds, setComputingIds] = useState<Set<string>>(new Set())
   const [printing, setPrinting] = useState<SalaryListItem | null>(null)
 
-  // "Log to Accounts" (item 1, 2026-09-24 change request) — writes the
-  // computed net salary into `expenses` (category='salary', staff_id = the
-  // technician's profile id) so it joins the same money-out ledger a
-  // manually-entered staff salary uses. Explicit per-row action, not
-  // automatic on compute/recompute — a computed figure is an estimate until
-  // someone confirms it was actually paid.
-  const monthRange = monthToRange(month)
-  const { data: staffSalaryTotals } = useSalarySpendByStaff(orgId, monthRange)
-  const loggedProfileIds = new Set((staffSalaryTotals ?? []).map((s) => s.staffId))
-  const createExpense = useCreateExpense()
+  // "Log to Accounts" (item 1, 2026-09-24 change request; made idempotent +
+  // DB-enforced by the incentive audit's Finding H-01, 2026-10-29) — posts the
+  // computed net salary into `expenses` (category='salary') via
+  // log_salary_to_accounts(), which locks this `salaries` row in the same
+  // transaction. `row.locked_at` (server-set, not a client guess) is now the
+  // single source of truth for "already logged" — see Finding H-03.
+  const logMut = useLogSalaryToAccounts()
+  const reopenMut = useReopenSalaryPosting()
   const [loggingIds, setLoggingIds] = useState<Set<string>>(new Set())
+  const [reopenTarget, setReopenTarget] = useState<SalaryListItem | null>(null)
+  const [reopenReason, setReopenReason] = useState("")
 
   function logToAccounts(row: SalaryListItem) {
     const profileId = row.technicians?.profiles?.id
     if (!orgId || !profileId) return
     setLoggingIds((prev) => new Set(prev).add(row.id))
-    createExpense.mutate(
+    logMut.mutate(
       {
         orgId,
-        category: "salary",
+        staffId: profileId,
         amount: row.net,
         date: getIstNow().date,
         note: `Salary — ${month}`,
-        staffId: profileId,
-        loggedBy: profile?.id ?? null,
+        salaryId: row.id,
       },
       {
+        onSuccess: (result) => {
+          // result.message is a ready-made sentence from the DB ("already logged
+          // on <date>" or "logged") -- not translated, same as every other raw
+          // server-originated message surfaced via toast in this codebase.
+          if (!result.inserted) toast.success(result.message)
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.salary.logFailed")),
         onSettled: () =>
           setLoggingIds((prev) => {
             const next = new Set(prev)
             next.delete(row.id)
             return next
           }),
+      }
+    )
+  }
+
+  function submitReopen() {
+    if (!reopenTarget || !reopenReason.trim()) return
+    reopenMut.mutate(
+      { salaryId: reopenTarget.id, reason: reopenReason.trim() },
+      {
+        onSuccess: () => {
+          toast.success(t("hr.salary.reopened"))
+          setReopenTarget(null)
+          setReopenReason("")
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.salary.reopenFailed")),
       }
     )
   }
@@ -122,28 +137,54 @@ export function SalaryTab() {
       className: "text-right",
       render: (r) => {
         const profileId = r.technicians?.profiles?.id
-        const alreadyLogged = !!profileId && loggedProfileIds.has(profileId)
+        // Finding H-03: locked_at is server-set (by log_salary_to_accounts), not a
+        // client-side guess — canRecompute/canLogToAccounts/canReopen (src/lib/
+        // salary-lock.ts) are the single source of truth for both "already
+        // logged" AND "recompute must be refused" (compute_salary enforces the
+        // latter server-side too; disabling it here is just not making the
+        // master wait for an error that is already certain).
+        const locked = !canRecompute(r)
         return (
           <div className="flex justify-end gap-1.5">
-            <Button size="xs" variant="outline" onClick={() => computeFor(r.technician_id)} disabled={computingIds.has(r.technician_id)}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => computeFor(r.technician_id)}
+              disabled={computingIds.has(r.technician_id) || !canRecompute(r)}
+              title={locked ? t("hr.salary.lockedHint") : undefined}
+            >
               {computingIds.has(r.technician_id) ? <Loader2 className="size-3 animate-spin" /> : t("hr.salary.recompute")}
             </Button>
             <Button
               size="xs"
-              variant={alreadyLogged ? "ghost" : "accent"}
+              variant={locked ? "ghost" : "accent"}
               onClick={() => logToAccounts(r)}
-              disabled={!profileId || alreadyLogged || loggingIds.has(r.id)}
+              disabled={!profileId || !canLogToAccounts(r) || loggingIds.has(r.id)}
               title={t("hr.salary.logToAccounts")}
             >
               {loggingIds.has(r.id) ? (
                 <Loader2 className="size-3 animate-spin" />
-              ) : alreadyLogged ? (
+              ) : locked ? (
                 <CheckCircle2 className="size-3 text-success" />
               ) : (
                 <Wallet className="size-3" />
               )}
-              {alreadyLogged ? t("hr.salary.logged") : t("hr.salary.logToAccounts")}
+              {locked ? t("hr.salary.logged") : t("hr.salary.logToAccounts")}
             </Button>
+            {canReopen(r) ? (
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => {
+                  setReopenTarget(r)
+                  setReopenReason("")
+                }}
+                title={t("hr.salary.lockedHint")}
+              >
+                <Unlock className="size-3" />
+                {t("hr.salary.reopen")}
+              </Button>
+            ) : null}
             <Button size="icon-xs" variant="ghost" onClick={() => setPrinting(r)} title={t("hr.salary.payslip")}>
               <Printer className="size-3.5" />
             </Button>
@@ -230,6 +271,45 @@ export function SalaryTab() {
           </DialogContent>
         </Dialog>
       ) : null}
+
+      <Dialog open={!!reopenTarget} onOpenChange={(open) => !open && setReopenTarget(null)}>
+        <DialogContent>
+          <DialogTitle>{t("hr.salary.reopenDialogTitle")}</DialogTitle>
+          <DialogDescription>
+            {t("hr.salary.reopenDialogHint", { name: reopenTarget?.technicians?.profiles?.full_name ?? "" })}
+          </DialogDescription>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              submitReopen()
+            }}
+          >
+            <div className="space-y-1">
+              <Label htmlFor="reopen-reason" className="block text-xs font-medium text-text-muted">
+                {t("hr.salary.reopenReason")}
+              </Label>
+              <textarea
+                id="reopen-reason"
+                required
+                rows={3}
+                value={reopenReason}
+                onChange={(e) => setReopenReason(e.target.value)}
+                className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setReopenTarget(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" variant="destructive" disabled={!reopenReason.trim() || reopenMut.isPending}>
+                {reopenMut.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                {t("hr.salary.reopenConfirm")}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -32,6 +32,10 @@ export type SalaryRow = Tables<"salaries"> & {
   bike_allowance_extra: number
   bike_allowance_reason: string | null
   bike_allowance_amount: number
+  // Incentive audit, Finding H-03 (payroll-fixes, 2026-10-29) — post-dates this
+  // file's last real codegen the same way the other fields above do.
+  locked_at: string | null
+  logged_expense_id: string | null
 }
 export type IncentiveEarnedRow = Tables<"incentives_earned"> & { is_bike_allowance: boolean }
 export type IncentiveRuleRow = Tables<"incentive_rules">
@@ -112,6 +116,58 @@ export async function computeSalary(orgId: string, technicianId: string, period:
   })
   if (error) throw error
   return data as unknown as SalaryRow
+}
+
+// ── Incentive audit, Findings H-01/H-03 (payroll-fixes, 2026-10-29) ────────
+// "Log to Accounts" now goes through log_salary_to_accounts() instead of a bare
+// `expenses` insert — master-only, idempotent (a double-click or a retry is a
+// clean no-op, never a raised error), and for the technician path it locks the
+// `salaries` row in the same transaction. reopenSalaryPosting() is the only way
+// to undo that lock (master-only, a reason is required, voids the posted expense
+// and writes one audit row). See
+// supabase/migrations/20261117100000_salary_log_to_accounts_idempotent.sql and
+// 20261117100001_salary_lock_after_posting_reopen.sql.
+
+export type LogSalaryToAccountsResult = {
+  inserted: boolean
+  expense_id: string | null
+  already_logged_at: string | null
+  message: string
+}
+
+export async function logSalaryToAccounts(input: {
+  orgId: string
+  staffId: string
+  amount: number
+  date: string
+  note?: string | null
+  salaryId?: string | null
+}): Promise<LogSalaryToAccountsResult> {
+  const { data, error } = await rpc("log_salary_to_accounts", {
+    p_org_id: input.orgId,
+    p_staff_id: input.staffId,
+    p_amount: input.amount,
+    p_date: input.date,
+    p_note: input.note ?? null,
+    p_salary_id: input.salaryId ?? null,
+  })
+  if (error) throw error
+  return data as unknown as LogSalaryToAccountsResult
+}
+
+export type ReopenSalaryPostingResult = {
+  salary_id: string
+  locked_at: string | null
+  reversed_expense_id: string | null
+}
+
+/** Master only; reason is required (enforced server-side too). Unlocks the
+ * salary row and voids the expense it was posted as, in one transaction, and
+ * writes one append-only audit row to `salary_reopen_audit`. */
+export async function reopenSalaryPosting(salaryId: string, reason: string): Promise<ReopenSalaryPostingResult> {
+  const { data, error } = await rpc("reopen_salary_posting", { p_salary_id: salaryId, p_reason: reason })
+  if (error) throw error
+  return data as unknown as ReopenSalaryPostingResult
 }
 
 // ── ADM-25: Incentives (earned preview) ───────────────────────────────────
