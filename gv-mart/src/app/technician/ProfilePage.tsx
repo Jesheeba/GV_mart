@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
+import { Capacitor } from "@capacitor/core"
 import { CalendarRange, LogOut, Star, StarOff, TrendingUp, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -13,6 +14,7 @@ import { signOut } from "@/services/auth"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
 import { dateRangeForPreset, defaultDateRange, type DateRange } from "@/services/reports"
+import { getOtaChannel, getOtaVersionInfo, setOtaChannel, type OtaVersionInfo } from "@/lib/ota/otaManager"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/)
@@ -40,6 +42,14 @@ export function ProfilePage() {
   const [earningsPreset, setEarningsPreset] = useState<EarningsPreset>("last30d")
   const stats = useTechnicianStats(technician.data?.id, profile?.org_id, rangeForEarningsPreset(earningsPreset))
   const referrals = useLeads(profile?.org_id, { source: "referral", ownerId: technician.data?.id })
+  const [otaInfo, setOtaInfo] = useState<OtaVersionInfo | null>(null)
+
+  // Native-only: on the web build Capacitor.isNativePlatform() is false and
+  // getOtaVersionInfo() resolves to null, so this card never renders there.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    getOtaVersionInfo().then(setOtaInfo)
+  }, [])
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !profile) {
@@ -145,6 +155,29 @@ export function ProfilePage() {
           </div>
         )}
       </Card>
+
+      {otaInfo ? (
+        <Card
+          className="gap-1 py-3"
+          onClick={() => {
+            const next = otaInfo.channel === "technician-test" ? "production" : "technician-test"
+            setOtaChannel(next)
+            setOtaInfo({ ...otaInfo, channel: getOtaChannel() })
+          }}
+        >
+          <p className="text-xs font-semibold text-text-muted">{t("technician.profile.appVersion")}</p>
+          <p className="text-xs text-text-muted">
+            {t("technician.profile.appVersionDetail", {
+              versionName: otaInfo.nativeVersionName,
+              build: otaInfo.nativeBuild,
+              bundleVersion: otaInfo.bundleVersion,
+            })}
+          </p>
+          <p className="text-[11px] text-text-muted/70">
+            {otaInfo.channel === "technician-test" ? t("technician.profile.testChannelOn") : t("technician.profile.testChannelOff")}
+          </p>
+        </Card>
+      ) : null}
 
       <Button type="button" variant="outline" onClick={() => navigate("/technician/day-sheet")}>
         <CalendarRange className="size-4" />
