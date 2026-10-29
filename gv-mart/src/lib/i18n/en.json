@@ -238,6 +238,7 @@
     "linkAccountNotFound": "We couldn't find a customer account with this mobile number. Please contact us to get set up.",
     "linkAccountAlreadyLinked": "This mobile number is already linked to another account.",
     "linkAccountGenericError": "Couldn't link your account. Please try again.",
+    "linkAccountUnavailable": "Account linking is not available yet. Please contact the shop and they will help you.",
     "useDifferentAccount": "Sign out and use a different account"
   },
   "shell": {
