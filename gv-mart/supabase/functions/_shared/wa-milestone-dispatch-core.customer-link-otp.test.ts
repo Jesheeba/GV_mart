@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { parseDispatchV2Scope } from "./wa-dispatch-scope"
+import { DISPATCH_V2_OFF, parseDispatchV2Scope } from "./wa-dispatch-scope"
 
 // customer_link_otp (20261120100000_customer_link_otp.sql): the OTP code lives in
 // whatsapp_outbox.payload.body until it is actually sent. This proves two things about the
@@ -20,19 +20,23 @@ const sendMessage = vi.fn(async (_admin: unknown, input: { to: string; outboxId?
   status: sendResult.status,
 }))
 
-const scope = parseDispatchV2Scope({ wa_dispatch_v2_enabled: true, wa_dispatch_v2_scope: "org", wa_dispatch_v2_numbers: [] })
+let currentScope = parseDispatchV2Scope({ wa_dispatch_v2_enabled: true, wa_dispatch_v2_scope: "org", wa_dispatch_v2_numbers: [] })
 
 vi.mock("./whatsapp.ts", () => ({
   sendMessage: (...a: [unknown, { to: string; outboxId?: string }]) => sendMessage(...a),
-  getDispatchV2Scope: async () => scope,
+  getDispatchV2Scope: async () => currentScope,
 }))
 vi.mock("./wa-event-context.ts", () => ({
   resolveEventContext: async () => ({ language: "en", vars: {} }),
 }))
 
 type Row = Record<string, unknown>
+type Challenge = { expires_at: string; used_at: string | null; superseded_at: string | null }
 
-function fakeAdmin(rows: Row[]) {
+// `challenges`: ref_id -> challenge row. A ref_id with no entry resolves to "not found" (data:
+// null), matching customerLinkOtpStillSendable's fail-open-to-true behavior for a missing row —
+// this is what every pre-existing test above relies on implicitly (none of them populate this map).
+function fakeAdmin(rows: Row[], challenges: Record<string, Challenge> = {}) {
   const updates: { table: string; id: string; patch: Row }[] = []
   const claimed = new Set<string>()
   const from = (table: string) => {
@@ -43,9 +47,14 @@ function fakeAdmin(rows: Row[]) {
     b.eq = (c: string, v: unknown) => { filters[`eq:${c}`] = v; return b }
     b.is = (c: string, v: unknown) => { filters[`is:${c}`] = v; return b }
     b.neq = chain
-    b.in = chain
+    b.in = (c: string, v: unknown) => { filters[`in:${c}`] = v; return b }
     b.order = chain
     b.limit = chain
+    b.maybeSingle = async () => {
+      if (table !== "customer_link_otp_challenges") return { data: null, error: null }
+      const id = filters["eq:id"] as string | undefined
+      return { data: id && id in challenges ? challenges[id] : null, error: null }
+    }
     b.update = (patch: Row) => {
       const u = { table, id: "", patch }
       const upd: Record<string, unknown> = {}
@@ -66,7 +75,15 @@ function fakeAdmin(rows: Row[]) {
     b.insert = async () => ({ error: null })
     b.then = (resolve: (v: unknown) => unknown) => {
       if (table !== "whatsapp_outbox") return resolve({ data: [], error: null })
-      const out = rows.filter((r) => r.wa_message_id == null && r.retried_at == null && r.status === "pending" && r.claimed_at == null)
+      const refTypeFilter = filters["in:ref_type"] as string[] | undefined
+      const out = rows.filter(
+        (r) =>
+          r.wa_message_id == null &&
+          r.retried_at == null &&
+          r.status === "pending" &&
+          r.claimed_at == null &&
+          (!refTypeFilter || refTypeFilter.includes(r.ref_type as string))
+      )
       return resolve({ data: out, error: null })
     }
     return b
@@ -93,6 +110,7 @@ const base = {
 beforeEach(() => {
   sendMessage.mockClear()
   sendResult = { status: "sent" }
+  currentScope = parseDispatchV2Scope({ wa_dispatch_v2_enabled: true, wa_dispatch_v2_scope: "org", wa_dispatch_v2_numbers: [] })
   vi.spyOn(console, "error").mockImplementation(() => {})
 })
 
@@ -130,5 +148,107 @@ describe("customer_link_otp rows through the existing milestone dispatcher", () 
     await runMilestoneDispatch(admin, "org-1")
     const redaction = updates.find((u) => u.id === "ticket-row" && "payload" in u.patch)
     expect(redaction).toBeUndefined()
+  })
+
+  // Phase 2, Item 2: a challenge may have expired, been used, or been superseded by the time
+  // either dispatch path (the new fast path, or this cron sweep as its fallback) gets to actually
+  // send it. Both paths must check this BEFORE ever calling sendMessage — never hand a customer a
+  // dead code, and never let the plaintext body/code sit around once it can't be verified anyway.
+  describe("stale-challenge guard (customerLinkOtpStillSendable)", () => {
+    const future = new Date(Date.now() + 60_000).toISOString()
+    const past = new Date(Date.now() - 60_000).toISOString()
+
+    it("v2 path: an EXPIRED challenge is never sent, is marked failed, and is redacted", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin, updates } = fakeAdmin([{ ...base, id: "otp-row" }], {
+        "challenge-1": { expires_at: past, used_at: null, superseded_at: null },
+      })
+      const result = await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).not.toHaveBeenCalled()
+      expect(result.dispatched).toBe(0)
+      const u = updates.find((x) => x.id === "otp-row" && "status" in x.patch)
+      expect(u).toBeDefined()
+      expect(u!.patch.status).toBe("failed")
+      expect(u!.patch.error).toBe("otp_expired_or_used")
+      expect((u!.patch.payload as { body: string }).body).not.toContain("482913")
+    })
+
+    it("v2 path: a USED challenge is never sent", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin } = fakeAdmin([{ ...base, id: "otp-row" }], {
+        "challenge-1": { expires_at: future, used_at: new Date().toISOString(), superseded_at: null },
+      })
+      await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).not.toHaveBeenCalled()
+    })
+
+    it("v2 path: a SUPERSEDED challenge is never sent", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin } = fakeAdmin([{ ...base, id: "otp-row" }], {
+        "challenge-1": { expires_at: future, used_at: null, superseded_at: new Date().toISOString() },
+      })
+      await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).not.toHaveBeenCalled()
+    })
+
+    it("v2 path: a still-VALID challenge sends normally (no regression)", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin } = fakeAdmin([{ ...base, id: "otp-row" }], {
+        "challenge-1": { expires_at: future, used_at: null, superseded_at: null },
+      })
+      const result = await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).toHaveBeenCalledTimes(1)
+      expect(result.dispatched).toBe(1)
+    })
+
+    it("legacy path (v2 off): an EXPIRED challenge is never sent and never redacted via a retry-eligible row", async () => {
+      currentScope = DISPATCH_V2_OFF
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin, updates } = fakeAdmin([{ ...base, id: "otp-row" }], {
+        "challenge-1": { expires_at: past, used_at: null, superseded_at: null },
+      })
+      const result = await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).not.toHaveBeenCalled()
+      expect(result.dispatched).toBe(0)
+      const u = updates.find((x) => x.id === "otp-row" && "retried_at" in x.patch)
+      expect(u?.patch.status).toBe("failed")
+      expect(u?.patch.error).toBe("otp_expired_or_used")
+    })
+
+    it("never queries customer_link_otp_challenges for a different ref_type (true no-op)", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin } = fakeAdmin([{ ...base, id: "ticket-row", ref_type: "service_ticket", ref_id: "ticket-xyz", payload: { body: "your technician is on the way" } }])
+      await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).toHaveBeenCalledTimes(1) // never blocked by a challenge lookup it should never make
+    })
+  })
+
+  // Phase 2, Item 2: wa-otp-dispatch/index.ts calls runMilestoneDispatch with a hardcoded
+  // { refTypes: ["customer_link_otp"] } so the fast path can never widen into a general
+  // low-latency scan for other milestone types. Every existing caller (the cron sweep,
+  // wa-dispatch-now) omits the option and must keep scanning everything, unchanged.
+  describe("optional refTypes scoping (runMilestoneDispatch's new 3rd argument)", () => {
+    it("with refTypes restricted, a different ref_type row in the same org is ignored entirely", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin } = fakeAdmin([
+        { ...base, id: "otp-row" },
+        { ...base, id: "ticket-row", ref_type: "service_ticket", ref_id: "ticket-xyz", payload: { body: "your technician is on the way" } },
+      ])
+      const result = await runMilestoneDispatch(admin, "org-1", { refTypes: ["customer_link_otp"] })
+      expect(sendMessage).toHaveBeenCalledTimes(1)
+      expect(sendMessage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ refType: "customer_link_otp" }))
+      expect(result.dispatched).toBe(1)
+    })
+
+    it("omitting refTypes (every existing caller) still scans every milestone ref_type, unchanged", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin } = fakeAdmin([
+        { ...base, id: "otp-row" },
+        { ...base, id: "ticket-row", ref_type: "service_ticket", ref_id: "ticket-xyz", payload: { body: "your technician is on the way" } },
+      ])
+      const result = await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).toHaveBeenCalledTimes(2)
+      expect(result.dispatched).toBe(2)
+    })
   })
 })

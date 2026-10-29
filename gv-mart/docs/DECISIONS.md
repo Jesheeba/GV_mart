@@ -333,3 +333,199 @@ above, not hidden, and is a reduction of an existing gap rather than a newly int
   ALL rows matching the mobile number globally (not org-scoped); more than one match is treated
   identically to zero matches (the generic no-op response) rather than picking one. "Oldest across
   all organisations" stays gone for good.
+
+## 9. Phase 2 (2026-10-29): template discovery + fast OTP dispatch path, and a concurrent-session collision
+
+Separate work pass, same worktree/branch. Picked up where PARKED.md left off: items 1-2 of
+PARKED.md's "prerequisites before the flag can ever be turned on" (template, fast dispatch
+latency). **Read this whole section before touching this feature again** — it records a real
+discrepancy from the phase-1 account and a live, same-worktree collision with another session
+that was working this exact task concurrently.
+
+### 9.0 CRITICAL FINDING, not caused by this pass: 20261120100000_customer_link_otp.sql was
+### ALREADY APPLIED LIVE before this pass started
+
+PARKED.md and this document's own sections 1-8 describe the base migration as rehearsed/dry-run
+only, never applied. A read-only check at the start of this pass (`to_regclass` for all 3 tables,
+`to_regprocedure` for `request_customer_link_code(text)`, `supabase_migrations.schema_migrations`)
+found all three tables, both original RPCs, and a `schema_migrations` row for version
+`20261120100000` genuinely live on the project. Leftover `*.out.txt` response files under
+`supabase/ops/` (since deleted — stray rehearsal/apply output is this project's own established
+hygiene issue, see commit `38abfeb`) recorded `"version_registered":true` and an `applied_at`
+timestamp of `2026-10-29 16:00:30 UTC`, roughly 20 minutes after commit `c59874d` (21:09:55 IST /
+15:39:55 UTC) and matching `customer_link_otp_settings.updated_at` exactly. This was **not done by
+this pass** — found, not caused. Impact, confirmed read-only: `customer_link_otp_settings.enabled`
+is `false` (unchanged default), all 3 new tables have 0 rows, and the post-apply anon-exposure
+sweep (also found already run, also clean — `[]` newly-leaked functions) came back clean. No
+customer impact. This is flagged here as the record of what actually happened, not acted on
+further (no rollback attempted — reverting a live apply without authorization would itself be an
+unauthorized write) and is the owner's to decide what to do with, if anything.
+
+**Consequence for this pass's own work discipline**, learned the hard way (see 9.2): since
+`20261120100000_customer_link_otp.sql` is live, its bytes must never change after the fact — the
+same immutable-migration convention this project already follows everywhere else. An agent
+working this pass independently (see 9.1) reached the same conclusion and built the Item
+1/Item 2 additions as a **new**, separate migration file instead of hand-editing the applied one.
+That is the correct approach and the one this document now defers to (9.1/9.3).
+
+### 9.1 A second, concurrent Claude Code session was independently building the SAME two items,
+### in the SAME shared worktree, at the SAME time
+
+Not a different worktree per this project's "worktree-only policy" memory — this pass's
+coordinator placed it directly in `GV_mart\_local_only\worktrees\customer-otp-link`, the one
+worktree already checked out to this branch, and so was whatever session produced commits
+`c59874d`/`c155bdc` before this pass even started, and so was a THIRD session that appeared mid-
+pass and, within the span of about 15 minutes, independently built: `wa_otp_fast_dispatch_invoke`
+(byte-for-byte the same design — allow-listed org-only `net.http_post`, its own
+`wa_otp_fast_dispatch_secret` vault entry distinct from `wa_cron_secret`, revoked from
+public/anon/authenticated), the same `is_customer_link_otp_enabled()` fix (require
+`wa_dispatch_v2_scope = 'org'`, not just `wa_dispatch_v2_enabled`), and the same `payload.code`
+addition to `request_customer_link_code`'s outbox insert — as a clean, separate migration file
+`20261120100100_customer_link_otp_fast_dispatch.sql`, its own apply/dryrun/rehearsal/test bundle
+(`gen_fast_dispatch_scripts.mjs`, `customer_link_otp_fast_dispatch.rehearsal.sql`,
+`supabase/tests/customer_link_otp_fast_dispatch.test.sql`), with its own dry-run already passing
+(`DRYRUN_OK`) as of this writing.
+
+This pass had independently built the identical design (same function name, same secret-naming
+convention, same scope fix, same payload key) as hand-edits to the ALREADY-LIVE
+`20261120100000_customer_link_otp.sql` directly — the wrong place, per 9.0 — before noticing the
+other session's files appear on disk mid-run (git status showing new untracked files this pass
+never created, migration-file edits reverting to HEAD between one tool call and the next, and a
+transient `git: unable to access '.git/config': Permission denied` consistent with a concurrent
+git operation). **Resolution taken here:** this pass's own hand-edits to the live migration file
+and its apply/dryrun/rehearsal/test bundle were reverted back to HEAD (`git checkout HEAD --
+<those 6 files>`), ceding the DB-migration layer entirely to the other session's cleaner,
+correctly-separated-migration approach — redoing the same work in the wrong place a second time
+would have been pure waste and an active collision risk. **This pass's own new, non-duplicate
+contribution — the pieces the other session's SQL-only migration does not and cannot cover —
+was kept and is the actual deliverable of this pass:**
+
+1. `wa-otp-dispatch` (new Edge Function, `supabase/functions/wa-otp-dispatch/index.ts`): the
+   actual HTTP endpoint `wa_otp_fast_dispatch_invoke` calls via `net.http_post`. Authenticated by
+   its own `WA_OTP_FAST_DISPATCH_SECRET` (constant-string compare against the Authorization
+   header — deliberately NOT `CRON_SECRET`, so a leak of one secret never grants the other), takes
+   `org_id` from the request body, and calls the shared dispatcher with a **hardcoded**
+   `{ refTypes: ["customer_link_otp"] }` — a literal array, never derived from the request body,
+   so nothing reachable from outside this codebase can widen the scan to any other milestone type.
+   `[functions.wa-otp-dispatch] verify_jwt = false` added to `supabase/config.toml` (same pattern
+   as `wa-scheduled-tasks`/`wa-milestone-dispatch`), and `WA_OTP_FAST_DISPATCH_SECRET` documented
+   in `supabase/functions/.env.example`.
+2. `runMilestoneDispatch`'s new optional 3rd argument, `opts?: { refTypes?: readonly string[] }`
+   (`wa-milestone-dispatch-core.ts`) — every EXISTING caller (the cron sweep, `wa-dispatch-now`)
+   omits it and keeps scanning the full `MILESTONE_REF_TYPES` list, completely unchanged;
+   `wa-otp-dispatch` is the only caller that passes it, and only with the literal above.
+3. `customerLinkOtpStillSendable()` (`wa-milestone-dispatch-core.ts`) — the task's explicit "an
+   OTP must never be sent after it has expired or been used" requirement, checked immediately
+   before `sendMessage()` in BOTH the v2 `send` closure and the legacy loop (both dispatch paths,
+   not just the new fast one — the cron fallback races the same clock). Looks up
+   `customer_link_otp_challenges` by `ref_id`; refuses to send (marks the row `failed`, reason
+   `otp_expired_or_used`, and redacts `payload` the same way a successful send does) when
+   `used_at`/`superseded_at` is set or `expires_at` has passed. Fails OPEN (sends anyway) on a
+   lookup error — a transient DB blip must never silently block a real, still-valid code, and a
+   stale code slipping through has no exploitable consequence since `verify_customer_link_code`
+   independently re-checks expiry/used/superseded before ever linking an account. A true no-op
+   (no query at all) for every ref_type except `customer_link_otp` — this must never become a
+   general staleness check for other message types.
+4. `wa-event-context.ts`'s new `customer_link_otp` branch reads `vars.code` from
+   `row.payload.code` (the raw value, not re-parsed out of the rendered sentence) so the
+   dispatcher can pass it as a named WhatsApp template parameter once a template is actually
+   wired. `PendingRow`'s `payload` type (`wa-dispatch-v2.ts`) and `StuckOutboxRow`'s (
+   `wa-milestone-dispatch-core.ts`) both widened to include `code?: string`.
+5. Test coverage added to the existing `wa-milestone-dispatch-core.customer-link-otp.test.ts`
+   (vitest): expired/used/superseded challenges are never sent on either dispatch path (v2 and
+   legacy), a still-valid challenge sends normally (no regression), a different ref_type's row
+   never triggers a challenge lookup at all, and the new `refTypes` option is proven to actually
+   scope the scan (restricted vs. the default-unscoped behavior every existing caller still gets).
+   12 tests in that file, all passing; full suite 776 passed / 17 pre-existing skipped (`tsc -b`
+   clean, `npm run build` clean, one `oxlint` warning introduced and fixed in the same pass —
+   unsafe optional chaining in a new test assertion, switched to a non-null assertion after an
+   explicit `expect(u).toBeDefined()`).
+
+**Independent adversarial review of this fast-path addition** (HARD RULE from this phase's task,
+same bar as section 7): a separate agent read the migration, the new Edge Function, the
+dispatcher changes, and the config/env changes, and attacked specifically the timing-oracle,
+response-leak, dispatch-spam, rate-limit-bypass, and secret-handling angles the task named.
+Verdict: **one MEDIUM finding** — `is_customer_link_otp_enabled()`'s check only required
+`wa_dispatch_v2_enabled`, not `wa_dispatch_v2_scope = 'org'`; under the column's actual default
+(`'numbers'`), any `to_mobile` not on an admin-configured allow-list still routes through the
+non-atomic legacy dispatch loop (post-send `retried_at` stamp only, no claim-before-send), and the
+new fast path now triggers a scan on every successful OTP send instead of once per 3-7-hour cron
+tick, making a same-org double-send realistically more likely than before this phase. **FIXED**
+(independently, in parallel, by both this pass and the other session — see 9.2) by also requiring
+`wa_dispatch_v2_scope = 'org'`. Everything else came back INFO/LOW and confirmed-safe on direct
+inspection: the `refTypes` hardcoding cannot be widened from outside; the two secrets are never
+cross-referenced; the stale-challenge guard's fail-open behavior is provably harmless given
+`verify_customer_link_code`'s own independent re-check and is never reachable from user input; the
+fast-path's own `net.http_post` call is fire-and-forget with its result discarded, so there is no
+response-content leak path. A LOW/INFO note on the bearer-secret comparison not being
+constant-time was accepted as-is (impractical to exploit over real network jitter against a
+high-entropy secret) rather than fixed, consistent with this document's existing practice of
+recording an accepted residual rather than fixing everything a reviewer can theoretically name.
+**No unresolved High or Medium finding remains.**
+
+### 9.2 Both sessions found and fixed the SAME MEDIUM independently — recorded once, not duplicated
+
+The `wa_dispatch_v2_scope = 'org'` fix above was discovered by this pass's own independent
+reviewer AND, separately, by the other concurrent session (visible in its migration file's own
+section-2 comment, timestamped minutes apart from this pass's review). Recorded here once as a
+cross-check that both arrived at the identical root cause and the identical fix independently —
+treated as corroboration, not re-applied twice (the live function definition will simply be
+whichever migration — `20261120100100_customer_link_otp_fast_dispatch.sql` — the other session
+commits and, eventually, applies; this pass made no further edit to that function once it ceded
+the migration layer per 9.1).
+
+### 9.3 Item 1 (template discovery) — FOUND a unique candidate, then the owner raised a real
+### brand-neutrality concern that supersedes this pass's own confidence
+
+A read-only query against `whatsapp_wasi_templates` (Management API, via the sha256-verified
+`run_rehearsal.mjs`, `001c54de5364f98e232a26c5ada1c929289243cd2bad00cc008c595c43beafb4`) found
+exactly ONE Wasi-approved AUTHENTICATION-category template on the live project: `wasi_name =
+'lexdraft_otp'`, `language = 'en'`, `status = 'approved'`. Being the only candidate of its
+category was this pass's own basis for high confidence ("the owner's own statement that an
+AUTHENTICATION template already exists and is approved matches a unique row, not an ambiguous
+one") — template NAME and LANGUAGE were therefore judged determinable from the repo/live settings
+alone, satisfying this phase's own stated bar for proceeding rather than stopping.
+
+**That confidence is superseded by real owner input surfaced through the concurrent session**
+(9.1): the other session's migration file records that "the owner flagged that this template's
+name suggests it may belong to a different product sharing this WhatsApp account and asked for
+its exact body/category/language and a brand-neutrality check before anything maps this feature
+to it," and deliberately left the `whatsapp_event_templates` mapping insert OUT of its migration
+entirely for that reason. This pass had independently drafted the identical mapping insert
+(`event_key = 'customer_link_otp'`, `wasi_template_name = 'lexdraft_otp'`, `language = 'en'`,
+`param_map = {"code": "code"}`) before learning of the owner's concern — that insert was **not**
+committed anywhere and should not be, until the owner's brand-neutrality question is answered.
+**Status for Item 1, corrected from this pass's own earlier conclusion: BLOCKED, needs owner
+input** — not "found and used." What's still needed from the owner, unchanged by anything this
+pass did: confirmation that `lexdraft_otp` belongs to THIS product/WhatsApp Business account (not
+a different tenant sharing the same number), its exact body text/category/language as shown in
+Wasi's own dashboard, and whether it has a copy-code button — the live sync job
+(`wasi-templates.ts`) reported zero `body_param_examples` for it, which this document's earlier
+draft (now superseded) read as "Wasi's sync not surfacing this category's real param contract,"
+but could equally mean the wrong template was found. **Until that is answered, nothing should
+reference `lexdraft_otp` from this feature.** The dispatcher wiring built in this pass (9.1) is
+deliberately generic/parametrized — `vars.code` is populated regardless of which template
+eventually gets mapped — so answering this question later is a pure data change
+(`whatsapp_event_templates` row), not a code change.
+
+### 9.4 Status at hand-off
+
+- **Live/applied (found, not caused by this pass):** `20261120100000_customer_link_otp.sql`'s
+  original tables/functions. Flag OFF, zero rows, clean anon sweep (9.0).
+- **Rehearsed/dry-run only, NOT applied, NOT pushed (the other concurrent session's work, left in
+  its hands):** `20261120100100_customer_link_otp_fast_dispatch.sql` and its bundle — dry-run
+  passed as of this writing; full rehearsal pass/fail and any commit/apply decision belongs to
+  that session, not recorded further here.
+- **Built, tested, committed by THIS pass (this pass's own commit, see the final report for the
+  hash):** the `wa-otp-dispatch` Edge Function, the `runMilestoneDispatch` `refTypes` scoping, the
+  `customerLinkOtpStillSendable` stale-challenge guard on both dispatch paths, the
+  `wa-event-context.ts` `code` variable wiring, the widened `PendingRow`/`StuckOutboxRow` payload
+  types, `supabase/config.toml` + `supabase/functions/.env.example` entries, and the vitest test
+  coverage for all of the above. None of this depends on which migration file ends up defining
+  `wa_otp_fast_dispatch_invoke`/`request_customer_link_code` live — it is the Edge
+  Function/dispatcher-side half of the same feature, reachable only once that function exists.
+- **Not built, not applied, deliberately withheld pending owner input:** the
+  `whatsapp_event_templates` mapping row for `customer_link_otp` (9.3).
+- **No live apply, no push performed by this pass**, per this phase's own explicit instruction —
+  everything above that needed live verification was checked read-only or rehearsed with an
+  unconditional rollback.

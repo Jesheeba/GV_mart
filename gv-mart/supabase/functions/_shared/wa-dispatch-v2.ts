@@ -16,7 +16,11 @@ export type PendingRow = {
   to_mobile: string | null
   customer_id: string | null
   template: string
-  payload: { body?: string } | null
+  // 'code' (customer_link_otp rows only, 20261120100000_customer_link_otp.sql): the raw OTP
+  // value, stored alongside the rendered body text so the dispatcher can pass it as a named
+  // template parameter (see wa-event-context.ts). Wiped together with body on redaction, since
+  // the redaction call replaces the whole payload column rather than merging keys.
+  payload: { body?: string; code?: string } | null
   ref_type: string | null
   ref_id: string | null
   retry_count: number

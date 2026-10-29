@@ -413,6 +413,15 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Triggered directly from inside request_customer_link_code() via pg_net
+# (public.wa_otp_fast_dispatch_invoke, 20261120100000_customer_link_otp.sql),
+# with no Supabase session — same reasoning as wa-scheduled-tasks above, but
+# guarded by its own DEDICATED bearer secret (WA_OTP_FAST_DISPATCH_SECRET),
+# not CRON_SECRET, so a compromise of one secret never grants the other.
+[functions.wa-otp-dispatch]
+enabled = true
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
