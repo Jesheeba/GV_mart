@@ -55,6 +55,8 @@ export interface OutboxJob {
   /** Client-generated id so dependent jobs (e.g. sop_step referencing a visit created offline) can chain before the server id exists. */
   clientRefId?: string
   payload: unknown
+  /** Which app build's enqueue() wrote this job — see outboxContract.ts. Undefined for jobs queued before this field existed; never required. */
+  payloadVersion?: number
   status: OutboxStatus
   attempts: number
   lastError?: string

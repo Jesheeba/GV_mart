@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { Json, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 import { db, type OutboxJob } from "./db"
+import { assertRequiredFields } from "./outboxContract"
 import { triggerWaDispatchNow } from "@/services/whatsapp"
 
 type AttendanceRow = Tables<"attendance">
@@ -87,6 +88,10 @@ export function getSyncState() {
 
 async function runJob(job: OutboxJob): Promise<void> {
   const p = job.payload as Record<string, unknown>
+  // Guards against a genuinely broken enqueue call site, not against an
+  // older/newer app version — see outboxContract.ts for why this never
+  // rejects a job merely for lacking a field added after it was queued.
+  assertRequiredFields(job.kind, p)
   switch (job.kind) {
     case "attendance.mark": {
       const { data, error } = await supabase
