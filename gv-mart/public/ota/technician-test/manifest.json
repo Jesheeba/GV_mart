@@ -1,11 +1,11 @@
 {
   "channel": "technician-test",
-  "version": "2026-10-29-b2",
-  "buildNumber": 2,
-  "url": "https://gv-mart.vercel.app/ota/technician-test/bundle-2.zip",
-  "checksum": "40deccd96f19edca333a04626f08f2a49e512ee5d61e6323032c8c4fffd4a913",
+  "version": "2026-10-29-b3",
+  "buildNumber": 3,
+  "url": "https://gv-mart.vercel.app/ota/technician-test/bundle-3.zip",
+  "checksum": "26391223e1fa38b36ade8fe9c2abd5bd04bc0e14359383cafb443b8ec9a30b02",
   "minNativeBuild": 1,
   "frozen": false,
-  "publishedAt": "2026-10-29T08:45:13.450Z",
-  "signature": "p86AMQV8RWN90eSfx+4jDJsNsZYGRqUvwdLIpbMA0VIIaJksVXKvQsqk2/GKRNpNFBv1H/RMECoMtRmMW8vfBA=="
+  "publishedAt": "2026-10-29T11:00:19.940Z",
+  "signature": "kR7+ksyD7/prtofcigmB7EnZgXJXfMfwHxycumUhLMsAvuvc4cxA/CMavM0CYA3Diika3PzjXHOkgFQnzD63BA=="
 }
