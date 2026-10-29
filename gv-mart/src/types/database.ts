@@ -587,7 +587,9 @@ export type Database = {
           org_id: string
           primary_profile_id: string | null
           name: string
-          mobile: string
+          // Nullable since 20261130100000 — a Google-auto-onboarded customer has no phone until
+          // they provide one later (see customer_auto_onboard()).
+          mobile: string | null
           profession: string | null
           preferred_language: string | null
           source: string | null
@@ -597,6 +599,13 @@ export type Database = {
           // only when update_lead_status auto-creates this customer from a
           // won lead; staff clear it once address/family details are filled.
           needs_setup: boolean
+          // customer_auto_onboard() (20261130100001) — the account-holder's own Google email,
+          // matched against on auto-onboard; never customer_members.email.
+          email: string | null
+          // Set when auto-onboarding had to create a new customer instead of linking, because
+          // the email match was ambiguous or already claimed by a different sign-in.
+          needs_review: boolean
+          needs_review_reason: string | null
           // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
           // is NOT here — it lives in its own table, customer_health_profile, below.
           water_source: Database["public"]["Enums"]["water_source_type"] | null
@@ -612,13 +621,16 @@ export type Database = {
           org_id: string
           primary_profile_id?: string | null
           name: string
-          mobile: string
+          mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
+          email?: string | null
+          needs_review?: boolean
+          needs_review_reason?: string | null
           water_source?: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other?: string | null
           water_tds_ppm?: number | null
@@ -632,13 +644,16 @@ export type Database = {
           org_id?: string
           primary_profile_id?: string | null
           name?: string
-          mobile?: string
+          mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
+          email?: string | null
+          needs_review?: boolean
+          needs_review_reason?: string | null
           water_source?: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other?: string | null
           water_tds_ppm?: number | null
@@ -7539,6 +7554,10 @@ export type Database = {
           p_google_email: string
         }
         Returns: undefined
+      }
+      customer_auto_onboard: {
+        Args: Record<PropertyKey, never>
+        Returns: Database["public"]["Tables"]["customers"]["Row"]
       }
       admin_unlink_customer_google_account: {
         Args: {

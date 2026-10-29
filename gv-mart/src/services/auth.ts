@@ -99,6 +99,19 @@ export async function linkCustomerGoogleAccount(mobile: string) {
   if (error) throw error
 }
 
+/**
+ * Auto-onboarding on first Google sign-in (20261130100001_customer_auto_onboard_rpc.sql) —
+ * replaces linkCustomerGoogleAccount's dead-end for the common case. Takes no arguments; the
+ * server reads the caller's own Google-verified email from auth.identities. Idempotent (safe to
+ * call again on a page reload) and refuses with a `staff_account` message if the signed-in
+ * Google account turns out to belong to a staff/technician/master profile.
+ */
+export async function customerAutoOnboard() {
+  const { data, error } = await supabase.rpc("customer_auto_onboard")
+  if (error) throw error
+  return data
+}
+
 export async function signOut() {
   const { error } = await supabase.auth.signOut()
   if (error) throw error

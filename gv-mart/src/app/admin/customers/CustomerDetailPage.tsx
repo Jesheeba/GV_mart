@@ -110,7 +110,7 @@ export function CustomerDetailPage() {
   const markRentalReturned = useMarkRentalReturned()
   const { toast } = useToast()
   const setPreferredLanguage = useSetCustomerPreferredLanguage(customer?.id)
-  const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile)
+  const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile ?? undefined)
   const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
   const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
@@ -123,7 +123,7 @@ export function CustomerDetailPage() {
   }
 
   const primaryAddress = customer.addresses.find((a) => a.is_primary) ?? customer.addresses[0]
-  const waNumber = customer.mobile.replace(/\D/g, "")
+  const waNumber = (customer.mobile ?? "").replace(/\D/g, "")
   const palette = avatarPalette(customer.name)
   const subtitleParts = [
     customer.profession || null,
@@ -401,9 +401,11 @@ export function CustomerDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
-                <Phone className="size-4" />
-              </Button>
+              {customer.mobile ? (
+                <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
+                  <Phone className="size-4" />
+                </Button>
+              ) : null}
               <Button variant="outline" size="icon" title={t("customers.detail.actions.edit")} onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
                 <Pencil className="size-4" />
               </Button>
@@ -429,15 +431,17 @@ export function CustomerDetailPage() {
             <Button variant="ghost" className="bg-accent-soft text-accent hover:bg-accent-soft/80" onClick={() => navigate("/admin/amc")}>
               {t("customers.detail.actions.sellAmc")}
             </Button>
-            <Button
-              variant="ghost"
-              className="bg-success/15 text-success hover:bg-success/25"
-              nativeButton={false}
-              render={<a href={`https://wa.me/91${waNumber}`} target="_blank" rel="noreferrer" />}
-            >
-              <MessageCircle className="size-3.5" />
-              {t("customers.detail.whatsapp")}
-            </Button>
+            {waNumber ? (
+              <Button
+                variant="ghost"
+                className="bg-success/15 text-success hover:bg-success/25"
+                nativeButton={false}
+                render={<a href={`https://wa.me/91${waNumber}`} target="_blank" rel="noreferrer" />}
+              >
+                <MessageCircle className="size-3.5" />
+                {t("customers.detail.whatsapp")}
+              </Button>
+            ) : null}
           </div>
         </Card>
 

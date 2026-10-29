@@ -4,20 +4,24 @@ import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { signOut } from "@/services/auth"
 
 /**
- * Shown after a first-time Google sign-in when the auth user has no
- * `profiles` row — admin-created customers (create_customer_with_details)
- * never get one until linked.
+ * Shown after a first-time Google sign-in when customer_auto_onboard()
+ * (20261130100001_customer_auto_onboard_rpc.sql, called from
+ * CustomerAutoOnboardGate) couldn't complete automatically:
+ *   - `reason="staff_account"` — the signed-in Google account belongs to a
+ *     staff/technician/master profile. Customer self-service never applies
+ *     to staff; they sign in with their password instead.
+ *   - `reason="error"` — any other RPC failure (network, unexpected server
+ *     error). Generic, with a sign-out-and-retry affordance.
  *
- * Interim notice (2026-10-29): link_customer_google_account's EXECUTE grant
- * was revoked (20261021100000, account-takeover fix — see
- * gv_mart_link_customer_account_takeover_2026_10_14 in project memory) and
- * no replacement has shipped yet, so every linking attempt would fail with
- * the exact same error no matter how many times it's retried. Rather than
- * show a mobile-number form and a "try again" button for a flow that cannot
- * currently succeed, this is a static notice with no retry affordance at
- * all — replaced once the OTP-based linking flow ships.
+ * Until 2026-11-30 this was a permanent dead end for EVERY first-time
+ * Google sign-in (link_customer_google_account's EXECUTE grant was revoked
+ * 20261021100000, account-takeover fix, with no replacement live yet) — see
+ * gv_mart_link_customer_account_takeover_2026_10_14 in project memory for
+ * that history. customer_auto_onboard() now handles the success path
+ * entirely on its own; this card only ever renders for the two refusal
+ * cases above.
  */
-export function GoogleLinkAccountCard() {
+export function GoogleLinkAccountCard({ reason }: { reason: "staff_account" | "error" }) {
   const { t } = useTranslation()
 
   return (
@@ -30,7 +34,9 @@ export function GoogleLinkAccountCard() {
 
         <p className="text-xs font-semibold uppercase tracking-wide text-accent">{t("auth.signInEyebrow")}</p>
         <h2 className="mt-1 text-2xl font-bold text-text">{t("auth.linkAccountTitle")}</h2>
-        <p className="mt-3 rounded-xl bg-surface-alt px-3.5 py-3 text-sm text-text">{t("auth.linkAccountUnavailable")}</p>
+        <p className="mt-3 rounded-xl bg-surface-alt px-3.5 py-3 text-sm text-text">
+          {t(reason === "staff_account" ? "auth.staffAccountNotice" : "auth.linkAccountUnavailable")}
+        </p>
 
         <button
           type="button"

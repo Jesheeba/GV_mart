@@ -33,7 +33,7 @@ import { PoReceiptPromptModal } from "./purchase/PoReceiptPromptModal"
 // wired up to invoices — no quick invoice search exists anywhere else in the
 // app to reuse, and inventing one is out of scope for wiring up this input.
 type GlobalSearchResult =
-  | { kind: "customer"; id: string; name: string; mobile: string }
+  | { kind: "customer"; id: string; name: string; mobile: string | null }
   | { kind: "ticket"; id: string; complaint: string | null; customerName: string | null }
 
 function AdminGlobalSearch({ orgId }: { orgId: string }) {

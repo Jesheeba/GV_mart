@@ -239,6 +239,7 @@
     "linkAccountAlreadyLinked": "This mobile number is already linked to another account.",
     "linkAccountGenericError": "Couldn't link your account. Please try again.",
     "linkAccountUnavailable": "Account linking is not available yet. Please contact the shop and they will help you.",
+    "staffAccountNotice": "This Google account belongs to a staff login. Please sign in with your email and password instead.",
     "useDifferentAccount": "Sign out and use a different account"
   },
   "shell": {
@@ -352,6 +353,8 @@
   },
   "customers": {
     "testBadge": "Test",
+    "appBadge": "App",
+    "needsReviewBadge": "Needs review",
     "delete": {
       "title": "Delete customer",
       "warning": "This permanently deletes {{name}}. This cannot be undone.",
@@ -400,6 +403,8 @@
       "quickAll": "All",
       "amcDueSoon": "AMC due soon",
       "dormant": "Dormant",
+      "app": "App",
+      "needsReview": "Needs review",
       "moreFilters": "Filters",
       "allTypes": "All types",
       "residential": "Residential",

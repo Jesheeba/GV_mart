@@ -46,6 +46,10 @@ export type CustomerListFilters = {
   amcDueSoon?: boolean
   /** Registered 180+ days ago with no invoice or service ticket in the last 180 days. */
   dormant?: boolean
+  /** source = 'customer_app' — auto-onboarded via Google sign-in, not entered by staff. */
+  appSourced?: boolean
+  /** needs_review = true — auto-onboarding couldn't link a confident match; flagged for a human. */
+  needsReview?: boolean
 }
 
 const PAGE_SIZE = 20
@@ -136,9 +140,9 @@ export async function listCustomers(orgId: string, filters: CustomerListFilters,
   if (idSets.length > 0) {
     const intersected = idSets.reduce((acc, set) => acc.filter((id) => set.includes(id)))
     if (intersected.length === 0) return { rows: [] as CustomerListItem[], count: 0, pageSize: PAGE_SIZE }
-    return queryCustomers(orgId, page, intersected)
+    return queryCustomers(orgId, page, intersected, filters)
   }
-  return queryCustomers(orgId, page, null)
+  return queryCustomers(orgId, page, null, filters)
 }
 
 export type CustomerFilterCounts = { total: number; hasAmc: number; amcDueSoon: number; dormant: number }
@@ -265,7 +269,7 @@ export async function getCustomerListEnrichment(
   return map
 }
 
-async function queryCustomers(orgId: string, page: number, ids: string[] | null) {
+async function queryCustomers(orgId: string, page: number, ids: string[] | null, filters: Pick<CustomerListFilters, "appSourced" | "needsReview"> = {}) {
   // `count: "exact"` runs a real COUNT(*) over every matching row on every
   // single page load — for a growing customers table that alone took 5+
   // seconds, dwarfing everything else the Customers list fetches (see
@@ -286,6 +290,8 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
 
+  if (filters.appSourced) query = query.eq("source", "customer_app")
+  if (filters.needsReview) query = query.eq("needs_review", true)
   if (ids) query = query.in("id", ids)
 
   const from = (page - 1) * PAGE_SIZE
@@ -412,12 +418,12 @@ export async function autocompleteCustomers(orgId: string, term: string) {
   if (byAddress.error) throw byAddress.error
   if (byMember.error) throw byMember.error
 
-  const results = new Map<string, { id: string; name: string; mobile: string }>()
+  const results = new Map<string, { id: string; name: string; mobile: string | null }>()
   for (const c of byNameOrMobile.data ?? []) results.set(c.id, c)
-  for (const row of (byAddress.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string } | null }[]) {
+  for (const row of (byAddress.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string | null } | null }[]) {
     if (row.customers && !results.has(row.customers.id)) results.set(row.customers.id, row.customers)
   }
-  for (const row of (byMember.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string } | null }[]) {
+  for (const row of (byMember.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string | null } | null }[]) {
     if (row.customers && !results.has(row.customers.id)) results.set(row.customers.id, row.customers)
   }
   return [...results.values()].slice(0, 6)

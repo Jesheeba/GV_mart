@@ -26,7 +26,7 @@ import { getCustomerListEnrichment, listCustomers } from "@/services/customers"
 import type { CustomerListItem, CustomerRowEnrichment } from "@/services/customers"
 import type { Enums } from "@/types/database"
 
-type QuickFilter = "all" | "hasAmc" | "amcDueSoon" | "dormant"
+type QuickFilter = "all" | "hasAmc" | "amcDueSoon" | "dormant" | "app" | "needsReview"
 
 function toCsv(
   rows: CustomerListItem[],
@@ -95,6 +95,8 @@ export function CustomersListPage() {
       hasAmc: quickFilter === "hasAmc" ? true : undefined,
       amcDueSoon: quickFilter === "amcDueSoon" ? true : undefined,
       dormant: quickFilter === "dormant" ? true : undefined,
+      appSourced: quickFilter === "app" ? true : undefined,
+      needsReview: quickFilter === "needsReview" ? true : undefined,
     }),
     [search, addressType, area, pincode, hasWarranty, quickFilter]
   )
@@ -191,6 +193,19 @@ export function CustomersListPage() {
                     {t("customers.testBadge")}
                   </span>
                 ) : null}
+                {c.source === "customer_app" ? (
+                  <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                    {t("customers.appBadge")}
+                  </span>
+                ) : null}
+                {c.needs_review ? (
+                  <span
+                    title={c.needs_review_reason ?? t("customers.needsReviewBadge")}
+                    className="rounded-full bg-[#F97316]/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#F97316]"
+                  >
+                    {t("customers.needsReviewBadge")}
+                  </span>
+                ) : null}
                 {c.needs_setup ? (
                   <span
                     role="img"
@@ -200,7 +215,7 @@ export function CustomersListPage() {
                   />
                 ) : null}
               </div>
-              <div className="gv-tnum text-xs text-text-muted">{c.mobile}</div>
+              <div className="gv-tnum text-xs text-text-muted">{c.mobile || "—"}</div>
             </div>
           </div>
         )
@@ -300,6 +315,22 @@ export function CustomersListPage() {
           label={`${t("customers.filters.dormant")} · ${counts.data?.dormant ?? "—"}`}
           onClick={() => {
             setQuickFilter("dormant")
+            setPage(1)
+          }}
+        />
+        <QuickFilterChip
+          active={quickFilter === "app"}
+          label={t("customers.filters.app")}
+          onClick={() => {
+            setQuickFilter("app")
+            setPage(1)
+          }}
+        />
+        <QuickFilterChip
+          active={quickFilter === "needsReview"}
+          label={t("customers.filters.needsReview")}
+          onClick={() => {
+            setQuickFilter("needsReview")
             setPage(1)
           }}
         />
