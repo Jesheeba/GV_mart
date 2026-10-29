@@ -23,13 +23,15 @@
 //     than deactivation being silently bypassed.
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
-import { classifyAuthError } from "../_shared/staff-auth.ts"
+import { classifyAuthError, validateTypedPassword } from "../_shared/staff-auth.ts"
 
 type CreateBody = {
   action: "create"
   fullName: string
   phone: string
   email: string
+  /** Typed password, or omitted/null to have the server generate one. */
+  password?: string | null
   address?: string | null
   city?: string | null
   state?: string | null
@@ -120,7 +122,15 @@ Deno.serve(async (req) => {
       if (!body.fullName?.trim() || !body.phone?.trim() || !body.email?.trim()) {
         return jsonError("fullName, phone and email are required", 400)
       }
-      const password = generatePassword()
+      const generated = body.password == null
+      let password: string
+      if (generated) {
+        password = generatePassword()
+      } else {
+        const passwordError = validateTypedPassword(body.password)
+        if (passwordError) return jsonError(passwordError, 400)
+        password = body.password as string
+      }
 
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email: body.email.trim(),
@@ -177,7 +187,7 @@ Deno.serve(async (req) => {
         return jsonError(`Could not create the technician record: ${technicianErr.message}`, 400)
       }
 
-      return jsonOk({ technicianId: technician.id, profileId: userId, password })
+      return jsonOk({ technicianId: technician.id, profileId: userId, generated, password: generated ? password : undefined })
     }
 
     if (body.action === "reset_password") {

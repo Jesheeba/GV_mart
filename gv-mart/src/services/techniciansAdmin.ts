@@ -215,6 +215,8 @@ export type CreateTechnicianInput = {
   fullName: string
   phone: string
   email: string
+  /** Typed password, or omitted to have the server generate one. */
+  password?: string
   address?: string | null
   city?: string | null
   state?: string | null
@@ -226,7 +228,7 @@ export type CreateTechnicianInput = {
   aadharDocumentPath?: string | null
   drivingLicenceDocumentPath?: string | null
 }
-export type CreateTechnicianResult = { technicianId: string; profileId: string; password: string }
+export type CreateTechnicianResult = { technicianId: string; profileId: string; generated: boolean; password?: string }
 
 async function invokeAdminCreateTechnician<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("admin-create-technician", { body })
