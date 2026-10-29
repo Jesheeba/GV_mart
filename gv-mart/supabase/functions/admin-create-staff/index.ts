@@ -63,9 +63,10 @@ Deno.serve(async (req) => {
   const { data: created, error: createErr } = await admin.auth.admin.createUser({ email: input.email, password, email_confirm: true })
   if (createErr || !created?.user) {
     const kind = classifyAuthError(createErr)
-    await finishStaffAudit(admin, audit, false, { error: kind === "duplicate_email" ? "duplicate_email" : kind === "weak_password" ? "weak_password" : "auth_create_failed" })
+    await finishStaffAudit(admin, audit, false, { error: kind === "duplicate_email" ? "duplicate_email" : kind === "weak_password" ? "weak_password" : kind === "invalid_email" ? "invalid_email" : "auth_create_failed" })
     if (kind === "duplicate_email") return json({ error: "A login with this email already exists" }, 409)
     if (kind === "weak_password") return json({ error: "That password is not accepted; choose another or let the system generate one" }, 400)
+    if (kind === "invalid_email") return json({ error: "Please enter a valid email address" }, 400)
     return json({ error: "Could not create the login" }, 400)
   }
   const userId = created.user.id

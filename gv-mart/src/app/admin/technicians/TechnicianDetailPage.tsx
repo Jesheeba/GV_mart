@@ -130,6 +130,8 @@ export function TechnicianDetailPage() {
   const [editAadharDocumentPath, setEditAadharDocumentPath] = useState<string | null>(null)
   const [editDrivingLicenceDocumentPath, setEditDrivingLicenceDocumentPath] = useState<string | null>(null)
   const [confirmingResetPassword, setConfirmingResetPassword] = useState(false)
+  const [resetPasswordMode, setResetPasswordMode] = useState<"generate" | "type">("generate")
+  const [resetTypedPassword, setResetTypedPassword] = useState("")
   const [confirmingDeactivate, setConfirmingDeactivate] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
@@ -196,13 +198,20 @@ export function TechnicianDetailPage() {
       { onSuccess: () => setConfirmingDeactivate(false) }
     )
   }
+  const resetTypedPasswordValid = resetPasswordMode === "generate" || new TextEncoder().encode(resetTypedPassword).length >= 10
   function resetPassword() {
-    resetPasswordMut.mutate(technician!.id, {
-      onSuccess: ({ password }) => {
-        setRevealedPassword(password)
-        setConfirmingResetPassword(false)
-      },
-    })
+    if (!resetTypedPasswordValid) return
+    resetPasswordMut.mutate(
+      { technicianId: technician!.id, password: resetPasswordMode === "type" ? resetTypedPassword : undefined },
+      {
+        onSuccess: ({ generated, password }) => {
+          if (generated && password) setRevealedPassword(password)
+          setConfirmingResetPassword(false)
+          setResetPasswordMode("generate")
+          setResetTypedPassword("")
+        },
+      }
+    )
   }
   function confirmDelete() {
     deleteMut.mutate(technician!.id, { onSuccess: () => navigate("/admin/technicians") })
@@ -293,14 +302,40 @@ export function TechnicianDetailPage() {
         </div>
 
         {confirmingResetPassword ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-alt px-4 py-3">
-            <p className="flex-1 text-sm text-text">{t("technicians.detail.confirmResetPassword", { name })}</p>
-            <Button size="sm" variant="ghost" onClick={() => setConfirmingResetPassword(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button size="sm" variant="destructive" disabled={resetPasswordMut.isPending} onClick={resetPassword}>
-              {resetPasswordMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("technicians.detail.resetPassword")}
-            </Button>
+          <div className="space-y-3 rounded-xl border border-border bg-surface-alt px-4 py-3">
+            <p className="text-sm text-text">{t("technicians.detail.confirmResetPassword", { name })}</p>
+            <fieldset className="space-y-1.5">
+              <legend className="text-xs font-medium text-text-muted">{t("hr.staffSalary.passwordMode")}</legend>
+              <label className="flex items-center gap-2 text-sm text-text">
+                <input type="radio" name="reset-tech-password-mode" checked={resetPasswordMode === "generate"} onChange={() => setResetPasswordMode("generate")} />
+                {t("hr.staffSalary.passwordGenerate")}
+              </label>
+              <label className="flex items-center gap-2 text-sm text-text">
+                <input type="radio" name="reset-tech-password-mode" checked={resetPasswordMode === "type"} onChange={() => setResetPasswordMode("type")} />
+                {t("hr.staffSalary.passwordType")}
+              </label>
+              {resetPasswordMode === "type" ? (
+                <Input
+                  aria-label={t("hr.staffSalary.typedPassword")}
+                  placeholder={t("hr.staffSalary.typedPassword")}
+                  type="text"
+                  autoComplete="off"
+                  minLength={10}
+                  maxLength={72}
+                  value={resetTypedPassword}
+                  onChange={(e) => setResetTypedPassword(e.target.value)}
+                  aria-invalid={!resetTypedPasswordValid}
+                />
+              ) : null}
+            </fieldset>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmingResetPassword(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button size="sm" variant="destructive" disabled={resetPasswordMut.isPending || !resetTypedPasswordValid} onClick={resetPassword}>
+                {resetPasswordMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("technicians.detail.resetPassword")}
+              </Button>
+            </div>
           </div>
         ) : null}
 

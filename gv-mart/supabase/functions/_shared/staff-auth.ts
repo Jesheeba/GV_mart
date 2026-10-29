@@ -98,13 +98,20 @@ export async function finishStaffAudit(
 
 // ── Auth error mapping (fixed messages; never forward GoTrue's text) ─────────
 
-export type AuthFailure = "duplicate_email" | "weak_password" | "other"
+export type AuthFailure = "duplicate_email" | "weak_password" | "invalid_email" | "other"
 
-/** GoTrue reports an existing email with code "email_exists" (older versions: a message containing "already registered"). A bare 422 is NOT enough: a weak password is also a 422. */
+/**
+ * GoTrue reports an existing email with code "email_exists" (older versions: a message containing
+ * "already registered"). A bare 422 is NOT enough: a weak password is also a 422.
+ * A malformed email (GoTrue's own address validation is stricter than this project's client-side
+ * EMAIL_RE) comes back as code "validation_failed" with a message mentioning the email address -
+ * surfaced to the admin as "invalid_email" instead of leaking that raw code.
+ */
 export function classifyAuthError(err: { message?: string; code?: string } | null | undefined): AuthFailure {
   if (!err) return "other"
   if (err.code === "email_exists" || /already (been )?registered|already exists/i.test(err.message ?? "")) return "duplicate_email"
   if (err.code === "weak_password" || /password (should|must)|weak password/i.test(err.message ?? "")) return "weak_password"
+  if (err.code === "validation_failed" && /email/i.test(err.message ?? "")) return "invalid_email"
   return "other"
 }
 

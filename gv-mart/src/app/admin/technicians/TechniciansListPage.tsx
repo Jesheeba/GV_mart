@@ -238,6 +238,8 @@ function AddTechnicianPanel({
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
   const [designation, setDesignation] = useState("")
+  const [passwordMode, setPasswordMode] = useState<"generate" | "type">("generate")
+  const [typedPassword, setTypedPassword] = useState("")
   const [address, setAddress] = useState("")
   const [city, setCity] = useState("")
   const [state, setState] = useState("")
@@ -266,13 +268,15 @@ function AddTechnicianPanel({
 
   const capacityValid = /^\d+$/.test(dailyCapacity.trim()) && Number(dailyCapacity) > 0
   const phoneValid = MOBILE_REGEX.test(phone.trim())
+  const typedPasswordValid = passwordMode === "generate" || new TextEncoder().encode(typedPassword).length >= 10
   const formValid =
     fullName.trim().length > 0 &&
     phoneValid &&
     EMAIL_RE.test(email.trim()) &&
     capacityValid &&
     designation.trim().length >= 2 &&
-    address.trim().length >= 8
+    address.trim().length >= 8 &&
+    typedPasswordValid
 
   function handleCreate() {
     if (!formValid) return
@@ -282,6 +286,7 @@ function AddTechnicianPanel({
         phone: phone.trim(),
         email: email.trim(),
         designation: designation.trim(),
+        password: passwordMode === "type" ? typedPassword : undefined,
         address: address.trim(),
         city: city.trim() || null,
         state: state.trim() || null,
@@ -295,7 +300,7 @@ function AddTechnicianPanel({
       },
       {
         onSuccess: (result) => {
-          onCreated({ password: result.password, phone: phone.trim() })
+          if (result.generated && result.password) onCreated({ password: result.password, phone: phone.trim() })
           onClose()
         },
       }
@@ -336,7 +341,31 @@ function AddTechnicianPanel({
             aria-invalid={!!designation && designation.trim().length < 2}
           />
         </div>
-        <div className="space-y-1 sm:col-span-2">
+        <fieldset className="space-y-1.5 sm:col-span-3">
+          <legend className="text-xs font-medium text-text-muted">{t("hr.staffSalary.passwordMode")}</legend>
+          <label className="flex items-center gap-2 text-sm text-text">
+            <input type="radio" name="new-tech-password-mode" checked={passwordMode === "generate"} onChange={() => setPasswordMode("generate")} />
+            {t("hr.staffSalary.passwordGenerate")}
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text">
+            <input type="radio" name="new-tech-password-mode" checked={passwordMode === "type"} onChange={() => setPasswordMode("type")} />
+            {t("hr.staffSalary.passwordType")}
+          </label>
+          {passwordMode === "type" ? (
+            <Input
+              aria-label={t("hr.staffSalary.typedPassword")}
+              placeholder={t("hr.staffSalary.typedPassword")}
+              type="text"
+              autoComplete="off"
+              minLength={10}
+              maxLength={72}
+              value={typedPassword}
+              onChange={(e) => setTypedPassword(e.target.value)}
+              aria-invalid={!typedPasswordValid}
+            />
+          ) : null}
+        </fieldset>
+        <div className="space-y-1 sm:col-span-3">
           <Label htmlFor="new-tech-address">{t("technicians.detail.fields.address")}</Label>
           <Input
             id="new-tech-address"

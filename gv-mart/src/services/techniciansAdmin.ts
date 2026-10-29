@@ -217,6 +217,8 @@ export type CreateTechnicianInput = {
   email: string
   designation: string
   address: string
+  /** Typed password, or omitted to have the server generate one. */
+  password?: string
   city?: string | null
   state?: string | null
   pincode?: string | null
@@ -227,7 +229,7 @@ export type CreateTechnicianInput = {
   aadharDocumentPath?: string | null
   drivingLicenceDocumentPath?: string | null
 }
-export type CreateTechnicianResult = { technicianId: string; profileId: string; password: string }
+export type CreateTechnicianResult = { technicianId: string; profileId: string; generated: boolean; password?: string }
 
 async function invokeAdminCreateTechnician<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("admin-create-technician", { body })
@@ -254,8 +256,8 @@ export async function createTechnicianAccount(input: CreateTechnicianInput): Pro
   return invokeAdminCreateTechnician<CreateTechnicianResult>({ action: "create", ...input })
 }
 
-export async function resetTechnicianPassword(technicianId: string): Promise<{ password: string }> {
-  return invokeAdminCreateTechnician<{ password: string }>({ action: "reset_password", technicianId })
+export async function resetTechnicianPassword(technicianId: string, password?: string): Promise<{ generated: boolean; password?: string }> {
+  return invokeAdminCreateTechnician<{ generated: boolean; password?: string }>({ action: "reset_password", technicianId, password })
 }
 
 export async function deleteTechnicianAccount(technicianId: string): Promise<void> {

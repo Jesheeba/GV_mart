@@ -33,7 +33,7 @@ export function BikeAssignmentTab() {
           <Card key={tech.id} className="gap-2">
             <button
               type="button"
-              className="flex items-center justify-between gap-2 text-left"
+              className="flex w-full items-center justify-between gap-2 px-4 text-left"
               onClick={() => setSelectedId(selectedId === tech.id ? null : tech.id)}
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-text">
@@ -82,7 +82,7 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
   }
 
   return (
-    <div className="space-y-3 border-t border-border pt-3">
+    <div className="space-y-3 border-t border-border px-4 pt-3">
       {current ? (
         <p className="text-xs text-text-muted">
           {t("expenses.bikeAssignment.current", {

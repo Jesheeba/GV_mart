@@ -23,6 +23,7 @@
 //     than deactivation being silently bypassed.
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
+import { classifyAuthError, validateTypedPassword } from "../_shared/staff-auth.ts"
 
 type CreateBody = {
   action: "create"
@@ -31,6 +32,8 @@ type CreateBody = {
   email: string
   designation: string
   address: string
+  /** Typed password, or omitted/null to have the server generate one. */
+  password?: string | null
   city?: string | null
   state?: string | null
   pincode?: string | null
@@ -41,7 +44,7 @@ type CreateBody = {
   aadharDocumentPath?: string | null
   drivingLicenceDocumentPath?: string | null
 }
-type ResetPasswordBody = { action: "reset_password"; technicianId: string }
+type ResetPasswordBody = { action: "reset_password"; technicianId: string; password?: string | null }
 type DeleteBody = { action: "delete"; technicianId: string }
 type RequestBody = CreateBody | ResetPasswordBody | DeleteBody
 
@@ -123,7 +126,15 @@ Deno.serve(async (req) => {
       if (body.address.trim().length < 8) {
         return jsonError("The full address must be at least 8 characters", 400)
       }
-      const password = generatePassword()
+      const generated = body.password == null
+      let password: string
+      if (generated) {
+        password = generatePassword()
+      } else {
+        const passwordError = validateTypedPassword(body.password)
+        if (passwordError) return jsonError(passwordError, 400)
+        password = body.password as string
+      }
 
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email: body.email.trim(),
@@ -132,7 +143,12 @@ Deno.serve(async (req) => {
         user_metadata: { full_name: body.fullName.trim() },
       })
       if (createErr || !created?.user) {
-        return jsonError(createErr?.message ?? "Could not create the login", 400)
+        // GoTrue's raw message/code (e.g. the bare "validation_failed" code for a malformed
+        // address) is never shown to the admin directly - map it to a fixed, actionable message.
+        const kind = classifyAuthError(createErr)
+        if (kind === "duplicate_email") return jsonError("A login with this email already exists", 409)
+        if (kind === "invalid_email") return jsonError("Please enter a valid email address", 400)
+        return jsonError("Could not create the login", 400)
       }
       const userId = created.user.id
 
@@ -179,7 +195,7 @@ Deno.serve(async (req) => {
         return jsonError(`Could not create the technician record: ${technicianErr.message}`, 400)
       }
 
-      return jsonOk({ technicianId: technician.id, profileId: userId, password })
+      return jsonOk({ technicianId: technician.id, profileId: userId, generated, password: generated ? password : undefined })
     }
 
     if (body.action === "reset_password") {
@@ -192,9 +208,22 @@ Deno.serve(async (req) => {
       if (techErr || !technician) return jsonError("Technician not found", 404)
       if (technician.org_id !== orgId) return jsonError("Technician not found", 404)
 
-      const password = generatePassword()
-      const { error: updateErr } = await admin.auth.admin.updateUserById(technician.profile_id, { password })
-      if (updateErr) return jsonError(updateErr.message, 400)
+      const resetGenerated = body.password == null
+      let resetPassword: string
+      if (resetGenerated) {
+        resetPassword = generatePassword()
+      } else {
+        const passwordError = validateTypedPassword(body.password)
+        if (passwordError) return jsonError(passwordError, 400)
+        resetPassword = body.password as string
+      }
+
+      const { error: updateErr } = await admin.auth.admin.updateUserById(technician.profile_id, { password: resetPassword })
+      if (updateErr) {
+        const kind = classifyAuthError(updateErr)
+        if (kind === "weak_password") return jsonError("That password is not accepted; choose another or let the system generate one", 400)
+        return jsonError("Could not reset the password", 400)
+      }
 
       // ORDER MATTERS: the password was changed above, so arming second records the marker of the NEW hash —
       // same as admin-reset-staff-password. Arming first would record the old hash and the technician could
@@ -202,7 +231,7 @@ Deno.serve(async (req) => {
       const { error: armErr } = await admin.rpc("arm_forced_password_change", { p_profile_id: technician.profile_id })
       if (armErr) console.error("admin-create-technician: arm_forced_password_change failed", armErr.message)
 
-      return jsonOk({ password })
+      return jsonOk({ generated: resetGenerated, password: resetGenerated ? resetPassword : undefined })
     }
 
     if (body.action === "delete") {
