@@ -12,6 +12,7 @@ import {
   mapSalesService,
   mapTopCustomers,
   mapYearOverYear,
+  resolveExpenseCategoryName,
   type SalesServiceRpc,
 } from "./reportMappers"
 
@@ -291,5 +292,29 @@ describe("mapSalesService by_kind (Sales & Invoices tiles)", () => {
     const k = mapSalesService({ ...withKind, by_kind: { product: { count: "3" as unknown as number, total: "300.50" as unknown as number, gst: 0, collected: 0 } } }).byKind!
     expect(k.product.avgTicket).toBe(100.17)
     expect(k.amc).toMatchObject({ count: 0, total: 0, avgTicket: null })
+  })
+})
+
+describe("resolveExpenseCategoryName", () => {
+  const systemMap = { salary: "Salary", electricity: "Electricity" }
+
+  it("uses the owner-managed category_id name when it's set, even if a system category also maps the enum", () => {
+    expect(resolveExpenseCategoryName("salary", "My Custom Payroll Bucket", systemMap)).toBe("My Custom Payroll Bucket")
+  })
+
+  it("falls back to the system category mapped from the legacy enum when category_id is unset", () => {
+    expect(resolveExpenseCategoryName("salary", null, systemMap)).toBe("Salary")
+  })
+
+  it("is the exact gap this fixes: an HR 'Log to Accounts' row never gets category_id set, but must not show Uncategorised", () => {
+    expect(resolveExpenseCategoryName("salary", null, systemMap)).not.toBeNull()
+  })
+
+  it("stays genuinely uncategorised (null) only when neither source has a name", () => {
+    expect(resolveExpenseCategoryName("other", null, systemMap)).toBeNull()
+  })
+
+  it("never consults the enum fallback once category_id already resolved a name", () => {
+    expect(resolveExpenseCategoryName("other", "Hand-picked", systemMap)).toBe("Hand-picked")
   })
 })

@@ -10,6 +10,7 @@ import {
   mergePerformanceEfficiency,
   mapPnl,
   mapSalaryByStaff,
+  resolveExpenseCategoryName,
   mapSalesService,
   mapTopCustomers,
   mapYearOverYear,
@@ -988,16 +989,28 @@ export type ExpenseEntry = {
 }
 
 export async function getExpensesList(orgId: string, range: DateRange): Promise<ExpenseEntry[]> {
-  const { data, error } = await supabase
-    .from("expenses")
-    .select(
-      "id, category, amount, date, note, is_recurring, recurring_task_id, created_at, staff_id, category_id, logged_by_profile:profiles!expenses_logged_by_fkey(full_name), staff:profiles!expenses_staff_id_fkey(full_name), expense_category:expense_categories!expenses_category_id_fkey(name)"
-    )
-    .eq("org_id", orgId)
-    .gte("date", range.from)
-    .lte("date", range.to)
-    .order("date", { ascending: false })
+  const [{ data, error }, { data: systemCategories, error: systemCategoriesError }] = await Promise.all([
+    supabase
+      .from("expenses")
+      .select(
+        "id, category, amount, date, note, is_recurring, recurring_task_id, created_at, staff_id, category_id, logged_by_profile:profiles!expenses_logged_by_fkey(full_name), staff:profiles!expenses_staff_id_fkey(full_name), expense_category:expense_categories!expenses_category_id_fkey(name)"
+      )
+      .eq("org_id", orgId)
+      .gte("date", range.from)
+      .lte("date", range.to)
+      .order("date", { ascending: false }),
+    // Read-only fallback source (owner's condition: resolve "Uncategorised" on
+    // read, never write category_id for a row that doesn't already have it).
+    supabase.from("expense_categories").select("enum_value, name").eq("org_id", orgId).eq("is_system", true).not("enum_value", "is", null),
+  ])
   if (error) throw error
+  if (systemCategoriesError) throw systemCategoriesError
+
+  const systemCategoryNameByEnum: Record<string, string> = {}
+  for (const c of systemCategories ?? []) {
+    if (c.enum_value) systemCategoryNameByEnum[c.enum_value] = c.name
+  }
+
   return (data ?? []).map((e) => ({
     id: e.id,
     category: e.category,
@@ -1011,7 +1024,7 @@ export async function getExpensesList(orgId: string, range: DateRange): Promise<
     staffName: (e.staff as { full_name: string } | null)?.full_name ?? null,
     createdAt: e.created_at,
     categoryId: e.category_id,
-    categoryName: (e.expense_category as { name: string } | null)?.name ?? null,
+    categoryName: resolveExpenseCategoryName(e.category, (e.expense_category as { name: string } | null)?.name ?? null, systemCategoryNameByEnum),
   }))
 }
 
