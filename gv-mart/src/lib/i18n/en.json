@@ -3429,8 +3429,12 @@
       "appVersionDetail": "v{{versionName}} ({{build}}) · update {{bundleVersion}}",
       "storeUpdateRequired": "A required update is waiting on the Play Store. Open the Play Store app to install it.",
       "openPlayStore": "Open Play Store",
-      "testChannelOn": "Test updates channel on for this phone",
-      "testChannelOff": "Test updates channel off — back on production"
+      "activeChannel": "This phone is on the {{channel}} update channel",
+      "confirmChannelSwitch": "Switch this phone to the {{channel}} update channel?",
+      "channelName": {
+        "production": "production",
+        "technician-test": "test"
+      }
     },
     "daySheet": {
       "title": "Day Sheet",

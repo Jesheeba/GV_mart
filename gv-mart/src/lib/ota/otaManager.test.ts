@@ -28,4 +28,12 @@ describe("ota on the web build", () => {
   it("getOtaVersionInfo resolves null on web (so the version card never renders)", async () => {
     expect(await getOtaVersionInfo()).toBeNull()
   })
+
+  it("the web build never hits /ota/ at all, across the whole module's native-gated surface", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    await Promise.all([checkForOtaUpdate(), notifyOtaAppReady(), getOtaVersionInfo()])
+    const otaUrlCalls = fetchSpy.mock.calls.filter(([url]) => String(url).includes("/ota/"))
+    expect(otaUrlCalls).toEqual([])
+    fetchSpy.mockRestore()
+  })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Capacitor } from "@capacitor/core"
@@ -15,6 +15,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
 import { dateRangeForPreset, defaultDateRange, type DateRange } from "@/services/reports"
 import { getOtaChannel, getOtaVersionInfo, setOtaChannel, type OtaVersionInfo } from "@/lib/ota/otaManager"
+import { nextTapGateState, type TapGateState } from "@/lib/ota/tapGate"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/)
@@ -43,6 +44,7 @@ export function ProfilePage() {
   const stats = useTechnicianStats(technician.data?.id, profile?.org_id, rangeForEarningsPreset(earningsPreset))
   const referrals = useLeads(profile?.org_id, { source: "referral", ownerId: technician.data?.id })
   const [otaInfo, setOtaInfo] = useState<OtaVersionInfo | null>(null)
+  const tapGateRef = useRef<TapGateState | null>(null)
 
   // Native-only: on the web build Capacitor.isNativePlatform() is false and
   // getOtaVersionInfo() resolves to null, so this card never renders there.
@@ -158,9 +160,14 @@ export function ProfilePage() {
 
       {otaInfo ? (
         <Card
-          className="gap-1 py-3"
+          className={otaInfo.channel !== "production" ? "gap-1 border-warning/40 bg-warning/10 py-3" : "gap-1 py-3"}
           onClick={() => {
+            const result = nextTapGateState(Date.now(), tapGateRef.current)
+            tapGateRef.current = result
+            if (!result.triggered) return
             const next = otaInfo.channel === "technician-test" ? "production" : "technician-test"
+            const confirmed = window.confirm(t("technician.profile.confirmChannelSwitch", { channel: t(`technician.profile.channelName.${next}`) }))
+            if (!confirmed) return
             setOtaChannel(next)
             setOtaInfo({ ...otaInfo, channel: getOtaChannel() })
           }}
@@ -173,9 +180,9 @@ export function ProfilePage() {
               bundleVersion: otaInfo.bundleVersion,
             })}
           </p>
-          <p className="text-[11px] text-text-muted/70">
-            {otaInfo.channel === "technician-test" ? t("technician.profile.testChannelOn") : t("technician.profile.testChannelOff")}
-          </p>
+          {otaInfo.channel !== "production" ? (
+            <p className="text-[11px] font-semibold text-warning">{t("technician.profile.activeChannel", { channel: t(`technician.profile.channelName.${otaInfo.channel}`) })}</p>
+          ) : null}
         </Card>
       ) : null}
 

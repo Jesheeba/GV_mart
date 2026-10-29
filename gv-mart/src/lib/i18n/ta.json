@@ -3427,8 +3427,12 @@
       "appVersionDetail": "v{{versionName}} ({{build}}) · புதுப்பிப்பு {{bundleVersion}}",
       "storeUpdateRequired": "அவசியமான புதுப்பிப்பு Play Store இல் காத்திருக்கிறது. அதை நிறுவ Play Store ஆப்பைத் திறக்கவும்.",
       "openPlayStore": "Play Store ஐத் திறக்கவும்",
-      "testChannelOn": "இந்த மொபைலுக்கு சோதனை புதுப்பிப்பு சேனல் இயக்கத்தில்",
-      "testChannelOff": "சோதனை சேனல் அணைக்கப்பட்டது — மீண்டும் production"
+      "activeChannel": "இந்த மொபைல் {{channel}} புதுப்பிப்பு சேனலில் உள்ளது",
+      "confirmChannelSwitch": "இந்த மொபைலை {{channel}} புதுப்பிப்பு சேனலுக்கு மாற்றவா?",
+      "channelName": {
+        "production": "production",
+        "technician-test": "சோதனை"
+      }
     },
     "daySheet": {
       "title": "தின அட்டவணை",
