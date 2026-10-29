@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ClipboardList, Image as ImageIcon, Link2, Sparkles, ToggleLeft, Wrench } from "lucide-react"
+import { ClipboardList, Image as ImageIcon, Link2, Sparkles, Timer, ToggleLeft, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
@@ -12,6 +12,7 @@ import { ProductAttributesPanel } from "./ProductAttributesPanel"
 import { ProductComplaintsPanel } from "./ProductComplaintsPanel"
 import { ProductCtaOverridesPanel } from "./ProductCtaOverridesPanel"
 import { ProductFeaturesAndRelatedPanel } from "./ProductFeaturesAndRelatedPanel"
+import { ProductLifecyclePanel } from "./ProductLifecyclePanel"
 import { ProductMediaPanel } from "./ProductMediaPanel"
 import { ProductSparesPanel } from "./ProductSparesPanel"
 
@@ -82,6 +83,12 @@ export function ProductsTab() {
   // per-row-action pattern as complaints above.
   const [sparesProductId, setSparesProductId] = useState<string | null>(null)
   const sparesProduct = (rows ?? []).find((r) => r.id === sparesProductId) as ProductWithRefs | undefined
+
+  // Product Lifecycle & Automated Service Reminder System, W1 — product↔
+  // lifecycle/spare-schedule connector (see ProductLifecyclePanel.tsx), same
+  // per-row-action pattern as spares/complaints above.
+  const [lifecycleProductId, setLifecycleProductId] = useState<string | null>(null)
+  const lifecycleProduct = (rows ?? []).find((r) => r.id === lifecycleProductId) as ProductWithRefs | undefined
 
   // Product Enquiry rebuild (2026-08-04) — 4 more per-row connectors, same
   // per-row-action pattern as complaints/spares above.
@@ -211,6 +218,16 @@ export function ProductsTab() {
             ),
           },
           {
+            key: "lifecycle",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <Button size="icon-xs" variant="ghost" title={t("productLifecycle.manage")} onClick={() => setLifecycleProductId(r.id)}>
+                <Timer className="size-3.5" />
+              </Button>
+            ),
+          },
+          {
             key: "complaints",
             header: "",
             className: "text-right",
@@ -325,6 +342,16 @@ export function ProductsTab() {
           productId={sparesProduct.id}
           productName={sparesProduct.name}
           onClose={() => setSparesProductId(null)}
+        />
+      ) : null}
+
+      {lifecycleProduct ? (
+        <ProductLifecyclePanel
+          key={lifecycleProduct.id}
+          orgId={orgId}
+          productId={lifecycleProduct.id}
+          productName={lifecycleProduct.name}
+          onClose={() => setLifecycleProductId(null)}
         />
       ) : null}
 

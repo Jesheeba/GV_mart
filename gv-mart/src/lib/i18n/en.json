@@ -5651,5 +5651,50 @@
       "cancel": "Cancel request",
       "cancelled": "Leave request cancelled"
     }
+  },
+  "productLifecycle": {
+    "manage": "Lifecycle & reminders",
+    "title": "Lifecycle & spare schedule",
+    "close": "Close",
+    "loadFailed": "Could not load the lifecycle schedule.",
+    "lifetime": {
+      "title": "Product lifetime",
+      "hint": "How long this product is expected to last before it needs replacing.",
+      "valueLabel": "Lifetime value",
+      "unit": { "months": "Months", "years": "Years" },
+      "save": "Save lifetime",
+      "saved": "Lifetime saved",
+      "saveFailed": "Could not save the lifetime.",
+      "errors": { "valueInvalid": "Enter a whole number greater than 0." }
+    },
+    "spares": {
+      "title": "Spare part replacement schedule",
+      "empty": "No spare part schedules yet — add one below.",
+      "addRow": "Add spare row",
+      "pickPlaceholder": "Pick a spare (optional)",
+      "noSparePicked": "No spare — free text only",
+      "labelLabel": "Label",
+      "labelPlaceholder": "e.g. Pre-filter",
+      "intervalLabel": "Replace every",
+      "save": "Save",
+      "saved": "Spare schedule saved",
+      "saveFailed": "Could not save this row.",
+      "remove": "Remove",
+      "confirmRemove": "Remove this row?",
+      "removeFailed": "Could not remove this row.",
+      "errors": { "labelRequired": "Label is required.", "intervalValueInvalid": "Enter a whole number greater than 0." }
+    },
+    "retroactiveNote": "Changing this schedule does not retroactively change due dates already calculated for customers who already have this product installed.",
+    "apply": {
+      "button": "Apply updated schedule to existing installations",
+      "previewing": "Checking installed units…",
+      "previewResult": "{{count}} installed unit(s) will get {{parts}} new part schedule(s) added",
+      "previewEmpty": "No installed units need updating.",
+      "previewFailed": "Could not check installed units.",
+      "confirm": "Apply now",
+      "applying": "Applying…",
+      "applied": "Schedule applied to {{count}} installation(s).",
+      "applyFailed": "Could not apply the updated schedule."
+    }
   }
 }
