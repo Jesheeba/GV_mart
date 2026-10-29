@@ -7533,6 +7533,20 @@ export type Database = {
         }
         Returns: string
       }
+      admin_link_customer_google_account: {
+        Args: {
+          p_customer_id: string
+          p_google_email: string
+        }
+        Returns: undefined
+      }
+      admin_unlink_customer_google_account: {
+        Args: {
+          p_customer_id: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
       create_customer_with_details: {
         Args: {
           p_org_id: string

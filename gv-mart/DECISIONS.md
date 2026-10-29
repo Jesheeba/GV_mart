@@ -580,3 +580,39 @@ here, nothing has changed about it).
   both behave exactly as designed, while a before/after fingerprint of the
   3 real technicians' own `salaries` rows (net/shortfall_amount/locked_at)
   proved they were never touched by any of this verification work.
+
+# manual-link: master-only Google account linking stopgap (2026-10-29)
+
+Worktree `GV_mart\_local_only\worktrees\manual-link`, branch `manual-link` off `origin/main` (ed83c46). Reports in `GV_mart\_local_only\reports\manual_link\`.
+
+## 1) Trust model, vs. the old revoked RPC
+
+The old `link_customer_google_account(p_mobile text)` (20260729130000, revoked 20261021100000) let the SIGNED-IN CALLER type a mobile number and get linked to whichever customer owned it — anyone who knew (or guessed) a customer's mobile could claim their record. That RPC's grant stays revoked; nothing in this change touches it.
+
+This feature flips who is trusted: the MASTER, already on one specific customer's detail page, types the Google email the customer told them they used. The RPC (`admin_link_customer_google_account`) re-derives everything else server-side — it never trusts a client-supplied customer-id-to-auth-id mapping beyond "this customer" and "this email", and re-checks master role + org ownership itself (never relies on the UI gate alone).
+
+## 2) Match by Google identity, not by `auth.users.email`
+
+Matches against `auth.identities` where `provider = 'google'`, not `auth.users.email` — the identities row is what Supabase actually recorded at the OAuth handshake; `auth.users.email` could in principle be set some other way. Email is `lower(trim(...))` on both sides (closes case/whitespace tricks). Exactly one match is required — zero means `no_matching_signin`, more than one means `ambiguous_signin` (refuses rather than silently picking one).
+
+## 3) Why "any existing profile" blocks the link
+
+Any auth user that already has a `profiles` row — customer, staff, technician, whoever — is refused (`signin_already_linked`). This is what stops a master from accidentally linking a staff member's or technician's own Google sign-in to a customer record: staff/technicians always have a profile already, so they can never match.
+
+## 4) Unlink deletes the profile, not just the pointer
+
+"Unlink" clears `customers.primary_profile_id` AND deletes the `profiles` row (not just the pointer) — otherwise the freed auth user would still own an orphaned profile and could never be relinked (the link RPC explicitly checks for and refuses an existing profile). Requires a non-empty reason; both actions write to the existing `audit_log` table (reused, no new audit table) via the standard `(org_id, actor_id, action, table_name, row_id, before, after)` shape already enforced append-only by `20261011110000_audit_log_append_only.sql`.
+
+## 5) Concurrency
+
+Both functions `select ... for update` the target `customers` row first, serializing concurrent calls on the same customer. The link path also wraps its `insert into profiles` in an exception block catching `unique_violation`, in case a *different* customer's concurrent call matched the same Google identity first.
+
+## 6) UI placement
+
+A master-only tab ("Google Account") on `CustomerDetailPage`, gated the same way the existing delete button is (`profile?.role === "master"`) — not visible to `operation_admin`/`sales_admin`. The customer-facing "One more step" screen (`GoogleLinkAccountCard.tsx`) is untouched.
+
+## 7) BLOCKED — rehearsal/apply tooling not found
+
+The task specified database changes go only through `run_rehearsal.mjs` (Management API runner), with a specific sha256 to verify first. Searched this worktree and the sibling worktrees most likely to hold it (`GV_mart_grants`, `GV_mart_linkfix`, `GV_mart_secfix`, `customer-otp-link`) — **no `run_rehearsal.mjs` exists anywhere found**. I will not fabricate a hash check against a file I can't locate, and will not improvise a different live-apply path for a security-sensitive, account-linking migration without the tool the instructions named. Flagging this rather than guessing — see final report to the owner for what's needed to unblock (either point me to the runner's actual location, or confirm I should build one to the project's existing apply/rehearsal script conventions in `supabase/ops/`).
+
+Local build/test gate for the code already run clean: `tsc -b`, `oxlint`, `vitest run` (756 passed, 17 skipped), `npm run build` — all exit 0, logs in the reports dir above. Migration, RPC, UI, and EN/TA strings are written and committed to this branch but **NOT applied to any database, rehearsed or otherwise** — no DB access has happened at all for this task.

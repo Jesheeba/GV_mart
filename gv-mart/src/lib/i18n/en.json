@@ -498,7 +498,33 @@
         "family": "Family",
         "exemptions": "Exemptions",
         "rentals": "Rentals",
-        "whatsapp": "WhatsApp"
+        "whatsapp": "WhatsApp",
+        "googleLink": "Google Account"
+      },
+      "googleLink": {
+        "title": "Link Google account",
+        "hint": "Stopgap while OTP-verified linking is built. Ask the customer which Google email they signed in with, then link it here. Nothing is sent to the customer.",
+        "emailLabel": "Google email",
+        "emailPlaceholder": "customer@gmail.com",
+        "linkAction": "Link",
+        "alreadyLinked": "This customer's login is linked.",
+        "unlinkReasonLabel": "Reason for unlinking",
+        "unlinkReasonPlaceholder": "e.g. linked the wrong customer by mistake",
+        "unlinkAction": "Unlink",
+        "linkSuccess": "Linked. The customer can now sign in with that Google account.",
+        "unlinkSuccess": "Unlinked.",
+        "errors": {
+          "customer_not_found": "Customer not found.",
+          "test_customer": "This is a test customer — linking is not available for test customers.",
+          "already_linked": "This customer is already linked to a Google sign-in.",
+          "invalid_email": "Enter a valid email address.",
+          "no_matching_signin": "No Google sign-in with that email was found. Ask the customer to try signing in first, then link again.",
+          "ambiguous_signin": "More than one Google sign-in matches that email — contact support before linking.",
+          "signin_already_linked": "That Google sign-in is already linked to another login.",
+          "not_linked": "This customer isn't linked to a Google sign-in.",
+          "reason_required": "Enter a reason for unlinking.",
+          "unlink_blocked_has_records": "Can't unlink — this login has other records attached. Contact support."
+        }
       },
       "waterHouseholdTitle": "Water & household",
       "waterSource": "Water source",
