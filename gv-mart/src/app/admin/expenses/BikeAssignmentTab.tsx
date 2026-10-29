@@ -59,26 +59,32 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
   const [ownership, setOwnership] = useState<"own" | "company">("own")
   const [rate, setRate] = useState("0")
   const [effectiveFrom, setEffectiveFrom] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
   const current = (history.data ?? []).find((r) => !r.effective_to)
 
   async function submit() {
     if (!orgId || !effectiveFrom) return
-    // End the currently-open row the day before the new one starts, so the
-    // two never overlap (the database rejects an overlap either way).
-    if (current) {
-      const prevDay = new Date(effectiveFrom)
-      prevDay.setDate(prevDay.getDate() - 1)
-      await closeRow.mutateAsync({ id: current.id, effectiveTo: prevDay.toISOString().slice(0, 10), technicianId })
+    setError(null)
+    try {
+      // End the currently-open row the day before the new one starts, so the
+      // two never overlap (the database rejects an overlap either way).
+      if (current) {
+        const prevDay = new Date(effectiveFrom)
+        prevDay.setDate(prevDay.getDate() - 1)
+        await closeRow.mutateAsync({ id: current.id, effectiveTo: prevDay.toISOString().slice(0, 10), technicianId })
+      }
+      await setVehicle.mutateAsync({
+        org_id: orgId,
+        technician_id: technicianId,
+        ownership,
+        petrol_rate_per_km: Number(rate),
+        effective_from: effectiveFrom,
+      })
+      setEffectiveFrom("")
+    } catch (e) {
+      setError((e as Error).message)
     }
-    await setVehicle.mutateAsync({
-      org_id: orgId,
-      technician_id: technicianId,
-      ownership,
-      petrol_rate_per_km: Number(rate),
-      effective_from: effectiveFrom,
-    })
-    setEffectiveFrom("")
   }
 
   return (
@@ -117,9 +123,15 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
         </div>
       </div>
 
-      <Button type="button" size="sm" disabled={!effectiveFrom || setVehicle.isPending || closeRow.isPending} onClick={submit}>
+      <Button
+        type="button"
+        size="sm"
+        disabled={!orgId || !effectiveFrom || setVehicle.isPending || closeRow.isPending}
+        onClick={submit}
+      >
         {t("expenses.bikeAssignment.save")}
       </Button>
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
 
       {(history.data ?? []).length > 0 ? (
         <div className="space-y-1">
