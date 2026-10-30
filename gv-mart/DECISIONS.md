@@ -719,3 +719,35 @@ Two real bugs were caught by the rehearsal during this round, neither by inspect
 Final rehearsal run: **42/42 test assertions PASS**, `rollback_ok=t`, wrapper-level fingerprint "FAIL" lines are the same previously-documented, independently-confirmed-harmless artifact (the auto-create path's real-org writes are visible to the wrapper's own mid-transaction SELECT, before the final RAISE undoes everything) — proven again via two separate independent follow-up requests after the rehearsal's HTTP call returned.
 
 Still stopped before any real apply. Waiting for "APPROVED".
+
+## 12) Live apply (2026-10-30) — conditions (a)-(e) and the apply itself
+
+Owner approved with 5 conditions, all addressed before applying:
+
+**(a)** Two fresh, independent, zero-context reviewers: a security reviewer (merge tool, customer_auto_onboard, redefined admin_link/unlink -- SECURITY DEFINER correctness, search_path pinning, grants, row locking) and a string-literal reviewer (final apply.sql/dryrun.sql, every hash pin, every embedded migration text byte-for-byte). **No unresolved High from either.** One shared cosmetic finding, confirmed non-blocking by both independently: `20261130100002`'s header comment slightly overstates its own diff (claims "exactly one line changed" per function; `admin_link_customer_google_account` also dropped some now-stale comments, `admin_unlink_customer_google_account` also added one `audit_log` field, `'auto_link_blocked': true`). Zero runtime/security effect -- not fixed, to avoid another full hash/rehearsal/DRYRUN cycle for a comment-only change; noted here for anyone reading the migration later.
+
+The security reviewer's row-locking analysis (the crux of condition (a)): all 6 "emptiness" tables (`service_tickets`/`amc_contracts`/`warranties`/`rental_contracts`/`quotations`/`invoices`) have a real FK to `customers`, and Postgres takes a `FOR KEY SHARE` lock on the referenced parent row on every child INSERT -- which conflicts with the `FOR UPDATE` `admin_merge_auto_customer` already holds on both rows from the start. A concurrent INSERT into any of those six tables for the FROM customer genuinely blocks until the merge transaction finishes -- the TOCTOU window between the emptiness count and the archive/move is closed by Postgres's own locking semantics, not merely by application logic.
+
+**(b)** Found and closed a real gap: the apply script had no pre-check pinning the current live bodies of the two redefined functions before touching them (unlike every other redefinition precedent in this project). Added a live-definition pre-check (CR-tolerant sha256 of `pg_get_functiondef()`, discovered empirically against the live DB: `admin_link` = `cb1bf2b3...`, `admin_unlink` = `caeabcfc...`) plus an explicit post-apply check that both functions' grants are unchanged (anon=false, authenticated=true). Confirmed post-apply: `admin_link_unlink_grants_unchanged: true`.
+
+**(c)** Rehearsal + DRYRUN both re-run live at the exact final commit `2d977382f50f8f48bf5fbcac005d026bd8669934` (the commit both reviewers read): rehearsal 48/48 logic assertions PASS, `rollback_ok=t`; DRYRUN `DRYRUN_OK`. Independently re-verified nothing persisted after each.
+
+**(d)** The two fixed WhatsApp scheduled sends live in `supabase/functions/wa-scheduled-tasks/index.ts` -- a Supabase Edge Function (Deno), not SQL or app code. Triggered by `.github/workflows/wa-scheduled-tasks.yml` on a schedule, calling the deployed function over HTTP with a `CRON_SECRET` bearer token (`verify_jwt = false` in `supabase/config.toml`). No CI workflow auto-deploys Edge Functions on push/merge -- this fix needs a manual `supabase functions deploy wa-scheduled-tasks`, separate from both the DB apply and the Vercel frontend deploy.
+
+**(e)** Backup SELECT run live, saved to `GV_mart\_local_only\reports\customer_auto_onboard\backup_2026-10-30T131700Z.json` (2.3 MB -- every real customer's `id`/`org_id`/`primary_profile_id`/`mobile` and every real profile's `id`/`org_id`/`role`). Contains real mobile numbers -- stays local-only, never committed, per this repo's `_local_only` convention.
+
+### The apply itself
+
+Ran `20261130100000_customer_auto_onboard.apply.sql` live via `run_rehearsal.mjs` -- **not blocked**, succeeded on the first attempt (HTTP 201). Result row:
+```
+versions_registered: [20261130100000, 20261130100001, 20261130100002, 20261130100003]
+new_objects_exist: true | mobile_is_nullable: true | admin_link_unlink_still_exist: true
+admin_link_unlink_grants_unchanged: true | functions_executable_by_anon: false | newly_leaked_functions: []
+customers_fingerprint_unchanged: true | profiles_fingerprint_unchanged: true | audit_log_fingerprint_unchanged: true
+applied_at: 2026-10-30 07:51:58.581699+00
+```
+Independently re-verified with a separate read-only query immediately after (not trusting the apply script's own self-report): both new functions exist, `anon`-exec false / `authenticated`-exec true on both, all 7 new columns present, `mobile` nullable, all 4 versions registered.
+
+### Fast-forward onto main, gates re-run, NOT pushed
+
+`origin/main` was still at `03cb43a` (unchanged since this branch was cut) -- clean fast-forward, no merge conflicts. Re-ran `tsc -b` / `oxlint` / `vitest run` (759/759) / `npm run build` on the merged state -- all green. **Not pushed** -- holding for the owner's explicit "go," per instruction. Edge Function and frontend also **not deployed** -- DB only, per instruction.
