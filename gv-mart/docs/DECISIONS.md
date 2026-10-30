@@ -719,3 +719,155 @@ exists. No unresolved Critical/High/Medium remains after the fix.
 - **No live apply, no push, no Edge Function deploy, no secret changes, no live customer-facing
   test performed by this pass**, per this phase's own explicit instruction (steps 6-8 gated on the
   owner's typed "APPROVED", not given).
+
+## 11. Phase 3 continuation (2026-10-30, same day): owner-confirmed template facts, redaction
+## reconciliation with a concurrent session's trigger design, and the `lexdraft_otp` mapping
+
+The owner provided the real `lexdraft_otp` template facts (read directly off the live Wasi
+template edit form, screenshot, not re-derived): category Authentication, language `en`, approved;
+body Meta-generated and not editable, `"Your verification code is *{{1}}*."` plus an optional
+security-disclaimer line and an optional expiry line whose presence is not guaranteed; exactly one
+Copy Code button, needing the code in both the body component AND the button component (Meta's own
+documented shape: `sub_type "url"`, `index "0"`, `text = code`); **brand check PASSED** (Meta-
+generated body, no third-party brand text — the owner separately confirmed the account itself is
+the right one, resolving 9.3/10.1's "LexDraft" naming concern). This section records what was built
+from those facts, AND a required reconciliation the owner separately flagged.
+
+### 11.1 Reconciling two redaction designs into one, not two stacked on top of each other
+
+The concurrent session's `20261120100200_whatsapp_outbox_secret_payload_scrub.sql` (commit
+`9caef1d`, already read and ceded to in section 10.0) is a registry table
+(`whatsapp_payload_secret_ref_types`) plus a BEFORE UPDATE trigger (`scrub_whatsapp_outbox_secret_payload`)
+that nulls `template_params` and strips `payload`'s `code` key on ANY status transition away from
+`pending`, for a ref_type registered `redaction_covered = true` — `customer_link_otp` already is
+(that migration's own insert, confirmed). This session's own `20261121100100` expiry sweep had
+independently duplicated that same clearing logic inline. The owner asked: verify whether the
+trigger alone already covers the sweep's own gap case, and drop the duplication if so.
+
+**Verified, not assumed:** a Postgres BEFORE UPDATE trigger's `NEW` record carries over every
+column's prior value for any column the application's `UPDATE ... SET` list doesn't mention — so
+the trigger fires and clears `template_params`/`payload.code` on ANY update that flips
+`status` away from `pending` for a covered ref_type, REGARDLESS of whether that update's own SET
+list mentions `template_params`/`payload` at all. This was proven, not just reasoned about, three
+ways: (1) a local WSL rehearsal with the real trigger function (reproduced verbatim from the
+committed migration file, not re-invented) attached, where the sweep's simplified UPDATE (status +
+error only) still ended with `template_params` null; (2) a live rehearsal test (`P5`) that
+deliberately mirrors `wa-send-core.ts`'s own real `patchForOutcome` update shape — `status`,
+`wa_message_id`, `delivery_status`, `error`, never `template_params`/`wasi_response` — and confirms
+the trigger still clears them; (3) direct reading of `scrub_whatsapp_outbox_secret_payload`'s
+function body (not just its comment).
+
+**Result:** `20261121100100`'s own `scrub_expired_customer_link_otp_outbox()` was simplified to NO
+LONGER set `template_params` or strip `payload.code` itself — it relies entirely on the other
+migration's trigger for that (one mechanism, not two). What the sweep still does, because nothing
+else can: produce the UPDATE for a row no dispatch pass ever visits before its challenge expires
+(the trigger only fires on an actual UPDATE; an unvisited row never gets one), and redact
+`payload.body` — the rendered sentence containing the digits in prose, which the trigger
+deliberately never touches (it only strips the separate `code` JSON key). The registry's
+`covered_note` was rewritten to describe this as one reconciled system, not three independent
+claims. Neither `20261120100000`, `20261120100100`, nor the concurrent session's `20261120100200`
+were edited — all changes are in `20261121100100` (already committed by, and owned by, this
+session, so amending it further before it is ever applied is not the same as editing an applied or
+another session's committed file).
+
+### 11.2 `customer_link_otp` registration confirmed, exact row stated
+
+`whatsapp_payload_secret_ref_types` has exactly one row: `ref_type = 'customer_link_otp'`,
+`redaction_covered = true` (inserted by `20261120100200`, re-confirmed read-only and by this
+phase's own rehearsal, not assumed). `guard_secret_ref_type_template_mapping` — the BEFORE
+INSERT/UPDATE trigger on `whatsapp_event_templates` — therefore allows the `lexdraft_otp` mapping
+below; a test (`customer_link_otp_template_mapping.test.sql`, `G2`) proves the SAME guard genuinely
+REFUSES a different, deliberately-uncovered ref_type, so this isn't assumed from reading the guard's
+code either.
+
+### 11.3 The `lexdraft_otp` mapping, new migration, strictly after the redaction fix
+
+`20261121100200_customer_link_otp_template_mapping.sql`: adds `has_auth_copy_code_button boolean
+not null default false` to `whatsapp_event_templates` (every existing mapping row unaffected), then
+inserts one row per real organisation — `event_key = 'customer_link_otp'`, `language = 'en'`,
+`wasi_template_name = 'lexdraft_otp'`, `param_map = {"1": "code"}` (`"1"` matches Meta's own
+positional `{{1}}` numbering; `"code"` is the variable key `wa-event-context.ts` already populates,
+phase 2), `has_auth_copy_code_button = true`. Timestamped `20261121100200`, strictly after
+`20261121100100` — file ordering, not just reasoning, enforces that the redaction fix exists before
+this mapping can.
+
+`wa-send-core.ts`'s `buildTemplateRequest` gained `TemplateMapping.hasAuthCopyCodeButton`: when
+set, it requires exactly one resolved body param (anything else is `copy_code_button_requires_exactly_one_body_param`,
+refused rather than guessed) and duplicates that single value into a new `components` field on the
+outgoing Wasi request — Meta's own documented shape, body component + button component (`sub_type
+"url"`, `index "0"`), both carrying the same code. **Traced, not assumed, that `components` is
+NEVER persisted**: `payloadFor`/`templateInfo` (the only things that become `whatsapp_outbox.payload`/
+`.template_params`) only ever read `{name, params}` off the built request, never `.components` —
+same precedent as `headerMediaUrl`, which is also request-only. `whatsapp.ts`'s `findApprovedMapping`
+and `src/types/database.ts`'s hand-patched type (Docker unavailable for `gen types`, per this
+project's standing note) were both updated to carry the new column through.
+
+### 11.4 Second independent review: one more HIGH found and fixed — `wasi_response`
+
+A second fresh reviewer (no prior context, same bar) attacked the reconciled whole. Findings:
+- **Verified true, no changes needed:** the trigger-is-sole-clearing-mechanism claim (11.1);
+  `components` is never persisted (11.3); the guard trigger genuinely blocks a bad mapping, and
+  `ON CONFLICT DO UPDATE` cannot bypass a row trigger (Postgres fires row triggers on the UPDATE
+  branch of an upsert too); `has_auth_copy_code_button` cannot leak onto an unrelated mapping
+  (defaults false, only the one row is set `true`, and a wrongly-flagged multi-param mapping would
+  hard-fail rather than fabricate a button).
+- **HIGH, fixed:** `whatsapp_outbox.wasi_response` (Wasi's raw send-response body,
+  `20261016300000_wa_dispatch_v2_schema.sql`) was covered by NONE of the reconciled mechanisms —
+  the trigger only touches `template_params`/`payload.code`; the app-level and sweep redaction only
+  touch `payload.body`. `sanitizeForStorage`/`redactWasiText` only masks 10-15-digit (phone-shaped)
+  runs, never a bare 6-digit code, so if Wasi's real API ever echoes a submitted template param back
+  in its response — a common BSP pattern, and this phase's own `components` duplication sends the
+  code a second time in the same request, plausibly raising that odds — the plaintext code would
+  sit in `wasi_response` forever, readable via `whatsapp_outbox_select_staff`, uncovered. **Fixed**:
+  a new, separate trigger, `scrub_whatsapp_outbox_wasi_response` (own function, own trigger name —
+  additive and complementary to the concurrent session's trigger, not a duplicate of it), nulls
+  `wasi_response` under the identical status-transition condition. Proven via a new test (`P5`,
+  11.1 above) that mirrors the real send path's exact update shape, not assumed. Not claimed to
+  close every conceivable leak path (Wasi's real echo behavior is, like every other wire-format
+  detail in this feature, only settled by the owner's later live phone test) — closes the concrete
+  mechanism this review found, for the `customer_link_otp` ref_type specifically, consistent with
+  this project's existing scoped-defense style (it does not attempt to fix `redactWasiText`'s
+  digit-length gap generically for every other template, which is a broader, separate concern).
+
+**No unresolved Critical/High/Medium remains** after this fix.
+
+### 11.5 Verification (combined package)
+
+- **Local WSL**, extended from phase 3's own harness: the concurrent session's real trigger/guard
+  function bodies (reproduced verbatim, not re-invented) were added to the stand-in schema, along
+  with a minimal `organizations`/`whatsapp_event_templates`. The real, unmodified
+  `20261121100100` + `20261121100200` migration files ran cleanly as the stand-in `postgres` role;
+  a direct call to the sweep correctly scrubbed the expired and used-but-pending rows (confirmed
+  `template_params`/`wasi_response` both null afterward, via the OTHER migration's trigger plus
+  this phase's new one, not this function's own code) while leaving the still-valid row completely
+  untouched; the mapping row was created correctly shaped; the guard trigger correctly refused a
+  deliberately-uncovered ref_type.
+- **Combined live rehearsal** (one transaction, non-persisting, same convention — org pin, 11:00
+  IST gate, sha256-pinned embedded text for all five pieces, ends in unconditional `RAISE
+  EXCEPTION`): embeds the prereq (`20261120100200`, still not live as of this writing) ahead of
+  both new migrations and both their tests. **16 of 16 assertions passed** (hardening: `G0`-`G4`,
+  `P1`-`P5`; mapping: `G0`-`G3`, `P1`). Independent before/after fingerprint of real
+  `whatsapp_outbox` rows and every OTHER real template mapping (deliberately excluding
+  `customer_link_otp`'s own new row, the mapping migration's intended effect) is identical,
+  `55e2994d492e58bc0f2817c45bddda33` before and after; a separate explicit check confirms the real
+  org's new `customer_link_otp -> lexdraft_otp` row is correctly shaped.
+- **Both DRYRUN-OK apply scripts** (hardening and mapping) raise cleanly on their first statement.
+- `tsc -b`, `oxlint`, `npm test` (783 passed / 17 skipped — the `waOutboxSentGuard` CI guard caught
+  a literal `"whatsapp_outbox"` substring this phase's own first-draft doc comment introduced into
+  `wa-send-core.ts`, a pure-logic module the guard expects never to name that table; reworded, not
+  a real issue, confirmed green), `npm run build` all pass clean.
+
+### 11.6 Status at hand-off
+
+- **Built, local- and combined-live-rehearsed, NOT applied, NOT pushed:** the revised
+  `20261121100100` (now reconciled, plus the new `wasi_response` trigger) and the new
+  `20261121100200` template-mapping migration, both with full ops bundles, both tests.
+- **Built, tested, NOT applied (TS):** `wa-send-core.ts`'s copy-code-button support,
+  `whatsapp.ts`'s mapping lookup extension, `src/types/database.ts`'s hand-patched type.
+- **Step 2/3 (template facts, brand check): RESOLVED this pass** — owner-confirmed, PASSED.
+- **Step 4(d) (the mapping): DONE this pass**, no longer skipped.
+- **Not proof the feature works end-to-end** — per the owner's own explicit instruction, only the
+  owner's later live phone test proves that; nothing in this pass claims otherwise.
+- **No live apply, no push, no merge to main, no Edge Function deploy, no secret changes, no live
+  customer-facing test performed by this pass**, per this phase's own explicit instruction — all
+  gated on the owner's typed "APPROVED", not given.
