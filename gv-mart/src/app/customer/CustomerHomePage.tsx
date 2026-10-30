@@ -8,6 +8,7 @@ import { StatusDot } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useMyAddresses, useMyAmcContracts, useMyCustomerId, useMyWarranties } from "@/hooks/useCustomerApp"
+import { pickSoonestDuePart, useCustomerDueParts } from "@/hooks/useCustomerLifecycle"
 import { formatDate } from "@/lib/formatDate"
 
 function AddressBar() {
@@ -91,6 +92,53 @@ function NextServiceBanner() {
           {daysUntil <= 0
             ? t("customerApp.home.nextServiceOverdue", { date: formatDate(dueDate) })
             : t("customerApp.home.nextServiceInDays", { count: daysUntil, date: formatDate(dueDate) })}
+        </p>
+      </div>
+      <ChevronRight className="size-4 shrink-0" />
+    </button>
+  )
+}
+
+/**
+ * Product Lifecycle & Automated Service Reminder System — Drop 2, W3.
+ * Shown alongside NextServiceBanner (AMC) rather than replacing it outright:
+ * the two banners read independent data (AMC contracts vs. part schedules)
+ * and NextServiceBanner's own render logic is left untouched, so there's no
+ * risk of regressing it for customers with no lifecycle due parts. This one
+ * steps in only when it has something at least as urgent as the AMC
+ * banner's own due date, so the two don't both nag about the same timeframe.
+ */
+function LifecyclePartBanner() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { customerId } = useMyCustomerId()
+  const { data: amcContracts } = useMyAmcContracts(customerId)
+  const { data: dueParts } = useCustomerDueParts(customerId)
+
+  const nextAmcDate = (amcContracts ?? [])
+    .filter((c) => c.next_service_date)
+    .sort((a, b) => (a.next_service_date! < b.next_service_date! ? -1 : 1))[0]?.next_service_date
+
+  const part = pickSoonestDuePart(dueParts)
+  if (!part) return null
+  if (nextAmcDate && part.nextDueDate > nextAmcDate) return null
+
+  const dueDate = new Date(part.nextDueDate)
+  const daysUntil = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+
+  return (
+    <button
+      type="button"
+      onClick={() => navigate("/customer/products")}
+      className="flex w-full items-center gap-3 rounded-xl bg-gradient-to-br from-accent to-[#FF7A45] px-3.5 py-3 text-left text-white"
+    >
+      <Wrench className="size-5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">{t("customerLifecycle.home.partDueTitle", { label: part.label })}</p>
+        <p className="text-xs text-white/85">
+          {daysUntil <= 0
+            ? t("customerLifecycle.home.partOverdue", { date: formatDate(dueDate) })
+            : t("customerLifecycle.home.partInDays", { count: daysUntil, date: formatDate(dueDate) })}
         </p>
       </div>
       <ChevronRight className="size-4 shrink-0" />
@@ -185,6 +233,7 @@ export function CustomerHomePage() {
 
       <AddressBar />
 
+      <LifecyclePartBanner />
       <NextServiceBanner />
 
       <div>

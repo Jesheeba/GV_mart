@@ -117,6 +117,10 @@ const CustomerRequestCallbackPage = lazyPage(() => import("@/app/customer/Custom
 const CustomerCompareProductsPage = lazyPage(() => import("@/app/customer/CustomerCompareProductsPage"), "CustomerCompareProductsPage")
 const CustomerSpareEnquiryPage = lazyPage(() => import("@/app/customer/CustomerSpareEnquiryPage"), "CustomerSpareEnquiryPage")
 const BookServicePage = lazyPage(() => import("@/app/customer/service/BookServicePage"), "BookServicePage")
+const ProductReplacementHistoryPage = lazyPage(
+  () => import("@/app/customer/ProductReplacementHistoryPage"),
+  "ProductReplacementHistoryPage"
+)
 const CustomerNotificationsPage = lazyPage(() => import("@/app/customer/NotificationsPage"), "NotificationsPage")
 
 const SALES_ROLES = ["master", "sales_admin"] as const
@@ -308,7 +312,13 @@ export const router = createBrowserRouter([
             ),
             children: [
               { index: true, element: <CustomerHomePage /> },
-              { path: "products", element: <CustomerProductsPage /> },
+              {
+                path: "products",
+                children: [
+                  { index: true, element: <CustomerProductsPage /> },
+                  { path: ":productId/history", element: <ProductReplacementHistoryPage /> },
+                ],
+              },
               {
                 path: "bookings",
                 children: [
