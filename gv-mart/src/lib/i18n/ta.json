@@ -5832,5 +5832,24 @@
         "lifetime_expiring_90d": "ஆயுள் காலாவதி நெருங்குகிறது"
       }
     }
+  },
+  "lifecycleFollowups": {
+    "badge": "சேவை நினைவூட்டல்",
+    "statusLabel": {
+      "due_soon": "வரவிருக்கும்",
+      "due": "இன்று செலுத்த வேண்டியது",
+      "overdue": "தாமதமானது"
+    },
+    "markContacted": "தொடர்பு கொண்டதாகக் குறிக்க",
+    "markContactedNotePlaceholder": "குறிப்பு (விருப்பத்தின் படி)",
+    "markContactedSave": "சேமி",
+    "markContactedSaved": "தொடர்பு கொண்டதாகக் குறிக்கப்பட்டது.",
+    "snooze": "ஒத்திவை",
+    "snoozeUntilLabel": "எதுவரை ஒத்திவைக்க வேண்டும்",
+    "snoozeSave": "ஒத்திவை",
+    "snoozeSaved": "{{date}} வரை ஒத்திவைக்கப்பட்டது.",
+    "snoozeMustBeFuture": "இன்றுக்குப் பிறகான தேதியைத் தேர்ந்தெடுக்கவும்.",
+    "createServiceRequest": "சேவை கோரிக்கை உருவாக்கு",
+    "serviceRequestCreated": "சேவை டிக்கெட் உருவாக்கப்பட்டது ({{ticketId}})."
   }
 }

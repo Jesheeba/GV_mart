@@ -5816,5 +5816,24 @@
         "lifetime_expiring_90d": "Lifetime expiring"
       }
     }
+  },
+  "lifecycleFollowups": {
+    "badge": "Service reminder",
+    "statusLabel": {
+      "due_soon": "Upcoming",
+      "due": "Due",
+      "overdue": "Overdue"
+    },
+    "markContacted": "Mark contacted",
+    "markContactedNotePlaceholder": "Note (optional)",
+    "markContactedSave": "Save",
+    "markContactedSaved": "Marked as contacted.",
+    "snooze": "Snooze",
+    "snoozeUntilLabel": "Snooze until",
+    "snoozeSave": "Snooze",
+    "snoozeSaved": "Snoozed to {{date}}.",
+    "snoozeMustBeFuture": "Pick a date after today.",
+    "createServiceRequest": "Create service request",
+    "serviceRequestCreated": "Service ticket created ({{ticketId}})."
   }
 }
