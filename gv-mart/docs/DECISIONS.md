@@ -871,3 +871,123 @@ A second fresh reviewer (no prior context, same bar) attacked the reconciled who
 - **No live apply, no push, no merge to main, no Edge Function deploy, no secret changes, no live
   customer-facing test performed by this pass**, per this phase's own explicit instruction — all
   gated on the owner's typed "APPROVED", not given.
+
+## 12. Pre-apply sanity round (2026-11-30ish, same worktree): `customer_auto_onboard` landed on
+## `origin/main` in the meantime — checked for collisions, and a real cross-feature gap found and
+## STOPPED on, not fixed
+
+`git fetch origin` shows `origin/main` moved far ahead (product-lifecycle integration branch), and
+specifically `supabase_migrations.schema_migrations` on the live project now also includes
+`20261121100000` (the master-only manual-link stopgap, owner-applied, 0 High — `admin_link_customer_google_account`/
+`admin_unlink_customer_google_account`, confirmed OUT OF THIS FEATURE'S SCOPE, not touched) and
+`20261130100000`–`20261130100003` (`customer_auto_onboard` package, also owner-applied). Full live
+version list confirmed read-only: `...20261120100000, 20261120100100, 20261121100000,
+20261125100000-20261125100800, 20261130100000-20261130100003`. `20261120100200` (the concurrent
+session's redaction trigger, commit `9caef1d`) and this feature's own `20261121100100`/
+`20261121100200` remain NOT live, exactly as before.
+
+### 12.1 No version collision, no renumbering needed
+
+`20261121100100`/`20261121100200` do not match any live version string — no collision. Checked
+whether applying them NOW, after the later-timestamped `20261130` batch is already live, creates
+any REAL problem (not just a numbering oddity): read all four `20261130*` migration files in full
+(via `git show origin/main:...`, they are not yet merged into this branch) — none reference
+`whatsapp_outbox`, `customer_link_otp*`, `cron.*`, `net.*`, or `is_customer_link_otp_enabled` in any
+form (grepped, zero matches). This feature's three pending migrations (`20261120100200`,
+`20261121100100`, `20261121100200`) touch `whatsapp_outbox`, `whatsapp_event_templates`,
+`whatsapp_payload_secret_ref_types`, `customer_link_otp_challenges`, and `pg_cron` — zero table/
+function overlap with `customers`/`profiles`/`auto_link_blocked_at`/the admin link functions. **No
+renumbering done** — there is nothing to renumber against; the two batches are fully independent,
+and this project's apply mechanism (the rehearsal/apply-script convention, not a strict sequential
+runner) does not require chronological application order, only that each migration's own
+dependencies are satisfied, which these are (confirmed: `20261120100200` must still apply before
+`20261121100100`/`20261121100200`, as already documented).
+
+### 12.2 Anon-exposure baseline: already correct, no change needed
+
+Confirmed read-only: `admin_link_customer_google_account`/`admin_unlink_customer_google_account`
+are `authenticated`-executable, NOT `anon`-executable — exactly the owner's stated expectation, not
+a leak. Checked this feature's own rehearsal/apply scripts (`customer_link_otp_phase3_combined.rehearsal.sql`,
+both `.apply.sql` files): none of them perform a whole-`public`-schema anon-EXECUTE diff (unlike
+the much earlier base-feature apply script, which did and is not re-run by this round) — every
+`has_function_privilege('anon', ...)` check in this round's scripts names a SPECIFIC function this
+feature itself created (`scrub_expired_customer_link_otp_outbox`, `scrub_whatsapp_outbox_wasi_response`,
+etc.), never a schema-wide scan. There is therefore no baseline in this round's own scripts that
+could ever flag the two admin link functions as new/unexpected — nothing to update.
+
+### 12.3 BLOCKING QUESTION, not fixed: `verify_customer_link_code` does not respect
+### `customers.auto_link_blocked_at` — the OTP path can silently undo a master's unlink
+
+Read `customers.auto_link_blocked_at`'s real definition from `20261130100000`/`20261130100002`
+(not assumed): set by `admin_unlink_customer_google_account` on every successful unlink
+(`auto_link_blocked_at = now(), auto_link_blocked_by = auth.uid()`), cleared ONLY by
+`admin_link_customer_google_account` on an explicit master relink
+(`auto_link_blocked_at = null, auto_link_blocked_by = null`) — never automatically, by
+construction. `customer_auto_onboard()` (the EMAIL-based auto-link path, `20261130100001`) already
+respects it: `if v_matched.primary_profile_id is null and v_matched.auto_link_blocked_at is null
+then` link, `elsif v_matched.auto_link_blocked_at is not null then` refuse with an explicit reason.
+
+**`verify_customer_link_code` (the PHONE-based OTP link path, this feature, already live in
+`20261120100000`) does NOT.** Read the actual current definition line by line, not assumed:
+- `request_customer_link_code`'s match lookup (lines 294-302) selects
+  `id, org_id, primary_profile_id, is_test, preferred_language` — no `auto_link_blocked_at` column
+  at all (the column did not exist when this function was written) — and its exclusion condition
+  (`v_match_count <> 1 or v_match_primary_profile_id is not null or v_match_is_test`) does not
+  check it either.
+- `verify_customer_link_code`'s own lock-time re-check immediately before linking (lines 521-524,
+  `for update` on the customer row first) is `where id = v_challenge.customer_id and
+  (primary_profile_id is not null or is_test)` — again, no `auto_link_blocked_at` check.
+
+**Consequence, concrete, not hypothetical:** a customer a master unlinked (`primary_profile_id`
+now `null`, `auto_link_blocked_at` set) is, from the phone-based OTP flow's point of view, *exactly*
+indistinguishable from any other unlinked, non-test customer — `request_customer_link_code` will
+match them and send a code; `verify_customer_link_code` will link whichever Google-signed-in user
+supplies that code. This defeats the master's unlink exactly the way the "unlink loop" the
+`20261130100002` migration's own header comment describes for the EMAIL path — just through the
+PHONE path instead, which that migration never touched (correctly out of its own scope, and
+correctly out of this pass's scope to silently fix).
+
+**Per the owner's explicit instruction, this is reported as a blocking question, not fixed:**
+
+Proposed guard (NOT written to any migration file, NOT applied — text only, for the owner's
+decision), mirroring `20261130100002`'s own pattern of reproducing a live function's body with one
+added condition, as a NEW migration (never editing the already-applied `20261120100000`):
+
+```sql
+-- request_customer_link_code: treat a blocked customer exactly like an already-linked/test one --
+-- same generic no-op response, so the response shape leaks nothing new.
+select id, org_id, primary_profile_id, is_test, preferred_language, auto_link_blocked_at  -- ADDED column
+  into v_match_id, v_match_org_id, v_match_primary_profile_id, v_match_is_test,
+       v_match_preferred_language, v_match_auto_link_blocked_at                            -- ADDED var
+  from public.customers where mobile = p_mobile;
+...
+if v_match_count <> 1
+   or v_match_primary_profile_id is not null
+   or v_match_is_test
+   or v_match_auto_link_blocked_at is not null   -- ADDED
+then
+  -- existing generic no-op response, unchanged
+
+-- verify_customer_link_code: same treatment at the lock-time re-check immediately before linking.
+if exists (
+  select 1 from public.customers
+  where id = v_challenge.customer_id
+    and (primary_profile_id is not null or is_test or auto_link_blocked_at is not null)  -- ADDED
+) then
+  return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', 0);  -- unchanged, collapsed response
+end if;
+```
+
+Both additions are read-only checks of a column this feature does not own or write — they do not
+redefine or alter `customer_auto_onboard()`, `admin_link_customer_google_account`, or
+`admin_unlink_customer_google_account` in any way, and do not change `auto_link_blocked_at`'s own
+semantics (still set/cleared only by the two admin functions). **Not applied. Waiting on the
+owner's explicit go-ahead before this (or any variant of it) is written as a real migration.**
+
+### 12.4 Status at hand-off, this round
+
+- Items 1-3: confirmed clean, no action needed, no files changed.
+- Item 4: **BLOCKING QUESTION surfaced to the owner, reported, not fixed.** No new migration
+  written or applied for this.
+- No files in this worktree were changed by this round (read-only checks + this doc update only).
+- Still no live apply, no push, no merge, no deploy, no secrets, no customer-facing test.
