@@ -306,9 +306,56 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
               )}
             </div>
           </div>
+
+          <LifecycleWidgetCard lifecycle={kpi?.service?.lifecycle ?? null} onNavigate={navigate} />
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Product Lifecycle widget (W4 drop). Counts come straight off the same
+ * `report_kpi_tiles` payload the KPI strip above already fetched (useKpiTiles(range)
+ * is cached by react-query, so reading `kpi?.service?.lifecycle` here issues no
+ * extra network call) — it can never disagree with the rest of the strip. Each
+ * number links into LifecycleOverviewPage pre-filtered to that bucket.
+ */
+function LifecycleWidgetCard({
+  lifecycle,
+  onNavigate,
+}: {
+  lifecycle: { upcoming: number; due: number; overdue: number; lifetimeExpiring90d: number } | null
+  onNavigate: (path: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="rounded-card border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+      <h3 className="mb-4 text-base font-bold tracking-tight text-text">{t("lifecycleDashboard.widget.title")}</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <LifecycleStat label={t("lifecycleDashboard.widget.upcoming")} value={lifecycle?.upcoming ?? 0} onClick={() => onNavigate("/admin/lifecycle?status=due_soon")} />
+        <LifecycleStat label={t("lifecycleDashboard.widget.due")} value={lifecycle?.due ?? 0} onClick={() => onNavigate("/admin/lifecycle?status=due")} />
+        <LifecycleStat label={t("lifecycleDashboard.widget.overdue")} value={lifecycle?.overdue ?? 0} onClick={() => onNavigate("/admin/lifecycle?status=overdue")} />
+        <LifecycleStat
+          label={t("lifecycleDashboard.widget.lifetimeExpiring90d")}
+          value={lifecycle?.lifetimeExpiring90d ?? 0}
+          onClick={() => onNavigate("/admin/lifecycle?status=lifetime_expiring_90d")}
+        />
+      </div>
+    </div>
+  )
+}
+
+function LifecycleStat({ label, value, onClick }: { label: string; value: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-start gap-0.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-alt/60 -mx-2"
+    >
+      <span className="text-[22px] font-extrabold tabular-nums leading-none text-text">{value}</span>
+      <span className="text-[11px] font-semibold text-text-muted">{label}</span>
+    </button>
   )
 }
 

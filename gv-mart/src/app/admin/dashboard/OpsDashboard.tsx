@@ -6,6 +6,7 @@ import { MapPin, Plus, TriangleAlert } from "lucide-react"
 import { useTicketsList, useAppointmentsRange, useTechnicians } from "@/hooks/useService"
 import { useAttendanceForDate } from "@/hooks/useTechniciansAdmin"
 import { useOverdueSlaTickets } from "@/hooks/useSystemPages"
+import { useKpiTiles } from "@/hooks/useKpiTiles"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { KpiCard } from "@/components/shared/KpiCard"
@@ -36,6 +37,10 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
   const { data: appointments, isLoading: apptLoading } = useAppointmentsRange(orgId, istDayStartIso(today), istDayEndIso(today))
   const { data: attendance, isLoading: attendanceLoading } = useAttendanceForDate(orgId, today)
   const { data: overdueSla, isLoading: overdueSlaLoading } = useOverdueSlaTickets(orgId)
+  // Same cached report_kpi_tiles query the KpiTileStrip below already fetches for this range
+  // (react-query dedupes on queryKey) — the Product Lifecycle widget reads its counts off it
+  // so no second network call is made.
+  const { data: kpi } = useKpiTiles(range)
 
   const completedToday = tickets?.filter((tk) => tk.status === "completed" && tk.updated_at?.slice(0, 10) === today).length ?? 0
 
@@ -183,8 +188,53 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
               </div>
             )}
           </div>
+
+          <LifecycleWidgetCard lifecycle={kpi?.service?.lifecycle ?? null} onNavigate={navigate} />
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Product Lifecycle widget (W4 drop) — identical card to OwnerDashboard's, since
+ * it's the same data (`report_kpi_tiles.service.lifecycle`, already-fetched via
+ * useKpiTiles(range) above) just also surfaced to operation_admin.
+ */
+function LifecycleWidgetCard({
+  lifecycle,
+  onNavigate,
+}: {
+  lifecycle: { upcoming: number; due: number; overdue: number; lifetimeExpiring90d: number } | null
+  onNavigate: (path: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="rounded-card border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+      <h3 className="mb-4 text-base font-bold tracking-tight text-text">{t("lifecycleDashboard.widget.title")}</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <LifecycleStat label={t("lifecycleDashboard.widget.upcoming")} value={lifecycle?.upcoming ?? 0} onClick={() => onNavigate("/admin/lifecycle?status=due_soon")} />
+        <LifecycleStat label={t("lifecycleDashboard.widget.due")} value={lifecycle?.due ?? 0} onClick={() => onNavigate("/admin/lifecycle?status=due")} />
+        <LifecycleStat label={t("lifecycleDashboard.widget.overdue")} value={lifecycle?.overdue ?? 0} onClick={() => onNavigate("/admin/lifecycle?status=overdue")} />
+        <LifecycleStat
+          label={t("lifecycleDashboard.widget.lifetimeExpiring90d")}
+          value={lifecycle?.lifetimeExpiring90d ?? 0}
+          onClick={() => onNavigate("/admin/lifecycle?status=lifetime_expiring_90d")}
+        />
+      </div>
+    </div>
+  )
+}
+
+function LifecycleStat({ label, value, onClick }: { label: string; value: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-start gap-0.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-alt/60 -mx-2"
+    >
+      <span className="text-[22px] font-extrabold tabular-nums leading-none text-text">{value}</span>
+      <span className="text-[11px] font-semibold text-text-muted">{label}</span>
+    </button>
   )
 }

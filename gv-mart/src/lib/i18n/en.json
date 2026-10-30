@@ -5780,5 +5780,41 @@
     "jobDetail": {
       "title": "Parts due"
     }
+  },
+  "lifecycleDashboard": {
+    "widget": {
+      "title": "Product Lifecycle",
+      "upcoming": "Upcoming",
+      "due": "Due",
+      "overdue": "Overdue",
+      "lifetimeExpiring90d": "Lifetime expiring (90d)"
+    },
+    "overview": {
+      "title": "Product Lifecycle",
+      "subtitle": "Installed-product part schedules and lifetime-expiry tracking.",
+      "tab": {
+        "due_soon": "Upcoming",
+        "due": "Due",
+        "overdue": "Overdue",
+        "lifetime_expiring_90d": "Lifetime expiring (90d)"
+      },
+      "search": "Search customer or product",
+      "recordCount": "{{count}} records",
+      "loadFailed": "Couldn't load this list. Check your connection and try again.",
+      "empty": "No part schedules in this status.",
+      "emptyExpiring": "No products nearing lifetime expiry.",
+      "customer": "Customer",
+      "product": "Product",
+      "part": "Part",
+      "dueDate": "Due date",
+      "status": "Status",
+      "lifetimeExpiry": "Lifetime expiry",
+      "statusLabel": {
+        "due_soon": "Upcoming",
+        "due": "Due",
+        "overdue": "Overdue",
+        "lifetime_expiring_90d": "Lifetime expiring"
+      }
+    }
   }
 }
