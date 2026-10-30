@@ -1,26 +1,22 @@
--- COMBINED rehearsal: the full reconciled customer_link_otp redaction + template-mapping
--- package in ONE transaction -- 20261120100200 (prereq, committed by a concurrent session, not
--- yet live) -> 20261121100100 (dispatch hardening) + its test -> 20261121100200 (template mapping)
--- + its test. WRITTEN ONLY -- never executed against any database by the agent that produced this
--- file except through the sha256-verified supabase/ops/run_rehearsal.mjs, and only as a REHEARSAL:
--- this block always ends in RAISE EXCEPTION, so nothing it does can ever commit.
+-- COMBINED rehearsal: the FULL reconciled customer_link_otp package, in ONE transaction --
+-- 20261120100200 (prereq) -> 20261121100100 (dispatch hardening) + test ->
+-- 20261121100150 (auto_link_blocked_at guard, THIS round) + test ->
+-- 20261121100200 (template mapping) + test. WRITTEN ONLY -- never executed against any database
+-- by the agent that produced this file except through the sha256-verified
+-- supabase/ops/run_rehearsal.mjs, and only as a REHEARSAL: ends in RAISE EXCEPTION, nothing commits.
 do $rehearsal$
 declare
-  v_ist_hour                 int;
+  v_ist_hour int;
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
-  v_actual_org_fingerprint   text;
-  v_expected_prereq_hash        text := '8533249a1b9441f14fc18867a79f7b1dde53a49df296504aa668135f56f78fd1';
-  v_expected_hardening_hash     text := '7fc531e9fc0c8318a0d266c26df1cf9652e023d6d3cc600283d40f341cdb6a0f';
-  v_expected_hardening_test_hash text := '871f74372723561c03ada1a88cecd8444e03932492e8a65487b76f68ed0837ea';
-  v_expected_mapping_hash       text := '641a90a7b3f540e6853d2ad768184dc22eb8772bd3b7a296b15f109f350a9317';
-  v_expected_mapping_test_hash  text := '34d86d828c07d468fc9a9aad4f9bc84e946fa692bfd7762fd13739a2bb3624b6';
+  v_actual_org_fingerprint text;
   v_actual_hash text;
   v_fp_before text;
   v_fp_after text;
   v_hardening_test_result text;
+  v_guard_test_result text;
   v_mapping_test_result text;
   res text := '';
-  v_embedded_prereq        text := $prereq$-- Fixes a HIGH finding from the independent security review of the customer-OTP-link fast-dispatch
+  v_embedded_prereq text := $prereq$-- Fixes a HIGH finding from the independent security review of the customer-OTP-link fast-dispatch
 -- path (docs/DECISIONS.md section 9, Edge Function review): whatsapp_outbox's existing
 -- redaction-on-send/redaction-on-give-up logic (wa-milestone-dispatch-core.ts,
 -- wa-dispatch-v2.ts) only ever replaces the `payload` column. It never touches
@@ -161,7 +157,7 @@ create trigger guard_secret_ref_type_template_mapping
 revoke all on function public.scrub_whatsapp_outbox_secret_payload() from public, anon, authenticated;
 revoke all on function public.guard_secret_ref_type_template_mapping() from public, anon, authenticated;
 $prereq$;
-  v_embedded_hardening      text := $hardening$-- 20261121100100_customer_link_otp_dispatch_hardening.sql
+  v_embedded_hardening text := $hardening$-- 20261121100100_customer_link_otp_dispatch_hardening.sql
 --
 -- Phase 3 (template-wiring prep) of the customer-OTP-link feature, docs/DECISIONS.md section 10.
 --
@@ -635,7 +631,604 @@ begin
 end
 $test$;
 $hardeningtest$;
-  v_embedded_mapping         text := $mapping$-- 20261121100200_customer_link_otp_template_mapping.sql
+  v_embedded_guard text := $guard$-- 20261121100150_customer_link_otp_respects_auto_link_block.sql
+--
+-- Phase 3 continuation, docs/DECISIONS.md section 12/13. Closes the BLOCKING QUESTION raised and
+-- reported (not silently fixed) in section 12.3: `verify_customer_link_code` (phone-based OTP
+-- link, this feature) did not respect `customers.auto_link_blocked_at` the way
+-- `customer_auto_onboard()` (email-based auto-link, 20261130100001, already live) already does --
+-- a customer a master unlinked via `admin_unlink_customer_google_account` (20261121100000,
+-- already live, redefined by 20261130100002 to set this column, already live) could be silently
+-- re-linked to a DIFFERENT Google sign-in through the phone/OTP path, defeating the master's
+-- unlink exactly the way the "unlink loop" 20261130100002 closed for the email path. Owner
+-- APPROVED this exact guard before it was written (the proposal in section 12.3).
+--
+-- Ordering: strictly AFTER 20261121100100 (dispatch hardening + wasi_response trigger -- this
+-- migration does not depend on it directly, but the owner's own ordering instruction keeps the
+-- redaction/re-check work before this) and strictly BEFORE 20261121100200 (the template mapping,
+-- unaffected by anything here) -- `100150` sorts between `100100` and `100200`.
+--
+-- NEVER editing the already-applied 20261120100000_customer_link_otp.sql: both functions below
+-- are `create or replace`, reproducing the LIVE bodies verbatim (confirmed via
+-- `pg_get_functiondef`, sha256-pinned below, CR-tolerant -- this migration REFUSES to apply if the
+-- live definition has drifted from what was read when this file was written, exactly the same
+-- discipline `20261130100002` used for the two admin link functions) plus exactly ONE added
+-- condition each:
+--   - `request_customer_link_code`: the match-exclusion condition
+--     (`v_match_count <> 1 or v_match_primary_profile_id is not null or v_match_is_test`) gains
+--     `or v_match_auto_link_blocked_at is not null` -- a blocked customer becomes indistinguishable
+--     from an already-linked/test one, same generic `v_generic` response, same `'no_match'`
+--     send-log decision, so the response shape (and the send-log row it creates) leaks nothing new
+--     about the phone number typed -- no new oracle, exactly the owner's own explicit requirement.
+--   - `verify_customer_link_code`: the lock-time re-check immediately before linking
+--     (`primary_profile_id is not null or is_test`) gains `or auto_link_blocked_at is not null` --
+--     same collapsed `{status: 'invalid_or_expired', attempts_left: 0}` response as every other
+--     "lost the race" case already returns, so a caller holding a correct, not-yet-expired code
+--     for a customer who gets blocked in between request and verify sees the IDENTICAL response
+--     shape and timing profile as any other race loss, not a new, distinguishable outcome.
+-- Nothing else in either function changes: not the rate limits, not the timing-equalization dummy
+-- crypto work on the no-match branch (section 7), not the attempts/expiry logic, not the audit_log
+-- writes (which still never include the code or the block reason -- confirmed, unchanged).
+--
+-- Grants and search_path are UNCHANGED from the live functions (confirmed by this migration's own
+-- assertions below, not assumed from `create or replace` alone -- Postgres does carry grants
+-- across a `create or replace function`, but this migration still re-states and re-verifies them
+-- explicitly, same discipline as every other grant-sensitive migration on this branch): `anon` has
+-- no EXECUTE, `authenticated` has EXECUTE, `set search_path = public, extensions, pg_temp` for
+-- both.
+
+do $mig$
+declare
+  v_expected_request_hash text := '9e108f6e9f55ad8539773de90d3ceca201231e24874854d3db855f41829557a3';
+  v_expected_verify_hash  text := '2a12b2ef965e068297a40922f88477b9b8db92196b896755bc4599196e374bb4';
+  v_actual_request_hash text;
+  v_actual_verify_hash  text;
+begin
+  if to_regprocedure('public.request_customer_link_code(text)') is null
+     or to_regprocedure('public.verify_customer_link_code(text)') is null then
+    raise exception 'customer_link_otp_respects_auto_link_block: base functions missing -- 20261120100000 not applied';
+  end if;
+
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'auto_link_blocked_at') then
+    raise exception 'customer_link_otp_respects_auto_link_block: customers.auto_link_blocked_at missing -- 20261130100000 not applied';
+  end if;
+
+  -- LIVE-DRIFT CHECK: refuse to replace either function unless its CURRENT live body still
+  -- matches the exact body this migration was written against (CR-tolerant, same as every other
+  -- sha256 pin on this branch). A real difference here means someone else changed either function
+  -- since this migration was written -- this migration must not silently clobber that change.
+  v_actual_request_hash := encode(sha256(convert_to(replace(pg_get_functiondef('public.request_customer_link_code(text)'::regprocedure), E'\r', ''), 'UTF8')), 'hex');
+  if v_actual_request_hash is distinct from v_expected_request_hash then
+    raise exception 'customer_link_otp_respects_auto_link_block: LIVE_DEFINITION_DRIFT -- request_customer_link_code''s live body no longer matches the pinned hash this migration was written against (expected %, got %)',
+      v_expected_request_hash, v_actual_request_hash;
+  end if;
+
+  v_actual_verify_hash := encode(sha256(convert_to(replace(pg_get_functiondef('public.verify_customer_link_code(text)'::regprocedure), E'\r', ''), 'UTF8')), 'hex');
+  if v_actual_verify_hash is distinct from v_expected_verify_hash then
+    raise exception 'customer_link_otp_respects_auto_link_block: LIVE_DEFINITION_DRIFT -- verify_customer_link_code''s live body no longer matches the pinned hash this migration was written against (expected %, got %)',
+      v_expected_verify_hash, v_actual_verify_hash;
+  end if;
+
+  -- ── request_customer_link_code: add v_match_auto_link_blocked_at, select it, check it ───────
+  create or replace function public.request_customer_link_code(p_mobile text)
+  returns jsonb
+  language plpgsql
+  security definer
+  set search_path = public, extensions, pg_temp
+  as $fn$
+  declare
+    v_user_id uuid := auth.uid();
+    v_generic jsonb := jsonb_build_object('status', 'ok', 'message', 'If that number is registered, a verification code was sent on WhatsApp.');
+    v_phone_hash text;
+    v_phone_last4 text;
+    v_match_id uuid;
+    v_match_org_id uuid;
+    v_match_primary_profile_id uuid;
+    v_match_is_test boolean;
+    v_match_auto_link_blocked_at timestamptz;
+    v_match_preferred_language text;
+    v_match_count integer;
+    v_now timestamptz := clock_timestamp();
+    v_user_sends_last_hour integer;
+    v_phone_sends_last_hour integer;
+    v_last_send_at timestamptz;
+    v_distinct_numbers_24h integer;
+    v_code text;
+    v_salt text;
+    v_challenge_id uuid;
+    v_outbox_id uuid;
+    v_body text;
+  begin
+    if v_user_id is null then
+      raise exception 'cannot_request_code: not authenticated';
+    end if;
+
+    if exists (select 1 from public.profiles where id = v_user_id) then
+      raise exception 'cannot_request_code: profile_exists';
+    end if;
+
+    if p_mobile !~ '^[6-9]\d{9}$' then
+      raise exception 'cannot_request_code: invalid_mobile';
+    end if;
+
+    if not public.is_customer_link_otp_enabled() then
+      raise exception 'cannot_request_code: feature_disabled';
+    end if;
+
+    v_phone_hash := encode(digest(p_mobile, 'sha256'), 'hex');
+    v_phone_last4 := right(p_mobile, 4);
+
+    select count(*) into v_user_sends_last_hour
+    from public.customer_link_otp_send_log
+    where user_id = v_user_id and created_at > v_now - interval '1 hour';
+
+    select count(*) into v_phone_sends_last_hour
+    from public.customer_link_otp_send_log
+    where phone_hash = v_phone_hash and created_at > v_now - interval '1 hour';
+
+    select max(created_at) into v_last_send_at
+    from public.customer_link_otp_send_log
+    where user_id = v_user_id and decision = 'sent';
+
+    select count(distinct phone_hash) into v_distinct_numbers_24h
+    from public.customer_link_otp_send_log
+    where user_id = v_user_id and created_at > v_now - interval '24 hours';
+
+    if v_last_send_at is not null and v_last_send_at > v_now - interval '30 seconds' then
+      insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
+      values (v_user_id, v_phone_hash, v_phone_last4, 'limited_cooldown');
+      return v_generic;
+    end if;
+
+    if v_user_sends_last_hour >= 5 then
+      insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
+      values (v_user_id, v_phone_hash, v_phone_last4, 'limited_user');
+      return v_generic;
+    end if;
+
+    if v_phone_sends_last_hour >= 3 then
+      insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
+      values (v_user_id, v_phone_hash, v_phone_last4, 'limited_phone');
+      return v_generic;
+    end if;
+
+    if v_distinct_numbers_24h >= 5 then
+      insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
+      values (v_user_id, v_phone_hash, v_phone_last4, 'limited_distinct_numbers');
+      return v_generic;
+    end if;
+
+    select count(*) into v_match_count from public.customers where mobile = p_mobile;
+
+    if v_match_count = 1 then
+      select id, org_id, primary_profile_id, is_test, auto_link_blocked_at, preferred_language
+      into v_match_id, v_match_org_id, v_match_primary_profile_id, v_match_is_test, v_match_auto_link_blocked_at, v_match_preferred_language
+      from public.customers where mobile = p_mobile;
+    end if;
+
+    -- ADDED (this migration, owner-approved guard): a customer a master unlinked via
+    -- admin_unlink_customer_google_account (auto_link_blocked_at set) is treated identically to
+    -- an already-linked or test customer -- same v_generic response, same 'no_match' decision row
+    -- in the send log -- so this response is indistinguishable from a non-matching phone number,
+    -- exactly as the owner required (no new oracle).
+    if v_match_count <> 1
+       or v_match_primary_profile_id is not null
+       or v_match_is_test
+       or v_match_auto_link_blocked_at is not null then
+      perform encode(digest(encode(gen_random_bytes(16), 'hex') || lpad(floor(random() * 1000000)::text, 6, '0'), 'sha256'), 'hex');
+      insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
+      values (v_user_id, v_phone_hash, v_phone_last4, 'no_match');
+      return v_generic;
+    end if;
+
+    perform pg_advisory_xact_lock(hashtext(v_match_id::text));
+
+    update public.customer_link_otp_challenges
+    set superseded_at = v_now
+    where customer_id = v_match_id and used_at is null and superseded_at is null;
+
+    v_code := lpad((('x' || encode(gen_random_bytes(4), 'hex'))::bit(32)::bigint % 1000000)::text, 6, '0');
+    v_salt := encode(gen_random_bytes(16), 'hex');
+
+    begin
+      insert into public.customer_link_otp_challenges (org_id, user_id, customer_id, code_salt, code_hash, expires_at)
+      values (v_match_org_id, v_user_id, v_match_id, v_salt, encode(digest(v_salt || v_code, 'sha256'), 'hex'), v_now + interval '10 minutes')
+      returning id into v_challenge_id;
+    exception when unique_violation then
+      insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
+      values (v_user_id, v_phone_hash, v_phone_last4, 'no_match');
+      return v_generic;
+    end;
+
+    v_body := case coalesce(v_match_preferred_language, 'en')
+      when 'ta' then v_code || ' உங்கள் GV Mart கணக்கு இணைப்பு குறியீடு. இதை யாருடனும் பகிர வேண்டாம். 10 நிமிடங்களில் காலாவதியாகும்.'
+      else v_code || ' is your GV Mart account linking code. Do not share it with anyone. It expires in 10 minutes.'
+    end;
+
+    insert into public.whatsapp_outbox (org_id, direction, to_mobile, customer_id, milestone, template, payload, ref_type, ref_id, status)
+    values (v_match_org_id, 'outbound', p_mobile, v_match_id, 'customer_link_otp', 'customer_link_otp',
+            jsonb_build_object('body', v_body, 'code', v_code), 'customer_link_otp', v_challenge_id, 'pending')
+    returning id into v_outbox_id;
+
+    update public.customer_link_otp_challenges set outbox_id = v_outbox_id where id = v_challenge_id;
+
+    insert into public.customer_link_otp_send_log (user_id, phone_hash, phone_last4, decision)
+    values (v_user_id, v_phone_hash, v_phone_last4, 'sent');
+
+    insert into public.audit_log (org_id, actor_id, action, table_name, row_id, after)
+    values (v_match_org_id, null, 'customer_link_otp_requested', 'customers', v_match_id,
+            jsonb_build_object('auth_user_id', v_user_id, 'phone_last4', v_phone_last4, 'challenge_id', v_challenge_id));
+
+    begin
+      perform public.wa_otp_fast_dispatch_invoke(v_match_org_id);
+    exception when others then
+      null;
+    end;
+
+    return v_generic;
+  end;
+  $fn$;
+
+  revoke all on function public.request_customer_link_code(text) from public, anon, authenticated;
+  grant execute on function public.request_customer_link_code(text) to authenticated;
+
+  -- ── verify_customer_link_code: add auto_link_blocked_at to the lock-time re-check ───────────
+  create or replace function public.verify_customer_link_code(p_code text)
+  returns jsonb
+  language plpgsql
+  security definer
+  set search_path = public, extensions, pg_temp
+  as $fn$
+  declare
+    v_user_id uuid := auth.uid();
+    v_challenge record;
+    v_code_hash text;
+    v_rows_updated integer;
+    v_default_attempts_left constant integer := 5;
+  begin
+    if v_user_id is null then
+      raise exception 'cannot_verify_code: not authenticated';
+    end if;
+
+    if exists (select 1 from public.profiles where id = v_user_id) then
+      raise exception 'cannot_verify_code: profile_exists';
+    end if;
+
+    if p_code !~ '^\d{6}$' then
+      raise exception 'cannot_verify_code: invalid_format';
+    end if;
+
+    if not public.is_customer_link_otp_enabled() then
+      raise exception 'cannot_verify_code: feature_disabled';
+    end if;
+
+    select * into v_challenge
+    from public.customer_link_otp_challenges
+    where user_id = v_user_id and used_at is null and superseded_at is null
+    order by created_at desc
+    limit 1
+    for update;
+
+    if v_challenge.id is null then
+      return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', v_default_attempts_left);
+    end if;
+
+    if v_challenge.expires_at < clock_timestamp() then
+      return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', v_default_attempts_left);
+    end if;
+
+    if v_challenge.attempts >= v_challenge.max_attempts then
+      return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', 0);
+    end if;
+
+    v_code_hash := encode(digest(v_challenge.code_salt || p_code, 'sha256'), 'hex');
+
+    if v_code_hash <> v_challenge.code_hash then
+      update public.customer_link_otp_challenges
+      set attempts = attempts + 1
+      where id = v_challenge.id
+      returning attempts into v_challenge.attempts;
+
+      insert into public.audit_log (org_id, actor_id, action, table_name, row_id, after)
+      values (v_challenge.org_id, null, 'customer_link_otp_wrong_code', 'customers', v_challenge.customer_id,
+              jsonb_build_object('auth_user_id', v_user_id, 'challenge_id', v_challenge.id, 'attempts', v_challenge.attempts));
+
+      return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', greatest(v_challenge.max_attempts - v_challenge.attempts, 0));
+    end if;
+
+    update public.customer_link_otp_challenges set used_at = clock_timestamp() where id = v_challenge.id;
+
+    perform 1 from public.customers where id = v_challenge.customer_id for update;
+
+    -- ADDED (this migration, owner-approved guard): a customer blocked by a master's unlink
+    -- between this challenge's request and this verify call is treated exactly like "lost the
+    -- race" -- the IDENTICAL {status: 'invalid_or_expired', attempts_left: 0} response any other
+    -- re-check failure already returns here, so there is no new, distinguishable outcome and no
+    -- new timing signal (same code path, same statements run, whether blocked or already-linked
+    -- or flagged test).
+    if exists (
+      select 1 from public.customers
+      where id = v_challenge.customer_id and (primary_profile_id is not null or is_test or auto_link_blocked_at is not null)
+    ) then
+      return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', 0);
+    end if;
+
+    insert into public.profiles (id, org_id, full_name, phone, role, language)
+    select v_user_id, c.org_id, coalesce(nullif(c.name, ''), 'Customer'), c.mobile, 'customer', coalesce(c.preferred_language, 'en')
+    from public.customers c where c.id = v_challenge.customer_id;
+
+    update public.customers
+    set primary_profile_id = v_user_id, phone_verified = true
+    where id = v_challenge.customer_id and primary_profile_id is null and not is_test;
+
+    get diagnostics v_rows_updated = row_count;
+    if v_rows_updated <> 1 then
+      raise exception 'cannot_verify_code: unexpected_link_failure';
+    end if;
+
+    insert into public.audit_log (org_id, actor_id, action, table_name, row_id, after)
+    values (v_challenge.org_id, v_user_id, 'customer_link_otp_verified', 'customers', v_challenge.customer_id,
+            jsonb_build_object('auth_user_id', v_user_id, 'challenge_id', v_challenge.id));
+
+    return jsonb_build_object('status', 'linked');
+  end;
+  $fn$;
+
+  revoke all on function public.verify_customer_link_code(text) from public, anon, authenticated;
+  grant execute on function public.verify_customer_link_code(text) to authenticated;
+
+  ----------------------------------------------------------------------------
+  -- Assertions.
+  ----------------------------------------------------------------------------
+  if has_function_privilege('anon', 'public.request_customer_link_code(text)', 'execute')
+     or has_function_privilege('anon', 'public.verify_customer_link_code(text)', 'execute') then
+    raise exception 'assertion failed: anon can execute request_customer_link_code or verify_customer_link_code';
+  end if;
+
+  if not (has_function_privilege('authenticated', 'public.request_customer_link_code(text)', 'execute')
+          and has_function_privilege('authenticated', 'public.verify_customer_link_code(text)', 'execute')) then
+    raise exception 'assertion failed: authenticated lost EXECUTE on request_customer_link_code or verify_customer_link_code';
+  end if;
+
+  if (select prosrc from pg_proc where oid = 'public.request_customer_link_code(text)'::regprocedure) not like '%v_match_auto_link_blocked_at%' then
+    raise exception 'assertion failed: request_customer_link_code was not updated with the auto_link_blocked_at check';
+  end if;
+
+  if (select prosrc from pg_proc where oid = 'public.verify_customer_link_code(text)'::regprocedure) not like '%auto_link_blocked_at%' then
+    raise exception 'assertion failed: verify_customer_link_code was not updated with the auto_link_blocked_at check';
+  end if;
+end
+$mig$;
+$guard$;
+  v_embedded_guard_test text := $guardtest$-- Test for 20261121100150_customer_link_otp_respects_auto_link_block.sql. Run inside the
+-- rehearsal wrapper's own transaction, AFTER the migration (and everything it depends on) has
+-- been applied in the same transaction. Ends by raising an exception listing every assertion's
+-- pass/fail, so nothing here ever commits regardless of outcome. Same role discipline as
+-- customer_link_otp.test.sql: `set local role authenticated` around each RPC call, `reset role`
+-- (and clear request.jwt.claims) before any direct table read/write.
+do $t$
+declare
+  v_results text := '';
+  v_org uuid;
+  v_user_blocked uuid := gen_random_uuid();
+  v_user_unblocked uuid := gen_random_uuid();
+  v_user_relinked uuid := gen_random_uuid();
+  v_user_relinked2 uuid := gen_random_uuid(); -- P4 uses a FRESH auth user: the 30s per-user send
+                                               -- cooldown is scoped to user_id, not customer_id,
+                                               -- and P3 already logged a 'sent' decision for
+                                               -- v_user_relinked moments earlier in this same test
+                                               -- -- reusing it would trip the cooldown and is not
+                                               -- what P4 is testing (it tests the CUSTOMER's block
+                                               -- being cleared, not the same user's retry timing).
+  v_cust_blocked uuid;
+  v_cust_unblocked uuid;
+  v_cust_relink uuid;
+  v_result_blocked jsonb;
+  v_result_nonexistent jsonb;
+  v_result jsonb;
+  v_challenge_id uuid;
+  v_code text;
+  v_salt text;
+  v_row record;
+  v_outbox_count int;
+  v_send_log_decision text;
+begin
+  insert into organizations(name) values ('__TEST_otp_auto_link_block_org') returning id into v_org;
+  insert into auth.users(id, email) select x, '__test_' || x || '@example.invalid'
+    from unnest(array[v_user_blocked, v_user_unblocked, v_user_relinked, v_user_relinked2]) x;
+
+  insert into public.settings (org_id) values (v_org) on conflict (org_id) do nothing;
+  update public.settings set wa_dispatch_v2_enabled = true, wa_dispatch_v2_scope = 'org' where org_id = v_org;
+  update public.customer_link_otp_settings set enabled = true where id = true;
+
+  -- Three customers, same shape as the base test file: unlinked, not test-flagged. One already
+  -- carries auto_link_blocked_at (simulating a master's prior unlink), one does not, one will be
+  -- "relinked" mid-test (block cleared, same effect as admin_link_customer_google_account's own
+  -- clearing update, which this test does not call directly -- out of scope to touch -- but
+  -- whose END STATE it reproduces to prove the OTP path reacts to it).
+  insert into customers (org_id, name, mobile, auto_link_blocked_at, auto_link_blocked_by)
+  values (v_org, '__TEST_customer_blocked', '9000000091', clock_timestamp() - interval '1 hour', null)
+  returning id into v_cust_blocked;
+  insert into customers (org_id, name, mobile) values (v_org, '__TEST_customer_unblocked', '9000000092') returning id into v_cust_unblocked;
+  insert into customers (org_id, name, mobile) values (v_org, '__TEST_customer_relink', '9000000093') returning id into v_cust_relink;
+
+  -- G0: the migration's own assertions already prove prosrc contains the new checks; restated
+  -- behaviourally here.
+  v_results := v_results || 'G0 ok: setup complete (migration assertions already proved the source change)' || E'\n';
+
+  ----------------------------------------------------------------------------
+  -- P1: a BLOCKED customer's request returns the generic response and writes nothing new beyond
+  -- a 'no_match' send-log row -- no challenge, no outbox row.
+  ----------------------------------------------------------------------------
+  select count(*) into v_outbox_count from public.whatsapp_outbox where org_id = v_org;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user_blocked, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select public.request_customer_link_code('9000000091') into v_result_blocked;   -- blocked customer's real number
+  select public.request_customer_link_code('9000000000') into v_result_nonexistent; -- a number matching no customer at all
+  execute 'reset role';
+  perform set_config('request.jwt.claims', 'null', true);
+
+  if v_result_blocked = jsonb_build_object('status', 'ok', 'message', 'If that number is registered, a verification code was sent on WhatsApp.') then
+    v_results := v_results || 'P1a ok: blocked customer gets the generic response' || E'\n';
+  else
+    v_results := v_results || format('P1a FAIL: blocked customer got %s', v_result_blocked) || E'\n';
+  end if;
+
+  if v_result_blocked = v_result_nonexistent then
+    v_results := v_results || 'P1b ok: blocked-customer response is byte-identical to a nonexistent-phone response (no new oracle)' || E'\n';
+  else
+    v_results := v_results || format('P1b FAIL: responses differ -- blocked=%s nonexistent=%s', v_result_blocked, v_result_nonexistent) || E'\n';
+  end if;
+
+  if not exists (select 1 from public.customer_link_otp_challenges where customer_id = v_cust_blocked) then
+    v_results := v_results || 'P1c ok: blocked customer -- no challenge row created' || E'\n';
+  else
+    v_results := v_results || 'P1c FAIL: a challenge row was created for a blocked customer' || E'\n';
+  end if;
+
+  select count(*) into v_outbox_count from public.whatsapp_outbox where org_id = v_org;
+  if v_outbox_count = 0 then
+    v_results := v_results || 'P1d ok: no outbox row created for the blocked customer''s request' || E'\n';
+  else
+    v_results := v_results || format('P1d FAIL: %s outbox row(s) created', v_outbox_count) || E'\n';
+  end if;
+
+  select decision into v_send_log_decision from public.customer_link_otp_send_log
+  where phone_hash = encode(digest('9000000091', 'sha256'), 'hex') order by created_at desc limit 1;
+  if v_send_log_decision = 'no_match' then
+    v_results := v_results || 'P1e ok: send-log decision for the blocked customer is ''no_match'' -- same as any other non-matching/ineligible phone' || E'\n';
+  else
+    v_results := v_results || format('P1e FAIL: send-log decision was %s, expected no_match', v_send_log_decision) || E'\n';
+  end if;
+
+  ----------------------------------------------------------------------------
+  -- P2: UNBLOCKED customer -- full request+verify flow works unchanged (the new OR condition
+  -- must never trip for a customer who isn't blocked).
+  ----------------------------------------------------------------------------
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user_unblocked, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select public.request_customer_link_code('9000000092') into v_result;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', 'null', true);
+
+  select id, code_salt into v_challenge_id, v_salt from public.customer_link_otp_challenges
+  where customer_id = v_cust_unblocked and used_at is null and superseded_at is null;
+
+  select payload->>'code' into v_code from public.whatsapp_outbox
+  where ref_type = 'customer_link_otp' and ref_id = v_challenge_id;
+
+  if v_challenge_id is not null and v_code is not null then
+    v_results := v_results || 'P2a ok: unblocked customer -- request created a challenge + outbox row as normal' || E'\n';
+  else
+    v_results := v_results || 'P2a FAIL: unblocked customer''s request did not create the expected challenge/outbox row' || E'\n';
+  end if;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user_unblocked, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select public.verify_customer_link_code(v_code) into v_result;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', 'null', true);
+
+  if v_result = jsonb_build_object('status', 'linked') then
+    v_results := v_results || 'P2b ok: unblocked customer -- verify with the real code links normally, unchanged behaviour' || E'\n';
+  else
+    v_results := v_results || format('P2b FAIL: unblocked customer verify returned %s', v_result) || E'\n';
+  end if;
+
+  if (select primary_profile_id from public.customers where id = v_cust_unblocked) = v_user_unblocked then
+    v_results := v_results || 'P2c ok: unblocked customer is actually linked in the customers table' || E'\n';
+  else
+    v_results := v_results || 'P2c FAIL: unblocked customer was not actually linked' || E'\n';
+  end if;
+
+  ----------------------------------------------------------------------------
+  -- P3: a customer who becomes blocked IN BETWEEN request and verify (a master unlinks them
+  -- mid-flow) -- verify must refuse with the same collapsed response every other race-loss case
+  -- already returns, and must NOT link.
+  ----------------------------------------------------------------------------
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user_relinked, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select public.request_customer_link_code('9000000093') into v_result;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', 'null', true);
+
+  select id into v_challenge_id from public.customer_link_otp_challenges
+  where customer_id = v_cust_relink and used_at is null and superseded_at is null;
+  select payload->>'code' into v_code from public.whatsapp_outbox
+  where ref_type = 'customer_link_otp' and ref_id = v_challenge_id;
+
+  -- Simulate the master unlinking this customer right now, between request and verify -- the
+  -- exact column/value admin_unlink_customer_google_account's own live definition sets (reproduced
+  -- as an end state here, not by calling that function, which is out of this feature's scope to
+  -- touch).
+  update public.customers set auto_link_blocked_at = clock_timestamp(), auto_link_blocked_by = null where id = v_cust_relink;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user_relinked, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select public.verify_customer_link_code(v_code) into v_result;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', 'null', true);
+
+  if v_result = jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', 0) then
+    v_results := v_results || 'P3a ok: a customer blocked between request and verify gets the same collapsed invalid_or_expired/0 response as any other race loss' || E'\n';
+  else
+    v_results := v_results || format('P3a FAIL: expected invalid_or_expired/0, got %s', v_result) || E'\n';
+  end if;
+
+  if (select primary_profile_id from public.customers where id = v_cust_relink) is null then
+    v_results := v_results || 'P3b ok: the blocked-mid-flow customer was NOT linked' || E'\n';
+  else
+    v_results := v_results || 'P3b FAIL: the blocked-mid-flow customer WAS linked -- the guard did not hold' || E'\n';
+  end if;
+
+  if not exists (select 1 from public.profiles where id = v_user_relinked) then
+    v_results := v_results || 'P3c ok: no profiles row was created for the blocked-mid-flow user' || E'\n';
+  else
+    v_results := v_results || 'P3c FAIL: a profiles row was created despite the block' || E'\n';
+  end if;
+
+  ----------------------------------------------------------------------------
+  -- P4: once the block is cleared (the end state admin_link_customer_google_account's own relink
+  -- produces -- reproduced here, not by calling that function), OTP works again for this customer.
+  ----------------------------------------------------------------------------
+  update public.customers set auto_link_blocked_at = null, auto_link_blocked_by = null where id = v_cust_relink;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user_relinked2, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select public.request_customer_link_code('9000000093') into v_result;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', 'null', true);
+
+  select id into v_challenge_id from public.customer_link_otp_challenges
+  where customer_id = v_cust_relink and used_at is null and superseded_at is null;
+  select payload->>'code' into v_code from public.whatsapp_outbox
+  where ref_type = 'customer_link_otp' and ref_id = v_challenge_id;
+
+  if v_challenge_id is not null and v_code is not null then
+    v_results := v_results || 'P4a ok: once unblocked, a fresh request succeeds normally again' || E'\n';
+  else
+    v_results := v_results || 'P4a FAIL: once unblocked, request did not create a fresh challenge/outbox row' || E'\n';
+  end if;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_user_relinked2, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  select public.verify_customer_link_code(v_code) into v_result;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', 'null', true);
+
+  if v_result = jsonb_build_object('status', 'linked')
+     and (select primary_profile_id from public.customers where id = v_cust_relink) = v_user_relinked2 then
+    v_results := v_results || 'P4b ok: once unblocked, verify links normally -- OTP works again for this customer' || E'\n';
+  else
+    v_results := v_results || format('P4b FAIL: once unblocked, verify returned %s', v_result) || E'\n';
+  end if;
+
+  raise exception E'TEST_RESULTS:\n%', v_results;
+end
+$t$;
+$guardtest$;
+  v_embedded_mapping text := $mapping$-- 20261121100200_customer_link_otp_template_mapping.sql
 --
 -- Phase 3 continuation, docs/DECISIONS.md section 10. Wires the `customer_link_otp` event to the
 -- real, owner-confirmed WhatsApp template -- the LAST step in this feature's template plumbing,
@@ -732,7 +1325,7 @@ begin
 end
 $mig$;
 $mapping$;
-  v_embedded_mapping_test    text := $mappingtest$-- Test for 20261121100200_customer_link_otp_template_mapping.sql.
+  v_embedded_mapping_test text := $mappingtest$-- Test for 20261121100200_customer_link_otp_template_mapping.sql.
 -- Run inside the rehearsal wrapper's own transaction, AFTER both 20261121100100 (dispatch
 -- hardening) and this migration have been applied in the same transaction. Ends by raising an
 -- exception listing every assertion's pass/fail, so nothing here ever commits regardless of
@@ -813,57 +1406,58 @@ end
 $test$;
 $mappingtest$;
 begin
-  -- 0. ORG CHECK
   select md5(o.id::text || '|' || o.name) into v_actual_org_fingerprint
-  from public.organizations o
-  where o.name not like '\_\_TEST%' escape '\'
-  order by o.created_at asc
-  limit 1;
+  from public.organizations o where o.name not like '\_\_TEST%' escape '\' order by o.created_at asc limit 1;
   if v_actual_org_fingerprint is distinct from v_expected_org_fingerprint then
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch (expected %, got %)', v_expected_org_fingerprint, v_actual_org_fingerprint;
   end if;
 
-  -- 1. LOCK
   perform set_config('lock_timeout', '5s', true);
 
-  -- 2. GATE -- 11:00 IST
   v_ist_hour := extract(hour from (now() at time zone 'Asia/Kolkata'))::int;
   if v_ist_hour < 11 then
     raise exception 'REHEARSAL_REFUSED: this script only runs after 11:00 IST (current IST hour=%)', v_ist_hour;
   end if;
 
-  -- 3. PIN -- all five embedded texts must match their pinned sha256.
   v_actual_hash := encode(sha256(convert_to(replace(v_embedded_prereq, E'\r', ''), 'UTF8')), 'hex');
-  if v_actual_hash is distinct from v_expected_prereq_hash then raise exception 'REHEARSAL_REFUSED: prereq hash mismatch (expected %, got %)', v_expected_prereq_hash, v_actual_hash; end if;
+  if v_actual_hash is distinct from '8533249a1b9441f14fc18867a79f7b1dde53a49df296504aa668135f56f78fd1' then raise exception 'REHEARSAL_REFUSED: prereq hash mismatch (got %)', v_actual_hash; end if;
   v_actual_hash := encode(sha256(convert_to(replace(v_embedded_hardening, E'\r', ''), 'UTF8')), 'hex');
-  if v_actual_hash is distinct from v_expected_hardening_hash then raise exception 'REHEARSAL_REFUSED: hardening migration hash mismatch (expected %, got %)', v_expected_hardening_hash, v_actual_hash; end if;
+  if v_actual_hash is distinct from '7fc531e9fc0c8318a0d266c26df1cf9652e023d6d3cc600283d40f341cdb6a0f' then raise exception 'REHEARSAL_REFUSED: hardening hash mismatch (got %)', v_actual_hash; end if;
   v_actual_hash := encode(sha256(convert_to(replace(v_embedded_hardening_test, E'\r', ''), 'UTF8')), 'hex');
-  if v_actual_hash is distinct from v_expected_hardening_test_hash then raise exception 'REHEARSAL_REFUSED: hardening test hash mismatch (expected %, got %)', v_expected_hardening_test_hash, v_actual_hash; end if;
+  if v_actual_hash is distinct from '871f74372723561c03ada1a88cecd8444e03932492e8a65487b76f68ed0837ea' then raise exception 'REHEARSAL_REFUSED: hardening test hash mismatch (got %)', v_actual_hash; end if;
+  v_actual_hash := encode(sha256(convert_to(replace(v_embedded_guard, E'\r', ''), 'UTF8')), 'hex');
+  if v_actual_hash is distinct from '8ab91094adbc31cc0613c6cb5ba9ac7e7923f5a2e82c96d7713ca5094be6cae8' then raise exception 'REHEARSAL_REFUSED: guard migration hash mismatch (got %)', v_actual_hash; end if;
+  v_actual_hash := encode(sha256(convert_to(replace(v_embedded_guard_test, E'\r', ''), 'UTF8')), 'hex');
+  if v_actual_hash is distinct from '78bca373e504d4be2b9d75341627549ce1c2e54022e9815f3195948098909e16' then raise exception 'REHEARSAL_REFUSED: guard test hash mismatch (got %)', v_actual_hash; end if;
   v_actual_hash := encode(sha256(convert_to(replace(v_embedded_mapping, E'\r', ''), 'UTF8')), 'hex');
-  if v_actual_hash is distinct from v_expected_mapping_hash then raise exception 'REHEARSAL_REFUSED: mapping migration hash mismatch (expected %, got %)', v_expected_mapping_hash, v_actual_hash; end if;
+  if v_actual_hash is distinct from '641a90a7b3f540e6853d2ad768184dc22eb8772bd3b7a296b15f109f350a9317' then raise exception 'REHEARSAL_REFUSED: mapping migration hash mismatch (got %)', v_actual_hash; end if;
   v_actual_hash := encode(sha256(convert_to(replace(v_embedded_mapping_test, E'\r', ''), 'UTF8')), 'hex');
-  if v_actual_hash is distinct from v_expected_mapping_test_hash then raise exception 'REHEARSAL_REFUSED: mapping test hash mismatch (expected %, got %)', v_expected_mapping_test_hash, v_actual_hash; end if;
+  if v_actual_hash is distinct from '34d86d828c07d468fc9a9aad4f9bc84e946fa692bfd7762fd13739a2bb3624b6' then raise exception 'REHEARSAL_REFUSED: mapping test hash mismatch (got %)', v_actual_hash; end if;
 
-  -- NOTE: this fingerprint deliberately EXCLUDES whatsapp_event_templates rows for
-  -- event_key = 'customer_link_otp' -- the mapping migration (20261121100200) creating that row
-  -- for every real org is its own INTENDED effect (the thing this migration exists to do), not an
-  -- unintended mutation to catch. It is checked separately, explicitly, below (P2/P3) instead of
-  -- being folded into a fingerprint that would always "fail" on the migration's own correct work.
   select md5(string_agg(x, ',' order by x)) into v_fp_before from (
     select 'outbox:' || o.id::text || ':' || o.status || ':' || coalesce(o.payload::text,'') || ':' || coalesce(o.template_params::text,'') as x
     from public.whatsapp_outbox o where o.template not like '\_\_TEST\_%' escape '\'
     union all
     select 'tmpl:' || t.id::text || ':' || t.event_key || ':' || t.wasi_template_name from public.whatsapp_event_templates t
     where t.wasi_template_name not like '\_\_TEST\_%' escape '\' and t.event_key <> 'customer_link_otp'
+    union all
+    select 'cust_link:' || c.id::text || ':' || coalesce(c.primary_profile_id::text,'') || ':' || coalesce(c.auto_link_blocked_at::text,'')
+    from public.customers c where c.name not like '\_\_TEST\_%' escape '\'
   ) r;
 
-  -- 4. RUN, in order: prereq -> hardening -> hardening test -> mapping -> mapping test.
+  -- RUN, in order: prereq -> hardening -> hardening test -> guard -> guard test -> mapping -> mapping test.
   execute replace(v_embedded_prereq, E'\r', '');
   execute replace(v_embedded_hardening, E'\r', '');
   begin
     execute replace(v_embedded_hardening_test, E'\r', '');
   exception when others then
     v_hardening_test_result := sqlerrm;
+  end;
+  execute replace(v_embedded_guard, E'\r', '');
+  begin
+    execute replace(v_embedded_guard_test, E'\r', '');
+  exception when others then
+    v_guard_test_result := sqlerrm;
   end;
   execute replace(v_embedded_mapping, E'\r', '');
   begin
@@ -878,32 +1472,21 @@ begin
     union all
     select 'tmpl:' || t.id::text || ':' || t.event_key || ':' || t.wasi_template_name from public.whatsapp_event_templates t
     where t.wasi_template_name not like '\_\_TEST\_%' escape '\' and t.event_key <> 'customer_link_otp'
+    union all
+    select 'cust_link:' || c.id::text || ':' || coalesce(c.primary_profile_id::text,'') || ':' || coalesce(c.auto_link_blocked_at::text,'')
+    from public.customers c where c.name not like '\_\_TEST\_%' escape '\'
   ) r;
 
-  -- Explicit, separate check of the mapping migration's OWN intended effect: a real org's
-  -- customer_link_otp -> lexdraft_otp row now exists with the right shape.
-  declare
-    v_real_mapping_ok boolean;
-  begin
-    select exists (
-      select 1 from public.whatsapp_event_templates t
-      join public.organizations o on o.id = t.org_id
-      where t.event_key = 'customer_link_otp' and t.wasi_template_name = 'lexdraft_otp'
-        and t.has_auth_copy_code_button = true and t.param_map = '{"1": "code"}'::jsonb
-        and o.name not like '\_\_TEST%' escape '\'
-    ) into v_real_mapping_ok;
-
-    res := 'ok   ORG CHECK passed, GATE passed: IST hour=' || v_ist_hour || ', all five embedded-text sha256 hashes verified'
-      || E'\nINFO real-row fingerprint BEFORE (outbox + non-customer_link_otp templates) = ' || v_fp_before
-      || E'\nok   prereq + hardening + mapping applied inside this still-open transaction'
-      || E'\n--- hardening test output ---' || E'\n' || coalesce(v_hardening_test_result, '(test raised no exception -- unexpected)') || E'\n--- end hardening test output ---'
-      || E'\n--- mapping test output ---' || E'\n' || coalesce(v_mapping_test_result, '(test raised no exception -- unexpected)') || E'\n--- end mapping test output ---'
-      || E'\nINFO real-row fingerprint AFTER  = ' || v_fp_after
-      || E'\n' || case when v_fp_after is distinct from v_fp_before
-           then 'FAIL real whatsapp_outbox/other-template rows CHANGED -- this rehearsal mutated unrelated real data'
-           else 'ok   real whatsapp_outbox rows and every OTHER template mapping unchanged -- this rehearsal mutated no unrelated real data' end
-      || E'\n' || case when v_real_mapping_ok then 'ok   the mapping migration''s own intended effect (a real org''s customer_link_otp -> lexdraft_otp row) is correctly shaped' else 'FAIL the mapping migration''s own intended effect is missing or wrong' end;
-  end;
+  res := 'ok   ORG CHECK passed, GATE passed: IST hour=' || v_ist_hour || ', all seven embedded-text sha256 hashes verified'
+    || E'\nINFO real-row fingerprint BEFORE = ' || v_fp_before
+    || E'\nok   prereq + hardening + guard + mapping applied inside this still-open transaction'
+    || E'\n--- hardening test output ---' || E'\n' || coalesce(v_hardening_test_result, '(test raised no exception -- unexpected)') || E'\n--- end hardening test output ---'
+    || E'\n--- guard test output ---' || E'\n' || coalesce(v_guard_test_result, '(test raised no exception -- unexpected)') || E'\n--- end guard test output ---'
+    || E'\n--- mapping test output ---' || E'\n' || coalesce(v_mapping_test_result, '(test raised no exception -- unexpected)') || E'\n--- end mapping test output ---'
+    || E'\nINFO real-row fingerprint AFTER  = ' || v_fp_after
+    || E'\n' || case when v_fp_after is distinct from v_fp_before
+         then 'FAIL real whatsapp_outbox/other-template/real-customer link rows CHANGED -- this rehearsal mutated unrelated real data'
+         else 'ok   real whatsapp_outbox rows, every OTHER template mapping, and every REAL customer''s own link/block state unchanged -- this rehearsal mutated no unrelated real data' end;
 
   raise exception E'RESULTS:\n%', res;
 end
