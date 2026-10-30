@@ -611,6 +611,11 @@ export type Database = {
           // from silently re-linking a customer a master deliberately unlinked.
           auto_link_blocked_at: string | null
           auto_link_blocked_by: string | null
+          // Set by admin_merge_auto_customer (20261130100003) when an empty auto-created
+          // customer's link is moved onto an existing one. Excluded from the default customer
+          // list/search; the row and its audit_log trail are kept, never hard-deleted.
+          archived_at: string | null
+          archived_by: string | null
           // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
           // is NOT here — it lives in its own table, customer_health_profile, below.
           water_source: Database["public"]["Enums"]["water_source_type"] | null
@@ -638,6 +643,8 @@ export type Database = {
           needs_review_reason?: string | null
           auto_link_blocked_at?: string | null
           auto_link_blocked_by?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           water_source?: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other?: string | null
           water_tds_ppm?: number | null
@@ -663,6 +670,8 @@ export type Database = {
           needs_review_reason?: string | null
           auto_link_blocked_at?: string | null
           auto_link_blocked_by?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           water_source?: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other?: string | null
           water_tds_ppm?: number | null
@@ -7567,6 +7576,14 @@ export type Database = {
       customer_auto_onboard: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Tables"]["customers"]["Row"]
+      }
+      admin_merge_auto_customer: {
+        Args: {
+          p_from_customer_id: string
+          p_to_customer_id: string
+          p_reason: string
+        }
+        Returns: undefined
       }
       admin_unlink_customer_google_account: {
         Args: {

@@ -40,6 +40,7 @@ function toCsv(
     return [
       r.name,
       r.mobile ?? "",
+      r.email ?? "",
       r.profession ?? "",
       primary?.area ?? "",
       primary?.pincode ?? "",
@@ -150,6 +151,7 @@ export function CustomersListPage() {
       const header = [
         t("customers.export.name"),
         t("customers.export.mobile"),
+        t("customers.export.email"),
         t("customers.export.profession"),
         t("customers.export.area"),
         t("customers.export.pincode"),
@@ -238,6 +240,11 @@ export function CustomersListPage() {
           </div>
         )
       },
+    },
+    {
+      key: "email",
+      header: t("customers.table.email"),
+      render: (c) => c.email ?? "—",
     },
     {
       key: "products",

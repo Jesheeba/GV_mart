@@ -34,6 +34,7 @@ import { canEditWaterHousehold } from "@/lib/validation/customer"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import { GoogleAccountLinkPanel } from "./GoogleAccountLinkPanel"
+import { MergeAutoCustomerPanel } from "./MergeAutoCustomerPanel"
 import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
@@ -665,6 +666,9 @@ export function CustomerDetailPage() {
           <TabsContent value="googleLink" className="mt-3.5">
             <Card size="default">
               <GoogleAccountLinkPanel customerId={customer.id} linked={customer.primary_profile_id != null} />
+              {customer.source === "customer_app" ? (
+                <MergeAutoCustomerPanel orgId={orgId} customerId={customer.id} customerName={customer.name} />
+              ) : null}
             </Card>
           </TabsContent>
         ) : null}

@@ -55,6 +55,14 @@ declare
   v_n int;
   rc_before bigint; pc_before bigint; ac_before bigint;
   rc_after bigint; pc_after bigint; ac_after bigint;
+  -- customer_auto_onboard() always onboards into "the one real organisation" -- it has no org
+  -- parameter to take a target org from. Scenario 12 (merge tool) needs a master who can act on
+  -- an auto-created customer, which only works if that master's own org IS that same real org --
+  -- a master in the throwaway __TEST_ org above would correctly, by design, get
+  -- from_customer_not_found (current_org_id() wouldn't match). v_real_org / v_real_master exist
+  -- only for that one scenario; everything else in this file uses v_org/v_master as before.
+  v_real_org uuid;
+  v_real_master uuid;
 begin
   select count(*) into rc_before from public.customers where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
   select count(*) into pc_before from public.profiles where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
@@ -243,6 +251,82 @@ begin
       (select auto_link_blocked_at from public.customers where id = c_block2) is null
       and (select auto_link_blocked_by from public.customers where id = c_block2) is null);
     perform pg_temp.chk('master relink re-sets primary_profile_id', (select primary_profile_id from public.customers where id = c_block2) = g_block2);
+  end;
+
+  -- ===== 12. merge tool: moving an empty auto-created customer's sign-in onto an existing one =====
+  -- Needs a master whose own org IS "the one real organisation" customer_auto_onboard always
+  -- onboards into -- see v_real_org/v_real_master's own declaration comment above.
+  select o.id into v_real_org
+    from public.organizations o
+   where o.name not like '\_\_TEST\_%' escape '\'
+   order by o.created_at asc
+   limit 1;
+  v_real_master := pg_temp.mkuser('master', v_real_org);
+
+  declare
+    c_merge_target uuid; c_merge_source uuid; c_already_linked uuid; g_merge_source uuid; g_already_linked_elsewhere uuid;
+    v_block_result public.customers;
+  begin
+    insert into public.customers (org_id, name, mobile) values (v_real_org, '__TEST_ merge target', '9500000108') returning id into c_merge_target;
+    insert into public.customers (org_id, name, mobile) values (v_real_org, '__TEST_ merge already linked', '9500000109') returning id into c_already_linked;
+    g_already_linked_elsewhere := pg_temp.mkuser('customer', v_real_org);
+    update public.customers set primary_profile_id = g_already_linked_elsewhere where id = c_already_linked;
+
+    g_merge_source := pg_temp.mkgoogle('onboard.mergesrc.test@gmail.com', true, 'Merge Source');
+    perform pg_temp.as_user(g_merge_source);
+    v_block_result := public.customer_auto_onboard();
+    perform pg_temp.as_pg();
+    c_merge_source := v_block_result.id;
+    perform pg_temp.chk('merge setup: auto-create succeeded', v_block_result.source = 'customer_app' and v_block_result.primary_profile_id = g_merge_source);
+
+    -- refusals, each on its own clean attempt
+    perform pg_temp.as_user(v_real_master);
+    begin
+      perform public.admin_merge_auto_customer(c_merge_source, c_merge_source, 'same customer');
+      perform pg_temp.chk('merge: same customer refused', false);
+    exception when others then
+      perform pg_temp.chk('merge: same customer refused', sqlerrm like '%same_customer%', sqlerrm);
+    end;
+    begin
+      perform public.admin_merge_auto_customer(c_merge_target, c_merge_source, 'not auto-created');
+      perform pg_temp.chk('merge: non-auto-created FROM refused', false);
+    exception when others then
+      perform pg_temp.chk('merge: non-auto-created FROM refused', sqlerrm like '%from_customer_not_auto_created%', sqlerrm);
+    end;
+    begin
+      perform public.admin_merge_auto_customer(c_merge_source, c_already_linked, 'target already linked');
+      perform pg_temp.chk('merge: already-linked TO refused', false);
+    exception when others then
+      perform pg_temp.chk('merge: already-linked TO refused', sqlerrm like '%to_customer_already_linked%', sqlerrm);
+    end;
+    perform pg_temp.as_pg();
+
+    -- a second auto-created customer WITH a record on it must refuse
+    declare
+      g_merge_has_records uuid; c_merge_has_records uuid; v_has_records_result public.customers;
+    begin
+      g_merge_has_records := pg_temp.mkgoogle('onboard.mergehasrecords.test@gmail.com');
+      perform pg_temp.as_user(g_merge_has_records);
+      v_has_records_result := public.customer_auto_onboard();
+      perform pg_temp.as_pg();
+      c_merge_has_records := v_has_records_result.id;
+      insert into public.quotations (org_id, customer_id) values (v_real_org, c_merge_has_records);
+      perform pg_temp.as_user(v_real_master);
+      begin
+        perform public.admin_merge_auto_customer(c_merge_has_records, c_merge_target, 'has a quotation');
+        perform pg_temp.chk('merge: FROM with a record refused', false);
+      exception when others then
+        perform pg_temp.chk('merge: FROM with a record refused', sqlerrm like '%from_customer_has_records%', sqlerrm);
+      end;
+    end;
+
+    -- the real merge
+    perform public.admin_merge_auto_customer(c_merge_source, c_merge_target, 'returning customer, found the real record');
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('merge: target now linked to the auth user', (select primary_profile_id from public.customers where id = c_merge_target) = g_merge_source);
+    perform pg_temp.chk('merge: source archived', (select archived_at from public.customers where id = c_merge_source) is not null);
+    perform pg_temp.chk('merge: source unlinked', (select primary_profile_id from public.customers where id = c_merge_source) is null);
+    perform pg_temp.chk('merge: target backfilled the source''s email (target had none)', (select email from public.customers where id = c_merge_target) = 'onboard.mergesrc.test@gmail.com');
   end;
 
   -- ===== real-data safety net (redundant with the wrapper-level fingerprint, belt and braces) =====

@@ -1,40 +1,42 @@
--- CHAINED rehearsal wrapper for customer_auto_onboard: 20261130100000_customer_auto_onboard_schema.sql,
--- THEN 20261130100001_customer_auto_onboard_rpc.sql, THEN
--- 20261130100002_unlink_blocks_auto_relink.sql, plus the test file
--- (supabase/tests/customer_auto_onboard.test.sql), run in the true apply order, all inside ONE
--- DO block with no top-level BEGIN/COMMIT/SAVEPOINT/ROLLBACK, ending in an unconditional RAISE so
--- nothing here ever persists -- every DDL change and every __TEST_ row from the test run is
--- rolled back by that final raise.
+-- CHAINED rehearsal wrapper for the full customer_auto_onboard migration chain:
+-- 20261130100000_customer_auto_onboard_schema.sql, 20261130100001_customer_auto_onboard_rpc.sql,
+-- 20261130100002_unlink_blocks_auto_relink.sql, 20261130100003_merge_auto_customer.sql, THEN the
+-- test file (supabase/tests/customer_auto_onboard.test.sql), THEN the rollback script
+-- (supabase/rollbacks/20261130100000_customer_auto_onboard.rollback.sql) with its own
+-- post-rollback verification -- all inside ONE DO block with no top-level BEGIN/COMMIT/
+-- SAVEPOINT/ROLLBACK, ending in an unconditional RAISE so nothing here ever persists.
 --
 -- Refuses before 11:00 IST. Refuses unless the real (non-__TEST_) organisation fingerprint pins
--- to 6f891cf85011f08c2f22fb4a208d21bd. Recomputes sha256 of all four embedded files (encode(sha256
--- (convert_to(text,'UTF8')),'hex') -- explicit UTF8 bytes) and compares against the pinned
--- hashes below, which must match the committed .sql files exactly (LF line endings, no BOM --
--- confirmed on disk before this wrapper was written, same as every other wrapper in this
--- project). Takes a real-org fingerprint of every table these migrations can write to
--- (customers, profiles, audit_log) before and after -- both a plain row count AND a content
--- checksum -- so a same-count-but-mutated-row case is caught too.
+-- to 6f891cf85011f08c2f22fb4a208d21bd. Recomputes sha256 of all six embedded files and compares
+-- against the pinned hashes below, which must match the committed .sql files exactly (LF line
+-- endings, no BOM). Takes a real-org fingerprint of customers/profiles/audit_log before and
+-- after -- both a plain row count AND a content checksum.
 --
--- 20261130100002 DOES redefine two already-live functions (admin_link_customer_google_account /
--- admin_unlink_customer_google_account, from 20261121100000, already applied to main) -- unlike
--- the other two migrations here, which only add brand-new objects. No md5-live-definition
--- pre-check is included for those two redefinitions in this wrapper (that mechanism exists in
--- the apply script's own pre/post checks instead, per this project's template); this wrapper's
--- job is to prove the SQL executes correctly and the test matrix passes, not to diff against the
--- live body (the apply script does that part).
+-- 20261130100002 and the rollback script both redefine the two already-live functions
+-- admin_link_customer_google_account / admin_unlink_customer_google_account (20261121100000,
+-- already applied to main). This wrapper's job is to prove the SQL executes correctly, the test
+-- matrix passes, AND the rollback genuinely restores the pre-migration shape (checked below,
+-- after the rollback runs) -- not to diff against the live body (the apply script's own
+-- pre/post checks do that part separately).
 do $rehearsal$
 declare
   v_now_ist time;
   v_schema_sha256 text := '58487f324dcd17b5d5ac6f5db81b8be5737b18fab2f3bc40fbc2d4c28c750c28';
   v_rpc_sha256 text := '46c63f7ba8a24ebbe90cea4f0216d9ea2a7219e442657fa255bf6c8345c28f81';
   v_unlink_sha256 text := '855f458797428e5b442d1a5b1ba511d96ae13b539d7ad75eea18421fd4d960cf';
-  v_test_sha256 text := '475c5a6f5d4e76a852fd6d991d4343c48a202c040683cfd8d7d3a7d62f261289';
+  v_merge_sha256 text := '62b21eb1bc1834da1bfa3ba94e8af2bbf0d71cb4e569162120fcb9fe92a0a6e7';
+  v_test_sha256 text := 'b754036549f540167d9221d00f2131b757d69487bfb9988d2da0fbce182d390e';
+  v_rollback_sha256 text := 'a3c759b50c209ace74cc8aaf4e6cbdf3edfca4282a5f9b54b9aa429f16b8c078';
   v_schema_text text;
   v_rpc_text text;
   v_unlink_text text;
+  v_merge_text text;
   v_test_text text;
+  v_rollback_text text;
   v_org_fp text;
-  v_result text;
+  v_test_result text;
+  v_rollback_ok boolean := false;
+  v_rollback_error text;
   v_cust_count_before bigint; v_cust_md5_before text;
   v_cust_count_after bigint; v_cust_md5_after text;
   v_prof_count_before bigint; v_prof_md5_before text;
@@ -61,7 +63,7 @@ begin
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
   end if;
 
-  -- ── 3. embedded text: schema, rpc, unlink-block migrations, test ───────────────────────
+  -- ── 3. embedded text: schema, rpc, unlink-block, merge migrations, test, rollback ──────
   v_schema_text := $SCHEMA_BODY$-- Schema for auto-onboarding a customer on first Google sign-in. Additive only, plus one
 -- necessary relaxation (customers.mobile NOT NULL -> nullable, see below).
 --
@@ -501,6 +503,139 @@ revoke all on function public.admin_unlink_customer_google_account(uuid, text) f
 grant execute on function public.admin_unlink_customer_google_account(uuid, text) to authenticated;
 $UNLINK_BODY$;
 
+  v_merge_text := $MERGE_BODY$-- Master-only merge tool: attaches an auto-created ('app') or needs_review customer's Google
+-- sign-in to an existing, already-known customer record -- the counterpart to
+-- admin_link_customer_google_account for the one case that tool refuses: the auth user already
+-- has a profile (every auto-created customer does, by design -- customer_auto_onboard always
+-- links the new sign-in to whatever it creates). This is the correct tool for "a returning
+-- customer signed in with Google before staff had a chance to find their existing record" --
+-- not a general-purpose customer-merge (it refuses outright unless the auto-created side is
+-- completely empty, see below), and never auto-applied -- a master always chooses the target.
+--
+-- customers.archived_at / archived_by: NEW. The emptied auto-created record is archived, not
+-- hard-deleted -- its audit_log history (auto_create, and now this merge) stays attached to a
+-- real row, same reasoning admin_unlink_customer_google_account's own header gives for deleting
+-- profiles but never customers. Archived customers are excluded from the admin customer list and
+-- search by default (frontend, same migration's sibling PR) but the row itself, and its
+-- audit_log trail, is never removed.
+alter table public.customers add column archived_at timestamptz;
+alter table public.customers add column archived_by uuid references public.profiles (id) on delete set null;
+
+-- Reuses customer_delete_impact's exact counts (20261005140000_delete_customer.sql) for the
+-- "completely empty" check -- tickets (visits), amc_contracts/warranties/rental_contracts
+-- (lifecycle), quotations and invoices (orders/payments). Deliberately does NOT check
+-- addresses/customer_members -- those aren't lifecycle data and the spec doesn't ask for it; an
+-- auto-created customer who has typed in their own address before a master gets to it should
+-- still be mergeable (the address itself doesn't move -- it stays with the archived record,
+-- same as any other data on a customer that already has invoices would with an outright delete).
+create or replace function public.admin_merge_auto_customer(p_from_customer_id uuid, p_to_customer_id uuid, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_from public.customers;
+  v_to public.customers;
+  v_auth_id uuid;
+  v_tickets int; v_amc int; v_warranties int; v_rentals int; v_quotations int; v_invoices int;
+begin
+  if auth.uid() is null then
+    raise exception 'admin_merge_auto_customer: no authenticated user';
+  end if;
+  if not public.is_master() then
+    raise exception 'admin_merge_auto_customer: master role required';
+  end if;
+  if p_reason is null or trim(p_reason) = '' then
+    raise exception 'reason_required';
+  end if;
+  if p_from_customer_id = p_to_customer_id then
+    raise exception 'same_customer';
+  end if;
+
+  -- Lock in a fixed order (by id) regardless of which argument is which, so two concurrent
+  -- merges touching the same pair of rows in opposite order can never deadlock.
+  if p_from_customer_id < p_to_customer_id then
+    select * into v_from from public.customers where id = p_from_customer_id for update;
+    select * into v_to from public.customers where id = p_to_customer_id for update;
+  else
+    select * into v_to from public.customers where id = p_to_customer_id for update;
+    select * into v_from from public.customers where id = p_from_customer_id for update;
+  end if;
+
+  if v_from.id is null or v_from.org_id is distinct from public.current_org_id() then
+    raise exception 'from_customer_not_found';
+  end if;
+  if v_to.id is null or v_to.org_id is distinct from public.current_org_id() then
+    raise exception 'to_customer_not_found';
+  end if;
+
+  if v_from.source is distinct from 'customer_app' then
+    raise exception 'from_customer_not_auto_created';
+  end if;
+  if v_from.archived_at is not null then
+    raise exception 'from_customer_already_archived';
+  end if;
+  if v_from.primary_profile_id is null then
+    raise exception 'from_customer_not_linked';
+  end if;
+
+  if v_to.is_test then
+    raise exception 'to_customer_is_test';
+  end if;
+  if v_to.archived_at is not null then
+    raise exception 'to_customer_archived';
+  end if;
+  if v_to.primary_profile_id is not null then
+    raise exception 'to_customer_already_linked';
+  end if;
+
+  select count(*) into v_tickets from public.service_tickets where customer_id = v_from.id;
+  select count(*) into v_amc from public.amc_contracts where customer_id = v_from.id;
+  select count(*) into v_warranties from public.warranties where customer_id = v_from.id;
+  select count(*) into v_rentals from public.rental_contracts where customer_id = v_from.id;
+  select count(*) into v_quotations from public.quotations where customer_id = v_from.id;
+  select count(*) into v_invoices from public.invoices where customer_id = v_from.id;
+  if v_tickets > 0 or v_amc > 0 or v_warranties > 0 or v_rentals > 0 or v_quotations > 0 or v_invoices > 0 then
+    raise exception 'from_customer_has_records';
+  end if;
+
+  v_auth_id := v_from.primary_profile_id;
+
+  -- Move the link: FROM must be cleared FIRST -- customers.primary_profile_id is UNIQUE, so
+  -- setting TO's primary_profile_id while FROM still holds the same value would violate that
+  -- constraint (caught by this migration's own rehearsal, not by inspection: two rows briefly
+  -- sharing one primary_profile_id value, even within a single transaction, is checked
+  -- immediately since the constraint isn't DEFERRABLE).
+  update public.customers set primary_profile_id = null, archived_at = now(), archived_by = auth.uid() where id = v_from.id;
+  update public.customers set primary_profile_id = v_auth_id, email = coalesce(v_to.email, v_from.email) where id = v_to.id;
+
+  -- The profile's own display fields were set from the auto-created (FROM) customer at
+  -- creation time -- now that it represents TO, bring them into line, same effect
+  -- admin_link_customer_google_account's own link path already has for a fresh link.
+  update public.profiles
+    set org_id = v_to.org_id, full_name = coalesce(nullif(v_to.name, ''), 'Customer'), phone = v_to.mobile, language = coalesce(v_to.preferred_language, 'en')
+    where id = v_auth_id;
+
+  insert into public.audit_log (org_id, actor_id, action, table_name, row_id, before, after)
+  values (
+    v_to.org_id, auth.uid(), 'admin_merge_auto_customer', 'customers', v_to.id,
+    jsonb_build_object('primary_profile_id', null),
+    jsonb_build_object('primary_profile_id', v_auth_id, 'merged_from_customer_id', v_from.id, 'reason', p_reason)
+  );
+  insert into public.audit_log (org_id, actor_id, action, table_name, row_id, before, after)
+  values (
+    v_from.org_id, auth.uid(), 'admin_merge_auto_customer_archived', 'customers', v_from.id,
+    jsonb_build_object('primary_profile_id', v_auth_id, 'archived_at', null),
+    jsonb_build_object('primary_profile_id', null, 'archived_at', now(), 'merged_into_customer_id', v_to.id, 'reason', p_reason)
+  );
+end;
+$$;
+
+revoke all on function public.admin_merge_auto_customer(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.admin_merge_auto_customer(uuid, uuid, text) to authenticated;
+$MERGE_BODY$;
+
   v_test_text := $TEST_BODY$-- Rolled-back DB tests for 20261130100000_customer_auto_onboard_schema.sql +
 -- 20261130100001_customer_auto_onboard_rpc.sql. Run through the Management API (database/
 -- query); always ends in a RAISE so nothing persists. Read RESULTS in the error. Creates its own
@@ -558,6 +693,14 @@ declare
   v_n int;
   rc_before bigint; pc_before bigint; ac_before bigint;
   rc_after bigint; pc_after bigint; ac_after bigint;
+  -- customer_auto_onboard() always onboards into "the one real organisation" -- it has no org
+  -- parameter to take a target org from. Scenario 12 (merge tool) needs a master who can act on
+  -- an auto-created customer, which only works if that master's own org IS that same real org --
+  -- a master in the throwaway __TEST_ org above would correctly, by design, get
+  -- from_customer_not_found (current_org_id() wouldn't match). v_real_org / v_real_master exist
+  -- only for that one scenario; everything else in this file uses v_org/v_master as before.
+  v_real_org uuid;
+  v_real_master uuid;
 begin
   select count(*) into rc_before from public.customers where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
   select count(*) into pc_before from public.profiles where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
@@ -748,6 +891,82 @@ begin
     perform pg_temp.chk('master relink re-sets primary_profile_id', (select primary_profile_id from public.customers where id = c_block2) = g_block2);
   end;
 
+  -- ===== 12. merge tool: moving an empty auto-created customer's sign-in onto an existing one =====
+  -- Needs a master whose own org IS "the one real organisation" customer_auto_onboard always
+  -- onboards into -- see v_real_org/v_real_master's own declaration comment above.
+  select o.id into v_real_org
+    from public.organizations o
+   where o.name not like '\_\_TEST\_%' escape '\'
+   order by o.created_at asc
+   limit 1;
+  v_real_master := pg_temp.mkuser('master', v_real_org);
+
+  declare
+    c_merge_target uuid; c_merge_source uuid; c_already_linked uuid; g_merge_source uuid; g_already_linked_elsewhere uuid;
+    v_block_result public.customers;
+  begin
+    insert into public.customers (org_id, name, mobile) values (v_real_org, '__TEST_ merge target', '9500000108') returning id into c_merge_target;
+    insert into public.customers (org_id, name, mobile) values (v_real_org, '__TEST_ merge already linked', '9500000109') returning id into c_already_linked;
+    g_already_linked_elsewhere := pg_temp.mkuser('customer', v_real_org);
+    update public.customers set primary_profile_id = g_already_linked_elsewhere where id = c_already_linked;
+
+    g_merge_source := pg_temp.mkgoogle('onboard.mergesrc.test@gmail.com', true, 'Merge Source');
+    perform pg_temp.as_user(g_merge_source);
+    v_block_result := public.customer_auto_onboard();
+    perform pg_temp.as_pg();
+    c_merge_source := v_block_result.id;
+    perform pg_temp.chk('merge setup: auto-create succeeded', v_block_result.source = 'customer_app' and v_block_result.primary_profile_id = g_merge_source);
+
+    -- refusals, each on its own clean attempt
+    perform pg_temp.as_user(v_real_master);
+    begin
+      perform public.admin_merge_auto_customer(c_merge_source, c_merge_source, 'same customer');
+      perform pg_temp.chk('merge: same customer refused', false);
+    exception when others then
+      perform pg_temp.chk('merge: same customer refused', sqlerrm like '%same_customer%', sqlerrm);
+    end;
+    begin
+      perform public.admin_merge_auto_customer(c_merge_target, c_merge_source, 'not auto-created');
+      perform pg_temp.chk('merge: non-auto-created FROM refused', false);
+    exception when others then
+      perform pg_temp.chk('merge: non-auto-created FROM refused', sqlerrm like '%from_customer_not_auto_created%', sqlerrm);
+    end;
+    begin
+      perform public.admin_merge_auto_customer(c_merge_source, c_already_linked, 'target already linked');
+      perform pg_temp.chk('merge: already-linked TO refused', false);
+    exception when others then
+      perform pg_temp.chk('merge: already-linked TO refused', sqlerrm like '%to_customer_already_linked%', sqlerrm);
+    end;
+    perform pg_temp.as_pg();
+
+    -- a second auto-created customer WITH a record on it must refuse
+    declare
+      g_merge_has_records uuid; c_merge_has_records uuid; v_has_records_result public.customers;
+    begin
+      g_merge_has_records := pg_temp.mkgoogle('onboard.mergehasrecords.test@gmail.com');
+      perform pg_temp.as_user(g_merge_has_records);
+      v_has_records_result := public.customer_auto_onboard();
+      perform pg_temp.as_pg();
+      c_merge_has_records := v_has_records_result.id;
+      insert into public.quotations (org_id, customer_id) values (v_real_org, c_merge_has_records);
+      perform pg_temp.as_user(v_real_master);
+      begin
+        perform public.admin_merge_auto_customer(c_merge_has_records, c_merge_target, 'has a quotation');
+        perform pg_temp.chk('merge: FROM with a record refused', false);
+      exception when others then
+        perform pg_temp.chk('merge: FROM with a record refused', sqlerrm like '%from_customer_has_records%', sqlerrm);
+      end;
+    end;
+
+    -- the real merge
+    perform public.admin_merge_auto_customer(c_merge_source, c_merge_target, 'returning customer, found the real record');
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('merge: target now linked to the auth user', (select primary_profile_id from public.customers where id = c_merge_target) = g_merge_source);
+    perform pg_temp.chk('merge: source archived', (select archived_at from public.customers where id = c_merge_source) is not null);
+    perform pg_temp.chk('merge: source unlinked', (select primary_profile_id from public.customers where id = c_merge_source) is null);
+    perform pg_temp.chk('merge: target backfilled the source''s email (target had none)', (select email from public.customers where id = c_merge_target) = 'onboard.mergesrc.test@gmail.com');
+  end;
+
   -- ===== real-data safety net (redundant with the wrapper-level fingerprint, belt and braces) =====
   select count(*) into rc_after from public.customers where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
   select count(*) into pc_after from public.profiles where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
@@ -760,6 +979,179 @@ begin
 end $t$;
 $TEST_BODY$;
 
+  v_rollback_text := $ROLLBACK_BODY$-- Rollback for the full customer_auto_onboard migration chain:
+--   20261130100000_customer_auto_onboard_schema.sql
+--   20261130100001_customer_auto_onboard_rpc.sql
+--   20261130100002_unlink_blocks_auto_relink.sql
+--   20261130100003_merge_auto_customer.sql
+-- Run in this order (reverse of apply) -- tested together, in this exact order, inside the
+-- rolled-back rehearsal wrapper (20261130100000_customer_auto_onboard.rehearsal.sql), which
+-- applies all 4 migrations, runs the test matrix, THEN runs this rollback, THEN verifies the
+-- pre-migration state is restored -- all before its own final RAISE undoes everything.
+
+-- 1. Drop the merge tool first (newest, nothing else depends on it).
+drop function if exists public.admin_merge_auto_customer(uuid, uuid, text);
+
+-- 2. Restore admin_link_customer_google_account / admin_unlink_customer_google_account to their
+--    ORIGINAL 20261121100000 bodies (byte-for-byte, reproduced here) -- undoes 20261130100002's
+--    one-line change to each (the auto_link_blocked_at/by set/clear). Both functions are
+--    already live independent of this branch, so this restores them rather than dropping them.
+create or replace function public.admin_link_customer_google_account(p_customer_id uuid, p_google_email text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_email text := lower(trim(p_google_email));
+  v_customer record;
+  v_auth_id uuid;
+  v_match_count int;
+begin
+  if auth.uid() is null then
+    raise exception 'admin_link_customer_google_account: no authenticated user';
+  end if;
+  if not public.is_master() then
+    raise exception 'admin_link_customer_google_account: master role required';
+  end if;
+  if v_email = '' or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'invalid_email';
+  end if;
+
+  select id, org_id, name, mobile, preferred_language, primary_profile_id, is_test
+    into v_customer
+    from public.customers
+   where id = p_customer_id
+     for update;
+
+  if v_customer.id is null or v_customer.org_id is distinct from public.current_org_id() then
+    raise exception 'customer_not_found';
+  end if;
+  if v_customer.is_test then
+    raise exception 'test_customer';
+  end if;
+  if v_customer.primary_profile_id is not null then
+    raise exception 'already_linked';
+  end if;
+
+  select count(*) into v_match_count
+    from auth.identities i
+   where i.provider = 'google'
+     and lower(trim(i.identity_data->>'email')) = v_email;
+
+  if v_match_count = 0 then
+    raise exception 'no_matching_signin';
+  end if;
+  if v_match_count > 1 then
+    raise exception 'ambiguous_signin';
+  end if;
+
+  select i.user_id into v_auth_id
+    from auth.identities i
+   where i.provider = 'google'
+     and lower(trim(i.identity_data->>'email')) = v_email;
+
+  if exists (select 1 from public.profiles where id = v_auth_id) then
+    raise exception 'signin_already_linked';
+  end if;
+
+  begin
+    insert into public.profiles (id, org_id, full_name, phone, role, language)
+    values (v_auth_id, v_customer.org_id, coalesce(nullif(v_customer.name, ''), 'Customer'), v_customer.mobile, 'customer', coalesce(v_customer.preferred_language, 'en'));
+  exception when unique_violation then
+    raise exception 'signin_already_linked';
+  end;
+
+  update public.customers set primary_profile_id = v_auth_id where id = v_customer.id;
+
+  insert into public.audit_log (org_id, actor_id, action, table_name, row_id, before, after)
+  values (
+    v_customer.org_id, auth.uid(), 'admin_link_google_account', 'customers', v_customer.id,
+    jsonb_build_object('primary_profile_id', null),
+    jsonb_build_object('primary_profile_id', v_auth_id, 'google_email', v_email)
+  );
+end;
+$$;
+
+revoke all on function public.admin_link_customer_google_account(uuid, text) from public, anon, authenticated;
+grant execute on function public.admin_link_customer_google_account(uuid, text) to authenticated;
+
+create or replace function public.admin_unlink_customer_google_account(p_customer_id uuid, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_customer record;
+  v_profile_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'admin_unlink_customer_google_account: no authenticated user';
+  end if;
+  if not public.is_master() then
+    raise exception 'admin_unlink_customer_google_account: master role required';
+  end if;
+  if p_reason is null or trim(p_reason) = '' then
+    raise exception 'reason_required';
+  end if;
+
+  select id, org_id, primary_profile_id
+    into v_customer
+    from public.customers
+   where id = p_customer_id
+     for update;
+
+  if v_customer.id is null or v_customer.org_id is distinct from public.current_org_id() then
+    raise exception 'customer_not_found';
+  end if;
+  if v_customer.primary_profile_id is null then
+    raise exception 'not_linked';
+  end if;
+
+  v_profile_id := v_customer.primary_profile_id;
+
+  update public.customers set primary_profile_id = null where id = v_customer.id;
+
+  begin
+    delete from public.profiles where id = v_profile_id;
+  exception when foreign_key_violation then
+    raise exception 'unlink_blocked_has_records';
+  end;
+
+  insert into public.audit_log (org_id, actor_id, action, table_name, row_id, before, after)
+  values (
+    v_customer.org_id, auth.uid(), 'admin_unlink_google_account', 'customers', v_customer.id,
+    jsonb_build_object('primary_profile_id', v_profile_id),
+    jsonb_build_object('primary_profile_id', null, 'reason', p_reason)
+  );
+end;
+$$;
+
+revoke all on function public.admin_unlink_customer_google_account(uuid, text) from public, anon, authenticated;
+grant execute on function public.admin_unlink_customer_google_account(uuid, text) to authenticated;
+
+-- 3. Drop the auto-onboard RPC itself.
+drop function if exists public.customer_auto_onboard();
+
+-- 4. Drop every column this chain added. WARNING on the two NOT-NULL-affecting lines below --
+--    see the same warning in context: restoring mobile's NOT NULL fails loudly (not silently)
+--    if any row has gone NULL since this applied; check first:
+--      select count(*) from public.customers where mobile is null;
+--    If that's > 0, either backfill a value for those rows or leave mobile nullable.
+alter table public.customers drop constraint if exists customers_email_format;
+alter table public.customers drop column if exists email;
+alter table public.customers drop column if exists needs_review;
+alter table public.customers drop column if exists needs_review_reason;
+alter table public.customers drop column if exists auto_link_blocked_at;
+alter table public.customers drop column if exists auto_link_blocked_by;
+alter table public.customers drop column if exists archived_at;
+alter table public.customers drop column if exists archived_by;
+
+-- Only run this line after confirming (see WARNING above) that no row has mobile is null:
+-- alter table public.customers alter column mobile set not null;
+$ROLLBACK_BODY$;
+
   if encode(sha256(convert_to(v_schema_text, 'UTF8')), 'hex') <> v_schema_sha256 then
     raise exception 'schema migration hash mismatch: expected %, got %', v_schema_sha256, encode(sha256(convert_to(v_schema_text, 'UTF8')), 'hex');
   end if;
@@ -769,8 +1161,14 @@ $TEST_BODY$;
   if encode(sha256(convert_to(v_unlink_text, 'UTF8')), 'hex') <> v_unlink_sha256 then
     raise exception 'unlink-block migration hash mismatch: expected %, got %', v_unlink_sha256, encode(sha256(convert_to(v_unlink_text, 'UTF8')), 'hex');
   end if;
+  if encode(sha256(convert_to(v_merge_text, 'UTF8')), 'hex') <> v_merge_sha256 then
+    raise exception 'merge migration hash mismatch: expected %, got %', v_merge_sha256, encode(sha256(convert_to(v_merge_text, 'UTF8')), 'hex');
+  end if;
   if encode(sha256(convert_to(v_test_text, 'UTF8')), 'hex') <> v_test_sha256 then
     raise exception 'test hash mismatch: expected %, got %', v_test_sha256, encode(sha256(convert_to(v_test_text, 'UTF8')), 'hex');
+  end if;
+  if encode(sha256(convert_to(v_rollback_text, 'UTF8')), 'hex') <> v_rollback_sha256 then
+    raise exception 'rollback hash mismatch: expected %, got %', v_rollback_sha256, encode(sha256(convert_to(v_rollback_text, 'UTF8')), 'hex');
   end if;
 
   -- ── 4. real-org fingerprint (BEFORE), outside the __TEST_ organisations the embedded test
@@ -790,19 +1188,39 @@ $TEST_BODY$;
   from public.audit_log
   where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
 
-  -- ── 5. run: schema, then rpc, then unlink-block, then the test (true apply order) ──────
+  -- ── 5. run: schema, rpc, unlink-block, merge (true apply order), then the test ─────────
   execute v_schema_text;
   execute v_rpc_text;
   execute v_unlink_text;
+  execute v_merge_text;
 
   begin
     execute v_test_text;
-    v_result := 'RESULTS(test did not raise -- unexpected, treat as FAIL)';
+    v_test_result := 'RESULTS(test did not raise -- unexpected, treat as FAIL)';
   exception when others then
-    v_result := sqlerrm;
+    v_test_result := sqlerrm;
   end;
 
-  -- ── 6. real-org fingerprint (AFTER) ─────────────────────────────────────────────────────
+  -- ── 6. run the ROLLBACK script, then verify it actually restored the pre-migration shape --
+  --      this is the "rollback.sql was tested in the rehearsal" proof. If the rollback itself
+  --      throws, that's caught and reported as a FAIL rather than aborting the whole wrapper
+  --      before the real-org fingerprint check below gets to run.
+  begin
+    execute v_rollback_text;
+    v_rollback_ok :=
+      (to_regprocedure('public.customer_auto_onboard()') is null)
+      and (to_regprocedure('public.admin_merge_auto_customer(uuid,uuid,text)') is null)
+      and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'email')
+      and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'needs_review')
+      and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'auto_link_blocked_at')
+      and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'customers' and column_name = 'archived_at')
+      and (to_regprocedure('public.admin_link_customer_google_account(uuid,text)') is not null)
+      and (to_regprocedure('public.admin_unlink_customer_google_account(uuid,text)') is not null);
+  exception when others then
+    v_rollback_error := sqlerrm;
+  end;
+
+  -- ── 7. real-org fingerprint (AFTER) ─────────────────────────────────────────────────────
   select count(*), md5(coalesce(string_agg(id::text || updated_at::text, '' order by id), ''))
     into v_cust_count_after, v_cust_md5_after
   from public.customers
@@ -818,13 +1236,14 @@ $TEST_BODY$;
   from public.audit_log
   where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
 
-  raise exception E'wrapper-level real-org fingerprint -- customers: count before=% after=% (match=%) md5 before=% after=% (match=%); profiles: count before=% after=% (match=%) md5 before=% after=% (match=%); audit_log: count before=% after=% (match=%) md5 before=% after=% (match=%)\n%',
+  raise exception E'rollback_ok=% (error=%)\nwrapper-level real-org fingerprint -- customers: count before=% after=% (match=%) md5 before=% after=% (match=%); profiles: count before=% after=% (match=%) md5 before=% after=% (match=%); audit_log: count before=% after=% (match=%) md5 before=% after=% (match=%)\n%',
+    v_rollback_ok, coalesce(v_rollback_error, '<none>'),
     v_cust_count_before, v_cust_count_after, (v_cust_count_before = v_cust_count_after),
     v_cust_md5_before, v_cust_md5_after, (v_cust_md5_before = v_cust_md5_after),
     v_prof_count_before, v_prof_count_after, (v_prof_count_before = v_prof_count_after),
     v_prof_md5_before, v_prof_md5_after, (v_prof_md5_before = v_prof_md5_after),
     v_audit_count_before, v_audit_count_after, (v_audit_count_before = v_audit_count_after),
     v_audit_md5_before, v_audit_md5_after, (v_audit_md5_before = v_audit_md5_after),
-    v_result;
+    v_test_result;
 end
 $rehearsal$;

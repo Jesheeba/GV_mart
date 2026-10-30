@@ -31,13 +31,14 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
-import { getPrimaryAddressId, setAddressZone, setCustomerPreferredLanguage } from "@/services/customers"
+import { getPrimaryAddressId, setAddressZone, setCustomerPreferredLanguage, updateCustomerEmail } from "@/services/customers"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
   useCustomer,
   useMobileDuplicateCheck,
   usePincodeLookup,
+  useUpdateCustomerEmail,
   useUpsertPrimaryAddress,
 } from "@/hooks/useCustomers"
 
@@ -185,6 +186,11 @@ export function CustomerFormPage() {
 
   const existing = useCustomer(mode === "edit" ? id : undefined)
   const [step, setStep] = useState(0)
+  // Edit mode: the account holder's own email, independent of the people-step wizard form
+  // (which only exists for create mode) -- saved immediately, same "edit one field, save it
+  // right away" shape as FamilyMembersPanel's own per-member edits below it.
+  const [editEmail, setEditEmail] = useState("")
+  const updateEmail = useUpdateCustomerEmail(id ?? "")
   // Only ever grows — tracks the furthest step reached so navigating back
   // (which decreases `step`) doesn't make already-completed steps lose their
   // checkmark in the Stepper below. See Stepper's `maxCompletedIndex` doc.
@@ -309,6 +315,7 @@ export function CustomerFormPage() {
   useEffect(() => {
     if (mode === "edit" && existing.data) {
       peopleForm.reset({ members: [], primaryIndex: 0, profession: existing.data.profession ?? "" })
+      setEditEmail(existing.data.email ?? "")
       const primary = existing.data.addresses.find((a) => a.is_primary) ?? existing.data.addresses[0]
       if (primary) {
         addressForm.reset({
@@ -414,6 +421,16 @@ export function CustomerFormPage() {
           toast.error(t("common.actionFailed"))
         }
       }
+      // create_customer_with_details (RPC) doesn't accept an email either -- same small
+      // follow-up write shape as the language field above (updateCustomerEmail normalizes
+      // trim+lowercase).
+      if (peopleValues.email?.trim()) {
+        try {
+          await updateCustomerEmail(newId, peopleValues.email)
+        } catch {
+          toast.error(t("common.actionFailed"))
+        }
+      }
       // create_customer_with_details (RPC) doesn't accept a zone — set it as
       // a small direct follow-up write on the primary address it just created.
       // The customer itself is already created at this point, so a failure
@@ -502,9 +519,29 @@ export function CustomerFormPage() {
                 value={(peopleForm.watch("preferredLanguage") || null) as "en" | "ta" | null}
                 onChange={(next) => peopleForm.setValue("preferredLanguage", next ?? "")}
               />
+              <div className="space-y-1">
+                <Label htmlFor="new-customer-email">{t("customers.form.email")}</Label>
+                <Input id="new-customer-email" type="email" placeholder={t("customers.form.emailPlaceholder")} {...peopleForm.register("email")} />
+                {peopleForm.formState.errors.email ? <p className="text-xs text-danger">{t(peopleForm.formState.errors.email.message!)}</p> : null}
+              </div>
             </div>
           ) : (
             <>
+              <div className="space-y-1">
+                <Label htmlFor="edit-customer-email">{t("customers.form.email")}</Label>
+                <div className="flex gap-2">
+                  <Input id="edit-customer-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder={t("customers.form.emailPlaceholder")} />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={updateEmail.isPending || editEmail.trim().toLowerCase() === (existing.data!.email ?? "")}
+                    onClick={() => updateEmail.mutate(editEmail, { onError: () => toast.error(t("common.actionFailed")) })}
+                  >
+                    {t("common.save")}
+                  </Button>
+                </div>
+              </div>
               <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
               <div className="border-t border-border pt-4">
                 <WaterHouseholdPanel

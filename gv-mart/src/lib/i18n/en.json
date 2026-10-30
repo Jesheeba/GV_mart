@@ -385,6 +385,7 @@
     "table": {
       "customer": "Customer",
       "area": "Area",
+      "email": "Email",
       "products": "Products",
       "amc": "AMC",
       "noAmc": "No AMC",
@@ -394,6 +395,7 @@
     "export": {
       "name": "Name",
       "mobile": "Mobile",
+      "email": "Email",
       "profession": "Profession",
       "area": "Area",
       "pincode": "Pincode",
@@ -533,6 +535,29 @@
           "unlink_blocked_has_records": "Can't unlink — this login has other records attached. Contact support."
         }
       },
+      "mergeAuto": {
+        "title": "Link to an existing customer",
+        "hint": "This login was created automatically from a Google sign-in. If this is actually a returning customer you already have on file, link it to their real record here instead of leaving it as a separate, empty one.",
+        "targetLabel": "Existing customer",
+        "reasonLabel": "Reason",
+        "reasonPlaceholder": "e.g. this is the same person as an existing customer",
+        "action": "Link to this customer",
+        "confirm": "Move this sign-in from \"{{from}}\" onto \"{{to}}\"? The empty auto-created record will be archived. This cannot be undone from here.",
+        "success": "Linked. The empty auto-created record has been archived.",
+        "errors": {
+          "reason_required": "Enter a reason.",
+          "same_customer": "Pick a different customer to link to.",
+          "from_customer_not_found": "Customer not found.",
+          "to_customer_not_found": "Customer not found.",
+          "from_customer_not_auto_created": "This customer wasn't auto-created — use Unlink/Link instead.",
+          "from_customer_already_archived": "This customer has already been archived.",
+          "from_customer_not_linked": "This customer isn't linked to a sign-in.",
+          "to_customer_is_test": "Can't link to a test customer.",
+          "to_customer_archived": "That customer has been archived.",
+          "to_customer_already_linked": "That customer is already linked to a sign-in.",
+          "from_customer_has_records": "Can't link — this auto-created customer already has invoices, tickets, AMC, rental, warranty or quotation records."
+        }
+      },
       "waterHouseholdTitle": "Water & household",
       "waterSource": "Water source",
       "waterSourceOtherPlaceholder": "Describe the source",
@@ -623,6 +648,8 @@
       "memberRelationPlaceholder": "Relation to primary contact",
       "memberProfession": "Profession (e.g. Teacher, Shop Owner)",
       "memberEmail": "Email (optional)",
+      "email": "Customer email (optional)",
+      "emailPlaceholder": "customer@gmail.com",
       "preferredLanguage": "Message language (optional)",
       "preferredLanguageHint": "WhatsApp messages are sent in this language. Leave empty for English.",
       "languageEnglish": "English",
