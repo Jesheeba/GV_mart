@@ -13,8 +13,8 @@ declare
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
   v_actual_org_fingerprint   text;
   v_expected_prereq_hash    text := '8533249a1b9441f14fc18867a79f7b1dde53a49df296504aa668135f56f78fd1';
-  v_expected_migration_hash text := 'b2dca3cead40b8a243ae343600a77b51c878aa88ae2a3478e4d62a460045b9d8';
-  v_expected_test_hash      text := '8cc272010f95525b24f99599e1c8ac35f86042b3e13d35dcf9690340907c0b25';
+  v_expected_migration_hash text := '7fc531e9fc0c8318a0d266c26df1cf9652e023d6d3cc600283d40f341cdb6a0f';
+  v_expected_test_hash      text := '871f74372723561c03ada1a88cecd8444e03932492e8a65487b76f68ed0837ea';
   v_actual_prereq_hash      text;
   v_actual_migration_hash   text;
   v_actual_test_hash        text;
@@ -168,34 +168,50 @@ $prereq$;
 -- Phase 3 (template-wiring prep) of the customer-OTP-link feature, docs/DECISIONS.md section 10.
 --
 -- (a) HIGH -- the 6-digit code must never be retained in whatsapp_outbox's stored params/payload,
---     on EVERY path a row can leave this table's protection, not just the two the app code already
---     covers (confirmed send, and a cron/fast-dispatch pass that happens to visit an
---     already-expired-but-still-pending row -- wa-milestone-dispatch-core.ts's
---     customerLinkOtpStillSendable, phase 2). The gap this migration closes: a row that is simply
---     NEVER visited by any dispatch pass before its challenge expires (fast-dispatch secret not
---     yet provisioned, Edge Function down, cron not firing -- all real, documented possibilities in
---     this project's own history) stays `status = 'pending'` forever, so neither the existing
---     application-level redaction (triggers off `status` leaving `'pending'`) nor the DB-level
---     scrub trigger added in 20261120100200_whatsapp_outbox_secret_payload_scrub.sql (same
---     `status`-transition trigger condition) ever fires. A time-based sweep is the only mechanism
---     that can close this: `scrub_expired_customer_link_otp_outbox()`, run every minute by pg_cron
---     (this project's existing pattern -- 20261007120000_lead_followup_notifications.sql,
---     20261022100000_amc_visits_unassigned_until_due.sql), finds any `customer_link_otp` outbox row
---     still `pending` whose challenge has expired/been used/been superseded and clears its secret
---     material directly (belt-and-suspenders with the status-transition trigger: this sweep ALSO
---     flips the row to `'failed'`/`'otp_expired_or_used_db_sweep'` so the existing trigger fires
---     too, and clears payload/template_params itself in the same statement in case the trigger is
---     ever changed later). A 1-minute sweep against a 10-minute expiry bounds the worst-case
---     plaintext exposure window for a row nothing else ever touches to under a minute past expiry,
---     matching the cron granularity already used elsewhere in this project.
+--     on EVERY path a row can leave this table's protection. RECONCILED (2026-10-30) with a
+--     concurrent session's own migration, 20261120100200_whatsapp_outbox_secret_payload_scrub.sql
+--     (committed to this branch, NOT applied live, NOT edited here -- its bytes are respected as
+--     immutable, same as an already-applied migration, per this project's standing convention),
+--     into ONE coherent design instead of two separate redaction mechanisms stacked on each other:
+--
+--     PRIMARY mechanism (owned by 20261120100200, unchanged): a BEFORE UPDATE trigger on
+--     whatsapp_outbox, `scrub_whatsapp_outbox_secret_payload`, nulls `template_params` and strips
+--     `payload`'s `code` key on ANY status transition away from `'pending'`, for any ref_type
+--     registered in `whatsapp_payload_secret_ref_types` with `redaction_covered = true` --
+--     `customer_link_otp` already is (that migration's own insert). This fires automatically for
+--     EVERY caller that performs such an update: the real send path (wa-send-core.ts's
+--     patchForOutcome update, status pending->sent), the give-up-on-visit path
+--     (wa-milestone-dispatch-core.ts, status pending->failed), and this migration's own sweep
+--     below -- none of them need to null `template_params` themselves, confirmed by this
+--     migration's own test actually calling the sweep and checking `template_params` afterward,
+--     not assumed from reading the trigger's code alone.
+--
+--     COMPLEMENTARY, not duplicated: the trigger never touches `payload.body` -- the RENDERED
+--     SENTENCE containing the plaintext digits in prose ("482913 is your..."), as opposed to the
+--     separate `code` JSON key added later for template-param wiring -- so wa-milestone-dispatch-
+--     core.ts's own send-time/give-up updates still explicitly overwrite `payload.body` to a
+--     placeholder (unchanged by this migration). The ONE real gap neither the trigger nor any app
+--     code can close on its own: a row NO dispatch pass ever visits before its challenge expires
+--     (fast-dispatch secret not yet provisioned, Edge Function down, cron not firing -- all real,
+--     documented possibilities in this project's own history) stays `status = 'pending'` forever --
+--     a trigger only fires on an actual UPDATE, and an unvisited row never gets one. This is the
+--     ONLY thing `scrub_expired_customer_link_otp_outbox()` (a 1-minute pg_cron sweep, this
+--     project's existing pattern -- 20261007120000_lead_followup_notifications.sql,
+--     20261022100000_amc_visits_unassigned_until_due.sql) now does: find such a row and perform
+--     the UPDATE (status -> 'failed', `payload.body` -> a placeholder) that both produces the
+--     status transition the trigger needs to fire (clearing `template_params`/`payload.code`
+--     itself, as the primary mechanism) AND redacts `payload.body` itself (since the trigger
+--     won't). A 1-minute sweep against a 10-minute expiry bounds the worst-case plaintext exposure
+--     window for a row nothing else ever touches to under a minute past expiry.
 --
 --     This also makes the `redaction_covered = true` claim already recorded for `customer_link_otp`
 --     in `whatsapp_payload_secret_ref_types` (20261120100200) honest for the FIRST time across every
---     code path, not just send/give-up-on-visit: the covered_note is refreshed below to describe
---     all three mechanisms together. `guard_secret_ref_type_template_mapping` (same migration)
---     already refuses any future `whatsapp_event_templates` mapping while `redaction_covered` is
---     false for a registered ref_type -- this migration does not change that guard, it makes the
---     thing the guard is vouching for actually true.
+--     code path a row can leave `'pending'` through: the covered_note is refreshed below to
+--     describe the reconciled design as one system, not three independent claims. The mapping
+--     guard on `whatsapp_event_templates` (same migration, unchanged) already refuses any future
+--     mapping while `redaction_covered` is false for a registered ref_type -- it already is true,
+--     and the `customer_link_otp -> lexdraft_otp` mapping migration (20261121100200, after this
+--     one) depends on that fact, not on anything this migration changes about the guard itself.
 --
 -- (b) pg_net hardening -- ATTEMPTED, FOUND INFEASIBLE FOR THIS PROJECT'S MIGRATION ROLE, NOT
 --     SILENTLY SKIPPED. The task asked to revoke default PUBLIC/anon/authenticated EXECUTE on
@@ -278,6 +294,24 @@ begin
   declare
     v_count integer;
   begin
+    -- Reconciled with the OTHER migration this redaction now relies on (20261120100200, committed
+    -- by a concurrent session, NOT edited here -- its bytes are respected as if already applied,
+    -- per this project's immutable-migration convention): ITS before-update trigger
+    -- (scrub_whatsapp_outbox_secret_payload) already nulls template_params and strips payload's
+    -- 'code' key on ANY status transition away from 'pending' for a ref_type registered with
+    -- redaction_covered = true -- which customer_link_otp already is (that same migration's own
+    -- insert). This function's ONLY remaining job is therefore to PRODUCE that transition for a
+    -- row nothing else ever updates (the gap that trigger structurally cannot close on its own --
+    -- a trigger only fires on an actual UPDATE, and an unvisited row never gets one), and to
+    -- redact `payload.body` -- the RENDERED SENTENCE containing the plaintext digits in prose
+    -- ("482913 is your..."), which that trigger deliberately does not touch (it only strips the
+    -- separate `code` JSON key added later for template-param wiring, not the body text) and
+    -- which the app-level send-time redaction (wa-milestone-dispatch-core.ts) does for a row it
+    -- actually visits. This function explicitly sets `payload` (full replace, which also drops any
+    -- `code` key as a side effect of being a new object) but deliberately does NOT set
+    -- `template_params` itself -- that is the other migration's trigger's job, verified by this
+    -- migration's own test (G3b) actually calling this function and checking template_params is
+    -- null afterward, not assumed.
     with stale as (
       select o.id
       from public.whatsapp_outbox o
@@ -290,12 +324,7 @@ begin
     update public.whatsapp_outbox o
     set status = 'failed',
         error = 'otp_expired_or_used_db_sweep',
-        template_params = null,
-        payload = case
-          when o.payload is not null and o.payload ? 'code'
-            then (o.payload - 'code') || jsonb_build_object('body', '[redacted after otp expired/used]')
-          else jsonb_build_object('body', '[redacted after otp expired/used]')
-        end
+        payload = jsonb_build_object('body', '[redacted after otp expired/used]')
     from stale
     where o.id = stale.id;
     get diagnostics v_count = row_count;
@@ -312,18 +341,75 @@ begin
   perform cron.unschedule(jobid) from cron.job where jobname = 'customer-link-otp-expiry-scrub';
   perform cron.schedule('customer-link-otp-expiry-scrub', '* * * * *', 'select public.scrub_expired_customer_link_otp_outbox()');
 
-  -- Refresh the registry note so it accurately describes all coverage paths together (the row
-  -- itself, and redaction_covered=true, are unchanged -- this migration does not alter the mapping
-  -- guard's verdict, it makes the verdict true for the first time across every path).
+  ----------------------------------------------------------------------------
+  -- (d) HIGH, found by this phase's own SECOND independent adversarial review (not self-
+  -- discovered): a column none of the three reconciled mechanisms above ever touch --
+  -- `whatsapp_outbox.wasi_response` (20261016300000_wa_dispatch_v2_schema.sql) -- stores Wasi's
+  -- full send-response body (`classifyWasiResponse`/`patchForOutcome`, wa-send-core.ts), passed
+  -- through `sanitizeForStorage`/`redactWasiText` first, but that redaction only masks 10-15 digit
+  -- runs (phone-number-shaped), never a bare 6-digit code. If Wasi's real API ever echoes a
+  -- submitted template param back in its response (a common BSP/webhook pattern, and this phase's
+  -- own `components` duplication, part (part of the `customer_link_otp_template_mapping`
+  -- migration's TypeScript support) sends the code TWICE in the same request, raising the odds of
+  -- exactly that), the plaintext code would sit in `wasi_response` forever, readable via
+  -- `whatsapp_outbox_select_staff`, uncovered by any existing mechanism. Not proven exploitable
+  -- today (Wasi's real echo behavior for this template is unconfirmed, same caveat as every other
+  -- wire-format detail in this feature that only the owner's live phone test can settle) but the
+  -- exposure MECHANISM is real and concrete, so this migration closes it now rather than waiting
+  -- for that test to find it. A second, separate trigger (own function, own name -- additive,
+  -- complementary to 20261120100200's trigger, not a duplicate of it) nulls `wasi_response` under
+  -- the identical condition (status leaving 'pending' for a registered-and-covered ref_type).
+  create or replace function public.scrub_whatsapp_outbox_wasi_response()
+  returns trigger
+  language plpgsql
+  security definer
+  set search_path = public, pg_temp
+  as $fn2$
+  begin
+    if new.ref_type is not null
+       and old.status = 'pending' and new.status <> 'pending'
+       and exists (
+         select 1 from public.whatsapp_payload_secret_ref_types
+         where ref_type = new.ref_type and redaction_covered = true
+       )
+    then
+      new.wasi_response := null;
+    end if;
+    return new;
+  end;
+  $fn2$;
+
+  drop trigger if exists scrub_whatsapp_outbox_wasi_response on public.whatsapp_outbox;
+  create trigger scrub_whatsapp_outbox_wasi_response
+    before update on public.whatsapp_outbox
+    for each row
+    execute function public.scrub_whatsapp_outbox_wasi_response();
+
+  revoke all on function public.scrub_whatsapp_outbox_wasi_response() from public, anon, authenticated;
+
+  -- Refresh the registry note so it accurately describes all coverage paths together, as ONE
+  -- reconciled design, not duplicated mechanisms (the row itself, and redaction_covered=true, are
+  -- unchanged -- this migration does not alter the mapping guard's verdict, it makes the verdict
+  -- true for the first time across every path a row can leave 'pending' through).
   update public.whatsapp_payload_secret_ref_types
-  set covered_note = 'Three independent mechanisms now cover customer_link_otp: '
-    || '(1) wa-milestone-dispatch-core.ts redacts payload.body to a placeholder on confirmed send '
-    || '(v2 path) or on give-up-on-visit (otp_expired_or_used, both dispatch paths); '
-    || '(2) scrub_whatsapp_outbox_secret_payload (20261120100200) clears template_params and strips '
-    || 'payload.code on any status transition away from pending, DB-level, independent of app code; '
-    || '(3) scrub_expired_customer_link_otp_outbox (this migration), a 1-minute pg_cron sweep, '
-    || 'closes the remaining gap -- a row dispatch never visits at all before its challenge expires '
-    || '-- by finding it directly via customer_link_otp_challenges and flipping/clearing it itself.'
+  set covered_note = 'customer_link_otp coverage, reconciled 2026-10-30: '
+    || 'PRIMARY mechanism, any status transition away from pending -- '
+    || 'scrub_whatsapp_outbox_secret_payload (20261120100200)''s trigger nulls template_params and '
+    || 'strips payload''s code key generically, for every caller that performs such an update '
+    || '(the real send path in wa-send-core.ts, the give-up-on-visit path in '
+    || 'wa-milestone-dispatch-core.ts, AND this migration''s own sweep below -- none of them need '
+    || 'to null template_params themselves any more, verified by this migration''s own test, not '
+    || 'assumed). COMPLEMENTARY, not duplicated: wa-milestone-dispatch-core.ts additionally '
+    || 'overwrites payload.body to a placeholder on confirmed send or give-up (the trigger never '
+    || 'touches the rendered sentence''s prose, only the separate code key); '
+    || 'scrub_expired_customer_link_otp_outbox (this migration, 1-minute pg_cron sweep) does the '
+    || 'same payload.body overwrite for the ONE case neither the trigger nor the app-level code can '
+    || 'reach on their own -- a row no dispatch pass ever visits before its challenge expires, so '
+    || 'no UPDATE (and therefore no trigger fire) would otherwise ever happen. ADDITIONALLY (this '
+    || 'migration, second independent review finding): scrub_whatsapp_outbox_wasi_response, a '
+    || 'SEPARATE trigger under the identical status-transition condition, nulls wasi_response -- '
+    || 'the one column none of the above ever touched, which could otherwise keep the code readable '
+    || 'forever if Wasi''s real API ever echoes a submitted template param back in its response.'
   where ref_type = 'customer_link_otp';
 
   if not found then
@@ -371,6 +457,19 @@ begin
 
   if not has_function_privilege('service_role', 'public.is_customer_link_otp_enabled()', 'execute') then
     raise exception 'assertion failed: service_role still cannot execute is_customer_link_otp_enabled()';
+  end if;
+
+  if to_regprocedure('public.scrub_whatsapp_outbox_wasi_response()') is null then
+    raise exception 'assertion failed: scrub_whatsapp_outbox_wasi_response was not created';
+  end if;
+
+  if not exists (select 1 from pg_trigger where tgname = 'scrub_whatsapp_outbox_wasi_response' and tgrelid = 'public.whatsapp_outbox'::regclass and not tgisinternal) then
+    raise exception 'assertion failed: scrub_whatsapp_outbox_wasi_response trigger is not attached to whatsapp_outbox';
+  end if;
+
+  if has_function_privilege('anon', 'public.scrub_whatsapp_outbox_wasi_response()', 'execute')
+     or has_function_privilege('authenticated', 'public.scrub_whatsapp_outbox_wasi_response()', 'execute') then
+    raise exception 'assertion failed: scrub_whatsapp_outbox_wasi_response is anon/authenticated-executable';
   end if;
 end
 $mig$;
@@ -426,9 +525,11 @@ begin
     v_results := v_results || 'G2 ok: scrub function not anon/authenticated-executable' || E'\n';
   end if;
 
-  -- P1: an EXPIRED, never-sent, still-pending row is scrubbed.
-  insert into public.whatsapp_outbox (id, org_id, direction, to_mobile, customer_id, milestone, template, payload, template_params, ref_type, ref_id, status)
-  values (gen_random_uuid(), v_org_id, 'outbound', '9000000991', v_customer_expired, 'customer_link_otp', '__TEST__otp', '{"body":"482913 is your code","code":"482913"}'::jsonb, '{"code":"482913"}'::jsonb, 'customer_link_otp', gen_random_uuid(), 'pending')
+  -- P1: an EXPIRED, never-sent, still-pending row is scrubbed. Carries a wasi_response too, even
+  -- though a never-sent row wouldn't realistically have one -- exercises the second-review-round
+  -- fix (scrub_whatsapp_outbox_wasi_response) on the same update regardless.
+  insert into public.whatsapp_outbox (id, org_id, direction, to_mobile, customer_id, milestone, template, payload, template_params, wasi_response, ref_type, ref_id, status)
+  values (gen_random_uuid(), v_org_id, 'outbound', '9000000991', v_customer_expired, 'customer_link_otp', '__TEST__otp', '{"body":"482913 is your code","code":"482913"}'::jsonb, '{"code":"482913"}'::jsonb, '{"echoed_params":{"1":"482913"}}'::jsonb, 'customer_link_otp', gen_random_uuid(), 'pending')
   returning id into v_outbox_expired;
   insert into public.customer_link_otp_challenges (id, org_id, user_id, customer_id, code_salt, code_hash, expires_at, outbox_id)
   values (gen_random_uuid(), v_org_id, gen_random_uuid(), v_customer_expired, 'salt', 'hash', clock_timestamp() - interval '1 minute', v_outbox_expired);
@@ -457,8 +558,9 @@ begin
   select * into v_row from public.whatsapp_outbox where id = v_outbox_expired;
   if v_row.status = 'failed' and v_row.error = 'otp_expired_or_used_db_sweep'
      and v_row.template_params is null and not (v_row.payload ? 'code')
-     and v_row.payload->>'body' = '[redacted after otp expired/used]' then
-    v_results := v_results || 'P1 ok: expired row scrubbed correctly (status/error/payload/template_params)' || E'\n';
+     and v_row.payload->>'body' = '[redacted after otp expired/used]'
+     and v_row.wasi_response is null then
+    v_results := v_results || 'P1 ok: expired row scrubbed correctly (status/error/payload/template_params/wasi_response)' || E'\n';
   else
     v_results := v_results || format('P1 FAIL: expired row state wrong -- %s', v_row) || E'\n';
   end if;
@@ -484,6 +586,32 @@ begin
   else
     v_results := v_results || format('P4 FAIL: second call scrubbed %s rows, expected 0', v_scrubbed) || E'\n';
   end if;
+
+  -- P5: second independent-review finding -- the REAL send path (wa-send-core.ts's
+  -- patchForOutcome update) never explicitly sets wasi_response to null itself; it relies entirely
+  -- on scrub_whatsapp_outbox_wasi_response firing as a side effect of the status transition it
+  -- DOES make (pending -> sent). Reproduce that exact shape here -- an UPDATE that only sets
+  -- `status` (and unrelated columns), never mentioning wasi_response -- and confirm the trigger
+  -- still nulls it, proving this isn't just a code-reading claim.
+  declare
+    v_outbox_sent uuid;
+    v_sent_row record;
+  begin
+    insert into public.whatsapp_outbox (id, org_id, direction, to_mobile, customer_id, milestone, template, payload, template_params, wasi_response, ref_type, ref_id, status)
+    values (gen_random_uuid(), v_org_id, 'outbound', '9000000994', v_customer_valid, 'customer_link_otp', '__TEST__otp', '{"body":"555666 is your code","code":"555666"}'::jsonb, '{"1":"555666"}'::jsonb, '{"meta_message_id":"wamid.fake","echoed_params":{"1":"555666"}}'::jsonb, 'customer_link_otp', gen_random_uuid(), 'pending')
+    returning id into v_outbox_sent;
+
+    -- Deliberately mirrors patchForOutcome's "sent" patch shape (wa-send-core.ts) -- status and a
+    -- few unrelated columns, NEVER wasi_response or template_params.
+    update public.whatsapp_outbox set status = 'sent', wa_message_id = 'wamid.fake', delivery_status = 'sent', error = null where id = v_outbox_sent;
+
+    select * into v_sent_row from public.whatsapp_outbox where id = v_outbox_sent;
+    if v_sent_row.template_params is null and v_sent_row.wasi_response is null and not (v_sent_row.payload ? 'code') then
+      v_results := v_results || 'P5 ok: a real send-shaped update (status only) still triggers wasi_response AND template_params clearing' || E'\n';
+    else
+      v_results := v_results || format('P5 FAIL: send-shaped update did not clear everything -- %s', v_sent_row) || E'\n';
+    end if;
+  end;
 
   -- G3: registry note was refreshed and still marks customer_link_otp covered.
   if exists (

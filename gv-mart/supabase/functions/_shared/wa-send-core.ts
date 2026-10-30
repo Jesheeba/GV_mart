@@ -73,10 +73,40 @@ export type TemplateMapping = {
   /** Param names Wasi expects (from the mirrored template list); falls back to paramMap's keys when unknown. */
   paramKeys: string[] | null
   headerType: string | null
+  /**
+   * AUTHENTICATION-category copy-code templates (customer_link_otp -> lexdraft_otp, confirmed by
+   * the owner reading the live Wasi template form directly, 2026-10-30 — Meta-generated body
+   * "Your verification code is *{{1}}*.", exactly one Copy Code button) need the SAME resolved
+   * value in both the body component AND a button component (sub_type "url", index "0") — Meta's
+   * own documented shape for this button type. This flag, set only by the whatsapp_event_templates
+   * mapping row for such a template (has_auth_copy_code_button column), duplicates the single
+   * resolved body param value into the request's `components` array below. It is NEVER persisted
+   * to the outbox table (see payloadFor/executeSend — only `params`, the flat body-param map, is
+   * ever written to `payload`/`template_params`, exactly like `headerMediaUrl` is also
+   * request-only and never stored) — so the existing redaction paths (the send-time DB trigger,
+   * the dispatch give-up path, and the expiry sweep, all of which already fully clear
+   * `template_params`/`payload.code`) already cover every place this value can ever end up
+   * written to the database; this duplication adds no new persisted location to redact.
+   * Not claimed to be proven correct against Wasi's real wire format — that is only proven by the
+   * owner's own live phone test (a later, separately-gated step), not by this flag's existence.
+   */
+  hasAuthCopyCodeButton?: boolean
 }
 
 export type TemplateRequestResult =
-  | { ok: true; body: { client_id: string; to: string; type: "template"; template: string; params: Record<string, string>; headerMediaUrl?: string }; params: Record<string, string> }
+  | {
+      ok: true
+      body: {
+        client_id: string
+        to: string
+        type: "template"
+        template: string
+        params: Record<string, string>
+        headerMediaUrl?: string
+        components?: { type: "body" | "button"; sub_type?: "url"; index?: string; parameters: { type: "text"; text: string }[] }[]
+      }
+      params: Record<string, string>
+    }
   | { ok: false; error: string }
 
 export function buildTemplateRequest(input: {
@@ -94,7 +124,7 @@ export function buildTemplateRequest(input: {
     if (value == null || String(value).trim() === "") return { ok: false, error: `missing_param:${key}` }
     params[key] = String(value)
   }
-  const body: { client_id: string; to: string; type: "template"; template: string; params: Record<string, string>; headerMediaUrl?: string } = {
+  const body: Extract<TemplateRequestResult, { ok: true }>["body"] = {
     client_id: input.clientId,
     to: toWasiNumber(input.to),
     type: "template",
@@ -104,6 +134,17 @@ export function buildTemplateRequest(input: {
   if (isMediaHeader(input.mapping.headerType)) {
     if (!input.headerMediaUrl) return { ok: false, error: "missing_header_media" }
     body.headerMediaUrl = input.headerMediaUrl
+  }
+  if (input.mapping.hasAuthCopyCodeButton) {
+    const values = Object.values(params)
+    // A copy-code AUTHENTICATION template has exactly one body parameter (the code itself) —
+    // anything else means the mapping is wrong, not a case to silently guess at.
+    if (values.length !== 1) return { ok: false, error: "copy_code_button_requires_exactly_one_body_param" }
+    const code = values[0]
+    body.components = [
+      { type: "body", parameters: [{ type: "text", text: code }] },
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
+    ]
   }
   return { ok: true, body, params }
 }

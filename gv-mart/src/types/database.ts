@@ -2817,6 +2817,7 @@ export type Database = {
           language: string
           wasi_template_name: string
           param_map: Json
+          has_auth_copy_code_button: boolean
           is_active: boolean
           created_at: string
           updated_at: string
@@ -2828,6 +2829,7 @@ export type Database = {
           language: string
           wasi_template_name: string
           param_map?: Json
+          has_auth_copy_code_button?: boolean
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -2839,6 +2841,7 @@ export type Database = {
           language?: string
           wasi_template_name?: string
           param_map?: Json
+          has_auth_copy_code_button?: boolean
           is_active?: boolean
           created_at?: string
           updated_at?: string
