@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Inbox, TriangleAlert } from "lucide-react"
+import { Link } from "react-router-dom"
+import { CalendarClock, ClipboardCheck, Inbox, Loader2, TriangleAlert, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useToast } from "@/components/ui/toast-context"
 import { useFollowups, useLeadAssignees, useLeadTechnicianNames, useLeadsWithoutFollowup } from "@/hooks/useLeadFollowups"
 import { useProfile } from "@/hooks/useProfile"
 import { AssignLeadDialog } from "./AssignLeadDialog"
@@ -16,7 +20,7 @@ import { FollowupCard } from "./FollowupCard"
 import { PostServiceCard } from "./PostServiceCard"
 import { PostServiceCallSheet } from "./PostServiceCallSheet"
 import { usePostServiceFollowups } from "@/hooks/usePostServiceFollowups"
-import { mergeBuckets, postServiceVisible } from "@/lib/daily-followup-merge"
+import { lifecycleFollowupVisible, mergeBuckets, postServiceVisible } from "@/lib/daily-followup-merge"
 import type { PostServiceFollowupItem } from "@/services/postServiceFollowups"
 import { LogOutcomeSheet } from "./LogOutcomeSheet"
 import { RescheduleDialog } from "./RescheduleDialog"
@@ -25,6 +29,8 @@ import { cn } from "@/lib/utils"
 import type { FollowupBucket, FollowupListItem, FollowupScope, LeadWithoutFollowup } from "@/services/leadFollowups"
 import type { UserRole } from "@/lib/roles"
 import type { Enums } from "@/types/database"
+import { useCreateServiceRequest, useLifecycleFollowups, useMarkFollowupContacted, useSnoozeFollowup } from "@/hooks/useLifecycleFollowups"
+import type { LifecycleFollowupRow } from "@/services/lifecycleFollowups"
 
 /** The three follow-up buckets plus the leads nobody has scheduled yet. */
 type MyDayTab = FollowupBucket | "none"
@@ -70,7 +76,14 @@ export function MyDayPage() {
   // function not deployed yet) just means "no post-service calls" — it must never take the lead list down with it.
   const postService = usePostServiceFollowups(scope, role)
   const showPostService = postServiceVisible({ stage, source, kind, stuckOnly })
-  const byBucket = useMemo(() => mergeBuckets(list.data, showPostService ? postService.data : undefined), [list.data, postService.data, showPostService])
+  // Product Lifecycle service reminders (W5): a third source merged in the same way, by due time. Same rule as
+  // post-service calls — a failed/undeployed RPC here just means "no lifecycle reminders", never a broken page.
+  const lifecycle = useLifecycleFollowups(profile?.org_id)
+  const showLifecycle = lifecycleFollowupVisible({ stage, source, kind, stuckOnly })
+  const byBucket = useMemo(
+    () => mergeBuckets(list.data, showPostService ? postService.data : undefined, showLifecycle ? lifecycle.data : undefined),
+    [list.data, postService.data, showPostService, lifecycle.data, showLifecycle]
+  )
 
   // nothing due, but leads waiting to be scheduled: land on them so they are never out of sight
   const tab: MyDayTab = chosenTab ?? (byBucket.overdue.length > 0 ? "overdue" : byBucket.today.length > 0 ? "today" : noneRows.length > 0 ? "none" : "today")
@@ -269,6 +282,8 @@ export function MyDayPage() {
           {rows.map((r) =>
             r.type === "post" ? (
               <PostServiceCard key={`ps-${r.item.followup_id}`} item={r.item} onLogCall={setPostCallFor} />
+            ) : r.type === "lifecycle" ? (
+              <LifecycleFollowupCard key={`lf-${r.item.scheduleId}`} item={r.item} orgId={profile?.org_id} />
             ) : (
               <FollowupCard
                 key={r.item.followup_id}
@@ -306,5 +321,144 @@ export function MyDayPage() {
       />
       <RescheduleDialog lead={rescheduleFor ? { id: rescheduleFor.lead_id, name: rescheduleFor.lead_name } : null} open={!!rescheduleFor} onOpenChange={(o) => !o && setRescheduleFor(null)} />
     </div>
+  )
+}
+
+/**
+ * One Product Lifecycle service reminder in Daily Follow Up (W5): customer, product + part, due/overdue status, and
+ * three actions on the schedule itself (Mark contacted, Snooze, Create service request). Sibling of PostServiceCard
+ * and FollowupCard — no lead stage/postpone/outcome state applies here, so none of their buttons are reused.
+ */
+function LifecycleFollowupCard({ item, orgId }: { item: LifecycleFollowupRow; orgId: string | undefined }) {
+  const { t, i18n } = useTranslation()
+  const { toast } = useToast()
+  const [mode, setMode] = useState<"idle" | "contact" | "snooze">("idle")
+  const [note, setNote] = useState("")
+  const [snoozeDate, setSnoozeDate] = useState("")
+
+  const markContacted = useMarkFollowupContacted(orgId)
+  const snooze = useSnoozeFollowup(orgId)
+  const createRequest = useCreateServiceRequest(orgId)
+
+  const todayIst = getIstNow().date
+  const canSnooze = snoozeDate !== "" && snoozeDate > todayIst
+
+  function reset() {
+    setMode("idle")
+    setNote("")
+    setSnoozeDate("")
+  }
+
+  async function saveContacted() {
+    try {
+      await markContacted.mutateAsync({ scheduleId: item.scheduleId, note: note.trim() || null })
+      toast.success(t("lifecycleFollowups.markContactedSaved"))
+      reset()
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : t("common.actionFailed"))
+    }
+  }
+
+  async function saveSnooze() {
+    if (!canSnooze) return
+    try {
+      await snooze.mutateAsync({ scheduleId: item.scheduleId, until: snoozeDate })
+      toast.success(t("lifecycleFollowups.snoozeSaved", { date: formatIstDate(snoozeDate, i18n.language) }))
+      reset()
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : t("common.actionFailed"))
+    }
+  }
+
+  async function doCreateServiceRequest() {
+    try {
+      const ticketId = await createRequest.mutateAsync(item.scheduleId)
+      toast.success(t("lifecycleFollowups.serviceRequestCreated", { ticketId }))
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : t("common.actionFailed"))
+    }
+  }
+
+  return (
+    <Card size="sm" className={cn("gap-2.5 px-4", item.status === "overdue" && "border-danger/40")} data-testid="lifecycle-followup-card">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 space-y-0.5">
+          <Link to={`/admin/customers/${item.customerId}`} className="block truncate text-sm font-semibold text-text hover:underline">
+            {item.customerName}
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-xs font-semibold",
+              item.status === "overdue" ? "bg-danger/10 text-danger" : item.status === "due" ? "bg-warning/10 text-warning" : "bg-surface-alt text-text-muted"
+            )}
+          >
+            {t(`lifecycleFollowups.statusLabel.${item.status}`)}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+        <span className="inline-flex items-center gap-1 rounded-full bg-info/10 px-2 py-0.5 font-semibold text-info">
+          <Wrench className="size-3" />
+          {t("lifecycleFollowups.badge")}
+        </span>
+        <span className="font-medium text-text">{item.productName}</span>
+        <span>{item.label}</span>
+        <span className="inline-flex items-center gap-1">
+          <CalendarClock className="size-3" />
+          {formatIstDate(item.nextDueDate, i18n.language)}
+        </span>
+      </div>
+
+      {mode === "contact" ? (
+        <div className="space-y-2">
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t("lifecycleFollowups.markContactedNotePlaceholder")}
+            maxLength={2000}
+          />
+          <div className="flex justify-end gap-1.5">
+            <Button size="sm" variant="ghost" onClick={reset} disabled={markContacted.isPending}>
+              {t("common.cancel")}
+            </Button>
+            <Button size="sm" variant="accent" onClick={saveContacted} disabled={markContacted.isPending}>
+              {markContacted.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("lifecycleFollowups.markContactedSave")}
+            </Button>
+          </div>
+        </div>
+      ) : mode === "snooze" ? (
+        <div className="space-y-2">
+          <label className="flex flex-col gap-1 text-xs text-text-muted">
+            {t("lifecycleFollowups.snoozeUntilLabel")}
+            <Input type="date" min={todayIst} value={snoozeDate} onChange={(e) => setSnoozeDate(e.target.value)} />
+          </label>
+          {snoozeDate && !canSnooze ? <p className="text-xs text-danger">{t("lifecycleFollowups.snoozeMustBeFuture")}</p> : null}
+          <div className="flex justify-end gap-1.5">
+            <Button size="sm" variant="ghost" onClick={reset} disabled={snooze.isPending}>
+              {t("common.cancel")}
+            </Button>
+            <Button size="sm" variant="accent" onClick={saveSnooze} disabled={!canSnooze || snooze.isPending}>
+              {snooze.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("lifecycleFollowups.snoozeSave")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          <Button size="sm" variant="accent" onClick={() => setMode("contact")}>
+            <ClipboardCheck className="size-3.5" />
+            {t("lifecycleFollowups.markContacted")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setMode("snooze")}>
+            {t("lifecycleFollowups.snooze")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={doCreateServiceRequest} disabled={createRequest.isPending}>
+            {createRequest.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("lifecycleFollowups.createServiceRequest")}
+          </Button>
+        </div>
+      )}
+    </Card>
   )
 }
