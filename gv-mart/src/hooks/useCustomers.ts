@@ -204,6 +204,22 @@ export function useClearCustomerNeedsSetup(customerId: string) {
   })
 }
 
+export function useAdminLinkCustomerGoogleAccount(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (googleEmail: string) => customers.adminLinkCustomerGoogleAccount(customerId, googleEmail),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] }),
+  })
+}
+
+export function useAdminUnlinkCustomerGoogleAccount(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (reason: string) => customers.adminUnlinkCustomerGoogleAccount(customerId, reason),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] }),
+  })
+}
+
 export function useAddMember(orgId: string | undefined, customerId: string) {
   const queryClient = useQueryClient()
   return useMutation({

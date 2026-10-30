@@ -33,6 +33,7 @@ import type { Enums } from "@/types/database"
 import { canEditWaterHousehold } from "@/lib/validation/customer"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
+import { GoogleAccountLinkPanel } from "./GoogleAccountLinkPanel"
 import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
@@ -528,6 +529,7 @@ export function CustomerDetailPage() {
             {t("customers.detail.tabs.rentals")} ({(rentals.data ?? []).filter((r) => r.status === "active").length})
           </TabsTrigger>
           <TabsTrigger value="whatsapp">{t("customers.detail.tabs.whatsapp")}</TabsTrigger>
+          {profile?.role === "master" ? <TabsTrigger value="googleLink">{t("customers.detail.tabs.googleLink")}</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="products" className="mt-3.5">
@@ -654,6 +656,14 @@ export function CustomerDetailPage() {
         <TabsContent value="whatsapp" className="mt-3.5">
           {renderWhatsappHistory()}
         </TabsContent>
+
+        {profile?.role === "master" ? (
+          <TabsContent value="googleLink" className="mt-3.5">
+            <Card size="default">
+              <GoogleAccountLinkPanel customerId={customer.id} linked={customer.primary_profile_id != null} />
+            </Card>
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   )

@@ -564,6 +564,23 @@ export async function clearCustomerNeedsSetup(id: string) {
   if (error) throw error
 }
 
+/**
+ * Master-only stopgap while OTP linking is parked — see
+ * 20261121100000_admin_link_customer_google_account.sql for the trust model
+ * (match by Google sign-in email, not by a typed mobile number) and why the
+ * old customer-facing link_customer_google_account RPC stays revoked.
+ */
+export async function adminLinkCustomerGoogleAccount(customerId: string, googleEmail: string) {
+  const { error } = await supabase.rpc("admin_link_customer_google_account", { p_customer_id: customerId, p_google_email: googleEmail })
+  if (error) throw error
+}
+
+/** Undoes a mistaken link: clears the customer's primary_profile_id and deletes the orphaned profiles row. */
+export async function adminUnlinkCustomerGoogleAccount(customerId: string, reason: string) {
+  const { error } = await supabase.rpc("admin_unlink_customer_google_account", { p_customer_id: customerId, p_reason: reason })
+  if (error) throw error
+}
+
 export async function addMember(
   orgId: string,
   customerId: string,
