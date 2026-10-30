@@ -78,8 +78,27 @@ type StuckOutboxRow = {
 // for no reason, so this is checked immediately before ever calling sendMessage, on BOTH the v2
 // and legacy paths below. Returns true (a true no-op, no query) for every ref_type except
 // customer_link_otp -- this must never become a general staleness check for other message types.
-async function customerLinkOtpStillSendable(admin: SupabaseClient, refType: string | null, refId: string | null): Promise<boolean> {
-  if (refType !== "customer_link_otp" || !refId) return true
+// Returns null when the row is still sendable, otherwise the reason it must NOT be sent (used as
+// whatsapp_outbox.error so a disabled-flag refusal is never mislabeled as an expired/used code in
+// data ops later reads to debug "why did sends stop?" -- independent-review LOW finding).
+async function customerLinkOtpUnsendableReason(admin: SupabaseClient, refType: string | null, refId: string | null): Promise<string | null> {
+  if (refType !== "customer_link_otp" || !refId) return null
+
+  // Dispatch-time re-check of the feature flag itself, not just this row's own staleness.
+  // Independent-review LOW/INFO finding (DECISIONS.md): is_customer_link_otp_enabled() was only
+  // ever checked once, at REQUEST time (request_customer_link_code), never re-checked when the
+  // message is actually dispatched -- an admin flipping customer_link_otp_settings.enabled or
+  // settings.wa_dispatch_v2_enabled/scope off between request and dispatch could let an
+  // already-enqueued row fall through to send anyway. Same fail-open-on-transient-error,
+  // fail-closed-on-explicit-false philosophy as the staleness check below: a flaky RPC call must
+  // never silently block a real, still-valid code, but an explicit "disabled" answer must stop it.
+  const { data: enabled, error: enabledError } = await admin.rpc("is_customer_link_otp_enabled")
+  if (enabledError) {
+    console.error("wa-milestone-dispatch-core: is_customer_link_otp_enabled re-check failed, sending anyway", enabledError.message)
+  } else if (enabled === false) {
+    return "customer_link_otp_disabled_at_dispatch"
+  }
+
   const { data, error } = await admin
     .from("customer_link_otp_challenges")
     .select("expires_at, used_at, superseded_at")
@@ -90,12 +109,12 @@ async function customerLinkOtpStillSendable(admin: SupabaseClient, refType: stri
     // still-valid code from ever being sent (worse than the rare case of sending one that turned
     // stale in the last few seconds, which verify_customer_link_code refuses anyway).
     console.error("wa-milestone-dispatch-core: customer_link_otp_challenges lookup failed, sending anyway", error.message)
-    return true
+    return null
   }
   const challenge = data as { expires_at: string; used_at: string | null; superseded_at: string | null } | null
-  if (!challenge) return true // row missing -- nothing to gate on; the existing no-body/no-recipient checks handle an otherwise-broken row
-  if (challenge.used_at || challenge.superseded_at) return false
-  return new Date(challenge.expires_at).getTime() > Date.now()
+  if (!challenge) return null // row missing -- nothing to gate on; the existing no-body/no-recipient checks handle an otherwise-broken row
+  if (challenge.used_at || challenge.superseded_at) return "otp_expired_or_used"
+  return new Date(challenge.expires_at).getTime() > Date.now() ? null : "otp_expired_or_used"
 }
 
 export async function notifyGaveUpOnSend(
@@ -167,10 +186,11 @@ async function runMilestoneDispatchV2(
     },
     resolveContext: (row) => resolveEventContext(admin, row),
     async send(row, ctx) {
-      if (!(await customerLinkOtpStillSendable(admin, row.ref_type, row.ref_id))) {
+      const unsendableReason = await customerLinkOtpUnsendableReason(admin, row.ref_type, row.ref_id)
+      if (unsendableReason) {
         await admin
           .from("whatsapp_outbox")
-          .update({ status: "failed", error: "otp_expired_or_used", payload: { body: "[redacted after otp expired/used]" } })
+          .update({ status: "failed", error: unsendableReason, payload: { body: "[redacted after otp expired/used]" } })
           .eq("id", row.id)
           .then(
             () => {},
@@ -294,11 +314,12 @@ async function runLegacyMilestoneDispatch(
       continue
     }
 
-    if (!(await customerLinkOtpStillSendable(admin, row.ref_type, row.ref_id))) {
-      console.error("wa-milestone-dispatch-core: skipping customer_link_otp row, challenge already expired/used/superseded", row.id)
+    const legacyUnsendableReason = await customerLinkOtpUnsendableReason(admin, row.ref_type, row.ref_id)
+    if (legacyUnsendableReason) {
+      console.error("wa-milestone-dispatch-core: skipping customer_link_otp row,", legacyUnsendableReason, row.id)
       await admin
         .from("whatsapp_outbox")
-        .update({ retried_at: new Date().toISOString(), status: "failed", error: "otp_expired_or_used", payload: { body: "[redacted after otp expired/used]" } })
+        .update({ retried_at: new Date().toISOString(), status: "failed", error: legacyUnsendableReason, payload: { body: "[redacted after otp expired/used]" } })
         .eq("id", row.id)
       gaveUp++
       continue

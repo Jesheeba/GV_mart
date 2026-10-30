@@ -36,9 +36,19 @@ type Challenge = { expires_at: string; used_at: string | null; superseded_at: st
 // `challenges`: ref_id -> challenge row. A ref_id with no entry resolves to "not found" (data:
 // null), matching customerLinkOtpStillSendable's fail-open-to-true behavior for a missing row —
 // this is what every pre-existing test above relies on implicitly (none of them populate this map).
-function fakeAdmin(rows: Row[], challenges: Record<string, Challenge> = {}) {
+// `otpEnabled`: the dispatch-time re-check of is_customer_link_otp_enabled() (phase 3, HARD RULE
+// 4(c) -- re-verify the flag at dispatch time too, not just at request time). `null` simulates an
+// RPC error (must fail OPEN -- send anyway), `false` simulates an explicit "disabled" answer (must
+// fail CLOSED -- never send), `true` (the default) is the normal/unchanged case every pre-existing
+// test above relies on implicitly.
+function fakeAdmin(rows: Row[], challenges: Record<string, Challenge> = {}, otpEnabled: boolean | null = true) {
   const updates: { table: string; id: string; patch: Row }[] = []
   const claimed = new Set<string>()
+  const rpc = async (name: string) => {
+    if (name !== "is_customer_link_otp_enabled") return { data: null, error: null }
+    if (otpEnabled === null) return { data: null, error: { message: "simulated transient RPC error" } }
+    return { data: otpEnabled, error: null }
+  }
   const from = (table: string) => {
     const filters: Record<string, unknown> = {}
     const b: Record<string, unknown> = {}
@@ -88,7 +98,7 @@ function fakeAdmin(rows: Row[], challenges: Record<string, Challenge> = {}) {
     }
     return b
   }
-  return { admin: { from } as never, updates }
+  return { admin: { from, rpc } as never, updates }
 }
 
 const base = {
@@ -220,6 +230,56 @@ describe("customer_link_otp rows through the existing milestone dispatcher", () 
       const { admin } = fakeAdmin([{ ...base, id: "ticket-row", ref_type: "service_ticket", ref_id: "ticket-xyz", payload: { body: "your technician is on the way" } }])
       await runMilestoneDispatch(admin, "org-1")
       expect(sendMessage).toHaveBeenCalledTimes(1) // never blocked by a challenge lookup it should never make
+    })
+  })
+
+  // Phase 3 (docs/DECISIONS.md section 10, HARD RULE 4(c)): is_customer_link_otp_enabled() was
+  // only ever checked once, at REQUEST time -- never re-checked when a row is actually dispatched.
+  // An admin flipping the flag off between request and dispatch must not let an already-enqueued
+  // row send anyway.
+  describe("dispatch-time re-check of is_customer_link_otp_enabled()", () => {
+    const future = new Date(Date.now() + 60_000).toISOString()
+
+    it("flag explicitly disabled at dispatch time: never sent, even though the challenge is still valid, and is NOT mislabeled as expired/used", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin, updates } = fakeAdmin(
+        [{ ...base, id: "otp-row" }],
+        { "challenge-1": { expires_at: future, used_at: null, superseded_at: null } },
+        false
+      )
+      const result = await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).not.toHaveBeenCalled()
+      expect(result.dispatched).toBe(0)
+      // Independent-review LOW finding: a disabled-flag refusal must be distinguishable in the
+      // data from a genuinely expired/used challenge, so data ops reading whatsapp_outbox.error
+      // later isn't misled.
+      const u = updates.find((x) => x.id === "otp-row" && "status" in x.patch)
+      expect(u?.patch.error).toBe("customer_link_otp_disabled_at_dispatch")
+      expect(u?.patch.error).not.toBe("otp_expired_or_used")
+    })
+
+    it("transient RPC error re-checking the flag: fails OPEN, still sends a valid challenge", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin } = fakeAdmin(
+        [{ ...base, id: "otp-row" }],
+        { "challenge-1": { expires_at: future, used_at: null, superseded_at: null } },
+        null
+      )
+      const result = await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).toHaveBeenCalledTimes(1)
+      expect(result.dispatched).toBe(1)
+    })
+
+    it("never checks the flag at all for a different ref_type (true no-op)", async () => {
+      const { runMilestoneDispatch } = await import("./wa-milestone-dispatch-core")
+      const { admin } = fakeAdmin(
+        [{ ...base, id: "ticket-row", ref_type: "service_ticket", ref_id: "ticket-xyz", payload: { body: "your technician is on the way" } }],
+        {},
+        false // if this were ever consulted for a non-OTP row, the send below would wrongly be blocked
+      )
+      const result = await runMilestoneDispatch(admin, "org-1")
+      expect(sendMessage).toHaveBeenCalledTimes(1)
+      expect(result.dispatched).toBe(1)
     })
   })
 
