@@ -403,6 +403,9 @@ export type KpiTilesRpc = {
     resolved_within_24h: { resolved: number; completed: number; percent: number | null; sla_hours: number }
     rating: { average: number | null; count: number; below_4_5: number }
     amc: { active: number; renewal_window: number; revenue: number }
+    // Product Lifecycle widget (W4 drop). Optional: older servers that haven't deployed this
+    // RPC extension yet simply omit the key, and mapKpiTiles below treats that as null.
+    lifecycle?: { upcoming: number; due: number; overdue: number; lifetime_expiring_90d: number } | null
   } | null
   money_out: {
     spend: { total: number; by_category: { category: Enums<"expense_category">; amount: number }[]; operating_excl_purchase: number }
@@ -435,6 +438,8 @@ export type KpiTiles = {
     resolvedWithin24h: { resolved: number; completed: number; percent: number | null; slaHours: number }
     rating: { average: number | null; count: number; below45: number }
     amc: { active: number; renewalWindow: number; revenue: number }
+    /** Product Lifecycle widget (W4 drop): null until the server's report_kpi_tiles RPC returns this key. */
+    lifecycle: { upcoming: number; due: number; overdue: number; lifetimeExpiring90d: number } | null
   } | null
   moneyOut: {
     spendTotal: number
@@ -494,6 +499,14 @@ export function mapKpiTiles(d: KpiTilesRpc): KpiTiles {
           },
           rating: { average: numOrNull(v.rating.average), count: num(v.rating.count), below45: num(v.rating.below_4_5) },
           amc: { active: num(v.amc.active), renewalWindow: num(v.amc.renewal_window), revenue: num(v.amc.revenue) },
+          lifecycle: v.lifecycle
+            ? {
+                upcoming: num(v.lifecycle.upcoming),
+                due: num(v.lifecycle.due),
+                overdue: num(v.lifecycle.overdue),
+                lifetimeExpiring90d: num(v.lifecycle.lifetime_expiring_90d),
+              }
+            : null,
         }
       : null,
     moneyOut: m

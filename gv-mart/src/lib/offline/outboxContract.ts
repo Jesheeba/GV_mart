@@ -71,6 +71,12 @@ export const OUTBOX_REQUIRED_FIELDS: Record<OutboxKind, readonly string[]> = {
   "location.arrival_block": ["org_id", "technician_id", "ticket_id", "lat", "lng", "distance_m", "radius_m"],
   "customer_member.google_review": ["orgId", "visitId", "memberId", "stars", "photoUrl"],
   "rating.mark_review_clicked": ["orgId", "visitId"],
+  // Product Lifecycle & Automated Service Reminder System (2026-10-29) —
+  // spareUsedId/visitId are still present *keys* at enqueue time even when
+  // the technician didn't name a spare or isn't tied to a specific visit;
+  // they're just nullable, same convention as e.g. ro_checklist.save's
+  // tds_before/tds_after above.
+  "product_lifecycle.mark_replaced": ["scheduleId", "replacedDate", "spareUsedId", "visitId"],
 }
 
 /**
