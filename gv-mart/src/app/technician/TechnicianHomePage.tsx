@@ -7,9 +7,11 @@ import { useProfile } from "@/hooks/useProfile"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { JobTypeBadge, OverdueBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
 import { useMyTechnician, usePendingReviews, useTechnicianSettings, useTodayAttendance, useTodaysJobCounts, useTodaysJobs } from "@/hooks/useTechnician"
+import { countDueOrOverdueParts, useDueParts } from "@/hooks/useDueParts"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeTicketAllowedDuration, findOpenVisit, isOverdueJob, type JobCard } from "@/services/technician"
 import type { Tables } from "@/types/database"
@@ -93,6 +95,22 @@ function CountCell({ label, value, loading, danger, className }: { label: string
   )
 }
 
+/**
+ * Product Lifecycle & Automated Service Reminder System — small chip reading
+ * "2 parts due" when the job's customer has at least one due_soon/due/overdue
+ * part schedule (useDueParts). Reuses Badge's "warning" variant (same token
+ * language OverrunBadge/OverdueBadge already use for "needs attention") so
+ * it reads consistently with the badges it sits next to, without pulling the
+ * styling for a brand-new badge into JobBadges.tsx.
+ */
+function DuePartsChip({ customerId }: { customerId: string | null | undefined }) {
+  const { t } = useTranslation()
+  const dueParts = useDueParts(customerId ?? undefined)
+  const count = countDueOrOverdueParts(dueParts.data)
+  if (count === 0) return null
+  return <Badge variant="warning">{t("technicianLifecycle.duePartsChip", { count })}</Badge>
+}
+
 function JobListItem({
   job,
   now,
@@ -145,6 +163,7 @@ function JobListItem({
             <span className="rounded-full bg-info/10 px-2.5 py-0.5 text-xs font-medium text-info">{t("technician.home.inProgress")}</span>
           ) : null}
           {overrun.isOverrun ? <OverrunBadge overrunByMinutes={overrun.overrunByMinutes!} /> : null}
+          <DuePartsChip customerId={ticket.customer_id} />
         </div>
         <div className="flex flex-wrap items-center gap-3 px-1 text-xs text-text-muted">
           {time ? <span>{time}</span> : <span>{t("service.appointment.always")}</span>}

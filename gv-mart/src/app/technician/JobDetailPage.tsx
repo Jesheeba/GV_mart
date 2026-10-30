@@ -4,9 +4,11 @@ import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigation, Phone, Route } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
 import { useCustomerHealthCondition, useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
+import { filterDueOrOverdueParts, useDueParts } from "@/hooks/useDueParts"
 import { useProfile } from "@/hooks/useProfile"
 import { computeJobOverrun } from "@/lib/job-overrun"
 import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
@@ -39,6 +41,11 @@ export function JobDetailPage() {
   const history = useCustomerHistory(jobDetail.data?.customer_id, jobDetail.data?.product_id, ticketId)
   const technician = useMyTechnician()
   const logCall = useLogCall()
+  // Product Lifecycle & Automated Service Reminder System — same hook/query
+  // key the home list's chip and SpareSelectStep's warning list use, so all
+  // three surfaces always agree on which parts are due for this customer.
+  const dueParts = useDueParts(jobDetail.data?.customer_id)
+  const duePartsToShow = filterDueOrOverdueParts(dueParts.data)
   const showHealthCondition = technicianCanSeeHealthCondition(settings.data?.show_health_condition_to_technicians)
   const healthCondition = useCustomerHealthCondition(jobDetail.data?.customers?.id, showHealthCondition)
 
@@ -191,6 +198,32 @@ export function JobDetailPage() {
           </p>
         ) : null}
       </Card>
+
+      {duePartsToShow.length > 0 ? (
+        <Card className="gap-2">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-sm font-semibold text-text">{t("technicianLifecycle.jobDetail.title")}</p>
+            <Badge variant="warning">{t("technicianLifecycle.duePartsChip", { count: duePartsToShow.length })}</Badge>
+          </div>
+          <ul className="space-y-1 px-1 text-sm text-text-muted">
+            {duePartsToShow.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-2">
+                <span className="truncate text-text">{p.label}</span>
+                <span className={cn("shrink-0 text-xs", p.status === "overdue" ? "text-danger" : "text-text-muted")}>
+                  {t(
+                    p.status === "overdue"
+                      ? "technicianLifecycle.warningList.overdue"
+                      : p.status === "due"
+                        ? "technicianLifecycle.warningList.due"
+                        : "technicianLifecycle.warningList.dueSoon",
+                    { date: formatDate(p.nextDueDate) }
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <Card className="gap-2">
         <p className="px-1 text-sm font-semibold text-text">{t("technician.jobDetail.productTitle")}</p>

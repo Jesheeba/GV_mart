@@ -5756,5 +5756,29 @@
       "applied": "Schedule applied to {{count}} installation(s).",
       "applyFailed": "Could not apply the updated schedule."
     }
+  },
+  "technicianLifecycle": {
+    "duePartsChip_one": "{{count}} part due",
+    "duePartsChip_other": "{{count}} parts due",
+    "warningList": {
+      "title": "Parts due for replacement",
+      "dueSoon": "Due soon — {{date}}",
+      "due": "Due — {{date}}",
+      "overdue": "Overdue since {{date}}",
+      "markReplaced": "Mark Replaced"
+    },
+    "markReplacedForm": {
+      "title": "Mark \"{{label}}\" as replaced",
+      "replacedDate": "Replaced on",
+      "spareUsed": "Spare used (optional)",
+      "spareUsedPlaceholder": "Search spares…",
+      "note": "Note (optional)",
+      "submit": "Save",
+      "cancel": "Cancel",
+      "saved": "Recorded — will sync when you're back online."
+    },
+    "jobDetail": {
+      "title": "Parts due"
+    }
   }
 }
