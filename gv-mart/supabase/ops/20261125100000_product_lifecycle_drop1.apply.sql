@@ -708,7 +708,7 @@ begin
     -- notification to the org's ops/master/sales roles) + dedup on
     -- (schedule_id, due_date, stage).
     for v_row in
-      select cps.*, cip.customer_id, cip.is_backfilled, p.full_name as product_name
+      select cps.*, cip.customer_id, cip.is_backfilled, p.name as product_name
       from public.customer_part_schedules cps
       join public.customer_installed_products cip on cip.id = cps.installed_product_id
       join public.products p on p.id = cip.product_id
@@ -779,7 +779,7 @@ begin
 
     -- Lifetime-expiry reminders, same dedupe shape, separate ledger.
     for v_row in
-      select cip.*, p.full_name as product_name
+      select cip.*, p.name as product_name
       from public.customer_installed_products cip
       join public.products p on p.id = cip.product_id
       where cip.org_id = v_org.id
@@ -1112,6 +1112,15 @@ begin
     'money_out', v_money);
 end;
 $function$;
+
+-- CREATE OR REPLACE preserves an existing function's grants on the live database (this function
+-- already carries the correct grants there, set by 20261017110000_report_kpi_tiles.sql:251-252),
+-- but re-asserting them explicitly here is defensive and matches this migration set's own house
+-- style of never leaving a function's EXECUTE grant implicit -- and makes this migration's outcome
+-- deterministic regardless of starting state (a fresh/stub database would otherwise pick up
+-- whatever default privileges happen to apply to a newly-created function of this name).
+revoke all on function public.report_kpi_tiles(date, date) from public, anon;
+grant execute on function public.report_kpi_tiles(date, date) to authenticated;
 $mig6$;
   v_mig7_text text := $mig7$-- Product Lifecycle & Automated Service Reminder System — Drop 1, migration 8/8.
 -- Standard release-wide anon-exposure sweep (hard rule). This project has a
@@ -1280,12 +1289,17 @@ begin
     raise exception 'POST-APPLY: real organisation fingerprint changed (% -> %) -- this must never happen for this migration set', v_org_fingerprint_before, v_org_fingerprint_after;
   end if;
 
-  -- 9d. existing (non-lifecycle) report_kpi_tiles values unchanged for the real org, fixed probe window
+  -- 9d. existing (non-lifecycle) report_kpi_tiles values unchanged for the real org, fixed probe window.
+  -- Explicit ::jsonb/::text casts at every step below are a defensive no-op on a normal Postgres
+  -- server (the operands are already exactly these types) -- added after local verification found
+  -- that without them, a jsonb-chain-then-minus expression inside a plpgsql IF condition can be
+  -- misresolved by some PL/pgSQL implementations ("operator is not unique: unknown - unknown");
+  -- forcing the types removes any ambiguity for any implementation, with no behaviour change.
   v_kpi_after := public.report_kpi_tiles(v_probe_from, v_probe_to);
-  if (v_kpi_before - 'service') is distinct from (v_kpi_after - 'service') then
+  if ((v_kpi_before::jsonb) - 'service'::text) is distinct from ((v_kpi_after::jsonb) - 'service'::text) then
     raise exception 'POST-APPLY: report_kpi_tiles changed OUTSIDE the service object for the probe window -- refusing, this must be byte-for-byte for sales/money_out/window/role';
   end if;
-  if (v_kpi_before->'service' - 'lifecycle') is distinct from (v_kpi_after->'service' - 'lifecycle') then
+  if (((v_kpi_before::jsonb)->'service')::jsonb - 'lifecycle'::text) is distinct from (((v_kpi_after::jsonb)->'service')::jsonb - 'lifecycle'::text) then
     raise exception 'POST-APPLY: report_kpi_tiles.service changed OUTSIDE the new lifecycle key -- refusing, every existing service tile (open_tickets, resolved_within_24h, rating, amc) must be byte-for-byte unchanged';
   end if;
 

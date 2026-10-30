@@ -52,7 +52,7 @@ begin
     -- notification to the org's ops/master/sales roles) + dedup on
     -- (schedule_id, due_date, stage).
     for v_row in
-      select cps.*, cip.customer_id, cip.is_backfilled, p.full_name as product_name
+      select cps.*, cip.customer_id, cip.is_backfilled, p.name as product_name
       from public.customer_part_schedules cps
       join public.customer_installed_products cip on cip.id = cps.installed_product_id
       join public.products p on p.id = cip.product_id
@@ -123,7 +123,7 @@ begin
 
     -- Lifetime-expiry reminders, same dedupe shape, separate ledger.
     for v_row in
-      select cip.*, p.full_name as product_name
+      select cip.*, p.name as product_name
       from public.customer_installed_products cip
       join public.products p on p.id = cip.product_id
       where cip.org_id = v_org.id

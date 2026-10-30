@@ -222,3 +222,12 @@ begin
     'money_out', v_money);
 end;
 $function$;
+
+-- CREATE OR REPLACE preserves an existing function's grants on the live database (this function
+-- already carries the correct grants there, set by 20261017110000_report_kpi_tiles.sql:251-252),
+-- but re-asserting them explicitly here is defensive and matches this migration set's own house
+-- style of never leaving a function's EXECUTE grant implicit -- and makes this migration's outcome
+-- deterministic regardless of starting state (a fresh/stub database would otherwise pick up
+-- whatever default privileges happen to apply to a newly-created function of this name).
+revoke all on function public.report_kpi_tiles(date, date) from public, anon;
+grant execute on function public.report_kpi_tiles(date, date) to authenticated;

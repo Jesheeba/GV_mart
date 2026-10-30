@@ -668,7 +668,7 @@ begin
     -- notification to the org's ops/master/sales roles) + dedup on
     -- (schedule_id, due_date, stage).
     for v_row in
-      select cps.*, cip.customer_id, cip.is_backfilled, p.full_name as product_name
+      select cps.*, cip.customer_id, cip.is_backfilled, p.name as product_name
       from public.customer_part_schedules cps
       join public.customer_installed_products cip on cip.id = cps.installed_product_id
       join public.products p on p.id = cip.product_id
@@ -739,7 +739,7 @@ begin
 
     -- Lifetime-expiry reminders, same dedupe shape, separate ledger.
     for v_row in
-      select cip.*, p.full_name as product_name
+      select cip.*, p.name as product_name
       from public.customer_installed_products cip
       join public.products p on p.id = cip.product_id
       where cip.org_id = v_org.id
@@ -1072,6 +1072,15 @@ begin
     'money_out', v_money);
 end;
 $function$;
+
+-- CREATE OR REPLACE preserves an existing function's grants on the live database (this function
+-- already carries the correct grants there, set by 20261017110000_report_kpi_tiles.sql:251-252),
+-- but re-asserting them explicitly here is defensive and matches this migration set's own house
+-- style of never leaving a function's EXECUTE grant implicit -- and makes this migration's outcome
+-- deterministic regardless of starting state (a fresh/stub database would otherwise pick up
+-- whatever default privileges happen to apply to a newly-created function of this name).
+revoke all on function public.report_kpi_tiles(date, date) from public, anon;
+grant execute on function public.report_kpi_tiles(date, date) to authenticated;
 $mig6$;
   v_mig7_text text := $mig7$-- Product Lifecycle & Automated Service Reminder System — Drop 1, migration 8/8.
 -- Standard release-wide anon-exposure sweep (hard rule). This project has a
@@ -1159,7 +1168,13 @@ begin
   -- pg_temp functions below are created, or 'set local role authenticated' (inside as_user) later
   -- loses permission to EXECUTE pg_temp.as_pg() itself -- that exact 42501 is what the first
   -- corrected run of this file hit, because this line was missing. Copied verbatim from the
-  -- precedent file's own identical line (its $g$ tag, same placement, same reasoning). ----
+  -- precedent file's own identical line (same tag letter, same placement, same reasoning).
+  -- SECOND fix, found in local verification: pg_my_temp_schema() returns OID 0 (which casts to
+  -- regnamespace as the literal text "-", breaking the ALTER statement below) until the session
+  -- has created at least one temp object -- the precedent file's own ordering already creates its
+  -- "res" temp table before this exact line for this reason; this file had no such temp object
+  -- yet at this point, so create a trivial one first.
+  execute 'create temp table __lifecycle_rehearsal_marker (x int)';
   do $g$ begin execute format('alter default privileges in schema %s grant execute on functions to public', pg_my_temp_schema()::regnamespace); end $g$;
   create function pg_temp.mkuser(p_role text, p_org uuid) returns uuid language plpgsql as $f$
   declare v uuid := gen_random_uuid();
