@@ -16,6 +16,8 @@ const DEFAULT_ZOOM = 11
 const PIN_ZOOM = 15
 
 type Coords = { lat: number; lng: number }
+/** Carries the browser geolocation accuracy (metres) only when the confirmed pin came from "use my current location" -- undefined for a search result or a manual drag, which have no comparable figure. */
+type ConfirmedCoords = Coords & { accuracy?: number }
 
 function newSessionToken() {
   return crypto.randomUUID()
@@ -30,6 +32,7 @@ export function AddressMapPicker({
   suggestedPrecise,
   onConfirm,
   onAddressSelect,
+  onLocateError,
 }: {
   lat?: number
   lng?: number
@@ -56,10 +59,12 @@ export function AddressMapPicker({
    * location" stays disabled until the user actually drags the pin at least
    * once, so a coarse guess can never be accepted with a single blind tap. */
   suggestedPrecise?: boolean
-  /** Fires only when the user explicitly confirms a location (selecting a search result, or confirming a drag adjustment). */
-  onConfirm: (coords: Coords) => void
+  /** Fires only when the user explicitly confirms a location (selecting a search result, confirming a drag adjustment, or using their current location). `accuracy` is only ever set on the "use my current location" path. */
+  onConfirm: (coords: ConfirmedCoords) => void
   /** Fires when a search result is picked, before drag adjustment — lets the caller auto-fill area/pincode/district/state. */
   onAddressSelect?: (result: GeocodeResult) => void
+  /** Denied permission, unavailable geolocation, or no navigator.geolocation at all, from "use my current location" -- previously silently swallowed. Optional: omit to keep the old silent-fail behavior. */
+  onLocateError?: (kind: "denied" | "unavailable") => void
 }) {
   const { t } = useTranslation()
   const mapApiKey = useMapApiKey()
@@ -192,12 +197,12 @@ export function AddressMapPicker({
     onConfirm(draftPin)
   }
 
-  function useMyLocation(coords: { longitude: number; latitude: number }) {
+  function useMyLocation(coords: { longitude: number; latitude: number; accuracy: number }) {
     const next = { lat: coords.latitude, lng: coords.longitude }
     setPin(next)
     setDraftPin(null)
     skipNextPropSync.current = true
-    onConfirm(next)
+    onConfirm({ ...next, accuracy: coords.accuracy })
   }
 
   const activePin = draftPin ?? pin
@@ -301,7 +306,7 @@ export function AddressMapPicker({
             onViewportChange={(v) => setViewport({ center: v.center, zoom: v.zoom })}
             onLoadError={() => setMapLoadError(true)}
           >
-            <MapControls showZoom showLocate onLocate={useMyLocation} />
+            <MapControls showZoom showLocate onLocate={useMyLocation} onLocateError={onLocateError} />
             {activePin ? (
               <MapMarker
                 longitude={activePin.lng}

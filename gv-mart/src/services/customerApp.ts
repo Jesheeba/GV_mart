@@ -150,6 +150,29 @@ export async function setMyPrimaryAddress(customerId: string, addressId: string)
   if (error) throw error
 }
 
+/**
+ * "Pin my address" (20261201100000) -- a focused action distinct from the full add/edit
+ * AddressForm (which already requires a pin as part of saving the whole address). Relies on
+ * the existing addresses_write_own RLS policy (customer_id = current_customer_id(), org_id =
+ * current_org_id(), 20261006190000_lock_down_own_row_policies.sql) for ownership -- no new RPC;
+ * a plain .update() here can only ever touch the caller's own row.
+ */
+export async function setMyAddressPin(addressId: string, lat: number, lng: number, accuracyM?: number) {
+  const { error } = await supabase
+    .from("addresses")
+    .update({ lat, lng, pinned_at: new Date().toISOString(), location_accuracy_m: accuracyM ?? null })
+    .eq("id", addressId)
+  if (error) throw error
+}
+
+export async function clearMyAddressPin(addressId: string) {
+  const { error } = await supabase
+    .from("addresses")
+    .update({ lat: null, lng: null, pinned_at: null, location_accuracy_m: null })
+    .eq("id", addressId)
+  if (error) throw error
+}
+
 // Task 3 (2026-07-30): routed through a guarded RPC (rather than a raw
 // `.delete()`) so the server rejects deleting an address that's linked to
 // an active (not completed/cancelled) booking, not just relying on RLS for

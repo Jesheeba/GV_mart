@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
+import { AddressPinPreview } from "@/components/shared/AddressPinDialog"
 import { useToast } from "@/components/ui/toast-context"
 import {
   useCustomer,
@@ -370,6 +371,9 @@ export function CustomerDetailPage() {
                           <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
                         )}
                       </span>
+                      {primaryAddress.lat != null && primaryAddress.lng != null ? (
+                        <AddressPinPreview lat={primaryAddress.lat} lng={primaryAddress.lng} />
+                      ) : null}
                     </>
                   ) : (
                     <span className="text-sm text-text-muted">{t("customers.detail.noAddress")}</span>

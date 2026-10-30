@@ -2437,6 +2437,13 @@
       "primary": "Primary",
       "setPrimary": "Set primary",
       "confirm": "Confirm",
+      "pinAddress": "Pin my address",
+      "pinDialogTitle": "Pin my address",
+      "pinDialogHint": "Set the exact location of this address so technicians and our team can navigate straight to it.",
+      "pinLocateDenied": "Location permission denied. You can still search for the address or drag the pin on the map.",
+      "pinLocateUnavailable": "Couldn't get your location right now. You can still search for the address or drag the pin on the map.",
+      "pinRemove": "Remove pin",
+      "openInMaps": "Open in Google Maps",
       "address": {
         "doorNo": "Door No.",
         "flatNo": "Flat No.",

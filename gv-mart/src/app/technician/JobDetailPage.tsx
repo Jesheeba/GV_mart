@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigatio
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { AddressPinPreview } from "@/components/shared/AddressPinDialog"
 import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
 import { useCustomerHealthCondition, useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
 import { useProfile } from "@/hooks/useProfile"
@@ -172,6 +173,11 @@ export function JobDetailPage() {
               .join(", ") || "—"}
           </span>
         </p>
+        {ticket.addresses?.lat != null && ticket.addresses?.lng != null ? (
+          <div className="px-1">
+            <AddressPinPreview lat={ticket.addresses.lat} lng={ticket.addresses.lng} />
+          </div>
+        ) : null}
         <p className="flex items-center gap-1.5 px-1 text-sm text-text-muted">
           <CalendarClock className="size-3.5 shrink-0" />
           {appointment?.mode === "always"

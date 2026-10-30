@@ -857,6 +857,10 @@ export type Database = {
           state: string | null
           lat: number | null
           lng: number | null
+          // "Pin my address" (20261201100000) -- when the pin was last set/changed, and the
+          // browser geolocation accuracy (metres) when it came from "use my current location".
+          pinned_at: string | null
+          location_accuracy_m: number | null
           address_type: Database["public"]["Enums"]["address_type"]
           ownership: Database["public"]["Enums"]["ownership_type"]
           is_primary: boolean
@@ -881,6 +885,8 @@ export type Database = {
           state?: string | null
           lat?: number | null
           lng?: number | null
+          pinned_at?: string | null
+          location_accuracy_m?: number | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
@@ -905,6 +911,8 @@ export type Database = {
           state?: string | null
           lat?: number | null
           lng?: number | null
+          pinned_at?: string | null
+          location_accuracy_m?: number | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean

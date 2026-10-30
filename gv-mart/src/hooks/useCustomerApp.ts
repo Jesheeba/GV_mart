@@ -102,6 +102,29 @@ export function useSetMyPrimaryAddress(customerId: string | undefined) {
   })
 }
 
+export function useSetMyAddressPin(customerId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ addressId, lat, lng, accuracyM }: { addressId: string; lat: number; lng: number; accuracyM?: number }) =>
+      api.setMyAddressPin(addressId, lat, lng, accuracyM),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerApp", "addresses", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customerApp", "record", customerId] })
+    },
+  })
+}
+
+export function useClearMyAddressPin(customerId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (addressId: string) => api.clearMyAddressPin(addressId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerApp", "addresses", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customerApp", "record", customerId] })
+    },
+  })
+}
+
 export function useDeleteMyAddress(customerId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
