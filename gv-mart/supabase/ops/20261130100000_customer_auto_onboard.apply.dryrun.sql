@@ -40,6 +40,11 @@
 --   4. NEW-OBJECT PRE-CHECK -- the 5 new customers columns, customer_auto_onboard() and
 --                           admin_merge_auto_customer() must not already exist; customers.mobile
 --                           must currently be NOT NULL.
+--   4b. LIVE-DEFINITION PRE-CHECK -- CR-tolerant sha256 of the CURRENT live pg_get_functiondef()
+--                           of admin_link_customer_google_account / admin_unlink_customer_google_account
+--                           must equal their pinned hashes (discovered empirically against the
+--                           live database before this script was written) -- refuses if either
+--                           was changed by anyone else since 20261130100002 was written.
 --   5. REAL-TABLE FINGERPRINT (BEFORE) -- count + md5(string_agg(id||updated_at)) of customers,
 --                           profiles, audit_log, over REAL organisations only.
 --   6. LEAK SNAPSHOT (BEFORE) -- every public-schema function already executable by PUBLIC/anon.
@@ -53,8 +58,11 @@
 --          admin_link_customer_google_account / admin_unlink_customer_google_account still
 --          exist (redefined, not dropped);
 --      10b. DIFF-BASED leak check against the BEFORE snapshot;
---      10c. ABSOLUTE check -- anon/PUBLIC cannot execute customer_auto_onboard() or
---          admin_merge_auto_customer(uuid,uuid,text), independent of 10b;
+--      10c. ABSOLUTE check -- anon/PUBLIC cannot execute customer_auto_onboard(),
+--          admin_merge_auto_customer(uuid,uuid,text), admin_link_customer_google_account(uuid,text)
+--          or admin_unlink_customer_google_account(uuid,text), independent of 10b; AND the two
+--          redefined functions' grants are unchanged by the redefinition (still anon=false,
+--          authenticated=true -- CREATE OR REPLACE doesn't reset grants, checked not assumed);
 --      10d. the real customers/profiles/audit_log fingerprints are all unchanged from step 5.
 --   11. On success, INSERT the one status row into pg_temp.customer_auto_onboard_apply_status.
 --
@@ -69,6 +77,7 @@ create temp table customer_auto_onboard_apply_status (
   new_objects_exist                boolean,
   mobile_is_nullable               boolean,
   admin_link_unlink_still_exist    boolean,
+  admin_link_unlink_grants_unchanged boolean,
   functions_executable_by_anon     boolean,
   newly_leaked_functions           text[],
   customers_fingerprint_unchanged  boolean,
@@ -86,12 +95,20 @@ declare
   v_expected_rpc_hash         text := '46c63f7ba8a24ebbe90cea4f0216d9ea2a7219e442657fa255bf6c8345c28f81';
   v_expected_unlink_hash      text := '855f458797428e5b442d1a5b1ba511d96ae13b539d7ad75eea18421fd4d960cf';
   v_expected_merge_hash       text := '62b21eb1bc1834da1bfa3ba94e8af2bbf0d71cb4e569162120fcb9fe92a0a6e7';
+  -- Live-body pins for the two functions 20261130100002 redefines -- discovered empirically by
+  -- querying pg_get_functiondef() against the actual live database before this script was
+  -- written (not derivable from the migration file alone, since pg_get_functiondef's own
+  -- formatting differs from a CREATE statement's source text).
+  v_expected_live_link_hash   text := 'cb1bf2b33ddc6cdba1174e27917e4758d67d3cf6cd1982996d6ed04512a82a0f';
+  v_expected_live_unlink_hash text := 'caeabcfc4783c26d0484c04803007be8ac0eb9bc955c4c1a48f59db34799cb3c';
+  v_live_hash                 text;
   v_actual_hash               text;
   v_versions                  text[] := array['20261130100000', '20261130100001', '20261130100002', '20261130100003'];
   v_already_registered        boolean;
   v_new_objects_exist          boolean := true;
   v_mobile_nullable            boolean := false;
   v_admin_link_unlink_ok       boolean := false;
+  v_admin_link_unlink_grants_ok boolean := false;
   v_anon_exec                  boolean := false;
   v_leaked_before              text[];
   v_leaked_after               text[];
@@ -710,6 +727,20 @@ begin
     raise exception 'APPLY_REFUSED: customers.mobile is not currently NOT NULL as expected -- something else already changed it';
   end if;
 
+  -- 4b. LIVE-DEFINITION PRE-CHECK -- 20261130100002 redefines two already-live functions
+  -- (admin_link_customer_google_account / admin_unlink_customer_google_account, 20261121100000).
+  -- Pin their CURRENT live bodies (CR-tolerant, same formula as the migration-text hash) before
+  -- touching them, so this refuses loudly if anyone changed either one since this migration pair
+  -- was written, instead of silently clobbering an unreviewed change.
+  v_live_hash := encode(sha256(convert_to(replace(pg_get_functiondef('public.admin_link_customer_google_account(uuid,text)'::regprocedure), E'\r', ''), 'UTF8')), 'hex');
+  if v_live_hash is distinct from v_expected_live_link_hash then
+    raise exception 'APPLY_REFUSED: live admin_link_customer_google_account no longer matches the pinned body (expected %, got %) -- someone changed it since this migration was written', v_expected_live_link_hash, v_live_hash;
+  end if;
+  v_live_hash := encode(sha256(convert_to(replace(pg_get_functiondef('public.admin_unlink_customer_google_account(uuid,text)'::regprocedure), E'\r', ''), 'UTF8')), 'hex');
+  if v_live_hash is distinct from v_expected_live_unlink_hash then
+    raise exception 'APPLY_REFUSED: live admin_unlink_customer_google_account no longer matches the pinned body (expected %, got %) -- someone changed it since this migration was written', v_expected_live_unlink_hash, v_live_hash;
+  end if;
+
   -- 5. REAL-TABLE FINGERPRINT (BEFORE)
   select count(*), md5(coalesce(string_agg(id::text || updated_at::text, '' order by id), ''))
     into v_cust_count_before, v_cust_md5_before
@@ -818,9 +849,23 @@ begin
 
   -- 10c. ABSOLUTE checks.
   if has_function_privilege('anon', 'public.customer_auto_onboard()', 'EXECUTE')
-     or has_function_privilege('anon', 'public.admin_merge_auto_customer(uuid,uuid,text)', 'EXECUTE') then
+     or has_function_privilege('anon', 'public.admin_merge_auto_customer(uuid,uuid,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.admin_link_customer_google_account(uuid,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.admin_unlink_customer_google_account(uuid,text)', 'EXECUTE') then
     v_anon_exec := true;
-    raise exception 'APPLY_REFUSED: post-apply check failed -- at least one new function is executable by anon/PUBLIC';
+    raise exception 'APPLY_REFUSED: post-apply check failed -- at least one function is executable by anon/PUBLIC';
+  end if;
+
+  -- 10c-ii. the two redefined functions' grants are unchanged by the redefinition: still
+  -- anon=false, authenticated=true (CREATE OR REPLACE does not reset grants, but checked
+  -- explicitly rather than assumed).
+  v_admin_link_unlink_grants_ok :=
+    (not has_function_privilege('anon', 'public.admin_link_customer_google_account(uuid,text)', 'EXECUTE'))
+    and has_function_privilege('authenticated', 'public.admin_link_customer_google_account(uuid,text)', 'EXECUTE')
+    and (not has_function_privilege('anon', 'public.admin_unlink_customer_google_account(uuid,text)', 'EXECUTE'))
+    and has_function_privilege('authenticated', 'public.admin_unlink_customer_google_account(uuid,text)', 'EXECUTE');
+  if not v_admin_link_unlink_grants_ok then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- admin_link/admin_unlink_customer_google_account grants changed after redefinition';
   end if;
 
   -- 10d. real fingerprints unchanged.
@@ -852,12 +897,12 @@ begin
   -- 11. Every step above passed.
   insert into pg_temp.customer_auto_onboard_apply_status (
     versions_registered, new_objects_exist, mobile_is_nullable, admin_link_unlink_still_exist,
-    functions_executable_by_anon, newly_leaked_functions,
+    admin_link_unlink_grants_unchanged, functions_executable_by_anon, newly_leaked_functions,
     customers_fingerprint_unchanged, profiles_fingerprint_unchanged, audit_log_fingerprint_unchanged, applied_at
   )
   values (
     v_versions, v_new_objects_exist, v_mobile_nullable, v_admin_link_unlink_ok,
-    v_anon_exec, v_newly_leaked,
+    v_admin_link_unlink_grants_ok, v_anon_exec, v_newly_leaked,
     (v_cust_count_after = v_cust_count_before and v_cust_md5_after = v_cust_md5_before),
     (v_prof_count_after = v_prof_count_before and v_prof_md5_after = v_prof_md5_before),
     (v_audit_count_after = v_audit_count_before and v_audit_md5_after = v_audit_md5_before),
