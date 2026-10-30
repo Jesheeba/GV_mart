@@ -22,7 +22,7 @@ declare
   v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
   v_org_fingerprint_before text;
   v_org_fingerprint_after text;
-  v_expected_migration_hash text := '8ab91094adbc31cc0613c6cb5ba9ac7e7923f5a2e82c96d7713ca5094be6cae8';
+  v_expected_migration_hash text := '341a59d21110915f7d2be9c27cde22c68f8cdc34e1a13e64f762cd64300896f2';
   v_actual_migration_hash text;
   v_migration_version text := '20261121100150';
   v_already_registered boolean;
@@ -240,6 +240,11 @@ begin
       else v_code || ' is your GV Mart account linking code. Do not share it with anyone. It expires in 10 minutes.'
     end;
 
+    -- CHANGE (a): 'code' alongside 'body' -- the dispatcher needs the raw code as a value, not just
+    -- embedded in a rendered sentence, for a future named-parameter template send. Both keys are
+    -- wiped together the moment this row is redacted (the existing redaction code replaces the
+    -- WHOLE payload column, not a per-key merge -- see wa-milestone-dispatch-core.ts /
+    -- wa-dispatch-v2.ts), so adding this key does not widen how long the plaintext code survives.
     insert into public.whatsapp_outbox (org_id, direction, to_mobile, customer_id, milestone, template, payload, ref_type, ref_id, status)
     values (v_match_org_id, 'outbound', p_mobile, v_match_id, 'customer_link_otp', 'customer_link_otp',
             jsonb_build_object('body', v_body, 'code', v_code), 'customer_link_otp', v_challenge_id, 'pending')
@@ -254,6 +259,8 @@ begin
     values (v_match_org_id, null, 'customer_link_otp_requested', 'customers', v_match_id,
             jsonb_build_object('auth_user_id', v_user_id, 'phone_last4', v_phone_last4, 'challenge_id', v_challenge_id));
 
+    -- CHANGE (b): the fast-dispatch nudge. See wa_otp_fast_dispatch_invoke's own header comment for
+    -- why this exists and why its failure is swallowed rather than surfaced or rolled back.
     begin
       perform public.wa_otp_fast_dispatch_invoke(v_match_org_id);
     exception when others then
@@ -297,6 +304,15 @@ begin
       raise exception 'cannot_verify_code: feature_disabled';
     end if;
 
+    -- Row lock on the caller's own single active (not used, not superseded) challenge. Scoping by
+    -- user_id here (not just "the most recent challenge anywhere") is what stops a second
+    -- authenticated user from ever verifying against a challenge they did not request themselves,
+    -- even if they correctly guess the code -- the challenge is bound to the requester's own
+    -- auth.uid(), checked here, not just to a customer_id/mobile they could type. The lock also
+    -- means a second, concurrent verify call for the SAME challenge blocks here until the first
+    -- call's transaction commits or rolls back, so two parallel guesses can never both read the
+    -- same `attempts` value and both be let through, and two parallel correct-code calls can never
+    -- both pass the "still unlinked" check below.
     select * into v_challenge
     from public.customer_link_otp_challenges
     where user_id = v_user_id and used_at is null and superseded_at is null
@@ -331,20 +347,37 @@ begin
       return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', greatest(v_challenge.max_attempts - v_challenge.attempts, 0));
     end if;
 
+    -- Correct code: re-check the customer is still unlinked and not flagged test (defends against a
+    -- race where staff linked/flagged the customer by hand between request and verify) and mark the
+    -- challenge used inside the same row-locked transaction, then run the actual link. Marking it
+    -- used FIRST, before the link itself, means the code is burned (single-use) even on the rare
+    -- path where the link below then fails its own race check -- a deliberate choice recorded in
+    -- DECISIONS.md section 3 (the alternative, marking it used only after a successful link, would
+    -- let one correct code be retried indefinitely across repeated race losses).
     update public.customer_link_otp_challenges set used_at = clock_timestamp() where id = v_challenge.id;
 
+    -- Row-lock the customer first (FOR UPDATE) so a concurrent verify for the same customer (a
+    -- second challenge, or staff linking/flagging it by hand) blocks here rather than racing --
+    -- this MUST happen before inserting the profiles row below: profiles.id is this function's own
+    -- insert target and customers.primary_profile_id has a foreign key to it, so the customer
+    -- cannot be pointed at a profile that does not exist yet. Locking first, inserting the profile
+    -- second, and updating the customer last is the only ordering that satisfies both the FK and
+    -- the race-safety requirement.
     perform 1 from public.customers where id = v_challenge.customer_id for update;
 
     -- ADDED (this migration, owner-approved guard): a customer blocked by a master's unlink
-    -- between this challenge's request and this verify call is treated exactly like "lost the
-    -- race" -- the IDENTICAL {status: 'invalid_or_expired', attempts_left: 0} response any other
-    -- re-check failure already returns here, so there is no new, distinguishable outcome and no
-    -- new timing signal (same code path, same statements run, whether blocked or already-linked
+    -- between this challenge's request and this verify call must be treated exactly like "lost
+    -- the race" below -- the IDENTICAL {status: 'invalid_or_expired', attempts_left: 0} response
+    -- any other re-check failure already returns, so there is no new, distinguishable outcome and
+    -- no new timing signal (same code path, same statements run, whether blocked, already-linked,
     -- or flagged test).
     if exists (
       select 1 from public.customers
       where id = v_challenge.customer_id and (primary_profile_id is not null or is_test or auto_link_blocked_at is not null)
     ) then
+      -- Lost the race (or the customer was flagged test / linked by hand / blocked by a master in
+      -- between): the code is still burned (used_at was already set above), but no profile is
+      -- created and nothing else changes.
       return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', 0);
     end if;
 
@@ -358,6 +391,8 @@ begin
 
     get diagnostics v_rows_updated = row_count;
     if v_rows_updated <> 1 then
+      -- Cannot actually happen given the row lock + re-check immediately above (nothing else can
+      -- change this row between here and there), but checked anyway rather than assumed.
       raise exception 'cannot_verify_code: unexpected_link_failure';
     end if;
 

@@ -991,3 +991,88 @@ owner's explicit go-ahead before this (or any variant of it) is written as a rea
   written or applied for this.
 - No files in this worktree were changed by this round (read-only checks + this doc update only).
 - Still no live apply, no push, no merge, no deploy, no secrets, no customer-facing test.
+
+## 13. Owner approved the guard (12.3) — built, ordered, reviewed, re-rehearsed
+
+New migration `20261121100150_customer_link_otp_respects_auto_link_block.sql`, timestamped
+between `20261121100100` (dispatch hardening) and `20261121100200` (template mapping) per the
+owner's explicit ordering instruction. `create or replace`s `request_customer_link_code` and
+`verify_customer_link_code`, reproducing their LIVE bodies (fetched via `pg_get_functiondef`,
+sha256-pinned: `9e108f6e9f55ad8539773de90d3ceca201231e24874854d3db855f41829557a3` for request,
+`2a12b2ef965e068297a40922f88477b9b8db92196b896755bc4599196e374bb4` for verify) plus exactly one
+added condition each, exactly as proposed in section 12.3. The migration's own DO block refuses to
+apply if either live body has drifted from these pinned hashes since written — same discipline
+`20261130100002` used for the two admin link functions. Neither `admin_link_customer_google_account`,
+`admin_unlink_customer_google_account`, nor `customer_auto_onboard` is touched.
+
+### 13.1 Two independent reviews of the final combined package
+
+**String-literal/factual accuracy review** found the reproduced function bodies' LOGIC exactly
+matches the proposal (confirmed line-by-line against the live source, including correctly
+reproducing `request_customer_link_code`'s POST-`20261120100100`-fast-dispatch body, not the
+stale original — the `'code'` payload key and `wa_otp_fast_dispatch_invoke` nudge are genuinely
+part of the live function, confirmed), and all sha256 hashes (per-function and whole-migration-
+file) are byte-identical everywhere they appear (the migration file, the generator script, both
+`.apply.sql`/`.apply.dryrun.sql` files). **One real discrepancy, fixed**: the first draft of this
+migration's reproduction silently dropped nearly every original rationale comment from both
+functions (the timing/rate-limit security-review notes, the row-lock rationale, the "lost the
+race" note, etc.), contradicting its own header's "verbatim... nothing else changes" claim. Fixed
+by reconstructing both function bodies against the exact live text (`pg_get_functiondef` output,
+re-verified byte-for-byte against the pinned hashes on local Postgres 16 before and after the
+fix) with every original comment restored, and ONLY the one new comment+condition added to each —
+the migration's own claim is now actually true, not just asserted. Also flagged: this document's
+section 12.4 was stale the moment this migration existed (superseded by this section) and 12.3's
+line-number citation (`294-302`) referred to the pre-fast-dispatch file, not the actually-live one
+— both noted here, not independently worth a further fix (the SQL content cited was accurate
+either way).
+
+**Security review**: no unresolved Critical/High/Medium. Confirmed: the new
+`auto_link_blocked_at` check in `request_customer_link_code` produces a response and send-log
+decision byte-identical to every other exclusion case (same branch, same `v_generic`, same
+`'no_match'` decision, no new query specific to the blocked case) — no new oracle. The
+`verify_customer_link_code` check sits after the code is already verified correct and the
+challenge already marked used, under the pre-existing `for update` row lock on the customer, and
+returns the identical `{status: 'invalid_or_expired', attempts_left: 0}` every other race-loss
+case already returns. No alternate bypass path exists (`profiles` has no self-insert policy since
+`20261006130000`; these two `SECURITY DEFINER` RPCs are the only non-master way a phone-linked
+profile gets created). Grants/`search_path` unchanged and re-asserted by the migration itself. One
+Low/Info residual, inherent to the existing design and not newly introduced: `request_customer_link_code`'s
+own match lookup is an unlocked `select`, so a master could theoretically unlink a customer in the
+narrow window between that lookup and the challenge insert, letting one more OTP get dispatched to
+a now-blocked number — it can never actually result in a link (verify's locked re-check still
+catches it), so this is a stray message at most, not a security bypass.
+
+### 13.2 Verification (final combined package, this round)
+
+- **Local Postgres (WSL)**: the exact live function bodies (captured via `pg_get_functiondef`, not
+  re-typed) were loaded onto the local cluster first — confirmed their `pg_get_functiondef` hash
+  there matches the pinned live hashes exactly (same Postgres 16 canonicalization), proving the
+  pin is meaningful, not just internally consistent. The real, unmodified guard migration then ran
+  against them, correctly detected drift when re-run against its OWN already-guarded output
+  (proving the drift check works), and — reset to the pristine base and re-run once — applied
+  cleanly. The dedicated test (14 assertions: blocked customer behaviour, byte-identical response
+  vs. a nonexistent phone, blocked-mid-flow refusal with no link, unblocked customer unaffected,
+  relink-after-unblock works again) passed in full, inside a rolled-back transaction.
+- **Combined live rehearsal** (one transaction, non-persisting, same convention throughout —
+  embeds the prereq, hardening + test, THIS guard + test, mapping + test, in that order): **24 of
+  24 assertions passed** (hardening 11, guard 14, mapping 5 — consistent with 13.1 note: `G0` here
+  simply restates that the migration's own assertions already proved the source change). Real-row
+  fingerprint (`whatsapp_outbox`, every other template mapping, and every real customer's own
+  link/block state) identical before and after: `b2ed235071b8f7a2c0b965ad07f75b38`.
+  Re-ran again after the comment-fidelity fix (13.1) — identical result, same fingerprint.
+- **All three pending migrations' DRYRUN-OK apply scripts** (hardening, guard, mapping) raise
+  cleanly on their first statement at the final commit.
+- `tsc -b` clean (no TypeScript changed this round).
+
+### 13.3 Status at hand-off
+
+- **Built, local- and combined-live-rehearsed, reviewed twice (string + security), NOT applied,
+  NOT pushed:** `20261121100150_customer_link_otp_respects_auto_link_block.sql` and its ops
+  bundle/test.
+- **Final migration ordering for this feature's still-pending work:** `20261120100200` (prereq,
+  committed by a concurrent session) → `20261121100100` (dispatch hardening) →
+  `20261121100150` (this guard) → `20261121100200` (template mapping). No version collisions
+  against anything live (section 12.1, unchanged).
+- **No live apply, no push, no merge to main, no Edge Function deploy, no secret changes, no live
+  customer-facing test performed by this pass.** The coordinator performs the actual live apply
+  once satisfied with this round's results, per the owner's explicit instruction — not this pass.
