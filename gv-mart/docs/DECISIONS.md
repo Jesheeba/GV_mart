@@ -529,3 +529,193 @@ eventually gets mapped — so answering this question later is a pure data chang
 - **No live apply, no push performed by this pass**, per this phase's own explicit instruction —
   everything above that needed live verification was checked read-only or rehearsed with an
   unconditional rollback.
+
+## 10. Phase 3 (2026-10-30): template facts, redaction/dispatch hardening, net.* finding
+
+Separate work pass, same worktree/branch. Owner confirmed the AUTHENTICATION-category template
+name is `lexdraft_otp` and gave a strict ordered plan (steps 1-5, STOP before edge-function
+deploy/secrets/live customer test, all gated on a typed "APPROVED" not given this pass). This
+section records exactly what was found and built, in order.
+
+### 10.0 Housekeeping
+
+The stray `20261120100000_customer_link_otp.anon_exposure_sweep.sql.out.txt` file the task named
+did not exist in the worktree — already removed by commit `38abfeb`, nothing to delete.
+`git fetch origin` + merge brought in 5 new commits (`60cd116`..`03cb43a`, a master-only
+Google-account-linking stopgap feature, unrelated to this feature) with exactly one conflict
+(`src/types/database.ts`, two independent `Functions` entries needing concatenation, same
+discipline as this branch's prior merge) — resolved, merge commit `d2c99a2`. `tsc -b`, `oxlint`,
+`npm test` (776 passed / 17 skipped before this pass's own additions), and `npm run build` all
+pass clean after the merge.
+
+**A concurrent Claude Code session was again working this exact worktree during this pass**
+(consistent with 9.1/9.2 and this project's "deliberate parallel sessions" memory): mid-pass, the
+previously-untracked `20261120100200_whatsapp_outbox_secret_payload_scrub.sql` file (described in
+9.0/9.4 as still pending) was committed from outside this pass as `9caef1d`, between a `git status`
+call and the next. No collision with this pass's own work — ceded to that commit (it is read, not
+re-written, by the migration built in 10.2 below) and nothing here conflicted with it.
+
+### 10.1 Step 2/3 (template facts + brand check): BLOCKED, confirmed via live read-only query,
+### not re-litigated from 9.3's prior finding
+
+Read-only query against `whatsapp_wasi_templates` (same sha256-verified `run_rehearsal.mjs`,
+`001c54de5364f98e232a26c5ada1c929289243cd2bad00cc008c595c43beafb4`) confirms the row 9.3 already
+found: `wasi_name='lexdraft_otp'`, `language='en'`, `status='approved'`, `category='Authentication'`,
+`header_type=null`, `param_keys=[]` (empty), one org (`b6822905-5557-4e43-a606-f26ecfd5a541`). A
+second query against `whatsapp_event_templates` confirms (again) no mapping row exists for
+`customer_link_otp` or `lexdraft_otp` anywhere live.
+
+**Why body text/footer/button-type are NOT discoverable from the repo or DB, confirmed by reading
+the sync code itself, not assumed:** `supabase/functions/_shared/wasi-templates.ts`'s own header
+comment records that Wasi's real API response for a template includes `body`, `header_content`,
+`footer_text`, `buttons`, and `body_param_examples` — but `mapWasiTemplateList()` (the ONLY place
+that ever reads that response) deliberately discards `body`/`header_content`/`footer_text`/
+`buttons` and persists only `wasi_name`/`language`/`category`/`status`/`header_type`/`param_keys`
+into `whatsapp_wasi_templates` (whose own table definition, `20261016300000_wa_dispatch_v2_schema.sql`,
+has no body/footer/button columns at all). `lexdraft_otp`'s `param_keys` being empty is itself
+ambiguous (a template with zero body parameters, or the sync not surfacing them — 9.3's same open
+question, not resolved by this pass).
+
+**Per the task's own stop condition, this pass does NOT guess the language code, button type, or
+body text.** Step 2 is BLOCKED; step 3 (brand check) is therefore also blocked (it needs the body
+text); step 4(d) (the template mapping row) is skipped, per the task's own instruction for exactly
+this case. **What is needed from the owner, pasted from WhatsApp Manager / Wasi's own template
+dashboard for `lexdraft_otp`:**
+1. Confirmation this template belongs to THIS product/WhatsApp Business Account (the name itself
+   suggests a different product, "LexDraft" — the owner's own concern, carried over from 9.3,
+   unchanged by anything found this pass).
+2. The exact body text (with its `{{1}}`-style placeholder(s) shown as Wasi/Meta render them).
+3. Footer text, if any.
+4. Button component shape: none / copy-code / one-tap / zero-tap — and if copy-code, whether the
+   button itself also carries a parameter (some copy-code buttons encode the code a second time in
+   the button's own parameter, separate from the body parameter).
+5. The exact `language` code value the WhatsApp send API expects for this template (confirm `en`
+   is correct and not `en_US` — the sync mapper's own fallback default is `en_US`, but this row's
+   stored value is the literal `en`, and Meta's template API is picky about exact language-code
+   matches).
+
+### 10.2 Step 4(a)+(b)+(c): built, local-rehearsed, live-rehearsed; (b) found INFEASIBLE, not
+### silently skipped; one HIGH found by independent review and fixed
+
+New migration `20261121100100_customer_link_otp_dispatch_hardening.sql` (after the newest existing
+timestamp, `20261121100000_admin_link_customer_google_account.sql`, from the merge above). Edits
+nothing in the two already-applied migrations or the already-committed `20261120100200`.
+
+- **(a) HIGH, built and proven correct.** The existing redaction (app-level, on confirmed-send/
+  give-up-on-visit; DB-level, on any status transition away from `pending`, per `20261120100200`)
+  only ever fires when some dispatch pass actually VISITS a row. A row nothing ever visits before
+  its challenge expires (fast-dispatch secret not yet provisioned, Edge Function down, cron not
+  firing — all real possibilities this project has already lived through) stays `pending` with the
+  plaintext code forever. Closed with `scrub_expired_customer_link_otp_outbox()`, a 1-minute
+  pg_cron sweep (this project's existing pattern) that finds any `customer_link_otp` row still
+  `pending` whose challenge (joined via `outbox_id`) has expired/been used/been superseded, and
+  clears `payload.code`/`template_params` + flips the row to `failed`/`otp_expired_or_used_db_sweep`
+  directly (belt-and-suspenders with the `20261120100200` trigger, which also fires on that same
+  status transition). Bounds the worst-case exposure for an unvisited row to under a minute past
+  expiry. The registry note in `whatsapp_payload_secret_ref_types` is refreshed to describe all
+  three coverage mechanisms together, so the `redaction_covered = true` claim that gates the
+  template-mapping guard is honest for the first time across every code path, not just
+  send/give-up-on-visit.
+- **(b) pg_net hardening — ATTEMPTED, FOUND GENUINELY INFEASIBLE for this project's migration
+  role, NOT silently skipped.** Read-only probe confirmed the exposure (`net.*` owned by
+  `supabase_admin`, `proacl` null → PUBLIC/anon/authenticated all implicitly have EXECUTE). The
+  actual REVOKE was then tried as a REHEARSAL (rolled back), not assumed to work from the absence
+  of an error: `revoke execute on function net.http_post(...) from public, anon, authenticated`,
+  run as `postgres` (the role every migration on this project runs as — confirmed
+  `rolsuper = false`, confirmed NOT a member of `supabase_admin`, confirmed not the owner of any
+  `net.*` function), completed WITHOUT ERROR but a before/after comparison of `net.http_post`'s own
+  `proacl` and of `has_function_privilege('public', ..., 'execute')` proved it silently did
+  nothing — PostgreSQL only lets a REVOKE actually remove a grant made by the revoking role itself
+  (or one it has ownership/admin authority over); the implicit PUBLIC-default grant was made by the
+  owner (`supabase_admin`), not `postgres`, so `postgres` revoking it is accepted syntactically but
+  has zero effect. A second probe confirmed no workaround: `postgres` is not a member of
+  `supabase_admin` (`pg_has_role` false), and `alter default privileges for role supabase_admin in
+  schema net ...` errors "permission denied to change default privileges". **Conclusion: closing
+  this requires authority this project's migration role does not have on this project** — it would
+  need `supabase_admin` or actual superuser access, available only via a Supabase support request,
+  not from inside this repository. The migration does NOT mutate any `net.*` grant (doing so while
+  claiming success would be a false security claim); the already-existing, already-effective
+  mitigation is unchanged and is the real control: every caller of `net.http_post` in this codebase
+  (`wa_otp_fast_dispatch_invoke`) is itself owned by `postgres` and IS lockable by `postgres`
+  (confirmed — already revoked from public/anon/authenticated by its own migration), callable only
+  from one other function in this codebase, never from a grant-mediated external path; `net.*`
+  itself staying PUBLIC-executable is unreachable from outside this project's own Postgres
+  connection (PostgREST never exposes the `net` schema). Residual risk is unchanged from before
+  this migration, not newly accepted by it.
+- **(c) dispatch-time re-check, built in `wa-milestone-dispatch-core.ts`** (TS, not a migration —
+  `customerLinkOtpUnsendableReason`, renamed from `customerLinkOtpStillSendable` for the fix below):
+  re-checks `is_customer_link_otp_enabled()` via RPC immediately before either dispatch path sends
+  a `customer_link_otp` row, fail-OPEN (send, log) on a transient RPC error, fail-CLOSED (refuse,
+  mark `failed`/`customer_link_otp_disabled_at_dispatch`) on an explicit `false` — closing the
+  previously-Low/Info gap where the flag was only checked once, at request time.
+
+**Independent adversarial review** (fresh agent, no prior context, same bar as sections 7/9.1):
+found **one HIGH** — `is_customer_link_otp_enabled()` (`20261120100100`) was granted EXECUTE to
+`authenticated` only, never `service_role`; the new dispatch-time re-check calls this RPC using the
+Edge Function's service-role admin client, so in real deployment every single call would hit
+"permission denied for function", silently swallowed into the re-check's own fail-open branch —
+the entire re-check would have been a permanent no-op in production, not actually re-checking
+anything, ironic given its purpose. **FIXED**: `grant execute on function
+public.is_customer_link_otp_enabled() to service_role;` added to the new migration (additive, does
+not touch the already-applied `20261120100100` file), proven live via rehearsal (`G4` assertion)
+and locked in by a new unit test asserting the disabled-dispatch path's error reason. Two LOW
+findings, both fixed: (1) the disabled-at-dispatch path previously reused `error =
+'otp_expired_or_used'`, conflating a deliberate admin action with a genuinely stale code in data
+ops' later reading of `whatsapp_outbox.error` — split into a distinct
+`customer_link_otp_disabled_at_dispatch` reason. (2) this section itself was the missing
+cross-reference the review flagged ("DECISIONS.md section 10" cited before it existed) — now it
+exists. No unresolved Critical/High/Medium remains after the fix.
+
+### 10.3 Verification
+
+- **Local (WSL Ubuntu 24.04, Postgres 16.15, no sudo password available):** `pg_cron`/`pg_net` are
+  not installable here without root (apt/sudo unavailable), so a user-owned, no-sudo cluster
+  (`initdb`-created, alternate port, unix socket under `$HOME`) was stood up with hand-built
+  stand-in `cron`/`net` schemas replicating the LIVE project's exact confirmed properties (role
+  memberships, `net.*` owned by `supabase_admin` with null `proacl`, `postgres` role literally
+  non-superuser with the exact live `pg_auth_members` membership set). The real, unmodified
+  migration file was run AS that stand-in `postgres` role (not the local superuser) and: created
+  the scrub function/cron job without error; a direct call correctly scrubbed the
+  expired-and-never-sent row and the used-but-still-pending row (status/error/payload/
+  template_params all correct) while leaving a still-valid pending row completely untouched; a
+  second call was a clean no-op. A separate proof confirmed the existing `net.http_post` wrapper
+  pattern (SECURITY DEFINER, owned by `postgres`) still works when called by `service_role` even
+  with `net.*` itself untouched, and that `anon` calling the same wrapper directly still fails —
+  confirming the real, load-bearing control is the wrapper, not `net.*`'s own ACL.
+- **Live rehearsal** (allowed, non-persisting, same convention as every prior migration on this
+  branch — one DO block, `lock_timeout` 5s, 11:00 IST gate, org-fingerprint pin,
+  `__TEST_`-prefixed throwaway rows, sha256-pinned embedded migration+test text, ends in an
+  unconditional `RAISE EXCEPTION`): embeds `20261120100200` (not yet live as of this run) ahead of
+  the new migration in the same rolled-back transaction, so it does not depend on apply order
+  outside this script's control. **10 of 10 assertions passed** (`G0`-`G4`, `P1`-`P4`,
+  `P1-3`) and the independent before/after real-row fingerprint (`whatsapp_outbox` non-test rows
+  only — the cron job's own creation is deliberately excluded from this fingerprint, since
+  scheduling it is this migration's own intended effect, not a mutation to catch) is identical:
+  `89666fb82e9ac6ccb121bcd0a6d82522` before and after.
+- **DRYRUN-OK apply script**, same convention (org pin, already-registered refusal, pinned sha256,
+  post-apply checks including the `service_role` grant, anon-exposure-adjacent checks, real-org
+  fingerprint re-check), run through the same verified runner: raises `DRYRUN_OK` cleanly on its
+  first statement, nothing below it ran.
+- `tsc -b`, `oxlint`, `npm test` (779 passed / 17 skipped — 3 new tests for the dispatch-time
+  re-check), `npm run build` all pass clean with the TS changes in place.
+
+### 10.4 Status at hand-off
+
+- **Built, local- and live-rehearsed, NOT applied, NOT pushed:** `20261121100100_customer_link_otp_dispatch_hardening.sql`
+  (the expiry sweep + the `service_role` grant fix) and its full ops bundle
+  (`gen_dispatch_hardening_scripts.mjs`, `.rehearsal.sql`, `.apply.sql`, `.apply.dryrun.sql`) and
+  `supabase/tests/customer_link_otp_dispatch_hardening.test.sql`.
+- **Built, tested, NOT applied (TS, ships with the Edge Function the next time it's deployed —
+  deployment itself is step 6, explicitly out of scope this pass):** the `wa-milestone-dispatch-core.ts`
+  dispatch-time re-check (`customerLinkOtpUnsendableReason`) and its test coverage.
+- **Found genuinely infeasible for this project's migration role, documented, not built:** pg_net
+  schema-level ACL hardening (10.2(b)) — recommend a Supabase support request if the owner wants
+  this closed at the `net` schema level itself; the existing wrapper-function control is unchanged
+  and sufficient for today's risk.
+- **BLOCKED, needs owner input (10.1), unchanged from 9.3's prior finding:** `lexdraft_otp`'s real
+  body/footer/button-type/language facts. Step 4(d) (the `whatsapp_event_templates` mapping row)
+  is SKIPPED pending that input — nothing in this repository references `lexdraft_otp` as a result
+  of this pass.
+- **No live apply, no push, no Edge Function deploy, no secret changes, no live customer-facing
+  test performed by this pass**, per this phase's own explicit instruction (steps 6-8 gated on the
+  owner's typed "APPROVED", not given).
