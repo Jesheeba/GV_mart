@@ -101,7 +101,7 @@ export function NewComplaintPage() {
   useEffect(() => {
     if (prefilledCustomer.data && !customerId) {
       setCustomerId(prefilledCustomer.data.id)
-      setCustomerLabel(`${prefilledCustomer.data.name} · ${prefilledCustomer.data.mobile}`)
+      setCustomerLabel(prefilledCustomer.data.mobile ? `${prefilledCustomer.data.name} · ${prefilledCustomer.data.mobile}` : prefilledCustomer.data.name)
       setEquipmentMode("owned")
       setStep(1)
       setMaxStepReached((m) => Math.max(m, 1))
@@ -371,7 +371,7 @@ export function NewComplaintPage() {
             )}
             onSelect={(c) => {
               setCustomerId(c.id)
-              setCustomerLabel(`${c.name} · ${c.mobile}`)
+              setCustomerLabel(c.mobile ? `${c.name} · ${c.mobile}` : c.name)
               setEquipmentMode("owned")
               setSelectedOwnedProductId("")
               setAddressId("")

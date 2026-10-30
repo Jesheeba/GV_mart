@@ -71,9 +71,9 @@ async function runAmcReminders(admin: SupabaseClient, orgId: string, errors: str
       continue
     }
     for (const contract of contracts ?? []) {
-      const customer = contract.customers as unknown as { name: string; mobile: string } | null
+      const customer = contract.customers as unknown as { name: string; mobile: string | null } | null
       const product = contract.products as unknown as { name: string } | null
-      if (!customer) continue
+      if (!customer?.mobile) continue
       if (await alreadySentRecently(admin, orgId, "amc_contracts", contract.id, template)) {
         skipped++
         continue
@@ -115,8 +115,8 @@ async function runFeedbackRequests(admin: SupabaseClient, orgId: string, errors:
     return { sent, skipped }
   }
   for (const ticket of tickets ?? []) {
-    const customer = ticket.customers as unknown as { name: string; mobile: string } | null
-    if (!customer) continue
+    const customer = ticket.customers as unknown as { name: string; mobile: string | null } | null
+    if (!customer?.mobile) continue
     if (await alreadySentRecently(admin, orgId, "service_tickets", ticket.id, "feedback_request")) {
       skipped++
       continue

@@ -1,31 +1,37 @@
--- CHAINED rehearsal wrapper for customer_auto_onboard: 20261130100000_customer_auto_onboard_schema.sql
--- THEN 20261130100001_customer_auto_onboard_rpc.sql, plus the test file
+-- CHAINED rehearsal wrapper for customer_auto_onboard: 20261130100000_customer_auto_onboard_schema.sql,
+-- THEN 20261130100001_customer_auto_onboard_rpc.sql, THEN
+-- 20261130100002_unlink_blocks_auto_relink.sql, plus the test file
 -- (supabase/tests/customer_auto_onboard.test.sql), run in the true apply order, all inside ONE
 -- DO block with no top-level BEGIN/COMMIT/SAVEPOINT/ROLLBACK, ending in an unconditional RAISE so
 -- nothing here ever persists -- every DDL change and every __TEST_ row from the test run is
 -- rolled back by that final raise.
 --
--- Refuses before 11:00 IST (owner decision, carried over from this project's prior release
--- window). Refuses unless the real (non-__TEST_) organisation fingerprint pins to
--- 6f891cf85011f08c2f22fb4a208d21bd. Recomputes sha256 of all three embedded files (encode(sha256
+-- Refuses before 11:00 IST. Refuses unless the real (non-__TEST_) organisation fingerprint pins
+-- to 6f891cf85011f08c2f22fb4a208d21bd. Recomputes sha256 of all four embedded files (encode(sha256
 -- (convert_to(text,'UTF8')),'hex') -- explicit UTF8 bytes) and compares against the pinned
 -- hashes below, which must match the committed .sql files exactly (LF line endings, no BOM --
 -- confirmed on disk before this wrapper was written, same as every other wrapper in this
--- project). Takes a real-org fingerprint of every table these two migrations can write to
+-- project). Takes a real-org fingerprint of every table these migrations can write to
 -- (customers, profiles, audit_log) before and after -- both a plain row count AND a content
 -- checksum -- so a same-count-but-mutated-row case is caught too.
 --
--- No existing live function is redefined by either migration (customer_auto_onboard is brand
--- new; the schema migration only adds columns and relaxes one NOT NULL), so there is no
--- md5-live-definition pre-check section here.
+-- 20261130100002 DOES redefine two already-live functions (admin_link_customer_google_account /
+-- admin_unlink_customer_google_account, from 20261121100000, already applied to main) -- unlike
+-- the other two migrations here, which only add brand-new objects. No md5-live-definition
+-- pre-check is included for those two redefinitions in this wrapper (that mechanism exists in
+-- the apply script's own pre/post checks instead, per this project's template); this wrapper's
+-- job is to prove the SQL executes correctly and the test matrix passes, not to diff against the
+-- live body (the apply script does that part).
 do $rehearsal$
 declare
   v_now_ist time;
-  v_schema_sha256 text := 'd86363e68b78fbc304c66dc3d36cfc2dd553d51651dd19527c9684e4c8e6b336';
-  v_rpc_sha256 text := '6b977978cffd255bb62d856cb29b67c53c2cc7becd7334e7ce30a8b542b2bab3';
-  v_test_sha256 text := '73b26603f75a8e053451d534c00a5de21e542be3da62dc2e09dfdbb5fa259324';
+  v_schema_sha256 text := '58487f324dcd17b5d5ac6f5db81b8be5737b18fab2f3bc40fbc2d4c28c750c28';
+  v_rpc_sha256 text := '46c63f7ba8a24ebbe90cea4f0216d9ea2a7219e442657fa255bf6c8345c28f81';
+  v_unlink_sha256 text := '855f458797428e5b442d1a5b1ba511d96ae13b539d7ad75eea18421fd4d960cf';
+  v_test_sha256 text := '475c5a6f5d4e76a852fd6d991d4343c48a202c040683cfd8d7d3a7d62f261289';
   v_schema_text text;
   v_rpc_text text;
+  v_unlink_text text;
   v_test_text text;
   v_org_fp text;
   v_result text;
@@ -55,7 +61,7 @@ begin
     raise exception 'REHEARSAL_REFUSED: organisation fingerprint mismatch';
   end if;
 
-  -- ── 3. embedded text: schema migration, rpc migration, test ────────────────────────────
+  -- ── 3. embedded text: schema, rpc, unlink-block migrations, test ───────────────────────
   v_schema_text := $SCHEMA_BODY$-- Schema for auto-onboarding a customer on first Google sign-in. Additive only, plus one
 -- necessary relaxation (customers.mobile NOT NULL -> nullable, see below).
 --
@@ -77,9 +83,28 @@ begin
 -- job, flag OFF). The pre-existing format check (20260819100000_customer_mobile_format_constraint.sql,
 -- `mobile ~ '^\d{10}$'`) already tolerates NULL unmodified -- in Postgres, `NULL ~ pattern`
 -- evaluates to NULL, and a CHECK constraint only fails on an explicit `false`, never on NULL --
--- so no change to that constraint is needed or made. Audited every `.mobile` call site in src/
--- for a null-unsafe access: exactly one found (CustomerDetailPage.tsx's WhatsApp link), fixed in
--- the same PR as this migration.
+-- so no change to that constraint is needed or made. Confirmed no UNIQUE constraint/index
+-- involves mobile (only the non-unique `customers_mobile_idx (org_id, mobile)`), so multiple
+-- NULLs in the same org are unaffected either way.
+--
+-- Exhaustive audit (2026-11-30, re-run after an owner challenge to the first pass) of every
+-- `customers.mobile` read/write across SQL functions/views/triggers/policies, Edge Functions and
+-- the TS/TSX frontend. DB-side identify/match lookups (`wa_identify_customer`, the WA outbound
+-- allow-list, lead-notification identify, `_mobile_key`) are all equality comparisons against a
+-- real phone -- `NULL = x` is never true, so a mobile-less customer is correctly "not found",
+-- never a crash. Frontend: JSX interpolation (`{x.mobile}`) renders nothing for null, already
+-- safe everywhere. Found and fixed, same PR as this migration:
+--   - CustomerDetailPage.tsx's WhatsApp-link derivation (the one found in the first pass).
+--   - Two WhatsApp scheduled-task sends (supabase/functions/wa-scheduled-tasks/index.ts,
+--     AMC reminders + feedback requests) that guarded "no customer row" but not "no mobile" --
+--     would have tried to send to a null destination for any auto-onboarded customer with an
+--     AMC contract or completed ticket. Now skip when mobile is null, same as "no customer".
+--   - 8 customer-picker label template literals across 6 admin pages (SellAmcPanel,
+--     LeadDetailPanel, QuotationFormPage, RentOutPanel, NewComplaintPage x2, NewSalePage x3)
+--     that stringified a null mobile as the literal text "null" (template-literal
+--     interpolation, unlike JSX, does not render null as nothing). Now show the name alone when
+--     mobile is null.
+--   - The Customers CSV export's Mobile column, same "null"-the-literal-string issue.
 alter table public.customers alter column mobile drop not null;
 
 alter table public.customers add column email text;
@@ -92,6 +117,16 @@ alter table public.customers add column needs_review_reason text;
 -- source already has a fitting enum value for this -- lead_source.'customer_app'
 -- (20260701090000_extensions_and_enums.sql) -- no new enum value or column needed; the RPC uses
 -- that value verbatim for every customer it creates.
+
+-- customers.auto_link_blocked_at / auto_link_blocked_by: NEW. Set by
+-- admin_unlink_customer_google_account (redefined in 20261130100002) when a master unlinks a
+-- customer's Google sign-in. Prevents the "unlink loop": without this, the very next sign-in by
+-- that same Google account would hit customer_auto_onboard(), see the customer unlinked again,
+-- and silently re-link it right back -- defeating the master's unlink entirely. Cleared only by
+-- a master successfully re-linking the SAME customer via admin_link_customer_google_account
+-- (also redefined in 20261130100002) -- an explicit master action, never automatically.
+alter table public.customers add column auto_link_blocked_at timestamptz;
+alter table public.customers add column auto_link_blocked_by uuid references public.profiles (id) on delete set null;
 $SCHEMA_BODY$;
 
   v_rpc_text := $RPC_BODY$-- Auto-onboarding on first Google sign-in (customer app). Replaces the dead-end "contact the
@@ -248,7 +283,7 @@ begin
      limit 1
      for update;
 
-    if v_matched.primary_profile_id is null then
+    if v_matched.primary_profile_id is null and v_matched.auto_link_blocked_at is null then
       -- Link: same data effects as admin_link_customer_google_account's own link path.
       insert into public.profiles (id, org_id, full_name, phone, role, language)
       values (v_uid, v_matched.org_id, coalesce(nullif(v_matched.name, ''), 'Customer'), v_matched.mobile, 'customer', coalesce(v_matched.preferred_language, 'en'));
@@ -266,9 +301,15 @@ begin
       return v_existing;
     end if;
 
-    -- Exactly one match, but it's already linked to a DIFFERENT auth user -- never take over an
-    -- existing login. Falls through to the create-new-flagged path below.
-    v_reason := 'email matched an existing customer already linked to a different sign-in';
+    -- Exactly one match, but either (a) it's already linked to a DIFFERENT auth user -- never
+    -- take over an existing login, or (b) a master deliberately unlinked it and it's still
+    -- blocked -- never silently re-link what a master just undid. Either way, falls through to
+    -- the create-new-flagged path below.
+    if v_matched.auto_link_blocked_at is not null then
+      v_reason := 'email matched a customer a master unlinked -- blocked from auto-relinking until a master relinks it';
+    else
+      v_reason := 'email matched an existing customer already linked to a different sign-in';
+    end if;
   elsif v_match_count > 1 then
     -- Ambiguous -- more than one existing customer shares this email. Never pick one.
     v_reason := 'email matched more than one existing customer';
@@ -301,6 +342,164 @@ $$;
 revoke all on function public.customer_auto_onboard() from public, anon, authenticated;
 grant execute on function public.customer_auto_onboard() to authenticated;
 $RPC_BODY$;
+
+  v_unlink_text := $UNLINK_BODY$-- Closes the "unlink loop": without this, a master's admin_unlink_customer_google_account
+-- (20261121100000, already live) clears customers.primary_profile_id, and the very next time
+-- that same Google account signs in, customer_auto_onboard() (20261130100001, this branch) sees
+-- an unlinked customer with a matching email and silently re-links it right back -- undoing the
+-- master's unlink entirely, with no way to make it stick.
+--
+-- customers.auto_link_blocked_at / auto_link_blocked_by (added in 20261130100000, this branch)
+-- is the fix: admin_unlink_customer_google_account now sets both on every successful unlink;
+-- customer_auto_onboard() already refuses to auto-link a customer with auto_link_blocked_at set
+-- (see that migration). The block is cleared ONLY by a master explicitly relinking via
+-- admin_link_customer_google_account -- an auto-onboard call never clears it, by construction
+-- (it only ever sets primary_profile_id on the UNBLOCKED path).
+--
+-- Both functions below are reproduced from their live 20261121100000 bodies, each with exactly
+-- one line changed (the final UPDATE on customers) plus this comment -- everything else is
+-- byte-for-byte the live definition, confirmed by diff against 20261121100000_admin_link_customer_google_account.sql
+-- in this same worktree before this migration was written.
+create or replace function public.admin_link_customer_google_account(p_customer_id uuid, p_google_email text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_email text := lower(trim(p_google_email));
+  v_customer record;
+  v_auth_id uuid;
+  v_match_count int;
+begin
+  if auth.uid() is null then
+    raise exception 'admin_link_customer_google_account: no authenticated user';
+  end if;
+  if not public.is_master() then
+    raise exception 'admin_link_customer_google_account: master role required';
+  end if;
+  if v_email = '' or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'invalid_email';
+  end if;
+
+  select id, org_id, name, mobile, preferred_language, primary_profile_id, is_test
+    into v_customer
+    from public.customers
+   where id = p_customer_id
+     for update;
+
+  if v_customer.id is null or v_customer.org_id is distinct from public.current_org_id() then
+    raise exception 'customer_not_found';
+  end if;
+  if v_customer.is_test then
+    raise exception 'test_customer';
+  end if;
+  if v_customer.primary_profile_id is not null then
+    raise exception 'already_linked';
+  end if;
+
+  select count(*) into v_match_count
+    from auth.identities i
+   where i.provider = 'google'
+     and lower(trim(i.identity_data->>'email')) = v_email;
+
+  if v_match_count = 0 then
+    raise exception 'no_matching_signin';
+  end if;
+  if v_match_count > 1 then
+    raise exception 'ambiguous_signin';
+  end if;
+
+  select i.user_id into v_auth_id
+    from auth.identities i
+   where i.provider = 'google'
+     and lower(trim(i.identity_data->>'email')) = v_email;
+
+  if exists (select 1 from public.profiles where id = v_auth_id) then
+    raise exception 'signin_already_linked';
+  end if;
+
+  begin
+    insert into public.profiles (id, org_id, full_name, phone, role, language)
+    values (v_auth_id, v_customer.org_id, coalesce(nullif(v_customer.name, ''), 'Customer'), v_customer.mobile, 'customer', coalesce(v_customer.preferred_language, 'en'));
+  exception when unique_violation then
+    raise exception 'signin_already_linked';
+  end;
+
+  -- CHANGED (this migration): also clears any auto-link block -- a master explicitly linking
+  -- this customer is exactly the "cleared only by a master relink" action the block exists to
+  -- wait for.
+  update public.customers set primary_profile_id = v_auth_id, auto_link_blocked_at = null, auto_link_blocked_by = null where id = v_customer.id;
+
+  insert into public.audit_log (org_id, actor_id, action, table_name, row_id, before, after)
+  values (
+    v_customer.org_id, auth.uid(), 'admin_link_google_account', 'customers', v_customer.id,
+    jsonb_build_object('primary_profile_id', null),
+    jsonb_build_object('primary_profile_id', v_auth_id, 'google_email', v_email)
+  );
+end;
+$$;
+
+revoke all on function public.admin_link_customer_google_account(uuid, text) from public, anon, authenticated;
+grant execute on function public.admin_link_customer_google_account(uuid, text) to authenticated;
+
+create or replace function public.admin_unlink_customer_google_account(p_customer_id uuid, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_customer record;
+  v_profile_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'admin_unlink_customer_google_account: no authenticated user';
+  end if;
+  if not public.is_master() then
+    raise exception 'admin_unlink_customer_google_account: master role required';
+  end if;
+  if p_reason is null or trim(p_reason) = '' then
+    raise exception 'reason_required';
+  end if;
+
+  select id, org_id, primary_profile_id
+    into v_customer
+    from public.customers
+   where id = p_customer_id
+     for update;
+
+  if v_customer.id is null or v_customer.org_id is distinct from public.current_org_id() then
+    raise exception 'customer_not_found';
+  end if;
+  if v_customer.primary_profile_id is null then
+    raise exception 'not_linked';
+  end if;
+
+  v_profile_id := v_customer.primary_profile_id;
+
+  -- CHANGED (this migration): also sets the auto-link block, so customer_auto_onboard() will
+  -- not silently re-link this customer the next time this same Google account signs in.
+  update public.customers set primary_profile_id = null, auto_link_blocked_at = now(), auto_link_blocked_by = auth.uid() where id = v_customer.id;
+
+  begin
+    delete from public.profiles where id = v_profile_id;
+  exception when foreign_key_violation then
+    raise exception 'unlink_blocked_has_records';
+  end;
+
+  insert into public.audit_log (org_id, actor_id, action, table_name, row_id, before, after)
+  values (
+    v_customer.org_id, auth.uid(), 'admin_unlink_google_account', 'customers', v_customer.id,
+    jsonb_build_object('primary_profile_id', v_profile_id),
+    jsonb_build_object('primary_profile_id', null, 'reason', p_reason, 'auto_link_blocked', true)
+  );
+end;
+$$;
+
+revoke all on function public.admin_unlink_customer_google_account(uuid, text) from public, anon, authenticated;
+grant execute on function public.admin_unlink_customer_google_account(uuid, text) to authenticated;
+$UNLINK_BODY$;
 
   v_test_text := $TEST_BODY$-- Rolled-back DB tests for 20261130100000_customer_auto_onboard_schema.sql +
 -- 20261130100001_customer_auto_onboard_rpc.sql. Run through the Management API (database/
@@ -495,6 +694,60 @@ begin
   end;
   perform pg_temp.as_pg();
 
+  -- ===== 10. unlink loop: a master unlinking a customer must NOT be silently undone by the
+  --           next sign-in auto-relinking it (20261130100002) =====
+  declare
+    c_block1 uuid; g_block1 uuid; v_block_result public.customers;
+  begin
+    insert into public.customers (org_id, name, mobile, email) values (v_org, '__TEST_ block1', '9500000106', 'onboard.block1.test@gmail.com') returning id into c_block1;
+    g_block1 := pg_temp.mkgoogle('onboard.block1.test@gmail.com');
+
+    perform pg_temp.as_user(g_block1);
+    v_block_result := public.customer_auto_onboard();
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('unlink-loop setup: auto-onboard linked to c_block1', v_block_result.id = c_block1);
+
+    perform pg_temp.as_user(v_master);
+    perform public.admin_unlink_customer_google_account(c_block1, 'testing the unlink loop');
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('unlink sets auto_link_blocked_at/by', (select auto_link_blocked_at from public.customers where id = c_block1) is not null and (select auto_link_blocked_by from public.customers where id = c_block1) = v_master);
+    perform pg_temp.chk('unlink cleared primary_profile_id', (select primary_profile_id from public.customers where id = c_block1) is null);
+
+    -- g_block1 has no profile again (admin_unlink deletes it) -- signing in again must NOT
+    -- re-link to c_block1. It must create a new, independent, flagged customer instead.
+    perform pg_temp.as_user(g_block1);
+    v_block_result := public.customer_auto_onboard();
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('blocked customer is NOT silently re-linked on the next sign-in', v_block_result.id is distinct from c_block1);
+    perform pg_temp.chk('the next sign-in instead creates a flagged new customer', v_block_result.needs_review = true and v_block_result.needs_review_reason like '%blocked%');
+    perform pg_temp.chk('the blocked customer itself is untouched (still unlinked, still blocked)',
+      (select primary_profile_id from public.customers where id = c_block1) is null
+      and (select auto_link_blocked_at from public.customers where id = c_block1) is not null);
+  end;
+
+  -- ===== 11. unlink loop: the block is cleared ONLY by a master explicitly relinking =====
+  declare
+    c_block2 uuid; g_block2 uuid;
+  begin
+    insert into public.customers (org_id, name, mobile, email) values (v_org, '__TEST_ block2', '9500000107', 'onboard.block2.test@gmail.com') returning id into c_block2;
+    g_block2 := pg_temp.mkgoogle('onboard.block2.test@gmail.com');
+
+    perform pg_temp.as_user(v_master);
+    perform public.admin_link_customer_google_account(c_block2, 'onboard.block2.test@gmail.com');
+    perform public.admin_unlink_customer_google_account(c_block2, 'testing relink clears the block');
+    perform pg_temp.chk('setup: c_block2 is unlinked and blocked',
+      (select primary_profile_id from public.customers where id = c_block2) is null
+      and (select auto_link_blocked_at from public.customers where id = c_block2) is not null);
+
+    -- g_block2 has no profile again (the unlink above deleted it) -- a master can relink it.
+    perform public.admin_link_customer_google_account(c_block2, 'onboard.block2.test@gmail.com');
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('master relink clears the auto-link block',
+      (select auto_link_blocked_at from public.customers where id = c_block2) is null
+      and (select auto_link_blocked_by from public.customers where id = c_block2) is null);
+    perform pg_temp.chk('master relink re-sets primary_profile_id', (select primary_profile_id from public.customers where id = c_block2) = g_block2);
+  end;
+
   -- ===== real-data safety net (redundant with the wrapper-level fingerprint, belt and braces) =====
   select count(*) into rc_after from public.customers where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
   select count(*) into pc_after from public.profiles where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
@@ -512,6 +765,9 @@ $TEST_BODY$;
   end if;
   if encode(sha256(convert_to(v_rpc_text, 'UTF8')), 'hex') <> v_rpc_sha256 then
     raise exception 'rpc migration hash mismatch: expected %, got %', v_rpc_sha256, encode(sha256(convert_to(v_rpc_text, 'UTF8')), 'hex');
+  end if;
+  if encode(sha256(convert_to(v_unlink_text, 'UTF8')), 'hex') <> v_unlink_sha256 then
+    raise exception 'unlink-block migration hash mismatch: expected %, got %', v_unlink_sha256, encode(sha256(convert_to(v_unlink_text, 'UTF8')), 'hex');
   end if;
   if encode(sha256(convert_to(v_test_text, 'UTF8')), 'hex') <> v_test_sha256 then
     raise exception 'test hash mismatch: expected %, got %', v_test_sha256, encode(sha256(convert_to(v_test_text, 'UTF8')), 'hex');
@@ -534,9 +790,10 @@ $TEST_BODY$;
   from public.audit_log
   where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
 
-  -- ── 5. run: schema, then rpc, then the test (true apply order) ─────────────────────────
+  -- ── 5. run: schema, then rpc, then unlink-block, then the test (true apply order) ──────
   execute v_schema_text;
   execute v_rpc_text;
+  execute v_unlink_text;
 
   begin
     execute v_test_text;

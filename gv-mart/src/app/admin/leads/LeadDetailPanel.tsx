@@ -236,7 +236,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
                   )}
                   onSelect={(c) => {
                     setReferrerId(c.id)
-                    setReferrerLabel(`${c.name} · ${c.mobile}`)
+                    setReferrerLabel(c.mobile ? `${c.name} · ${c.mobile}` : c.name)
                   }}
                 />
               </div>

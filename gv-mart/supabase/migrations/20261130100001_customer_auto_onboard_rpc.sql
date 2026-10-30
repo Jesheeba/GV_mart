@@ -152,7 +152,7 @@ begin
      limit 1
      for update;
 
-    if v_matched.primary_profile_id is null then
+    if v_matched.primary_profile_id is null and v_matched.auto_link_blocked_at is null then
       -- Link: same data effects as admin_link_customer_google_account's own link path.
       insert into public.profiles (id, org_id, full_name, phone, role, language)
       values (v_uid, v_matched.org_id, coalesce(nullif(v_matched.name, ''), 'Customer'), v_matched.mobile, 'customer', coalesce(v_matched.preferred_language, 'en'));
@@ -170,9 +170,15 @@ begin
       return v_existing;
     end if;
 
-    -- Exactly one match, but it's already linked to a DIFFERENT auth user -- never take over an
-    -- existing login. Falls through to the create-new-flagged path below.
-    v_reason := 'email matched an existing customer already linked to a different sign-in';
+    -- Exactly one match, but either (a) it's already linked to a DIFFERENT auth user -- never
+    -- take over an existing login, or (b) a master deliberately unlinked it and it's still
+    -- blocked -- never silently re-link what a master just undid. Either way, falls through to
+    -- the create-new-flagged path below.
+    if v_matched.auto_link_blocked_at is not null then
+      v_reason := 'email matched a customer a master unlinked -- blocked from auto-relinking until a master relinks it';
+    else
+      v_reason := 'email matched an existing customer already linked to a different sign-in';
+    end if;
   elsif v_match_count > 1 then
     -- Ambiguous -- more than one existing customer shares this email. Never pick one.
     v_reason := 'email matched more than one existing customer';

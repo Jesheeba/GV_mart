@@ -176,7 +176,7 @@ export function NewSalePage() {
   useEffect(() => {
     if (quotationCustomer.data && !customerId) {
       setCustomerId(quotationCustomer.data.id)
-      setCustomerLabel(`${quotationCustomer.data.name} — ${quotationCustomer.data.mobile}`)
+      setCustomerLabel(quotationCustomer.data.mobile ? `${quotationCustomer.data.name} — ${quotationCustomer.data.mobile}` : quotationCustomer.data.name)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quotationCustomer.data])
@@ -184,7 +184,7 @@ export function NewSalePage() {
   useEffect(() => {
     if (prefillCustomer.data && !customerId) {
       setCustomerId(prefillCustomer.data.id)
-      setCustomerLabel(`${prefillCustomer.data.name} — ${prefillCustomer.data.mobile}`)
+      setCustomerLabel(prefillCustomer.data.mobile ? `${prefillCustomer.data.name} — ${prefillCustomer.data.mobile}` : prefillCustomer.data.name)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillCustomer.data])
@@ -371,7 +371,7 @@ export function NewSalePage() {
                 )}
                 onSelect={(c) => {
                   setCustomerId(c.id)
-                  setCustomerLabel(`${c.name} — ${c.mobile}`)
+                  setCustomerLabel(c.mobile ? `${c.name} — ${c.mobile}` : c.name)
                 }}
               />
               <p className="px-1 text-xs text-text-muted">

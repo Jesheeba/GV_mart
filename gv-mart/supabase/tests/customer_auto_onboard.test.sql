@@ -191,6 +191,60 @@ begin
   end;
   perform pg_temp.as_pg();
 
+  -- ===== 10. unlink loop: a master unlinking a customer must NOT be silently undone by the
+  --           next sign-in auto-relinking it (20261130100002) =====
+  declare
+    c_block1 uuid; g_block1 uuid; v_block_result public.customers;
+  begin
+    insert into public.customers (org_id, name, mobile, email) values (v_org, '__TEST_ block1', '9500000106', 'onboard.block1.test@gmail.com') returning id into c_block1;
+    g_block1 := pg_temp.mkgoogle('onboard.block1.test@gmail.com');
+
+    perform pg_temp.as_user(g_block1);
+    v_block_result := public.customer_auto_onboard();
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('unlink-loop setup: auto-onboard linked to c_block1', v_block_result.id = c_block1);
+
+    perform pg_temp.as_user(v_master);
+    perform public.admin_unlink_customer_google_account(c_block1, 'testing the unlink loop');
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('unlink sets auto_link_blocked_at/by', (select auto_link_blocked_at from public.customers where id = c_block1) is not null and (select auto_link_blocked_by from public.customers where id = c_block1) = v_master);
+    perform pg_temp.chk('unlink cleared primary_profile_id', (select primary_profile_id from public.customers where id = c_block1) is null);
+
+    -- g_block1 has no profile again (admin_unlink deletes it) -- signing in again must NOT
+    -- re-link to c_block1. It must create a new, independent, flagged customer instead.
+    perform pg_temp.as_user(g_block1);
+    v_block_result := public.customer_auto_onboard();
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('blocked customer is NOT silently re-linked on the next sign-in', v_block_result.id is distinct from c_block1);
+    perform pg_temp.chk('the next sign-in instead creates a flagged new customer', v_block_result.needs_review = true and v_block_result.needs_review_reason like '%blocked%');
+    perform pg_temp.chk('the blocked customer itself is untouched (still unlinked, still blocked)',
+      (select primary_profile_id from public.customers where id = c_block1) is null
+      and (select auto_link_blocked_at from public.customers where id = c_block1) is not null);
+  end;
+
+  -- ===== 11. unlink loop: the block is cleared ONLY by a master explicitly relinking =====
+  declare
+    c_block2 uuid; g_block2 uuid;
+  begin
+    insert into public.customers (org_id, name, mobile, email) values (v_org, '__TEST_ block2', '9500000107', 'onboard.block2.test@gmail.com') returning id into c_block2;
+    g_block2 := pg_temp.mkgoogle('onboard.block2.test@gmail.com');
+
+    perform pg_temp.as_user(v_master);
+    perform public.admin_link_customer_google_account(c_block2, 'onboard.block2.test@gmail.com');
+    perform public.admin_unlink_customer_google_account(c_block2, 'testing relink clears the block');
+    perform pg_temp.chk('setup: c_block2 is unlinked and blocked',
+      (select primary_profile_id from public.customers where id = c_block2) is null
+      and (select auto_link_blocked_at from public.customers where id = c_block2) is not null);
+
+    -- g_block2 has no profile again (the unlink above deleted it) -- a master can relink it.
+    perform public.admin_link_customer_google_account(c_block2, 'onboard.block2.test@gmail.com');
+    perform pg_temp.as_pg();
+    perform pg_temp.chk('master relink clears the auto-link block',
+      (select auto_link_blocked_at from public.customers where id = c_block2) is null
+      and (select auto_link_blocked_by from public.customers where id = c_block2) is null);
+    perform pg_temp.chk('master relink re-sets primary_profile_id', (select primary_profile_id from public.customers where id = c_block2) = g_block2);
+  end;
+
   -- ===== real-data safety net (redundant with the wrapper-level fingerprint, belt and braces) =====
   select count(*) into rc_after from public.customers where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');
   select count(*) into pc_after from public.profiles where org_id not in (select id from public.organizations where name like '\_\_TEST\_%' escape '\');

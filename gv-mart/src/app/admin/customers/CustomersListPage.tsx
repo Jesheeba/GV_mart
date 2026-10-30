@@ -39,7 +39,7 @@ function toCsv(
     const info = enrichment?.get(r.id)
     return [
       r.name,
-      r.mobile,
+      r.mobile ?? "",
       r.profession ?? "",
       primary?.area ?? "",
       primary?.pincode ?? "",

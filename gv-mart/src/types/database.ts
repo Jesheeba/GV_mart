@@ -606,6 +606,11 @@ export type Database = {
           // the email match was ambiguous or already claimed by a different sign-in.
           needs_review: boolean
           needs_review_reason: string | null
+          // Set by admin_unlink_customer_google_account (20261130100002), cleared only by a
+          // master relinking via admin_link_customer_google_account -- stops customer_auto_onboard()
+          // from silently re-linking a customer a master deliberately unlinked.
+          auto_link_blocked_at: string | null
+          auto_link_blocked_by: string | null
           // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
           // is NOT here — it lives in its own table, customer_health_profile, below.
           water_source: Database["public"]["Enums"]["water_source_type"] | null
@@ -631,6 +636,8 @@ export type Database = {
           email?: string | null
           needs_review?: boolean
           needs_review_reason?: string | null
+          auto_link_blocked_at?: string | null
+          auto_link_blocked_by?: string | null
           water_source?: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other?: string | null
           water_tds_ppm?: number | null
@@ -654,6 +661,8 @@ export type Database = {
           email?: string | null
           needs_review?: boolean
           needs_review_reason?: string | null
+          auto_link_blocked_at?: string | null
+          auto_link_blocked_by?: string | null
           water_source?: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other?: string | null
           water_tds_ppm?: number | null
