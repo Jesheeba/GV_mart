@@ -5823,5 +5823,30 @@
         "lifetime_expiring_90d": "Lifetime expiring"
       }
     }
+  },
+  "customerLifecycle": {
+    "badge": {
+      "due_soon": "Due soon",
+      "due": "Due",
+      "overdue": "Overdue"
+    },
+    "home": {
+      "partDueTitle": "{{label}} due",
+      "partOverdue": "Overdue since {{date}}",
+      "partInDays_one": "Due in {{count}} day ({{date}})",
+      "partInDays_other": "Due in {{count}} days ({{date}})"
+    },
+    "card": {
+      "lifetimeExpiry": "Lifetime expiry {{date}}",
+      "viewHistory": "Replacement history"
+    },
+    "history": {
+      "back": "Back to products",
+      "title": "Replacement history",
+      "empty": "No parts have been replaced on this product yet.",
+      "replacedOn": "Replaced on {{date}}",
+      "nextDue": "Next due {{date}}",
+      "loadError": "Couldn't load this product. Please retry."
+    }
   }
 }

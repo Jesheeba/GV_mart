@@ -12,6 +12,12 @@ import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { OwnedProductStatusCard } from "@/app/customer/components/OwnedProductStatusCard"
 import { useMyCustomerId, useOwnedProducts, useOwnedProductsWithStatus, useRegisterProductViaQr } from "@/hooks/useCustomerApp"
+import {
+  getLifetimeExpiryForProduct,
+  groupDuePartsByProductId,
+  useCustomerDueParts,
+  useCustomerInstalledProducts,
+} from "@/hooks/useCustomerLifecycle"
 import { registerProductSchema, type RegisterProductInput } from "@/lib/validation/customerApp"
 
 const PRODUCT_FIELD_ID = "register-product-id"
@@ -94,6 +100,9 @@ export function CustomerProductsPage() {
   const [showRegister, setShowRegister] = useState(false)
   const { customerId, orgId, isLoading: loadingId } = useMyCustomerId()
   const { data: rows, isLoading: loadingRows, isError, refetch } = useOwnedProductsWithStatus(customerId)
+  const { data: installedProducts } = useCustomerInstalledProducts(customerId)
+  const { data: dueParts } = useCustomerDueParts(customerId)
+  const duePartsByProduct = groupDuePartsByProductId(dueParts, installedProducts)
 
   const isLoading = loadingId || loadingRows
 
@@ -131,6 +140,9 @@ export function CustomerProductsPage() {
               amc={amc}
               warranty={warranty}
               showAmcSection={product.category === "ro"}
+              dueParts={duePartsByProduct.get(product.id)}
+              lifetimeExpiryDate={getLifetimeExpiryForProduct(installedProducts, product.id)}
+              onViewHistory={() => navigate(`/customer/products/${product.id}/history`)}
               actionSlot={
                 <Button
                   size="sm"
