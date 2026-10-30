@@ -691,3 +691,31 @@ Same gap as the admin-link feature: the only live-DB tool available (`run_rehear
 ## 10) STOPPED HERE per instruction
 
 Migration + rehearsal (28/28 PASS, live) + apply script + DRYRUN copy (DRYRUN_OK, live, nothing persisted) + both independent reviews are done. **Not applied for real.** Waiting for the owner to type "APPROVED".
+
+## 11) Owner follow-up round (2026-10-30): items 1-5 addressed
+
+**Item 1 — exhaustive customers.mobile null-safety audit** (re-run after the owner challenged the first pass's "I checked every call site" claim). Delegated to a fresh-context fork for a true from-scratch sweep across SQL (functions/views/triggers/policies), Edge Functions, and src/. Found and fixed, beyond the original single fix:
+- Two WhatsApp scheduled-task sends (`supabase/functions/wa-scheduled-tasks/index.ts`, AMC reminders + feedback requests) guarded "no customer row" but not "no mobile" — would try to message a null destination for any auto-onboarded customer with an AMC contract or completed ticket.
+- 8 customer-picker label template literals across 6 admin pages (SellAmcPanel, LeadDetailPanel, QuotationFormPage, RentOutPanel, NewComplaintPage ×2, NewSalePage ×3) that stringified a null mobile as the literal text `"null"` — template-literal interpolation, unlike JSX, does not render `null` as nothing.
+- The Customers CSV export's Mobile column, same issue.
+Confirmed: no UNIQUE constraint/index involves `mobile` (only the non-unique `customers_mobile_idx (org_id, mobile)`); multiple NULLs in the same org are unaffected either way.
+
+**Item 2 — unlink loop.** `customers.auto_link_blocked_at`/`auto_link_blocked_by` (new). `admin_unlink_customer_google_account` sets both on every unlink; `customer_auto_onboard()` refuses to auto-relink a blocked customer (creates a flagged new one instead); `admin_link_customer_google_account` clears the block on an explicit master relink. New migration `20261130100002` redefines both already-live functions, each with exactly one line changed. Added to the test matrix.
+
+**Item 3 — merge tool.** `admin_merge_auto_customer(p_from, p_to, p_reason)`, new migration `20261130100003`. Master-only; refuses unless FROM is `source='customer_app'`, unarchived, linked, and has zero invoices/tickets/AMC/rental/warranty/quotation records (reuses `customer_delete_impact`'s exact counts); refuses if TO is test, archived, or already linked. Archives (new `archived_at`/`archived_by`, not hard-deleted) the emptied FROM record; backfills TO's email from FROM's if TO had none. Confirm dialog, reason required, two audit_log rows, EN/TA. A real bug was caught by the rehearsal itself (not inspection): the original UPDATE order set TO's `primary_profile_id` before clearing FROM's, momentarily violating the UNIQUE constraint on that column — fixed by clearing FROM first.
+
+**Item 4 — customer email field.** `customers.email` is now a real form field: entered on create (follow-up write after `create_customer_with_details`, same shape as the existing preferred-language/zone follow-ups), edited inline on an existing customer, normalized trim+lowercase on save (matching the RPC's own comparison). Added as a list column, included in search (`idsMatchingSearchTerm`, `autocompleteCustomers`) and CSV export.
+
+**Item 5 — apply script confirmation.**
+- **Backup-first, no dashboard:** `20261130100000_customer_auto_onboard.backup.sql` — a single SELECT, run through `run_rehearsal.mjs` (the same Management API runner used for everything else in this pipeline), that captures every real customer's `(id, org_id, primary_profile_id, mobile)` and every real profile's `(id, org_id, role)` as JSON. That is deliberately the complete "what could this migration lose" surface — every column this chain adds is new, and the one change to an existing column (`mobile` NOT NULL → nullable) touches no existing value.
+- **Org pin / already-registered refusal / anon-exposure diff:** present in the apply script exactly as in the prior admin-link feature's template (steps 0, 3, 10b/10c).
+- **DRYRUN-OK first:** run live via `run_rehearsal.mjs` before this record was written — `DRYRUN_OK`, independently re-verified nothing persisted (including all 4 `schema_migrations` rows).
+- **Rollback tested in the rehearsal:** the rehearsal wrapper now runs the rollback script immediately after the test matrix, inside the same rolled-back transaction, and verifies the pre-migration shape is actually restored (every new column gone, both new functions gone, `admin_link`/`admin_unlink_customer_google_account` back to their original bodies) — `rollback_ok=t`.
+
+Two real bugs were caught by the rehearsal during this round, neither by inspection:
+1. The merge function's UPDATE order (see item 3 above).
+2. A test-script bug (not production code): a `pg_temp.mkgoogle()` call made while role was still `authenticated` (not reset to the owning role between two scenarios), which only matters for the test harness, not the shipped migrations.
+
+Final rehearsal run: **42/42 test assertions PASS**, `rollback_ok=t`, wrapper-level fingerprint "FAIL" lines are the same previously-documented, independently-confirmed-harmless artifact (the auto-create path's real-org writes are visible to the wrapper's own mid-transaction SELECT, before the final RAISE undoes everything) — proven again via two separate independent follow-up requests after the rehearsal's HTTP call returned.
+
+Still stopped before any real apply. Waiting for "APPROVED".
