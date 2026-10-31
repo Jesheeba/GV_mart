@@ -1076,3 +1076,279 @@ catches it), so this is a stray message at most, not a security bypass.
 - **No live apply, no push, no merge to main, no Edge Function deploy, no secret changes, no live
   customer-facing test performed by this pass.** The coordinator performs the actual live apply
   once satisfied with this round's results, per the owner's explicit instruction — not this pass.
+
+## 14. Post-apply READ-ONLY analysis (2026-10-31): the auto-onboard collision, test-mode mechanics,
+## frontend state, and a plan — nothing built, nothing applied this round
+
+The coordinator applied all four pending migrations live (`20261120100200`, `20261121100100`,
+`20261121100150`, `20261121100200`) and independently verified them clean. Before any deploy/
+secrets/phone test, the owner asked for a pure read-only investigation. Nothing in this section was
+written to the database; every fact below was read live via `pg_get_functiondef`/`information_schema`
+through the sha256-verified `run_rehearsal.mjs`, or read from source on this branch and `origin/main`.
+
+### 14.1 Item 1 — the auto-onboard collision is REAL and CONFIRMED: the phone path is currently
+### dead in production for any already-onboarded user
+
+Read the LIVE `verify_customer_link_code` body (re-fetched post-apply, not assumed from the
+migration file). Its very first checks, unchanged by this feature's own guard, are:
+
+```sql
+if v_user_id is null then raise exception 'cannot_verify_code: not authenticated'; end if;
+if exists (select 1 from public.profiles where id = v_user_id) then
+  raise exception 'cannot_verify_code: profile_exists';
+end if;
+```
+
+`request_customer_link_code` has the identical `profile_exists` guard. **`customer_auto_onboard()`
+(live since 2026-10-30) creates a `profiles` row for EVERY Google sign-in, unconditionally, before
+anything else can happen** — read its live body: on first sign-in it either links an existing
+unlinked/unblocked email match (inserting `profiles` immediately) or creates a brand-new
+`profiles` + `customers` pair (`source = 'customer_app'`). Either way, by the time a user could
+ever reach the phone-OTP screen, they already have a `profiles` row — so BOTH OTP RPCs would
+immediately `raise exception 'profile_exists'` and refuse. **Confirmed: as currently built, the
+phone-OTP path can never complete for any user who has ever signed in with Google since
+auto-onboard went live — which, per the owner's own framing, is now every Google sign-in.** This
+is not a hypothetical; it is the literal first `if` in the live function.
+
+**What "auto-created 'app' customer" actually looks like, read from the real schema and the real
+auto-onboard migration, not guessed:**
+- Table `public.customers`. The marker is `source = 'customer_app'` (set only by
+  `customer_auto_onboard()`'s create-new path).
+- `mobile` is `NULL` at creation (relaxed from `NOT NULL` to nullable by `20261130100000`
+  specifically for this case — a Google-only sign-in has no phone yet).
+- `primary_profile_id` = the signed-in user's own `auth.uid()`.
+- "Empty," in the exact checkable terms `admin_merge_auto_customer` (read live, full body above)
+  already uses as its own safety precondition for archiving a FROM customer: `source =
+  'customer_app'`, `archived_at is null`, `primary_profile_id` is not null (i.e. it really is this
+  caller's own auto row), and **zero rows** in `service_tickets`, `amc_contracts`, `warranties`,
+  `rental_contracts`, `quotations`, `invoices` for that `customer_id`. (No separate "spares" check
+  exists in the live function — spare handovers are tied to tickets, already covered by the
+  `service_tickets` count. Nothing beyond these six tables is checked live; if the owner wants
+  more tables covered, that is a new decision, not something already implied.)
+- The TO side's own live preconditions: `is_test = false`, `archived_at is null`,
+  `primary_profile_id is null`. (This feature's own guard, section 13, additionally requires
+  `auto_link_blocked_at is null` — `admin_merge_auto_customer` itself does not check that column at
+  all, since it is a master-driven explicit action, not an auto-link path; the new merge-on-verify
+  logic below must check it itself, the same way this feature's guard already does elsewhere.)
+
+**Proposed design (NOT built, NOT a migration file — text only, for the owner's approval), closing
+the gap without ever calling `admin_merge_auto_customer` itself** (that function requires
+`is_master()` and `current_org_id()` — a bare customer calling `verify_customer_link_code` is
+neither a master nor necessarily resolvable the same way; the safety LOGIC is reused, the function
+itself is not):
+
+1. **`request_customer_link_code`**: before the existing `profile_exists` raise, allow a caller
+   through if their own existing profile belongs to an auto-created, still-empty, unlinked-from-
+   anything-real customer (`customers.primary_profile_id = v_user_id and source = 'customer_app'`,
+   same six-table emptiness check as above) — everyone else (a real staff/technician account, a
+   customer already linked by phone or by a prior merge, or an auto customer that already has real
+   records) still gets the exact current `profile_exists` refusal, unchanged. This is the one
+   place "never match staff/technician accounts" is enforced: a staff/technician profile's `role`
+   is never `'customer'`, and the auto-created-customer check above structurally can never match
+   one (a staff profile has no `customers` row with `source = 'customer_app'` pointing at it).
+   Ambiguous phone (`v_match_count > 1`, already detected, currently a silent no-op): **flag the
+   CALLER's own auto-created customer** `needs_review = true`, `needs_review_reason = 'phone
+   matched more than one existing customer'` (same shape `customer_auto_onboard`'s own ambiguous-
+   email path already uses) — the response to the caller stays the identical collapsed
+   `v_generic` "if that number is registered..." message; nothing about the ambiguity is ever
+   returned to the caller (no oracle). A phone already linked to someone else, or blocked
+   (`auto_link_blocked_at is not null`, this feature's own existing check): no flag, no link,
+   identical generic response — exactly today's behaviour, unchanged.
+2. **`verify_customer_link_code`**: same early-exit relaxation (allow a caller through whose
+   existing profile is this exact auto-created, empty, unlinked shape). After the code verifies
+   correct and the existing lock-time re-check passes (matched customer still unlinked, not test,
+   not blocked — unchanged, section 13), branch on whether the caller already has a profile:
+   - **No existing profile** (today's only path): unchanged, exactly as live today.
+   - **Existing profile, auto-created/empty** (the new path): under locks on BOTH the auto FROM
+     customer (by the caller's own `primary_profile_id`) and the matched TO customer, in a fixed
+     id order (same deadlock-avoidance convention `admin_merge_auto_customer` already uses),
+     re-verify every FROM/TO precondition above (not just at request time — right here, under
+     lock, the same discipline this feature's own guard already follows for `auto_link_blocked_at`),
+     then: clear FROM's `primary_profile_id`, archive FROM (`archived_at = now()`, an
+     `archived_by` column exists but there is no master actor here — record `null` or the
+     caller's own `auth.uid()`, an open question for the owner, not decided here); set TO's
+     `primary_profile_id = v_user_id`, `phone_verified = true`, merge `email` (`coalesce`, TO's own
+     wins, matching `admin_merge_auto_customer`'s own convention); update the EXISTING `profiles`
+     row (not insert — one already exists) to TO's own `org_id`/name/mobile/language, matching
+     `admin_merge_auto_customer`'s own profile-realignment step; two `audit_log` rows, same shape
+     as `admin_merge_auto_customer`'s own two rows, `action` values distinguishing this path (e.g.
+     `customer_link_otp_merge` / `customer_link_otp_merge_archived`) with `reason: 'otp_verified'`.
+   - Response: identical `{status: 'linked'}` either way — the customer-visible shape never
+     changes between the two internal paths, exactly the owner's own explicit requirement.
+   - If the FROM/TO preconditions somehow fail under lock at this point (a real record appeared on
+     FROM between request and verify, TO got linked/blocked/archived in the meantime): refuse with
+     the SAME collapsed `{status: 'invalid_or_expired', attempts_left: 0}` every other race-loss
+     case in this function already returns — no new response shape, no new oracle.
+
+This is a design, not code — it has not been written as a migration, and per the owner's own
+stop-point discipline nothing above gets built without a separate typed "APPROVED" for its exact
+migration content, same as every prior piece of this feature.
+
+### 14.2 Item 2 — `wa_test_mode_enabled` is an ALLOW-LIST, not a suppress-all or a redirect
+
+Read `supabase/functions/_shared/wa-test-mode.ts` in full (the one place every real send passes
+through, `sendMessage` in `whatsapp.ts`, confirmed by its own header comment and call site).
+Exact mechanics: when `settings.wa_test_mode_enabled = true` for an org, a send is allowed ONLY if
+the destination number (bare 10 digits) is present in that same org's `settings.wa_test_allowed_numbers`
+array; every other destination is BLOCKED — the `whatsapp_outbox` row still gets created/claimed
+(insert-first, per `wa-send-core.ts`'s own convention) but is marked `status = 'failed'`,
+`error = 'blocked: test_mode_not_allow_listed'`, and a `WA_SEND_BLOCKED` row is written to
+`audit_log` (last four digits only) — nothing is sent to Wasi at all, nothing redirected anywhere.
+It fails CLOSED on a `settings` read error (blocks rather than risks a real send if the flag's own
+state can't be confirmed).
+
+**Live state, read-only, confirmed for the real org ("GV Mart"):** `wa_test_mode_enabled = true`
+already, `wa_test_allowed_numbers = ["9092766740"]` already (one number already allow-listed from
+earlier work on this project). **Safest mechanism for the owner to receive exactly one real code
+on his own phone with zero risk to any real customer**: add the owner's own mobile number to that
+same `wa_test_allowed_numbers` array (alongside the existing one, or replacing it — the owner's
+call) for the real org. With test mode already on, this is the ONLY thing that needs to change for
+this specific safety property — no code change, no deploy, a single `settings` row update (which
+this round does NOT perform — read-only).
+
+**Important additional finding, not asked for but load-bearing for item 3**: `is_customer_link_otp_enabled()`
+(read live) requires BOTH `customer_link_otp_settings.enabled = true` AND
+`exists (select 1 from settings where wa_dispatch_v2_enabled = true and wa_dispatch_v2_scope = 'org')`.
+**Read live: `wa_dispatch_v2_enabled` is currently `false` for the real org** (`wa_dispatch_v2_scope`
+defaults to `'numbers'`). Flipping the OTP flag alone, without ALSO turning on `wa_dispatch_v2_enabled`
++ `wa_dispatch_v2_scope = 'org'` for that org, would leave `is_customer_link_otp_enabled()` returning
+`false` and both RPCs refusing with `feature_disabled` regardless. **This is a real, non-trivial
+side effect to flag explicitly**: `wa_dispatch_v2_enabled`/`scope` are not OTP-specific — they
+govern the SAME shared milestone dispatcher's behaviour for `service_ticket`, `service_visit`,
+`invoice`, and `purchase_quote_request` sends too. Turning this on for the real org to test OTP
+changes the dispatch path for every one of those other message types for the whole org for the
+duration of the test window, not just for OTP. Not a reason to avoid it (v2 is the intended target
+state for this project per its own history), but the owner should know the test window is not as
+narrowly scoped as "just OTP."
+
+### 14.3 Item 3 — exact sequence to test end-to-end while the flag stays off for everyone else
+
+There is no existing per-customer or per-account allow-list for `customer_link_otp_settings.enabled`
+itself (it is one global boolean row, `id = true`) — read live, confirmed no such column exists.
+The only two realistic options, given what already exists:
+
+**Option A — temporary global enable + test-mode allow-list (recommended), exact sequence:**
+1. Add the owner's own mobile number to the real org's `settings.wa_test_allowed_numbers`
+   (test mode is already on for that org — confirmed above).
+2. Set the real org's `settings.wa_dispatch_v2_enabled = true` and `wa_dispatch_v2_scope = 'org'`
+   (required per 14.2's finding — read, not assumed).
+3. Set `customer_link_otp_settings.enabled = true` (global — the only lever that exists).
+4. Owner performs the test from a device signed into the customer app. **If item 1's merge-on-
+   verify fix is NOT yet built**, the owner must use a Google account that has NEVER signed in
+   before (so `customer_auto_onboard` has never run for it, so no `profiles` row exists yet, so
+   the current `profile_exists` guard never fires) — this proves the OTP send/receive/verify
+   mechanics work end-to-end, but does NOT exercise the "already-onboarded customer takes over
+   their phone-matched real record" scenario, since that scenario is exactly what item 1's fix is
+   for. **If item 1's fix IS built and approved**, the owner can test with his own already-
+   onboarded account directly, proving the real production scenario.
+5. During the window between steps 3 and 6, any OTHER real customer who happens to attempt this
+   (unlikely — nothing points them at it yet, see 14.4) would have their RPC calls processed
+   normally (rate limits, challenge rows, audit_log) but their WhatsApp send would be BLOCKED by
+   the test-mode allow-list (14.2) — no real customer ever receives a wrong message; the residual
+   exposure is limited to extra rows in `whatsapp_outbox`/`customer_link_otp_send_log` for a number
+   that isn't the owner's, not any customer-visible effect.
+6. Immediately after: reverse exactly steps 1-3 — `customer_link_otp_settings.enabled = false`,
+   `wa_dispatch_v2_enabled`/`scope` back to whatever they were before step 2 (`false`/`'numbers'`
+   for the real org, confirmed), and remove the owner's number from the allow-list if it wasn't
+   there before (the pre-existing `9092766740` entry stays, since that was already there before
+   this round touched anything).
+
+**Option B — skip step 3 entirely**, if only the WhatsApp send/template mechanics need proving
+(not the actual phone-link flow): call `wa_otp_fast_dispatch_invoke`/the dispatcher directly against
+a manually-inserted throwaway `customer_link_otp` outbox row pointed at the owner's own number,
+under the same test-mode allow-list — narrower, proves less, but never touches the global OTP
+flag or `wa_dispatch_v2_enabled` at all. Not detailed further here; Option A is the owner's
+explicit ask ("test end to end").
+
+### 14.4 Item 4 — frontend: NOT on `origin/main` today; this branch's own integration point is
+### now STALE relative to `origin/main` and needs real rework, not just a merge
+
+Fetched `origin/main` and read both branches' `LoginPage.tsx`/`GoogleLinkAccountCard.tsx` in full.
+
+- **`origin/main` today**: `GoogleLinkAccountCard` is a 56-line dead-end NOTICE screen only
+  (`reason: "staff_account" | "error"`) — no phone/code form anywhere in it. `LoginPage` routes a
+  first-time Google sign-in with no `profiles` row to `<CustomerAutoOnboardGate />`, which calls
+  `customer_auto_onboard()` and only falls through to `GoogleLinkAccountCard` on the two refusal
+  cases above. **The phone-entry/code-entry OTP UI does not exist on `origin/main` at all.**
+- **This branch**: `GoogleLinkAccountCard` (same file name, materially different component) IS the
+  full phone/code two-step form (`services/auth.ts`'s `requestCustomerLinkCode`/
+  `verifyCustomerLinkCode`, calling the two RPCs directly), gated by `isCustomerLinkOtpEnabled()`
+  (reads `is_customer_link_otp_enabled()` live). **Confirmed flag-state behaviour, read from the
+  component's own code**: while the query is loading, a blank frame (deliberately, to avoid a
+  flash of the wrong state); once settled, if the flag reads anything other than exactly `true`
+  (`false`, or the query errored), a fixed "not available yet" notice with no form at all — the
+  phone-entry form itself is NEVER rendered while the flag is off; once the flag reads `true`, the
+  phone step renders, then (after a successful request) the code step.
+- **The real problem, not a trivial merge conflict**: this branch's `LoginPage.tsx` STILL routes
+  "no profile row" directly to this card — it has never been updated for `CustomerAutoOnboardGate`,
+  which did not exist when this branch was built. Merging `origin/main` into this branch would
+  bring in `CustomerAutoOnboardGate`, and with it, "no profile row" would almost always resolve
+  through auto-onboard BEFORE this card ever gets a chance to render — exactly the collision item 1
+  describes, now visible at the UI layer too. **This branch's phone-OTP card, as currently wired,
+  would essentially never be reached in practice once merged as-is** — not because of a merge
+  conflict, but because the condition that used to trigger it ("no profile yet") now almost never
+  survives to the point `LoginPage` checks it. A real decision is needed on WHERE/WHEN to surface
+  phone-linking now: candidates include (a) as a "link your phone number" affordance inside an
+  already-onboarded customer's own account/profile page (not at login at all), or (b) kept at
+  login but only for the narrower cases `CustomerAutoOnboardGate` itself falls through on. This is
+  a product decision for the owner, not something to decide unilaterally — flagged as its own item
+  in the plan below, not quietly assumed.
+- **What is pushed vs not**: nothing from this entire feature (migrations, Edge Functions,
+  dispatcher wiring, or this frontend code) is on `origin/main`. Everything lives only in this
+  unpushed branch (`feat/customer-otp-link`) and the now-applied-live-but-still-unpushed migrations.
+
+### 14.5 Item 5 — the mapping and the dispatcher's actual final payload shape, code masked
+
+Confirmed live (re-read post-apply): `whatsapp_event_templates` has one row per organisation for
+`event_key = 'customer_link_otp'`, `wasi_template_name = 'lexdraft_otp'`, `language = 'en'`,
+`param_map = {"1": "code"}`, `has_auth_copy_code_button = true`, `is_active = true` — 8 rows (one
+per org on this project, including `__TEST_` orgs from past rehearsals), all identical.
+
+The button component is added in `wa-send-core.ts`'s `buildTemplateRequest` (read the current
+source, lines ~93 and ~138-150 of this branch's file): when `mapping.hasAuthCopyCodeButton` is
+true, it takes the single resolved body parameter (there must be exactly one, or the function
+refuses with `copy_code_button_requires_exactly_one_body_param` rather than guessing) and builds:
+
+```json
+{
+  "client_id": "<org's Wasi client id>",
+  "to": "91XXXXXXXXXX",
+  "type": "template",
+  "template": "lexdraft_otp",
+  "params": { "1": "██████" },
+  "components": [
+    { "type": "body", "parameters": [{ "type": "text", "text": "██████" }] },
+    { "type": "button", "sub_type": "url", "index": "0", "parameters": [{ "type": "text", "text": "██████" }] }
+  ]
+}
+```
+
+(the `██████` placeholder stands in for the real 6-digit code — the SAME value in all three
+places, duplicated per Meta's documented shape, never printed here as a real value). Only `params`
+(the flat body-only map) is ever persisted to `whatsapp_outbox.payload`/`.template_params` —
+`components` is request-only, confirmed by tracing `payloadFor()`/`executeSend` in the same file
+(already independently verified by the earlier adversarial review, section 11/13). This exact
+wire shape is Meta's documented convention for a copy-code AUTHENTICATION template, reproduced
+faithfully from the owner's own reading of the live Wasi template form — **still not proven
+against Wasi's real API until the owner's own live phone test**, per every prior note on this
+point in this document.
+
+### 14.6 Item 6 — plan, deliverable-only, nothing built
+
+| # | Work package | What it is | Needs owner's approval for... |
+|---|---|---|---|
+| WP1 | Merge-on-verify migration (14.1) | New migration: relax the `profile_exists` guard for an auto-created/empty caller only, merge onto the matched customer under lock, flag ambiguous phones for review | The exact migration content (typed "APPROVED"), same discipline as every prior migration this feature has shipped — not written yet |
+| WP2 | Frontend rewiring (14.4) | Merge `origin/main`'s `CustomerAutoOnboardGate` flow in, and DECIDE where/when the phone-link UI is now offered (login-time narrow case vs. an in-account "link your phone" affordance) | A product/UX decision on WHERE the entry point lives, before any code is written — this is not purely an engineering choice |
+| WP3 | Edge Function deploy (`wa-otp-dispatch`, already built, never deployed) | Deploy the fast-dispatch Edge Function this feature already built in an earlier phase | Explicit typed "APPROVED" for deploy specifically — the standing stop-point for this whole engagement, unchanged |
+| WP4 | Secrets (`WA_OTP_FAST_DISPATCH_SECRET` Edge Function secret + matching `wa_otp_fast_dispatch_secret` vault entry) | Provisioning the shared secret both sides of the fast-dispatch call need | The owner's own action — secrets have never been created/set by this work, by standing rule, not just this round |
+| WP5 | Owner's own live test (14.2/14.3) | The temporary flag-flip sequence + the owner's own phone, end to end | Everything above (WP1 at minimum if testing the real merge scenario; WP3/WP4 if testing real WhatsApp delivery) plus the owner's own explicit decision to run it |
+
+**Order**: WP1 before WP5 if the owner wants to prove the real "already-onboarded customer" merge
+scenario (otherwise WP5 can run narrower, with a fresh never-signed-in Google account, without
+WP1). WP2 is independent of WP1/WP3/WP4's ordering but gates whether a real customer could ever
+reach this flow through the UI at all — without it, only a direct RPC call (as in WP5's test) can
+exercise the backend regardless of what else ships. WP3+WP4 must both be done before any WhatsApp
+message can actually be delivered (the legacy cron-only path would eventually pick up a pending
+row too, but at the multi-hour cadence this project's own history already documents as unsuitable
+for a 10-minute-expiry code). **Nothing in WP1-WP5 was built, written, deployed, or applied this
+round** — this section is the plan only, awaiting the owner's go on each piece.
