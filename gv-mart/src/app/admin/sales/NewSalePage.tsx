@@ -19,7 +19,7 @@ import { useQuotation } from "@/hooks/useQuotations"
 import { useTechnicians } from "@/hooks/useService"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
 import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
-import { formatCurrency } from "@/lib/sale-calc"
+import { formatCurrency, findStockGap } from "@/lib/sale-calc"
 import { ItemsStep } from "./ItemsStep"
 import { SaleFamilyReviewSection } from "./SaleFamilyReviewSection"
 import { SaleSummaryPanel } from "./SaleSummaryPanel"
@@ -105,6 +105,15 @@ export function NewSalePage() {
   // to a paying customer, so this only helps the cashier pick an in-stock
   // gift when more than one qualifies.
   const { data: giftInventory } = useInventoryList(orgId, "gift")
+  // Hard pre-flight gate (handleGenerate, below) for product/spare lines --
+  // distinguishes "no inventory row exists yet" from "row exists but too
+  // little qty", which _sale_create_line_invoice's single UPDATE...WHERE
+  // cannot tell apart server-side (both produce the same generic
+  // "insufficient stock" exception). Checked here, client-side, read-only,
+  // precisely so that money-moving function never has to be touched.
+  const { data: productStockForGate } = useInventoryList(orgId, "product")
+  const { data: spareStockForGate } = useInventoryList(orgId, "spare")
+  const [stockError, setStockError] = useState<string | null>(null)
   const { data: referralBalance } = useCustomerReferralBalance(customerId ?? undefined)
   const createSale = useCreateSale()
 
@@ -275,8 +284,24 @@ export function NewSalePage() {
     setMaxStepReached((m) => Math.max(m, 5))
   }
 
+  function stockGapMessage(): string | null {
+    const gap =
+      findStockGap(cart.productLines.map((l) => ({ itemId: l.productId, name: l.name, qty: l.qty })), productStockForGate) ??
+      findStockGap(cart.spareLines.map((l) => ({ itemId: l.spareId, name: l.name, qty: l.qty })), spareStockForGate)
+    if (!gap) return null
+    return gap.kind === "no_record"
+      ? t("sales.errors.noStockRecord", { name: gap.name })
+      : t("sales.errors.insufficientStock", { name: gap.name, available: gap.available })
+  }
+
   async function handleGenerate() {
     if (!orgId || !customerId) return
+    const gap = stockGapMessage()
+    if (gap) {
+      setStockError(gap)
+      return
+    }
+    setStockError(null)
     const result = await createSale.mutateAsync({
       orgId,
       customerId,
@@ -590,7 +615,9 @@ export function NewSalePage() {
                 </select>
               </div>
 
-              {createSale.isError ? (
+              {stockError ? (
+                <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{stockError}</p>
+              ) : createSale.isError ? (
                 <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createSale.error as Error).message}</p>
               ) : null}
             </Card>

@@ -1737,7 +1737,9 @@
       "paymentInvalid": "Check the payment details and try again",
       "amountPaidInvalid": "Enter a valid amount collected",
       "amountPaidExceedsTotal": "Amount collected cannot exceed the payable total",
-      "recordPaymentInvalid": "Enter an amount greater than 0 and no more than the balance due"
+      "recordPaymentInvalid": "Enter an amount greater than 0 and no more than the balance due",
+      "noStockRecord": "No stock record for \"{{name}}\" — add stock before selling",
+      "insufficientStock": "Only {{available}} of \"{{name}}\" in stock — reduce the quantity"
     },
     "summary": {
       "title": "Summary",
