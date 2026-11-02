@@ -3703,6 +3703,28 @@
       "addNote": "Add note",
       "noteSaved": "Note added"
     },
+    "errors": {
+      "nameRequired": "Enter a name (at least 2 characters)",
+      "sourceRequired": "Select a source"
+    },
+    "edit": {
+      "title": "Edit lead",
+      "subtitle": "Update this lead's contact details and notes.",
+      "alternateMobile": "Alternate mobile",
+      "address": "Address",
+      "saved": "Lead updated",
+      "saveAnyway": "Save anyway",
+      "duplicateWarning": "Another record already uses this number:",
+      "duplicateKind": {
+        "lead": "Lead: {{name}}",
+        "customer": "Customer: {{name}}"
+      },
+      "referralLockedHint": "This lead's source is Referral and can't be changed here — it's set by the referral program and tied to a technician's incentive.",
+      "errors": {
+        "mobileInvalid": "Enter a valid 10-digit mobile number",
+        "referralLocked": "Source can't be changed to or from Referral here"
+      }
+    },
     "quick": {
       "label": "Follow-up filters",
       "overdue": "Overdue",
