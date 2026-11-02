@@ -1,4 +1,7 @@
--- Rollback for 20261202100000_master_technician_availability_rpc.sql.
+-- Rollback for 20261203100000_master_technician_availability_rpc.sql.
+-- (Renumbered 2026-11-02 from 20261202100000, which collided with an
+-- already-registered, unrelated migration of the same version
+-- ("referral_bonus_schema") -- never reuse or edit a registered version.)
 -- Purely additive migration (three new functions, nothing else touched) --
 -- rollback is a plain drop, nothing to restore.
 
