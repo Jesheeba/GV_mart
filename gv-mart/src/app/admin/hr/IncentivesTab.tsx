@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useComputeIncentives, useIncentivesEarned } from "@/hooks/useHr"
+import { useReferralBonusReport } from "@/hooks/useReferrals"
 import { InstallationCreditsPanel } from "./InstallationCreditsPanel"
 import type { IncentiveEarnedListItem } from "@/services/hr"
 
@@ -38,6 +39,16 @@ export function IncentivesTab() {
 
   const { data: rows, isLoading, isError, refetch } = useIncentivesEarned(orgId, period)
   const computeMut = useComputeIncentives()
+  const [referralOnly, setReferralOnly] = useState(false)
+  // Referral incentives, Stage 2 — `referral_bonus_report` isn't built on the
+  // DB side yet (see useReferrals.ts header); the "N pending — month locked"
+  // banner below reads its summary once that RPC lands. Request is made
+  // regardless so the banner appears the moment the DB package is applied,
+  // with no further UI change needed.
+  const { data: referralReport } = useReferralBonusReport(period)
+  const pendingLocked = referralReport?.summary.pending_month_locked ?? 0
+
+  const visibleRows = referralOnly ? (rows ?? []).filter((r) => !!r.referral_bonus_event_id) : rows ?? []
 
   const columns: DataTableColumn<IncentiveEarnedListItem>[] = [
     { key: "technician", header: t("hr.incentives.technician"), render: (r) => r.technicians?.profiles?.full_name ?? "—" },
@@ -58,7 +69,7 @@ export function IncentivesTab() {
     { key: "amount", header: t("hr.incentives.amountEarned"), render: (r) => <span className="font-semibold text-success">{money(r.amount)}</span> },
   ]
 
-  const totalEarned = (rows ?? []).reduce((sum, r) => sum + r.amount, 0)
+  const totalEarned = visibleRows.reduce((sum, r) => sum + r.amount, 0)
 
   return (
     <div className="space-y-4">
@@ -86,18 +97,29 @@ export function IncentivesTab() {
 
       <InstallationCreditsPanel orgId={orgId} />
 
-      {rows && rows.length > 0 ? (
+      {pendingLocked > 0 ? (
+        <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm font-medium text-warning">
+          {t("hr.incentives.referralPendingLocked", { count: pendingLocked })}
+        </p>
+      ) : null}
+
+      <label className="flex items-center gap-2 text-sm font-medium text-text">
+        <input type="checkbox" checked={referralOnly} onChange={(e) => setReferralOnly(e.target.checked)} className="size-4" />
+        {t("hr.incentives.referralOnly")}
+      </label>
+
+      {visibleRows.length > 0 ? (
         <p className="text-sm text-text-muted">{t("hr.incentives.totalEarned", { amount: money(totalEarned) })}</p>
       ) : null}
 
       <DataTable
         columns={columns}
-        rows={rows ?? []}
+        rows={visibleRows}
         rowKey={(r) => r.id}
         loading={isLoading}
         error={isError ? t("hr.incentives.loadFailed") : null}
         onRetry={() => refetch()}
-        emptyMessage={t("hr.incentives.empty")}
+        emptyMessage={referralOnly ? t("hr.incentives.referralEmpty") : t("hr.incentives.empty")}
       />
     </div>
   )

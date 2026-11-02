@@ -41,7 +41,11 @@ export type SalaryRow = Tables<"salaries"> & {
   // was floored). Shown on the HR Salary screen, never hidden.
   shortfall_amount: number
 }
-export type IncentiveEarnedRow = Tables<"incentives_earned"> & { is_bike_allowance: boolean }
+// Referral incentives, Stage 2 (addendum item 7) — `incentives_earned` gains
+// a nullable `referral_bonus_event_id` (5-way one-source constraint), same
+// "widen locally, don't edit database.ts" convention as every other column
+// documented above. Not yet applied live.
+export type IncentiveEarnedRow = Tables<"incentives_earned"> & { is_bike_allowance: boolean; referral_bonus_event_id?: string | null }
 export type IncentiveRuleRow = Tables<"incentive_rules">
 export type RewardRow = Tables<"rewards">
 export type InstallationCreditRow = Tables<"installation_incentive_credits">

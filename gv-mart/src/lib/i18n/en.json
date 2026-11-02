@@ -787,7 +787,8 @@
       "settingsDesc": "Discount, travel, hours & SLA",
       "paymentSettingsDesc": "UPI merchant details for customer QR payments",
       "installationRatesDesc": "{{count}} per-unit rates",
-      "leadOutcomesDesc": "{{count}} outcomes + working schedule"
+      "leadOutcomesDesc": "{{count}} outcomes + working schedule",
+      "referralBonusRateDesc": "Per-referral bonus amount"
     },
     "tabs": {
       "brands": "Brands",
@@ -812,7 +813,8 @@
       "settings": "Settings",
       "paymentSettings": "Payment Settings",
       "installationRates": "Installation Rates",
-      "leadOutcomes": "Lead Outcomes"
+      "leadOutcomes": "Lead Outcomes",
+      "referralBonusRate": "Referral Bonus Rate"
     },
     "categories": {
       "ro": "RO / Water Purifier",
@@ -1099,6 +1101,28 @@
       "status": "Status",
       "active": "Active",
       "inactive": "Inactive"
+    },
+    "referralBonusRate": {
+      "title": "Referral bonus rate",
+      "note": "Amount paid per qualifying referral. A deliberately separate screen from Incentive Rules above — see the referral incentives build notes. Changing the rate never edits the old one in place: it closes the current rate and starts a new one, so past months keep the amount that was in force when they qualified.",
+      "noRate": "No referral bonus rate set yet.",
+      "allSources": "All sources",
+      "sources": {
+        "sale": "Sale",
+        "amc": "AMC",
+        "service": "Service"
+      },
+      "effectiveFrom": "Effective from {{date}}",
+      "history": "History",
+      "changeRate": "Change rate",
+      "dialogTitle": "Change referral bonus rate",
+      "dialogHint": "This closes the current rate and starts a new one from today — it never edits the old rate in place, so past months are unaffected.",
+      "amount": "Amount",
+      "source": "Source (optional)",
+      "effectiveFromNote": "Starts today unless the rate is applied from a later date.",
+      "confirm": "Confirm change",
+      "saved": "Referral bonus rate updated.",
+      "amountInvalid": "Enter an amount greater than 0."
     },
     "complaintTypes": {
       "hint": "These are the default complaint types for every product in a category. A product only gets its own list when someone adds product-specific complaints for it from Inventory or Masters > Products — otherwise it uses these defaults.",
@@ -3549,6 +3573,27 @@
       "referralsCount_one": "{{count}} customer referred",
       "referralsCount_other": "{{count}} customers referred",
       "noReferrals": "No referrals yet — refer a customer during a sale, service booking, or AMC sign-up to see it here.",
+      "referralBonus": {
+        "title": "Referral bonus this month",
+        "earned": "Earned",
+        "pending_one": "{{count}} pending",
+        "pending_other": "{{count}} pending",
+        "voided_one": "{{count}} voided",
+        "voided_other": "{{count}} voided",
+        "noEvents": "No referral bonus activity yet this month.",
+        "loadFailed": "Couldn't load referral bonus details.",
+        "source": {
+          "sale": "Sale",
+          "amc": "AMC",
+          "service": "Service"
+        },
+        "status": {
+          "pending": "Pending",
+          "approved": "Approved",
+          "paid": "Paid",
+          "voided": "Voided"
+        }
+      },
       "appVersion": "App version",
       "appVersionDetail": "v{{versionName}} ({{build}}) · update {{bundleVersion}}",
       "storeUpdateRequired": "A required update is waiting on the Play Store. Open the Play Store app to install it.",
@@ -4705,6 +4750,7 @@
       "logFailed": "Couldn't log this salary to Accounts.",
       "logged": "Logged this month: {{amount}}",
       "notLoggedYet": "Not logged this month",
+      "pendingReferralPayout": "Referral bonus pending: {{amount}}",
       "empty": "No staff found",
       "setupReminders": "Set up monthly salary reminders",
       "remindersSetUp_one": "Created {{count}} reminder",
@@ -4733,7 +4779,10 @@
         "reason": "Reason for voiding",
         "reasonRequired": "Enter a reason to void this credit."
       },
-      "perUnit": "per unit"
+      "perUnit": "per unit",
+      "referralOnly": "Referral only",
+      "referralPendingLocked": "{{count}} referral bonus pending — month locked",
+      "referralEmpty": "No referral-sourced incentives for this month yet"
     },
     "rewards": {
       "month": "Month",
@@ -4782,7 +4831,8 @@
       "topCustomers": "Top Customers",
       "coverage": "Coverage",
       "insights": "Sales Insights",
-      "monthlyExpenses": "Monthly Expenses"
+      "monthlyExpenses": "Monthly Expenses",
+      "referralBonus": "Referral Bonus"
     },
     "filters": {
       "from": "From",
@@ -5036,6 +5086,37 @@
       "cost": "Cost",
       "margin": "Margin %",
       "productNote": "Revenue = qty × price − discount per line. Cost and margin show — when any sold line has no cost recorded. Gifts are excluded."
+    },
+    "referralBonus": {
+      "month": "Month",
+      "technician": "Technician",
+      "allTechnicians": "All technicians",
+      "referrer": "Referrer",
+      "customer": "Referred customer",
+      "qualifiedAt": "Qualified on",
+      "amount": "Amount",
+      "statusLabel": "Status",
+      "totalEvents": "Total referrals",
+      "empty": "No referral bonus events for this month yet.",
+      "pendingMonthLocked": "{{count}} referral bonus pending — month locked",
+      "voidNote": "Voiding only has a real signal for AMC referrals today (contract cancelled). Sale/service referrals have no cancellation mechanism in this app, so those can only be voided for an inactive referrer or a test customer.",
+      "source": {
+        "label": "Source",
+        "sale": "Sale",
+        "amc": "AMC",
+        "service": "Service"
+      },
+      "kind": {
+        "label": "Referrer type",
+        "technician": "Technician",
+        "staff": "Staff"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "paid": "Paid",
+        "voided": "Voided"
+      }
     }
   },
   "accounts": {
