@@ -14,13 +14,18 @@ export type ReferralBonusStatus = "pending" | "approved" | "paid" | "voided"
 
 export type ReferralBonusReportRow = {
   referral_bonus_event_id: string
+  referred_by_user_id: string
   referrer_name: string
   referrer_kind: ReferrerKind
+  customer_id: string
   customer_name: string
   source: ReferralSource
+  qualifying_ref_id: string
   qualified_at: string
   rate_amount: number
   status: ReferralBonusStatus
+  month_locked: boolean
+  incentives_earned_id: string | null
 }
 
 export type ReferralBonusReportSummary = {
@@ -30,6 +35,9 @@ export type ReferralBonusReportSummary = {
   paid: number
   voided: number
   pending_month_locked: number
+  // null for a technician caller (RPC only computes this org-wide, for staff/master) — see
+  // DB package 2's referral_bonus_report.
+  pending_no_rate: number | null
 }
 
 export type ReferralBonusReport = {

@@ -4800,6 +4800,7 @@
       "logFailed": "Couldn't log this salary to Accounts.",
       "logged": "Logged this month: {{amount}}",
       "notLoggedYet": "Not logged this month",
+      "pendingReferralPayout": "Referral bonus pending: {{amount}}",
       "empty": "No staff found",
       "setupReminders": "Set up monthly salary reminders",
       "remindersSetUp_one": "Created {{count}} reminder",
