@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useMapApiKey, useAutocomplete, usePlaceDetails, useGeocodeAddress } from "@/hooks/useMaps"
-import type { AutocompletePrediction, GeocodeResult } from "@/services/maps"
+import { isTooManyRequestsError, type AutocompletePrediction, type GeocodeResult } from "@/services/maps"
 
 // GV Mart operates out of Chennai — a sane default center when no address
 // has been picked yet, not a claim about the customer's actual location.
@@ -226,6 +226,7 @@ export function AddressMapPicker({
   const suggestionsLoading = autocomplete.isPending
   const resolvingSelection = placeDetails.isPending
   const searchErrored = autocomplete.isError || geocodeFallback.isError
+  const searchRateLimited = isTooManyRequestsError(autocomplete.error) || isTooManyRequestsError(geocodeFallback.error)
   const dropdownRows = fallbackResults.length > 0 ? fallbackResults : predictions
 
   return (
@@ -279,7 +280,7 @@ export function AddressMapPicker({
       {searchErrored ? (
         <p className="flex items-center gap-1.5 text-xs text-danger">
           <TriangleAlert className="size-3.5" />
-          {t("customers.form.map.searchError")}
+          {t(searchRateLimited ? "customers.form.map.tooManyRequests" : "customers.form.map.searchError")}
         </p>
       ) : null}
       {placeDetails.isError ? (

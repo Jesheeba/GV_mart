@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress, useReverseGeocode } from "@/hooks/useMaps"
-import { isPreciseGeocodeResult } from "@/services/maps"
+import { isPreciseGeocodeResult, isTooManyRequestsError } from "@/services/maps"
 import { geocodeResultToAddressFields, mergeAddressFieldsPreservingTyped } from "@/lib/geocodeToAddressFields"
 import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validation/customerApp"
 import type { AddressRow } from "@/services/customerApp"
@@ -150,6 +150,7 @@ export function AddressForm({
   const [locateError, setLocateError] = useState<"denied" | "unavailable" | "timeout" | null>(null)
   const [locationFilledNotice, setLocationFilledNotice] = useState(false)
   const [locationLookupFailed, setLocationLookupFailed] = useState(false)
+  const [locationRateLimited, setLocationRateLimited] = useState(false)
 
   function handleConfirm(coords: { lat: number; lng: number; accuracy?: number; source: "search" | "drag" | "location" }) {
     setValue("lat", coords.lat, { shouldValidate: true })
@@ -159,6 +160,7 @@ export function AddressForm({
     setLocateError(null)
     setLocationFilledNotice(false)
     setLocationLookupFailed(false)
+    setLocationRateLimited(false)
     if (coords.source === "search") return
     reverseGeocode.mutate(
       { lat: coords.lat, lng: coords.lng },
@@ -172,7 +174,7 @@ export function AddressForm({
           for (const key of patchedKeys) setValue(key, patch[key]!, { shouldValidate: true })
           setLocationFilledNotice(true)
         },
-        onError: () => setLocationLookupFailed(true),
+        onError: (err) => (isTooManyRequestsError(err) ? setLocationRateLimited(true) : setLocationLookupFailed(true)),
       }
     )
   }
@@ -271,6 +273,7 @@ export function AddressForm({
         ) : null}
         {locationFilledNotice ? <p className="text-xs text-success">{t("customerApp.profile.address.locationFilledNotice")}</p> : null}
         {locationLookupFailed ? <p className="text-xs text-text-muted">{t("customerApp.profile.address.locationLookupFailed")}</p> : null}
+        {locationRateLimited ? <p className="text-xs text-warning">{t("customerApp.profile.address.tooManyRequests")}</p> : null}
         {lat == null || lng == null ? <p className="text-xs text-warning">{t("customerApp.profile.address.mapRequired")}</p> : null}
       </div>
 
