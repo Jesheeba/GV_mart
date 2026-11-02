@@ -1584,3 +1584,75 @@ Nothing in WP4 was executed: no secret generated, no flag flipped, no customer-f
   deploy command ready, not run. WP4: full text produced, nothing executed.
 - No live apply, no push, no deploy, no secret generation, no flag flip, no customer-facing test
   performed by this round.
+
+## 17. WP2 pushed; WP4 secrets script corrected + owner-test .sql files; critical test-target finding
+
+Owner-directed, this round only: WP2's full fetch→rebase→gates→push cycle run end-to-end
+INCLUDING the actual push (coordinator deployed WP3 directly; not repeated here). WP4 remained
+text/file-writing only — no secret generated, no flag flipped, no customer-facing test run. Full
+detail in `GV_mart\_local_only\reports\customer_otp_link\phase7_wp2_pushed_wp4_scripts_and_owner_test_files.md`.
+
+### 17.1 WP2 — pushed
+
+Origin/main had moved again to `192c206` (3 unrelated referral-incentives commits). Rebase was
+attempted first per the literal instruction, aborted immediately once it started replaying
+conflicts against the first of 21 historical commits (already resolved once, in `44adf97`'s merge
+commit) — used `git merge origin/main --no-edit` instead, same lower-risk approach as the prior
+round, conflict-free this time. Gates green (955/972 tests, `LinkPhoneCard.test.ts` 12/12
+re-proving flag-off after the merge, new build hash `index-DuGY2PpH.js` containing the card
+strings). Origin/main confirmed unmoved after gates (`192c206`) — pushed on attempt 1; no attempt
+2/3 needed. Branch `feat/customer-otp-link` now lives on origin at `db351e3`.
+
+### 17.2 WP3
+
+Deployed by the coordinator directly this round (CLI auth fixed by sourcing
+`SUPABASE_ACCESS_TOKEN` from `gv-mart/.env`). Read-only verification so far: GET → 405, POST
+without the secret configured → 500 "Not configured" (correct fail-closed; the own-secret check
+runs before the bearer check). Wrong-bearer-specific 401 verification deferred until WP4's secret
+exists.
+
+### 17.3 WP4 — corrected scripts
+
+`set_wa_otp_fast_dispatch_secret.ps1` rewritten and `set_vault_secret.mjs` added (both under
+`GV_mart\_local_only\reports\customer_otp_link\`, neither executed), addressing all 5 of the
+owner's review points: `$LASTEXITCODE` checked after every `npx`/`node` call (never prints `set`
+on a false positive); `psql` (unavailable on this machine) replaced by the Node helper, reusing
+`run_rehearsal.mjs`'s own Management-API credential convention; idempotent create-or-update
+against `vault.secrets`/`vault.update_secret`/`vault.create_secret` (signatures confirmed live,
+not guessed); a digest-only verify step (`vault.decrypted_secrets`'s `decrypted_secret` hashed
+inside Postgres, compared against `supabase secrets list`'s own digest column, printing only
+`match`/`MISMATCH` — with an honest caveat in the script that the CLI's digest format has not
+been empirically confirmed since nothing was executed); the secret variable cleared in a `finally`
+block, output limited to `set`/`failed`/`match`/`MISMATCH` lines only.
+
+### 17.4 WP4 — owner-test `.sql` files + critical finding
+
+Five runner-compatible files written (`status_before.sql`, `gate_on.sql`, `otp_on.sql`,
+`reverse.sql`, `status_after.sql`), each a single statement (CTEs with `RETURNING` for the three
+writes) so `run_rehearsal.mjs` captures a full before/after picture per file. Only
+`status_before.sql` was actually run this round (read-only), capturing a real baseline.
+
+**Critical finding, read-only, corrects an earlier round's incomplete answer**: the planned test
+target, "jeshee test trigger" (`a71a2965-633e-41ae-aa46-f31e9db5a4cc`, mobile `9092766740`), has
+`is_test = true` AND is non-empty (6 `service_tickets`, 1 `amc_contracts` row). Reading
+`request_customer_link_code`'s own unchanged branch (a single test-flagged match is a silent
+no-op — no send, no flag, no change) means the test as originally planned sends **nothing** and
+touches **nothing**, regardless of either feature flag's state. Two alternatives proposed, neither
+executed: (a) toggle this row's `is_test` to `false` for the test's duration (one-field, reversible,
+lets the owner use their own real number and see the MERGE outcome) or (b) use a fresh number
+matching no existing customer, allow-listed separately, to exercise the simpler CLAIM-OWN-NUMBER
+outcome instead. Awaiting the owner's choice.
+
+Gate-on window recommended at 15 minutes max (10-minute challenge expiry + buffer). Real-customer
+experience during the window confirmed from `wa-test-mode.ts`'s own code (checked at the one
+`sendMessage` chokepoint for every sender, independent of `wa_dispatch_v2_scope`): no WhatsApp
+message of any kind for any non-allow-listed number, fails closed on a settings-read error too.
+Cleanup steps given as text only (challenge-row delete, is_test toggle-back, unlink/archive via
+the existing master tool) — no deletes performed, none without the owner's separate approval.
+
+### 17.5 Status at hand-off
+
+- WP1: live. WP2: merged, gates green, **pushed** (`db351e3`). WP3: deployed by the coordinator,
+  read-only 405/500 fail-closed checks done, 401-specific check pending the secret. WP4: corrected
+  scripts + 5 `.sql` files written, nothing executed except one read-only status query.
+- No secret generated, no flag flipped, no customer-facing test run, no deletes performed.
