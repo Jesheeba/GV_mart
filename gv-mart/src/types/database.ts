@@ -587,7 +587,9 @@ export type Database = {
           org_id: string
           primary_profile_id: string | null
           name: string
-          mobile: string
+          // Nullable since 20261130100000 — a Google-auto-onboarded customer has no phone until
+          // they provide one later (see customer_auto_onboard()).
+          mobile: string | null
           profession: string | null
           preferred_language: string | null
           source: string | null
@@ -597,6 +599,23 @@ export type Database = {
           // only when update_lead_status auto-creates this customer from a
           // won lead; staff clear it once address/family details are filled.
           needs_setup: boolean
+          // customer_auto_onboard() (20261130100001) — the account-holder's own Google email,
+          // matched against on auto-onboard; never customer_members.email.
+          email: string | null
+          // Set when auto-onboarding had to create a new customer instead of linking, because
+          // the email match was ambiguous or already claimed by a different sign-in.
+          needs_review: boolean
+          needs_review_reason: string | null
+          // Set by admin_unlink_customer_google_account (20261130100002), cleared only by a
+          // master relinking via admin_link_customer_google_account -- stops customer_auto_onboard()
+          // from silently re-linking a customer a master deliberately unlinked.
+          auto_link_blocked_at: string | null
+          auto_link_blocked_by: string | null
+          // Set by admin_merge_auto_customer (20261130100003) when an empty auto-created
+          // customer's link is moved onto an existing one. Excluded from the default customer
+          // list/search; the row and its audit_log trail are kept, never hard-deleted.
+          archived_at: string | null
+          archived_by: string | null
           // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
           // is NOT here — it lives in its own table, customer_health_profile, below.
           water_source: Database["public"]["Enums"]["water_source_type"] | null
@@ -612,13 +631,20 @@ export type Database = {
           org_id: string
           primary_profile_id?: string | null
           name: string
-          mobile: string
+          mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
+          email?: string | null
+          needs_review?: boolean
+          needs_review_reason?: string | null
+          auto_link_blocked_at?: string | null
+          auto_link_blocked_by?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           water_source?: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other?: string | null
           water_tds_ppm?: number | null
@@ -632,13 +658,20 @@ export type Database = {
           org_id?: string
           primary_profile_id?: string | null
           name?: string
-          mobile?: string
+          mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
+          email?: string | null
+          needs_review?: boolean
+          needs_review_reason?: string | null
+          auto_link_blocked_at?: string | null
+          auto_link_blocked_by?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           water_source?: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other?: string | null
           water_tds_ppm?: number | null
@@ -824,6 +857,10 @@ export type Database = {
           state: string | null
           lat: number | null
           lng: number | null
+          // "Pin my address" (20261201100000) -- when the pin was last set/changed, and the
+          // browser geolocation accuracy (metres) when it came from "use my current location".
+          pinned_at: string | null
+          location_accuracy_m: number | null
           address_type: Database["public"]["Enums"]["address_type"]
           ownership: Database["public"]["Enums"]["ownership_type"]
           is_primary: boolean
@@ -848,6 +885,8 @@ export type Database = {
           state?: string | null
           lat?: number | null
           lng?: number | null
+          pinned_at?: string | null
+          location_accuracy_m?: number | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
@@ -872,6 +911,8 @@ export type Database = {
           state?: string | null
           lat?: number | null
           lng?: number | null
+          pinned_at?: string | null
+          location_accuracy_m?: number | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
@@ -5351,6 +5392,10 @@ export type Database = {
           created_at: string
           updated_at: string
           auto_assign_pending: boolean
+          // Edit Lead screen (2026-11-02) — 20261201110000_lead_edit_details.sql.
+          // Nullable. NOT applied yet — see migration header.
+          alternate_mobile: string | null
+          address_text: string | null
         }
         Insert: {
           is_test?: boolean
@@ -5382,6 +5427,8 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_pending?: boolean
+          alternate_mobile?: string | null
+          address_text?: string | null
         }
         Update: {
           is_test?: boolean
@@ -5413,6 +5460,8 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_pending?: boolean
+          alternate_mobile?: string | null
+          address_text?: string | null
         }
         Relationships: [
           {
@@ -7563,6 +7612,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      customer_auto_onboard: {
+        Args: Record<PropertyKey, never>
+        Returns: Database["public"]["Tables"]["customers"]["Row"]
+      }
+      admin_merge_auto_customer: {
+        Args: {
+          p_from_customer_id: string
+          p_to_customer_id: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
       admin_unlink_customer_google_account: {
         Args: {
           p_customer_id: string
@@ -7703,6 +7764,10 @@ export type Database = {
           // takes, now preferred over p_slot_id when provided. See
           // 20261024160000_admin_complaint_unavailable_windows.sql.
           p_unavailable_windows?: Json | null
+          // Urgent item 1 fix (2026-11-02) — explicit master-picked
+          // technician, takes priority over p_auto_assign. See
+          // 20261202090000_complaint_explicit_technician_assignment.sql.
+          p_technician_id?: string | null
         }
         Returns: Json
       }
@@ -8365,6 +8430,20 @@ export type Database = {
       update_lead_status: {
         Args: { p_lead_id: string; p_status: Database["public"]["Enums"]["lead_status"]; p_reason?: string | null }
         Returns: undefined
+      }
+      // Edit Lead screen (2026-11-02) — 20261201110000_lead_edit_details.sql. NOT applied yet.
+      update_lead_details: {
+        Args: {
+          p_lead_id: string
+          p_name: string
+          p_mobile: string | null
+          p_alternate_mobile: string | null
+          p_address_text: string | null
+          p_source: string
+          p_product_type_key: string | null
+          p_notes: string | null
+        }
+        Returns: Database["public"]["Tables"]["leads"]["Row"]
       }
       award_referral_points: {
         Args: { p_org_id: string; p_customer_id: string; p_points: number; p_reason: string | null; p_ref_id: string | null }

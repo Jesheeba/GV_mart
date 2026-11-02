@@ -46,6 +46,10 @@ export type CustomerListFilters = {
   amcDueSoon?: boolean
   /** Registered 180+ days ago with no invoice or service ticket in the last 180 days. */
   dormant?: boolean
+  /** source = 'customer_app' — auto-onboarded via Google sign-in, not entered by staff. */
+  appSourced?: boolean
+  /** needs_review = true — auto-onboarding couldn't link a confident match; flagged for a human. */
+  needsReview?: boolean
 }
 
 const PAGE_SIZE = 20
@@ -75,7 +79,7 @@ async function idsMatchingSearchTerm(orgId: string, term: string): Promise<strin
   const q = term.trim().replace(/[%,]/g, "")
   if (!q) return []
   const [byNameOrMobile, byAddress] = await Promise.all([
-    supabase.from("customers").select("id").eq("org_id", orgId).or(`name.ilike.%${q}%,mobile.ilike.%${q}%`),
+    supabase.from("customers").select("id").eq("org_id", orgId).or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%`),
     supabase.from("addresses").select("customer_id").eq("org_id", orgId).or(`area.ilike.%${q}%,pincode.ilike.%${q}%`),
   ])
   if (byNameOrMobile.error) throw byNameOrMobile.error
@@ -136,9 +140,9 @@ export async function listCustomers(orgId: string, filters: CustomerListFilters,
   if (idSets.length > 0) {
     const intersected = idSets.reduce((acc, set) => acc.filter((id) => set.includes(id)))
     if (intersected.length === 0) return { rows: [] as CustomerListItem[], count: 0, pageSize: PAGE_SIZE }
-    return queryCustomers(orgId, page, intersected)
+    return queryCustomers(orgId, page, intersected, filters)
   }
-  return queryCustomers(orgId, page, null)
+  return queryCustomers(orgId, page, null, filters)
 }
 
 export type CustomerFilterCounts = { total: number; hasAmc: number; amcDueSoon: number; dormant: number }
@@ -265,7 +269,7 @@ export async function getCustomerListEnrichment(
   return map
 }
 
-async function queryCustomers(orgId: string, page: number, ids: string[] | null) {
+async function queryCustomers(orgId: string, page: number, ids: string[] | null, filters: Pick<CustomerListFilters, "appSourced" | "needsReview"> = {}) {
   // `count: "exact"` runs a real COUNT(*) over every matching row on every
   // single page load — for a growing customers table that alone took 5+
   // seconds, dwarfing everything else the Customers list fetches (see
@@ -284,8 +288,11 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
       count: ids ? undefined : "planned",
     })
     .eq("org_id", orgId)
+    .is("archived_at", null)
     .order("created_at", { ascending: false })
 
+  if (filters.appSourced) query = query.eq("source", "customer_app")
+  if (filters.needsReview) query = query.eq("needs_review", true)
   if (ids) query = query.in("id", ids)
 
   const from = (page - 1) * PAGE_SIZE
@@ -394,7 +401,7 @@ export async function autocompleteCustomers(orgId: string, term: string) {
   const q = term.trim().replace(/[%,]/g, "")
   if (!q) return []
   const [byNameOrMobile, byAddress, byMember] = await Promise.all([
-    supabase.from("customers").select("id,name,mobile").eq("org_id", orgId).or(`name.ilike.%${q}%,mobile.ilike.%${q}%`).limit(6),
+    supabase.from("customers").select("id,name,mobile").eq("org_id", orgId).is("archived_at", null).or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%`).limit(6),
     supabase
       .from("addresses")
       .select("customers(id,name,mobile)")
@@ -412,12 +419,12 @@ export async function autocompleteCustomers(orgId: string, term: string) {
   if (byAddress.error) throw byAddress.error
   if (byMember.error) throw byMember.error
 
-  const results = new Map<string, { id: string; name: string; mobile: string }>()
+  const results = new Map<string, { id: string; name: string; mobile: string | null }>()
   for (const c of byNameOrMobile.data ?? []) results.set(c.id, c)
-  for (const row of (byAddress.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string } | null }[]) {
+  for (const row of (byAddress.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string | null } | null }[]) {
     if (row.customers && !results.has(row.customers.id)) results.set(row.customers.id, row.customers)
   }
-  for (const row of (byMember.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string } | null }[]) {
+  for (const row of (byMember.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string | null } | null }[]) {
     if (row.customers && !results.has(row.customers.id)) results.set(row.customers.id, row.customers)
   }
   return [...results.values()].slice(0, 6)
@@ -531,6 +538,19 @@ export async function updateCustomerProfession(id: string, profession: string) {
   return data
 }
 
+/**
+ * customers.email -- the account holder's own email, matched against on Google auto-onboard
+ * (customer_auto_onboard, 20261130100001). Normalized the same way the RPC compares it
+ * (trim+lowercase) so a staff-entered email always matches correctly regardless of how it was
+ * typed. Direct table UPDATE, same write-access shape as updateCustomerProfession above.
+ */
+export async function updateCustomerEmail(id: string, email: string) {
+  const normalized = email.trim().toLowerCase() || null
+  const { data, error } = await supabase.from("customers").update({ email: normalized }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+
 export type CustomerDeleteImpact = {
   tickets: number
   amc_contracts: number
@@ -578,6 +598,17 @@ export async function adminLinkCustomerGoogleAccount(customerId: string, googleE
 /** Undoes a mistaken link: clears the customer's primary_profile_id and deletes the orphaned profiles row. */
 export async function adminUnlinkCustomerGoogleAccount(customerId: string, reason: string) {
   const { error } = await supabase.rpc("admin_unlink_customer_google_account", { p_customer_id: customerId, p_reason: reason })
+  if (error) throw error
+}
+
+/**
+ * Moves an auto-created ('app') customer's Google sign-in onto an existing customer record --
+ * for a returning customer who signed in before staff found their real record. Refuses unless
+ * the auto-created side is completely empty (no invoices/tickets/AMC/rental/warranty/quotation)
+ * and the target isn't already linked. Archives the emptied auto-created record.
+ */
+export async function adminMergeAutoCustomer(fromCustomerId: string, toCustomerId: string, reason: string) {
+  const { error } = await supabase.rpc("admin_merge_auto_customer", { p_from_customer_id: fromCustomerId, p_to_customer_id: toCustomerId, p_reason: reason })
   if (error) throw error
 }
 

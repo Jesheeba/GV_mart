@@ -176,6 +176,17 @@ export function useUpdateCustomerProfession(customerId: string) {
   })
 }
 
+export function useUpdateCustomerEmail(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (email: string) => customers.updateCustomerEmail(customerId, email),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
+  })
+}
+
 export function useCustomerDeleteImpact(customerId: string | undefined, enabled: boolean) {
   return useQuery({
     queryKey: ["customers", "deleteImpact", customerId],
@@ -217,6 +228,17 @@ export function useAdminUnlinkCustomerGoogleAccount(customerId: string) {
   return useMutation({
     mutationFn: (reason: string) => customers.adminUnlinkCustomerGoogleAccount(customerId, reason),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] }),
+  })
+}
+
+export function useAdminMergeAutoCustomer(fromCustomerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ toCustomerId, reason }: { toCustomerId: string; reason: string }) => customers.adminMergeAutoCustomer(fromCustomerId, toCustomerId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", fromCustomerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
   })
 }
 

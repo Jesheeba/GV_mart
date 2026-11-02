@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ClipboardList, Image as ImageIcon, Link2, Sparkles, ToggleLeft, Wrench } from "lucide-react"
+import { ClipboardList, Image as ImageIcon, Link2, Sparkles, Timer, ToggleLeft, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
+import { useProductsWithoutLifecycleConfig } from "@/hooks/useProductLifecycle"
 import { useProfile } from "@/hooks/useProfile"
 import { productHasReferences } from "@/services/masters"
 import type { Enums, Json } from "@/types/database"
@@ -12,6 +13,7 @@ import { ProductAttributesPanel } from "./ProductAttributesPanel"
 import { ProductComplaintsPanel } from "./ProductComplaintsPanel"
 import { ProductCtaOverridesPanel } from "./ProductCtaOverridesPanel"
 import { ProductFeaturesAndRelatedPanel } from "./ProductFeaturesAndRelatedPanel"
+import { ProductLifecyclePanel } from "./ProductLifecyclePanel"
 import { ProductMediaPanel } from "./ProductMediaPanel"
 import { ProductSparesPanel } from "./ProductSparesPanel"
 
@@ -49,6 +51,10 @@ type ProductWithRefs = {
 
 type StatusFilter = "all" | "active" | "inactive"
 
+// Product Lifecycle & Automated Service Reminder System, Drop 3 — cheap,
+// read-only "products without a lifecycle configured" filter.
+type LifecycleFilter = "all" | "noLifecycle"
+
 export function ProductsTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
@@ -63,15 +69,22 @@ export function ProductsTab() {
 
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [lifecycleFilter, setLifecycleFilter] = useState<LifecycleFilter>("all")
+  const { data: productsWithoutLifecycle } = useProductsWithoutLifecycleConfig()
+  const noLifecycleIds = useMemo(
+    () => new Set((productsWithoutLifecycle ?? []).map((p) => p.product_id)),
+    [productsWithoutLifecycle]
+  )
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
     return ((rows ?? []) as ProductWithRefs[]).filter((r) => {
       if (statusFilter === "active" && !r.is_active) return false
       if (statusFilter === "inactive" && r.is_active) return false
+      if (lifecycleFilter === "noLifecycle" && !noLifecycleIds.has(r.id)) return false
       if (term && !r.name.toLowerCase().includes(term) && !(r.item_code ?? "").toLowerCase().includes(term)) return false
       return true
     })
-  }, [rows, search, statusFilter])
+  }, [rows, search, statusFilter, lifecycleFilter, noLifecycleIds])
 
   // Admin-side product↔complaints connector (see ProductComplaintsPanel.tsx)
   // — opened per-row via the ClipboardList action column below.
@@ -82,6 +95,12 @@ export function ProductsTab() {
   // per-row-action pattern as complaints above.
   const [sparesProductId, setSparesProductId] = useState<string | null>(null)
   const sparesProduct = (rows ?? []).find((r) => r.id === sparesProductId) as ProductWithRefs | undefined
+
+  // Product Lifecycle & Automated Service Reminder System, W1 — product↔
+  // lifecycle/spare-schedule connector (see ProductLifecyclePanel.tsx), same
+  // per-row-action pattern as spares/complaints above.
+  const [lifecycleProductId, setLifecycleProductId] = useState<string | null>(null)
+  const lifecycleProduct = (rows ?? []).find((r) => r.id === lifecycleProductId) as ProductWithRefs | undefined
 
   // Product Enquiry rebuild (2026-08-04) — 4 more per-row connectors, same
   // per-row-action pattern as complaints/spares above.
@@ -144,6 +163,17 @@ export function ProductsTab() {
           <option value="all">{t("masters.spares.filterAll")}</option>
           <option value="active">{t("masters.spares.filterActive")}</option>
           <option value="inactive">{t("masters.spares.filterInactive")}</option>
+        </select>
+        <select
+          aria-label={t("productLifecycle.noLifecycleFilterLabel")}
+          value={lifecycleFilter}
+          onChange={(e) => setLifecycleFilter(e.target.value as LifecycleFilter)}
+          className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+        >
+          <option value="all">{t("productLifecycle.noLifecycleFilterAll")}</option>
+          <option value="noLifecycle">
+            {t("productLifecycle.noLifecycleFilterOnly", { count: noLifecycleIds.size })}
+          </option>
         </select>
       </div>
 
@@ -208,6 +238,26 @@ export function ProductsTab() {
               <Button size="icon-xs" variant="ghost" title={t("masters.productSpares.manage")} onClick={() => setSparesProductId(r.id)}>
                 <Wrench className="size-3.5" />
               </Button>
+            ),
+          },
+          {
+            key: "lifecycle",
+            header: "",
+            className: "text-right",
+            render: (r) => (
+              <span className="inline-flex items-center gap-1">
+                {noLifecycleIds.has(r.id) ? (
+                  <span
+                    className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold text-warning"
+                    title={t("productLifecycle.noLifecycleBadgeHint")}
+                  >
+                    {t("productLifecycle.noLifecycleBadge")}
+                  </span>
+                ) : null}
+                <Button size="icon-xs" variant="ghost" title={t("productLifecycle.manage")} onClick={() => setLifecycleProductId(r.id)}>
+                  <Timer className="size-3.5" />
+                </Button>
+              </span>
             ),
           },
           {
@@ -325,6 +375,16 @@ export function ProductsTab() {
           productId={sparesProduct.id}
           productName={sparesProduct.name}
           onClose={() => setSparesProductId(null)}
+        />
+      ) : null}
+
+      {lifecycleProduct ? (
+        <ProductLifecyclePanel
+          key={lifecycleProduct.id}
+          orgId={orgId}
+          productId={lifecycleProduct.id}
+          productName={lifecycleProduct.name}
+          onClose={() => setLifecycleProductId(null)}
         />
       ) : null}
 

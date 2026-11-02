@@ -55,6 +55,11 @@ const GOLDEN_SNAPSHOT: Record<OutboxKind, readonly string[]> = {
   "location.arrival_block": ["org_id", "technician_id", "ticket_id", "lat", "lng", "distance_m", "radius_m"],
   "customer_member.google_review": ["orgId", "visitId", "memberId", "stars", "photoUrl"],
   "rating.mark_review_clicked": ["orgId", "visitId"],
+  // Product Lifecycle & Automated Service Reminder System (2026-10-29) — see
+  // outboxContract.lifecycle.test.ts for this kind's own dedicated contract
+  // test; it's also listed here so "no kind is missing from the registry"
+  // below keeps covering it like every other kind.
+  "product_lifecycle.mark_replaced": ["scheduleId", "replacedDate", "spareUsedId", "visitId"],
 }
 
 function payloadFromFields(fields: readonly string[]): Record<string, unknown> {

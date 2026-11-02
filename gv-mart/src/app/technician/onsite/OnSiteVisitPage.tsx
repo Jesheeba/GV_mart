@@ -1240,7 +1240,15 @@ export function OnSiteVisitPage() {
       {currentKey === "spares" ? (
         <div className="space-y-4">
           <PhotoCapture label={t("technician.onsite.beforeImage")} dataUrl={beforeImage} onCaptured={handleBeforeImage} />
-          <SpareSelectStep orgId={profile?.org_id} complaintTypeId={ticket.complaint_type_id} selected={selectedSpares} onChange={setSelectedSpares} />
+          {/* Product Lifecycle & Automated Service Reminder System — customerId/visitId feed SpareSelectStep's due-parts warning list (see its own doc comment). */}
+          <SpareSelectStep
+            orgId={profile?.org_id}
+            complaintTypeId={ticket.complaint_type_id}
+            customerId={ticket.customer_id}
+            visitId={visitId}
+            selected={selectedSpares}
+            onChange={setSelectedSpares}
+          />
           {ticket.type === "installation" && (ticket.installation_charge_snapshot ?? 0) > 0 ? (
             <p className="rounded-xl bg-surface-alt px-3 py-2 text-sm text-text">
               {t("technician.onsite.installIncentive", { amount: `₹${ticket.installation_charge_snapshot!.toLocaleString("en-IN")}` })}

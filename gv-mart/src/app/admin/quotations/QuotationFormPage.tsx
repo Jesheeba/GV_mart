@@ -173,7 +173,7 @@ export function QuotationFormPage() {
           )}
           onSelect={(c) => {
             setCustomerId(c.id)
-            setCustomerLabel(`${c.name} — ${c.mobile}`)
+            setCustomerLabel(c.mobile ? `${c.name} — ${c.mobile}` : c.name)
           }}
         />
         {leadId && !customerId ? <p className="px-1 text-xs text-text-muted">{t("quotations.form.leadNoCustomerHint")}</p> : null}

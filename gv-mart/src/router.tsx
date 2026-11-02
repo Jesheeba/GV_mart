@@ -46,6 +46,7 @@ const TicketDetailPage = lazyPage(() => import("@/app/admin/service/TicketDetail
 const AppointmentsPage = lazyPage(() => import("@/app/admin/service/AppointmentsPage"), "AppointmentsPage")
 const AmcWarrantyListPage = lazyPage(() => import("@/app/admin/amc/AmcWarrantyListPage"), "AmcWarrantyListPage")
 const AmcContractDetailPage = lazyPage(() => import("@/app/admin/amc/AmcContractDetailPage"), "AmcContractDetailPage")
+const LifecycleOverviewPage = lazyPage(() => import("@/app/admin/lifecycle/LifecycleOverviewPage"), "LifecycleOverviewPage")
 const RentalsListPage = lazyPage(() => import("@/app/admin/rentals/RentalsListPage"), "RentalsListPage")
 const LeadsPage = lazyPage(() => import("@/app/admin/leads/LeadsPage"), "LeadsPage")
 const LeadDetailPage = lazyPage(() => import("@/app/admin/leads/LeadDetailPage"), "LeadDetailPage")
@@ -116,6 +117,10 @@ const CustomerRequestCallbackPage = lazyPage(() => import("@/app/customer/Custom
 const CustomerCompareProductsPage = lazyPage(() => import("@/app/customer/CustomerCompareProductsPage"), "CustomerCompareProductsPage")
 const CustomerSpareEnquiryPage = lazyPage(() => import("@/app/customer/CustomerSpareEnquiryPage"), "CustomerSpareEnquiryPage")
 const BookServicePage = lazyPage(() => import("@/app/customer/service/BookServicePage"), "BookServicePage")
+const ProductReplacementHistoryPage = lazyPage(
+  () => import("@/app/customer/ProductReplacementHistoryPage"),
+  "ProductReplacementHistoryPage"
+)
 const CustomerNotificationsPage = lazyPage(() => import("@/app/customer/NotificationsPage"), "NotificationsPage")
 
 const SALES_ROLES = ["master", "sales_admin"] as const
@@ -199,6 +204,7 @@ export const router = createBrowserRouter([
                     ],
                   },
                   { path: "leave-requests", element: <LeaveRequestsPage /> },
+                  { path: "lifecycle", element: <LifecycleOverviewPage /> },
                   { path: "inventory", element: <InventoryPage /> },
                   { path: "suppliers", element: <SuppliersPage /> },
                   { path: "purchase", element: <PurchasePage /> },
@@ -306,7 +312,13 @@ export const router = createBrowserRouter([
             ),
             children: [
               { index: true, element: <CustomerHomePage /> },
-              { path: "products", element: <CustomerProductsPage /> },
+              {
+                path: "products",
+                children: [
+                  { index: true, element: <CustomerProductsPage /> },
+                  { path: ":productId/history", element: <ProductReplacementHistoryPage /> },
+                ],
+              },
               {
                 path: "bookings",
                 children: [

@@ -34,6 +34,10 @@
 //     standard and to flag an off-route technician (driving distance far
 //     exceeding the straight-line distance). Requires "Directions API"
 //     enabled on the same Google Cloud project/key as the other three.
+//   - "reverse": Geocoding API's reverse mode (coordinates -> address) —
+//     "Use my current location" in the customer app's address form / Pin my
+//     address dialog. Same API, same key, same billing project as "geocode"
+//     (forward) above -- no new secret, no new paid API.
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
 
@@ -57,6 +61,14 @@ export type GeocodeResult = {
   // auto-suggestion instead of treating every geocode result as equally
   // trustworthy.
   locationType: string | null
+  // "Use my current location" (reverse geocode) needs finer-grained components
+  // than any existing caller did -- street_number/route let the address form
+  // prefill door-number/street-name fields separately, instead of only the
+  // area/district/state/postcode block the forward-geocode/autocomplete
+  // callers have used until now. Null (never invented) when Google's result
+  // has no such component -- common outside India or for rural addresses.
+  streetNumber: string | null
+  route: string | null
 }
 
 type AutocompletePrediction = { placeId: string; description: string }
@@ -68,6 +80,7 @@ type GeocodeRequest =
   | { action: "details"; placeId: string; sessionToken: string }
   | { action: "geocode"; query: string }
   | { action: "directions"; origin: LatLng; destination: LatLng }
+  | { action: "reverse"; lat: number; lng: number }
 
 type GoogleAddressComponent = { long_name: string; short_name: string; types: string[] }
 
@@ -97,6 +110,8 @@ function extractComponents(components: GoogleAddressComponent[]) {
     state: find("administrative_area_level_1"),
     postcode: find("postal_code"),
     suburb: find("sublocality_level_1") ?? find("sublocality") ?? find("neighborhood"),
+    streetNumber: find("street_number"),
+    route: find("route"),
   }
 }
 
@@ -108,8 +123,20 @@ function toGeocodeResult(r: {
   const lat = r.geometry?.location?.lat
   const lon = r.geometry?.location?.lng
   if (lat == null || lon == null) return null
-  const { city, district, state, postcode, suburb } = extractComponents(r.address_components ?? [])
-  return { formatted: r.formatted_address ?? "", lat, lon, city, district, state, postcode, suburb, locationType: r.geometry?.location_type ?? null }
+  const { city, district, state, postcode, suburb, streetNumber, route } = extractComponents(r.address_components ?? [])
+  return {
+    formatted: r.formatted_address ?? "",
+    lat,
+    lon,
+    city,
+    district,
+    state,
+    postcode,
+    suburb,
+    streetNumber,
+    route,
+    locationType: r.geometry?.location_type ?? null,
+  }
 }
 
 // GV Mart operates out of Chennai — a soft preference (biases ranking, does
@@ -269,7 +296,25 @@ Deno.serve(async (req) => {
       })
     }
 
-    return jsonError("action must be one of: autocomplete, details, geocode, directions", 400)
+    if (body.action === "reverse") {
+      const { lat, lng } = body
+      if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return jsonError("lat/lng must be finite numbers within valid coordinate ranges", 400)
+      }
+      const data = await callGoogle("geocode", {
+        latlng: `${lat},${lng}`,
+        key: apiKey,
+        language: "en",
+      })
+      // Google returns reverse results most-specific-first; the first one is
+      // the right pick the same way forward "geocode" above already treats
+      // its own results[0] as the best match.
+      const result = data.results?.[0] ? toGeocodeResult(data.results[0]) : null
+      if (!result) return jsonError("Could not resolve that location to an address", 502)
+      return jsonOk({ result })
+    }
+
+    return jsonError("action must be one of: autocomplete, details, geocode, directions, reverse", 400)
   } catch (e) {
     if (e instanceof Response) return e
     return jsonError("Unexpected error while geocoding", 500)

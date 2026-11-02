@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LanguageToggle } from "@/components/shared/LanguageToggle"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
-import { GoogleLinkAccountCard } from "@/app/auth/GoogleLinkAccountCard"
+import { CustomerAutoOnboardGate } from "@/app/auth/CustomerAutoOnboardGate"
 import { useAuth } from "@/hooks/useAuth"
 import { useProfile } from "@/hooks/useProfile"
 import { roleHomePath } from "@/lib/roles"
@@ -86,12 +86,10 @@ export function LoginPage() {
     if (profileLoading) return <FullPageLoader label={t("common.loading")} />
     if (profile) return <Navigate to={roleHomePath(profile.role)} replace />
     // First-time Google sign-in: an auth user exists but no profiles row —
-    // admin-created customers never get one until linked. Flag-gated OTP
-    // flow (see GoogleLinkAccountCard's own doc comment); shows the interim
-    // "not available yet" notice while customer_link_otp_settings.enabled
-    // is false.
+    // admin-created customers never get one until linked. Auto-onboarding
+    // (CustomerAutoOnboardGate) handles this from here.
     if ((profileError as { code?: string } | null)?.code === NO_PROFILE_ROW_CODE) {
-      return <GoogleLinkAccountCard userId={session.user.id} />
+      return <CustomerAutoOnboardGate />
     }
   }
 
