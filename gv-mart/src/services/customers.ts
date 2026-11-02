@@ -4,6 +4,7 @@ import { pickHistoryVisit } from "@/services/techniciansAdmin"
 import { isUndefinedTableError } from "@/lib/supabaseErrors"
 import type { Enums, Tables } from "@/types/database"
 import type { FamilyRelation } from "@/lib/validation/customer"
+import type { DuplicateContactMatch } from "@/lib/duplicateContactWarning"
 
 export type CustomerRow = Tables<"customers">
 // `relation` (migration 20260703130000_family_member_relation.sql) and
@@ -544,6 +545,31 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
   })
   if (error) throw error
   return data
+}
+
+/**
+ * Staff-side duplicate-contact warning (urgent item, 2026-11-02 investigation
+ * into "error popup yet one entry still gets created" — see
+ * 20261204130000_duplicate_contact_warning_rpc.sql, NOT applied yet). Looks
+ * up existing customers (by mobile or email) and leads (mobile only) in the
+ * caller's own org, excluding is_test rows, so CustomerFormPage / NewLeadForm
+ * can show a non-blocking "existing record found" banner before Save — never
+ * a hard block, matching this RPC having no server-side enforcement either.
+ * Returns [] (not an error) when neither field is given or the RPC isn't
+ * live yet is NOT handled here — callers gate the query on
+ * shouldLookUpDuplicates (lib/duplicateContactWarning.ts) so this is only
+ * called once there's something real to look up.
+ */
+export async function findDuplicateContacts(mobile?: string, email?: string): Promise<DuplicateContactMatch[]> {
+  const { data, error } = await supabase.rpc("find_duplicate_contacts", {
+    p_mobile: mobile?.trim() || null,
+    p_email: email?.trim() || null,
+  })
+  if (error) throw error
+  // The RPC's generated Returns type widens `source` to `string` (a
+  // database.ts hand-patch limitation, same as elsewhere in this file) --
+  // the SQL body only ever emits the literals 'customer' or 'lead'.
+  return (data ?? []) as DuplicateContactMatch[]
 }
 
 export async function updateCustomerProfession(id: string, profession: string) {

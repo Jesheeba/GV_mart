@@ -736,6 +736,15 @@
         "locating": "Finding your location…"
       }
     },
+    "duplicateContactWarning": {
+      "title_one": "Possible duplicate — 1 existing record found for this number/email",
+      "title_other": "Possible duplicate — {{count}} existing records found for this number/email",
+      "sourceCustomer": "Customer",
+      "sourceLead": "Lead",
+      "activity": "{{tickets}} ticket(s), {{invoices}} invoice(s)",
+      "openExisting": "Open existing",
+      "createAnyway": "I've checked — create a new record anyway"
+    },
     "errors": {
       "nameRequired": "Enter a name (at least 2 characters)",
       "mobileInvalid": "Enter a valid 10-digit mobile number",
