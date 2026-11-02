@@ -2060,6 +2060,7 @@
       "preferredTechnician": "Will try to assign to {{name}} at the picked slot.",
       "autoAssign": "Auto-assign to available technician",
       "assignTechnician": "Assign to technician (optional)",
+      "createdUnassigned": "Ticket created, but NOT assigned —",
       "create": "Create complaint",
       "typeNotSelectable": "Type is auto-detected and non-selectable.",
       "amcCoverage": "AMC coverage: {{start}} to {{expiry}}",

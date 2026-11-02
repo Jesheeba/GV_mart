@@ -34,6 +34,9 @@ import {
   type ComplaintDetailsStepInput,
 } from "@/lib/validation/service"
 import { getIstNow } from "@/lib/ist"
+import { formatDateTime } from "@/lib/formatDate"
+import { useToast } from "@/components/ui/toast-context"
+import { getConflictAppointmentInfo } from "@/services/service"
 import { TicketTypeBadge } from "./TicketBadges"
 
 function todayInput() {
@@ -66,6 +69,7 @@ type NewComplaintDraftData = {
 
 export function NewComplaintPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const prefilledCustomerId = searchParams.get("customerId")
@@ -324,11 +328,46 @@ export function NewComplaintPage() {
       // Urgent item 1 fix (2026-11-02): the master's explicit "Assign to"
       // pick, if any — "" (nothing picked) must become null, never a
       // fallback technician. The RPC gives this priority over autoAssign.
-      // Urgent outage hotfix (2026-11-02): createComplaintTicket no longer
-      // forwards this to the RPC (p_technician_id isn't live yet) and the
-      // picker UI that set it is hidden -- this is always null for now.
       technicianId: appt.technicianId || null,
     })
+
+    // Urgent hotfix (2026-11-02): creating a complaint with an explicit
+    // technician pick (or auto-assign) can silently fail the ASSIGNMENT
+    // step even though the ticket itself is created fine -- most commonly
+    // customerBusy (this customer already has another open job, even on a
+    // completely different day -- that check has no date filter yet) or
+    // technicianBusy. _create_complaint_ticket_internal never raises for a
+    // failed assignment, it just returns assign_result.assigned=false, and
+    // this page used to silently navigate away without ever looking at it
+    // -- the master would see a brand-new unassigned ticket with zero
+    // explanation of why. Always tell them, and always still navigate (the
+    // ticket is never left orphaned/unknown-to-the-master): Force-reassign
+    // is already available on the ticket detail page for both reason keys.
+    const assignResult = result.assign_result as
+      | { assigned?: boolean; reason_key?: string; conflict_appointment_id?: string }
+      | null
+      | undefined
+    if (assignResult && assignResult.assigned === false) {
+      let detail: string | null = null
+      if (assignResult.conflict_appointment_id) {
+        try {
+          const info = await getConflictAppointmentInfo(assignResult.conflict_appointment_id)
+          if (info) {
+            detail = t(
+              assignResult.reason_key === "service.assign.customerBusy"
+                ? "service.assign.customerBusyDetail"
+                : "service.assign.technicianBusyDetail",
+              { job: info.jobLabel, from: formatDateTime(info.scheduledAt), to: formatDateTime(info.endsAt) }
+            )
+          }
+        } catch {
+          // fall through to the plain reason_key message below
+        }
+      }
+      toast.error(
+        `${t("service.newComplaint.createdUnassigned")} ${detail ?? t(assignResult.reason_key ?? "service.assign.technicianBusy")}`
+      )
+    }
 
     clearDraft()
     navigate(`/admin/service/${result.ticket_id}`)
