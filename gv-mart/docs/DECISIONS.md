@@ -1518,3 +1518,69 @@ itself, meant to run on the owner's own machine. Neither has been run.
   ever needed.
 - No live apply, no push to origin, no deploy, no secrets execution, no customer-facing test
   performed by this round.
+
+## 16. WP2 merged onto current main + gates green (push-ready), WP3 deploy-ready, WP4 full text
+
+Owner approved WP1 (already live, independently verified) and gave GO for WP2/WP3/WP4-as-text.
+Full detail in `GV_mart\_local_only\reports\customer_otp_link\phase6_wp2_push_ready_wp3_deploy_ready_wp4_text.md`;
+summary here.
+
+### 16.1 WP2
+
+`origin/main` had moved to `2fb3d5a` (technician-picker unification, availability-assisted
+scheduling, Edit Lead screen, explicit technician picker on create/reassign). Merged into
+`feat/customer-otp-link` as commit `44adf97`: took origin/main's `GoogleLinkAccountCard.tsx`/
+`LoginPage.tsx` entirely (this branch's old full phone-UI version predates the
+`CustomerAutoOnboardGate` flow and is obsolete now that the card lives on Home/Profile instead),
+deleted the now-orphaned `GoogleLinkAccountCard.test.ts`, kept both `<LinkPhoneCard />` and
+`<LifecyclePartBanner />` in `CustomerHomePage.tsx`, and confirmed this branch's own
+`customerApp.linkPhoneCard.*` i18n keys survived the EN/TA merge untouched.
+
+Gates: `tsc -b` clean, lint pre-existing-warnings-only, `npm test` 955 passed/17 skipped,
+`LinkPhoneCard.test.ts` 12/12 (proves flag-off hides the card), `npm run build` succeeded with a
+new bundle hash (`index-eMpmB7-j.js` vs. the prior `index-_kXWOIg0.js`) that was grepped and
+confirmed to contain the new `linkPhoneCard`/`customer_link_otp_card_eligible` strings. Re-fetched
+origin afterward: still at `2fb3d5a`, unmoved — fast-forward precondition holds. **Not pushed**,
+per the coordinator's division of labor; ready for the coordinator to push directly.
+
+### 16.2 WP3
+
+Confirmed `wa-otp-dispatch` does not exist on `origin/main` at all (wholly new), and that its
+`config.toml` diff adds only its own `[functions.wa-otp-dispatch]` block — no other function's
+entry touched. The `_shared/*.ts` diffs are real but inert for already-deployed functions:
+Supabase bundles each function's `_shared/` snapshot at that function's OWN deploy time, so
+deploying only `wa-otp-dispatch` cannot alter any other already-live function's running code.
+Deploy command prepared (`npx supabase functions deploy wa-otp-dispatch --project-ref
+fsunrjithwcjtsutsgea`) plus a one-line `--use-api` fallback. **Not run.** The 401/fail-closed
+read-only post-deploy verification is deferred until the coordinator confirms the deploy
+succeeded.
+
+### 16.3 WP4
+
+Full secrets-script text (generates one random value into a single env var, uses it for both the
+Edge Function secret and the Vault secret so they can't drift apart, prints only `set`/`failed`,
+clears the variable in a `finally` block) and full owner-test-sequence text (allow-list check →
+gate on → OTP flag on → test → immediate reverse) produced in the phase-6 report, grounded in the
+actual current live flag values (checked read-only): GV Mart's `wa_test_mode_enabled` is already
+`true` with `wa_test_allowed_numbers = ['9092766740']`; `wa_dispatch_v2_enabled` is `false` /
+`wa_dispatch_v2_scope` is `'numbers'`; `customer_link_otp_settings.enabled` is `false`.
+
+New finding from the read-only count check: exactly one `customers` row already has mobile
+`9092766740` — `a71a2965-633e-41ae-aa46-f31e9db5a4cc`, name **"jeshee test trigger"**,
+`source='other'`, GV Mart org, not archived. It is itself a leftover test artifact, so the
+owner's real Google-sign-in test would merge/claim into it rather than starting from a clean
+no-match state. Recommended either renaming/archiving it first or using a dedicated `"ZZ Test
+OTP"` customer + a different test number instead, per the owner's own dummy-customer idea — not
+executed, read-only recommendation only. Also found a separate `profiles` row (`ranjan`,
+`role='technician'`) with `phone = 9092766740`; confirmed this cannot collide with the OTP flow in
+practice since the feature matches against `customers.mobile` for the calling user, never against
+another person's `profiles.phone`.
+
+Nothing in WP4 was executed: no secret generated, no flag flipped, no customer-facing test run.
+
+### 16.4 Status at hand-off
+
+- WP1: live (unchanged this round). WP2: merged + gates green, not pushed. WP3: diff-confirmed,
+  deploy command ready, not run. WP4: full text produced, nothing executed.
+- No live apply, no push, no deploy, no secret generation, no flag flip, no customer-facing test
+  performed by this round.
