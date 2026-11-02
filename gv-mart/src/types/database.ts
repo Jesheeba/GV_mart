@@ -7661,6 +7661,27 @@ export type Database = {
         }
         Returns: string
       }
+      // Urgent item (2026-11-02), hand-patched ahead of the DB stream's actual
+      // migration (same "post-dates codegen" convention as other hand patches
+      // in this file — see services/hr.ts's header for the general rationale).
+      // Migration: 20261204130000_duplicate_contact_warning_rpc.sql, NOT
+      // applied yet — see services/customers.ts findDuplicateContacts().
+      find_duplicate_contacts: {
+        Args: {
+          p_mobile?: string | null
+          p_email?: string | null
+        }
+        Returns: {
+          source: string
+          id: string
+          name: string
+          mobile: string | null
+          email: string | null
+          created_at: string
+          ticket_count: number
+          invoice_count: number
+        }[]
+      }
       set_primary_member: {
         Args: {
           p_customer_id: string

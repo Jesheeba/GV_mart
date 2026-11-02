@@ -37,11 +37,15 @@ import {
   useAreaAutocomplete,
   useCreateCustomer,
   useCustomer,
+  useDuplicateContactWarning,
   useMobileDuplicateCheck,
   usePincodeLookup,
   useUpdateCustomerEmail,
   useUpsertPrimaryAddress,
 } from "@/hooks/useCustomers"
+import { canSubmitWithWarning, duplicateWarningKey } from "@/lib/duplicateContactWarning"
+import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
+import { guardReentry } from "@/lib/async-guard"
 
 /** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
 function hasAddressText(a: AddressStepInput) {
@@ -205,6 +209,20 @@ export function CustomerFormPage() {
   const { fields, append, remove } = useFieldArray({ control: peopleForm.control, name: "members" })
   const primaryIndex = peopleForm.watch("primaryIndex")
 
+  // Urgent item (2026-11-02): staff-side duplicate-contact warning (not a
+  // hard block -- see DuplicateContactWarning's own header). Only looked up
+  // in create mode, against the primary member's own mobile + the top-level
+  // email field (the two identifiers find_duplicate_contacts matches on).
+  const primaryMobile = peopleForm.watch(`members.${primaryIndex}.mobile`) ?? ""
+  const topEmail = peopleForm.watch("email") ?? ""
+  const dupWarning = useDuplicateContactWarning(mode === "create" ? orgId : undefined, primaryMobile, topEmail)
+  const dupWarningKey = duplicateWarningKey(primaryMobile, topEmail)
+  // Tracks WHICH (mobile, email) pair was confirmed, not just a bare
+  // boolean, so editing the number after confirming resets the gate instead
+  // of silently carrying the old confirmation over to a new number.
+  const [confirmedDupWarningKey, setConfirmedDupWarningKey] = useState<string | null>(null)
+  const dupWarningConfirmed = confirmedDupWarningKey === dupWarningKey
+
   const addressForm = useForm<AddressStepInput>({
     resolver: zodResolver(addressStepSchema),
     mode: "onChange",
@@ -357,6 +375,18 @@ export function CustomerFormPage() {
 
   const createCustomer = useCreateCustomer()
   const upsertAddress = useUpsertPrimaryAddress(orgId, id ?? "")
+  // Urgent item (2026-11-02): root-cause investigation into "error popup yet
+  // one entry still gets created" found this Save button had no re-entrancy
+  // guard, unlike AccountsPage's "+ Create" buttons -- isPending/disabled
+  // alone doesn't close the window between two fast clicks both reaching
+  // this handler before the first re-render (see async-guard.ts's own
+  // header). create_customer_with_details has no dedupe check by design, so
+  // a double-submit here would create two full customer rows, not just a
+  // stray error. No live evidence this has actually happened yet (the real
+  // duplicates found were ordinary single-submits against an already-warned
+  // number, see the migration header), but it's a real latent gap closed
+  // here regardless.
+  const savingRef = useRef(false)
 
   if (mode === "edit" && existing.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (mode === "edit" && (existing.isError || !existing.data)) {
@@ -378,6 +408,12 @@ export function CustomerFormPage() {
   }
 
   async function handleSaveAndFinish() {
+    await guardReentry(savingRef, async () => {
+      await handleSaveAndFinishInner()
+    })
+  }
+
+  async function handleSaveAndFinishInner() {
     const valid = await addressForm.trigger()
     if (!valid) return
     const addressValues = addressForm.getValues()
@@ -527,6 +563,12 @@ export function CustomerFormPage() {
               {peopleForm.formState.errors.members?.message ? (
                 <p className="text-xs text-danger">{t(peopleForm.formState.errors.members.message)}</p>
               ) : null}
+              <DuplicateContactWarning
+                matches={dupWarning.data}
+                isLoading={dupWarning.isFetching}
+                confirmed={dupWarningConfirmed}
+                onConfirmedChange={(next) => setConfirmedDupWarningKey(next ? dupWarningKey : null)}
+              />
               <PreferredLanguageSelect
                 id="new-customer-preferred-language"
                 i18nPrefix="customers.form"
@@ -738,7 +780,11 @@ export function CustomerFormPage() {
           <Button
             type="button"
             onClick={handleSaveAndFinish}
-            disabled={isSaving || (!pinOptional && lat == null && lng == null && hasAddressText(addressForm.getValues()))}
+            disabled={
+              isSaving ||
+              (!pinOptional && lat == null && lng == null && hasAddressText(addressForm.getValues())) ||
+              (mode === "create" && !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed))
+            }
           >
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
           </Button>

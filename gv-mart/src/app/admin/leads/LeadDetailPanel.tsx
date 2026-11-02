@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { FileText, Loader2, Search, Trash2, UserCheck } from "lucide-react"
@@ -13,6 +13,7 @@ import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useAwardReferralPoints, useDeleteLead, useMoveLeadToCustomer, useUpdateLeadStatus } from "@/hooks/useAutomation"
 import { useReferrersForLeads } from "@/hooks/useReferrals"
 import { useQuotationsForLead } from "@/hooks/useQuotations"
+import { guardReentry } from "@/lib/async-guard"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
@@ -57,6 +58,18 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
   const [pendingRemoval, setPendingRemoval] = useState<"move" | "delete" | null>(null)
   const removalBusy = deleteLead.isPending || moveToCustomer.isPending
   const failed = (err: unknown) => toast.error(err instanceof Error && err.message ? err.message : t("common.actionFailed"))
+  // Synchronous re-entrancy guards (urgent item #2a / #5, 2026-11-02), same pattern
+  // as the Manage Categories double-submit fix (d2d28f7, src/lib/async-guard.ts):
+  // isPending/disabled only update after React's next render, leaving a window
+  // where two clicks fired before that render both reach the handler. Both the
+  // "Won" stage button (update_lead_status -> _lead_apply_status, which can
+  // insert a new customer row) and "Move to customer" (move_lead_to_customer,
+  // same insert-if-not-found shape) are check-then-act races on the customers
+  // table, so a double click here could create two customer rows for one
+  // person. Separate refs because the two actions are mutually exclusive in
+  // the UI but guarded independently for clarity.
+  const stageGuardRef = useRef(false)
+  const removalGuardRef = useRef(false)
   const awardPoints = useAwardReferralPoints()
   const leadQuotations = useQuotationsForLead(lead.id)
 
@@ -160,7 +173,10 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
                     return
                   }
                   setShowLostForm(false)
-                  updateStatus.mutate({ leadId: lead.id, status: s }, { onError: failed })
+                  void guardReentry(stageGuardRef, () => updateStatus.mutateAsync({ leadId: lead.id, status: s }).then(
+                    () => undefined,
+                    failed
+                  ))
                 }}
               >
                 {t(`leads.status.${s}`)}
@@ -199,17 +215,16 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
               variant="destructive"
               disabled={!lostReasonValue || updateStatus.isPending}
               onClick={() =>
-                updateStatus.mutate(
-                  { leadId: lead.id, status: "lost", reason: lostReasonValue },
-                  {
-                    onSuccess: () => {
-                      setShowLostForm(false)
-                      setLostPreset("")
-                      setLostOther("")
-                    },
-                    onError: failed,
+                void guardReentry(stageGuardRef, async () => {
+                  try {
+                    await updateStatus.mutateAsync({ leadId: lead.id, status: "lost", reason: lostReasonValue })
+                    setShowLostForm(false)
+                    setLostPreset("")
+                    setLostOther("")
+                  } catch (err) {
+                    failed(err)
                   }
-                )
+                })
               }
             >
               {updateStatus.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("leads.detail.confirmLost")}
@@ -302,23 +317,21 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
                 variant={pendingRemoval === "delete" ? "destructive" : "accent"}
                 disabled={removalBusy}
                 onClick={() => {
-                  if (pendingRemoval === "move") {
-                    moveToCustomer.mutate(lead.id, {
-                      onSuccess: (customerId) => {
+                  void guardReentry(removalGuardRef, async () => {
+                    try {
+                      if (pendingRemoval === "move") {
+                        const customerId = await moveToCustomer.mutateAsync(lead.id)
                         toast.success(t("leads.detail.movedToast"))
                         navigate(`/admin/customers/${customerId}`)
-                      },
-                      onError: failed,
-                    })
-                  } else {
-                    deleteLead.mutate(lead.id, {
-                      onSuccess: () => {
+                      } else {
+                        await deleteLead.mutateAsync(lead.id)
                         toast.success(t("leads.detail.deletedToast"))
                         navigate("/admin/leads")
-                      },
-                      onError: failed,
-                    })
-                  }
+                      }
+                    } catch (err) {
+                      failed(err)
+                    }
+                  })
                 }}
               >
                 {removalBusy ? <Loader2 className="size-3.5 animate-spin" /> : pendingRemoval === "move" ? t("leads.detail.moveToCustomer") : t("leads.detail.deleteLead")}

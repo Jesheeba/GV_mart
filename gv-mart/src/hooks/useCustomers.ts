@@ -3,6 +3,7 @@ import * as customers from "@/services/customers"
 import type { CreateCustomerInput, CustomerListFilters, MemberRow } from "@/services/customers"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { getCustomerMeasuredWaterReading, getCustomerTdsSuggestion } from "@/services/waterQuality"
+import { shouldLookUpDuplicates } from "@/lib/duplicateContactWarning"
 
 const MOBILE_REGEX = /^[6-9]\d{9}$/
 
@@ -12,6 +13,26 @@ export function useMobileDuplicateCheck(orgId: string | undefined, mobile: strin
     queryKey: ["customers", "duplicateCheck", orgId, debounced, excludeCustomerId],
     queryFn: () => customers.checkMobileInUse(orgId!, debounced, excludeCustomerId),
     enabled: !!orgId && MOBILE_REGEX.test(debounced),
+  })
+}
+
+/**
+ * Urgent item (2026-11-02): the richer staff-side duplicate-contact warning
+ * (find_duplicate_contacts RPC — 20261204130000_duplicate_contact_warning_rpc.sql,
+ * NOT applied yet). Unlike useMobileDuplicateCheck above (customers +
+ * customer_members only, a single name), this also searches leads and
+ * returns ticket/invoice counts, feeding the DuplicateContactWarning banner
+ * used by both CustomerFormPage (Create Customer) and NewLeadForm (Create
+ * Lead). Reuses the same useDebouncedValue hook as every other debounced
+ * lookup in this file — no second debounce implementation.
+ */
+export function useDuplicateContactWarning(orgId: string | undefined, mobile: string, email = "") {
+  const debouncedMobile = useDebouncedValue(mobile, 400)
+  const debouncedEmail = useDebouncedValue(email, 400)
+  return useQuery({
+    queryKey: ["customers", "duplicateContacts", orgId, debouncedMobile, debouncedEmail],
+    queryFn: () => customers.findDuplicateContacts(debouncedMobile, debouncedEmail),
+    enabled: !!orgId && shouldLookUpDuplicates(debouncedMobile, debouncedEmail),
   })
 }
 
