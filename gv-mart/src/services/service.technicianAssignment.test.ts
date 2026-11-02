@@ -81,6 +81,9 @@ function lastRpcArgs(fn: string) {
   return call?.args as Record<string, unknown> | undefined
 }
 
+// Restored 2026-11-02: the merged #4+#1 migration is live --
+// create_complaint_ticket now has p_technician_id and createComplaintTicket
+// forwards it again.
 describe("createComplaintTicket — explicit technician pick (create flow)", () => {
   it("create with technician A selected -> p_technician_id is exactly A", async () => {
     await createComplaintTicket({ ...baseInput, technicianId: TECH_A })

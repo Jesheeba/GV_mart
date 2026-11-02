@@ -724,7 +724,8 @@
         "confirmedPin": "Location confirmed · {{lat}}, {{lng}}",
         "confirmLocation": "Confirm location",
         "accuracyLabel": "Accuracy: ~{{accuracy}} m",
-        "accuracyWarning": "Location may be approximate (~{{accuracy}} m) — please adjust the pin and check the address"
+        "accuracyWarning": "Location may be approximate (~{{accuracy}} m) — please adjust the pin and check the address",
+        "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or type the address yourself."
       }
     },
     "errors": {
@@ -2541,7 +2542,8 @@
         "locateTimeout": "Getting your location took too long. You can still type the address or search for it above.",
         "locationLookingUp": "Looking up the address for this location…",
         "locationFilledNotice": "Some fields were filled in from your location — please review them before saving.",
-        "locationLookupFailed": "Couldn't look up the address for this location. Please fill in the details yourself."
+        "locationLookupFailed": "Couldn't look up the address for this location. Please fill in the details yourself.",
+        "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or fill in the address yourself."
       },
       "membersTitle": "Family members ({{count}}/{{max}})",
       "maxMembersReached": "Maximum of 5 family members reached",
@@ -4486,6 +4488,7 @@
       "noActiveJob": "No active job",
       "idleForMinutes": "Idle for {{count}} min",
       "offRoute": "Taking a longer route than expected",
+      "updatesPaused": "Live route updates paused for a moment — showing the last known route",
       "jobOverrunBy": "Job overrunning by {{count}} min",
       "updatedMinutesAgo": "Updated {{count}}m ago",
       "noLocationYet": "No location yet",

@@ -23,7 +23,7 @@ vi.mock("@/lib/supabase", () => ({
   },
 }))
 
-import { reverseGeocode } from "@/services/maps"
+import { isTooManyRequestsError, reverseGeocode } from "@/services/maps"
 
 beforeEach(() => {
   state.invokeCalls = []
@@ -49,5 +49,20 @@ describe("reverseGeocode", () => {
   it("failure fallback: throws a clear error when the Edge Function returns no result at all", async () => {
     state.nextResult = {}
     await expect(reverseGeocode(13.08, 80.27)).rejects.toThrow("No address found for that location")
+  })
+})
+
+describe("isTooManyRequestsError (per-user geocode rate limit, 20261202100100)", () => {
+  it("recognises a 429 response on error.context", () => {
+    expect(isTooManyRequestsError({ context: { status: 429 } })).toBe(true)
+  })
+  it("is false for any other status", () => {
+    expect(isTooManyRequestsError({ context: { status: 502 } })).toBe(false)
+  })
+  it("is false for null/undefined/shapeless errors -- never throws on a malformed error object", () => {
+    expect(isTooManyRequestsError(null)).toBe(false)
+    expect(isTooManyRequestsError(undefined)).toBe(false)
+    expect(isTooManyRequestsError(new Error("plain error, no context"))).toBe(false)
+    expect(isTooManyRequestsError({})).toBe(false)
   })
 })

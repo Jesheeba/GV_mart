@@ -8,6 +8,7 @@ import { Dialog, DialogBackdrop, DialogContent, DialogDescription, DialogPortal,
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { googleMapsPinUrl } from "@/lib/googleMapsLink"
 import { useReverseGeocode } from "@/hooks/useMaps"
+import { isTooManyRequestsError } from "@/services/maps"
 import { geocodeResultToAddressFields, mergeAddressFieldsPreservingTyped, type AddressTextFields } from "@/lib/geocodeToAddressFields"
 import type { AddressRow, AddressTextFieldsPatch } from "@/services/customerApp"
 
@@ -69,11 +70,13 @@ export function AddressPinDialog({
   const reverseGeocode = useReverseGeocode()
   const [fieldsPatch, setFieldsPatch] = useState<AddressTextFields | null>(null)
   const [locationLookupFailed, setLocationLookupFailed] = useState(false)
+  const [locationRateLimited, setLocationRateLimited] = useState(false)
 
   function handleConfirm(coords: { lat: number; lng: number; accuracy?: number; source: "search" | "drag" | "location" }) {
     setLocateError(null)
     setDraft(coords)
     setLocationLookupFailed(false)
+    setLocationRateLimited(false)
     if (coords.source === "search") return
     reverseGeocode.mutate(
       { lat: coords.lat, lng: coords.lng },
@@ -91,7 +94,7 @@ export function AddressPinDialog({
           const patch = mergeAddressFieldsPreservingTyped(current, derived)
           setFieldsPatch(Object.keys(patch).length > 0 ? patch : null)
         },
-        onError: () => setLocationLookupFailed(true),
+        onError: (err) => (isTooManyRequestsError(err) ? setLocationRateLimited(true) : setLocationLookupFailed(true)),
       }
     )
   }
@@ -107,6 +110,7 @@ export function AddressPinDialog({
           setLocateError(null)
           setFieldsPatch(null)
           setLocationLookupFailed(false)
+          setLocationRateLimited(false)
         }
         onOpenChange(next)
       }}
@@ -140,6 +144,7 @@ export function AddressPinDialog({
             </p>
           ) : null}
           {locationLookupFailed ? <p className="text-xs text-text-muted">{t("customerApp.profile.pinLocationLookupFailed")}</p> : null}
+          {locationRateLimited ? <p className="text-xs text-warning">{t("customerApp.profile.address.tooManyRequests")}</p> : null}
 
           {fieldsPatch ? (
             <div className="space-y-2 rounded-xl bg-surface-alt px-3 py-2.5">

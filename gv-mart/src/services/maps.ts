@@ -1,5 +1,18 @@
 import { supabase } from "@/lib/supabase"
 
+/**
+ * Per-user rate limit (20261202100100_geocode_rate_limit.sql) -- the `geocode` Edge Function
+ * returns 429 for autocomplete/details/geocode/directions/reverse alike once a signed-in user
+ * exceeds either window. `error.context` is the raw Response the Edge Function returned;
+ * supabase-js never unwraps its status onto `error` itself. Callers use this to show a
+ * friendly "too many requests" message and fall back to manual typing, instead of the generic
+ * network-error message.
+ */
+export function isTooManyRequestsError(error: unknown): boolean {
+  const context = (error as { context?: unknown } | null)?.context as { status?: number } | undefined
+  return context?.status === 429
+}
+
 export type GeocodeResult = {
   formatted: string
   lat: number

@@ -154,7 +154,7 @@ export function MapPage() {
   // silently show the technician a real "office → customer" distance/ETA
   // whenever their own GPS fix hasn't arrived yet, with nothing on screen to
   // say it isn't actually their position.
-  const directions = useDirectionsDistance(dest && position ? position : null, dest)
+  const directions = useDirectionsDistance(technician.data?.id ?? null, dest && position ? position : null, dest)
 
   // The confirm-window interval below is set up once and never re-runs (see
   // its own comment), so it must call through a ref rather than closing over

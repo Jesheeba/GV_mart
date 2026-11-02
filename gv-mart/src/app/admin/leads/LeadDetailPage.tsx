@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, CalendarPlus, ClipboardCheck, Loader2, MessageCircle, Pencil, Phone, RotateCcw, StickyNote, UserRound } from "lucide-react"
+import { ArrowLeft, CalendarPlus, ClipboardCheck, Loader2, MessageCircle, Phone, RotateCcw, StickyNote, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,6 @@ import { useProfile } from "@/hooks/useProfile"
 import { useLead } from "@/hooks/useAutomation"
 import { useAddLeadNote, useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
 import { AssignLeadDialog } from "./AssignLeadDialog"
-import { EditLeadDialog } from "./EditLeadDialog"
 import { assignActionFor, canScheduleLead } from "@/lib/lead-assign"
 import type { UserRole } from "@/lib/roles"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
@@ -46,9 +45,6 @@ export function LeadDetailPage() {
   const [setFollowupOpen, setSetFollowupOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
-  const role = profile?.role as UserRole | undefined
-  const canEditLead = role === "master" || role === "sales_admin" || role === "operation_admin"
   const assignees = useLeadAssignees(profile?.org_id, profile?.role as UserRole | undefined).data ?? []
   const [note, setNote] = useState("")
 
@@ -107,16 +103,10 @@ export function LeadDetailPage() {
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-1.5">
               <h1 className="truncate text-xl font-bold text-text">{name}</h1>
-              {canEditLead ? (
-                <button
-                  type="button"
-                  onClick={() => setEditOpen(true)}
-                  aria-label={t("leads.edit.title")}
-                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-text-muted hover:bg-surface-alt hover:text-text"
-                >
-                  <Pencil className="size-3.5" />
-                </button>
-              ) : null}
+              {/* Urgent outage hotfix (2026-11-02): hidden -- Save calls
+                  update_lead_details, whose migration (20261201110000) is
+                  not live yet (checked by live read-only audit). Restore
+                  once applied. See DECISIONS.md. */}
             </div>
             {mobile ? (
               <a href={telHref(mobile)} onClick={() => rememberCall(sheetLead)} className="inline-flex items-center gap-1.5 text-sm font-medium text-text hover:underline">
@@ -218,22 +208,6 @@ export function LeadDetailPage() {
       <SetFollowupDialog lead={{ id: l.id, name }} open={setFollowupOpen} onOpenChange={setSetFollowupOpen} />
 
       <AssignLeadDialog leads={[{ id: l.id, name, assignedTo: l.assigned_to }]} open={assignOpen} onOpenChange={setAssignOpen} />
-      {canEditLead ? (
-        <EditLeadDialog
-          lead={{
-            id: l.id,
-            name: l.name,
-            mobile: l.mobile,
-            alternate_mobile: l.alternate_mobile,
-            address_text: l.address_text,
-            source: l.source,
-            product_type_key: l.product_type_key,
-            notes: l.notes,
-          }}
-          open={editOpen}
-          onOpenChange={setEditOpen}
-        />
-      ) : null}
     </div>
   )
 }
