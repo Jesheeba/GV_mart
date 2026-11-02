@@ -208,6 +208,15 @@ export function useUnassignAppointment() {
   })
 }
 
+/** Urgent reassign-error investigation (2026-11-02) — see service.ts#getConflictAppointmentInfo. */
+export function useConflictAppointmentInfo(appointmentId: string | undefined) {
+  return useQuery({
+    queryKey: ["appointments", "conflictInfo", appointmentId],
+    queryFn: () => service.getConflictAppointmentInfo(appointmentId!),
+    enabled: !!appointmentId,
+  })
+}
+
 export function useCompleteAppointment() {
   const qc = useQueryClient()
   return useMutation({

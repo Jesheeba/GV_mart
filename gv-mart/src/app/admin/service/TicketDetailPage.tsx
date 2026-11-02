@@ -29,6 +29,7 @@ import {
   useTechnicians,
   useTicket,
   useTicketEvidence,
+  useConflictAppointmentInfo,
   useTicketPhotos,
   useUnassignAppointment,
   useUpdateTicketAddress,
@@ -128,6 +129,10 @@ export function TicketDetailPage() {
   const autoAssign = useAutoAssignTicket()
   const assign = useAssignTicketTechnician()
   const unassign = useUnassignAppointment()
+  // Urgent reassign-error investigation (2026-11-02) — names the actual
+  // conflicting job/time in the "busy" message below, instead of a bare
+  // reason_key with no context for the master to act on.
+  const assignConflictInfo = useConflictAppointmentInfo(assign.data && !assign.data.assigned ? assign.data.conflict_appointment_id : undefined)
   const [pickerTechId, setPickerTechId] = useState("")
   // Urgent item 1 fix (2026-11-02): this card used to have no way to change
   // an already-assigned technician from this page at all (only the
@@ -744,8 +749,17 @@ export function TicketDetailPage() {
             {/* Force-reassign is the one place a deliberate double-booking
                 override already exists (assign_ticket_technician's p_force) —
                 surfaced only once the plain assign above has already told us
-                there's a real conflict, never offered pre-emptively. */}
-            {assign.data && !assign.data.assigned && assign.data.reason_key === "service.assign.technicianBusy" ? (
+                there's a real conflict, never offered pre-emptively.
+                p_force bypasses BOTH technicianBusy and customerBusy
+                server-side (it does not bypass exemptionWindowConflict,
+                which the RPC returns unconditionally) — this button must
+                cover both reason_keys the backend actually honours force
+                for; it used to only check technicianBusy, silently leaving
+                master with no override for the (equally force-able)
+                customerBusy case. */}
+            {assign.data &&
+            !assign.data.assigned &&
+            (assign.data.reason_key === "service.assign.technicianBusy" || assign.data.reason_key === "service.assign.customerBusy") ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -775,7 +789,22 @@ export function TicketDetailPage() {
         {autoAssign.data && !autoAssign.data.assigned ? (
           <p className="text-xs text-warning">{t(autoAssign.data.reason_key ?? "service.assign.noneAvailable")}</p>
         ) : null}
-        {assign.data && !assign.data.assigned ? <p className="text-xs text-warning">{t(assign.data.reason_key ?? "service.assign.technicianBusy")}</p> : null}
+        {assign.data && !assign.data.assigned ? (
+          <p className="text-xs text-warning">
+            {assignConflictInfo.data && assign.data.conflict_appointment_id
+              ? t(
+                  assign.data.reason_key === "service.assign.customerBusy"
+                    ? "service.assign.customerBusyDetail"
+                    : "service.assign.technicianBusyDetail",
+                  {
+                    job: assignConflictInfo.data.jobLabel,
+                    from: formatDateTime(assignConflictInfo.data.scheduledAt),
+                    to: formatDateTime(assignConflictInfo.data.endsAt),
+                  }
+                )
+              : t(assign.data.reason_key ?? "service.assign.technicianBusy")}
+          </p>
+        ) : null}
       </Card>
 
       {appointment ? (

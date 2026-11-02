@@ -432,10 +432,65 @@ export async function updateAppointmentSchedule(id: string, patch: { scheduled_a
   return data
 }
 
+/**
+ * Urgent reassign-error investigation (2026-11-02) — this used to be a
+ * single `appointments.technician_id = null` update with nothing else. That
+ * leaves `service_tickets.status` stuck at 'assigned' with no technician on
+ * the appointment ("Assigned" badge, blank technician field) until some
+ * *other* action happens to touch the ticket's status — a real, currently
+ * reproducible display bug (see ticket f10206aa-9bf2-46b6-bcd0-0bf49c9c2958,
+ * found in that exact state). Mirrors the same guard
+ * assign_ticket_technician's own force-reassign branch uses server-side
+ * (`update service_tickets set status = 'open' where ... and status =
+ * 'assigned'`): only a ticket that is still showing 'assigned' is reopened —
+ * 'in_progress' / 'completed' / 'cancelled' tickets are left untouched.
+ */
 export async function unassignAppointment(id: string) {
   const { data, error } = await supabase.from("appointments").update({ technician_id: null }).eq("id", id).select().single()
   if (error) throw error
+  const ticketId = (data as { ticket_id?: string | null } | null)?.ticket_id
+  if (ticketId) {
+    const { error: ticketError } = await supabase.from("service_tickets").update({ status: "open" }).eq("id", ticketId).eq("status", "assigned")
+    if (ticketError) throw ticketError
+  }
   return data
+}
+
+/**
+ * Urgent reassign-error investigation (2026-11-02) — feeds the ticket-detail
+ * "busy" messages the real conflicting job's time + a human label, instead
+ * of a bare reason_key. Looked up only when assign_ticket_technician (or the
+ * reassign path) actually returns a conflict_appointment_id.
+ */
+export type ConflictAppointmentInfo = {
+  id: string
+  scheduledAt: string | null
+  endsAt: string | null
+  ticketId: string
+  jobLabel: string
+}
+
+export async function getConflictAppointmentInfo(appointmentId: string): Promise<ConflictAppointmentInfo | null> {
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("id, scheduled_at, ends_at, ticket_id, service_tickets(name_of_complaint, products(name), unlisted_product_name)")
+    .eq("id", appointmentId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  const ticket = data.service_tickets as {
+    name_of_complaint: string | null
+    products: { name: string } | null
+    unlisted_product_name: string | null
+  } | null
+  const jobLabel = ticket?.name_of_complaint || ticket?.products?.name || ticket?.unlisted_product_name || `Ticket ${data.ticket_id.slice(0, 8)}`
+  return {
+    id: data.id,
+    scheduledAt: data.scheduled_at,
+    endsAt: data.ends_at,
+    ticketId: data.ticket_id,
+    jobLabel,
+  }
 }
 
 // ── Technicians (for filters / assignment panel) ─────────────────────────

@@ -2234,6 +2234,9 @@
     "assign": {
       "noneAvailable": "No technicians available for auto-assign.",
       "technicianBusy": "Technician is busy at scheduled time.",
+      "technicianBusyDetail": "Technician is busy with \"{{job}}\" from {{from}} to {{to}}.",
+      "customerBusy": "This customer already has another open appointment.",
+      "customerBusyDetail": "This customer already has another open appointment — \"{{job}}\" scheduled {{from}} to {{to}}.",
       "exemptionWindowConflict": "This customer has an exemption window covering this time — no technician can be assigned then.",
       "productRequired": "This ticket needs a product before it can be assigned."
     },
