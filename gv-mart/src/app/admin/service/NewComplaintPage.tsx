@@ -35,7 +35,6 @@ import {
 } from "@/lib/validation/service"
 import { getIstNow } from "@/lib/ist"
 import { TicketTypeBadge } from "./TicketBadges"
-import { TechnicianAvailabilityPicker, type AvailabilitySlotPick } from "./TechnicianAvailabilityPicker"
 
 function todayInput() {
   return getIstNow().date
@@ -208,27 +207,6 @@ export function NewComplaintPage() {
   const { data: technicians } = useTechnicians(orgId)
   const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
 
-  // Urgent item #5 — availability-assisted scheduling: a free-slot pick
-  // (technician-first or date-first, both via TechnicianAvailabilityPicker)
-  // writes into the appointment form's `technicianId` field — the SAME
-  // field the plain "Assign to technician" dropdown (urgent item #1) uses
-  // — and narrows the booking window down to exactly that slot, reusing
-  // the existing unavailable-windows geometry scan (_largest_free_window)
-  // rather than a second time-setting path. One shared field means the
-  // dropdown and the availability picker can never silently disagree
-  // about who the master actually picked. Manually editing the
-  // AvailabilityTimeline afterwards silently drops the slot-based pick
-  // back to "no preference" — correct, since the picked slot no longer
-  // matches what's shown.
-  function handleAvailabilitySlotPick(pick: AvailabilitySlotPick) {
-    const blocks: TimeWindow[] = []
-    if (pick.slot.start > workStart) blocks.push({ start: workStart, end: pick.slot.start })
-    if (pick.slot.end < workEnd) blocks.push({ start: pick.slot.end, end: workEnd })
-    appointmentForm.setValue("unavailableWindows", blocks, { shouldValidate: true })
-    appointmentForm.setValue("autoAssign", false, { shouldValidate: true })
-    appointmentForm.setValue("technicianId", pick.technicianId, { shouldValidate: true })
-  }
-
   // Local draft persistence — see useLocalDraft's doc comment. Disabled for
   // the prefilled-customer entry point (see NewComplaintDraftData).
   const draftKey = prefilledCustomerId ? null : DRAFT_KEY
@@ -346,14 +324,9 @@ export function NewComplaintPage() {
       // Urgent item 1 fix (2026-11-02): the master's explicit "Assign to"
       // pick, if any — "" (nothing picked) must become null, never a
       // fallback technician. The RPC gives this priority over autoAssign.
-      // Urgent item 1 fix (2026-11-02): the master's explicit "Assign to"
-      // pick, if any — "" (nothing picked) must become null, never a
-      // fallback technician. The RPC gives this priority over autoAssign.
-      // Urgent item #5 — the availability picker (technician-first or
-      // date-first) writes into this SAME field via onSelectTechnician/
-      // handleAvailabilitySlotPick below, so there is exactly one source
-      // of truth for "who the master explicitly picked," never two pickers
-      // that could silently disagree about who gets the ticket.
+      // Urgent outage hotfix (2026-11-02): createComplaintTicket no longer
+      // forwards this to the RPC (p_technician_id isn't live yet) and the
+      // picker UI that set it is hidden -- this is always null for now.
       technicianId: appt.technicianId || null,
     })
 
@@ -710,68 +683,21 @@ export function NewComplaintPage() {
               )}
             />
 
-            {/* Urgent item #5 — pick a technician first and see their free
-                slots, or pick a date first (above) and see which
-                technicians are free then; clicking a free slot narrows the
-                booking window above to exactly that slot. */}
-            <TechnicianAvailabilityPicker
-              orgId={orgId}
-              date={appointmentForm.watch("scheduledDate") || null}
-              technicians={(technicians ?? []).map((tc) => ({ id: tc.id, full_name: tc.full_name }))}
-              estimatedMinutes={estimatedMinutes}
-              selectedTechnicianId={appointmentForm.watch("technicianId") || null}
-              onSelectTechnician={(id) => appointmentForm.setValue("technicianId", id, { shouldValidate: true })}
-              onSlotSelect={handleAvailabilitySlotPick}
-            />
+            {/* Urgent outage hotfix (2026-11-02): the technician-first/
+                date-first availability picker and the "Assign to
+                technician" dropdown are hidden here because both ultimately
+                relied on p_technician_id, which the live create_complaint_ticket
+                RPC does not have yet (see service.ts's createComplaintTicket).
+                Showing them would let the master pick a technician who is
+                then silently NOT assigned -- the exact silent-failure bug
+                urgent item #1 was fixed to prevent. Restore once the merged
+                #4+#1 migration is live. See DECISIONS.md. */}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-text">
-            <input
-              type="checkbox"
-              {...appointmentForm.register("autoAssign")}
-              disabled={!!appointmentForm.watch("technicianId")}
-              onChange={(e) => {
-                appointmentForm.setValue("autoAssign", e.target.checked)
-                // Mutually exclusive with an explicit pick below -- checking
-                // this clears any manual pick so the two can't silently
-                // disagree about who actually gets the job.
-                if (e.target.checked) appointmentForm.setValue("technicianId", "")
-              }}
-              className="size-4 rounded border-border"
-            />
+            <input type="checkbox" {...appointmentForm.register("autoAssign")} className="size-4 rounded border-border" />
             {t("service.newComplaint.autoAssign")}
           </label>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="newComplaintTechnicianId">{t("service.newComplaint.assignTechnician")}</Label>
-            <Controller
-              control={appointmentForm.control}
-              name="technicianId"
-              render={({ field }) => (
-                <select
-                  id="newComplaintTechnicianId"
-                  value={field.value ?? ""}
-                  onChange={(e) => {
-                    field.onChange(e.target.value)
-                    // Explicitly picking someone here always wins over
-                    // auto-assign -- uncheck it so the UI never implies both
-                    // are active at once (the RPC would prioritise this pick
-                    // regardless, but showing autoAssign still checked would
-                    // be misleading).
-                    if (e.target.value) appointmentForm.setValue("autoAssign", false)
-                  }}
-                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
-                >
-                  <option value="">{t("service.detail.pickTechnician")}</option>
-                  {(technicians ?? []).map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.full_name} {tech.is_on_duty ? "" : `(${t("service.detail.offDuty")})`}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-          </div>
 
           <div className="space-y-1.5">
             <Label>{t("common.referredByTechnician")}</Label>

@@ -42,12 +42,10 @@ import { computeJobOverrun } from "@/lib/job-overrun"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { resolveVisitDurationMinutes } from "@/lib/visit-duration"
-import { istDateOf } from "@/lib/ist"
 import { cn } from "@/lib/utils"
 import { ChannelBadge, PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
 import { InstallationChargeRow } from "./InstallationChargeRow"
-import { TechnicianAvailabilityPicker } from "./TechnicianAvailabilityPicker"
 
 function TicketPhotoThumb({ storagePath }: { storagePath: string }) {
   const { data: url } = useQuery({
@@ -136,10 +134,6 @@ export function TicketDetailPage() {
   // Appointments screen could reassign) -- opening this reveals the same
   // explicit picker used for the first assignment, below.
   const [reassigning, setReassigning] = useState(false)
-  // Urgent item #5 — availability-assisted manual assignment: collapsed by
-  // default so the existing quick-pick flow is unchanged for the common
-  // case, shown on demand to help pick who's actually free.
-  const [showAvailability, setShowAvailability] = useState(false)
 
   // Task 5 (2026-07-30/31) — exception path on top of unchanged
   // auto-assignment: log a phone-confirmed availability window (customer
@@ -768,9 +762,9 @@ export function TicketDetailPage() {
                 <TriangleAlert className="size-3.5" /> {t("service.appointments.forceReassign")}
               </Button>
             ) : null}
-            <Button size="sm" variant="ghost" onClick={() => setShowAvailability((s) => !s)}>
-              <CalendarClock className="size-3.5" /> {t("service.availability.title")}
-            </Button>
+            {/* Urgent outage hotfix (2026-11-02): hidden -- this called
+                get_technician_availability_for_date, whose migration
+                (20261202100000) is not live yet. Restore once applied. */}
           </div>
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noAppointment")}</p>
@@ -782,16 +776,6 @@ export function TicketDetailPage() {
           <p className="text-xs text-warning">{t(autoAssign.data.reason_key ?? "service.assign.noneAvailable")}</p>
         ) : null}
         {assign.data && !assign.data.assigned ? <p className="text-xs text-warning">{t(assign.data.reason_key ?? "service.assign.technicianBusy")}</p> : null}
-        {appointment && (!appointment.technician_id || reassigning) && showAvailability ? (
-          <TechnicianAvailabilityPicker
-            orgId={ticket.org_id}
-            date={appointment.scheduled_at ? istDateOf(appointment.scheduled_at) : null}
-            technicians={(technicians ?? []).map((tc) => ({ id: tc.id, full_name: tc.full_name }))}
-            estimatedMinutes={ticket.estimated_duration_minutes ?? undefined}
-            selectedTechnicianId={pickerTechId || null}
-            onSelectTechnician={(id) => setPickerTechId(id)}
-          />
-        ) : null}
       </Card>
 
       {appointment ? (

@@ -81,7 +81,12 @@ function lastRpcArgs(fn: string) {
   return call?.args as Record<string, unknown> | undefined
 }
 
-describe("createComplaintTicket — explicit technician pick (create flow)", () => {
+// Urgent outage hotfix (2026-11-02): createComplaintTicket no longer sends
+// p_technician_id -- the live create_complaint_ticket RPC doesn't have that
+// parameter yet (migration 20261202090000 not applied), and sending it broke
+// every complaint creation in production. Skipped until the merged #4+#1
+// migration is live and this forwarding is restored. See DECISIONS.md.
+describe.skip("createComplaintTicket — explicit technician pick (create flow)", () => {
   it("create with technician A selected -> p_technician_id is exactly A", async () => {
     await createComplaintTicket({ ...baseInput, technicianId: TECH_A })
     expect(lastRpcArgs("create_complaint_ticket")?.p_technician_id).toBe(TECH_A)
