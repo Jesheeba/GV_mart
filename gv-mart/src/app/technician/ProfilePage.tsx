@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { Capacitor } from "@capacitor/core"
-import { CalendarRange, LogOut, Star, StarOff, TrendingUp, UserPlus } from "lucide-react"
+import { CalendarRange, Gift, LogOut, Star, StarOff, TrendingUp, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SegButton } from "@/components/shared/SegButton"
 import { useLeads } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
+import { useReferralBonusPreview } from "@/hooks/useReferrals"
 import { useMyTechnician, useTechnicianStats } from "@/hooks/useTechnician"
 import { signOut } from "@/services/auth"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -43,6 +44,7 @@ export function ProfilePage() {
   const [earningsPreset, setEarningsPreset] = useState<EarningsPreset>("last30d")
   const stats = useTechnicianStats(technician.data?.id, profile?.org_id, rangeForEarningsPreset(earningsPreset))
   const referrals = useLeads(profile?.org_id, { source: "referral", ownerId: technician.data?.id })
+  const bonusPreview = useReferralBonusPreview(profile?.org_id)
   const [otaInfo, setOtaInfo] = useState<OtaVersionInfo | null>(null)
   const tapGateRef = useRef<TapGateState | null>(null)
 
@@ -155,6 +157,65 @@ export function ProfilePage() {
               </div>
             ))}
           </div>
+        )}
+      </Card>
+
+      <Card className="gap-3">
+        <div className="flex items-center gap-2 px-1">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+            <Gift className="size-4" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-text">{t("technician.profile.referralBonus.title")}</p>
+          </div>
+        </div>
+        {bonusPreview.isLoading ? (
+          <p className="px-1 text-sm text-text-muted">{t("common.loading")}</p>
+        ) : bonusPreview.isError || !bonusPreview.data ? (
+          <p className="px-1 text-sm text-danger">{t("technician.profile.referralBonus.loadFailed")}</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3 px-1">
+              <div>
+                <p className="text-xs text-text-muted">{t("technician.profile.referralBonus.earned")}</p>
+                <p className="text-lg font-semibold text-text">
+                  {formatCurrency(
+                    bonusPreview.data.rows
+                      .filter((r) => r.status === "paid")
+                      .reduce((sum, r) => sum + r.rate_amount, 0)
+                  )}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-text-muted">{t("technician.profile.referralBonus.pending_other")}</p>
+                <p className="text-lg font-semibold text-text">{bonusPreview.data.summary.pending}</p>
+              </div>
+              <div>
+                <p className="text-xs text-text-muted">{t("technician.profile.referralBonus.voided_other")}</p>
+                <p className="text-lg font-semibold text-text">{bonusPreview.data.summary.voided}</p>
+              </div>
+            </div>
+            {bonusPreview.data.rows.length === 0 ? (
+              <p className="px-1 text-sm text-text-muted">{t("technician.profile.referralBonus.noEvents")}</p>
+            ) : (
+              <div className="space-y-1.5 px-1">
+                {bonusPreview.data.rows.map((r) => (
+                  <div key={r.referral_bonus_event_id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+                    <div>
+                      <p className="text-sm text-text">{r.customer_name}</p>
+                      <p className="text-xs text-text-muted">
+                        {t(`technician.profile.referralBonus.source.${r.source}`)} · {formatDate(r.qualified_at)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-text">{formatCurrency(r.rate_amount)}</p>
+                      <p className="text-xs text-text-muted">{t(`technician.profile.referralBonus.status.${r.status}`)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </Card>
 
