@@ -12,6 +12,7 @@ import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
+import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
@@ -199,7 +200,7 @@ export function CustomerFormPage() {
   const peopleForm = useForm<PeopleStepInput>({
     resolver: zodResolver(peopleStepSchema),
     mode: "onChange",
-    defaultValues: { members: [{ name: "", mobile: "" }], primaryIndex: 0, profession: "" },
+    defaultValues: { members: [{ name: "", mobile: "" }], primaryIndex: 0, profession: "", referredByUserId: "" },
   })
   const { fields, append, remove } = useFieldArray({ control: peopleForm.control, name: "members" })
   const primaryIndex = peopleForm.watch("primaryIndex")
@@ -383,10 +384,12 @@ export function CustomerFormPage() {
 
     if (mode === "create") {
       const peopleValues = peopleForm.getValues()
+      const referredByUserId = peopleValues.referredByUserId || undefined
       const newId = await createCustomer.mutateAsync({
         orgId: orgId!,
         // The primary member's own profession becomes the customer's (the RPC also falls back to it).
         profession: peopleValues.members[peopleValues.primaryIndex]?.profession?.trim() || undefined,
+        referredByUserId,
         members: peopleValues.members.map((m, i) => ({
           name: m.name,
           mobile: m.mobile,
@@ -412,6 +415,17 @@ export function CustomerFormPage() {
           lng: addressValues.lng,
         },
       })
+      // Self-referral / anti-abuse guard (stage2_corrections_addendum.md item 9) — a
+      // referral attempt can be silently nulled server-side rather than erroring, so
+      // the save must never fail; this is just a non-blocking heads-up. The RPC
+      // (create_customer_with_details) currently returns only the new customer id
+      // (a bare string), so there is nothing yet to inspect here — once the DB
+      // stream's RPC starts returning a richer shape with an explicit
+      // `referral_attributed: boolean` flag, surface the same toast as the lead
+      // form does when that flag comes back false.
+      if (referredByUserId && typeof newId === "object" && (newId as { referral_attributed?: boolean }).referral_attributed === false) {
+        toast.warning(t("common.referralNotRecorded"))
+      }
       // The create RPC has no language argument: a small follow-up write, like the zone below. The customer already exists, so a
       // failure only warns and can be re-entered from the customer page.
       if (peopleValues.preferredLanguage === "en" || peopleValues.preferredLanguage === "ta") {
@@ -524,6 +538,14 @@ export function CustomerFormPage() {
                 <Input id="new-customer-email" type="email" placeholder={t("customers.form.emailPlaceholder")} {...peopleForm.register("email")} />
                 {peopleForm.formState.errors.email ? <p className="text-xs text-danger">{t(peopleForm.formState.errors.email.message!)}</p> : null}
               </div>
+              {/* Referral incentives — capture-at-creation only, never shown in edit mode. */}
+              <ReferrerPicker
+                id="new-customer-referred-by"
+                orgId={orgId}
+                label={t("customers.form.referredBy")}
+                value={peopleForm.watch("referredByUserId") ?? ""}
+                onChange={(next) => peopleForm.setValue("referredByUserId", next)}
+              />
             </div>
           ) : (
             <>

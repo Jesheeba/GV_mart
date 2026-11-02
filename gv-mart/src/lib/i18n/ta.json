@@ -140,6 +140,7 @@
     "ongoing": "தொடர்கிறது",
     "tapToExpand": "விரிவாகப் பார்க்க தட்டவும்",
     "referredByTechnician": "தொழில்நுட்பவியலாளர் பரிந்துரை (விருப்பத்தேர்வு)",
+    "referralNotRecorded": "பரிந்துரை பதிவு செய்யப்படவில்லை — குறிப்பைப் பார்க்கவும்",
     "errors": {
       "fieldRequired": "{{field}} தேவை",
       "fieldMustBeNumber": "{{field}} எண்ணாக இருக்க வேண்டும்",
@@ -669,6 +670,7 @@
       "memberEmail": "மின்னஞ்சல் (விருப்பம்)",
       "email": "வாடிக்கையாளர் மின்னஞ்சல் (விருப்பம்)",
       "emailPlaceholder": "customer@gmail.com",
+      "referredBy": "பரிந்துரைத்தவர் (விருப்பம்)",
       "preferredLanguage": "செய்தி மொழி (விருப்பம்)",
       "preferredLanguageHint": "WhatsApp செய்திகள் இந்த மொழியில் அனுப்பப்படும். காலியாக விட்டால் ஆங்கிலம்.",
       "languageEnglish": "ஆங்கிலம்",
@@ -3665,6 +3667,7 @@
       "name": "பெயர்",
       "mobile": "மொபைல்",
       "source": "மூலம்",
+      "referredBy": "பரிந்துரைத்தவர் (விருப்பம்)",
       "enquiryType": "விசாரணை வகை",
       "kind": "வகை"
     },

@@ -140,6 +140,7 @@
     "ongoing": "ongoing",
     "tapToExpand": "Tap to expand",
     "referredByTechnician": "Referred by technician (optional)",
+    "referralNotRecorded": "Referral not recorded — see note",
     "errors": {
       "fieldRequired": "{{field}} is required",
       "fieldMustBeNumber": "{{field}} must be a number",
@@ -669,6 +670,7 @@
       "memberEmail": "Email (optional)",
       "email": "Customer email (optional)",
       "emailPlaceholder": "customer@gmail.com",
+      "referredBy": "Referred by (optional)",
       "preferredLanguage": "Message language (optional)",
       "preferredLanguageHint": "WhatsApp messages are sent in this language. Leave empty for English.",
       "languageEnglish": "English",
@@ -3670,6 +3672,7 @@
       "name": "Name",
       "mobile": "Mobile",
       "source": "Source",
+      "referredBy": "Referred by (optional)",
       "enquiryType": "Enquiry type",
       "kind": "Kind"
     },

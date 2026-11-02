@@ -5396,6 +5396,9 @@ export type Database = {
           // Nullable. NOT applied yet — see migration header.
           alternate_mobile: string | null
           address_text: string | null
+          // Referral incentives — hand-patched ahead of DB package 1's actual migration
+          // (plain table column, not an RPC; see services/automation.ts createLead()).
+          referred_by_user_id: string | null
         }
         Insert: {
           is_test?: boolean
@@ -5429,6 +5432,7 @@ export type Database = {
           auto_assign_pending?: boolean
           alternate_mobile?: string | null
           address_text?: string | null
+          referred_by_user_id?: string | null
         }
         Update: {
           is_test?: boolean
@@ -5462,6 +5466,7 @@ export type Database = {
           auto_assign_pending?: boolean
           alternate_mobile?: string | null
           address_text?: string | null
+          referred_by_user_id?: string | null
         }
         Relationships: [
           {
@@ -7638,6 +7643,11 @@ export type Database = {
           p_source: string
           p_members: Json
           p_address: Json
+          // Referral incentives (UI-forms stream) — additive, hand-patched ahead of the DB
+          // stream's actual migration (same "post-dates codegen" convention as other hand
+          // patches in this file; see services/hr.ts's header for the general rationale).
+          // Not yet accepted server-side — see services/customers.ts createCustomerWithDetails().
+          p_referred_by_user_id?: string | null
         }
         Returns: string
       }

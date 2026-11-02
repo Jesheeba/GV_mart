@@ -95,12 +95,21 @@ export async function createLead(row: {
   kind_key?: string | null
   /** Products/spares picked from inventory; first one also fills the lead's scalar columns (back-compat, see lead_items migration). */
   items?: { product_id?: string; spare_id?: string; qty: number }[]
+  // Referral incentives — plain column on `leads` (not owner_id/source, which stay
+  // completely untouched; see lib/validation/automation.ts's leadSchema).
+  referred_by_user_id?: string | null
 }) {
   const { items = [], ...leadRow } = row
   const first = items[0]
   const { data, error } = await supabase
     .from("leads")
-    .insert({ ...leadRow, product_id: first?.product_id ?? null, spare_id: first?.spare_id ?? null, qty: first?.qty ?? null })
+    .insert({
+      ...leadRow,
+      product_id: first?.product_id ?? null,
+      spare_id: first?.spare_id ?? null,
+      qty: first?.qty ?? null,
+      referred_by_user_id: row.referred_by_user_id ?? null,
+    })
     .select()
     .single()
   if (error) throw error

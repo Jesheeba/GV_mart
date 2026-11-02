@@ -477,6 +477,9 @@ export type CreateCustomerInput = {
   orgId: string
   profession?: string
   source?: string
+  // Referral incentives — capture-at-creation only (customers.referred_by_user_id,
+  // first-write-wins, never settable in edit mode). See CustomerFormPage.tsx.
+  referredByUserId?: string
   members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation; profession?: string; email?: string }[]
   address: {
     doorNo?: string
@@ -503,6 +506,11 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
     // parameter accepts null (a generator limitation, not a real constraint).
     p_profession: input.profession || "",
     p_source: input.source ?? "other",
+    // Referral incentives — additive RPC parameter, pending the DB stream
+    // (create_customer_with_details doesn't accept this yet; see
+    // plan.md §3.2 / stage2_corrections_addendum.md item 9). Passed through
+    // unconditionally so the DB stream can wire it up without a client change.
+    p_referred_by_user_id: input.referredByUserId || null,
     p_members: input.members.map((m) => ({
       name: m.name,
       mobile: m.mobile,

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
+import { useToast } from "@/components/ui/toast-context"
 import { useCreateLead } from "@/hooks/useAutomation"
 import { leadSchema, type LeadInput } from "@/lib/validation/automation"
 import { useProfile } from "@/hooks/useProfile"
@@ -14,6 +16,7 @@ import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLi
 
 export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const { data: profile } = useProfile()
   const createLead = useCreateLead()
   const { activeSources, label: sourceLabel } = useLeadSourceOptions()
@@ -23,11 +26,12 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
   const form = useForm<LeadInput>({
     resolver: zodResolver(leadSchema),
     mode: "onChange",
-    defaultValues: { name: "", mobile: "", source: "other", productCategory: "", notes: "", kind: "" },
+    defaultValues: { name: "", mobile: "", source: "other", productCategory: "", notes: "", kind: "", referredByUserId: "" },
   })
 
   async function onSubmit(values: LeadInput) {
-    await createLead.mutateAsync({
+    const referredByUserId = values.referredByUserId || null
+    const created = await createLead.mutateAsync({
       org_id: profile!.org_id,
       name: values.name,
       mobile: values.mobile || null,
@@ -35,7 +39,18 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       product_type_key: values.productCategory || null,
       notes: values.notes || null,
       kind_key: values.kind || null,
+      referred_by_user_id: referredByUserId,
     })
+    // Self-referral / anti-abuse guard (stage2_corrections_addendum.md item 9) —
+    // a referral attempt can be silently nulled server-side rather than erroring,
+    // so the save must never fail; this is just a non-blocking heads-up. Today
+    // `createLead` is a plain `.insert()`, so the one signal available is the
+    // returned row's own `referred_by_user_id` coming back null despite us
+    // sending one. If/when the DB stream's RPC path starts returning an explicit
+    // `referral_attributed: boolean` flag, prefer that over this inference.
+    if (referredByUserId && (created as { referred_by_user_id?: string | null } | null)?.referred_by_user_id == null) {
+      toast.warning(t("common.referralNotRecorded"))
+    }
     onCreated()
   }
 
@@ -67,6 +82,13 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             ))}
           </select>
         </div>
+        <ReferrerPicker
+          id="lead-referred-by"
+          orgId={profile?.org_id}
+          label={t("leads.new.referredBy")}
+          value={form.watch("referredByUserId") ?? ""}
+          onChange={(next) => form.setValue("referredByUserId", next)}
+        />
         <div className="space-y-1.5">
           <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
           <select id="lead-product-category" {...form.register("productCategory")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">

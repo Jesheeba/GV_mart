@@ -9,6 +9,10 @@ export const leadSchema = z.object({
   productCategory: z.string().trim().max(60).optional().or(z.literal("")),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
   kind: z.string().trim().max(60).optional().or(z.literal("")),
+  // Referral incentives — same optional-uuid-or-empty-string idiom as poId below
+  // (a native <select> placeholder submits "", not undefined). Does not touch
+  // owner_id/source — see services/automation.ts's createLead().
+  referredByUserId: z.string().uuid().optional().or(z.literal("")),
 })
 export type LeadInput = z.infer<typeof leadSchema>
 

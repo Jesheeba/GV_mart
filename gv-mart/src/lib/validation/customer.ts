@@ -53,6 +53,10 @@ export const peopleStepSchema = z.object({
   email: z.string().trim().max(254).refine((v) => v === "" || EMAIL_REGEX.test(v), "customers.errors.emailInvalid").optional(),
   // WhatsApp message language (customers.preferred_language); "" = not set (English).
   preferredLanguage: z.union([z.enum(["en", "ta"]), z.literal("")]).optional(),
+  // Referral incentives — capture-at-creation only (never shown/edited in edit mode, per
+  // design). Same optional-uuid-or-empty-string idiom as poId (lib/validation/automation.ts)
+  // / brandId/modelId (lib/validation/service.ts) — a native <select> placeholder submits "".
+  referredByUserId: z.string().uuid().optional().or(z.literal("")),
 })
 // Same reasoning as MemberInput above: this schema embeds memberSchema
 // (which transforms relation), so useForm needs the input shape.
