@@ -1,0 +1,3 @@
+HTTP_STATUS: 400
+
+{"message":"Failed to run sql query: ERROR:  P0001: RESULTS: assign_hash_matches=t helper_gone_after_rollback=t assign_sha=469dae2fc0211555056c720bfe9af164687f048d6c1ab27dd9ef63c670cf63be\nCONTEXT:  PL/pgSQL function inline_code_block line 312 at RAISE\n"}
