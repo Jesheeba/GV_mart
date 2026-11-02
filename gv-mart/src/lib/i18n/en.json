@@ -1107,6 +1107,7 @@
       "empty": "No roles yet — add one."
     },
     "incentives": {
+      "finderCreditNote": "Do not create a finder_credit rule; referral rewards are paid through the Referral Bonus rate (below, not here).",
       "type": "Type",
       "types": {
         "service_income": "Extra service income",
@@ -1137,10 +1138,9 @@
       "history": "History",
       "changeRate": "Change rate",
       "dialogTitle": "Change referral bonus rate",
-      "dialogHint": "This closes the current rate and starts a new one from today — it never edits the old rate in place, so past months are unaffected.",
+      "dialogHint": "This applies to all qualifying referrals from {{date}} — it never edits the old rate in place, so past months are unaffected.",
       "amount": "Amount",
       "source": "Source (optional)",
-      "effectiveFromNote": "Starts today unless the rate is applied from a later date.",
       "confirm": "Confirm change",
       "saved": "Referral bonus rate updated.",
       "amountInvalid": "Enter an amount greater than 0."
@@ -4812,6 +4812,7 @@
       "perUnit": "per unit",
       "referralOnly": "Referral only",
       "referralPendingLocked": "{{count}} referral bonus pending — month locked",
+      "referralPendingNoRate": "{{count}} qualifying referrals waiting for a rate",
       "referralEmpty": "No referral-sourced incentives for this month yet"
     },
     "rewards": {
@@ -5129,6 +5130,7 @@
       "totalEvents": "Total referrals",
       "empty": "No referral bonus events for this month yet.",
       "pendingMonthLocked": "{{count}} referral bonus pending — month locked",
+      "pendingNoRate": "{{count}} qualifying referrals waiting for a rate",
       "voidNote": "Voiding only has a real signal for AMC referrals today (contract cancelled). Sale/service referrals have no cancellation mechanism in this app, so those can only be voided for an inactive referrer or a test customer.",
       "source": {
         "label": "Source",

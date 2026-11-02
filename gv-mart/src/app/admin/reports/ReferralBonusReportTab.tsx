@@ -140,6 +140,12 @@ export function ReferralBonusReportTab() {
         </p>
       ) : null}
 
+      {summary && (summary.pending_no_rate ?? 0) > 0 ? (
+        <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm font-medium text-warning">
+          {t("reports.referralBonus.pendingNoRate", { count: summary.pending_no_rate })}
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <KpiCard label={t("reports.referralBonus.totalEvents")} value={isLoading ? "—" : String(summary?.total_events ?? 0)} icon={<Gift className="size-4" />} loading={isLoading} />
         <KpiCard label={t("reports.referralBonus.status.pending")} value={isLoading ? "—" : String(summary?.pending ?? 0)} loading={isLoading} />

@@ -47,6 +47,7 @@ export function IncentivesTab() {
   // with no further UI change needed.
   const { data: referralReport } = useReferralBonusReport(period)
   const pendingLocked = referralReport?.summary.pending_month_locked ?? 0
+  const pendingNoRate = referralReport?.summary.pending_no_rate ?? 0
 
   const visibleRows = referralOnly ? (rows ?? []).filter((r) => !!r.referral_bonus_event_id) : rows ?? []
 
@@ -100,6 +101,12 @@ export function IncentivesTab() {
       {pendingLocked > 0 ? (
         <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm font-medium text-warning">
           {t("hr.incentives.referralPendingLocked", { count: pendingLocked })}
+        </p>
+      ) : null}
+
+      {pendingNoRate > 0 ? (
+        <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm font-medium text-warning">
+          {t("hr.incentives.referralPendingNoRate", { count: pendingNoRate })}
         </p>
       ) : null}
 

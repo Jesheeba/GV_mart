@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useReferralBonusRates, useSetReferralBonusRate } from "@/hooks/useReferralBonusRates"
 import type { ReferralSource } from "@/services/referralBonusRates"
+import { getIstNow } from "@/lib/ist"
 
 const SOURCES: ReferralSource[] = ["sale", "amc", "service"]
 
@@ -124,7 +125,7 @@ export function ReferralBonusRateCard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogTitle>{t("masters.referralBonusRate.dialogTitle")}</DialogTitle>
-          <DialogDescription>{t("masters.referralBonusRate.dialogHint")}</DialogDescription>
+          <DialogDescription>{t("masters.referralBonusRate.dialogHint", { date: getIstNow().date })}</DialogDescription>
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -160,7 +161,6 @@ export function ReferralBonusRateCard() {
                 ))}
               </select>
             </div>
-            <p className="text-xs text-text-muted">{t("masters.referralBonusRate.effectiveFromNote")}</p>
             {error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{error}</p> : null}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>

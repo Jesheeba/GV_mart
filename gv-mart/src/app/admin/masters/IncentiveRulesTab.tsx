@@ -41,7 +41,9 @@ export function IncentiveRulesTab() {
   ]
 
   return (
-    <EntityCrudTable<IncentiveRuleRow>
+    <>
+      <p className="mb-3 text-xs text-text-muted">{t("masters.incentives.finderCreditNote")}</p>
+      <EntityCrudTable<IncentiveRuleRow>
       fields={fields}
       rows={rows ?? []}
       getId={(r) => r.id}
@@ -75,5 +77,6 @@ export function IncentiveRulesTab() {
       }
       onDelete={(id) => deleteMut.mutateAsync(id)}
     />
+    </>
   )
 }
