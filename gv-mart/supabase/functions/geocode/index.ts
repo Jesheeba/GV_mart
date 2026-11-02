@@ -14,6 +14,15 @@
 // technician, staff) qualifies, since the address picker is used by
 // customers too, not just staff.
 //
+// That alone is STILL not a real bound in practice: customer_auto_onboard
+// grants a 'customer' profile to any Google sign-in with no vetting, so
+// "any signed-in role" is, functionally, "anyone with a Google account".
+// Right after the getUser check, every action below also passes through a
+// per-user rate limit (20261202100100_geocode_rate_limit.sql) -- a burst
+// window and a daily window, both enforced server-side in one small table +
+// SECURITY DEFINER function. Fails OPEN (never blocks a real request) if the
+// rate-limit check itself errors for any reason.
+//
 // Four actions, matching Google's own two-step Autocomplete flow plus a
 // plain-geocode fallback and a driving-distance lookup for live tracking:
 //   - "autocomplete": Places Autocomplete API — live-as-you-type predictions
@@ -192,6 +201,58 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
   const { data: userRes, error: userErr } = await admin.auth.getUser(token)
   if (userErr || !userRes?.user) return jsonError("Invalid or expired session", 401)
+
+  // Per-user rate limit (20261202100100_geocode_rate_limit.sql) -- covers every action below
+  // from this one call site. customer_auto_onboard grants a 'customer' profile to ANY Google
+  // sign-in with no vetting, so the auth check above alone does not bound who can run up
+  // billed Google Maps calls through this function.
+  //
+  // ROLE-BASED TIERS (code-only -- the RPC itself is tier-agnostic, just 4 numeric params):
+  //   - staff (master / operation_admin / sales_admin): burst 150 calls / 2 min, daily
+  //     STAFF_DAILY_MAX. Sized for a dispatcher actively watching the fleet live-tracking map
+  //     (TechniciansMapPage.tsx's useDirectionsDistance, several technicians at once, each a
+  //     separate `directions` call whenever their rounded position bucket changes -- not
+  //     throttled by React Query's staleTime). STAFF_DAILY_MAX was originally 2500, but that
+  //     alone exceeds the project's entire Google Cloud Console daily quota for this API
+  //     (~1000/day for everyone combined) -- lowered to 800 so even one heavy dispatcher-day
+  //     cannot single-handedly exhaust the shared quota, while the real cause (the live-
+  //     tracking map re-fetching far more often than the UI actually needs) is fixed
+  //     separately on the frontend (throttled refetch, hidden-tab pause, no-active-job skip --
+  //     see TechniciansMapPage.tsx/useDirectionsDistance).
+  //   - everyone else (customer, technician, or no profile row yet): burst 40 calls / 2 min,
+  //     daily 200. The owner's own invariant: a single customer's daily cap must stay at or
+  //     under ~1/5 of the Google Cloud Console daily quota set for this project (~1000/day
+  //     for everyone combined) -- 200 is exactly that fifth. Comfortably above this
+  //     codebase's own measured realistic-heavy-day estimate for one customer (~100-150
+  //     calls: several autocomplete/geocode/reverse address-entry sessions in one day), so no
+  //     legitimate customer should ever hit it; a single abusive account is capped at 20% of
+  //     the entire shared quota, not free to exhaust it alone. Burst (40/2min) matches this
+  //     codebase's own measured worst-case single-session address-entry burst. Technician is
+  //     deliberately NOT given the staff tier here: a technician's own MapPage shows exactly
+  //     one destination at a time (their current job), a far lower volume than a dispatcher
+  //     watching many technicians at once -- grouped with "everyone else" as the safe default
+  //     until/unless the owner asks for a dedicated technician tier.
+  //
+  // FAIL OPEN on any error from the rate-limit check itself (RPC missing/not yet migrated,
+  // network hiccup, anything) -- a DB hiccup on the counter must never block real address
+  // entry. Logged via console.error so it is visible in Supabase function logs without ever
+  // surfacing as a hard error to the caller.
+  const STAFF_DAILY_MAX = 800
+  const STAFF_ROLES = new Set(["master", "operation_admin", "sales_admin"])
+  const { data: profileRow } = await admin.from("profiles").select("role").eq("id", userRes.user.id).maybeSingle()
+  const isStaff = !!profileRow?.role && STAFF_ROLES.has(profileRow.role)
+  const rateLimitParams = isStaff
+    ? { p_burst_window_seconds: 120, p_burst_max: 150, p_day_window_seconds: 86400, p_day_max: STAFF_DAILY_MAX }
+    : { p_burst_window_seconds: 120, p_burst_max: 40, p_day_window_seconds: 86400, p_day_max: 200 }
+  const { data: rateLimitAllowed, error: rateLimitErr } = await admin.rpc("check_and_increment_geocode_rate_limit", {
+    p_user_id: userRes.user.id,
+    ...rateLimitParams,
+  })
+  if (rateLimitErr) {
+    console.error("geocode rate-limit check failed, failing open:", rateLimitErr.message)
+  } else if (rateLimitAllowed === false) {
+    return jsonError("Too many location/address lookups. Please wait a few minutes and try again.", 429)
+  }
 
   let body: GeocodeRequest
   try {
