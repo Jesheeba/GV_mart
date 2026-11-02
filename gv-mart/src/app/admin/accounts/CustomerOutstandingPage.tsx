@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Loader2, Plus, CircleCheck } from "lucide-react"
+import { Loader2, Plus, CircleCheck, RefreshCw } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { useAssignableProfiles } from "@/hooks/useTasks"
 import {
@@ -14,8 +14,9 @@ import {
   useCloseOutstandingReminder,
   useCancelOutstandingReminder,
   useRescheduleOutstandingReminder,
+  useRefreshOutstandingTasks,
 } from "@/hooks/useAccountsFollowup"
-import { classifyReminderBucket, type ReminderBucket } from "@/services/reportMappers"
+import { classifyReminderBucket, countNeedingFollowUp, type ReminderBucket } from "@/services/reportMappers"
 import { formatCurrency } from "@/lib/sale-calc"
 import { toLocalDateString } from "@/lib/local-date"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,8 @@ export function CustomerOutstandingPage() {
   // Item 2: the bulk sweep runs whenever this page loads, not only when one
   // customer's own Follow up dialog opens.
   useReconcileAllOutstandingOnLoad()
+  const refreshMut = useRefreshOutstandingTasks()
+  const needingFollowUp = countNeedingFollowUp(rows ?? [])
 
   if (profile && profile.role !== "master") {
     return <p className="text-sm text-text-muted">{t("accounts.masterOnlyNote")}</p>
@@ -45,9 +48,25 @@ export function CustomerOutstandingPage() {
 
   return (
     <div className="space-y-4 pt-2">
-      <div>
-        <h1 className="text-2xl font-bold text-text">{t("accounts.outstanding.title")}</h1>
-        <p className="text-sm text-text-muted">{t("accounts.outstanding.subtitle")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-text">{t("accounts.outstanding.title")}</h1>
+          <p className="text-sm text-text-muted">{t("accounts.outstanding.subtitle")}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <Button variant="outline" size="sm" disabled={refreshMut.isPending} onClick={() => refreshMut.mutate()}>
+            {refreshMut.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+            {t("accounts.outstanding.refresh")}
+          </Button>
+          {!isLoading && !isError ? (
+            <p className="text-xs text-text-muted">{t("accounts.outstanding.refreshSummary", { count: needingFollowUp })}</p>
+          ) : null}
+          {refreshMut.isError ? (
+            <p className="text-xs text-danger">
+              {refreshMut.error instanceof Error && refreshMut.error.message ? refreshMut.error.message : t("common.actionFailed")}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <Tabs defaultValue="outstanding">

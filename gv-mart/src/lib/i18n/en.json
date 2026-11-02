@@ -993,6 +993,18 @@
       "duplicate": "An outcome with this name already exists.",
       "cannotDelete": "This outcome can't be deleted — it's built-in or already used in a logged call. Mark it Inactive instead."
     },
+    "accountsOutstanding": {
+      "title": "Customer outstanding follow-ups",
+      "hint": "Who gets assigned a follow-up task, and the minimum unpaid balance and age before one is created.",
+      "minBalance": "Minimum balance (₹)",
+      "minBalanceHint": "A customer's total unpaid balance must reach this before a follow-up task is created.",
+      "minDays": "Minimum age (days)",
+      "minDaysHint": "The oldest unpaid invoice must be at least this many days old.",
+      "owner": "Default owner",
+      "ownerDefault": "The master (default)",
+      "ownerHint": "Who new follow-up tasks are assigned to. Already-assigned tasks can still be reassigned from the task list.",
+      "saved": "Customer outstanding settings saved"
+    },
     "waterQuality": {
       "districtsTitle": "District TDS reference",
       "aliasesTitle": "District name matching",
@@ -5175,6 +5187,8 @@
       "none": "Nothing outstanding",
       "noneHint": "Customers with an unpaid balance show here, with a reminder and task to follow up.",
       "badgeTitle": "{{count}} outstanding reminder(s) overdue or due today",
+      "refresh": "Refresh",
+      "refreshSummary": "{{count}} customers need follow-up",
       "customer": "Customer",
       "amount": "Outstanding",
       "oldestInvoice": "Oldest bill",

@@ -17,6 +17,7 @@ import { settingsSchema, type SettingsFormInput, type SettingsOutput } from "@/l
 import { cn } from "@/lib/utils"
 import { AppointmentSlotsCard } from "./AppointmentSlotsCard"
 import { AutoAssignLeadsCard } from "./AutoAssignLeadsCard"
+import { AccountsOutstandingSettingsCard } from "./AccountsOutstandingSettingsCard"
 
 function hhmm(value: string) {
   return value.slice(0, 5)
@@ -343,6 +344,7 @@ export function SettingsTab() {
           per-group Save button here would be misleading — there is never
           anything pending to commit. */}
       <AutoAssignLeadsCard />
+      <AccountsOutstandingSettingsCard />
       <AppointmentSlotsCard />
 
       <Card className="gap-4">

@@ -577,3 +577,13 @@ export function classifyReminderBucket(
   if (dueAtLocalDateStr === todayLocalDateStr) return "dueToday"
   return "upcoming"
 }
+
+/** How many rows of the Customer Outstanding list currently have an open
+ * follow-up task — the number the "Refresh" button's summary line reports
+ * ("N customers need follow-up"). Counts rows, not tasks: sync_outstanding_
+ * tasks enforces at most one open task per customer, but this stays a
+ * defensive >0 check rather than assuming ===1 in case that invariant is
+ * ever relaxed. */
+export function countNeedingFollowUp(rows: { open_task_count: number }[]): number {
+  return rows.filter((r) => r.open_task_count > 0).length
+}

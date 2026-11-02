@@ -11,6 +11,7 @@ import {
   mapSalaryByStaff,
   mapSalesService,
   classifyReminderBucket,
+  countNeedingFollowUp,
   mapTopCustomers,
   mapYearOverYear,
   resolveExpenseCategoryName,
@@ -364,5 +365,19 @@ describe("classifyReminderBucket", () => {
 
   it("buckets an open reminder due after today as upcoming", () => {
     expect(classifyReminderBucket("open", "2026-10-30", today)).toBe("upcoming")
+  })
+})
+
+describe("countNeedingFollowUp", () => {
+  it("returns 0 for an empty list", () => {
+    expect(countNeedingFollowUp([])).toBe(0)
+  })
+
+  it("returns 0 when no row has an open task", () => {
+    expect(countNeedingFollowUp([{ open_task_count: 0 }, { open_task_count: 0 }])).toBe(0)
+  })
+
+  it("counts only rows with at least one open task", () => {
+    expect(countNeedingFollowUp([{ open_task_count: 0 }, { open_task_count: 1 }, { open_task_count: 2 }])).toBe(2)
   })
 })

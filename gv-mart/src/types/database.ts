@@ -6648,6 +6648,10 @@ export type Database = {
           auto_assign_leads: boolean
           // FEATURE_TECHNICIAN_LEAVE_REQUEST.md — hand-added, 20261106100000
           leave_notice_days: number
+          // 20261204100000_sync_outstanding_tasks.sql — hand-added, 2026-11-02
+          min_outstanding_balance: number
+          min_outstanding_days: number
+          default_accounts_owner_id: string | null
         }
         Insert: {
           review_incentives_enabled?: boolean
@@ -6729,6 +6733,9 @@ export type Database = {
           updated_at?: string
           auto_assign_leads?: boolean
           leave_notice_days?: number
+          min_outstanding_balance?: number
+          min_outstanding_days?: number
+          default_accounts_owner_id?: string | null
         }
         Update: {
           review_incentives_enabled?: boolean
@@ -6810,6 +6817,9 @@ export type Database = {
           updated_at?: string
           auto_assign_leads?: boolean
           leave_notice_days?: number
+          min_outstanding_balance?: number
+          min_outstanding_days?: number
+          default_accounts_owner_id?: string | null
         }
         Relationships: [
           {
@@ -8589,6 +8599,11 @@ export type Database = {
       delete_expense_category: {
         Args: { p_id: string }
         Returns: undefined
+      }
+      // 20261204100000_sync_outstanding_tasks.sql — hand-added, 2026-11-02
+      refresh_outstanding_tasks: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
     }
     Enums: {

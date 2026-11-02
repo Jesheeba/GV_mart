@@ -204,3 +204,12 @@ export async function deleteExpenseCategory(id: string) {
   const { error } = await supabase.rpc("delete_expense_category", { p_id: id })
   if (error) throw error
 }
+
+/** Master-only. Creates/refreshes/closes customer_outstanding tasks for the
+ * caller's own org (server derives org_id, never from a param here) and
+ * returns how many tasks it created, updated or closed. */
+export async function refreshOutstandingTasks() {
+  const { data, error } = await supabase.rpc("refresh_outstanding_tasks")
+  if (error) throw error
+  return data as number
+}

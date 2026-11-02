@@ -158,3 +158,15 @@ export function useDeleteExpenseCategory() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["accounts", "expenseCategories"] }),
   })
 }
+
+/** The Customer Outstanding page's "Refresh" button — master-only RPC,
+ * creates/refreshes/closes customer_outstanding tasks for the caller's own
+ * org. Refetches the outstanding list/reminders afterward so the "N
+ * customers need follow-up" summary reflects the result immediately. */
+export function useRefreshOutstandingTasks() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: accountsFollowup.refreshOutstandingTasks,
+    onSuccess: () => invalidateOutstanding(qc),
+  })
+}
