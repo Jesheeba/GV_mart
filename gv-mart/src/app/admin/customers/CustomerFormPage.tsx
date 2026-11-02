@@ -513,6 +513,10 @@ export function CustomerFormPage() {
               ) : null}
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="plotNo">{t("customers.form.plotNo")}</Label>
+              <Input id="plotNo" {...addressForm.register("plotNo")} />
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="buildingNo">{t("customers.form.buildingNo")}</Label>
               <Input id="buildingNo" {...addressForm.register("buildingNo")} />
             </div>
@@ -521,12 +525,12 @@ export function CustomerFormPage() {
               <Input id="buildingName" {...addressForm.register("buildingName")} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="plotNo">{t("customers.form.plotNo")}</Label>
-              <Input id="plotNo" {...addressForm.register("plotNo")} />
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="streetCross">{t("customers.form.streetCross")}</Label>
               <Input id="streetCross" {...addressForm.register("streetCross")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="landmark">{t("customers.form.landmark")}</Label>
+              <Input id="landmark" {...addressForm.register("landmark")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="area">{t("customers.form.area")}</Label>
@@ -551,10 +555,6 @@ export function CustomerFormPage() {
               {addressForm.formState.errors.pincode ? (
                 <p className="text-xs text-danger">{t(addressForm.formState.errors.pincode.message!)}</p>
               ) : null}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="landmark">{t("customers.form.landmark")}</Label>
-              <Input id="landmark" {...addressForm.register("landmark")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="district">{t("customers.form.district")}</Label>
