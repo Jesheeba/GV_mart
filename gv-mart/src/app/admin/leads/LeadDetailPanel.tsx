@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useAwardReferralPoints, useDeleteLead, useMoveLeadToCustomer, useUpdateLeadStatus } from "@/hooks/useAutomation"
+import { useReferrersForLeads } from "@/hooks/useReferrals"
 import { useQuotationsForLead } from "@/hooks/useQuotations"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -73,8 +74,21 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
   const pointsValid = points.trim() !== "" && Number.isFinite(pointsNum) && pointsNum >= 1
   const referrerAutocomplete = useCustomerAutocomplete(orgId, referrerSearch)
 
+  // Package 5: resolved referrer (leads.referred_by_user_id, no legacy fallback needed -- a lead
+  // always carries its own referrer directly, set at creation). Separate from the "award referral
+  // points" flow above, which is the old manual finder-credit mechanism.
+  const leadReferrers = useReferrersForLeads([lead.id])
+  const leadReferrer = leadReferrers.data?.[0] ?? null
+
   return (
     <Card className="gap-3.5 px-5">
+      {leadReferrer ? (
+        <p className="flex items-center gap-1 text-xs text-text-muted">
+          <UserCheck className="size-3.5" />
+          {t("leads.detail.referredBy", { name: leadReferrer.referrer_name })}
+        </p>
+      ) : null}
+
       {(lead.lead_items ?? []).length > 0 ? (
         <p className="text-xs text-text-muted">
           {t("leads.detail.items")}: {(lead.lead_items ?? []).map((li) => li.spares?.name ?? li.products?.name).filter(Boolean).join(", ")}

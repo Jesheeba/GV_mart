@@ -16,6 +16,7 @@ import { useLeadKindOptions } from "@/hooks/useLeadLists"
 import { SourceBadge, TechnicianChip } from "./LeadBadges"
 import { FollowupCell } from "./FollowupBadges"
 import { useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
+import { useReferrersForLeads } from "@/hooks/useReferrals"
 import { AssignLeadDialog } from "./AssignLeadDialog"
 import { SetFollowupDialog } from "./SetFollowupDialog"
 import { canScheduleLead } from "@/lib/lead-assign"
@@ -28,7 +29,7 @@ import type { Enums } from "@/types/database"
 import { cn } from "@/lib/utils"
 
 const TABLE_GRID_COLS =
-  "grid-cols-[minmax(140px,1.3fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(100px,0.8fr)_minmax(170px,1.4fr)_minmax(110px,1fr)_minmax(80px,0.8fr)]"
+  "grid-cols-[minmax(140px,1.3fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(100px,0.8fr)_minmax(170px,1.4fr)_minmax(110px,1fr)_minmax(110px,1fr)_minmax(80px,0.8fr)]"
 
 type QuickFilter = "" | "overdue" | "noFollowup" | "stuck"
 const QUICK_FILTERS: Exclude<QuickFilter, "">[] = ["overdue", "noFollowup", "stuck"]
@@ -373,6 +374,11 @@ function LeadsTable({
   const { t } = useTranslation()
   const { label: kindLabel } = useLeadKindOptions()
 
+  // Package 5: "Referred by" column -- one batch call per visible page of rows (well under the
+  // RPC's own 200-id cap in any normal view). A lead with no referrer simply has no entry here.
+  const leadReferrers = useReferrersForLeads(rows.map((r) => r.id))
+  const referrerByLeadId = new Map((leadReferrers.data ?? []).map((r) => [r.lead_id, r]))
+
   const headers = [
     t("leads.table.name"),
     t("leads.table.mobile"),
@@ -382,6 +388,7 @@ function LeadsTable({
     t("leads.table.status"),
     t("leads.table.nextFollowup"),
     t("leads.table.technician"),
+    t("leads.table.referredBy"),
     t("leads.table.created"),
   ]
 
@@ -471,6 +478,9 @@ function LeadsTable({
               ) : null}
             </span>
             <TechnicianChip source={r.source} name={r.technicians?.profiles?.full_name ?? null} />
+            <span className="truncate text-[13px] font-medium text-text" title={referrerByLeadId.get(r.id)?.referrer_name}>
+              {referrerByLeadId.get(r.id)?.referrer_name ?? "—"}
+            </span>
             <span className="text-xs font-medium text-text-muted">{formatDate(r.created_at)}</span>
           </div>
         ))

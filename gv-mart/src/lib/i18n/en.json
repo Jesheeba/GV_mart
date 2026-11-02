@@ -406,6 +406,7 @@
       "customer": "Customer",
       "area": "Area",
       "email": "Email",
+      "referredBy": "Referred by",
       "products": "Products",
       "amc": "AMC",
       "noAmc": "No AMC",
@@ -491,7 +492,9 @@
         "range": "Observed range: {{low}}–{{high}} ppm",
         "source": "{{source}}, {{year}} · {{count}} samples"
       },
-      "referredBy": "Referred by {{name}}",
+      "referredBy": "Referred by {{name}} ({{source}})",
+      "referrerSourceDirect": "direct",
+      "referrerSourceLegacy": "from earlier lead",
       "needsSetup": "Needs setup",
       "needsSetupHint": "Auto-created from a won lead — address/family details are incomplete.",
       "familyChip": "{{count}} family: {{names}}",
@@ -3659,6 +3662,7 @@
       "topic": "Topic",
       "status": "Status",
       "technician": "Technician",
+      "referredBy": "Referred by",
       "created": "Created",
       "nextFollowup": "Next follow-up"
     },
@@ -3753,6 +3757,7 @@
     },
     "detail": {
       "selectHint": "Select a lead to view activity and update status.",
+      "referredBy": "Referred by {{name}}",
       "items": "Items",
       "quotations": "Quotations",
       "logActivity": "Log activity",

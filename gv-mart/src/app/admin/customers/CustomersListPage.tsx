@@ -17,6 +17,7 @@ import {
   useCustomersList,
   useIsTestCustomerCount,
 } from "@/hooks/useCustomers"
+import { useReferrersForCustomers } from "@/hooks/useReferrals"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { AMC_STATUS_TONE } from "@/lib/amc-status"
@@ -115,6 +116,10 @@ export function CustomersListPage() {
     orgId,
     (data?.rows ?? []).map((r) => r.id)
   )
+  // Package 5: "Referred by" column -- one batch call per page (pageSize 20, well under the
+  // RPC's own 200-id cap). A customer with no referrer simply has no entry here.
+  const referrers = useReferrersForCustomers((data?.rows ?? []).map((r) => r.id))
+  const referrerByCustomerId = new Map((referrers.data ?? []).map((r) => [r.customer_id, r]))
 
   const effectiveCount = computeCustomersListCount({
     hasActiveFilters,
@@ -245,6 +250,20 @@ export function CustomersListPage() {
       key: "email",
       header: t("customers.table.email"),
       render: (c) => c.email ?? "—",
+    },
+    {
+      key: "referredBy",
+      header: t("customers.table.referredBy"),
+      render: (c) => {
+        const r = referrerByCustomerId.get(c.id)
+        if (!r) return "—"
+        const source = r.source_label === "direct" ? t("customers.detail.referrerSourceDirect") : t("customers.detail.referrerSourceLegacy")
+        return (
+          <span title={`${r.referrer_name} (${source})`} className="truncate">
+            {r.referrer_name} <span className="text-text-muted">({source})</span>
+          </span>
+        )
+      },
     },
     {
       key: "products",

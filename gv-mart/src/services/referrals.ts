@@ -97,3 +97,41 @@ export async function getReferralBonusPreview(orgId: string): Promise<ReferralBo
   if (error) throw error
   return (data ?? { summary: { total_events: 0, pending: 0, approved: 0, paid: 0, voided: 0, pending_month_locked: 0, pending_no_rate: null }, rows: [] }) as unknown as ReferralBonusReport
 }
+
+// ── Package 5: show the resolved referrer to staff (customer/lead detail, "Referred by" column
+// in both lists). Two batch RPCs, max 200 ids each (enforced server-side) -- a row is simply
+// absent from the result for an id with no referrer, a cross-org id, or beyond the cap, so the
+// caller only needs to look up by id and treat a miss as "no referrer", never as an error. ─────
+
+export type ReferrerSourceLabel = "direct" | "from earlier lead"
+
+export type CustomerReferrer = {
+  customer_id: string
+  referrer_id: string
+  referrer_name: string
+  referrer_role: string
+  source_label: ReferrerSourceLabel
+}
+
+export type LeadReferrer = {
+  lead_id: string
+  referrer_id: string
+  referrer_name: string
+  referrer_role: string
+}
+
+const MAX_REFERRER_BATCH_IDS = 200
+
+export async function getReferrersForCustomers(customerIds: string[]): Promise<CustomerReferrer[]> {
+  if (customerIds.length === 0) return []
+  const { data, error } = await rpc("get_referrers_for_customers", { p_customer_ids: customerIds.slice(0, MAX_REFERRER_BATCH_IDS) })
+  if (error) throw error
+  return (data ?? []) as unknown as CustomerReferrer[]
+}
+
+export async function getReferrersForLeads(leadIds: string[]): Promise<LeadReferrer[]> {
+  if (leadIds.length === 0) return []
+  const { data, error } = await rpc("get_referrers_for_leads", { p_lead_ids: leadIds.slice(0, MAX_REFERRER_BATCH_IDS) })
+  if (error) throw error
+  return (data ?? []) as unknown as LeadReferrer[]
+}

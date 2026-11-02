@@ -35,3 +35,27 @@ export function useReferralBonusPreview(orgId: string | undefined) {
     enabled: !!orgId,
   })
 }
+
+/** Package 5: resolved referrer for a batch of customers (customer detail page, and the
+ *  "Referred by" column on the customer list — call with the current page's visible ids only,
+ *  the RPC's own 200-id cap is enforced again client-side in services/referrals.ts). A customer
+ *  with no referrer simply has no entry in the returned array/map -- never an error. */
+export function useReferrersForCustomers(customerIds: string[]) {
+  const sortedIds = [...customerIds].sort()
+  return useQuery({
+    queryKey: ["referrals", "forCustomers", sortedIds],
+    queryFn: () => referrals.getReferrersForCustomers(sortedIds),
+    enabled: sortedIds.length > 0,
+  })
+}
+
+/** Same as useReferrersForCustomers, for leads (lead detail page, "Referred by" column on the
+ *  lead list). */
+export function useReferrersForLeads(leadIds: string[]) {
+  const sortedIds = [...leadIds].sort()
+  return useQuery({
+    queryKey: ["referrals", "forLeads", sortedIds],
+    queryFn: () => referrals.getReferrersForLeads(sortedIds),
+    enabled: sortedIds.length > 0,
+  })
+}

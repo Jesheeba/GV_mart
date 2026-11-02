@@ -22,7 +22,8 @@ import {
   useCustomerTimeline,
   useSetCustomerPreferredLanguage,
 } from "@/hooks/useCustomers"
-import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
+import { useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
+import { useReferrersForCustomers } from "@/hooks/useReferrals"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
@@ -113,8 +114,12 @@ export function CustomerDetailPage() {
   const { toast } = useToast()
   const setPreferredLanguage = useSetCustomerPreferredLanguage(customer?.id)
   const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile ?? undefined)
-  const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
-  const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
+  // Package 5: resolved referrer (customers.referred_by_user_id first, else the legacy
+  // source='referral' lead owner -- see get_referrers_for_customers). Replaces an earlier,
+  // technician-only, legacy-lead-only lookup that couldn't see a staff referrer or the newer
+  // direct referred_by_user_id field at all.
+  const customerReferrers = useReferrersForCustomers(customer?.id ? [customer.id] : [])
+  const referrer = customerReferrers.data?.[0] ?? null
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
   const tdsSuggestion = useCustomerTdsSuggestion(orgId, primaryDistrict)
   const measuredWater = useCustomerMeasuredWaterReading(orgId, customer?.id)
@@ -387,10 +392,13 @@ export function CustomerDetailPage() {
                       <span className="text-sm text-text">{t("customers.detail.needsSetup")}</span>
                     </span>
                   ) : null}
-                  {referredByTechnicianName ? (
+                  {referrer ? (
                     <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
                       <UserPlus className="size-3" />
-                      {t("customers.detail.referredBy", { name: referredByTechnicianName })}
+                      {t("customers.detail.referredBy", {
+                        name: referrer.referrer_name,
+                        source: referrer.source_label === "direct" ? t("customers.detail.referrerSourceDirect") : t("customers.detail.referrerSourceLegacy"),
+                      })}
                     </span>
                   ) : null}
                   {customer.customer_members.length > 0 ? (
