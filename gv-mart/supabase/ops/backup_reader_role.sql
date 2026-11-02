@@ -1,3 +1,5 @@
+-- guard: not for run_rehearsal.mjs
+--
 -- NOT a migration. Report/plan artifact for the nightly-backup proposal —
 -- run manually against production only after explicit confirmation, never
 -- through the migration pipeline (this role and its grants are

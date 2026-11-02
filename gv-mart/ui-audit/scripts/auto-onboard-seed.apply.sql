@@ -1,6 +1,6 @@
 -- Manual seed for the 3 auto-onboard Playwright scripts (auto-onboard-*.mjs). NOT part of the
 -- build, NOT run automatically by anything. Run by hand via run_rehearsal.mjs against a
--- dev/staging project before running the scripts, then run auto-onboard-cleanup.sql after.
+-- dev/staging project before running the scripts, then run auto-onboard-cleanup.apply.sql after.
 --
 -- Creates three REAL (persisted) rows in a throwaway __TEST_ organisation:
 --   - a Google identity with no matching customer       -> onboard-new.test@gvmart.invalid

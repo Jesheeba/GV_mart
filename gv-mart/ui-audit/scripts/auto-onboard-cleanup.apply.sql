@@ -1,4 +1,4 @@
--- Cleanup for auto-onboard-seed.sql. Run by hand via run_rehearsal.mjs once the 3 Playwright
+-- Cleanup for auto-onboard-seed.apply.sql. Run by hand via run_rehearsal.mjs once the 3 Playwright
 -- scripts are done with it.
 --
 -- IMPORTANT: customer_auto_onboard() always onboards into "the one real (non-__TEST_)

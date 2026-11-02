@@ -1,6 +1,6 @@
 // Manual verification: a Google sign-in whose email matches exactly one existing, unlinked
 // customer lands on THAT customer's own data (name "__TEST_ existing", not a blank new profile).
-// Run auto-onboard-seed.sql first.
+// Run auto-onboard-seed.apply.sql first.
 // Usage: node ui-audit/scripts/auto-onboard-existing-email.mjs
 import { chromium } from "playwright"
 import { signInAs } from "./auto-onboard-lib.mjs"

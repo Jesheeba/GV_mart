@@ -1,5 +1,5 @@
 // Manual verification: a brand-new Google sign-in (zero email matches) lands on a clean new
-// 'customer_app' customer, not stuck on any notice. Run auto-onboard-seed.sql first.
+// 'customer_app' customer, not stuck on any notice. Run auto-onboard-seed.apply.sql first.
 // Usage: node ui-audit/scripts/auto-onboard-new-user.mjs
 import { chromium } from "playwright"
 import { signInAs } from "./auto-onboard-lib.mjs"

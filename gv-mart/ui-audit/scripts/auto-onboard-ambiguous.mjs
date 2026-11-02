@@ -1,6 +1,6 @@
 // Manual verification: a Google sign-in whose email matches TWO existing customers never picks
 // one — it lands on a fresh, independent customer, and the master customer list shows that new
-// row flagged "Needs review". Run auto-onboard-seed.sql first; this script signs in as the
+// row flagged "Needs review". Run auto-onboard-seed.apply.sql first; this script signs in as the
 // ambiguous-email user (customer app) AND, separately, checks the admin list as master — needs
 // MASTER_EMAIL / MASTER_PASS env vars for that second part (same convention as the other
 // ui-audit scripts that sign in as staff).
