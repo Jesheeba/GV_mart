@@ -318,11 +318,10 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     p_unlisted_product_name: input.unlistedProductName ?? null,
     p_complaint_type_id: input.complaintTypeId ?? null,
     p_unavailable_windows: input.unavailableWindows ?? null,
-    // Urgent outage hotfix (2026-11-02): the live create_complaint_ticket
-    // RPC does not have a p_technician_id parameter yet (migration
-    // 20261202090000 is not applied) -- sending it made every call fail
-    // with "function not found". Do NOT re-add this until that migration
-    // (merged with the #4 day-bump fix) is live. See DECISIONS.md.
+    // Restored 2026-11-02: the merged #4+#1 migration
+    // (20261202120000_complaint_daybump_fix_and_technician_pick_merged.sql)
+    // is live -- create_complaint_ticket now has p_technician_id.
+    p_technician_id: input.technicianId ?? null,
   })
   if (error) throw error
   return data as {
