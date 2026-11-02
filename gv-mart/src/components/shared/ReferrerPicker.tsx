@@ -8,10 +8,9 @@ import { useActiveReferrers } from "@/hooks/useReferrals"
  * PreferredLanguageSelect.tsx / NewComplaintPage.tsx's technician select) —
  * not shadcn/ui.
  *
- * Backed by `useActiveReferrers` -> `list_active_referrers` RPC, which is
- * NOT YET BUILT by the DB stream (see services/referrals.ts). Renders empty
- * until that RPC exists; the field is optional everywhere it's used, so an
- * empty list is harmless in the meantime.
+ * Backed by `useActiveReferrers` -> `list_active_referrers` RPC (live since
+ * referral incentives package 2). The field is optional everywhere it's
+ * used, so an empty list (e.g. no active technicians/staff yet) is harmless.
  *
  * Groups technician/staff kinds into two <optgroup>s only when both kinds
  * are present in the result — a flat list otherwise (single-group org, or
