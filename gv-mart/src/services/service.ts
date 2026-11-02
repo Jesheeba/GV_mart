@@ -503,8 +503,15 @@ export async function listTechnicians(orgId: string): Promise<TechnicianOption[]
   // on-duty means "checked in today, not checked out yet", same gate the
   // assignment engine uses. Date must be IST "today" (src/lib/ist.ts), not
   // the device's own UTC date.
+  //
+  // is_active filter: this feeds every manual assignment dropdown (ticket
+  // reassign, New Complaint, appointment assign, AMC/sale technician pick).
+  // An already-assigned inactive technician's name on an existing
+  // ticket/appointment/payment-proof still displays correctly — that comes
+  // from a separate joined `technicians` field on the record itself, not
+  // from this list — only the *selectable* options are filtered here.
   const [techRes, attendanceRes] = await Promise.all([
-    supabase.from("technicians").select("id, profiles(full_name)").eq("org_id", orgId),
+    supabase.from("technicians").select("id, profiles(full_name)").eq("org_id", orgId).eq("is_active", true),
     supabase.from("attendance").select("technician_id").eq("org_id", orgId).eq("date", getIstNow().date).not("check_in_at", "is", null).is("check_out_at", null),
   ])
   if (techRes.error) throw techRes.error

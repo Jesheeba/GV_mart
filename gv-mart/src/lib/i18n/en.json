@@ -2954,7 +2954,7 @@
   "technician": {
     "deactivated": {
       "title": "Account deactivated",
-      "body": "Your admin has deactivated your account. You won't see active bookings or receive new assignments. Contact your admin if you think this is a mistake.",
+      "body": "Your account has been deactivated. You won't see active bookings or receive new assignments. Please contact the office — call or visit in person to sort this out.",
       "signOut": "Sign out"
     },
     "locationPrompt": {
