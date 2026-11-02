@@ -465,7 +465,35 @@ begin
       -- CLAIM OWN NUMBER: no merge, no new profile -- set this same customer's own mobile and
       -- phone_verified, but only after re-confirming under lock that no OTHER customer has since
       -- claimed that exact number (a real race, not assumed safe from request time).
+      --
+      -- SECOND independent adversarial review found a real HIGH here, fixed: the row lock below
+      -- (`for update` on the caller's OWN customer id) does NOT serialize two DIFFERENT callers
+      -- racing to claim the SAME phone number -- each locks a different row, so under READ
+      -- COMMITTED both `exists(...)` checks below could run concurrently, before either UPDATE
+      -- commits, and both pass, producing two customers with the identical mobile. An advisory
+      -- lock keyed on the PHONE NUMBER itself (not either customer id) is what actually
+      -- serializes this -- the same pattern request_customer_link_code's own
+      -- `pg_advisory_xact_lock(hashtext(v_target_customer_id::text))` already uses for its own
+      -- superseding-challenge write, just keyed differently here since there is no shared
+      -- customer id to lock for two callers who have never met.
+      perform pg_advisory_xact_lock(hashtext('customer_link_otp_claim:' || v_challenge.requested_mobile));
+
+      -- SECOND independent review, MEDIUM, also fixed: the MERGE branch below re-verifies every
+      -- FROM-side precondition (source/archived/emptiness) under lock before acting, "not trusted
+      -- from request time" per this migration's own stated philosophy -- this branch skipped that
+      -- for the caller's own customer. Closed the same way: lock the row, then re-check it is
+      -- still exactly the shape this branch assumes (still the caller's own, still unarchived,
+      -- still has no mobile of its own yet -- a concurrent merge/claim/admin action could have
+      -- changed any of these between request and verify).
       perform 1 from public.customers where id = v_caller_customer_id for update;
+
+      if exists (
+        select 1 from public.customers
+        where id = v_caller_customer_id
+          and (primary_profile_id is distinct from v_user_id or archived_at is not null or mobile is not null)
+      ) then
+        return jsonb_build_object('status', 'invalid_or_expired', 'attempts_left', 0);
+      end if;
 
       if exists (
         select 1 from public.customers
@@ -516,6 +544,13 @@ begin
          or v_to.archived_at is not null
          or v_to.primary_profile_id is not null
          or v_to.auto_link_blocked_at is not null
+         -- SECOND independent review, LOW, fixed: re-confirm TO's own mobile still matches the
+         -- number the caller actually proved control of -- if TO's mobile was edited by staff
+         -- between request and verify, the caller's code proved they own the OLD number, not
+         -- whatever TO's mobile is now; merging onto a customer that no longer matches is exactly
+         -- the kind of silent-mismatch this re-check (like every other condition in this list)
+         -- exists to catch under lock, not assume unchanged from request time.
+         or v_to.mobile is distinct from v_challenge.requested_mobile
       then
         -- Lost the race on either side (real activity landed on the caller's own auto customer, or
         -- the matched customer got linked/blocked/archived/flagged test in the meantime): the code
@@ -1078,7 +1113,7 @@ begin
   end if;
 
   v_actual_hash := encode(sha256(convert_to(replace(v_embedded_merge, E'\r', ''), 'UTF8')), 'hex');
-  if v_actual_hash is distinct from '99e22c60066a87ec44a177329de32d62274e865e1c0f4e3865ec39f9bcb5339e' then raise exception 'REHEARSAL_REFUSED: merge migration hash mismatch (got %)', v_actual_hash; end if;
+  if v_actual_hash is distinct from '4b4336972707d46730eba7514b62dea0d3edcf6beef4831beeb1c8b3d8b66568' then raise exception 'REHEARSAL_REFUSED: merge migration hash mismatch (got %)', v_actual_hash; end if;
   v_actual_hash := encode(sha256(convert_to(replace(v_embedded_mergeTest, E'\r', ''), 'UTF8')), 'hex');
   if v_actual_hash is distinct from '225c67460f8220a3c05f3675548242b24449df3199181b459c7ed8179c94070c' then raise exception 'REHEARSAL_REFUSED: merge test hash mismatch (got %)', v_actual_hash; end if;
 

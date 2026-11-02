@@ -1352,3 +1352,169 @@ message can actually be delivered (the legacy cron-only path would eventually pi
 row too, but at the multi-hour cadence this project's own history already documents as unsuitable
 for a 10-minute-expiry code). **Nothing in WP1-WP5 was built, written, deployed, or applied this
 round** — this section is the plan only, awaiting the owner's go on each piece.
+
+## 15. WP1/WP2/WP3/WP4 built, per the owner's approval of section 14's plan — read-only
+## dispatch-queue analysis, two more independent review rounds
+
+The owner accepted section 14's analysis and approved building (not applying) WP1, approved
+building WP2 in this worktree (unpushed until WP1 is live), asked for WP3/WP4 to be prepared as
+text only, and asked for a precise read-only answer on the live dispatch queue before any owner
+test. All four are recorded here. **No live apply, no push to origin, no deploy, no secrets
+execution, no customer-facing test performed by this round.**
+
+### 15.0 Context update: the four migrations from sections 11-14 are now all applied live for real
+
+Before starting this round, confirmed read-only: `20261120100200`, `20261121100100`,
+`20261121100150`, and `20261121100200` are ALL now registered in
+`supabase_migrations.schema_migrations` — the coordinator applied them directly and independently
+verified them clean. This is why WP1's own rehearsal/apply scripts (below) embed and pin ONLY
+`20261130100100` itself against the REAL current live state, not the whole prior chain — the
+first draft of this round's rehearsal generator still tried to re-embed all four already-live
+migrations and their own internal drift checks correctly refused (each pins the hash of what was
+live BEFORE it itself applied, not the current, post-itself state) — found by actually running it
+against the live project, not assumed.
+
+### 15.1 Read-only dispatch-queue analysis (owner's explicit ask, before any test)
+
+Read live: `whatsapp_outbox` currently has **zero `pending` rows** and 19 `failed` rows (18
+`service_ticket`, 1 a different, non-milestone ref_type), and **every one of those 19 already has
+`retried_at` set** — confirmed by reading their actual `error` text (`'blocked:
+test_mode_not_allow_listed'` for most, one older `'neutralised: test AMC contract...'`).
+
+Read `supabase/functions/wa-scheduled-tasks/index.ts`'s `runFailedSendRetries`/
+`runFailedSendRetriesV2`/`runLegacyFailedSendRetries` in full to answer precisely, not generically:
+both the v2 and legacy failed-retry passes filter `.is("retried_at", null)` — a row with
+`retried_at` already set is EXCLUDED from ever being picked up by either pass again, permanently,
+regardless of `wa_dispatch_v2_enabled`/`scope`. **Conclusion: turning `wa_dispatch_v2_enabled =
+true` and `wa_dispatch_v2_scope = 'org'` on for ~15 minutes would retry, resend, or alter NONE of
+the 19 existing failed rows or any pending row (there are none) — there is nothing currently
+eligible for either retry pass to touch.** The only real effect during that window: any BRAND-NEW
+milestone event firing during it (e.g. a technician completing a ticket) would route through the
+v2 dispatch path instead of legacy for that one send — but `wa_test_mode_enabled`'s allow-list
+(already `true` for the real org, confirmed) still blocks delivery to any number not on the list
+regardless of which path handles it, so no real customer receives anything wrong either way; the
+only difference is which code path processes it.
+
+Given this, the owner's own fallback ("OTP gate accepting `scope: 'numbers'` for allow-listed
+recipients only, needing its own review") is **not required by anything currently queued** — but
+is still recorded here as a text proposal, per the owner's instruction, for future reference or if
+the live queue state changes before the test actually happens: `is_customer_link_otp_enabled()`
+would need a second, OR'd condition alongside its existing `scope = 'org'` check — something like
+`exists (select 1 from settings where wa_dispatch_v2_enabled = true and wa_dispatch_v2_scope =
+'numbers')` AND the caller's own matched/target customer's `to_mobile` is present in that org's
+`wa_dispatch_v2_numbers` allow-list — checked at DISPATCH time (inside
+`customerLinkOtpUnsendableReason`, which already has the row's `to_mobile`), not at the flag-check
+RPC itself (which has no recipient to check against). **Not built.** This is exactly the kind of
+security-sensitive gate change the owner said needs its own review before being built at all, and
+nothing here authorizes building it.
+
+### 15.2 WP1 — built, local- and live-rehearsed, two independent review rounds, NOT applied
+
+New migration `20261130100100_customer_link_otp_merge_on_verify.sql`. Reproduces the LIVE bodies
+of `request_customer_link_code`/`verify_customer_link_code` (sha256-pinned via
+`pg_get_functiondef`, refuses on drift) plus: a relaxed `profile_exists` gate for a caller whose
+existing profile is the empty, auto-created shape (reusing `admin_merge_auto_customer`'s own six-
+table emptiness precondition, not calling that function — it requires `is_master()`); three
+verify-time outcomes — MERGE (archive the empty auto customer, never delete, link the matched
+customer, reason `otp_verified`), CLAIM OWN NUMBER (zero matches — set the typed, now-verified
+mobile directly on the caller's own record), and NO LINK + `needs_review` flagged on the caller's
+own customer (ambiguous match, or a match already linked elsewhere) — every outcome returning the
+same collapsed generic response shape the feature has used throughout, no new oracle. Also adds
+`customer_link_otp_card_eligible()`, a narrow read-only RPC WP2's frontend card uses, single-
+sourced from the same eligibility test.
+
+**Bug found by this round's own local rehearsal, not assumed correct from reading the code**: the
+first draft's top-level relaxation gate in `verify_customer_link_code` required FULL emptiness
+(the same six-table check), so a genuine race — real activity landing on the caller's own customer
+in the gap between request and verify, exactly scenario F's own test — turned into an unhandled
+`profile_exists` exception instead of the collapsed generic response every other race-loss case in
+this function already returns. Fixed by loosening the top-level gate to a pure routing decision
+(does a customer row of this shape exist at all), moving the full emptiness re-verification into
+the MERGE branch's own lock-gated re-check, where a failure correctly collapses.
+
+**Two independent review rounds**, same bar as every prior round on this branch:
+
+*String-literal/factual accuracy*: confirmed the diff against the prior migration
+(`20261121100150`) contains exactly the claimed additions, nothing else; confirmed the four copies
+of the six-table emptiness check (request's gate, verify's merge-branch recheck, the card-
+eligibility function, and — found genuinely NOT identical, correctly, since it's a deliberate
+routing-only check — verify's top-level gate) match where they're supposed to; confirmed both
+pinned hashes are consistent everywhere they appear; confirmed the test file's race scenarios
+(E, F) genuinely insert the colliding row strictly between request and verify, with no cross-
+scenario variable reuse. **Found a real factual gap, now closed by this section's own existence**:
+every file in this round (the migration, both apply scripts, the rehearsal, this branch's frontend
+code) cited "docs/DECISIONS.md section 15" before this section existed — section 14 ended the
+document, and its own text still said WP1 was "not written yet." That citation is now accurate.
+
+*Security*: found and this migration now fixes two real findings (not glossed over):
+- **HIGH, fixed**: the CLAIM OWN NUMBER branch's own lock (`for update` on the caller's OWN
+  customer row) does not serialize two DIFFERENT callers racing to claim the SAME phone number —
+  each locks a different row, so under READ COMMITTED both callers' own `exists(...)` uniqueness
+  checks could run concurrently before either UPDATE commits, both pass, and two customers end up
+  sharing one `mobile` value. Fixed with a second advisory lock, keyed on the phone number itself
+  (`pg_advisory_xact_lock(hashtext('customer_link_otp_claim:' || requested_mobile))`), taken before
+  the uniqueness check — the same kind of fix `request_customer_link_code`'s own pre-existing
+  advisory lock already applies for a different race, just keyed by phone instead of customer id
+  here since two unrelated callers share no customer id to lock.
+- **MEDIUM, fixed**: unlike the MERGE branch, CLAIM OWN NUMBER never re-verified the caller's own
+  customer's safety preconditions under lock before writing to it — a concurrent merge/claim/admin
+  action could have archived or reassigned it in the gap between request and verify. Fixed with an
+  explicit re-check (still the caller's own, still unarchived, still has no mobile of its own yet)
+  under the same lock, collapsing to the generic race-loss response on failure, consistent with
+  the MERGE branch's own stated philosophy ("not trusted from request time").
+- **LOW, fixed**: the MERGE branch's own re-check gained one more condition — TO's `mobile` must
+  still equal the `requested_mobile` the caller actually proved control of, in case staff edited it
+  between request and verify.
+- Everything else reviewed and confirmed safe: response-shape/timing — no new oracle on any of the
+  three outcomes; `needs_review` writes correctly scoped to the caller's own pre-selected customer,
+  never leaked into the response; `customer_link_otp_card_eligible()` never raises, grants
+  correctly asserted; lock ordering for the MERGE branch matches `admin_merge_auto_customer`'s own
+  fixed-id-order convention.
+
+**No unresolved Critical/High/Medium remains after the fixes above.** Honest limitation, recorded
+not hidden: true concurrent-transaction testing (two genuinely simultaneous `verify_customer_link_code`
+calls) is not practical in this project's single-session SQL rehearsal style — the fix's
+correctness rests on standard Postgres advisory-lock semantics (the same reasoning this codebase's
+own pre-existing locks already rely on, never tested via true concurrency either), not on a test
+that literally races two transactions.
+
+Re-verified after both fixes: local WSL Postgres (22 assertions, real live function bodies) and a
+live, non-persisting rehearsal against the real current project (22 assertions, real-customer-row
+fingerprint unchanged) both pass again. DRYRUN-OK re-confirmed. **Not applied** — waiting on the
+owner's typed "APPROVED"; the coordinator performs the actual live apply.
+
+### 15.3 WP2 — built in this worktree, gates green, NOT pushed
+
+`src/app/customer/LinkPhoneCard.tsx`, wired into `CustomerHomePage.tsx` and
+`CustomerProfilePage.tsx` only — `LoginPage.tsx` and `CustomerAutoOnboardGate` are untouched, per
+the owner's own explicit product decision (no login-time step, no gate). Visible only when
+`customer_link_otp_card_eligible()` returns true; renders nothing otherwise (not even a loading
+placeholder), proven by a test of the extracted decision function `shouldHideLinkPhoneCard` (this
+project has no component-render-test infrastructure, so the hide/show decision is pulled out as
+its own pure function and tested directly — the same pattern `GoogleLinkAccountCard`'s own
+cooldown/error-selection logic already uses). New `customerApp.linkPhoneCard.*` EN/TA strings
+(parity test passes); the rest of the form reuses the existing `auth.*` strings. `tsc -b` / `oxlint`
+/ `npm test` (795 passed / 17 skipped) / `npm run build` all pass. Committed in this worktree,
+**not pushed to origin** — stays unpushed until WP1 is live, per the owner.
+
+### 15.4 WP3/WP4 — prepared as text, NOT run
+
+Written to `GV_mart\_local_only\reports\customer_otp_link\wp3_wp4_deploy_and_secrets_prep.md`: the
+exact `npx supabase functions deploy wa-otp-dispatch --project-ref fsunrjithwcjtsutsgea --use-api`
+command (WP3), and a PowerShell script that generates ONE fresh random secret and sets it in both
+the Edge Function secret (`WA_OTP_FAST_DISPATCH_SECRET`) and the Postgres Vault secret
+(`wa_otp_fast_dispatch_secret`), printing only `set`/`failed` for each step, never the value
+itself, meant to run on the owner's own machine. Neither has been run.
+
+### 15.5 Status at hand-off
+
+- **WP1**: built, reviewed twice (1 High + 1 Medium + 1 Low found and fixed, no unresolved C/H/M),
+  local- and live-rehearsed clean after the fixes, DRYRUN-OK. Not applied.
+- **WP2**: built, gates green, flag-off behaviour proven by test. Committed, not pushed.
+- **WP3/WP4**: prepared as text/script, not run.
+- **Dispatch-queue analysis**: done — the live queue has nothing eligible for automatic retry
+  right now, so the org-wide 15-minute test window is safe for existing data; the scoped
+  `scope: 'numbers'` alternative is proposed as text only, not built, pending its own review if
+  ever needed.
+- No live apply, no push to origin, no deploy, no secrets execution, no customer-facing test
+  performed by this round.
