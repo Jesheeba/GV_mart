@@ -1188,7 +1188,10 @@ export async function searchSpares(orgId: string, term: string) {
 // org-scoped, debounced free-search shape as searchSpares.
 export async function searchProducts(orgId: string, term: string) {
   const q = term.trim().replace(/[%,]/g, "")
-  let query = supabase.from("products").select("id, name").eq("org_id", orgId).limit(15)
+  // Installation-tracking picker (InstallationSelectStep) — active-only, same
+  // as searchSpares' is_active filter above: a technician should never be
+  // able to log an install against a discontinued/archived product.
+  let query = supabase.from("products").select("id, name").eq("org_id", orgId).eq("is_active", true).limit(15)
   if (q) query = query.ilike("name", `%${q}%`)
   const { data, error } = await query
   if (error) throw error

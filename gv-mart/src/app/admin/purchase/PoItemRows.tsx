@@ -23,7 +23,10 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
     onChange([...items, { itemType: "spare", itemId: "", qty: 1, price: 0 }])
   }
 
-  const options = (type: "product" | "spare") => (type === "product" ? (products ?? []) : (spares ?? []))
+  // Active-only for products, same as the sales cart's own picker
+  // (ItemsStep.tsx) — a PO/bill shouldn't let anyone restock a discontinued
+  // product. Spares have no equivalent archive flow yet, so left as-is.
+  const options = (type: "product" | "spare") => (type === "product" ? (products ?? []).filter((p) => p.is_active) : (spares ?? []))
 
   return (
     <div className="space-y-2">
