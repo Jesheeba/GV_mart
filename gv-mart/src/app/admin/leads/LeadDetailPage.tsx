@@ -101,7 +101,13 @@ export function LeadDetailPage() {
       <Card className="gap-3 px-5" data-testid="lead-header">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <h1 className="truncate text-xl font-bold text-text">{name}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="truncate text-xl font-bold text-text">{name}</h1>
+              {/* Urgent outage hotfix (2026-11-02): hidden -- Save calls
+                  update_lead_details, whose migration (20261201110000) is
+                  not live yet (checked by live read-only audit). Restore
+                  once applied. See DECISIONS.md. */}
+            </div>
             {mobile ? (
               <a href={telHref(mobile)} onClick={() => rememberCall(sheetLead)} className="inline-flex items-center gap-1.5 text-sm font-medium text-text hover:underline">
                 <Phone className="size-3.5" />

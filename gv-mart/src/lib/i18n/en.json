@@ -770,7 +770,8 @@
       "settingsDesc": "Discount, travel, hours & SLA",
       "paymentSettingsDesc": "UPI merchant details for customer QR payments",
       "installationRatesDesc": "{{count}} per-unit rates",
-      "leadOutcomesDesc": "{{count}} outcomes + working schedule"
+      "leadOutcomesDesc": "{{count}} outcomes + working schedule",
+      "referralBonusRateDesc": "Per-referral bonus amount"
     },
     "tabs": {
       "brands": "Brands",
@@ -795,7 +796,8 @@
       "settings": "Settings",
       "paymentSettings": "Payment Settings",
       "installationRates": "Installation Rates",
-      "leadOutcomes": "Lead Outcomes"
+      "leadOutcomes": "Lead Outcomes",
+      "referralBonusRate": "Referral Bonus Rate"
     },
     "categories": {
       "ro": "RO / Water Purifier",
@@ -1082,6 +1084,28 @@
       "status": "Status",
       "active": "Active",
       "inactive": "Inactive"
+    },
+    "referralBonusRate": {
+      "title": "Referral bonus rate",
+      "note": "Amount paid per qualifying referral. A deliberately separate screen from Incentive Rules above — see the referral incentives build notes. Changing the rate never edits the old one in place: it closes the current rate and starts a new one, so past months keep the amount that was in force when they qualified.",
+      "noRate": "No referral bonus rate set yet.",
+      "allSources": "All sources",
+      "sources": {
+        "sale": "Sale",
+        "amc": "AMC",
+        "service": "Service"
+      },
+      "effectiveFrom": "Effective from {{date}}",
+      "history": "History",
+      "changeRate": "Change rate",
+      "dialogTitle": "Change referral bonus rate",
+      "dialogHint": "This closes the current rate and starts a new one from today — it never edits the old rate in place, so past months are unaffected.",
+      "amount": "Amount",
+      "source": "Source (optional)",
+      "effectiveFromNote": "Starts today unless the rate is applied from a later date.",
+      "confirm": "Confirm change",
+      "saved": "Referral bonus rate updated.",
+      "amountInvalid": "Enter an amount greater than 0."
     },
     "complaintTypes": {
       "hint": "These are the default complaint types for every product in a category. A product only gets its own list when someone adds product-specific complaints for it from Inventory or Masters > Products — otherwise it uses these defaults.",
@@ -2012,7 +2036,9 @@
       "natureOfComplaintHint": "Additional details to help the technician.",
       "priority": "Priority",
       "scheduledAt": "Scheduled date & time",
+      "preferredTechnician": "Will try to assign to {{name}} at the picked slot.",
       "autoAssign": "Auto-assign to available technician",
+      "assignTechnician": "Assign to technician (optional)",
       "create": "Create complaint",
       "typeNotSelectable": "Type is auto-detected and non-selectable.",
       "amcCoverage": "AMC coverage: {{start}} to {{expiry}}",
@@ -2190,6 +2216,20 @@
       "technicianBusy": "Technician is busy at scheduled time.",
       "exemptionWindowConflict": "This customer has an exemption window covering this time — no technician can be assigned then.",
       "productRequired": "This ticket needs a product before it can be assigned."
+    },
+    "availability": {
+      "title": "Technician availability",
+      "mode": {
+        "date": "By date",
+        "technician": "By technician"
+      },
+      "pickDateFirst": "Pick a date to see technician availability.",
+      "notAvailableYet": "The availability assistant isn't available yet.",
+      "onLeave": "On leave this day",
+      "noFreeWindow": "No free slot left this day.",
+      "narrowSlotHint": "This slot is shorter than the estimated {{minutes}} min job.",
+      "noTechnicians": "No technicians found.",
+      "busyOverrideWarning": "This technician shows busy at this time. You can still assign them, but it will double-book unless you confirm the override."
     },
     "missingProductAlert": {
       "title": "Tickets missing a product",
@@ -3537,6 +3577,27 @@
       "referralsCount_one": "{{count}} customer referred",
       "referralsCount_other": "{{count}} customers referred",
       "noReferrals": "No referrals yet — refer a customer during a sale, service booking, or AMC sign-up to see it here.",
+      "referralBonus": {
+        "title": "Referral bonus this month",
+        "earned": "Earned",
+        "pending_one": "{{count}} pending",
+        "pending_other": "{{count}} pending",
+        "voided_one": "{{count}} voided",
+        "voided_other": "{{count}} voided",
+        "noEvents": "No referral bonus activity yet this month.",
+        "loadFailed": "Couldn't load referral bonus details.",
+        "source": {
+          "sale": "Sale",
+          "amc": "AMC",
+          "service": "Service"
+        },
+        "status": {
+          "pending": "Pending",
+          "approved": "Approved",
+          "paid": "Paid",
+          "voided": "Voided"
+        }
+      },
       "appVersion": "App version",
       "appVersionDetail": "v{{versionName}} ({{build}}) · update {{bundleVersion}}",
       "storeUpdateRequired": "A required update is waiting on the Play Store. Open the Play Store app to install it.",
@@ -3703,6 +3764,28 @@
       "reopen": "Reopen lead",
       "addNote": "Add note",
       "noteSaved": "Note added"
+    },
+    "errors": {
+      "nameRequired": "Enter a name (at least 2 characters)",
+      "sourceRequired": "Select a source"
+    },
+    "edit": {
+      "title": "Edit lead",
+      "subtitle": "Update this lead's contact details and notes.",
+      "alternateMobile": "Alternate mobile",
+      "address": "Address",
+      "saved": "Lead updated",
+      "saveAnyway": "Save anyway",
+      "duplicateWarning": "Another record already uses this number:",
+      "duplicateKind": {
+        "lead": "Lead: {{name}}",
+        "customer": "Customer: {{name}}"
+      },
+      "referralLockedHint": "This lead's source is Referral and can't be changed here — it's set by the referral program and tied to a technician's incentive.",
+      "errors": {
+        "mobileInvalid": "Enter a valid 10-digit mobile number",
+        "referralLocked": "Source can't be changed to or from Referral here"
+      }
     },
     "quick": {
       "label": "Follow-up filters",
@@ -4741,6 +4824,7 @@
       "logFailed": "Couldn't log this salary to Accounts.",
       "logged": "Logged this month: {{amount}}",
       "notLoggedYet": "Not logged this month",
+      "pendingReferralPayout": "Referral bonus pending: {{amount}}",
       "empty": "No staff found",
       "setupReminders": "Set up monthly salary reminders",
       "remindersSetUp_one": "Created {{count}} reminder",
@@ -4769,7 +4853,10 @@
         "reason": "Reason for voiding",
         "reasonRequired": "Enter a reason to void this credit."
       },
-      "perUnit": "per unit"
+      "perUnit": "per unit",
+      "referralOnly": "Referral only",
+      "referralPendingLocked": "{{count}} referral bonus pending — month locked",
+      "referralEmpty": "No referral-sourced incentives for this month yet"
     },
     "rewards": {
       "month": "Month",
@@ -4818,7 +4905,8 @@
       "topCustomers": "Top Customers",
       "coverage": "Coverage",
       "insights": "Sales Insights",
-      "monthlyExpenses": "Monthly Expenses"
+      "monthlyExpenses": "Monthly Expenses",
+      "referralBonus": "Referral Bonus"
     },
     "filters": {
       "from": "From",
@@ -5072,6 +5160,37 @@
       "cost": "Cost",
       "margin": "Margin %",
       "productNote": "Revenue = qty × price − discount per line. Cost and margin show — when any sold line has no cost recorded. Gifts are excluded."
+    },
+    "referralBonus": {
+      "month": "Month",
+      "technician": "Technician",
+      "allTechnicians": "All technicians",
+      "referrer": "Referrer",
+      "customer": "Referred customer",
+      "qualifiedAt": "Qualified on",
+      "amount": "Amount",
+      "statusLabel": "Status",
+      "totalEvents": "Total referrals",
+      "empty": "No referral bonus events for this month yet.",
+      "pendingMonthLocked": "{{count}} referral bonus pending — month locked",
+      "voidNote": "Voiding only has a real signal for AMC referrals today (contract cancelled). Sale/service referrals have no cancellation mechanism in this app, so those can only be voided for an inactive referrer or a test customer.",
+      "source": {
+        "label": "Source",
+        "sale": "Sale",
+        "amc": "AMC",
+        "service": "Service"
+      },
+      "kind": {
+        "label": "Referrer type",
+        "technician": "Technician",
+        "staff": "Staff"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "paid": "Paid",
+        "voided": "Voided"
+      }
     }
   },
   "accounts": {
@@ -5740,6 +5859,11 @@
     "title": "Lifecycle & spare schedule",
     "close": "Close",
     "loadFailed": "Could not load the lifecycle schedule.",
+    "noLifecycleFilterLabel": "Filter by lifecycle configuration",
+    "noLifecycleFilterAll": "All products",
+    "noLifecycleFilterOnly": "No lifecycle configured ({{count}})",
+    "noLifecycleBadge": "No lifecycle",
+    "noLifecycleBadgeHint": "This product has no active lifecycle configuration yet.",
     "lifetime": {
       "title": "Product lifetime",
       "hint": "How long this product is expected to last before it needs replacing.",

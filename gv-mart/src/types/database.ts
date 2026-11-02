@@ -5389,6 +5389,10 @@ export type Database = {
           created_at: string
           updated_at: string
           auto_assign_pending: boolean
+          // Edit Lead screen (2026-11-02) — 20261201110000_lead_edit_details.sql.
+          // Nullable. NOT applied yet — see migration header.
+          alternate_mobile: string | null
+          address_text: string | null
         }
         Insert: {
           is_test?: boolean
@@ -5420,6 +5424,8 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_pending?: boolean
+          alternate_mobile?: string | null
+          address_text?: string | null
         }
         Update: {
           is_test?: boolean
@@ -5451,6 +5457,8 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_pending?: boolean
+          alternate_mobile?: string | null
+          address_text?: string | null
         }
         Relationships: [
           {
@@ -7733,6 +7741,10 @@ export type Database = {
           // takes, now preferred over p_slot_id when provided. See
           // 20261024160000_admin_complaint_unavailable_windows.sql.
           p_unavailable_windows?: Json | null
+          // Urgent item 1 fix (2026-11-02) — explicit master-picked
+          // technician, takes priority over p_auto_assign. See
+          // 20261202090000_complaint_explicit_technician_assignment.sql.
+          p_technician_id?: string | null
         }
         Returns: Json
       }
@@ -8395,6 +8407,20 @@ export type Database = {
       update_lead_status: {
         Args: { p_lead_id: string; p_status: Database["public"]["Enums"]["lead_status"]; p_reason?: string | null }
         Returns: undefined
+      }
+      // Edit Lead screen (2026-11-02) — 20261201110000_lead_edit_details.sql. NOT applied yet.
+      update_lead_details: {
+        Args: {
+          p_lead_id: string
+          p_name: string
+          p_mobile: string | null
+          p_alternate_mobile: string | null
+          p_address_text: string | null
+          p_source: string
+          p_product_type_key: string | null
+          p_notes: string | null
+        }
+        Returns: Database["public"]["Tables"]["leads"]["Row"]
       }
       award_referral_points: {
         Args: { p_org_id: string; p_customer_id: string; p_points: number; p_reason: string | null; p_ref_id: string | null }

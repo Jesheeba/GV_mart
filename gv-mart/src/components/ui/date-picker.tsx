@@ -6,14 +6,22 @@ import { Calendar } from "@/components/ui/calendar"
 import { formatDate } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
 
-function parseDateOnly(value: string | undefined | null): Date | null {
+// Exported for regression testing (urgent item 4, 2026-11-02): these two
+// functions are the entire "picked date -> p_scheduled_date string" contract
+// for every date picker in the app (admin New Complaint, customer booking,
+// etc). They deliberately stay in the device's LOCAL calendar fields
+// (getFullYear/getMonth/getDate — never toISOString(), which would convert
+// through UTC and can land on the wrong calendar day near midnight in a
+// UTC+ zone like IST). A regression test asserts this round-trips to the
+// same "YYYY-MM-DD" string regardless of the process's TZ.
+export function parseDateOnly(value: string | undefined | null): Date | null {
   if (!value) return null
   const [y, m, d] = value.split("-").map(Number)
   if (!y || !m || !d) return null
   return new Date(y, m - 1, d)
 }
 
-function formatDateOnly(date: Date): string {
+export function formatDateOnly(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, "0")
   const d = String(date.getDate()).padStart(2, "0")

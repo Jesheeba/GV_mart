@@ -86,3 +86,11 @@ export function useApplyUpdatedSchedule() {
     mutationFn: (productId: string) => productLifecycle.applyUpdatedSchedule(productId),
   })
 }
+
+// ── Products without a lifecycle configured (Masters Products page filter) ──
+export function useProductsWithoutLifecycleConfig() {
+  return useQuery({
+    queryKey: ["productsWithoutLifecycleConfig"],
+    queryFn: () => productLifecycle.listProductsWithoutLifecycleConfig(),
+  })
+}

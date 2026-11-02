@@ -289,6 +289,13 @@ export type CreateComplaintInput = {
    * "Name of complaint" Autocomplete resolved, if the admin picked a
    * suggestion rather than free-typing. Null for free-typed complaints. */
   complaintTypeId?: string | null
+  /** Urgent item 1 fix (2026-11-02) — the technician the master explicitly
+   * picked in the New Complaint form's "Assign to" select, if any. When set,
+   * this is the technician who gets the ticket: the RPC gives it priority
+   * over autoAssign (see create_complaint_ticket's p_technician_id). Leave
+   * null/undefined for "no explicit pick" — never pass a fallback id here;
+   * the ticket must end up genuinely unassigned, not defaulted to anyone. */
+  technicianId?: string | null
 }
 
 export async function createComplaintTicket(input: CreateComplaintInput) {
@@ -311,6 +318,11 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     p_unlisted_product_name: input.unlistedProductName ?? null,
     p_complaint_type_id: input.complaintTypeId ?? null,
     p_unavailable_windows: input.unavailableWindows ?? null,
+    // Urgent outage hotfix (2026-11-02): the live create_complaint_ticket
+    // RPC does not have a p_technician_id parameter yet (migration
+    // 20261202090000 is not applied) -- sending it made every call fail
+    // with "function not found". Do NOT re-add this until that migration
+    // (merged with the #4 day-bump fix) is live. See DECISIONS.md.
   })
   if (error) throw error
   return data as {

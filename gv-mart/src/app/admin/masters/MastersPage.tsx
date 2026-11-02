@@ -37,6 +37,7 @@ import { RentalPlansTab } from "./RentalPlansTab"
 import { useTechnicianTiers } from "@/hooks/useTechnicianTiers"
 import { TechnicianTiersTab } from "./TechnicianTiersTab"
 import { IncentiveRulesTab } from "./IncentiveRulesTab"
+import { ReferralBonusRateCard } from "./ReferralBonusRateCard"
 import { RoleSalariesTab } from "./RoleSalariesTab"
 import { InstallationRatesTab } from "./InstallationRatesTab"
 import { ComplaintTypesTab } from "./ComplaintTypesTab"
@@ -63,6 +64,7 @@ type ModuleId =
   | "rentalPlans"
   | "technicianTiers"
   | "incentives"
+  | "referralBonusRate"
   | "roleSalaries"
   | "installationRates"
   | "complaintTypes"
@@ -138,6 +140,7 @@ export function MastersPage() {
     { id: "rentalPlans", icon: CalendarClock, swatch: "warning", title: t("masters.tabs.rentalPlans"), desc: t("masters.overview.rentalPlansDesc", { count: rentalPlans?.length ?? 0 }) },
     { id: "technicianTiers", icon: TrendingUp, swatch: "accent", title: t("masters.tabs.technicianTiers"), desc: t("masters.overview.technicianTiersDesc", { count: technicianTiers?.length ?? 0 }) },
     { id: "incentives", icon: TrendingUp, swatch: "green", title: t("masters.tabs.incentives"), desc: t("masters.overview.incentivesDesc", { count: incentiveRules?.length ?? 0 }) },
+    { id: "referralBonusRate", icon: TrendingUp, swatch: "warning", title: t("masters.tabs.referralBonusRate"), desc: t("masters.overview.referralBonusRateDesc") },
     { id: "installationRates", icon: Hammer, swatch: "green", title: t("masters.tabs.installationRates"), desc: t("masters.overview.installationRatesDesc", { count: installationRates?.length ?? 0 }) },
     { id: "roleSalaries", icon: Wallet, swatch: "info", title: t("masters.tabs.roleSalaries"), desc: t("masters.overview.roleSalariesDesc", { count: roleSalaries?.length ?? 0 }) },
     { id: "complaintTypes", icon: ClipboardList, swatch: "accent", title: t("masters.tabs.complaintTypes"), desc: t("masters.overview.complaintTypesDesc", { count: complaintTypeDefaultsCount }) },
@@ -248,6 +251,9 @@ export function MastersPage() {
           </TabsContent>
           <TabsContent value="incentives">
             <IncentiveRulesTab />
+          </TabsContent>
+          <TabsContent value="referralBonusRate">
+            <ReferralBonusRateCard />
           </TabsContent>
           <TabsContent value="installationRates">
             <InstallationRatesTab />

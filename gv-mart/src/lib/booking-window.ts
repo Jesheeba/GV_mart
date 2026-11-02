@@ -10,12 +10,12 @@
 
 export type TimeWindow = { start: string; end: string }
 
-function toMinutes(hhmm: string): number {
+export function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number)
   return h * 60 + (m || 0)
 }
 
-function toHHMM(minutes: number): string {
+export function toHHMM(minutes: number): string {
   const h = Math.floor(minutes / 60)
     .toString()
     .padStart(2, "0")
@@ -23,8 +23,14 @@ function toHHMM(minutes: number): string {
   return `${h}:${m}`
 }
 
-/** Merges overlapping/adjacent windows and clips each to [workStart, workEnd]. */
-function mergedBlocks(workStart: string, workEnd: string, blocked: TimeWindow[]): TimeWindow[] {
+/**
+ * Merges overlapping/adjacent windows and clips each to [workStart, workEnd].
+ * Exported (in addition to the local uses in this file) so other pure
+ * client-side geometry — e.g. technician-availability.ts's allFreeGaps,
+ * which needs every surviving gap rather than only the largest — reuses
+ * this exact merge instead of re-deriving it.
+ */
+export function mergedBlocks(workStart: string, workEnd: string, blocked: TimeWindow[]): TimeWindow[] {
   const wStart = toMinutes(workStart)
   const wEnd = toMinutes(workEnd)
 

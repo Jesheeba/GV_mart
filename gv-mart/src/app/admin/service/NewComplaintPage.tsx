@@ -20,7 +20,13 @@ import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete, useCustomerExemptionWindows } from "@/hooks/useCustomers"
 import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks, useSettings } from "@/hooks/useMasters"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { useCreateComplaintTicket, useCustomerAddresses, useDetectTicketType, useOwnedEquipment, useTechnicians } from "@/hooks/useService"
+import {
+  useCreateComplaintTicket,
+  useCustomerAddresses,
+  useDetectTicketType,
+  useOwnedEquipment,
+  useTechnicians,
+} from "@/hooks/useService"
 import {
   complaintAppointmentStepSchema,
   complaintDetailsStepSchema,
@@ -185,7 +191,7 @@ export function NewComplaintPage() {
   const appointmentForm = useForm<ComplaintAppointmentStepInput>({
     resolver: zodResolver(complaintAppointmentStepSchema),
     mode: "onChange",
-    defaultValues: { scheduledDate: "", unavailableWindows: [], autoAssign: true },
+    defaultValues: { scheduledDate: "", unavailableWindows: [], autoAssign: true, technicianId: "" },
   })
   const { data: settings } = useSettings(orgId)
   const exemptionWindows = useCustomerExemptionWindows(customerId || undefined)
@@ -258,7 +264,7 @@ export function NewComplaintPage() {
     setNewProductId("")
     setUnlistedProductName("")
     detailsForm.reset({ nameOfComplaint: "", natureOfComplaint: "", priority: "normal" })
-    appointmentForm.reset({ scheduledDate: "", unavailableWindows: [], autoAssign: true })
+    appointmentForm.reset({ scheduledDate: "", unavailableWindows: [], autoAssign: true, technicianId: "" })
   }
 
   const steps = [
@@ -315,7 +321,15 @@ export function NewComplaintPage() {
       scheduledDate: appt.scheduledDate || null,
       unavailableWindows: appt.unavailableWindows ?? [],
       referredByTechnicianId: referredByTechnicianId || null,
+      // Urgent item 1 fix (2026-11-02): the master's explicit "Assign to"
+      // pick, if any — "" (nothing picked) must become null, never a
+      // fallback technician. The RPC gives this priority over autoAssign.
+      // Urgent outage hotfix (2026-11-02): createComplaintTicket no longer
+      // forwards this to the RPC (p_technician_id isn't live yet) and the
+      // picker UI that set it is hidden -- this is always null for now.
+      technicianId: appt.technicianId || null,
     })
+
     clearDraft()
     navigate(`/admin/service/${result.ticket_id}`)
   }
@@ -668,6 +682,16 @@ export function NewComplaintPage() {
                 />
               )}
             />
+
+            {/* Urgent outage hotfix (2026-11-02): the technician-first/
+                date-first availability picker and the "Assign to
+                technician" dropdown are hidden here because both ultimately
+                relied on p_technician_id, which the live create_complaint_ticket
+                RPC does not have yet (see service.ts's createComplaintTicket).
+                Showing them would let the master pick a technician who is
+                then silently NOT assigned -- the exact silent-failure bug
+                urgent item #1 was fixed to prevent. Restore once the merged
+                #4+#1 migration is live. See DECISIONS.md. */}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-text">
