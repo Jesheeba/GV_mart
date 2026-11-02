@@ -4,8 +4,10 @@ import { Check, Loader2, MapPin, Search, TriangleAlert } from "lucide-react"
 import { Map, MapControls, MapMarker, MarkerContent } from "@/components/ui/map"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { UseMyLocationButton } from "@/components/shared/UseMyLocationButton"
 import { cn } from "@/lib/utils"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { useGeolocateOnce } from "@/hooks/useGeolocateOnce"
 import { useMapApiKey, useAutocomplete, usePlaceDetails, useGeocodeAddress } from "@/hooks/useMaps"
 import { isTooManyRequestsError, type AutocompletePrediction, type GeocodeResult } from "@/services/maps"
 
@@ -218,8 +220,22 @@ export function AddressMapPicker({
     setPin(next)
     setDraftPin(null)
     setLastAccuracy(coords.accuracy)
+    // Pan/zoom via the controlled `viewport` state, not an imperative map-instance call -- the
+    // corner locate control (MapControls, which has direct map-instance access) already moves
+    // the map itself, but the new VISIBLE "Use my current location" button below sits outside
+    // the map's own context and has no instance to call panTo on. <Map> already syncs to a
+    // `viewport` prop change on every render (components/ui/map.tsx's controlled-sync effect),
+    // so updating it here moves the map correctly no matter which of the two buttons triggered
+    // this -- harmless (a same-value no-op) on the corner-control path, since that one also
+    // pans directly.
+    setViewport({ center: [next.lng, next.lat], zoom: PIN_ZOOM })
     skipNextPropSync.current = true
     onConfirm({ ...next, accuracy: coords.accuracy, source: "location" })
+  }
+
+  const visibleLocateButton = useGeolocateOnce()
+  function handleVisibleLocateButtonClick() {
+    visibleLocateButton.locate(useMyLocation, (kind) => onLocateError?.(kind))
   }
 
   const activePin = draftPin ?? pin
@@ -305,6 +321,13 @@ export function AddressMapPicker({
           </Button>
         </div>
       ) : null}
+
+      <UseMyLocationButton
+        locating={visibleLocateButton.locating}
+        label={t("customers.form.map.useMyCurrentLocation")}
+        locatingLabel={t("customers.form.map.locating")}
+        onClick={handleVisibleLocateButtonClick}
+      />
 
       <div className="relative overflow-hidden rounded-xl border border-border">
         {mapApiKey.isLoading ? (

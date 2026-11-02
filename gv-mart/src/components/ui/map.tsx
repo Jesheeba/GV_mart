@@ -14,6 +14,7 @@ import { createPortal } from "react-dom"
 import { Locate, Loader2, Minus, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme/ThemeProvider"
+import { useGeolocateOnce } from "@/hooks/useGeolocateOnce"
 
 declare global {
   interface Window {
@@ -685,7 +686,7 @@ function ControlButton({
 
 function MapControls({ position = "bottom-right", showZoom = true, showLocate = false, className, onLocate, onLocateError }: MapControlsProps) {
   const { map } = useMap()
-  const [locating, setLocating] = useState(false)
+  const { locating, locate } = useGeolocateOnce()
 
   const handleZoomIn = useCallback(() => {
     if (!map) return
@@ -698,29 +699,15 @@ function MapControls({ position = "bottom-right", showZoom = true, showLocate = 
   }, [map])
 
   const handleLocate = useCallback(() => {
-    if (!("geolocation" in navigator)) {
-      onLocateError?.("unavailable")
-      return
-    }
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords = { longitude: pos.coords.longitude, latitude: pos.coords.latitude, accuracy: pos.coords.accuracy }
+    locate(
+      (coords) => {
         map?.panTo({ lat: coords.latitude, lng: coords.longitude })
         map?.setZoom(15)
         onLocate?.(coords)
-        setLocating(false)
       },
-      (err) => {
-        setLocating(false)
-        onLocateError?.(err.code === err.PERMISSION_DENIED ? "denied" : err.code === err.TIMEOUT ? "timeout" : "unavailable")
-      },
-      // A finite timeout (the browser default is unspecified and can hang far
-      // longer than a tap-and-wait UI should) so the TIMEOUT case above is
-      // actually reachable, not just a theoretical branch.
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 }
+      (kind) => onLocateError?.(kind)
     )
-  }, [map, onLocate, onLocateError])
+  }, [map, locate, onLocate, onLocateError])
 
   return (
     <div className={cn("absolute z-10 flex flex-col gap-1.5", positionClasses[position], className)}>

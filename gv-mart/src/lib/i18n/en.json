@@ -707,7 +707,9 @@
         "confirmLocation": "Confirm location",
         "accuracyLabel": "Accuracy: ~{{accuracy}} m",
         "accuracyWarning": "Location may be approximate (~{{accuracy}} m) — please adjust the pin and check the address",
-        "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or type the address yourself."
+        "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or type the address yourself.",
+        "useMyCurrentLocation": "Use my current location",
+        "locating": "Finding your location…"
       }
     },
     "errors": {
