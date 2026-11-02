@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom"
 import { LoginPage } from "@/app/auth/LoginPage"
 import { NotFoundPage } from "@/app/NotFoundPage"
 import { RouteFallback } from "@/components/shared/RouteFallback"
+import { RouteErrorPage } from "@/components/shared/RouteErrorPage"
 import { RequireAuth, RequireRole } from "@/lib/guards"
 import { ChangePasswordPage } from "@/app/auth/ChangePasswordPage"
 import { STAFF_ROLES } from "@/lib/roles"
@@ -127,8 +128,17 @@ const SALES_ROLES = ["master", "sales_admin"] as const
 const OPS_ROLES = ["master", "operation_admin"] as const
 const MASTER_ONLY = ["master"] as const
 
+// Stale-chunk fix, part 2: one shared `errorElement` wrapping every route below (a pathless
+// layout route with no `element` of its own just passes through to whichever child actually
+// matched) -- catches a lazy route chunk failing to load (or any other render/loader error)
+// nearer the failure than the global ErrorBoundary in main.tsx, without taking down the whole
+// app shell. `vite:preloadError`'s one-time auto-reload (main.tsx) silently handles the common
+// stale-deploy case before a user ever sees this.
 export const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/login" replace /> },
+  {
+    errorElement: <RouteErrorPage />,
+    children: [
+      { path: "/", element: <Navigate to="/login" replace /> },
   { path: "/login", element: <LoginPage /> },
   {
     element: <RequireAuth />,
@@ -352,5 +362,7 @@ export const router = createBrowserRouter([
       },
     ],
   },
-  { path: "*", element: <NotFoundPage /> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
 ])
