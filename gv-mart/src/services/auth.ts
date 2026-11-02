@@ -112,6 +112,18 @@ export async function isCustomerLinkOtpEnabled(): Promise<boolean> {
   return data === true
 }
 
+/** WP2 (docs/DECISIONS.md section 15): whether the non-blocking "link your phone" card on the
+ * customer Home/Profile screens should render at all. Server-side eligibility (the caller's own
+ * customer is the empty, auto-created "app" record, same test as the merge-on-verify migration
+ * uses) -- the client never computes or guesses this itself, and the function returns false
+ * (never throws) for anyone ineligible, including an unauthenticated caller or the flag being
+ * off, so a query error here should also hide the card, not show it. */
+export async function isCustomerLinkOtpCardEligible(): Promise<boolean> {
+  const { data, error } = await supabase.rpc("customer_link_otp_card_eligible")
+  if (error) throw error
+  return data === true
+}
+
 export type RequestCustomerLinkCodeResult = { status: "ok"; message: string }
 
 /** ALWAYS resolves to the same generic shape, whether or not `mobile` matches a customer, is

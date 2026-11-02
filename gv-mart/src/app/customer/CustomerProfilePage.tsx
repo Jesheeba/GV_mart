@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
 import { useProfile } from "@/hooks/useProfile"
 import { signOut } from "@/services/auth"
+import { LinkPhoneCard } from "@/app/customer/LinkPhoneCard"
 import {
   useAddMyAddress,
   useAddMyMember,
@@ -444,6 +445,8 @@ export function CustomerProfilePage() {
           {t("shell.signOut")}
         </Button>
       </div>
+
+      <LinkPhoneCard />
 
       <Card className="gap-3 lg:px-5">
         <div className="flex items-center gap-3 px-1">

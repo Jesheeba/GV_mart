@@ -7540,6 +7540,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      customer_link_otp_card_eligible: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       request_customer_link_code: {
         Args: {
           p_mobile: string

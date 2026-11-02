@@ -2300,6 +2300,12 @@
     }
   },
   "customerApp": {
+    "linkPhoneCard": {
+      "title": "Add your mobile number",
+      "subtitle": "Link your phone to get WhatsApp updates on your services and AMC.",
+      "success": "Your number is now linked.",
+      "dismiss": "Not now"
+    },
     "home": {
       "deliverTo": "Your Address",
       "noAddressYet": "No address on file yet",
