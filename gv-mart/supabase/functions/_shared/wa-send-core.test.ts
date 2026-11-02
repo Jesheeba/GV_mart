@@ -91,6 +91,42 @@ describe("buildTemplateRequest", () => {
     const r = buildTemplateRequest({ clientId: "c", to: "9000000001", mapping: textHeader, vars: { name: "A" }, headerMediaUrl: "https://example.invalid/a.pdf" })
     expect(r.ok && "headerMediaUrl" in r.body).toBe(false)
   })
+
+  // customer_link_otp -> lexdraft_otp (phase 3, owner-confirmed template facts, 2026-10-30): a
+  // Meta AUTHENTICATION copy-code template needs the SAME resolved value in both the body
+  // component and a button component (sub_type "url", index "0"), per the owner's exact
+  // instruction reading the live Wasi template form directly.
+  describe("hasAuthCopyCodeButton (AUTHENTICATION copy-code templates)", () => {
+    const otpMapping: TemplateMapping = { wasiTemplateName: "lexdraft_otp", paramMap: { "1": "code" }, paramKeys: ["1"], headerType: null, hasAuthCopyCodeButton: true }
+
+    it("duplicates the single body param into a body + button components array", () => {
+      const r = buildTemplateRequest({ clientId: "c", to: "9000000001", mapping: otpMapping, vars: { code: "482913" } })
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      expect(r.body.params).toEqual({ "1": "482913" })
+      expect(r.body.components).toEqual([
+        { type: "body", parameters: [{ type: "text", text: "482913" }] },
+        { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: "482913" }] },
+      ])
+    })
+
+    it("never builds components for a template without the flag (every other template unaffected)", () => {
+      const r = buildTemplateRequest({ clientId: "c", to: "9000000001", mapping: mappingShipping, vars: { name: "GV Mart Test" } })
+      expect(r.ok && "components" in r.body).toBe(false)
+    })
+
+    it("fails locally rather than guessing when a copy-code mapping resolves to anything other than exactly one body param", () => {
+      const twoParamOtp: TemplateMapping = { ...otpMapping, paramMap: { "1": "code", "2": "extra" }, paramKeys: ["1", "2"] }
+      expect(buildTemplateRequest({ clientId: "c", to: "9000000001", mapping: twoParamOtp, vars: { code: "482913", extra: "x" } })).toEqual({
+        ok: false,
+        error: "copy_code_button_requires_exactly_one_body_param",
+      })
+    })
+
+    it("still fails on a missing/blank code before ever reaching the components step", () => {
+      expect(buildTemplateRequest({ clientId: "c", to: "9000000001", mapping: otpMapping, vars: {} })).toEqual({ ok: false, error: "missing_param:1" })
+    })
+  })
 })
 
 describe("classifyWasiResponse", () => {

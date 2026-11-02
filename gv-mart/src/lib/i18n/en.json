@@ -230,11 +230,29 @@
     "orDivider": "or",
     "signInWithGoogle": "Sign in with Google",
     "linkAccountTitle": "One more step",
-    "linkAccountSubtitle": "Enter the mobile number registered with GV Mart to link it to your Google account.",
+    "linkAccountSubtitle": "Enter your mobile number to link it to your Google account. We will text a verification code on WhatsApp.",
     "mobileLabel": "Mobile number",
     "mobilePlaceholder": "10-digit mobile number",
     "linkAccountButton": "Link account",
     "linkingAccount": "Linking…",
+    "useDifferentAccount": "Sign out and use a different account",
+    "linkAccountSendCode": "Send code",
+    "linkAccountSendingCode": "Sending…",
+    "linkAccountCodeSentNotice": "If that number is registered, a verification code was sent on WhatsApp. Enter it below.",
+    "linkAccountCodeLabel": "Verification code",
+    "linkAccountCodePlaceholder": "6-digit code",
+    "linkAccountVerifyButton": "Verify and link",
+    "linkAccountVerifyingCode": "Verifying…",
+    "linkAccountChangeNumber": "Use a different number",
+    "linkAccountResendCode": "Resend code",
+    "linkAccountResendCooldown": "You can resend in {{seconds}}s",
+    "linkAccountInvalidOrExpired": "That code did not work. Attempts left: {{attemptsLeft}}.",
+    "linkAccountLockedOrExpired": "That code did not work. Request a new one.",
+    "linkAccountCodeInvalidFormat": "Enter the 6-digit code.",
+    "linkAccountRequestFailed": "Something went wrong sending the code. Please try again.",
+    "linkAccountVerifyFailed": "Something went wrong checking the code. Please try again.",
+    "linkAccountUnavailableTitle": "Account linking is not available yet",
+    "linkAccountUnavailableBody": "Account linking is not available yet. Please contact the shop and they will help you.",
     "linkAccountNotFound": "We couldn't find a customer account with this mobile number. Please contact us to get set up.",
     "linkAccountAlreadyLinked": "This mobile number is already linked to another account.",
     "linkAccountGenericError": "Couldn't link your account. Please try again.",
@@ -2360,6 +2378,12 @@
     }
   },
   "customerApp": {
+    "linkPhoneCard": {
+      "title": "Add your mobile number",
+      "subtitle": "Link your phone to get WhatsApp updates on your services and AMC.",
+      "success": "Your number is now linked.",
+      "dismiss": "Not now"
+    },
     "home": {
       "deliverTo": "Your Address",
       "noAddressYet": "No address on file yet",
@@ -3128,36 +3152,10 @@
     "expenses": {
       "title": "Expenses",
       "history": "History",
-      "claimTypeValues": { "petrol": "Petrol bill", "maintenance": "Maintenance bill" },
-      "amount": "Amount spent",
-      "enterAmountFirst": "Enter the amount before attaching the bill photo.",
-      "uploadFromGallery": "Upload photo",
-      "takePhoto": "Take photo",
-      "submitted": "Submitted — waiting for verification",
-      "myClaims": "My submissions",
-      "noClaims": "No submissions in this period",
-      "submittedAmount": "Submitted",
-      "approvedAmount": "Approved",
-      "statusPending": "Pending",
-      "statusApproved": "Approved",
-      "statusRejected": "Rejected",
-      "myKmLog": "My kilometre log",
-      "noKmEntries": "No entries in this period",
-      "notAvailableYet": "This feature isn't available yet. Please check back later.",
-      "valuesKept": "Your entered details are kept — you can try again.",
-      "kmLog": {
-        "title": "Kilometre log",
-        "date": "Date travelled",
-        "km": "Kilometres",
-        "save": "Add entry",
-        "monthlySum": "This month so far: {{km}} km",
-        "monthlySumFailed": "Couldn't load this month's total."
-      }
-    },
-    "expenses": {
-      "title": "Expenses",
-      "history": "History",
-      "claimTypeValues": { "petrol": "Petrol bill", "maintenance": "Maintenance bill" },
+      "claimTypeValues": {
+        "petrol": "Petrol bill",
+        "maintenance": "Maintenance bill"
+      },
       "amount": "Amount spent",
       "enterAmountFirst": "Enter the amount before attaching the bill photo.",
       "uploadFromGallery": "Upload photo",
@@ -3811,9 +3809,19 @@
       "unassigned": "Unassigned",
       "assign": "Assign",
       "reassign": "Reassign",
-      "action": { "assign": "Assign", "reassign": "Reassign", "pickup": "Pick up", "handover": "Hand over" },
+      "action": {
+        "assign": "Assign",
+        "reassign": "Reassign",
+        "pickup": "Pick up",
+        "handover": "Hand over"
+      },
       "scopeLabel": "Whose leads",
-      "scope": { "all": "All leads", "mine": "My leads", "unassigned": "Unassigned", "mineUnassigned": "Mine + unassigned" },
+      "scope": {
+        "all": "All leads",
+        "mine": "My leads",
+        "unassigned": "Unassigned",
+        "mineUnassigned": "Mine + unassigned"
+      },
       "filterLabel": "Assigned to",
       "select": "Select leads",
       "selectDone": "Done selecting",
@@ -4007,9 +4015,9 @@
       "note": "Note",
       "stageChange": "Stage: {{from}} → {{to}}",
       "assigned": "Assigned to {{to}}",
-        "reassigned": "Reassigned from {{from}} to {{to}}",
-        "unassigned": "Unassigned",
-        "stageSet": "Stage: {{to}}",
+      "reassigned": "Reassigned from {{from}} to {{to}}",
+      "unassigned": "Unassigned",
+      "stageSet": "Stage: {{to}}",
       "followupSet": "Follow-up set for {{when}} ({{type}})",
       "followupDone": "Follow-up completed (was due {{when}})",
       "followupDoneEarly": "Follow-up completed early (was due {{when}})",
@@ -4208,17 +4216,11 @@
       "stateSkipped": "Not sent: no approved template",
       "stateDeliveryFailed": "Delivery failed",
       "stateStuck": "Stuck sending: needs a human",
-
       "alertStuck": "{{count}} WhatsApp message(s) have been pending for more than 15 minutes. They are not resent automatically: check the dispatcher, then resend or close each one.",
-
       "alertSkipped": "{{count}} message(s) were not sent today because no approved template exists (alert threshold: {{threshold}} a day).",
-
       "thresholdLabel": "Skipped messages per day before an alert",
-
       "thresholdHint": "0 switches the alert off. Default 10.",
-
       "thresholdSaved": "Alert threshold saved.",
-
       "thresholdFailed": "Could not save the alert threshold.",
       "empty": "No failed sends — nothing stuck right now."
     }
@@ -4608,85 +4610,10 @@
     "bikeAssignment": {
       "hint": "Assign each technician to their own or a company motorcycle, with a petrol rate per km.",
       "ownership": "Ownership",
-      "ownershipValues": { "own": "Own bike", "company": "Company bike" },
-      "rate": "Petrol rate (₹/km)",
-      "effectiveFrom": "Effective from",
-      "save": "Save",
-      "current": "Currently: {{ownership}}, ₹{{rate}}/km",
-      "noRow": "No bike assigned yet",
-      "history": "History"
-    },
-    "verification": {
-      "empty": "No bills waiting for verification",
-      "viewBill": "View bill",
-      "submittedAmount": "Submitted",
-      "referenceFigure": "Reference (km × rate) — from self-reported km, not verified",
-      "amountToPay": "Amount to pay",
-      "reasonRequired": "Reason (required — differs from submitted amount)",
-      "confirm": "Confirm"
-    },
-    "kmLog": {
-      "technician": "Technician",
-      "selectTechnician": "Select a technician",
-      "monthlySum": "This month's log total: {{km}} km",
-      "approxReference": "Approximate GPS-tracked distance (reference only): {{km}} km",
-      "addEntry": "Add an entry",
-      "entryDate": "Date travelled",
-      "km": "Kilometres",
-      "note": "Note (optional)",
-      "save": "Save",
-      "empty": "No entries yet"
-    },
-    "allowances": {
-      "hint": "A fixed monthly recharge allowance, set per person. No amount set means no recharge.",
-      "amount": "Monthly recharge amount",
-      "effectiveFrom": "Effective from",
-      "save": "Save",
-      "current": "Currently: ₹{{amount}}/month",
-      "noRow": "No allowance set",
-      "endNow": "End from today"
-    },
-    "adjustments": {
-      "month": "Month",
-      "addTitle": "Add a top-up or exclusion",
-      "person": "Person",
-      "selectPerson": "Select a person",
-      "target": "Applies to",
-      "targetValues": { "recharge": "Recharge allowance", "bike_allowance": "Own-bike allowance" },
-      "type": "Type",
-      "topUp": "Top-up",
-      "exclude": "Exclude this month",
-      "amount": "Amount",
-      "reason": "Reason (required)",
-      "save": "Save",
-      "empty": "No adjustments for this month"
-    },
-    "settings": {
-      "ownBikeAllowanceBase": "Own-bike allowance base amount",
-      "hint": "Organisation-wide monthly base, editable by the owner only.",
-      "amount": "Amount",
-      "save": "Save",
-      "masterOnly": "Only the owner can edit this setting."
-    }
-  },
-  "expenses": {
-    "subtitle": "Mobile recharge, bike petrol/maintenance and the own-bike allowance",
-    "tabs": {
-      "verification": "Verification Queue",
-      "bikeAssignment": "Bike Assignment",
-      "kmLog": "KM Log",
-      "allowances": "Recharge Allowances",
-      "adjustments": "Adjustments",
-      "settings": "Settings"
-    },
-    "claimTypeValues": {
-      "petrol": "Petrol",
-      "maintenance": "Maintenance"
-    },
-    "bikeAssignment": {
-      "hint": "Assign each technician to their own or a company motorcycle, with a petrol rate per km.",
-      "ownership": "Ownership",
-      "ownershipValues": { "own": "Own bike", "company": "Company bike" },
+      "ownershipValues": {
+        "own": "Own bike",
+        "company": "Company bike"
+      },
       "rate": "Petrol rate (₹/km)",
       "effectiveFrom": "Effective from",
       "save": "Save",
@@ -4730,7 +4657,10 @@
       "person": "Person",
       "selectPerson": "Select a person",
       "target": "Applies to",
-      "targetValues": { "recharge": "Recharge allowance", "bike_allowance": "Own-bike allowance" },
+      "targetValues": {
+        "recharge": "Recharge allowance",
+        "bike_allowance": "Own-bike allowance"
+      },
       "type": "Type",
       "topUp": "Top-up",
       "exclude": "Exclude this month",
@@ -4820,7 +4750,6 @@
       "subtitle": "Master, Operation Admin and Sales person salaries — typed manually each time, no fixed or auto-repeating amount. Technician salaries stay on the Salary tab (calculated automatically).",
       "month": "Month",
       "staff": "Staff",
-      "role": "Role",
       "amount": "Amount",
       "logSalary": "Log Salary",
       "logFailed": "Couldn't log this salary to Accounts.",
@@ -5403,7 +5332,11 @@
       "reassigned": "{{who}} reassigned this from {{from}} to {{to}}",
       "status": "{{who}} changed the status from {{from}} to {{to}}",
       "dueMoved": "{{who}} moved the due date from {{from}} to {{to}}",
-      "statusValue": { "open": "open", "done": "finished", "rolled": "rolled over" }
+      "statusValue": {
+        "open": "open",
+        "done": "finished",
+        "rolled": "rolled over"
+      }
     },
     "cannotFinish": {
       "not_assignee": "Only {{name}} can mark this finished.",
@@ -5813,26 +5746,55 @@
   "leaveRequests": {
     "subtitle": "Approve, reject or revoke technician leave requested in advance.",
     "badgeTitle": "{{count}} leave request(s) pending",
-    "filters": { "pending": "Pending", "approved": "Approved", "closed": "Rejected / revoked / cancelled" },
+    "filters": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "closed": "Rejected / revoked / cancelled"
+    },
     "loadFailed": "Could not load leave requests.",
     "notAvailableYet": "This feature isn't available yet. Please check back later.",
     "empty": "No leave requests here.",
-    "status": { "pending": "Pending", "approved": "Approved", "rejected": "Rejected", "cancelled": "Cancelled", "revoked": "Revoked" },
-    "badge": { "inAdvance": "In advance", "late": "Late (KPI not protected)" },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "revoked": "Revoked"
+    },
+    "badge": {
+      "inAdvance": "In advance",
+      "late": "Late (KPI not protected)"
+    },
     "days": "day(s)",
     "requestedAt": "Requested {{date}}",
     "decisionNote": "Note: {{note}}",
-    "actions": { "approve": "Approve", "reject": "Reject", "revoke": "Revoke" },
-    "toast": { "approved": "Leave approved", "rejected": "Leave rejected", "revoked": "Leave revoked" },
+    "actions": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "revoke": "Revoke"
+    },
+    "toast": {
+      "approved": "Leave approved",
+      "rejected": "Leave rejected",
+      "revoked": "Leave revoked"
+    },
     "decideDialog": {
-      "title": { "approved": "Approve leave", "rejected": "Reject leave", "revoked": "Revoke leave" },
+      "title": {
+        "approved": "Approve leave",
+        "rejected": "Reject leave",
+        "revoked": "Revoke leave"
+      },
       "range": "{{technician}}: {{start}} – {{end}}",
       "assignedVisitsWarning": "{{count}} visit(s) already assigned on these days — reassign them yourself, nothing here does it automatically.",
       "noAssignedVisits": "No visits are assigned to this technician on these days.",
       "assignedVisitsCheckFailed": "Couldn't check for assigned visits.",
       "noteLabel": "Note (required)",
       "notePlaceholder": "Why?",
-      "confirm": { "approved": "Approve", "rejected": "Reject", "revoked": "Revoke" }
+      "confirm": {
+        "approved": "Approve",
+        "rejected": "Reject",
+        "revoked": "Revoke"
+      }
     }
   },
   "technicianLeave": {
@@ -5844,7 +5806,10 @@
       "reason": "Reason (optional)",
       "submit": "Submit request",
       "submitted": "Leave request submitted",
-      "errors": { "endBeforeStart": "End date cannot be before start date.", "tooLong": "A single request cannot exceed 30 days." }
+      "errors": {
+        "endBeforeStart": "End date cannot be before start date.",
+        "tooLong": "A single request cannot exceed 30 days."
+      }
     },
     "notAvailableYet": "This feature isn't available yet. Please check back later.",
     "valuesKept": "Your entered details are kept — you can try again.",

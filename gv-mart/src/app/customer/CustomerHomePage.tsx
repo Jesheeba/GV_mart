@@ -10,6 +10,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useMyAddresses, useMyAmcContracts, useMyCustomerId, useMyWarranties } from "@/hooks/useCustomerApp"
 import { pickSoonestDuePart, useCustomerDueParts } from "@/hooks/useCustomerLifecycle"
 import { formatDate } from "@/lib/formatDate"
+import { LinkPhoneCard } from "@/app/customer/LinkPhoneCard"
 
 function AddressBar() {
   const { t } = useTranslation()
@@ -232,6 +233,8 @@ export function CustomerHomePage() {
       </div>
 
       <AddressBar />
+
+      <LinkPhoneCard />
 
       <LifecyclePartBanner />
       <NextServiceBanner />

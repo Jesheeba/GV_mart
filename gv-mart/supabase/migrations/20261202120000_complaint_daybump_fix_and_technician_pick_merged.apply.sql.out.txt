@@ -1,0 +1,8 @@
+HTTP_STATUS: 201
+
+[{"status":"applied","applied_at":"2026-11-02 08:37:59.015594+00","create_complaint_ticket_args":"p_org_id uuid, p_customer_id uuid, p_address_id uuid, p_product_id uuid, p_brand_id uuid, p_model_id uuid, p_name_of_complaint text, p_nature_of_complaint text, p_priority priority_level, p_channel ticket_channel, p_appointment_mode appointment_mode, p_auto_assign boolean, p_scheduled_date date DEFAULT NULL::date, p_slot_id uuid DEFAULT NULL::uuid, p_referred_by_technician_id uuid DEFAULT NULL::uuid, p_unlisted_product_name text DEFAULT NULL::text, p_complaint_type_id uuid DEFAULT NULL::uuid, p_unavailable_windows jsonb DEFAULT NULL::jsonb, p_technician_id uuid DEFAULT NULL::uuid","internal_args":"p_org_id uuid, p_customer_id uuid, p_address_id uuid, p_product_id uuid, p_brand_id uuid, p_model_id uuid, p_name_of_complaint text, p_nature_of_complaint text, p_priority priority_level, p_channel ticket_channel, p_appointment_mode appointment_mode, p_auto_assign boolean, p_scheduled_date date DEFAULT NULL::date, p_slot_id uuid DEFAULT NULL::uuid, p_referred_by_technician_id uuid DEFAULT NULL::uuid, p_unlisted_product_name text DEFAULT NULL::text, p_complaint_type_id uuid DEFAULT NULL::uuid, p_unavailable_windows jsonb DEFAULT NULL::jsonb, p_technician_id uuid DEFAULT NULL::uuid"}]
+
+--- Repeat-run verification (same script, run again immediately after): refused as designed ---
+HTTP_STATUS: 400
+
+{"message":"Failed to run sql query: ERROR:  P0001: already registered: migration 20261202120000 has already been applied -- refusing to re-apply\nCONTEXT:  PL/pgSQL function inline_code_block line 4 at RAISE\n"}

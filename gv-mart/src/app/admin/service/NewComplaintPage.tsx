@@ -683,21 +683,61 @@ export function NewComplaintPage() {
               )}
             />
 
-            {/* Urgent outage hotfix (2026-11-02): the technician-first/
-                date-first availability picker and the "Assign to
-                technician" dropdown are hidden here because both ultimately
-                relied on p_technician_id, which the live create_complaint_ticket
-                RPC does not have yet (see service.ts's createComplaintTicket).
-                Showing them would let the master pick a technician who is
-                then silently NOT assigned -- the exact silent-failure bug
-                urgent item #1 was fixed to prevent. Restore once the merged
-                #4+#1 migration is live. See DECISIONS.md. */}
+            {/* Urgent item #5's technician-first/date-first availability
+                picker stays hidden here -- it depends on
+                get_technician_availability_for_date, which is still not
+                live (separate migration, blocked on its own version-
+                collision issue). Restore it once that migration is
+                applied through its own pipeline. */}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-text">
-            <input type="checkbox" {...appointmentForm.register("autoAssign")} className="size-4 rounded border-border" />
+            <input
+              type="checkbox"
+              {...appointmentForm.register("autoAssign")}
+              disabled={!!appointmentForm.watch("technicianId")}
+              onChange={(e) => {
+                appointmentForm.setValue("autoAssign", e.target.checked)
+                // Mutually exclusive with an explicit pick below -- checking
+                // this clears any manual pick so the two can't silently
+                // disagree about who actually gets the job.
+                if (e.target.checked) appointmentForm.setValue("technicianId", "")
+              }}
+              className="size-4 rounded border-border"
+            />
             {t("service.newComplaint.autoAssign")}
           </label>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="newComplaintTechnicianId">{t("service.newComplaint.assignTechnician")}</Label>
+            <Controller
+              control={appointmentForm.control}
+              name="technicianId"
+              render={({ field }) => (
+                <select
+                  id="newComplaintTechnicianId"
+                  value={field.value ?? ""}
+                  onChange={(e) => {
+                    field.onChange(e.target.value)
+                    // Explicitly picking someone here always wins over
+                    // auto-assign -- uncheck it so the UI never implies both
+                    // are active at once (the RPC would prioritise this pick
+                    // regardless, but showing autoAssign still checked would
+                    // be misleading).
+                    if (e.target.value) appointmentForm.setValue("autoAssign", false)
+                  }}
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
+                >
+                  <option value="">{t("service.detail.pickTechnician")}</option>
+                  {(technicians ?? []).map((tech) => (
+                    <option key={tech.id} value={tech.id}>
+                      {tech.full_name} {tech.is_on_duty ? "" : `(${t("service.detail.offDuty")})`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            />
+          </div>
 
           <div className="space-y-1.5">
             <Label>{t("common.referredByTechnician")}</Label>

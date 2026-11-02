@@ -2858,6 +2858,7 @@ export type Database = {
           language: string
           wasi_template_name: string
           param_map: Json
+          has_auth_copy_code_button: boolean
           is_active: boolean
           created_at: string
           updated_at: string
@@ -2869,6 +2870,7 @@ export type Database = {
           language: string
           wasi_template_name: string
           param_map?: Json
+          has_auth_copy_code_button?: boolean
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -2880,6 +2882,7 @@ export type Database = {
           language?: string
           wasi_template_name?: string
           param_map?: Json
+          has_auth_copy_code_button?: boolean
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -7581,6 +7584,26 @@ export type Database = {
           p_mobile: string
         }
         Returns: string
+      }
+      is_customer_link_otp_enabled: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      customer_link_otp_card_eligible: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      request_customer_link_code: {
+        Args: {
+          p_mobile: string
+        }
+        Returns: Json
+      }
+      verify_customer_link_code: {
+        Args: {
+          p_code: string
+        }
+        Returns: Json
       }
       admin_link_customer_google_account: {
         Args: {

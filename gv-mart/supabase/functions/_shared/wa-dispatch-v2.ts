@@ -16,11 +16,24 @@ export type PendingRow = {
   to_mobile: string | null
   customer_id: string | null
   template: string
-  payload: { body?: string } | null
+  // 'code' (customer_link_otp rows only, 20261120100000_customer_link_otp.sql): the raw OTP
+  // value, stored alongside the rendered body text so the dispatcher can pass it as a named
+  // template parameter (see wa-event-context.ts). Wiped together with body on redaction, since
+  // the redaction call replaces the whole payload column rather than merging keys.
+  payload: { body?: string; code?: string } | null
   ref_type: string | null
   ref_id: string | null
   retry_count: number
 }
+
+/** Mirrors wa-milestone-dispatch-core.ts's own REDACT_BODY_AFTER_SEND_REF_TYPES -- kept as a
+ * literal copy here (not imported) because that module imports FROM this one, and this file is
+ * meant to stay a small, dependency-injected, independently-testable pure loop (see the file
+ * header). Security review finding (2026-11-20, MEDIUM): a row that permanently exhausts its
+ * retry budget here was previously left with its plaintext body (the OTP code, for
+ * customer_link_otp rows) in whatsapp_outbox forever -- redaction on success (the caller's own
+ * `send` deps function) never fires for a row that never successfully sends. */
+const REDACT_BODY_ON_GIVE_UP_REF_TYPES = new Set<string>(["customer_link_otp"])
 
 export type DispatchContext = { language: "en" | "ta"; vars: Record<string, string | null | undefined> }
 
@@ -53,7 +66,11 @@ export async function runDispatchV2(deps: DispatchDeps, orgId: string): Promise<
       // Over the attempt cap: close it out visibly instead of looping. (Never claimed, so claim it to be certain
       // no other worker is mid-send, then fail it.)
       if (await deps.claim(row.id)) {
-        await deps.failRow(row.id, { status: "failed", error: "gave_up_after_max_attempts", retried_at: deps.nowIso() })
+        const patch: Record<string, unknown> = { status: "failed", error: "gave_up_after_max_attempts", retried_at: deps.nowIso() }
+        if (row.ref_type && REDACT_BODY_ON_GIVE_UP_REF_TYPES.has(row.ref_type)) {
+          patch.payload = { body: "[redacted after gave up retrying]" }
+        }
+        await deps.failRow(row.id, patch)
         summary.failed++
       }
       continue
