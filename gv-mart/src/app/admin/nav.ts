@@ -27,6 +27,7 @@ import {
   Users2,
   Fuel,
   CalendarOff,
+  ListTodo,
   type LucideIcon,
 } from "lucide-react"
 import type { UserRole } from "@/lib/roles"
@@ -136,6 +137,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   // "Fuel & Bike Allowances" (nav.expenses label only — Accounts' own
   // "Expenses" tab/label is untouched); /admin/expenses path unchanged.
   { key: "accounts", labelKey: "nav.accounts", path: "/admin/accounts", icon: TrendingDown, roles: ["master"], group: "money" },
+  { key: "customerOutstanding", labelKey: "nav.customerOutstanding", path: "/admin/accounts/outstanding", icon: ListTodo, roles: ["master"], group: "money" },
   { key: "hr", labelKey: "nav.hr", path: "/admin/hr", icon: Wallet, roles: ["master"], group: "money" },
   { key: "expenses", labelKey: "nav.expenses", path: "/admin/expenses", icon: Fuel, roles: ["master", "operation_admin"], group: "money" },
 

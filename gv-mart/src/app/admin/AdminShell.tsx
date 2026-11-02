@@ -9,6 +9,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { canWorkFollowups, useFollowupCounts } from "@/hooks/useLeadFollowups"
 import { usePendingLeaveRequestCount } from "@/hooks/useTechnicianLeave"
+import { useOverdueOrDueTodayReminderCount } from "@/hooks/useAccountsFollowup"
 import { CallReturnPrompt } from "./leads/CallReturnPrompt"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useTicketSearch, useServiceTicketsRealtimeInvalidate } from "@/hooks/useService"
@@ -129,6 +130,7 @@ export function AdminShell() {
   const { data: pendingLeaveCount } = usePendingLeaveRequestCount(
     profile?.role === "master" || profile?.role === "operation_admin" ? profile?.org_id : undefined
   )
+  const overdueOrDueTodayCount = useOverdueOrDueTodayReminderCount(profile?.role === "master")
   useServiceTicketsRealtimeInvalidate(profile?.org_id)
 
   // Job-overrun popup: this used to run only inside TechniciansMapPage, so an
@@ -234,6 +236,15 @@ export function AdminShell() {
               title={t("leaveRequests.badgeTitle", { count: pendingLeaveCount })}
             >
               {pendingLeaveCount > 99 ? "99+" : pendingLeaveCount}
+            </span>
+          ) : null}
+          {item.key === "customerOutstanding" && overdueOrDueTodayCount > 0 ? (
+            <span
+              data-testid="customer-outstanding-badge"
+              className="absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold leading-4 text-white"
+              title={t("accounts.outstanding.badgeTitle", { count: overdueOrDueTodayCount })}
+            >
+              {overdueOrDueTodayCount > 99 ? "99+" : overdueOrDueTodayCount}
             </span>
           ) : null}
         </span>

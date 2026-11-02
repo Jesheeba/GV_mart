@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, CircleCheck } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { useAssignableProfiles } from "@/hooks/useTasks"
 import {
@@ -107,7 +107,11 @@ function OutstandingListTab({
             ))}
           </div>
         ) : !rows || rows.length === 0 ? (
-          <p className="text-sm text-text-muted">{t("accounts.outstanding.none")}</p>
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <CircleCheck className="size-8 text-text-muted" />
+            <p className="text-sm font-medium text-text">{t("accounts.outstanding.none")}</p>
+            <p className="max-w-sm text-sm text-text-muted">{t("accounts.outstanding.noneHint")}</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

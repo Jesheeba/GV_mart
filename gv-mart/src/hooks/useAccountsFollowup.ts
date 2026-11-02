@@ -96,18 +96,21 @@ export function useReconcileAllOutstandingOnLoad() {
   })
 }
 
-export function useOutstandingReminders() {
+export function useOutstandingReminders(enabled = true) {
   return useQuery({
     queryKey: ["accounts", "outstanding", "reminders"],
     queryFn: accountsFollowup.listOutstandingReminders,
+    enabled,
   })
 }
 
 /** Reminder-management batch, item 1 -- the overdue+due-today count badge
  * shown on the Accounts entry/Customer Outstanding button, so master sees
- * it without opening anything. */
-export function useOverdueOrDueTodayReminderCount() {
-  const { data: reminders } = useOutstandingReminders()
+ * it without opening anything. `enabled` lets callers mounted for every role
+ * (e.g. the sidebar in AdminShell) skip the master-only RPC entirely for
+ * non-master profiles instead of letting it fail against RLS every time. */
+export function useOverdueOrDueTodayReminderCount(enabled = true) {
+  const { data: reminders } = useOutstandingReminders(enabled)
   const today = toLocalDateString(new Date())
   if (!reminders) return 0
   return reminders.filter((r) => {

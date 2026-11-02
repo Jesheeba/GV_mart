@@ -71,7 +71,13 @@ describe("admin sidebar visibility per role", () => {
 // items the release added; both are reachable in the regrouped sidebar
 // (serviceOps and money respectively — see nav.ts) for the exact roles
 // below, matching what the release shipped on origin/main.
+//
+// Updated again (2026-11-02, client-requested): "customerOutstanding" is a
+// new sidebar entry for the already-shipped Customer Outstanding page
+// (previously reachable only via a button buried inside Accounts — see the
+// gap-analysis discoverability finding). Master-only, same as "accounts".
 const ORIGIN_MAIN_ROLES: Record<string, UserRole[]> = {
+  customerOutstanding: ["master"],
   dashboard: ["master", "operation_admin", "sales_admin"],
   myDay: ["master", "sales_admin"],
   customers: ["master", "sales_admin"],
