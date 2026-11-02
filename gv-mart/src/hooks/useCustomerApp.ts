@@ -105,8 +105,8 @@ export function useSetMyPrimaryAddress(customerId: string | undefined) {
 export function useSetMyAddressPin(customerId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ addressId, lat, lng, accuracyM }: { addressId: string; lat: number; lng: number; accuracyM?: number }) =>
-      api.setMyAddressPin(addressId, lat, lng, accuracyM),
+    mutationFn: ({ addressId, lat, lng, accuracyM, fields }: { addressId: string; lat: number; lng: number; accuracyM?: number; fields?: api.AddressTextFieldsPatch }) =>
+      api.setMyAddressPin(addressId, lat, lng, accuracyM, fields),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customerApp", "addresses", customerId] })
       queryClient.invalidateQueries({ queryKey: ["customerApp", "record", customerId] })

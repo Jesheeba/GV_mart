@@ -29,6 +29,13 @@ export function useGeocodeAddress() {
   })
 }
 
+/** "Use my current location" -> address text (reverse geocode), for AddressForm and AddressPinDialog. */
+export function useReverseGeocode() {
+  return useMutation({
+    mutationFn: ({ lat, lng }: { lat: number; lng: number }) => maps.reverseGeocode(lat, lng),
+  })
+}
+
 /** Real driving distance + live-traffic travel time, for the admin
  * live-tracking map (v2.2 §6.6) and the technician's own ETA widget. Keyed
  * on coordinates rounded to ~100m so small GPS jitter reuses the cached

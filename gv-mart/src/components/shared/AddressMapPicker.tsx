@@ -14,10 +14,18 @@ import type { AutocompletePrediction, GeocodeResult } from "@/services/maps"
 const DEFAULT_CENTER: [number, number] = [80.2707, 13.0827]
 const DEFAULT_ZOOM = 11
 const PIN_ZOOM = 15
+/** Above this GPS accuracy (metres), warn that the pin may be approximate rather than show it as a plain figure. */
+const ACCURACY_WARNING_THRESHOLD_M = 100
 
 type Coords = { lat: number; lng: number }
-/** Carries the browser geolocation accuracy (metres) only when the confirmed pin came from "use my current location" -- undefined for a search result or a manual drag, which have no comparable figure. */
-type ConfirmedCoords = Coords & { accuracy?: number }
+/**
+ * Carries the browser geolocation accuracy (metres) only when the confirmed pin came from "use my current location" -- undefined for a search result or a manual drag, which have no comparable figure.
+ * `source` lets the caller tell apart a search-result confirm (which already arrives with full address
+ * components via `onAddressSelect`, fired alongside this) from a drag-confirm or "use my current location"
+ * confirm (neither of which has any address text yet -- "Use my current location" / reverse-geocode-to-fields
+ * callers should react only to those two, not to "search").
+ */
+type ConfirmedCoords = Coords & { accuracy?: number; source: "search" | "drag" | "location" }
 
 function newSessionToken() {
   return crypto.randomUUID()
@@ -63,8 +71,8 @@ export function AddressMapPicker({
   onConfirm: (coords: ConfirmedCoords) => void
   /** Fires when a search result is picked, before drag adjustment — lets the caller auto-fill area/pincode/district/state. */
   onAddressSelect?: (result: GeocodeResult) => void
-  /** Denied permission, unavailable geolocation, or no navigator.geolocation at all, from "use my current location" -- previously silently swallowed. Optional: omit to keep the old silent-fail behavior. */
-  onLocateError?: (kind: "denied" | "unavailable") => void
+  /** Denied permission, unavailable geolocation, a timed-out request, or no navigator.geolocation at all, from "use my current location" -- previously silently swallowed. Optional: omit to keep the old silent-fail behavior. */
+  onLocateError?: (kind: "denied" | "unavailable" | "timeout") => void
 }) {
   const { t } = useTranslation()
   const mapApiKey = useMapApiKey()
@@ -89,6 +97,11 @@ export function AddressMapPicker({
   // can never be accepted with a single blind tap. Cleared the moment the
   // user actually moves the pin (see the marker's onDragEnd).
   const [draftNeedsVerification, setDraftNeedsVerification] = useState(false)
+  // Browser-reported GPS accuracy (metres), set only right after "use my
+  // current location" confirms a pin -- a search result or a manual drag has
+  // no comparable figure, so those paths clear it rather than leaving a stale
+  // reading attached to an unrelated pin.
+  const [lastAccuracy, setLastAccuracy] = useState<number | null>(null)
   const [viewport, setViewport] = useState<{ center: [number, number]; zoom: number }>(() =>
     lat != null && lng != null ? { center: [lng, lat], zoom: PIN_ZOOM } : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM }
   )
@@ -110,6 +123,7 @@ export function AddressMapPicker({
       // below stays silently blocked by `if (pin) return` and a new
       // auto-geocoded suggestion never gets a chance to show.
       setPin(null)
+      setLastAccuracy(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lat, lng])
@@ -160,6 +174,7 @@ export function AddressMapPicker({
     const coords = { lat: result.lat, lng: result.lon }
     setPin(coords)
     setDraftPin(null)
+    setLastAccuracy(null)
     setViewport({ center: [result.lon, result.lat], zoom: PIN_ZOOM })
     setPredictions([])
     setFallbackResults([])
@@ -168,7 +183,7 @@ export function AddressMapPicker({
     setQuery(result.formatted)
     sessionTokenRef.current = newSessionToken() // session closed — next search starts fresh
     skipNextPropSync.current = true
-    onConfirm(coords)
+    onConfirm({ ...coords, source: "search" })
     onAddressSelect?.(result)
   }
 
@@ -193,16 +208,18 @@ export function AddressMapPicker({
     if (!draftPin || draftNeedsVerification) return
     setPin(draftPin)
     setDraftPin(null)
+    setLastAccuracy(null)
     skipNextPropSync.current = true
-    onConfirm(draftPin)
+    onConfirm({ ...draftPin, source: "drag" })
   }
 
   function useMyLocation(coords: { longitude: number; latitude: number; accuracy: number }) {
     const next = { lat: coords.latitude, lng: coords.longitude }
     setPin(next)
     setDraftPin(null)
+    setLastAccuracy(coords.accuracy)
     skipNextPropSync.current = true
-    onConfirm({ ...next, accuracy: coords.accuracy })
+    onConfirm({ ...next, accuracy: coords.accuracy, source: "location" })
   }
 
   const activePin = draftPin ?? pin
@@ -351,6 +368,14 @@ export function AddressMapPicker({
           </div>
           {draftPin && suggestedFormatted ? (
             <p className="text-xs text-text-muted">{t("customers.form.map.suggestedPlaceLabel", { place: suggestedFormatted })}</p>
+          ) : null}
+          {!draftPin && lastAccuracy != null ? (
+            <p className={cn("flex items-center gap-1.5 text-xs", lastAccuracy > ACCURACY_WARNING_THRESHOLD_M ? "text-warning" : "text-text-muted")}>
+              {lastAccuracy > ACCURACY_WARNING_THRESHOLD_M ? <TriangleAlert className="size-3.5 shrink-0" /> : null}
+              {lastAccuracy > ACCURACY_WARNING_THRESHOLD_M
+                ? t("customers.form.map.accuracyWarning", { accuracy: Math.round(lastAccuracy) })
+                : t("customers.form.map.accuracyLabel", { accuracy: Math.round(lastAccuracy) })}
+            </p>
           ) : null}
         </div>
       ) : null}

@@ -176,7 +176,7 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
           saveError={setPin.isError ? (setPin.error as Error).message : undefined}
           onSave={(coords) =>
             setPin.mutate(
-              { addressId: pinningAddress.id, lat: coords.lat, lng: coords.lng, accuracyM: coords.accuracy },
+              { addressId: pinningAddress.id, lat: coords.lat, lng: coords.lng, accuracyM: coords.accuracy, fields: coords.fields },
               { onSuccess: () => setPinningId(null) }
             )
           }

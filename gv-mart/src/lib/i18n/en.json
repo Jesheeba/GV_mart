@@ -704,7 +704,9 @@
         "confirmLocationDisabledHint": "Drag the pin to the exact spot first",
         "suggestedPlaceLabel": "Google matched this to: {{place}}",
         "confirmedPin": "Location confirmed · {{lat}}, {{lng}}",
-        "confirmLocation": "Confirm location"
+        "confirmLocation": "Confirm location",
+        "accuracyLabel": "Accuracy: ~{{accuracy}} m",
+        "accuracyWarning": "Location may be approximate (~{{accuracy}} m) — please adjust the pin and check the address"
       }
     },
     "errors": {
@@ -2442,6 +2444,10 @@
       "pinDialogHint": "Set the exact location of this address so technicians and our team can navigate straight to it.",
       "pinLocateDenied": "Location permission denied. You can still search for the address or drag the pin on the map.",
       "pinLocateUnavailable": "Couldn't get your location right now. You can still search for the address or drag the pin on the map.",
+      "pinLocateTimeout": "Getting your location took too long. You can still search for the address or drag the pin on the map.",
+      "pinLocationFilledNotice": "Some address details were filled in from your location — please review them before saving.",
+      "pinLocationLookupFailed": "Couldn't look up the address for this location. You can fill in the details yourself.",
+      "pinLocationLookingUp": "Looking up the address for this location…",
       "pinRemove": "Remove pin",
       "openInMaps": "Open in Google Maps",
       "address": {
@@ -2464,7 +2470,14 @@
         "rental": "Rental",
         "mapLabel": "Pin your exact location",
         "mapHint": "Search for your address or use your current location, then drag the pin if it's not quite right — this is what the technician sees on their map.",
-        "mapRequired": "Please confirm your location on the map before saving."
+        "mapRequired": "Please confirm your location on the map before saving.",
+        "locationPrivacyNotice": "Your location is used only to fill in this address and is saved only if you save it.",
+        "locateDenied": "Location permission denied. You can still type the address or search for it above.",
+        "locateUnavailable": "Couldn't get your location right now. You can still type the address or search for it above.",
+        "locateTimeout": "Getting your location took too long. You can still type the address or search for it above.",
+        "locationLookingUp": "Looking up the address for this location…",
+        "locationFilledNotice": "Some fields were filled in from your location — please review them before saving.",
+        "locationLookupFailed": "Couldn't look up the address for this location. Please fill in the details yourself."
       },
       "membersTitle": "Family members ({{count}}/{{max}})",
       "maxMembersReached": "Maximum of 5 family members reached",

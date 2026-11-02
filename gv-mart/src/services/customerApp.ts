@@ -156,11 +156,41 @@ export async function setMyPrimaryAddress(customerId: string, addressId: string)
  * the existing addresses_write_own RLS policy (customer_id = current_customer_id(), org_id =
  * current_org_id(), 20261006190000_lock_down_own_row_policies.sql) for ownership -- no new RPC;
  * a plain .update() here can only ever touch the caller's own row.
+ *
+ * "Use my current location" (address-from-location) extends this with an optional patch of
+ * address TEXT fields, reverse-geocoded from the same coordinates and merged in by the caller
+ * (never overwriting a field the customer already typed -- see geocodeToAddressFields.ts).
+ * Columns are named for the `.update()` payload directly, not CustomerAddressInput's camelCase
+ * shape. `fields` is explicitly picked down to exactly these 6 keys below (never spread
+ * wholesale) -- defense-in-depth so a caller passing extra keys (e.g. a stray `customer_id`)
+ * can never reach the `.update()` payload, even though TypeScript already erases that risk for
+ * every actual call site in this codebase (independent security review, address-from-location).
  */
-export async function setMyAddressPin(addressId: string, lat: number, lng: number, accuracyM?: number) {
+export type AddressTextFieldsPatch = Partial<{
+  door_no: string
+  street_cross: string
+  area: string
+  pincode: string
+  district: string
+  state: string
+}>
+
+function pickAddressTextFields(fields: AddressTextFieldsPatch | undefined): AddressTextFieldsPatch {
+  if (!fields) return {}
+  const picked: AddressTextFieldsPatch = {}
+  if (fields.door_no !== undefined) picked.door_no = fields.door_no
+  if (fields.street_cross !== undefined) picked.street_cross = fields.street_cross
+  if (fields.area !== undefined) picked.area = fields.area
+  if (fields.pincode !== undefined) picked.pincode = fields.pincode
+  if (fields.district !== undefined) picked.district = fields.district
+  if (fields.state !== undefined) picked.state = fields.state
+  return picked
+}
+
+export async function setMyAddressPin(addressId: string, lat: number, lng: number, accuracyM?: number, fields?: AddressTextFieldsPatch) {
   const { error } = await supabase
     .from("addresses")
-    .update({ lat, lng, pinned_at: new Date().toISOString(), location_accuracy_m: accuracyM ?? null })
+    .update({ lat, lng, pinned_at: new Date().toISOString(), location_accuracy_m: accuracyM ?? null, ...pickAddressTextFields(fields) })
     .eq("id", addressId)
   if (error) throw error
 }

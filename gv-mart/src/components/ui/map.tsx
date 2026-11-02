@@ -635,8 +635,8 @@ type MapControlsProps = {
   showLocate?: boolean
   className?: string
   onLocate?: (coords: { longitude: number; latitude: number; accuracy: number }) => void
-  /** Fires on denied permission, unavailable geolocation, or no `navigator.geolocation` at all -- previously silently swallowed. `kind` lets the caller show a message tailored to "denied" vs "unavailable" per the customer app's "Pin my address" flow; existing callers that don't pass this keep the old silent-fail behavior. */
-  onLocateError?: (kind: "denied" | "unavailable") => void
+  /** Fires on denied permission, unavailable geolocation, a request that timed out, or no `navigator.geolocation` at all -- previously silently swallowed. `kind` lets the caller show a message tailored to each case per the customer app's "Pin my address" / "Use my current location" flows; existing callers that don't pass this keep the old silent-fail behavior. */
+  onLocateError?: (kind: "denied" | "unavailable" | "timeout") => void
 }
 
 const positionClasses = {
@@ -713,8 +713,12 @@ function MapControls({ position = "bottom-right", showZoom = true, showLocate = 
       },
       (err) => {
         setLocating(false)
-        onLocateError?.(err.code === err.PERMISSION_DENIED ? "denied" : "unavailable")
-      }
+        onLocateError?.(err.code === err.PERMISSION_DENIED ? "denied" : err.code === err.TIMEOUT ? "timeout" : "unavailable")
+      },
+      // A finite timeout (the browser default is unspecified and can hang far
+      // longer than a tap-and-wait UI should) so the TIMEOUT case above is
+      // actually reachable, not just a theoretical branch.
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 }
     )
   }, [map, onLocate, onLocateError])
 
