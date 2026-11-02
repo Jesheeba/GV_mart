@@ -20,7 +20,14 @@ import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete, useCustomerExemptionWindows } from "@/hooks/useCustomers"
 import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks, useSettings } from "@/hooks/useMasters"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { useCreateComplaintTicket, useCustomerAddresses, useDetectTicketType, useOwnedEquipment, useTechnicians } from "@/hooks/useService"
+import {
+  useAssignTicketTechnician,
+  useCreateComplaintTicket,
+  useCustomerAddresses,
+  useDetectTicketType,
+  useOwnedEquipment,
+  useTechnicians,
+} from "@/hooks/useService"
 import {
   complaintAppointmentStepSchema,
   complaintDetailsStepSchema,
@@ -28,7 +35,9 @@ import {
   type ComplaintDetailsStepInput,
 } from "@/lib/validation/service"
 import { getIstNow } from "@/lib/ist"
+import { useToast } from "@/components/ui/toast-context"
 import { TicketTypeBadge } from "./TicketBadges"
+import { TechnicianAvailabilityPicker, type AvailabilitySlotPick } from "./TechnicianAvailabilityPicker"
 
 function todayInput() {
   return getIstNow().date
@@ -201,6 +210,28 @@ export function NewComplaintPage() {
   const { data: technicians } = useTechnicians(orgId)
   const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
 
+  // Urgent item #5 — availability-assisted scheduling: a free-slot pick
+  // (technician-first or date-first, both via TechnicianAvailabilityPicker)
+  // records which technician the master wants AND narrows the booking
+  // window down to exactly that slot, reusing the existing unavailable-
+  // windows geometry scan (_largest_free_window) rather than a second
+  // time-setting path — see handleAvailabilitySlotPick below. Manually
+  // editing the AvailabilityTimeline afterwards silently drops this
+  // preference back to "no preference, pure auto-assign/manual-later",
+  // which is correct: the picked slot no longer matches what's shown.
+  const [preferredTechnicianId, setPreferredTechnicianId] = useState("")
+  const assignTechnician = useAssignTicketTechnician()
+  const { toast } = useToast()
+
+  function handleAvailabilitySlotPick(pick: AvailabilitySlotPick) {
+    const blocks: TimeWindow[] = []
+    if (pick.slot.start > workStart) blocks.push({ start: workStart, end: pick.slot.start })
+    if (pick.slot.end < workEnd) blocks.push({ start: pick.slot.end, end: workEnd })
+    appointmentForm.setValue("unavailableWindows", blocks, { shouldValidate: true })
+    appointmentForm.setValue("autoAssign", false, { shouldValidate: true })
+    setPreferredTechnicianId(pick.technicianId)
+  }
+
   // Local draft persistence — see useLocalDraft's doc comment. Disabled for
   // the prefilled-customer entry point (see NewComplaintDraftData).
   const draftKey = prefilledCustomerId ? null : DRAFT_KEY
@@ -320,6 +351,26 @@ export function NewComplaintPage() {
       // fallback technician. The RPC gives this priority over autoAssign.
       technicianId: appt.technicianId || null,
     })
+
+    // Urgent item #5 — bind the availability-picker's chosen technician.
+    // Goes through the existing, already-reviewed assign_ticket_technician
+    // RPC (no force) so its own busy-conflict check is the one that decides
+    // this, not a client-side assumption that the picked slot is still
+    // free a moment later. Never force-assigns automatically — a real
+    // conflict here just leaves the ticket unassigned (same as unchecking
+    // "auto-assign" always has) and the master resolves it from the ticket
+    // page's own availability-assisted Assignment card, where a visible
+    // force-reassign action exists for exactly this.
+    if (preferredTechnicianId && !appt.autoAssign && result.appointment_id) {
+      const assignResult = await assignTechnician.mutateAsync({
+        appointmentId: result.appointment_id,
+        technicianId: preferredTechnicianId,
+      })
+      if (!assignResult.assigned) {
+        toast.error(t(assignResult.reason_key ?? "service.assign.technicianBusy"))
+      }
+    }
+
     clearDraft()
     navigate(`/admin/service/${result.ticket_id}`)
   }
@@ -665,13 +716,42 @@ export function NewComplaintPage() {
                   workStart={workStart}
                   workEnd={workEnd}
                   windows={field.value ?? []}
-                  onChange={field.onChange}
+                  onChange={(next) => {
+                    // A manual edit to the unavailable-windows bar no longer
+                    // matches whatever slot the availability picker last set
+                    // — drop the technician preference rather than silently
+                    // keep assigning someone the master may no longer want
+                    // at this (now different) window.
+                    setPreferredTechnicianId("")
+                    field.onChange(next)
+                  }}
                   exemptionWindows={exemptionBlocks}
                   narrowThresholdMinutes={narrowThreshold}
                   estimatedMinutes={estimatedMinutes}
                 />
               )}
             />
+
+            {/* Urgent item #5 — pick a technician first and see their free
+                slots, or pick a date first (above) and see which
+                technicians are free then; clicking a free slot narrows the
+                booking window above to exactly that slot. */}
+            <TechnicianAvailabilityPicker
+              orgId={orgId}
+              date={appointmentForm.watch("scheduledDate") || null}
+              technicians={(technicians ?? []).map((tc) => ({ id: tc.id, full_name: tc.full_name }))}
+              estimatedMinutes={estimatedMinutes}
+              selectedTechnicianId={preferredTechnicianId || null}
+              onSelectTechnician={setPreferredTechnicianId}
+              onSlotSelect={handleAvailabilitySlotPick}
+            />
+            {preferredTechnicianId ? (
+              <p className="text-xs text-text-muted">
+                {t("service.newComplaint.preferredTechnician", {
+                  name: (technicians ?? []).find((tc) => tc.id === preferredTechnicianId)?.full_name ?? "",
+                })}
+              </p>
+            ) : null}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-text">

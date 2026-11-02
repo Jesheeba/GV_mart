@@ -2011,6 +2011,7 @@
       "natureOfComplaintHint": "Additional details to help the technician.",
       "priority": "Priority",
       "scheduledAt": "Scheduled date & time",
+      "preferredTechnician": "Will try to assign to {{name}} at the picked slot.",
       "autoAssign": "Auto-assign to available technician",
       "assignTechnician": "Assign to technician (optional)",
       "create": "Create complaint",
@@ -2190,6 +2191,20 @@
       "technicianBusy": "Technician is busy at scheduled time.",
       "exemptionWindowConflict": "This customer has an exemption window covering this time — no technician can be assigned then.",
       "productRequired": "This ticket needs a product before it can be assigned."
+    },
+    "availability": {
+      "title": "Technician availability",
+      "mode": {
+        "date": "By date",
+        "technician": "By technician"
+      },
+      "pickDateFirst": "Pick a date to see technician availability.",
+      "notAvailableYet": "The availability assistant isn't available yet.",
+      "onLeave": "On leave this day",
+      "noFreeWindow": "No free slot left this day.",
+      "narrowSlotHint": "This slot is shorter than the estimated {{minutes}} min job.",
+      "noTechnicians": "No technicians found.",
+      "busyOverrideWarning": "This technician shows busy at this time. You can still assign them, but it will double-book unless you confirm the override."
     },
     "missingProductAlert": {
       "title": "Tickets missing a product",
