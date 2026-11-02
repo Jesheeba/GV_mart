@@ -5737,6 +5737,11 @@
     "title": "Lifecycle & spare schedule",
     "close": "Close",
     "loadFailed": "Could not load the lifecycle schedule.",
+    "noLifecycleFilterLabel": "Filter by lifecycle configuration",
+    "noLifecycleFilterAll": "All products",
+    "noLifecycleFilterOnly": "No lifecycle configured ({{count}})",
+    "noLifecycleBadge": "No lifecycle",
+    "noLifecycleBadgeHint": "This product has no active lifecycle configuration yet.",
     "lifetime": {
       "title": "Product lifetime",
       "hint": "How long this product is expected to last before it needs replacing.",

@@ -134,3 +134,15 @@ export async function applyUpdatedSchedule(productId: string): Promise<number> {
   if (error) throw error
   return (data ?? 0) as number
 }
+
+// ── Products without a lifecycle configured (Masters Products page filter) ──
+export interface ProductWithoutLifecycleConfigRow {
+  product_id: string
+  product_name: string
+}
+
+export async function listProductsWithoutLifecycleConfig(): Promise<ProductWithoutLifecycleConfigRow[]> {
+  const { data, error } = await db.rpc("get_products_without_lifecycle_config")
+  if (error) throw error
+  return (data ?? []) as ProductWithoutLifecycleConfigRow[]
+}
