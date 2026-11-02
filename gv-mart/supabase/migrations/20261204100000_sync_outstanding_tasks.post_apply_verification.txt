@@ -1,0 +1,53 @@
+Post-apply independent verification -- 20261204100000_sync_outstanding_tasks
+Applied: 2026-11-02 11:00:14.260922+00 (via .apply.sql, HTTP 201)
+
+1. Function source match (sha256 of pg_proc.prosrc, live, vs the reviewed
+   committed source body at commit 75bdce3) -- all three match exactly:
+   _sync_outstanding_tasks_for_org : 030cd133b39272fa06c7773b66aaf04282a309a137853561a82ec3cbef6a2ab6
+   sync_outstanding_tasks          : 86afd846864c6341801415ad3f2ac30eaf86d500dbcf04f5af5d754926dba878
+   refresh_outstanding_tasks       : 472f85c4dae5f5576e1a4c00879aa11f1d7adae9eb8a4e97e5a6b95f95141fd7
+
+2. Grants (has_function_privilege, live):
+                                    anon   authenticated  public
+   _sync_outstanding_tasks_for_org  false  false          false
+   sync_outstanding_tasks           false  false          false
+   refresh_outstanding_tasks        false  true           false
+
+3. Cron job: count=1, name=sync-outstanding-tasks, schedule='30 0 * * *' (06:00 IST),
+   command='select public.sync_outstanding_tasks()' (fixed literal).
+
+4. Index tasks_customer_outstanding_one_open_idx: exists (count=1).
+
+5. Settings columns and live defaults:
+   min_outstanding_balance     = 50
+   min_outstanding_days        = 3
+   default_accounts_owner_id   = null
+
+6. anon-exposure digest (sha256 of every proname anon has EXECUTE on), BEFORE
+   (captured in the rollback-exercise probe) vs AFTER (live, post-apply):
+   BEFORE: 67ee831c906514c1c7db882fc5755e1d4bc7a12b44a8f9bfe763cf3c0569168e
+   AFTER:  67ee831c906514c1c7db882fc5755e1d4bc7a12b44a8f9bfe763cf3c0569168e
+   -> identical, clean.
+
+7. Whole-table count+md5 (identity only: count(*) + md5 of id list), BEFORE
+   (rollback-exercise probe, same live state) vs AFTER (live, post-apply):
+                count:md5
+   tasks     before 25:1e0fc53c4179d07c713303458c255202
+             after  25:1e0fc53c4179d07c713303458c255202
+   settings  before 2:425802fc59acbfe2e14bd26af371c4e8
+             after  2:425802fc59acbfe2e14bd26af371c4e8
+   invoices  before 0:(empty)
+             after  0:(empty)
+   customers before 16524:4282498ef38a0c0c34e334144821917e
+             after  16524:4282498ef38a0c0c34e334144821917e
+   -> all four unchanged.
+
+8. Migration version 20261204100000 registered in supabase_migrations.schema_migrations: yes (count=1).
+
+9. Rolled-back smoke test, as the real org's real active master profile
+   (request.jwt.claims impersonation, SET LOCAL ROLE authenticated, not
+   superuser), wrapped in a probe transaction forced to roll back:
+   refresh_outstanding_tasks() returned 0, no error.
+   tasks table before: 25:1e0fc53c4179d07c713303458c255202
+   tasks table after:  25:1e0fc53c4179d07c713303458c255202
+   -> 0 residue (0 real customers currently qualify for a follow-up task).
