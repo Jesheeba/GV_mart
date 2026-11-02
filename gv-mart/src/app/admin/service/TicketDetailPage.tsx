@@ -30,6 +30,7 @@ import {
   useTicket,
   useTicketEvidence,
   useTicketPhotos,
+  useUnassignAppointment,
   useUpdateTicketAddress,
   useUpdateTicketEstimatedDuration,
   useUpdateTicketProduct,
@@ -126,7 +127,13 @@ export function TicketDetailPage() {
   const exemptionWindows = useCustomerExemptionWindows(ticket?.customer_id)
   const autoAssign = useAutoAssignTicket()
   const assign = useAssignTicketTechnician()
+  const unassign = useUnassignAppointment()
   const [pickerTechId, setPickerTechId] = useState("")
+  // Urgent item 1 fix (2026-11-02): this card used to have no way to change
+  // an already-assigned technician from this page at all (only the
+  // Appointments screen could reassign) -- opening this reveals the same
+  // explicit picker used for the first assignment, below.
+  const [reassigning, setReassigning] = useState(false)
 
   // Task 5 (2026-07-30/31) — exception path on top of unchanged
   // auto-assignment: log a phone-confirmed availability window (customer
@@ -668,20 +675,40 @@ export function TicketDetailPage() {
 
       <Card className="gap-3 px-5">
         <h2 className="text-sm font-semibold text-text">{t("service.detail.assignment")}</h2>
-        {appointment?.technician_id ? (
-          <p className="text-sm text-text">
-            {t("service.detail.assignedTo", { name: appointment.technicians?.profiles?.full_name ?? "—" })}
-          </p>
-        ) : appointment ? (
+        {appointment?.technician_id && !reassigning ? (
           <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-text">
+              {t("service.detail.assignedTo", { name: appointment.technicians?.profiles?.full_name ?? "—" })}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => { setPickerTechId(""); setReassigning(true) }}>
+              {t("service.appointments.reassign")}
+            </Button>
             <Button
               size="sm"
-              onClick={() => autoAssign.mutate(ticket.id, { onError: () => toast.error(t("common.actionFailed")) })}
-              disabled={autoAssign.isPending || !productDefined}
+              variant="outline"
+              disabled={unassign.isPending}
+              onClick={() => appointment && unassign.mutate(appointment.id, { onError: () => toast.error(t("common.actionFailed")) })}
             >
-              {autoAssign.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UserCog className="size-3.5" />}
-              {t("service.detail.autoAssign")}
+              {unassign.isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              {t("service.appointments.unassign")}
             </Button>
+          </div>
+        ) : appointment ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {appointment.technician_id ? (
+              <p className="w-full text-sm text-text">
+                {t("service.detail.assignedTo", { name: appointment.technicians?.profiles?.full_name ?? "—" })}
+              </p>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => autoAssign.mutate(ticket.id, { onError: () => toast.error(t("common.actionFailed")) })}
+                disabled={autoAssign.isPending || !productDefined}
+              >
+                {autoAssign.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UserCog className="size-3.5" />}
+                {t("service.detail.autoAssign")}
+              </Button>
+            )}
             <select
               value={pickerTechId}
               onChange={(e) => setPickerTechId(e.target.value)}
@@ -703,12 +730,17 @@ export function TicketDetailPage() {
                 appointment &&
                 assign.mutate(
                   { appointmentId: appointment.id, technicianId: pickerTechId },
-                  { onError: () => toast.error(t("common.actionFailed")) }
+                  { onSuccess: () => setReassigning(false), onError: () => toast.error(t("common.actionFailed")) }
                 )
               }
             >
-              {t("service.detail.assignManually")}
+              {appointment.technician_id ? t("service.appointments.reassign") : t("service.detail.assignManually")}
             </Button>
+            {reassigning ? (
+              <Button size="sm" variant="outline" onClick={() => setReassigning(false)}>
+                {t("common.cancel")}
+              </Button>
+            ) : null}
           </div>
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noAppointment")}</p>

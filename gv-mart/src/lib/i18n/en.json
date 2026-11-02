@@ -2012,6 +2012,7 @@
       "priority": "Priority",
       "scheduledAt": "Scheduled date & time",
       "autoAssign": "Auto-assign to available technician",
+      "assignTechnician": "Assign to technician (optional)",
       "create": "Create complaint",
       "typeNotSelectable": "Type is auto-detected and non-selectable.",
       "amcCoverage": "AMC coverage: {{start}} to {{expiry}}",

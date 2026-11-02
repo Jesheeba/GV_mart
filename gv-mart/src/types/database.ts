@@ -7733,6 +7733,10 @@ export type Database = {
           // takes, now preferred over p_slot_id when provided. See
           // 20261024160000_admin_complaint_unavailable_windows.sql.
           p_unavailable_windows?: Json | null
+          // Urgent item 1 fix (2026-11-02) — explicit master-picked
+          // technician, takes priority over p_auto_assign. See
+          // 20261202090000_complaint_explicit_technician_assignment.sql.
+          p_technician_id?: string | null
         }
         Returns: Json
       }
