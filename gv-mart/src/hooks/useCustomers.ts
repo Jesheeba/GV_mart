@@ -140,10 +140,17 @@ export function useCustomerLifetimeSummary(orgId: string | undefined, customerId
 }
 
 export function useCustomerAutocomplete(orgId: string | undefined, term: string) {
+  // Debounced here (not left to callers) so every one of this hook's many
+  // callers (New Complaint, New Sale, rentals, quotations, leads, merge,
+  // AMC, the admin header search, the customers list) gets the same
+  // keystroke-coalescing and request-cancellation instead of each firing
+  // 3 Supabase queries per keystroke -- that fan-out, uncancelled, is what
+  // queued the shared-table search into the ground under concurrent load.
+  const debouncedTerm = useDebouncedValue(term, 300)
   return useQuery({
-    queryKey: ["customers", "autocomplete", orgId, term],
-    queryFn: () => customers.autocompleteCustomers(orgId!, term),
-    enabled: !!orgId && term.trim().length > 0,
+    queryKey: ["customers", "autocomplete", orgId, debouncedTerm],
+    queryFn: ({ signal }) => customers.autocompleteCustomers(orgId!, debouncedTerm, signal),
+    enabled: !!orgId && debouncedTerm.trim().length > 0,
     staleTime: 10_000,
   })
 }

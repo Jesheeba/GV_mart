@@ -397,23 +397,29 @@ export async function updateCustomerWaterProfile(
  * number resolves back to their PRIMARY customer record, the same way
  * checkMobileInUse() already does for duplicate-mobile validation.
  */
-export async function autocompleteCustomers(orgId: string, term: string) {
+export async function autocompleteCustomers(orgId: string, term: string, signal?: AbortSignal) {
   const q = term.trim().replace(/[%,]/g, "")
   if (!q) return []
+  // supabase-js's .abortSignal() wants a real AbortSignal, not undefined --
+  // callers outside React Query (e.g. tests, scripts) that don't pass one
+  // get a signal that simply never fires.
+  const effectiveSignal = signal ?? new AbortController().signal
   const [byNameOrMobile, byAddress, byMember] = await Promise.all([
-    supabase.from("customers").select("id,name,mobile").eq("org_id", orgId).is("archived_at", null).or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%`).limit(6),
+    supabase.from("customers").select("id,name,mobile").eq("org_id", orgId).is("archived_at", null).or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%`).limit(6).abortSignal(effectiveSignal),
     supabase
       .from("addresses")
       .select("customers(id,name,mobile)")
       .eq("org_id", orgId)
       .or(`area.ilike.%${q}%,pincode.ilike.%${q}%`)
-      .limit(6),
+      .limit(6)
+      .abortSignal(effectiveSignal),
     supabase
       .from("customer_members")
       .select("customers(id,name,mobile)")
       .eq("org_id", orgId)
       .or(`name.ilike.%${q}%,mobile.ilike.%${q}%`)
-      .limit(6),
+      .limit(6)
+      .abortSignal(effectiveSignal),
   ])
   if (byNameOrMobile.error) throw byNameOrMobile.error
   if (byAddress.error) throw byAddress.error
