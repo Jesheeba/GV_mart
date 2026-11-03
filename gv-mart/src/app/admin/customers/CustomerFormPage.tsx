@@ -32,8 +32,15 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
-import { getPrimaryAddressId, setAddressWaterHousehold, setAddressZone, setCustomerPreferredLanguage, updateCustomerEmail } from "@/services/customers"
-import { addressLocalityText } from "@/lib/address"
+import {
+  getPrimaryAddressId,
+  setAddressStructuredFields,
+  setAddressWaterHousehold,
+  setAddressZone,
+  setCustomerPreferredLanguage,
+  updateCustomerEmail,
+} from "@/services/customers"
+import { composeFullAddress, splitAddressForForm } from "@/lib/address"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
@@ -51,7 +58,9 @@ import { guardReentry } from "@/lib/async-guard"
 /** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
 function hasAddressText(a: AddressStepInput) {
   return (
-    [a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some((v) => v?.trim()) ||
+    [a.doorNo, a.plotNo, a.buildingName, a.streetCross, a.subArea, a.landmark, a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some(
+      (v) => v?.trim()
+    ) ||
     a.lat != null ||
     a.lng != null
   )
@@ -228,6 +237,12 @@ export function CustomerFormPage() {
     resolver: zodResolver(addressStepSchema),
     mode: "onChange",
     defaultValues: {
+      doorNo: "",
+      plotNo: "",
+      buildingName: "",
+      streetCross: "",
+      subArea: "",
+      landmark: "",
       fullAddress: "",
       area: "",
       pincode: "",
@@ -245,13 +260,25 @@ export function CustomerFormPage() {
     },
   })
   const [waterEditing, setWaterEditing] = useState(false)
-  const fullAddress = addressForm.watch("fullAddress") ?? ""
+  const [hasLegacyAddressOnly, setHasLegacyAddressOnly] = useState(false)
+  const doorNo = addressForm.watch("doorNo") ?? ""
+  const plotNo = addressForm.watch("plotNo") ?? ""
+  const buildingName = addressForm.watch("buildingName") ?? ""
+  const streetCross = addressForm.watch("streetCross") ?? ""
+  const subArea = addressForm.watch("subArea") ?? ""
+  const landmark = addressForm.watch("landmark") ?? ""
+  const legacyFullAddress = addressForm.watch("fullAddress") ?? ""
   const area = addressForm.watch("area") ?? ""
   const pincode = addressForm.watch("pincode")
   const district = addressForm.watch("district")
   const state = addressForm.watch("state")
   const lat = addressForm.watch("lat")
   const lng = addressForm.watch("lng")
+  // The canonical composed text geocoding/compare/save all use — structured
+  // fields take over the moment any of them has text; otherwise this falls
+  // back to the old free-text full_address so a pre-redesign customer's
+  // address isn't silently dropped. See src/lib/address.ts.
+  const fullAddress = composeFullAddress({ doorNo, plotNo, buildingName, streetCross, subArea, area, landmark }) || legacyFullAddress
   const areaAutocomplete = useAreaAutocomplete(orgId, area)
   const pincodeLookup = usePincodeLookup(orgId, pincode)
   const autoLocate = useGeocodeAddress()
@@ -285,7 +312,9 @@ export function CustomerFormPage() {
   // renders as an amber DRAFT pin (draggable, "needs confirmation") that
   // staff must explicitly confirm or correct, exactly like every other
   // ambiguous "search anyway" result already behaves.
-  const autoLocateQuery = [fullAddress, area, pincode, district, state].filter(Boolean).join(", ")
+  // `fullAddress` already folds `area` in (see composeFullAddress above), so
+  // it isn't repeated here.
+  const autoLocateQuery = [fullAddress, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {
@@ -331,12 +360,21 @@ export function CustomerFormPage() {
       setEditEmail(existing.data.email ?? "")
       const primary = existing.data.addresses.find((a) => a.is_primary) ?? existing.data.addresses[0]
       if (primary) {
-        // Pre-migration rows have no full_address yet — fall back to the legacy
-        // concatenation so editing an old address doesn't look blank.
-        const fullAddressValue = primary.full_address ?? addressLocalityText(primary)
+        // Structured columns win when any are populated; a customer saved
+        // before this redesign (all structured columns empty) falls back to
+        // showing the old free-text full_address instead, so editing it
+        // doesn't look blank. See src/lib/address.ts.
+        const split = splitAddressForForm(primary)
+        setHasLegacyAddressOnly(!split.hasStructuredFields && !!split.legacyFullAddress)
         addressForm.reset({
-          fullAddress: fullAddressValue,
-          area: primary.area ?? "",
+          doorNo: split.doorNo,
+          plotNo: split.plotNo,
+          buildingName: split.buildingName,
+          streetCross: split.streetCross,
+          subArea: split.subArea,
+          landmark: split.landmark,
+          fullAddress: split.legacyFullAddress,
+          area: split.area,
           pincode: primary.pincode ?? "",
           district: primary.district ?? "",
           state: primary.state ?? "",
@@ -350,9 +388,8 @@ export function CustomerFormPage() {
           waterPh: primary.water_ph ?? undefined,
           healthCondition: primary.health_condition ?? "",
         })
-        confirmedLocationTextRef.current = [fullAddressValue, primary.area, primary.pincode, primary.district, primary.state]
-          .filter(Boolean)
-          .join(", ")
+        const composed = composeFullAddress(split) || split.legacyFullAddress
+        confirmedLocationTextRef.current = [composed, primary.pincode, primary.district, primary.state].filter(Boolean).join(", ")
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -410,6 +447,10 @@ export function CustomerFormPage() {
     const valid = await addressForm.trigger()
     if (!valid) return
     const addressValues = addressForm.getValues()
+    // Structured fields are the source of truth the moment any is filled;
+    // only a customer that still has nothing but the legacy fallback box
+    // keeps that text as full_address. See composeFullAddress in src/lib/address.ts.
+    const composedFullAddress = composeFullAddress(addressValues) || addressValues.fullAddress?.trim() || ""
 
     if (mode === "create") {
       const peopleValues = peopleForm.getValues()
@@ -428,7 +469,7 @@ export function CustomerFormPage() {
           email: m.email?.trim() || undefined,
         })),
         address: {
-          fullAddress: addressValues.fullAddress,
+          fullAddress: composedFullAddress,
           area: addressValues.area,
           pincode: addressValues.pincode,
           district: addressValues.district,
@@ -482,6 +523,32 @@ export function CustomerFormPage() {
           toast.error(t("common.actionFailed"))
         }
       }
+      // Clean-address-form redesign (2026-11-03): create_customer_with_details
+      // only accepts full_address/area/pincode/district/state — the structured
+      // columns behind the new Door no/Plot no/Building Name/Street-Cross/
+      // Sub Area/Landmark fields get the same direct follow-up write as zone
+      // above. sub_area ships in migration 20261204170000 — until that's
+      // applied live, this write optimistically includes it (same pattern
+      // the water/household columns used ahead of their own migration) and
+      // Supabase simply ignores/rejects the unknown key until then.
+      const hasStructuredFields =
+        addressValues.doorNo?.trim() || addressValues.plotNo?.trim() || addressValues.buildingName?.trim() ||
+        addressValues.streetCross?.trim() || addressValues.subArea?.trim() || addressValues.landmark?.trim()
+      if (hasStructuredFields && hasAddressText(addressValues)) {
+        try {
+          const primaryAddressId = await getPrimaryAddressId(newId)
+          await setAddressStructuredFields(primaryAddressId, {
+            doorNo: addressValues.doorNo?.trim() || undefined,
+            plotNo: addressValues.plotNo?.trim() || undefined,
+            buildingName: addressValues.buildingName?.trim() || undefined,
+            streetCross: addressValues.streetCross?.trim() || undefined,
+            subArea: addressValues.subArea?.trim() || undefined,
+            landmark: addressValues.landmark?.trim() || undefined,
+          })
+        } catch {
+          toast.error(t("common.actionFailed"))
+        }
+      }
       // Water & household step — same follow-up-write reasoning as zone
       // above (the create RPC has no slot for these), and the same guard:
       // no addresses row exists at all unless some address text was given.
@@ -508,7 +575,7 @@ export function CustomerFormPage() {
     const existingAddressId = existing.data!.addresses.find((a) => a.is_primary)?.id ?? existing.data!.addresses[0]?.id ?? null
     // Blank address on a customer with none stays "needs setup" — no empty row.
     if (existingAddressId || hasAddressText(addressValues)) {
-      await upsertAddress.mutateAsync({ existingAddressId, patch: addressValues })
+      await upsertAddress.mutateAsync({ existingAddressId, patch: { ...addressValues, fullAddress: composedFullAddress } })
     }
     navigate(`/admin/customers/${id}`)
   }
@@ -631,21 +698,43 @@ export function CustomerFormPage() {
         </Card>
       ) : step === 1 ? (
         <Card className="gap-4 px-5">
-          <div className="space-y-1.5 px-1">
-            <Label htmlFor="fullAddress">{t("customers.form.fullAddress")}</Label>
-            <textarea
-              id="fullAddress"
-              rows={3}
-              placeholder={t("customers.form.fullAddressPlaceholder")}
-              aria-invalid={!!addressForm.formState.errors.fullAddress}
-              className="w-full resize-none rounded-xl border border-input bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-              {...addressForm.register("fullAddress")}
-            />
-            {addressForm.formState.errors.fullAddress ? (
-              <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
-            ) : null}
-          </div>
+          {hasLegacyAddressOnly ? (
+            <div className="space-y-1.5 px-1">
+              <Label htmlFor="fullAddress">{t("customers.form.fullAddress")}</Label>
+              <textarea
+                id="fullAddress"
+                rows={3}
+                placeholder={t("customers.form.fullAddressPlaceholder")}
+                aria-invalid={!!addressForm.formState.errors.fullAddress}
+                className="w-full resize-none rounded-xl border border-input bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                {...addressForm.register("fullAddress")}
+              />
+              {addressForm.formState.errors.fullAddress ? (
+                <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-3 px-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="doorNo">{t("customers.form.doorNo")}</Label>
+              <Input id="doorNo" {...addressForm.register("doorNo")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="plotNo">{t("customers.form.plotNo")}</Label>
+              <Input id="plotNo" {...addressForm.register("plotNo")} />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="buildingName">{t("customers.form.buildingName")}</Label>
+              <Input id="buildingName" {...addressForm.register("buildingName")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="streetCross">{t("customers.form.streetCross")}</Label>
+              <Input id="streetCross" {...addressForm.register("streetCross")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="subArea">{t("customers.form.subArea")}</Label>
+              <Input id="subArea" {...addressForm.register("subArea")} />
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="area">{t("customers.form.area")}</Label>
               <Autocomplete
@@ -662,6 +751,10 @@ export function CustomerFormPage() {
               {addressForm.formState.errors.area ? (
                 <p className="text-xs text-danger">{t(addressForm.formState.errors.area.message!)}</p>
               ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="landmark">{t("customers.form.landmark")}</Label>
+              <Input id="landmark" {...addressForm.register("landmark")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pincode">{t("customers.form.pincode")}</Label>

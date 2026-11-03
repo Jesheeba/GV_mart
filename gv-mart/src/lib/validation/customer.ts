@@ -125,8 +125,18 @@ export const addressStepSchema = z.object({
   // The whole address is optional — a contact can be saved without one and is
   // flagged needs_setup until an address is filled in. Pincode is only checked
   // when something was typed.
-  // Door No/Plot No/Building No/Building Name/Street-Cross/Landmark collapsed
-  // (2026-11-03) into one free-text box — see src/lib/address.ts.
+  // Clean-address-form redesign (2026-11-03): structured fields replace the
+  // single free-text box again, matching the owner's layout — see
+  // src/lib/address.ts (composeFullAddress/splitAddressForForm) for how
+  // these feed the canonical `full_address` column search/print/invoice
+  // still read. `fullAddress` is kept as the read-only fallback shown for a
+  // customer saved before this change whose structured columns are empty.
+  doorNo: z.string().trim().optional().or(z.literal("")),
+  plotNo: z.string().trim().optional().or(z.literal("")),
+  buildingName: z.string().trim().optional().or(z.literal("")),
+  streetCross: z.string().trim().optional().or(z.literal("")),
+  subArea: z.string().trim().optional().or(z.literal("")),
+  landmark: z.string().trim().optional().or(z.literal("")),
   fullAddress: z.string().trim().optional().or(z.literal("")),
   area: z.string().trim().optional().or(z.literal("")),
   pincode: z.union([z.string().regex(PINCODE_REGEX, "customers.errors.pincodeInvalid"), z.literal("")]),

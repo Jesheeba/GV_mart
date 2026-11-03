@@ -874,6 +874,8 @@ export type Database = {
           zone: string | null
           /** Single free-text address box — see migration 20261103090000. */
           full_address: string | null
+          /** Added 2026-12-04 — clean-address-form redesign, see migration 20261204170000. */
+          sub_area: string | null
           /** Added 2026-11-03 — Water & household step, see migration 20261103120000. */
           water_source: string | null
           water_tds: number | null
@@ -906,6 +908,7 @@ export type Database = {
           is_primary?: boolean
           zone?: string | null
           full_address?: string | null
+          sub_area?: string | null
           water_source?: string | null
           water_tds?: number | null
           water_ph?: number | null
@@ -937,6 +940,7 @@ export type Database = {
           is_primary?: boolean
           zone?: string | null
           full_address?: string | null
+          sub_area?: string | null
           water_source?: string | null
           water_tds?: number | null
           water_ph?: number | null

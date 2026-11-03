@@ -738,6 +738,12 @@ export async function upsertPrimaryAddress(
   customerId: string,
   existingAddressId: string | null,
   patch: {
+    doorNo?: string
+    plotNo?: string
+    buildingName?: string
+    streetCross?: string
+    subArea?: string
+    landmark?: string
     fullAddress?: string
     area?: string
     pincode?: string
@@ -755,6 +761,12 @@ export async function upsertPrimaryAddress(
   }
 ) {
   const row = {
+    door_no: patch.doorNo || null,
+    plot_no: patch.plotNo || null,
+    building_name: patch.buildingName || null,
+    street_cross: patch.streetCross || null,
+    sub_area: patch.subArea || null,
+    landmark: patch.landmark || null,
     full_address: patch.fullAddress || null,
     area: patch.area || null,
     pincode: patch.pincode || null,
@@ -808,6 +820,30 @@ export async function getPrimaryAddressId(customerId: string) {
 
 export async function setAddressZone(addressId: string, zone: string | null) {
   const { error } = await supabase.from("addresses").update({ zone }).eq("id", addressId)
+  if (error) throw error
+}
+
+/**
+ * Same follow-up-write pattern as setAddressZone above — create_customer_with_details
+ * only accepts full_address/area/pincode/district/state (2026-11-03), so a brand-new
+ * customer's Door no/Plot no/Building Name/Street-Cross/Landmark get patched on right
+ * after creation.
+ */
+export async function setAddressStructuredFields(
+  addressId: string,
+  patch: { doorNo?: string; plotNo?: string; buildingName?: string; streetCross?: string; subArea?: string; landmark?: string }
+) {
+  const { error } = await supabase
+    .from("addresses")
+    .update({
+      door_no: patch.doorNo || null,
+      plot_no: patch.plotNo || null,
+      building_name: patch.buildingName || null,
+      street_cross: patch.streetCross || null,
+      sub_area: patch.subArea || null,
+      landmark: patch.landmark || null,
+    })
+    .eq("id", addressId)
   if (error) throw error
 }
 
