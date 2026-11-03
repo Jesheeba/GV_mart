@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { useProfile } from "@/hooks/useProfile"
 import { useAddressSearch, useLogCall, useMyTechnician } from "@/hooks/useTechnician"
 import { getCurrentPosition } from "@/lib/offline/geo"
+import { addressLocalityText } from "@/lib/address"
 import { JobTypeBadge } from "./components/JobBadges"
 
 const OPEN_STATUSES = new Set(["open", "assigned", "in_progress"])
@@ -79,7 +80,7 @@ export function SearchPage() {
         <div className="space-y-2.5">
           {results.data.map((addr) => {
             const customer = addr.customers
-            const addressLine = [addr.door_no, addr.area, addr.pincode].filter(Boolean).join(", ")
+            const addressLine = [addressLocalityText(addr), addr.area, addr.pincode].filter(Boolean).join(", ")
             const relevantJob = customer?.service_tickets
               ?.filter((tk) => OPEN_STATUSES.has(tk.status))
               .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]

@@ -504,7 +504,7 @@ export async function listOwnedEquipment(orgId: string, customerId: string): Pro
 export async function listCustomerAddresses(customerId: string) {
   const { data, error } = await supabase
     .from("addresses")
-    .select("id, area, door_no, address_type, is_primary")
+    .select("id, area, full_address, door_no, address_type, is_primary")
     .eq("customer_id", customerId)
     .order("is_primary", { ascending: false })
   if (error) throw error

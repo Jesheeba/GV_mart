@@ -935,10 +935,6 @@ export function OnSiteVisitPage() {
     setEnquiryConfirmError(null)
 
     const trimmedCode = otpCode.trim()
-    if (!trimmedCode) {
-      setOtpErrorKey("technician.onsite.otp.errors.required")
-      return
-    }
     if (!navigator.onLine) {
       setOtpErrorKey("technician.onsite.otp.errors.offline")
       return

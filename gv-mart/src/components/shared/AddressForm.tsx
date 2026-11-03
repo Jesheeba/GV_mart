@@ -11,6 +11,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
 import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validation/customerApp"
+import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
 
 /**
@@ -54,14 +55,11 @@ export function AddressForm({
     resolver: zodResolver(customerAddressSchema),
     mode: "onChange",
     defaultValues: {
-      doorNo: initial?.door_no ?? "",
-      buildingNo: initial?.building_no ?? "",
-      buildingName: initial?.building_name ?? "",
-      plotNo: initial?.plot_no ?? "",
-      streetCross: initial?.street_cross ?? "",
+      // Pre-migration rows have no full_address yet — fall back to the legacy
+      // concatenation so editing an old address doesn't look blank.
+      fullAddress: initial?.full_address ?? (initial ? addressLocalityText(initial) : ""),
       area: initial?.area ?? "",
       pincode: initial?.pincode ?? "",
-      landmark: initial?.landmark ?? "",
       district: initial?.district ?? "",
       state: initial?.state ?? "",
       addressType: initial?.address_type ?? "residential",
@@ -72,19 +70,8 @@ export function AddressForm({
   })
   const lat = watch("lat")
   const lng = watch("lng")
-  const [doorNo, buildingNo, buildingName, plotNo, streetCross, area, pincode, landmark, district, state] = watch([
-    "doorNo",
-    "buildingNo",
-    "buildingName",
-    "plotNo",
-    "streetCross",
-    "area",
-    "pincode",
-    "landmark",
-    "district",
-    "state",
-  ])
-  const locationText = [doorNo, buildingNo, buildingName, plotNo, streetCross, area, pincode, landmark, district, state].join("|")
+  const [fullAddress, area, pincode, district, state] = watch(["fullAddress", "area", "pincode", "district", "state"])
+  const locationText = [fullAddress, area, pincode, district, state].join("|")
   // Bug fix: editing an existing address's text (e.g. correcting the door
   // number/area to a real address after it was saved with a placeholder)
   // used to leave the OLD pin's lat/lng untouched — the map picker showed it
@@ -111,11 +98,7 @@ export function AddressForm({
   // them (that's what the confirmedLocationTextRef effect above already
   // guards via clearing lat/lng, which re-opens this effect to suggest again).
   const geocodeAddress = useGeocodeAddress()
-  // buildingNo/buildingName/plotNo (e.g. "8th floor", "Sunrise Apartments")
-  // are deliberately excluded — a floor/building/plot label isn't a
-  // geocodable component (no premise/street_number token Google can match),
-  // so including it only adds noise to the query, never precision.
-  const autoLocateQuery = [doorNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
+  const autoLocateQuery = [fullAddress, area, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {
@@ -141,28 +124,17 @@ export function AddressForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5 border-t border-border pt-3">
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="space-y-1">
-          <Label htmlFor={`${uid}-doorNo`} className="sr-only">{t("customerApp.profile.address.doorNo")}</Label>
-          <Input id={`${uid}-doorNo`} placeholder={t("customerApp.profile.address.doorNo")} aria-invalid={!!errors.doorNo} {...register("doorNo")} />
-          {errors.doorNo ? <p className="text-xs text-danger">{t(errors.doorNo.message!)}</p> : null}
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${uid}-plotNo`} className="sr-only">{t("customerApp.profile.address.plotNo")}</Label>
-          <Input id={`${uid}-plotNo`} placeholder={t("customerApp.profile.address.plotNo")} {...register("plotNo")} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${uid}-buildingNo`} className="sr-only">{t("customerApp.profile.address.buildingNo")}</Label>
-          <Input id={`${uid}-buildingNo`} placeholder={t("customerApp.profile.address.buildingNo")} {...register("buildingNo")} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${uid}-buildingName`} className="sr-only">{t("customerApp.profile.address.buildingName")}</Label>
-          <Input id={`${uid}-buildingName`} placeholder={t("customerApp.profile.address.buildingName")} {...register("buildingName")} />
-        </div>
-      </div>
       <div className="space-y-1">
-        <Label htmlFor={`${uid}-streetCross`} className="sr-only">{t("customerApp.profile.address.streetCross")}</Label>
-        <Input id={`${uid}-streetCross`} placeholder={t("customerApp.profile.address.streetCross")} {...register("streetCross")} />
+        <Label htmlFor={`${uid}-fullAddress`} className="sr-only">{t("customerApp.profile.address.fullAddress")}</Label>
+        <textarea
+          id={`${uid}-fullAddress`}
+          rows={3}
+          placeholder={t("customerApp.profile.address.fullAddressPlaceholder")}
+          aria-invalid={!!errors.fullAddress}
+          className="w-full resize-none rounded-xl border border-input bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+          {...register("fullAddress")}
+        />
+        {errors.fullAddress ? <p className="text-xs text-danger">{t(errors.fullAddress.message!)}</p> : null}
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${uid}-area`} className="sr-only">{t("customerApp.profile.address.area")}</Label>
@@ -175,13 +147,9 @@ export function AddressForm({
           <Input id={`${uid}-pincode`} placeholder={t("customerApp.profile.address.pincode")} aria-invalid={!!errors.pincode} {...register("pincode")} />
           {errors.pincode ? <p className="text-xs text-danger">{t(errors.pincode.message!)}</p> : null}
         </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${uid}-landmark`} className="sr-only">{t("customerApp.profile.address.landmark")}</Label>
-          <Input id={`${uid}-landmark`} placeholder={t("customerApp.profile.address.landmark")} {...register("landmark")} />
-        </div>
+        <Input placeholder={t("customerApp.profile.address.district")} {...register("district")} />
       </div>
       <div className="grid grid-cols-2 gap-2.5">
-        <Input placeholder={t("customerApp.profile.address.district")} {...register("district")} />
         <Input placeholder={t("customerApp.profile.address.state")} {...register("state")} />
       </div>
 

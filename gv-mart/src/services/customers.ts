@@ -381,14 +381,9 @@ export type CreateCustomerInput = {
   source?: string
   members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation; profession?: string; email?: string }[]
   address: {
-    doorNo?: string
-    buildingNo?: string
-    buildingName?: string
-    plotNo?: string
-    streetCross?: string
+    fullAddress?: string
     area?: string
     pincode?: string
-    landmark?: string
     district?: string
     state?: string
     addressType: Enums<"address_type">
@@ -414,14 +409,9 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
       email: m.email?.trim() || null,
     })),
     p_address: {
-      door_no: input.address.doorNo ?? "",
-      building_no: input.address.buildingNo ?? "",
-      building_name: input.address.buildingName ?? "",
-      plot_no: input.address.plotNo ?? "",
-      street_cross: input.address.streetCross ?? "",
+      full_address: input.address.fullAddress ?? "",
       area: input.address.area ?? "",
       pincode: input.address.pincode ?? "",
-      landmark: input.address.landmark ?? "",
       district: input.address.district ?? "",
       state: input.address.state ?? "",
       address_type: input.address.addressType,
@@ -569,14 +559,9 @@ export async function upsertPrimaryAddress(
   customerId: string,
   existingAddressId: string | null,
   patch: {
-    doorNo?: string
-    buildingNo?: string
-    buildingName?: string
-    plotNo?: string
-    streetCross?: string
+    fullAddress?: string
     area?: string
     pincode?: string
-    landmark?: string
     district?: string
     state?: string
     zone?: string
@@ -584,17 +569,16 @@ export async function upsertPrimaryAddress(
     ownership: Enums<"ownership_type">
     lat?: number
     lng?: number
+    waterSource?: string
+    waterTds?: number
+    waterPh?: number
+    healthCondition?: string
   }
 ) {
   const row = {
-    door_no: patch.doorNo || null,
-    building_no: patch.buildingNo || null,
-    building_name: patch.buildingName || null,
-    plot_no: patch.plotNo || null,
-    street_cross: patch.streetCross || null,
+    full_address: patch.fullAddress || null,
     area: patch.area || null,
     pincode: patch.pincode || null,
-    landmark: patch.landmark || null,
     district: patch.district || null,
     state: patch.state || null,
     zone: patch.zone || null,
@@ -602,6 +586,10 @@ export async function upsertPrimaryAddress(
     ownership: patch.ownership,
     lat: patch.lat ?? null,
     lng: patch.lng ?? null,
+    water_source: patch.waterSource || null,
+    water_tds: patch.waterTds ?? null,
+    water_ph: patch.waterPh ?? null,
+    health_condition: patch.healthCondition || null,
   }
   if (existingAddressId) {
     const { data, error } = await supabase.from("addresses").update(row).eq("id", existingAddressId).select().single()
@@ -609,7 +597,7 @@ export async function upsertPrimaryAddress(
     // Emptying the address again puts the flag back.
     const { error: flagError } = await supabase
       .from("customers")
-      .update({ needs_setup: !(patch.doorNo || patch.area || patch.pincode || patch.streetCross || patch.landmark) })
+      .update({ needs_setup: !(patch.fullAddress || patch.area || patch.pincode) })
       .eq("id", customerId)
     if (flagError) throw flagError
     return data
@@ -641,6 +629,27 @@ export async function getPrimaryAddressId(customerId: string) {
 
 export async function setAddressZone(addressId: string, zone: string | null) {
   const { error } = await supabase.from("addresses").update({ zone }).eq("id", addressId)
+  if (error) throw error
+}
+
+/**
+ * Same follow-up-write pattern as setAddressZone above — the create-customer
+ * RPC doesn't accept the Water & household fields, so a brand-new customer's
+ * primary address gets them patched on right after creation.
+ */
+export async function setAddressWaterHousehold(
+  addressId: string,
+  patch: { waterSource?: string; waterTds?: number; waterPh?: number; healthCondition?: string }
+) {
+  const { error } = await supabase
+    .from("addresses")
+    .update({
+      water_source: patch.waterSource || null,
+      water_tds: patch.waterTds ?? null,
+      water_ph: patch.waterPh ?? null,
+      health_condition: patch.healthCondition || null,
+    })
+    .eq("id", addressId)
   if (error) throw error
 }
 

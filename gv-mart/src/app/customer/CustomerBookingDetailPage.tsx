@@ -18,6 +18,7 @@ import { BookingConfirmedStrip } from "@/app/customer/components/tracking/Bookin
 import { useTicketDetail, useSubmitCustomerRating, useTechnicianPublicStats, useCustomerAppSettings } from "@/hooks/useCustomerApp"
 import { useLiveTracking } from "@/hooks/useLiveTracking"
 import { formatDate } from "@/lib/formatDate"
+import { addressLocalityText } from "@/lib/address"
 import type { RouteInfo } from "@/app/customer/components/tracking/TrackingMap"
 
 const STATUS_TONE: Record<string, StatusTone> = {
@@ -135,7 +136,7 @@ export function CustomerBookingDetailPage() {
   }
 
   const addressLabel = ticket.addresses
-    ? [ticket.addresses.door_no, ticket.addresses.area, ticket.addresses.pincode].filter(Boolean).join(", ")
+    ? [addressLocalityText(ticket.addresses), ticket.addresses.area, ticket.addresses.pincode].filter(Boolean).join(", ")
     : "—"
 
   return (

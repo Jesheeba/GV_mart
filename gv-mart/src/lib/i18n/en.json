@@ -537,6 +537,7 @@
       "editTitle": "Edit Customer",
       "stepPeople": "People",
       "stepAddress": "Address",
+      "stepWater": "Water & household",
       "profession": "Profession",
       "professionPlaceholder": "e.g. Teacher, Shop Owner",
       "memberName": "Full name",
@@ -560,6 +561,8 @@
       },
       "maxMembersReached": "Maximum of 5 family members reached",
       "duplicateWarning": "This number is already linked to {{name}}",
+      "fullAddress": "Full address",
+      "fullAddressPlaceholder": "Door/flat no., building, street, landmark...",
       "doorNo": "Door No.",
       "flatNo": "Flat / Building No.",
       "buildingNo": "Building No.",
@@ -597,6 +600,18 @@
         "suggestedPlaceLabel": "Google matched this to: {{place}}",
         "confirmedPin": "Location confirmed · {{lat}}, {{lng}}",
         "confirmLocation": "Confirm location"
+      },
+      "water": {
+        "title": "Water & household",
+        "edit": "Edit",
+        "waterSource": "Water source",
+        "waterSourcePlaceholder": "Enter source",
+        "waterTds": "Water TDS (ppm)",
+        "waterPh": "Water pH",
+        "healthCondition": "Health condition",
+        "healthConditionPlaceholder": "Enter details",
+        "valuePlaceholder": "Value",
+        "familyMembers": "Family members"
       }
     },
     "errors": {
@@ -2289,7 +2304,7 @@
       }
     },
     "errors": {
-      "doorNoRequired": "Door/Flat number is required",
+      "fullAddressRequired": "Address is required",
       "areaRequired": "Area is required",
       "pincodeInvalid": "Enter a valid 6-digit PIN code",
       "nameRequired": "Enter a name (at least 2 characters)",
@@ -2317,6 +2332,8 @@
       "setPrimary": "Set primary",
       "confirm": "Confirm",
       "address": {
+        "fullAddress": "Full address",
+        "fullAddressPlaceholder": "Door/flat no., building, street, landmark...",
         "doorNo": "Door No.",
         "flatNo": "Flat No.",
         "buildingNo": "Building No.",
@@ -3199,13 +3216,12 @@
         }
       },
       "otp": {
-        "title": "Customer confirmation code",
-        "hint": "Ask the customer for the 4-digit code shown in their app, then enter it here to finish the job.",
+        "title": "Customer confirmation code (optional)",
+        "hint": "Ask the customer for the 4-digit code shown in their app, then enter it here to finish the job. You can leave this blank for now and complete the job without it.",
         "codeLabel": "Enter code",
         "resendButton": "Resend code",
         "resent": "New code sent to the customer.",
         "errors": {
-          "required": "Enter the code the customer gives you before completing.",
           "incorrect": "Incorrect code — {{remaining}} attempt(s) left.",
           "expired": "This code has expired. Tap Resend to get a new one.",
           "locked": "Too many incorrect attempts. Tap Resend to get a new one.",

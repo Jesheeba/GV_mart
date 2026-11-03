@@ -654,14 +654,21 @@ export type Database = {
           id: string
           org_id: string
           customer_id: string
+          /** @deprecated 2026-11-03 — superseded by full_address. Kept only so pre-existing rows still display. */
           door_no: string | null
+          /** @deprecated 2026-09-15 — superseded by building_no/building_name/plot_no, now also by full_address. */
           flat_no: string | null
+          /** @deprecated 2026-11-03 — superseded by full_address. Kept only so pre-existing rows still display. */
           building_no: string | null
+          /** @deprecated 2026-11-03 — superseded by full_address. Kept only so pre-existing rows still display. */
           building_name: string | null
+          /** @deprecated 2026-11-03 — superseded by full_address. Kept only so pre-existing rows still display. */
           plot_no: string | null
+          /** @deprecated 2026-11-03 — superseded by full_address. Kept only so pre-existing rows still display. */
           street_cross: string | null
           area: string | null
           pincode: string | null
+          /** @deprecated 2026-11-03 — superseded by full_address. Kept only so pre-existing rows still display. */
           landmark: string | null
           district: string | null
           state: string | null
@@ -671,6 +678,13 @@ export type Database = {
           ownership: Database["public"]["Enums"]["ownership_type"]
           is_primary: boolean
           zone: string | null
+          /** Single free-text address box — see migration 20261103090000. */
+          full_address: string | null
+          /** Added 2026-11-03 — Water & household step, see migration 20261103120000. */
+          water_source: string | null
+          water_tds: number | null
+          water_ph: number | null
+          health_condition: string | null
           created_at: string
           updated_at: string
         }
@@ -695,6 +709,11 @@ export type Database = {
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
           zone?: string | null
+          full_address?: string | null
+          water_source?: string | null
+          water_tds?: number | null
+          water_ph?: number | null
+          health_condition?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -719,6 +738,11 @@ export type Database = {
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
           zone?: string | null
+          full_address?: string | null
+          water_source?: string | null
+          water_tds?: number | null
+          water_ph?: number | null
+          health_condition?: string | null
           created_at?: string
           updated_at?: string
         }

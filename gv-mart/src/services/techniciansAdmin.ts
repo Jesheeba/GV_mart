@@ -4,6 +4,7 @@ import type { DayJobInput, DayVisitInput, RouteTrailPoint } from "@/lib/routeCol
 import { getIstNow, istDayStartIso, istDayEndIso } from "@/lib/ist"
 import type { Tables, TablesInsert } from "@/types/database"
 import type { DateRange } from "./reports"
+import { addressLine } from "@/lib/address"
 
 // New file — the admin-side counterpart to src/services/technician.ts
 // (owned by the mobile technician app, not touched here). Phase 10 scope:
@@ -631,7 +632,7 @@ export type TechnicianActiveJob = {
 export async function listTechniciansActiveJobs(orgId: string): Promise<Map<string, TechnicianActiveJob>> {
   const { data, error } = await supabase
     .from("appointments")
-    .select("technician_id, scheduled_at, ticket_id, service_tickets!inner(addresses(lat, lng, door_no, area), customers(name))")
+    .select("technician_id, scheduled_at, ticket_id, service_tickets!inner(addresses(lat, lng, door_no, full_address, area), customers(name))")
     .eq("org_id", orgId)
     .in("status", ["scheduled", "in_progress"])
     .not("technician_id", "is", null)
@@ -642,7 +643,7 @@ export async function listTechniciansActiveJobs(orgId: string): Promise<Map<stri
     scheduled_at: string | null
     ticket_id: string
     service_tickets: {
-      addresses: { lat: number | null; lng: number | null; door_no: string | null; area: string | null } | null
+      addresses: { lat: number | null; lng: number | null; door_no: string | null; full_address: string | null; area: string | null } | null
       customers: { name: string } | null
     } | null
   }[]
@@ -657,7 +658,7 @@ export async function listTechniciansActiveJobs(orgId: string): Promise<Map<stri
       lng: addr.lng,
       scheduledAt: r.scheduled_at,
       customerName: r.service_tickets?.customers?.name ?? null,
-      addressLabel: [addr.door_no, addr.area].filter(Boolean).join(", ") || null,
+      addressLabel: addressLine(addr) || null,
     })
   }
   return byTech
@@ -699,7 +700,7 @@ export async function listTechniciansOpenVisits(orgId: string): Promise<Map<stri
     supabase
       .from("service_visits")
       .select(
-        "id, technician_id, ticket_id, timer_start, timer_end, service_tickets(estimated_duration_minutes, customers(name), addresses(door_no, area)), service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)"
+        "id, technician_id, ticket_id, timer_start, timer_end, service_tickets(estimated_duration_minutes, customers(name), addresses(door_no, full_address, area)), service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)"
       )
       .eq("org_id", orgId)
       .not("timer_start", "is", null)
@@ -716,7 +717,7 @@ export async function listTechniciansOpenVisits(orgId: string): Promise<Map<stri
     service_tickets: {
       estimated_duration_minutes: number | null
       customers: { name: string } | null
-      addresses: { door_no: string | null; area: string | null } | null
+      addresses: { door_no: string | null; full_address: string | null; area: string | null } | null
     } | null
     service_spares_used: { qty: number; spares: { standard_time_minutes: number | null } | null }[]
     ratings: { google_review_clicked: boolean } | null
@@ -744,7 +745,7 @@ export async function listTechniciansOpenVisits(orgId: string): Promise<Map<stri
       estimatedDurationMinutes: r.service_tickets?.estimated_duration_minutes ?? null,
       allowedDurationMinutes,
       customerName: r.service_tickets?.customers?.name ?? null,
-      addressLabel: [addr?.door_no, addr?.area].filter(Boolean).join(", ") || null,
+      addressLabel: addressLine(addr) || null,
     })
   }
   return byTech

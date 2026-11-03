@@ -25,6 +25,7 @@ import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
+import { addressLocalityText } from "@/lib/address"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
@@ -343,19 +344,7 @@ export function CustomerDetailPage() {
                       </span>
                       <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
                         <MapPin className="size-3" />
-                        {[
-                          primaryAddress.door_no,
-                          primaryAddress.plot_no,
-                          primaryAddress.building_no,
-                          primaryAddress.building_name,
-                          primaryAddress.flat_no,
-                          primaryAddress.street_cross,
-                          primaryAddress.landmark,
-                          primaryAddress.area,
-                          primaryAddress.district,
-                          primaryAddress.state,
-                          primaryAddress.pincode,
-                        ]
+                        {[addressLocalityText(primaryAddress), primaryAddress.area, primaryAddress.district, primaryAddress.state, primaryAddress.pincode]
                           .filter(Boolean)
                           .join(", ")}
                       </span>

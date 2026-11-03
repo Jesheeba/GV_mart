@@ -1,0 +1,19 @@
+-- Rollback for 20261103090000_address_full_address_field.sql.
+--
+-- IMPORTANT: apply 20261103091000's rollback FIRST. That migration fixed a
+-- production incident this one caused — it issued `create or replace function
+-- create_customer_with_details(5 args)` without knowing the live database had
+-- already moved to a 6-arg overload (p_referred_by_user_id, added by a
+-- migration this worktree had no local file for). Since the signatures
+-- differ, that create-or-replace didn't update the real function — it
+-- created a second, duplicate overload, which Postgres/PostgREST would
+-- prefer over the real one (it needs no defaults filled in), silently
+-- routing every customer-creation call around the referral check,
+-- normalize_mobile, and the advisory-lock dedupe the real function relies
+-- on. 20261103091000 dropped that accidental 5-arg overload. Recreating it
+-- here — as this rollback originally did — would reintroduce that exact
+-- incident, so this rollback no longer touches the function at all; it only
+-- drops the column. Deprecation comments on the legacy columns are not
+-- reverted (comments are documentation, not schema, and removing them isn't
+-- meaningful once full_address existed for any period of time).
+alter table public.addresses drop column if exists full_address;

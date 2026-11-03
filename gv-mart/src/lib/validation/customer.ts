@@ -57,14 +57,11 @@ export const addressStepSchema = z.object({
   // The whole address is optional — a contact can be saved without one and is
   // flagged needs_setup until an address is filled in. Pincode is only checked
   // when something was typed.
-  doorNo: z.string().trim().optional().or(z.literal("")),
-  buildingNo: z.string().trim().optional().or(z.literal("")),
-  buildingName: z.string().trim().optional().or(z.literal("")),
-  plotNo: z.string().trim().optional().or(z.literal("")),
-  streetCross: z.string().trim().optional().or(z.literal("")),
+  // Door No/Plot No/Building No/Building Name/Street-Cross/Landmark collapsed
+  // (2026-11-03) into one free-text box — see src/lib/address.ts.
+  fullAddress: z.string().trim().optional().or(z.literal("")),
   area: z.string().trim().optional().or(z.literal("")),
   pincode: z.union([z.string().regex(PINCODE_REGEX, "customers.errors.pincodeInvalid"), z.literal("")]),
-  landmark: z.string().trim().optional().or(z.literal("")),
   district: z.string().trim().optional().or(z.literal("")),
   state: z.string().trim().optional().or(z.literal("")),
   zone: z.string().trim().optional().or(z.literal("")),
@@ -72,5 +69,10 @@ export const addressStepSchema = z.object({
   ownership: z.enum(["own", "rental"]),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
+  // Water & household step (2026-11-03) — all optional, never block Save.
+  waterSource: z.string().trim().optional().or(z.literal("")),
+  waterTds: z.number().optional(),
+  waterPh: z.number().optional(),
+  healthCondition: z.string().trim().optional().or(z.literal("")),
 })
 export type AddressStepInput = z.infer<typeof addressStepSchema>

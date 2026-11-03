@@ -15,11 +15,14 @@ import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { productsHooks, rentalPlansHooks } from "@/hooks/useMasters"
 import { useCreateRental } from "@/hooks/useRentals"
 import { rentOutSchema, type RentOutInput } from "@/lib/validation/rentals"
+import { addressLocalityText } from "@/lib/address"
 
 const PAYMENT_METHODS = ["cash", "transfer", "upi"] as const
 
-function addressLine(a: { door_no: string | null; plot_no: string | null; building_no: string | null; building_name: string | null; flat_no: string | null; street_cross: string | null; area: string | null; pincode: string | null }) {
-  return [a.door_no, a.plot_no, a.building_no, a.building_name, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")
+function addressLine(
+  a: Parameters<typeof addressLocalityText>[0] & { area: string | null; pincode: string | null }
+) {
+  return [addressLocalityText(a), a.area, a.pincode].filter(Boolean).join(", ")
 }
 
 /** Inline "Rent Out" panel (Item D5) — same inline-expand pattern

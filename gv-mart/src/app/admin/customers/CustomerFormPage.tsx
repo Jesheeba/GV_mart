@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { useFieldArray, useForm, type Control, type FieldErrors, type UseFormRegister, type UseFormWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2, Plus, Star, Trash2 } from "lucide-react"
+import { Loader2, Pencil, Plus, Star, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,7 +27,8 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
-import { getPrimaryAddressId, setAddressZone, setCustomerPreferredLanguage } from "@/services/customers"
+import { getPrimaryAddressId, setAddressWaterHousehold, setAddressZone, setCustomerPreferredLanguage } from "@/services/customers"
+import { addressLocalityText } from "@/lib/address"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
@@ -40,7 +41,7 @@ import {
 /** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
 function hasAddressText(a: AddressStepInput) {
   return (
-    [a.doorNo, a.buildingNo, a.buildingName, a.plotNo, a.streetCross, a.area, a.pincode, a.landmark, a.district, a.state, a.zone].some((v) => v?.trim()) ||
+    [a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some((v) => v?.trim()) ||
     a.lat != null ||
     a.lng != null
   )
@@ -197,14 +198,9 @@ export function CustomerFormPage() {
     resolver: zodResolver(addressStepSchema),
     mode: "onChange",
     defaultValues: {
-      doorNo: "",
-      buildingNo: "",
-      buildingName: "",
-      plotNo: "",
-      streetCross: "",
+      fullAddress: "",
       area: "",
       pincode: "",
-      landmark: "",
       district: "",
       state: "",
       zone: "",
@@ -212,13 +208,16 @@ export function CustomerFormPage() {
       ownership: "own",
       lat: undefined,
       lng: undefined,
+      waterSource: "",
+      waterTds: undefined,
+      waterPh: undefined,
+      healthCondition: "",
     },
   })
-  const doorNo = addressForm.watch("doorNo") ?? ""
+  const [waterEditing, setWaterEditing] = useState(false)
+  const fullAddress = addressForm.watch("fullAddress") ?? ""
   const area = addressForm.watch("area") ?? ""
   const pincode = addressForm.watch("pincode")
-  const streetCross = addressForm.watch("streetCross")
-  const landmark = addressForm.watch("landmark")
   const district = addressForm.watch("district")
   const state = addressForm.watch("state")
   const lat = addressForm.watch("lat")
@@ -256,12 +255,7 @@ export function CustomerFormPage() {
   // renders as an amber DRAFT pin (draggable, "needs confirmation") that
   // staff must explicitly confirm or correct, exactly like every other
   // ambiguous "search anyway" result already behaves.
-  //
-  // buildingNo/buildingName/plotNo (e.g. "8th floor", "Sunrise Apartments")
-  // are deliberately excluded — a floor/building/plot label isn't a
-  // geocodable component (no premise/street_number token Google can match),
-  // so including it only adds noise to the query, never precision.
-  const autoLocateQuery = [doorNo, streetCross, area, landmark, pincode, district, state].filter(Boolean).join(", ")
+  const autoLocateQuery = [fullAddress, area, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {
@@ -306,15 +300,13 @@ export function CustomerFormPage() {
       peopleForm.reset({ members: [], primaryIndex: 0, profession: existing.data.profession ?? "" })
       const primary = existing.data.addresses.find((a) => a.is_primary) ?? existing.data.addresses[0]
       if (primary) {
+        // Pre-migration rows have no full_address yet — fall back to the legacy
+        // concatenation so editing an old address doesn't look blank.
+        const fullAddressValue = primary.full_address ?? addressLocalityText(primary)
         addressForm.reset({
-          doorNo: primary.door_no ?? "",
-          buildingNo: primary.building_no ?? "",
-          buildingName: primary.building_name ?? "",
-          plotNo: primary.plot_no ?? "",
-          streetCross: primary.street_cross ?? "",
+          fullAddress: fullAddressValue,
           area: primary.area ?? "",
           pincode: primary.pincode ?? "",
-          landmark: primary.landmark ?? "",
           district: primary.district ?? "",
           state: primary.state ?? "",
           zone: primary.zone ?? "",
@@ -322,19 +314,12 @@ export function CustomerFormPage() {
           ownership: primary.ownership,
           lat: primary.lat ?? undefined,
           lng: primary.lng ?? undefined,
+          waterSource: primary.water_source ?? "",
+          waterTds: primary.water_tds ?? undefined,
+          waterPh: primary.water_ph ?? undefined,
+          healthCondition: primary.health_condition ?? "",
         })
-        confirmedLocationTextRef.current = [
-          primary.door_no,
-          primary.building_no,
-          primary.building_name,
-          primary.plot_no,
-          primary.street_cross,
-          primary.area,
-          primary.landmark,
-          primary.pincode,
-          primary.district,
-          primary.state,
-        ]
+        confirmedLocationTextRef.current = [fullAddressValue, primary.area, primary.pincode, primary.district, primary.state]
           .filter(Boolean)
           .join(", ")
       }
@@ -353,6 +338,7 @@ export function CustomerFormPage() {
   const steps = [
     { key: "people", label: t("customers.form.stepPeople") },
     { key: "address", label: t("customers.form.stepAddress") },
+    { key: "water", label: t("customers.form.stepWater") },
   ]
 
   async function handleNext() {
@@ -362,6 +348,13 @@ export function CustomerFormPage() {
     }
     setStep(1)
     setMaxStepReached((m) => Math.max(m, 1))
+  }
+
+  async function handleAddressNext() {
+    const valid = await addressForm.trigger(["pincode"])
+    if (!valid) return
+    setStep(2)
+    setMaxStepReached((m) => Math.max(m, 2))
   }
 
   async function handleSaveAndFinish() {
@@ -384,14 +377,9 @@ export function CustomerFormPage() {
           email: m.email?.trim() || undefined,
         })),
         address: {
-          doorNo: addressValues.doorNo,
-          buildingNo: addressValues.buildingNo,
-          buildingName: addressValues.buildingName,
-          plotNo: addressValues.plotNo,
-          streetCross: addressValues.streetCross,
+          fullAddress: addressValues.fullAddress,
           area: addressValues.area,
           pincode: addressValues.pincode,
-          landmark: addressValues.landmark,
           district: addressValues.district,
           state: addressValues.state,
           addressType: addressValues.addressType,
@@ -418,6 +406,24 @@ export function CustomerFormPage() {
         try {
           const primaryAddressId = await getPrimaryAddressId(newId)
           await setAddressZone(primaryAddressId, addressValues.zone.trim())
+        } catch {
+          toast.error(t("common.actionFailed"))
+        }
+      }
+      // Water & household step — same follow-up-write reasoning as zone
+      // above (the create RPC has no slot for these), and the same guard:
+      // no addresses row exists at all unless some address text was given.
+      const hasWaterValues =
+        addressValues.waterSource?.trim() || addressValues.waterTds != null || addressValues.waterPh != null || addressValues.healthCondition?.trim()
+      if (hasWaterValues && hasAddressText(addressValues)) {
+        try {
+          const primaryAddressId = await getPrimaryAddressId(newId)
+          await setAddressWaterHousehold(primaryAddressId, {
+            waterSource: addressValues.waterSource?.trim() || undefined,
+            waterTds: addressValues.waterTds,
+            waterPh: addressValues.waterPh,
+            healthCondition: addressValues.healthCondition?.trim() || undefined,
+          })
         } catch {
           toast.error(t("common.actionFailed"))
         }
@@ -502,36 +508,23 @@ export function CustomerFormPage() {
             <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
           )}
         </Card>
-      ) : (
+      ) : step === 1 ? (
         <Card className="gap-4 px-5">
+          <div className="space-y-1.5 px-1">
+            <Label htmlFor="fullAddress">{t("customers.form.fullAddress")}</Label>
+            <textarea
+              id="fullAddress"
+              rows={3}
+              placeholder={t("customers.form.fullAddressPlaceholder")}
+              aria-invalid={!!addressForm.formState.errors.fullAddress}
+              className="w-full resize-none rounded-xl border border-input bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+              {...addressForm.register("fullAddress")}
+            />
+            {addressForm.formState.errors.fullAddress ? (
+              <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
+            ) : null}
+          </div>
           <div className="grid grid-cols-2 gap-3 px-1">
-            <div className="space-y-1.5">
-              <Label htmlFor="doorNo">{t("customers.form.doorNo")}</Label>
-              <Input id="doorNo" aria-invalid={!!addressForm.formState.errors.doorNo} {...addressForm.register("doorNo")} />
-              {addressForm.formState.errors.doorNo ? (
-                <p className="text-xs text-danger">{t(addressForm.formState.errors.doorNo.message!)}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="plotNo">{t("customers.form.plotNo")}</Label>
-              <Input id="plotNo" {...addressForm.register("plotNo")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="buildingNo">{t("customers.form.buildingNo")}</Label>
-              <Input id="buildingNo" {...addressForm.register("buildingNo")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="buildingName">{t("customers.form.buildingName")}</Label>
-              <Input id="buildingName" {...addressForm.register("buildingName")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="streetCross">{t("customers.form.streetCross")}</Label>
-              <Input id="streetCross" {...addressForm.register("streetCross")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="landmark">{t("customers.form.landmark")}</Label>
-              <Input id="landmark" {...addressForm.register("landmark")} />
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="area">{t("customers.form.area")}</Label>
               <Autocomplete
@@ -636,24 +629,95 @@ export function CustomerFormPage() {
             </div>
           </div>
         </Card>
+      ) : (
+        <Card className="gap-4 px-5">
+          <div className="flex items-center justify-between px-1">
+            <Label>{t("customers.form.water.title")}</Label>
+            <Button type="button" size="sm" variant="outline" onClick={() => setWaterEditing((v) => !v)}>
+              <Pencil className="size-3.5" />
+              {t("customers.form.water.edit")}
+            </Button>
+          </div>
+          {waterEditing ? (
+            <div className="space-y-3 px-1">
+              <div className="space-y-1.5">
+                <Label htmlFor="waterSource">{t("customers.form.water.waterSource")}</Label>
+                <Input id="waterSource" placeholder={t("customers.form.water.waterSourcePlaceholder")} {...addressForm.register("waterSource")} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="waterTds">{t("customers.form.water.waterTds")}</Label>
+                  <Input
+                    id="waterTds"
+                    type="number"
+                    placeholder={t("customers.form.water.valuePlaceholder")}
+                    {...addressForm.register("waterTds", { setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)) })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="waterPh">{t("customers.form.water.waterPh")}</Label>
+                  <Input
+                    id="waterPh"
+                    type="number"
+                    step="0.1"
+                    placeholder={t("customers.form.water.valuePlaceholder")}
+                    {...addressForm.register("waterPh", { setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)) })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="healthCondition">{t("customers.form.water.healthCondition")}</Label>
+                <Input
+                  id="healthCondition"
+                  placeholder={t("customers.form.water.healthConditionPlaceholder")}
+                  {...addressForm.register("healthCondition")}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-border px-1">
+              {(
+                [
+                  [t("customers.form.water.waterSource"), addressForm.watch("waterSource")],
+                  [t("customers.form.water.waterTds"), addressForm.watch("waterTds")],
+                  [t("customers.form.water.waterPh"), addressForm.watch("waterPh")],
+                  [t("customers.form.water.healthCondition"), addressForm.watch("healthCondition")],
+                ] as const
+              ).map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between py-2.5 text-sm">
+                  <span className="text-text-muted">{label}</span>
+                  <span className="font-medium text-text">{value || value === 0 ? value : "—"}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between py-2.5 text-sm">
+                <span className="text-text-muted">{t("customers.form.water.familyMembers")}</span>
+                <span className="font-medium text-text">{fields.length}</span>
+              </div>
+            </div>
+          )}
+        </Card>
       )}
 
       {saveError ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{saveError.message}</p> : null}
 
       <div className="flex justify-between">
-        <Button type="button" variant="outline" onClick={() => (step === 0 ? navigate(-1) : setStep(0))}>
+        <Button type="button" variant="outline" onClick={() => (step === 0 ? navigate(-1) : setStep(step - 1))}>
           {step === 0 ? t("common.cancel") : t("customers.form.back")}
         </Button>
         {step === 0 ? (
           <Button type="button" onClick={handleNext}>
             {t("customers.form.next")}
           </Button>
-        ) : (
+        ) : step === 1 ? (
           <Button
             type="button"
-            onClick={handleSaveAndFinish}
-            disabled={isSaving || (lat == null && lng == null && hasAddressText(addressForm.getValues()))}
+            onClick={handleAddressNext}
+            disabled={lat == null && lng == null && hasAddressText(addressForm.getValues())}
           >
+            {t("customers.form.next")}
+          </Button>
+        ) : (
+          <Button type="button" onClick={handleSaveAndFinish} disabled={isSaving}>
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
           </Button>
         )}

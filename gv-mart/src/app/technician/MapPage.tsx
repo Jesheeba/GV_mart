@@ -11,6 +11,7 @@ import { useJobDetail, useMyTechnician, useStartVisit, useTechnicianSettings, us
 import { classifyGeoError, distanceKm, expectedMinutes, getCurrentPosition, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
 import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, queueArrivalAddressConfirm, queueArrivalBlock, selectNextJob } from "@/services/technician"
 import { cn } from "@/lib/utils"
+import { addressLine } from "@/lib/address"
 import { PhotoCapture } from "./components/PhotoCapture"
 
 // Deliberately takes the technician's own live-tracked `position` as an
@@ -467,7 +468,7 @@ export function MapPage() {
 
             <div className="px-1">
               <p className="text-sm font-medium text-text">{destCustomerName ?? t("technician.home.unknownCustomer")}</p>
-              <p className="text-xs text-text-muted">{[destAddress?.door_no, destAddress?.area].filter(Boolean).join(", ") || "—"}</p>
+              <p className="text-xs text-text-muted">{addressLine(destAddress) || "—"}</p>
             </div>
 
             <a href={googleMapsUrl(dest, position)} target="_blank" rel="noreferrer" className="w-full">
