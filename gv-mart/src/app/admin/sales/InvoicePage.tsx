@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
 import { amountInWords } from "@/lib/amount-in-words"
 import { toWhatsappLink } from "@/lib/whatsapp-link"
+import { addressLocalityText } from "@/lib/address"
 import { RecordPaymentDialog } from "./RecordPaymentDialog"
 import type { StatusTone } from "@/components/shared/StatusDot"
 
@@ -57,18 +58,7 @@ export function InvoicePage() {
 
   const primaryAddress = invoice.customers?.addresses.find((a) => a.is_primary) ?? invoice.customers?.addresses[0]
   const addressLine = primaryAddress
-    ? [
-        primaryAddress.door_no,
-        primaryAddress.plot_no,
-        primaryAddress.building_no,
-        primaryAddress.building_name,
-        primaryAddress.flat_no,
-        primaryAddress.street_cross,
-        primaryAddress.area,
-        primaryAddress.pincode,
-      ]
-        .filter(Boolean)
-        .join(", ")
+    ? [addressLocalityText(primaryAddress), primaryAddress.area, primaryAddress.pincode].filter(Boolean).join(", ")
     : ""
   const invoiceNo = invoice.id.slice(0, 8).toUpperCase()
 

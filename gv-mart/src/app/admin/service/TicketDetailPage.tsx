@@ -13,6 +13,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { SegButton } from "@/components/shared/SegButton"
 import { NotInInventoryProductDialog } from "@/components/shared/NotInInventoryProductDialog"
 import { useToast } from "@/components/ui/toast-context"
+import { addressLine } from "@/lib/address"
 import { useCustomerExemptionWindows } from "@/hooks/useCustomers"
 import { useProfile } from "@/hooks/useProfile"
 import { brandsHooks, modelsHooks, productsHooks, useSettings } from "@/hooks/useMasters"
@@ -507,7 +508,7 @@ export function TicketDetailPage() {
                 <option value="">{t("service.newComplaint.addressNone")}</option>
                 {(addresses.data ?? []).map((a) => (
                   <option key={a.id} value={a.id}>
-                    {[a.door_no, a.area].filter(Boolean).join(", ") || a.id.slice(0, 8)}
+                    {addressLine(a) || a.id.slice(0, 8)}
                     {a.is_primary ? ` (${t("customers.detail.primary")})` : ""}
                   </option>
                 ))}

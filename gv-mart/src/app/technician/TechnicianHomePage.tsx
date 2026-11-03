@@ -16,6 +16,7 @@ import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeTicketAllowedDuration, findOpenVisit, isOverdueJob, type JobCard } from "@/services/technician"
 import type { Tables } from "@/types/database"
 import { cn } from "@/lib/utils"
+import { addressLine as buildAddressLine } from "@/lib/address"
 
 function formatTime(iso: string | null) {
   if (!iso) return null
@@ -129,7 +130,7 @@ function JobListItem({
   // than throw, matching every other list in this app's "state per row" rule.
   if (!ticket) return null
   const address = ticket.addresses
-  const addressLine = [address?.door_no, address?.area].filter(Boolean).join(", ")
+  const addressLine = buildAddressLine(address)
   const time = formatTime(job.scheduled_at)
   const openVisit = findOpenVisit(ticket.service_visits ?? [])
   // GV.md 1.2 — see JobDetailPage's identical comment; keeps the home list's

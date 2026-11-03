@@ -15,6 +15,7 @@ import { Autocomplete } from "@/components/shared/Autocomplete"
 import { DraftBanner } from "@/components/shared/DraftBanner"
 import { NotInInventoryProductDialog } from "@/components/shared/NotInInventoryProductDialog"
 import { AvailabilityTimeline } from "@/app/customer/components/AvailabilityTimeline"
+import { addressLine } from "@/lib/address"
 import type { TimeWindow } from "@/lib/booking-window"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete, useCustomerExemptionWindows } from "@/hooks/useCustomers"
@@ -446,7 +447,7 @@ export function NewComplaintPage() {
               <option value="">{t("service.newComplaint.addressNone")}</option>
               {(addresses.data ?? []).map((a) => (
                 <option key={a.id} value={a.id}>
-                  {[a.door_no, a.area].filter(Boolean).join(", ") || a.id.slice(0, 8)}
+                  {addressLine(a) || a.id.slice(0, 8)}
                   {a.is_primary ? ` (${t("customers.detail.primary")})` : ""}
                 </option>
               ))}
@@ -673,7 +674,7 @@ export function NewComplaintPage() {
               const a = (addresses.data ?? []).find((row) => row.id === addressId)
               return a ? (
                 <div className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm">
-                  <span className="text-text">{[a.door_no, a.area].filter(Boolean).join(", ")}</span>
+                  <span className="text-text">{addressLine(a)}</span>
                   {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customers.detail.primary")}</span> : null}
                 </div>
               ) : (

@@ -308,7 +308,7 @@ export async function listMyHandovers(technicianId: string) {
 export type JobCard = AppointmentRow & {
   service_tickets: ServiceTicketRow & {
     customers: { id: string; name: string; mobile: string } | null
-    addresses: { area: string | null; door_no: string | null; lat: number | null; lng: number | null } | null
+    addresses: { area: string | null; door_no: string | null; full_address: string | null; lat: number | null; lng: number | null } | null
     products: { name: string } | null
     // Added for Build Order A4 (job-overrun red styling on the home list) —
     // the open visit's timer, alongside estimated_duration_minutes which
@@ -331,7 +331,7 @@ export async function listTodaysJobs(technicianId: string): Promise<JobCard[]> {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,lat,lng), products(name), service_visits(id,timer_start,timer_end, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)))"
+        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,full_address,lat,lng), products(name), service_visits(id,timer_start,timer_end, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)))"
       )
       .eq("technician_id", technicianId)
       .in("status", ["scheduled", "in_progress"])
@@ -843,10 +843,10 @@ export async function searchAddressesForTechnician(orgId: string, term: string) 
   const { data, error } = await supabase
     .from("addresses")
     .select(
-      "id, door_no, area, pincode, lat, lng, customers(id, name, mobile, service_tickets(id, name_of_complaint, type, status, products(name), created_at))"
+      "id, door_no, full_address, area, pincode, lat, lng, customers(id, name, mobile, service_tickets(id, name_of_complaint, type, status, products(name), created_at))"
     )
     .eq("org_id", orgId)
-    .or(`area.ilike.%${q}%,door_no.ilike.%${q}%,pincode.ilike.%${q}%`)
+    .or(`area.ilike.%${q}%,door_no.ilike.%${q}%,pincode.ilike.%${q}%,full_address.ilike.%${q}%`)
     .limit(10)
   if (error) throw error
   return data ?? []

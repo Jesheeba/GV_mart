@@ -10,6 +10,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useMapApiKey } from "@/hooks/useMaps"
 import { useJobDetail, useMyTechnician, useTechnicianSettings, useTodaysTechnicianTrail, useTodaysJobs, useTodaysVisitTimings } from "@/hooks/useTechnician"
 import { OFFICE_LOCATION, type JobCard } from "@/services/technician"
+import { addressLine } from "@/lib/address"
 import { buildDayLegs, classifyRouteTrail, mergeDayLegs, sliceTrailForWindow, ROUTE_COLOR_HEX, type DayJobInput, type ClassifiedRoute } from "@/lib/routeColor"
 
 function toDayJobInput(job: JobCard): DayJobInput {
@@ -170,7 +171,7 @@ export function JobRoutePage() {
 
       <Card className="gap-1 py-3">
         <p className="text-sm font-semibold text-text">{ticket.customers?.name ?? t("technician.home.unknownCustomer")}</p>
-        <p className="text-xs text-text-muted">{[ticket.addresses?.door_no, ticket.addresses?.area].filter(Boolean).join(", ") || "—"}</p>
+        <p className="text-xs text-text-muted">{addressLine(ticket.addresses) || "—"}</p>
       </Card>
 
       {!hasRoute ? (

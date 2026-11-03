@@ -16,6 +16,7 @@ import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
 import { cn } from "@/lib/utils"
 import { computeTicketAllowedDuration, findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
+import { addressLocalityText } from "@/lib/address"
 
 /** Re-renders every 30s so an in-progress visit's overrun state (Build Order A4)
  *  flips to red without the technician needing to leave and reopen the page —
@@ -166,16 +167,7 @@ export function JobDetailPage() {
         <p className="flex items-start gap-1.5 px-1 text-sm text-text-muted">
           <MapPin className="mt-0.5 size-3.5 shrink-0" />
           <span>
-            {[
-              ticket.addresses?.door_no,
-              ticket.addresses?.plot_no,
-              ticket.addresses?.building_no,
-              ticket.addresses?.building_name,
-              ticket.addresses?.flat_no,
-              ticket.addresses?.street_cross,
-              ticket.addresses?.area,
-              ticket.addresses?.pincode,
-            ]
+            {[addressLocalityText(ticket.addresses), ticket.addresses?.area, ticket.addresses?.pincode]
               .filter(Boolean)
               .join(", ") || "—"}
           </span>

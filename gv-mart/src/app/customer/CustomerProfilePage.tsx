@@ -32,6 +32,7 @@ import {
   useUpdateMyProfession,
 } from "@/hooks/useCustomerApp"
 import { customerMemberSchema, type CustomerMemberInput } from "@/lib/validation/customerApp"
+import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
 
 const MAX_MEMBERS = 5
@@ -97,7 +98,7 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
                   <span className="text-xs text-text-muted">{t(`customerApp.profile.address.${a.address_type}`)}</span>
                 </div>
                 <p className="truncate text-sm text-text">
-                  {[a.door_no, a.plot_no, a.building_no, a.building_name, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}
+                  {[addressLocalityText(a), a.area, a.pincode].filter(Boolean).join(", ")}
                 </p>
                 {a.lat != null && a.lng != null ? (
                   <div className="mt-1">

@@ -12,6 +12,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
 import { formatCurrency } from "@/lib/sale-calc"
 import { minutesBetween } from "@/lib/visit-duration"
+import { addressLine } from "@/lib/address"
 
 type ReviewMember = { id: string; name: string; is_primary: boolean; google_review_stars: number | null; google_review_photo_url: string | null }
 
@@ -147,7 +148,7 @@ export function HistoryDetailPage() {
         <p className="px-1 text-base font-semibold text-text">{ticket.customers?.name ?? t("technician.home.unknownCustomer")}</p>
         <p className="flex items-start gap-1.5 px-1 text-sm text-text-muted">
           <MapPin className="mt-0.5 size-3.5 shrink-0" />
-          <span>{[ticket.addresses?.door_no, ticket.addresses?.area].filter(Boolean).join(", ") || "—"}</span>
+          <span>{addressLine(ticket.addresses) || "—"}</span>
         </p>
       </Card>
 

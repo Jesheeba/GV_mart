@@ -8,6 +8,7 @@ import { useMyAddresses, useRenewAmcPlan } from "@/hooks/useCustomerApp"
 import { useToast } from "@/components/ui/toast-context"
 import { shouldWarnReferralMismatch } from "@/lib/referral-match"
 import type { AmcPlanRow } from "@/services/customerApp"
+import { addressLocalityText } from "@/lib/address"
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount)
@@ -154,7 +155,7 @@ export function AmcBookingPanel({
             return a ? (
               <div className="rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm">
                 <span className="text-text">
-                  {[a.door_no, a.plot_no, a.building_no, a.building_name, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}
+                  {[addressLocalityText(a), a.area, a.pincode].filter(Boolean).join(", ")}
                 </span>
                 {a.is_primary ? <span className="ml-1.5 text-xs text-accent">{t("customerApp.profile.primary")}</span> : null}
               </div>

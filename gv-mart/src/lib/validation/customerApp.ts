@@ -7,15 +7,12 @@ import { z } from "zod"
  */
 
 // ── CUST-08 Profile: address form (mirrors ADM-04's address step) ────────
+// Door No/Building No/Building Name/Plot No/Street-Cross/Landmark collapsed
+// (2026-11-03) into one free-text box — see src/lib/address.ts.
 export const customerAddressSchema = z.object({
-  doorNo: z.string().trim().min(1, "customerApp.errors.doorNoRequired"),
-  buildingNo: z.string().trim().optional().or(z.literal("")),
-  buildingName: z.string().trim().optional().or(z.literal("")),
-  plotNo: z.string().trim().optional().or(z.literal("")),
-  streetCross: z.string().trim().optional().or(z.literal("")),
+  fullAddress: z.string().trim().min(1, "customerApp.errors.fullAddressRequired"),
   area: z.string().trim().min(1, "customerApp.errors.areaRequired"),
   pincode: z.string().regex(/^\d{6}$/, "customerApp.errors.pincodeInvalid"),
-  landmark: z.string().trim().optional().or(z.literal("")),
   district: z.string().trim().optional().or(z.literal("")),
   state: z.string().trim().optional().or(z.literal("")),
   addressType: z.enum(["residential", "commercial"]),

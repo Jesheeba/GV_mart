@@ -94,6 +94,31 @@ cancelled visit.
 - **Still open:** the replacement (decided 2026-10-14: option 1b, Supabase phone verification with the Send SMS hook over WhatsApp;
   spec `docs/spec-link-customer-login-phone-otp.md` on that branch, awaiting owner security review) is specified, not built, and must exist before Google login is switched on
   (until then the link card would fail with permission denied). Open question: should public sign-up be open at all.
+- **2026-10-29:** Google OAuth was enabled in Supabase (provider on, client ID/secret configured, redirect URLs set for localhost +
+  `gv-mart.vercel.app`) and confirmed working end to end for sign-in. `link_customer_google_account` stays locked — owner declined to
+  re-grant it and confirmed no workaround. The linking card now fails every attempt with "Couldn't link your account" (expected,
+  not a bug). Backlog item below is the build task that unblocks it.
+
+### Backlog: OTP-verified customer Google account linking (not built, not started)
+
+Replaces the trust-the-typed-number logic in `link_customer_google_account` so a Google sign-in can only link to a customer record
+whose phone the signer-in actually controls.
+
+- **Flow:** customer types their mobile number on the "One more step" card → server sends a one-time code to that number over
+  WhatsApp (reuses the existing Wasi dispatcher, no new SMS vendor) → customer enters the code in the app → only on a correct,
+  unexpired code does the server run the existing match-and-link logic (`customers` lookup by mobile, create `profiles` row,
+  set `primary_profile_id`).
+- **Never reveal whether a number exists:** the "send code" step must respond identically (generic "if that number is registered,
+  a code was sent") whether or not the mobile matches a customer — do not let the UI or error message distinguish
+  not_found from "found, code sent," which is how the old function leaked account existence.
+- **Rate-limit attempts:** cap wrong-code guesses per phone number and per signed-in user (not just one or the other), plus a cap on
+  how many send-code requests one signed-in user can trigger in a window, so it can't be used to spam arbitrary numbers with
+  WhatsApp messages or brute-force a 6-digit code.
+- **Code lifetime:** short expiry (minutes, not hours), single-use, invalidated by a new request for the same number.
+- **Reference:** detailed design already drafted at `docs/spec-link-customer-login-phone-otp.md` (branch `GV_mart_linkfix`, decided
+  2026-10-14, awaiting owner security review before anyone builds it) — read that first rather than re-deriving the design from
+  scratch.
+- **Blocker for this backlog item:** none technical; waiting on owner sign-off to start.
 
 ## Visit dates: two known gaps (not blockers; decision 2026-10-14)
 

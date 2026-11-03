@@ -81,14 +81,9 @@ export async function listMyAddresses(customerId: string) {
 }
 
 export type AddressInput = {
-  doorNo: string
-  buildingNo?: string
-  buildingName?: string
-  plotNo?: string
-  streetCross?: string
+  fullAddress: string
   area: string
   pincode: string
-  landmark?: string
   district?: string
   state?: string
   // Root-cause fix (technician map location bug) — see AddressForm.tsx's
@@ -101,14 +96,9 @@ export type AddressInput = {
 
 function addressRow(input: AddressInput) {
   return {
-    door_no: input.doorNo,
-    building_no: input.buildingNo || null,
-    building_name: input.buildingName || null,
-    plot_no: input.plotNo || null,
-    street_cross: input.streetCross || null,
+    full_address: input.fullAddress,
     area: input.area,
     pincode: input.pincode,
-    landmark: input.landmark || null,
     district: input.district || null,
     state: input.state || null,
     // Root-cause fix — previously omitted entirely, so every customer-

@@ -11,6 +11,7 @@ import { useMyAddresses, useMyAmcContracts, useMyCustomerId, useMyWarranties } f
 import { pickSoonestDuePart, useCustomerDueParts } from "@/hooks/useCustomerLifecycle"
 import { formatDate } from "@/lib/formatDate"
 import { LinkPhoneCard } from "@/app/customer/LinkPhoneCard"
+import { addressLocalityText } from "@/lib/address"
 
 function AddressBar() {
   const { t } = useTranslation()
@@ -20,7 +21,7 @@ function AddressBar() {
   const primary = addresses?.find((a) => a.is_primary) ?? addresses?.[0]
 
   const fullAddress = primary
-    ? [primary.door_no, primary.street_cross, primary.area, primary.pincode].filter(Boolean).join(", ")
+    ? [addressLocalityText(primary), primary.area, primary.pincode].filter(Boolean).join(", ")
     : ""
 
   return (

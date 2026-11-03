@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { AddressForm } from "@/components/shared/AddressForm"
 import { useToast } from "@/components/ui/toast-context"
 import { useAddMyAddress, useDeleteMyAddress, useMyAddresses, useSetMyPrimaryAddress, useUpdateMyAddress } from "@/hooks/useCustomerApp"
+import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
 
 /**
@@ -117,9 +118,7 @@ export function AddressPickerModal({
                           ) : null}
                           <span className="text-xs text-text-muted">{t(`customerApp.profile.address.${a.address_type}`)}</span>
                         </div>
-                        <p className="text-sm text-text">
-                          {[a.door_no, a.plot_no, a.building_no, a.building_name, a.flat_no, a.street_cross, a.area, a.pincode].filter(Boolean).join(", ")}
-                        </p>
+                        <p className="text-sm text-text">{[addressLocalityText(a), a.area, a.pincode].filter(Boolean).join(", ")}</p>
                       </button>
                       <div className="flex shrink-0 items-center gap-1">
                         {!a.is_primary ? (
