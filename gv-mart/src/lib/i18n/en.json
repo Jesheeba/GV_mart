@@ -2695,6 +2695,9 @@
     "technicianAssignedAlert": {
       "message": "Technician assigned — tap to track"
     },
+    "needsReviewAlert": {
+      "message": "We're reviewing your account and will contact you shortly."
+    },
     "bookingDetail": {
       "loadError": "Couldn't load this booking. Please retry.",
       "back": "Back to bookings",
@@ -5417,6 +5420,9 @@
     "outstandingLinkAmount": "Outstanding: {{amount}}",
     "outstandingBadgePaymentReceived": "Payment received",
     "outstandingLinkStaffNote": "This task follows up a customer's outstanding payment.",
+    "needsReviewLinkTitle": "Matching records",
+    "needsReviewLinkNoContact": "This customer has no mobile or email on file yet to check against.",
+    "needsReviewLinkViewCustomer": "View customer",
     "due": "Due {{date}}",
     "filters": {
       "open": "Open",
@@ -5490,7 +5496,8 @@
       "lead_callback_reminder": "Callback reminder",
       "enquiry_lead": "New enquiry",
       "callback_requested": "Callback requested",
-      "wa_lead_captured": "New WhatsApp lead"
+      "wa_lead_captured": "New WhatsApp lead",
+      "customer_needs_review": "Customer needs account review"
     }
   },
   "approvals": {

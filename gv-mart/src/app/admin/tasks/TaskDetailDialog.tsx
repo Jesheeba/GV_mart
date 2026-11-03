@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import { Link, useNavigate } from "react-router-dom"
 import { Loader2, Trash2 } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -9,11 +10,13 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { useToast } from "@/components/ui/toast-context"
 import { useAssignableProfiles, useDeleteTask, useSetOrgTaskStatus, useUpdateTask } from "@/hooks/useTasks"
 import { useCustomerOutstandingDetail } from "@/hooks/useAccountsFollowup"
+import { useCustomer, useDuplicateContactWarning } from "@/hooks/useCustomers"
 import { useProfile } from "@/hooks/useProfile"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { OrgTask, PriorityLevel } from "@/services/tasks"
 import { cn } from "@/lib/utils"
 import { canCompleteTask, completeBlockReason } from "@/lib/task-rules"
+import { hasLookupableContact, isCustomerNeedsReviewTask } from "@/lib/customerNeedsReviewTask"
 import { TaskWorkLog } from "@/app/admin/tasks/TaskWorkLog"
 
 const PRIORITIES: PriorityLevel[] = ["normal", "urgent", "very_urgent"]
@@ -41,6 +44,7 @@ export function TaskDetailDialog({
 }) {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const navigate = useNavigate()
   const { data: profile } = useProfile()
   const { data: assignableProfiles } = useAssignableProfiles(orgId)
   const updateTask = useUpdateTask()
@@ -50,6 +54,21 @@ export function TaskDetailDialog({
   const isCustomerOutstandingTask = task.ref_type === "customer_outstanding"
   const { data: outstandingDetail } = useCustomerOutstandingDetail(
     isCustomerOutstandingTask && profile?.role === "master" ? (task.ref_id ?? undefined) : undefined
+  )
+
+  // Item 5(c): "Customer needs account review" task (customer_auto_onboard() / the phone-OTP
+  // merge-on-verify RPC flagged this customer because a sign-in matched multiple existing
+  // records, or one already linked elsewhere, and the system deliberately did not guess).
+  // Shows the matching records (reusing find_duplicate_contacts, same as the create-flow
+  // warning) plus the existing MergeAutoCustomerPanel action -- via a link to that customer's
+  // detail page, not a re-implementation of the merge flow here.
+  const isCustomerNeedsReview = isCustomerNeedsReviewTask(task.ref_type)
+  const { data: needsReviewCustomer } = useCustomer(isCustomerNeedsReview ? (task.ref_id ?? undefined) : undefined)
+  const needsReviewHasContact = hasLookupableContact(needsReviewCustomer?.mobile, needsReviewCustomer?.email)
+  const needsReviewMatches = useDuplicateContactWarning(
+    isCustomerNeedsReview && needsReviewHasContact ? orgId : undefined,
+    needsReviewCustomer?.mobile ?? "",
+    needsReviewCustomer?.email ?? ""
   )
 
   const [title, setTitle] = useState(task.title)
@@ -176,6 +195,37 @@ export function TaskDetailDialog({
             ) : (
               <p className="text-text-muted">{t("tasks.outstandingLinkStaffNote")}</p>
             )}
+          </div>
+        ) : null}
+
+        {isCustomerNeedsReview ? (
+          <div className="space-y-2 rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm">
+            <p className="font-medium text-text">{t("tasks.needsReviewLinkTitle")}</p>
+            {!needsReviewHasContact ? (
+              <p className="text-text-muted">{t("tasks.needsReviewLinkNoContact")}</p>
+            ) : needsReviewMatches.isLoading ? (
+              <p className="text-text-muted">{t("common.loading")}</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {(needsReviewMatches.data ?? [])
+                  .filter((m) => m.id !== task.ref_id)
+                  .map((m) => (
+                    <li key={`${m.source}-${m.id}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-text-muted">
+                      <span className="text-text">{m.name}</span>
+                      <span>{m.source === "customer" ? t("customers.duplicateContactWarning.sourceCustomer") : t("customers.duplicateContactWarning.sourceLead")}</span>
+                      {m.mobile ? <span>{m.mobile}</span> : null}
+                      <Link to={m.source === "customer" ? `/admin/customers/${m.id}` : `/admin/leads/${m.id}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
+                        {t("customers.duplicateContactWarning.openExisting")}
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            )}
+            {profile?.role === "master" && task.ref_id ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => navigate(`/admin/customers/${task.ref_id}`)}>
+                {t("tasks.needsReviewLinkViewCustomer")}
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
