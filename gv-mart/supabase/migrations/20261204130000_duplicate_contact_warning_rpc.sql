@@ -60,6 +60,21 @@
 -- NOT APPLIED. Needs the standard pipeline: rehearsal (as the real
 -- authenticated staff role, not service_role), DRYRUN-OK, a fresh security
 -- review, an anon-exposure diff, and the owner's typed APPROVED.
+--
+-- Found during rehearsal (2026-11-03): public._mobile_key(text) is SECURITY
+-- INVOKER with no EXECUTE grant to authenticated (it was only ever called
+-- from inside other SECURITY DEFINER functions before this one, which run
+-- with the definer's own privileges regardless of the caller). This function
+-- is SECURITY INVOKER by design (see above) -- its nested call to
+-- _mobile_key() runs as the actual caller (sales_admin/operation_admin via
+-- the authenticated role), not elevated, so without this grant every real
+-- call would fail with "permission denied for function _mobile_key" before
+-- ever reaching the table scan. _mobile_key is a pure, IMMUTABLE string
+-- transform (last 10 digits of the input, no table access, no side effects)
+-- -- widening its EXECUTE grant to authenticated is safe and adds no new
+-- capability beyond what every other normalized-mobile comparison in this
+-- project already does internally.
+grant execute on function public._mobile_key(text) to authenticated;
 
 create or replace function public.find_duplicate_contacts(
   p_mobile text default null,
