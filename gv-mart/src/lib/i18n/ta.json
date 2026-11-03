@@ -2678,6 +2678,9 @@
     "technicianAssignedAlert": {
       "message": "தொழில்நுட்பர் நியமிக்கப்பட்டார் — கண்காணிக்க தட்டவும்"
     },
+    "needsReviewAlert": {
+      "message": "உங்கள் கணக்கை நாங்கள் சரிபார்த்துக் கொண்டிருக்கிறோம், விரைவில் தொடர்பு கொள்வோம்."
+    },
     "bookingDetail": {
       "loadError": "இந்த முன்பதிவை ஏற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
       "back": "முன்பதிவுகளுக்குத் திரும்பு",
@@ -5396,6 +5399,9 @@
     "outstandingLinkAmount": "நிலுவை: {{amount}}",
     "outstandingBadgePaymentReceived": "பணம் பெறப்பட்டது",
     "outstandingLinkStaffNote": "இந்தப் பணி வாடிக்கையாளரின் நிலுவைக் கட்டணத்தைப் பின்தொடர்கிறது.",
+    "needsReviewLinkTitle": "பொருந்தும் பதிவுகள்",
+    "needsReviewLinkNoContact": "இந்த வாடிக்கையாளருக்கு இன்னும் மொபைல் அல்லது மின்னஞ்சல் பதிவு செய்யப்படவில்லை.",
+    "needsReviewLinkViewCustomer": "வாடிக்கையாளரைக் காண்க",
     "due": "நிலுவை {{date}}",
     "filters": {
       "open": "திறந்தவை",
@@ -5469,7 +5475,8 @@
       "lead_callback_reminder": "அழைப்பு நினைவூட்டல்",
       "enquiry_lead": "புதிய விசாரணை",
       "callback_requested": "அழைப்பு கோரிக்கை",
-      "wa_lead_captured": "புதிய வாட்ஸ்அப் லீட்"
+      "wa_lead_captured": "புதிய வாட்ஸ்அப் லீட்",
+      "customer_needs_review": "வாடிக்கையாளர் கணக்கு மதிப்பாய்வு தேவை"
     }
   },
   "approvals": {
