@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { memberSchema, FAMILY_RELATIONS, type MemberInput } from "@/lib/validation/customer"
 import { useAddMember, useLogMemberGoogleReview, useMoveMemberOut, useRemoveMember, useSetPrimaryMember, useUpdateMember } from "@/hooks/useCustomers"
-import { avatarPalette, initials } from "@/lib/avatar"
 import type { MemberRow } from "@/services/customers"
 
 /** Inline edit form for ONE existing member — own useForm instance seeded
@@ -183,156 +182,163 @@ export function FamilyMembersPanel({
 
       <div className="grid grid-cols-1 gap-3.5 px-1 sm:grid-cols-2">
         {members.map((member) => {
-          const palette = avatarPalette(member.name)
+          const isEditing = editingId === member.id
           return (
-            <div key={member.id} className="flex items-start gap-3.25 rounded-[18px] border border-border bg-surface p-4">
-              <span
-                className="flex size-10.5 shrink-0 items-center justify-center rounded-[12px] text-[13px] font-bold"
-                style={{ background: palette.bg, color: palette.fg }}
-              >
-                {initials(member.name)}
-              </span>
-              <div className="min-w-0 flex-1">
-                {editingId === member.id ? (
+            <div key={member.id} className="rounded-[18px] border border-border bg-surface p-4">
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="truncate text-sm font-bold text-text">{member.name}</span>
+                    {member.is_primary ? (
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">
+                        <Star className="size-2.5 fill-current" />
+                        {t("customers.detail.primary")}
+                      </span>
+                    ) : member.relation ? (
+                      <span className="shrink-0 rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-bold text-text-muted">
+                        {t(`customers.form.relation.${member.relation}`)}
+                      </span>
+                    ) : null}
+                  </div>
                   <MemberEditForm member={member} customerProfession={customerProfession} onDone={() => setEditingId(null)} />
-                ) : (
-                <>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="truncate text-sm font-bold text-text">{member.name}</span>
-                  {member.is_primary ? (
-                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">
-                      <Star className="size-2.5 fill-current" />
-                      {t("customers.detail.primary")}
-                    </span>
-                  ) : member.relation ? (
-                    <span className="shrink-0 rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-bold text-text-muted">
-                      {t(`customers.form.relation.${member.relation}`)}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="gv-tnum text-xs text-text-muted">{member.mobile}</div>
-                {member.profession ? <div className="text-xs text-text-muted">{member.profession}</div> : null}
-                {member.email ? <div className="text-xs text-text-muted break-all">{member.email}</div> : null}
 
-                {loggingReviewId === member.id ? (
-                  <div className="mt-1 flex items-center gap-1">
-                    {Array.from({ length: 5 }, (_, i) => (
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-t border-border pt-2.5 text-xs">
+                    {!member.is_primary && (
                       <button
-                        key={i}
                         type="button"
-                        disabled={logReview.isPending}
-                        aria-label={t("customers.detail.rateStars", { count: i + 1 })}
-                        onClick={() => logReview.mutate({ memberId: member.id, stars: i + 1 }, { onSuccess: () => setLoggingReviewId(null) })}
+                        className="font-semibold text-text-muted hover:text-text disabled:opacity-50"
+                        disabled={setPrimary.isPending}
+                        onClick={() => setPrimary.mutate(member.id)}
                       >
-                        <Star className="size-4 text-border hover:fill-warning hover:text-warning" />
+                        {t("customers.detail.setPrimary")}
                       </button>
-                    ))}
-                    <button type="button" className="ml-1 text-[11px] font-semibold text-text-muted hover:text-text" onClick={() => setLoggingReviewId(null)}>
-                      {t("common.cancel")}
+                    )}
+                    {!member.is_primary && confirmingMoveOut !== member.id && (
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-text-muted hover:text-text"
+                        title={t("customers.detail.moveOut")}
+                        onClick={() => setConfirmingMoveOut(member.id)}
+                      >
+                        <UserMinus className="size-3" />
+                        {t("customers.detail.moveOut")}
+                      </button>
+                    )}
+                    {confirmingMoveOut === member.id && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-text-muted">{t("customers.detail.confirmMoveOut")}</span>
+                        <button
+                          ref={moveOutConfirmRef}
+                          type="button"
+                          className="font-semibold text-danger hover:underline"
+                          disabled={moveOut.isPending}
+                          onClick={() =>
+                            moveOut.mutate(member, {
+                              onSuccess: (newCustomer) => {
+                                setConfirmingMoveOut(null)
+                                navigate(`/admin/customers/${newCustomer.id}`)
+                              },
+                            })
+                          }
+                        >
+                          {moveOut.isPending ? <Loader2 className="size-3 animate-spin" /> : t("customers.detail.confirm")}
+                        </button>
+                        <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingMoveOut(null)}>
+                          {t("common.cancel")}
+                        </button>
+                      </span>
+                    )}
+                    {!member.is_primary && confirmingRemove !== member.id && (
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 font-semibold text-danger hover:underline"
+                        title={t("customers.detail.remove")}
+                        onClick={() => setConfirmingRemove(member.id)}
+                      >
+                        <Trash2 className="size-3" />
+                        {t("customers.detail.remove")}
+                      </button>
+                    )}
+                    {confirmingRemove === member.id && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-text-muted">{t("customers.detail.confirmRemove")}</span>
+                        <button
+                          ref={removeConfirmRef}
+                          type="button"
+                          className="font-semibold text-danger hover:underline"
+                          disabled={removeMember.isPending}
+                          onClick={() => removeMember.mutate(member.id, { onSuccess: () => setConfirmingRemove(null) })}
+                        >
+                          {removeMember.isPending ? <Loader2 className="size-3 animate-spin" /> : t("customers.detail.confirm")}
+                        </button>
+                        <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingRemove(null)}>
+                          {t("common.cancel")}
+                        </button>
+                      </span>
+                    )}
+                    {member.is_primary ? <span className="text-text-muted">{t("customers.detail.primaryLocked")}</span> : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="truncate text-sm font-bold text-text">{member.name}</span>
+                    {member.is_primary ? (
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">
+                        <Star className="size-2.5 fill-current" />
+                        {t("customers.detail.primary")}
+                      </span>
+                    ) : member.relation ? (
+                      <span className="shrink-0 rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-bold text-text-muted">
+                        {t(`customers.form.relation.${member.relation}`)}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {loggingReviewId === member.id ? (
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          disabled={logReview.isPending}
+                          aria-label={t("customers.detail.rateStars", { count: i + 1 })}
+                          onClick={() => logReview.mutate({ memberId: member.id, stars: i + 1 }, { onSuccess: () => setLoggingReviewId(null) })}
+                        >
+                          <Star className="size-4 text-border hover:fill-warning hover:text-warning" />
+                        </button>
+                      ))}
+                      <button type="button" className="ml-1 text-[11px] font-semibold text-text-muted hover:text-text" onClick={() => setLoggingReviewId(null)}>
+                        {t("common.cancel")}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex w-fit items-center gap-1.5 text-xs font-semibold text-text-muted hover:text-text"
+                      onClick={() => setLoggingReviewId(member.id)}
+                      title={member.google_review_stars ? t("customers.detail.googleReview") : t("customers.detail.logGoogleReview")}
+                    >
+                      <span>{t("customers.detail.googleReview")}</span>
+                      <span
+                        className={`size-3 shrink-0 rounded-[3px] ${member.google_review_stars ? "bg-success" : "bg-danger"}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 text-xs font-semibold text-danger hover:underline"
+                      onClick={() => setEditingId(member.id)}
+                    >
+                      <Pencil className="size-3" />
+                      {t("customers.detail.editMember")}
                     </button>
                   </div>
-                ) : member.google_review_stars ? (
-                  <button type="button" className="mt-1 flex items-center gap-0.5" onClick={() => setLoggingReviewId(member.id)}>
-                    {Array.from({ length: 5 }, (_, i) => (
-                      <Star key={i} className={`size-3.5 ${i < member.google_review_stars! ? "fill-warning text-warning" : "text-border"}`} />
-                    ))}
-                    <span className="ml-1 text-[11px] font-semibold text-text-muted">{t("customers.detail.googleReview")}</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="mt-1 w-fit text-[11px] font-semibold text-text-muted hover:text-text"
-                    onClick={() => setLoggingReviewId(member.id)}
-                  >
-                    {t("customers.detail.logGoogleReview")}
-                  </button>
-                )}
-
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 font-semibold text-text-muted hover:text-text"
-                    title={t("customers.detail.editMember")}
-                    onClick={() => setEditingId(member.id)}
-                  >
-                    <Pencil className="size-3" />
-                  </button>
-                  {!member.is_primary && (
-                    <button
-                      type="button"
-                      className="font-semibold text-text-muted hover:text-text disabled:opacity-50"
-                      disabled={setPrimary.isPending}
-                      onClick={() => setPrimary.mutate(member.id)}
-                    >
-                      {t("customers.detail.setPrimary")}
-                    </button>
-                  )}
-                  {!member.is_primary && confirmingMoveOut !== member.id && (
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 font-semibold text-text-muted hover:text-text"
-                      title={t("customers.detail.moveOut")}
-                      onClick={() => setConfirmingMoveOut(member.id)}
-                    >
-                      <UserMinus className="size-3" />
-                    </button>
-                  )}
-                  {confirmingMoveOut === member.id && (
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-text-muted">{t("customers.detail.confirmMoveOut")}</span>
-                      <button
-                        ref={moveOutConfirmRef}
-                        type="button"
-                        className="font-semibold text-danger hover:underline"
-                        disabled={moveOut.isPending}
-                        onClick={() =>
-                          moveOut.mutate(member, {
-                            onSuccess: (newCustomer) => {
-                              setConfirmingMoveOut(null)
-                              navigate(`/admin/customers/${newCustomer.id}`)
-                            },
-                          })
-                        }
-                      >
-                        {moveOut.isPending ? <Loader2 className="size-3 animate-spin" /> : t("customers.detail.confirm")}
-                      </button>
-                      <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingMoveOut(null)}>
-                        {t("common.cancel")}
-                      </button>
-                    </span>
-                  )}
-                  {!member.is_primary && confirmingRemove !== member.id && (
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 font-semibold text-danger hover:underline"
-                      title={t("customers.detail.remove")}
-                      onClick={() => setConfirmingRemove(member.id)}
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  )}
-                  {confirmingRemove === member.id && (
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-text-muted">{t("customers.detail.confirmRemove")}</span>
-                      <button
-                        ref={removeConfirmRef}
-                        type="button"
-                        className="font-semibold text-danger hover:underline"
-                        disabled={removeMember.isPending}
-                        onClick={() => removeMember.mutate(member.id, { onSuccess: () => setConfirmingRemove(null) })}
-                      >
-                        {removeMember.isPending ? <Loader2 className="size-3 animate-spin" /> : t("customers.detail.confirm")}
-                      </button>
-                      <button type="button" className="text-text-muted hover:underline" onClick={() => setConfirmingRemove(null)}>
-                        {t("common.cancel")}
-                      </button>
-                    </span>
-                  )}
-                  {member.is_primary ? <span className="text-text-muted">{t("customers.detail.primaryLocked")}</span> : null}
                 </div>
-                </>
-                )}
-              </div>
+              )}
             </div>
           )
         })}
