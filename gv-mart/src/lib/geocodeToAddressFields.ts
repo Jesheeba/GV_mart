@@ -2,8 +2,7 @@ import type { GeocodeResult } from "@/services/maps"
 
 /** The subset of AddressForm's text fields a geocode result can confidently fill. */
 export type AddressTextFields = {
-  doorNo?: string
-  streetCross?: string
+  fullAddress?: string
   area?: string
   pincode?: string
   district?: string
@@ -15,11 +14,19 @@ export type AddressTextFields = {
  * the subset of AddressForm's fields it can confidently fill. Never invents a
  * value: a component Google didn't return (common outside India, or for rural
  * addresses) is simply omitted, not set to "" or guessed.
+ *
+ * fullAddress (2026-11-03, Full Address redesign): street number and route are
+ * the only components precise enough to belong in the free-text locality box —
+ * area/district/state stay their own structured fields (see src/lib/address.ts
+ * for why `area` in particular can never be folded into free text). Joined with
+ * a space to match how Google already formats them ("12 Main Street"); either
+ * one alone is used as-is, and if neither is present fullAddress is simply
+ * omitted, same never-invent-a-value policy as every other field here.
  */
 export function geocodeResultToAddressFields(result: GeocodeResult): AddressTextFields {
   const fields: AddressTextFields = {}
-  if (result.streetNumber) fields.doorNo = result.streetNumber
-  if (result.route) fields.streetCross = result.route
+  const fullAddress = [result.streetNumber, result.route].filter(Boolean).join(" ")
+  if (fullAddress) fields.fullAddress = fullAddress
   const area = result.suburb ?? result.city
   if (area) fields.area = area
   if (result.postcode) fields.pincode = result.postcode

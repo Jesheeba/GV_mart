@@ -10,11 +10,11 @@ import { googleMapsPinUrl } from "@/lib/googleMapsLink"
 import { useReverseGeocode } from "@/hooks/useMaps"
 import { isTooManyRequestsError } from "@/services/maps"
 import { geocodeResultToAddressFields, mergeAddressFieldsPreservingTyped, type AddressTextFields } from "@/lib/geocodeToAddressFields"
+import { addressLocalityText } from "@/lib/address"
 import type { AddressRow, AddressTextFieldsPatch } from "@/services/customerApp"
 
 const FIELD_LABEL_KEYS: Record<keyof AddressTextFields, string> = {
-  doorNo: "customerApp.profile.address.doorNo",
-  streetCross: "customerApp.profile.address.streetCross",
+  fullAddress: "customerApp.profile.address.fullAddress",
   area: "customerApp.profile.address.area",
   pincode: "customerApp.profile.address.pincode",
   district: "customerApp.profile.address.district",
@@ -23,8 +23,7 @@ const FIELD_LABEL_KEYS: Record<keyof AddressTextFields, string> = {
 
 function toFieldsPatch(fields: AddressTextFields): AddressTextFieldsPatch {
   const patch: AddressTextFieldsPatch = {}
-  if (fields.doorNo) patch.door_no = fields.doorNo
-  if (fields.streetCross) patch.street_cross = fields.streetCross
+  if (fields.fullAddress) patch.full_address = fields.fullAddress
   if (fields.area) patch.area = fields.area
   if (fields.pincode) patch.pincode = fields.pincode
   if (fields.district) patch.district = fields.district
@@ -83,9 +82,10 @@ export function AddressPinDialog({
       {
         onSuccess: (result) => {
           const derived = geocodeResultToAddressFields(result)
+          // Pre-migration rows have no full_address yet -- fall back to the legacy
+          // concatenation so this still counts as "already filled" and isn't overwritten.
           const current: AddressTextFields = {
-            doorNo: address.door_no ?? undefined,
-            streetCross: address.street_cross ?? undefined,
+            fullAddress: address.full_address ?? addressLocalityText(address) ?? undefined,
             area: address.area ?? undefined,
             pincode: address.pincode ?? undefined,
             district: address.district ?? undefined,

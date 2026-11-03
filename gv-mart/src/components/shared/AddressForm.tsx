@@ -150,7 +150,13 @@ export function AddressForm({
       {
         onSuccess: (result) => {
           const derived = geocodeResultToAddressFields(result)
-          const current = { doorNo: getValues("doorNo"), streetCross: getValues("streetCross"), area: getValues("area"), pincode: getValues("pincode"), district: getValues("district"), state: getValues("state") }
+          const current = {
+            fullAddress: getValues("fullAddress"),
+            area: getValues("area"),
+            pincode: getValues("pincode"),
+            district: getValues("district"),
+            state: getValues("state"),
+          }
           const patch = mergeAddressFieldsPreservingTyped(current, derived)
           const patchedKeys = Object.keys(patch) as (keyof typeof patch)[]
           if (patchedKeys.length === 0) return

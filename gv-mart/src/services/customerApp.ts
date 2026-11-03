@@ -157,8 +157,7 @@ export async function setMyPrimaryAddress(customerId: string, addressId: string)
  * every actual call site in this codebase (independent security review, address-from-location).
  */
 export type AddressTextFieldsPatch = Partial<{
-  door_no: string
-  street_cross: string
+  full_address: string
   area: string
   pincode: string
   district: string
@@ -168,8 +167,7 @@ export type AddressTextFieldsPatch = Partial<{
 function pickAddressTextFields(fields: AddressTextFieldsPatch | undefined): AddressTextFieldsPatch {
   if (!fields) return {}
   const picked: AddressTextFieldsPatch = {}
-  if (fields.door_no !== undefined) picked.door_no = fields.door_no
-  if (fields.street_cross !== undefined) picked.street_cross = fields.street_cross
+  if (fields.full_address !== undefined) picked.full_address = fields.full_address
   if (fields.area !== undefined) picked.area = fields.area
   if (fields.pincode !== undefined) picked.pincode = fields.pincode
   if (fields.district !== undefined) picked.district = fields.district

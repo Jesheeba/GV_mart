@@ -20,13 +20,12 @@ function result(overrides: Partial<GeocodeResult> = {}): GeocodeResult {
 }
 
 describe("geocodeResultToAddressFields", () => {
-  it("maps a full result onto every field", () => {
+  it("maps a full result onto every field, combining street number + route into one fullAddress", () => {
     const fields = geocodeResultToAddressFields(
       result({ streetNumber: "12", route: "Anna Salai", suburb: "T Nagar", postcode: "600017", district: "Chennai", state: "Tamil Nadu" })
     )
     expect(fields).toEqual({
-      doorNo: "12",
-      streetCross: "Anna Salai",
+      fullAddress: "12 Anna Salai",
       area: "T Nagar",
       pincode: "600017",
       district: "Chennai",
@@ -60,13 +59,27 @@ describe("geocodeResultToAddressFields", () => {
       result({ streetNumber: "1600", route: "Amphitheatre Parkway", city: "Mountain View", district: null, state: "California", postcode: "94043" })
     )
     expect(fields).toEqual({
-      doorNo: "1600",
-      streetCross: "Amphitheatre Parkway",
+      fullAddress: "1600 Amphitheatre Parkway",
       area: "Mountain View",
       pincode: "94043",
       state: "California",
     })
     expect("district" in fields).toBe(false)
+  })
+
+  it("uses route alone when streetNumber is absent", () => {
+    const fields = geocodeResultToAddressFields(result({ route: "Anna Salai" }))
+    expect(fields.fullAddress).toBe("Anna Salai")
+  })
+
+  it("uses streetNumber alone when route is absent", () => {
+    const fields = geocodeResultToAddressFields(result({ streetNumber: "12" }))
+    expect(fields.fullAddress).toBe("12")
+  })
+
+  it("omits fullAddress entirely when neither streetNumber nor route is present -- never invents a value", () => {
+    const fields = geocodeResultToAddressFields(result({ suburb: "T Nagar" }))
+    expect("fullAddress" in fields).toBe(false)
   })
 })
 
@@ -95,5 +108,24 @@ describe("mergeAddressFieldsPreservingTyped", () => {
   it("returns an empty patch for an empty derived result", () => {
     const patch = mergeAddressFieldsPreservingTyped({ area: "" }, {})
     expect(patch).toEqual({})
+  })
+
+  it("fills fullAddress when the customer hasn't typed anything there yet", () => {
+    const patch = mergeAddressFieldsPreservingTyped({ fullAddress: "" }, { fullAddress: "12 Anna Salai" })
+    expect(patch).toEqual({ fullAddress: "12 Anna Salai" })
+  })
+
+  it("never overwrites fullAddress text the customer has already typed", () => {
+    const patch = mergeAddressFieldsPreservingTyped(
+      { fullAddress: "Flat 4B, near the water tank" },
+      { fullAddress: "12 Anna Salai", area: "T Nagar" }
+    )
+    expect(patch).toEqual({ area: "T Nagar" })
+    expect(patch.fullAddress).toBeUndefined()
+  })
+
+  it("treats a whitespace-only fullAddress as empty (fillable)", () => {
+    const patch = mergeAddressFieldsPreservingTyped({ fullAddress: "   " }, { fullAddress: "12 Anna Salai" })
+    expect(patch).toEqual({ fullAddress: "12 Anna Salai" })
   })
 })
