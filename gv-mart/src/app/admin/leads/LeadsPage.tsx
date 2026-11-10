@@ -24,8 +24,8 @@ import type { UserRole } from "@/lib/roles"
 import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 import { isOverdueNow } from "@/lib/lead-followups"
 import type { LeadListItem } from "@/services/automation"
-import type { Enums } from "@/types/database"
 import { cn } from "@/lib/utils"
+import { orderedCategoryChips } from "./leadCategoryChips"
 
 const TABLE_GRID_COLS =
   "grid-cols-[minmax(140px,1.3fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(100px,0.8fr)_minmax(170px,1.4fr)_minmax(110px,1fr)_minmax(80px,0.8fr)]"
@@ -33,7 +33,6 @@ const TABLE_GRID_COLS =
 type QuickFilter = "" | "overdue" | "noFollowup" | "stuck"
 const QUICK_FILTERS: Exclude<QuickFilter, "">[] = ["overdue", "noFollowup", "stuck"]
 
-const TOPIC_OPTIONS: Enums<"enquiry_type">[] = ["online", "price", "quality", "customization", "water_premium", "budget"]
 
 export function LeadsPage() {
   const { t } = useTranslation()
@@ -44,10 +43,9 @@ export function LeadsPage() {
 
   const [view, setView] = useState<"table" | "kanban">("kanban")
   const [source, setSource] = useState<string>("")
-  const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
   const [kind, setKind] = useState<string>("")
   const [search, setSearch] = useState("")
-  const leads = useLeads(orgId, { source: source || undefined, enquiryType: enquiryType || undefined, kind: kind || undefined })
+  const leads = useLeads(orgId, { source: source || undefined, kind: kind || undefined })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
   const schedule = useLeadSchedule(orgId).data ?? DEFAULT_LEAD_SCHEDULE
@@ -200,32 +198,6 @@ export function LeadsPage() {
           ))}
         </select>
         <select
-          aria-label={t("leads.filters.allTopics")}
-          value={enquiryType}
-          onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type"> | "")}
-          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-        >
-          <option value="">{t("leads.filters.allTopics")}</option>
-          {TOPIC_OPTIONS.map((et) => (
-            <option key={et} value={et}>
-              {t(`leads.enquiryType.${et}`)}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label={t("leads.filters.allKinds")}
-          value={kind}
-          onChange={(e) => setKind(e.target.value)}
-          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-        >
-          <option value="">{t("leads.filters.allKinds")}</option>
-          {activeKinds.map((k) => (
-            <option key={k.key} value={k.key}>
-              {kindLabel(k.key)}
-            </option>
-          ))}
-        </select>
-        <select
           value={assignedFilter}
           onChange={(e) => setAssignedFilter(e.target.value)}
           aria-label={t("leads.assign.filterLabel")}
@@ -281,12 +253,11 @@ export function LeadsPage() {
             </button>
           ))}
         </div>
-        {source || enquiryType || kind || search || quick || assignedFilter ? (
+        {source || kind || search || quick || assignedFilter ? (
           <button
             type="button"
             onClick={() => {
               setSource("")
-              setEnquiryType("")
               setKind("")
               setSearch("")
               setQuick("")
@@ -297,6 +268,31 @@ export function LeadsPage() {
             {t("leads.filters.clear")}
           </button>
         ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("leads.filters.allKinds")}>
+        <button
+          type="button"
+          aria-pressed={kind === ""}
+          onClick={() => setKind("")}
+          className={cn("rounded-full border px-3.5 py-2 text-xs font-semibold", kind === "" ? "border-ink bg-ink text-white" : "border-border bg-surface text-text-muted")}
+        >
+          {t("leads.filters.allKinds")}
+        </button>
+        {orderedCategoryChips(activeKinds).map((key) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={kind === key}
+            onClick={() => setKind((cur) => (cur === key ? "" : key))}
+            className={cn(
+              "rounded-full border px-3.5 py-2 text-xs font-semibold",
+              kind === key ? "border-ink bg-ink text-white" : key === "product" ? "border-accent/50 bg-accent/10 text-accent" : "border-border bg-surface text-text-muted"
+            )}
+          >
+            {kindLabel(key)}
+          </button>
+        ))}
       </div>
 
       <div className="min-w-0">

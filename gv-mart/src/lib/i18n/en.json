@@ -3376,8 +3376,7 @@
     "filters": {
       "search": "Search name, mobile...",
       "allSources": "All sources",
-      "allTopics": "All topics",
-      "allKinds": "All kinds",
+      "allKinds": "All leads",
       "clear": "Clear filters"
     },
     "new": {
