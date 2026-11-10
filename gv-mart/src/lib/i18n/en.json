@@ -3489,7 +3489,6 @@
       "items": "Items",
       "quotations": "Quotations",
       "logActivity": "Log activity",
-      "notePlaceholder": "Optional note",
       "addActivity": "Add",
       "history": "History",
       "noActivity": "No activity logged yet.",
@@ -3515,7 +3514,8 @@
       "backToMyDay": "Back to Daily Follow Up",
       "notFound": "This lead no longer exists (it may have been moved to Customers or deleted).",
       "reopen": "Reopen lead",
-      "addNote": "Add note",
+      "todaysConversation": "Today's conversation",
+      "todaysConversationPlaceholder": "Notes from the current call/meeting/conversation…",
       "noteSaved": "Note added",
       "leadFields": "Lead details",
       "edit": "Edit",
@@ -3630,6 +3630,15 @@
       "setSave": "Set follow-up",
       "setSaved": "Follow-up set for {{when}}",
       "setAlreadySet": "Someone just set a follow-up for this lead — showing theirs.",
+      "reminder": "Reminder",
+      "reminderNone": "No reminder selected",
+      "reminderOption": {
+        "at": "At follow-up time",
+        "15m": "15 minutes before",
+        "1h": "1 hour before",
+        "1d": "1 day before"
+      },
+      "reminderTaskTitle": "Follow up with {{name}}",
       "type": {
         "call": "Call",
         "whatsapp": "WhatsApp",

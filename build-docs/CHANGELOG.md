@@ -29,3 +29,9 @@
 - `NewLeadForm.tsx` and `LeadDetailFieldsCard.tsx` get the two new inputs, grouped as "Referral details."
 - Confirmed in code before building: no existing `referred_by_user_id`/`ReferrerPicker` to coexist with — the app's only prior "referral" UI is a manual points-award action unrelated to the lead row.
 - Same apply-authorization gate as lead-detail-fields above.
+
+## followup-workspace-reminders (2026-11-10) — no migration needed
+- "Today's conversation": relabeled the existing single-line "Add note" into a multiline textarea on the same `add_lead_note` RPC path — no new write path.
+- "Next follow-up date/time": unchanged, already the existing `SetFollowupDialog`/`set_lead_followup` RPC.
+- "Reminder": new selector in `SetFollowupDialog` (at / 15 min / 1 hour / 1 day before) creates a `tasks` row via the extended `createTask`/`CreateTaskInput` (now exposes `dueAt`/`refType`/`refId`/`description`, which already existed on the table).
+- Known gap: reminders are not yet wired into `RescheduleDialog`, and there's no dedup if a lead is rescheduled after a reminder task already exists — documented, not solved in this pass.

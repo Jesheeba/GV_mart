@@ -4,7 +4,6 @@ import { Link, useParams } from "react-router-dom"
 import { ArrowLeft, CalendarPlus, ClipboardCheck, Loader2, MessageCircle, Phone, RotateCcw, StickyNote, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { useToast } from "@/components/ui/toast-context"
@@ -163,7 +162,7 @@ export function LeadDetailPage() {
           ) : null}
           <Button size="sm" variant="outline" onClick={() => setNoteOpen((v) => !v)}>
             <StickyNote className="size-3.5" />
-            {t("leads.detail.addNote")}
+            {t("leads.detail.todaysConversation")}
           </Button>
           {mobile ? (
             <a
@@ -180,7 +179,14 @@ export function LeadDetailPage() {
 
         {noteOpen ? (
           <div className="flex gap-2">
-            <Input autoFocus value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("leads.detail.notePlaceholder")} onKeyDown={(e) => e.key === "Enter" && saveNote()} />
+            <textarea
+              autoFocus
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={t("leads.detail.todaysConversationPlaceholder")}
+              className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
+            />
             <Button size="sm" onClick={saveNote} disabled={!note.trim() || addNote.isPending}>
               {addNote.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
             </Button>

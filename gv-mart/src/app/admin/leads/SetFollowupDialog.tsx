@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useLeadSchedule, useSetLeadFollowup } from "@/hooks/useLeadFollowups"
+import { useCreateTask } from "@/hooks/useWorkspace"
 import { NextFollowupPicker } from "./NextFollowupPicker"
+import { REMINDER_OFFSETS, reminderDueAt, type ReminderOffset } from "./followupReminder"
 import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 import {
   FOLLOWUP_NOTE_MAX,
@@ -51,21 +53,23 @@ export function SetFollowupDialog({
           <DialogTitle>{t("leads.followup.setTitle")}</DialogTitle>
           <DialogDescription>{lead?.name}</DialogDescription>
         </div>
-        {lead ? <Body key={lead.id} leadId={lead.id} onClose={() => onOpenChange(false)} onDone={onDone} /> : null}
+        {lead ? <Body key={lead.id} leadId={lead.id} leadName={lead.name} onClose={() => onOpenChange(false)} onDone={onDone} /> : null}
       </DialogContent>
     </Dialog>
   )
 }
 
-function Body({ leadId, onClose, onDone }: { leadId: string; onClose: () => void; onDone?: () => void }) {
+function Body({ leadId, leadName, onClose, onDone }: { leadId: string; leadName: string; onClose: () => void; onDone?: () => void }) {
   const { t, i18n } = useTranslation()
   const { toast } = useToast()
   const { data: profile } = useProfile()
   const schedule = useLeadSchedule(profile?.org_id).data ?? DEFAULT_LEAD_SCHEDULE
   const setFollowup = useSetLeadFollowup()
+  const createTask = useCreateTask()
   const qc = useQueryClient()
   const [type, setType] = useState<SetFollowupType>("call")
   const [note, setNote] = useState("")
+  const [reminder, setReminder] = useState<ReminderOffset>("")
   const [next, setNext] = useState<NextFollowupValue>(() => {
     const now = getIstNow()
     return { date: nextWorkingDay(addDays(now.date, 0), schedule.lead_work_days), time: "10:00", exact: false }
@@ -78,6 +82,19 @@ function Body({ leadId, onClose, onDone }: { leadId: string; onClose: () => void
     try {
       const dueAt = toIso(next.date!, next.time!)
       await setFollowup.mutateAsync({ leadId, dueAt, type, note: cleanFollowupNote(note), isExact: next.exact })
+      if (reminder && profile) {
+        const remindAt = reminderDueAt(dueAt, reminder)
+        await createTask.mutateAsync({
+          orgId: profile.org_id,
+          assigneeId: profile.id,
+          title: t("leads.followup.reminderTaskTitle", { name: leadName }),
+          dueDate: remindAt.slice(0, 10),
+          dueAt: remindAt,
+          source: "lead_followup_reminder",
+          refType: "lead",
+          refId: leadId,
+        })
+      }
       toast.success(t("leads.followup.setSaved", { when: formatIstDateTime(dueAt, i18n.language) }))
       onClose()
       onDone?.()
@@ -136,6 +153,22 @@ function Body({ leadId, onClose, onDone }: { leadId: string; onClose: () => void
           onChange={(e) => setNote(e.target.value)}
           placeholder={t("leads.followup.setNotePlaceholder")}
         />
+      </section>
+      <section className="space-y-2">
+        <Label htmlFor="set-followup-reminder">{t("leads.followup.reminder")}</Label>
+        <select
+          id="set-followup-reminder"
+          value={reminder}
+          onChange={(e) => setReminder(e.target.value as ReminderOffset)}
+          className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+        >
+          <option value="">{t("leads.followup.reminderNone")}</option>
+          {REMINDER_OFFSETS.map((o) => (
+            <option key={o} value={o}>
+              {t(`leads.followup.reminderOption.${o}`)}
+            </option>
+          ))}
+        </select>
       </section>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose} disabled={setFollowup.isPending}>

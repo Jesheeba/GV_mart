@@ -92,7 +92,21 @@ export async function listCompletedWorkspaceTasks(orgId: string, assigneeId: str
   return data ?? []
 }
 
-export type CreateTaskInput = { orgId: string; assigneeId: string; title: string; dueDate: string | null; source?: string; assignedBy?: string }
+export type CreateTaskInput = {
+  orgId: string
+  assigneeId: string
+  title: string
+  dueDate: string | null
+  source?: string
+  assignedBy?: string
+  // Lead Dashboard Enhancement, feature 6 (2026-11-10) — generic
+  // ref_type/ref_id already existed on `tasks`, just not exposed here yet.
+  // See build-docs/features/followup-workspace-reminders.md.
+  dueAt?: string | null
+  refType?: string | null
+  refId?: string | null
+  description?: string | null
+}
 
 // assignedBy defaults to assigneeId (self-assigned) — every call site today
 // (Workspace's personal to-do quick-add) is a self-assign, and the
@@ -108,6 +122,10 @@ export async function createTask(input: CreateTaskInput): Promise<TaskRow> {
       assigned_by: input.assignedBy ?? input.assigneeId,
       title: input.title,
       due_date: input.dueDate,
+      due_at: input.dueAt ?? null,
+      ref_type: input.refType ?? null,
+      ref_id: input.refId ?? null,
+      description: input.description ?? null,
       source: input.source ?? "manual",
     })
     .select()

@@ -28,7 +28,12 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Correction from the original plan: there is no `referred_by_user_id`/`ReferrerPicker` to coexist with (verified in code, see MEMORY.md) — so this feature is just two new free-text columns, simpler than originally scoped.
 
 ## followup-workspace-reminders
-- Planned: saving "Today's conversation" produces exactly one `lead_activities` row; setting next-follow-up updates `leads.next_followup_at`; enabling a reminder creates one `tasks` row with correct `ref_type`/`ref_id`/`due_at`; rescheduling doesn't orphan a stale task.
+- DONE 2026-11-10. No migration needed — `tasks.ref_type`/`ref_id`/`due_at`/`description` already existed on the table, just not exposed by `CreateTaskInput`; extended it (additive optional params, all existing call sites unaffected).
+- "Today's conversation": relabeled the existing single-line "Add note" action/i18n keys into a multiline textarea — converged on the one existing `add_lead_note` RPC path rather than adding a second way to write `lead_activities`, per the feature doc's explicit "no duplicate code path" requirement.
+- "Next follow-up date/time": unchanged — already flows through the existing `SetFollowupDialog`/`set_lead_followup` RPC; no new write path added.
+- "Reminder": added a selector to `SetFollowupDialog` only (not Reschedule — see gap below). `reminderDueAt` offset math extracted to pure `followupReminder.ts`, unit-tested (`followupReminder.test.ts`, 4 tests, all pass): at/15m/1h/1d offsets computed correctly from the chosen follow-up datetime.
+- `tsc --noEmit` clean; full leads test suite re-run (20/20 pass) as regression check.
+- **Known gap, documented not silently skipped:** reminder creation is only wired into the first-time "Set follow-up" dialog. `RescheduleDialog` does not yet create/update a reminder task, and there is no dedup/cancel-existing-task logic if a lead is rescheduled after a reminder was already created — flagged in the feature doc's edge cases as needing its own design pass, not solved here under this plan's scope.
 
 ## Regression sweep (run after any feature lands)
 - Existing assignment filter (`assignedFilter`) on `LeadsPage.tsx`.
