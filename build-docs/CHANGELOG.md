@@ -16,3 +16,10 @@
 - Added a new "Followed by" dropdown on the Leads list, separate from the existing assignment filter — filters by who actually logged a follow-up activity (`lead_activities.created_by`), not who the lead is assigned to.
 - New read-only service/hook `listLeadFollowupActors`/`useLeadFollowupActors`; grouping/dedup logic extracted to `followedByFilter.ts` + unit tests (count = distinct leads, never activity-row count).
 - No migration, no write path, no change to the existing assignment filter.
+
+## lead-detail-fields (2026-11-10) — code committed, migration NOT yet applied live
+- New columns (migration text only, not yet run): `customer_requirement`, `special_description`, `user_source`, `budget`, `when_needed`, `tds_status`, `report_storage_path` on `leads`; new `lead-reports` storage bucket + `record_lead_document` RPC.
+- Caught and fixed before going live: original draft missed "When do they need it?" — added as `when_needed` across migration/types/schema/form/detail card.
+- `NewLeadForm.tsx` gets the new optional create-time fields; `LeadDetailPage.tsx` gets a new `LeadDetailFieldsCard` (view/edit the fields + upload/view the document).
+- Hand-patched `database.ts` (Docker/`gen types` unavailable in this environment).
+- **Waiting on explicit "apply this migration" from the owner before running it against the live DB**, per the standing no-DB-write-unless-named rule.

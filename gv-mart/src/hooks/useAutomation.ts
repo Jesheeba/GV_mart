@@ -20,6 +20,17 @@ export function useLeadFollowupActors(orgId: string | undefined) {
     staleTime: 60_000,
   })
 }
+
+export function useUpdateLeadDetailFields() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ leadId, patch }: { leadId: string; patch: automation.LeadDetailFieldsPatch }) => automation.updateLeadDetailFields(leadId, patch),
+    onSuccess: (_data, { leadId }) => {
+      qc.invalidateQueries({ queryKey: ["leads", "detail", leadId] })
+      qc.invalidateQueries({ queryKey: ["leads", "list"] })
+    },
+  })
+}
 export function useLead(leadId: string | undefined) {
   return useQuery({
     queryKey: ["leads", "detail", leadId],

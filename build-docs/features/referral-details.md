@@ -10,8 +10,7 @@ alter table leads
   add column referred_by_name text,
   add column referred_by_phone text;
 ```
-- Does **not** replace or write to `leads.referred_by_user_id` (FK, used by `ReferrerPicker` + referral-bonus-points flow). Both fields coexist and are shown in distinct UI sections if a referrer is picked via `ReferrerPicker`, show that; the freeform name/phone fields are always available regardless.
-- Confirmed (PLAN.md §3.2): coexistence is wanted, both mechanisms shown.
+- **Correction (2026-11-10, verified in code):** there is no `referred_by_user_id` column or `ReferrerPicker` component anywhere in the app — the earlier codebase survey was wrong on this point. The existing "referral" UI on `LeadDetailPanel.tsx` (`leads.detail.referralPoints`/`awardPoints`) is a manual, one-off "Award referral points" action: search for a customer via `Autocomplete`, give points, logged as a `referral_bonus` transaction — nothing is written back onto the lead row. So `referred_by_name`/`referred_by_phone` don't coexist with anything; they're simply new free-text fields on `leads`, independent of the points-award action.
 
 ## Impact map
 - `NewLeadForm.tsx`, `LeadDetailPanel.tsx` — add two text inputs in a "Referral details" group, near existing `ReferrerPicker`/referral-points UI, visually separated so staff don't confuse the two referral concepts.

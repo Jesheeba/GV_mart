@@ -2,7 +2,7 @@
 
 ## Decisions made (2026-11-10)
 - TDS field is the water-TDS domain concept, same as elsewhere in the app — not tax. No renaming needed; column `tds_status`, label "TDS". (My initial read of the requirements doc as "Tax Deducted at Source" was wrong — corrected by user.)
-- Referral: keep both mechanisms — existing `referred_by_user_id`/`ReferrerPicker` (bonus-points) and new freeform `referred_by_name`/`referred_by_phone` — shown separately, not merged.
+- Referral: **correction 2026-11-10** — verified in code before building feature 5; there is no `referred_by_user_id` column on `leads` and no `ReferrerPicker` component (the earlier codebase survey was wrong on this point). The existing "referral" UI on `LeadDetailPanel.tsx` is just a manual "Award referral points" action (search a customer via Autocomplete, give points) — nothing is persisted on the lead record itself. So there's no coexistence to manage: `referred_by_name`/`referred_by_phone` are simply new, free-text columns, added without touching the existing points-award flow.
 - "Followed by" ships as a new, additive filter based on `lead_activities.created_by`; existing assignment filter stays unchanged, unrenamed. Confirmed after checking the actual RLS/RPCs: follow-up *logging* (`log_lead_outcome`, `add_lead_note`) is not restricted to the assignee today — only *scheduling* (`set_lead_followup`) is ownership-gated — so assignee and follow-up-actor genuinely diverge in practice; this isn't just a hypothetical distinction.
 - Document upload: single file per lead for v1 (`report_storage_path`), not a multi-file table.
 - `leads.kind`/`kind_key` = lead category; no new `lead_category` column (confirmed by codebase survey).

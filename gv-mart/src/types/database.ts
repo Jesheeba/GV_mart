@@ -5181,6 +5181,15 @@ export type Database = {
           created_at: string
           updated_at: string
           auto_assign_pending: boolean
+          // Lead Dashboard Enhancement, feature 4 (2026-11-10) — see
+          // 20261110100000_lead_detail_fields.sql.
+          customer_requirement: string | null
+          special_description: string | null
+          user_source: string | null
+          budget: number | null
+          when_needed: string | null
+          tds_status: string | null
+          report_storage_path: string | null
         }
         Insert: {
           is_test?: boolean
@@ -5212,6 +5221,13 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_pending?: boolean
+          customer_requirement?: string | null
+          special_description?: string | null
+          user_source?: string | null
+          budget?: number | null
+          when_needed?: string | null
+          tds_status?: string | null
+          report_storage_path?: string | null
         }
         Update: {
           is_test?: boolean
@@ -5243,6 +5259,13 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_pending?: boolean
+          customer_requirement?: string | null
+          special_description?: string | null
+          user_source?: string | null
+          budget?: number | null
+          when_needed?: string | null
+          tds_status?: string | null
+          report_storage_path?: string | null
         }
         Relationships: [
           {
@@ -7331,6 +7354,13 @@ export type Database = {
       }
       record_payment_proof: {
         Args: { p_org_id: string; p_visit_id: string; p_storage_path: string; p_transaction_reference?: string | null }
+        Returns: Json
+      }
+      // Lead Dashboard Enhancement, feature 4 (2026-11-10) — hand-patched,
+      // see 20261110100000_lead_detail_fields.sql; Docker-based
+      // `supabase gen types` isn't available in this environment.
+      record_lead_document: {
+        Args: { p_org_id: string; p_lead_id: string; p_storage_path: string }
         Returns: Json
       }
       // Partial-payment top-up fix — hand-patched, see

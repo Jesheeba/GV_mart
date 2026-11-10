@@ -1,7 +1,9 @@
 # Feature: New lead-detail capture fields
 
 ## Purpose
-Capture customer requirement, special description, lead-source-detail text, budget, tax-TDS status, and an optional report/document upload — none of which exist on `leads` today.
+Capture customer requirement, special description, lead-source-detail text, budget, "when do they need it", TDS status, and an optional report/document upload — none of which exist on `leads` today.
+
+**Correction (2026-11-10):** the first draft of this doc omitted "When do they need it?" even though it's in the original requirements — caught before the migration was applied. Added as `when_needed text` below.
 
 ## Architecture
 ### Migration (additive, nullable — no backfill needed)
@@ -11,6 +13,7 @@ alter table leads
   add column special_description text,
   add column user_source text,
   add column budget numeric check (budget is null or budget >= 0),
+  add column when_needed text,
   add column tds_status text check (tds_status is null or tds_status in ('applicable','not_applicable','to_be_confirmed')),
   add column report_storage_path text;
 ```
@@ -37,7 +40,7 @@ alter table leads
 - Empty state: all new fields nullable, existing leads show blank, not an error.
 
 ## Acceptance criteria
-- [ ] Customer requirement, Special description, User source/referred through, Budget, TDS (Tax), Upload report/document all appear on lead create and detail views.
+- [ ] Customer requirement, Special description, User source/referred through, Budget, When do they need it?, TDS, Upload report/document all appear on lead create and detail views.
 - [ ] Budget stored as numeric, rejects negative values client- and server-side.
 - [ ] TDS dropdown options: Select TDS, Applicable, Not applicable, To be confirmed (water-TDS concept, labeled plainly "TDS").
 - [ ] Upload validates MIME type and size server-side before storing.

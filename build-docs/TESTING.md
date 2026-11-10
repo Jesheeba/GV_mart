@@ -17,7 +17,10 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Not separately tested: dropdown name resolution for a deactivated/missing profile (falls back to "Unknown user" label) — covered by existing i18n key, not a dedicated test; manual verification only.
 
 ## lead-detail-fields
-- Planned: DB check constraint rejects negative budget and invalid `tax_tds_status`; RPC upload rejects disallowed MIME/oversized file; form round-trips all fields on an existing lead.
+- DONE (code) 2026-11-10, **migration NOT yet applied to the live DB** — per the standing rule "no DB write unless named in chat," `supabase/migrations/20261110100000_lead_detail_fields.sql` is written and committed as text only; waiting for the owner to explicitly say to apply it.
+- `tsc --noEmit` clean. `validateLeadDocument` unit-tested (`leadDocuments.test.ts`, 4 tests, all pass): accepts allowed type/size, rejects disallowed MIME, rejects over-size, accepts exactly-at-limit.
+- Correction caught before applying: the first draft of this feature's design doc omitted "When do they need it?" (in the original requirements) — added `when_needed` to the migration, types, schema, form, and detail card before anything went live.
+- Not yet tested (needs the live DB): check constraint rejecting negative budget/invalid tds_status at the DB layer, RPC `record_lead_document` end-to-end, storage policies. Will run once the migration is applied.
 
 ## referral-details
 - Planned: both `referred_by_user_id` and freeform name/phone can be set independently without one clobbering the other.

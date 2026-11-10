@@ -9,6 +9,18 @@ export const leadSchema = z.object({
   productCategory: z.string().trim().max(60).optional().or(z.literal("")),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
   kind: z.string().trim().max(60).optional().or(z.literal("")),
+  // Lead Dashboard Enhancement, feature 4 — see build-docs/features/lead-detail-fields.md.
+  customerRequirement: z.string().trim().max(2000).optional().or(z.literal("")),
+  specialDescription: z.string().trim().max(2000).optional().or(z.literal("")),
+  userSource: z.string().trim().max(200).optional().or(z.literal("")),
+  budget: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || Number(v) >= 0, "leads.errors.budgetNonNegative"),
+  tdsStatus: z.enum(["", "applicable", "not_applicable", "to_be_confirmed"]).optional(),
+  whenNeeded: z.string().trim().max(200).optional().or(z.literal("")),
 })
 export type LeadInput = z.infer<typeof leadSchema>
 

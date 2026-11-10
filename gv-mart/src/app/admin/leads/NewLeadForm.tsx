@@ -23,7 +23,20 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
   const form = useForm<LeadInput>({
     resolver: zodResolver(leadSchema),
     mode: "onChange",
-    defaultValues: { name: "", mobile: "", source: "other", productCategory: "", notes: "", kind: "" },
+    defaultValues: {
+      name: "",
+      mobile: "",
+      source: "other",
+      productCategory: "",
+      notes: "",
+      kind: "",
+      customerRequirement: "",
+      specialDescription: "",
+      userSource: "",
+      budget: "",
+      whenNeeded: "",
+      tdsStatus: "",
+    },
   })
 
   async function onSubmit(values: LeadInput) {
@@ -35,6 +48,12 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       product_type_key: values.productCategory || null,
       notes: values.notes || null,
       kind_key: values.kind || null,
+      customer_requirement: values.customerRequirement || null,
+      special_description: values.specialDescription || null,
+      user_source: values.userSource || null,
+      budget: values.budget ? Number(values.budget) : null,
+      when_needed: values.whenNeeded || null,
+      tds_status: values.tdsStatus || null,
     })
     onCreated()
   }
@@ -98,6 +117,46 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             {...form.register("notes")}
             className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
           />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="lead-customer-requirement">{t("leads.new.customerRequirement")}</Label>
+          <textarea
+            id="lead-customer-requirement"
+            rows={3}
+            {...form.register("customerRequirement")}
+            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
+          />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="lead-special-description">{t("leads.new.specialDescription")}</Label>
+          <textarea
+            id="lead-special-description"
+            rows={3}
+            {...form.register("specialDescription")}
+            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="lead-user-source">{t("leads.new.userSource")}</Label>
+          <Input id="lead-user-source" {...form.register("userSource")} placeholder={t("leads.new.userSourcePlaceholder")} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
+          <Input id="lead-budget" type="number" min={0} {...form.register("budget")} />
+          {form.formState.errors.budget ? <p className="text-xs text-danger">{t(form.formState.errors.budget.message!)}</p> : null}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="lead-when-needed">{t("leads.new.whenNeeded")}</Label>
+          <Input id="lead-when-needed" {...form.register("whenNeeded")} placeholder={t("leads.new.whenNeededPlaceholder")} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="lead-tds">{t("leads.new.tds")}</Label>
+          <select id="lead-tds" {...form.register("tdsStatus")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+            <option value="">{t("leads.tds.select")}</option>
+            <option value="applicable">{t("leads.tds.applicable")}</option>
+            <option value="not_applicable">{t("leads.tds.notApplicable")}</option>
+            <option value="to_be_confirmed">{t("leads.tds.toBeConfirmed")}</option>
+          </select>
         </div>
       </div>
       {createLead.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createLead.error as Error).message}</p> : null}

@@ -95,6 +95,13 @@ export async function createLead(row: {
   kind_key?: string | null
   /** Products/spares picked from inventory; first one also fills the lead's scalar columns (back-compat, see lead_items migration). */
   items?: { product_id?: string; spare_id?: string; qty: number }[]
+  // Lead Dashboard Enhancement, feature 4 — see build-docs/features/lead-detail-fields.md.
+  customer_requirement?: string | null
+  special_description?: string | null
+  user_source?: string | null
+  budget?: number | null
+  when_needed?: string | null
+  tds_status?: string | null
 }) {
   const { items = [], ...leadRow } = row
   const first = items[0]
@@ -111,6 +118,21 @@ export async function createLead(row: {
     if (itemsError) throw itemsError
   }
   return data
+}
+
+export type LeadDetailFieldsPatch = {
+  customer_requirement?: string | null
+  special_description?: string | null
+  user_source?: string | null
+  budget?: number | null
+  when_needed?: string | null
+  tds_status?: string | null
+}
+
+/** Plain column update — unlike assigned_to, these fields have no trigger/RPC gate (leads_update_sales RLS covers them). */
+export async function updateLeadDetailFields(leadId: string, patch: LeadDetailFieldsPatch) {
+  const { error } = await supabase.from("leads").update(patch).eq("id", leadId)
+  if (error) throw error
 }
 
 export async function listLeadActivities(leadId: string): Promise<LeadActivityRow[]> {

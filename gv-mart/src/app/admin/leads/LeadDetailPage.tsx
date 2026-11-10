@@ -16,6 +16,7 @@ import { assignActionFor, canScheduleLead } from "@/lib/lead-assign"
 import type { UserRole } from "@/lib/roles"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLists"
+import { LeadDetailFieldsCard } from "./LeadDetailFieldsCard"
 import { LeadDetailPanel } from "./LeadDetailPanel"
 import { LeadTimeline } from "./LeadTimeline"
 import { LogOutcomeSheet } from "./LogOutcomeSheet"
@@ -188,10 +189,13 @@ export function LeadDetailPage() {
       </Card>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <Card className="min-w-0 gap-3 px-5 lg:flex-1">
-          <h2 className="text-sm font-semibold text-text">{t("leads.detail.history")}</h2>
-          <LeadTimeline leadId={l.id} />
-        </Card>
+        <div className="min-w-0 space-y-4 lg:flex-1">
+          <LeadDetailFieldsCard lead={l} />
+          <Card className="min-w-0 gap-3 px-5">
+            <h2 className="text-sm font-semibold text-text">{t("leads.detail.history")}</h2>
+            <LeadTimeline leadId={l.id} />
+          </Card>
+        </div>
         <div className="lg:w-80 lg:shrink-0">
           <LeadDetailPanel lead={l} />
         </div>

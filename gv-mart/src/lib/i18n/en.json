@@ -3396,7 +3396,15 @@
       "mobile": "Mobile",
       "source": "Source",
       "enquiryType": "Enquiry type",
-      "kind": "Kind"
+      "kind": "Kind",
+      "customerRequirement": "Customer requirement",
+      "specialDescription": "Special description",
+      "userSource": "User source / referred through",
+      "userSourcePlaceholder": "e.g. Existing customer, campaign",
+      "budget": "Budget (₹)",
+      "whenNeeded": "When do they need it?",
+      "whenNeededPlaceholder": "e.g. Immediately / within 2 weeks",
+      "tds": "TDS"
     },
     "kpi": {
       "total": "Total leads",
@@ -3443,6 +3451,15 @@
       "spare": "Spare",
       "product": "Product",
       "amc": "AMC"
+    },
+    "tds": {
+      "select": "Select TDS",
+      "applicable": "Applicable",
+      "notApplicable": "Not applicable",
+      "toBeConfirmed": "To be confirmed"
+    },
+    "errors": {
+      "budgetNonNegative": "Budget must be zero or more"
     },
     "lostReason": {
       "price_too_high": "Price too high",
@@ -3497,7 +3514,20 @@
       "notFound": "This lead no longer exists (it may have been moved to Customers or deleted).",
       "reopen": "Reopen lead",
       "addNote": "Add note",
-      "noteSaved": "Note added"
+      "noteSaved": "Note added",
+      "leadFields": "Lead details",
+      "edit": "Edit",
+      "fieldsSaved": "Lead details saved"
+    },
+    "document": {
+      "none": "No document attached",
+      "upload": "Upload",
+      "view": "View document",
+      "uploaded": "Document uploaded",
+      "error": {
+        "unsupportedType": "That file type isn't supported. Allowed: PDF, Word, Excel, JPG, PNG.",
+        "tooLarge": "File is too large (max 10 MB)."
+      }
     },
     "quick": {
       "label": "Follow-up filters",
