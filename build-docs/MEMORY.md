@@ -24,6 +24,12 @@
 - Concretely: `leads.referred_by_user_id` and `leads.referral_type` exist live today but are absent from this worktree's `database.ts` — the earlier "no referred_by_user_id exists" claim in this doc (and in referral-details.md) was checked against the stale local checkout, not the live schema, and was wrong for live reality. Harmless here (my new columns were independent and additive regardless), but **next time, verify assumptions about "does X column exist" against the live DB with a direct query, not just the local `database.ts`/migrations folder** — they can and do diverge.
 - Confirmed no collision before applying (checked `leads` columns, `lead-reports` bucket, `record_lead_document` function, `leads_update_sales` policy, and the three helper functions my RPC/policies use — all either absent-as-expected or present-and-compatible).
 
+## Merged main into this branch 2026-11-10 (356 commits behind, now reconciled)
+- Before attempting to merge into `main`, found this branch's base was 356 commits behind — `main` had meanwhile added a real `ReferrerPicker`/`referred_by_user_id` lead-creation flow (`365ea9d feat(referrals): add Referred-by picker to customer + lead forms`), confirming the live-DB finding above and superseding my earlier "doesn't exist" claim for good.
+- Merged `origin/main` into `feat/lead-dashboard-enhancement` (not a rebase — one conflict-resolution pass covering all 7 feature commits at once). 4 real conflicts: `NewLeadForm.tsx`, `lib/validation/automation.ts`, `services/automation.ts`, `types/database.ts` — all resolved by keeping both sides' fields (main's `referredByUserId`/`ReferrerPicker` + this branch's `referred_by_name`/`referred_by_phone`, both coexisting as originally planned). 6 other files auto-merged cleanly.
+- Post-merge: `tsc --noEmit` clean, full suite 1066/1066 passing (0 failures — the earlier pre-existing `testCustomerGuard.test.ts` failure about `customer_filter_counts` is also gone, resolved by main's own later work).
+- This branch is now current with `main` and should be mergeable cleanly.
+
 ## Known issues / risks
 - `CreateTaskInput` in `workspace.ts` may not yet expose `ref_type`/`ref_id` params even though the `tasks` table has the columns — must verify before building feature 6 (followup-workspace-reminders).
 - Rescheduling an existing follow-up with an active reminder task could orphan a stale task if not explicitly handled — flagged in followup-workspace-reminders.md, needs a small design check during implementation.
