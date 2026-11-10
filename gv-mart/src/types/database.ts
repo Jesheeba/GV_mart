@@ -7710,6 +7710,30 @@ export type Database = {
           invoice_count: number
         }[]
       }
+      // Hand-patched ahead of `supabase gen types` (Docker unavailable in this
+      // environment — see services/hr.ts's header for the general rationale).
+      // Migration: 20261204190000_product_opening_stock_rpc.sql, applied live
+      // 2026-11-10 — see services/masters.ts createProductWithStock().
+      create_product_with_stock: {
+        Args: {
+          p_org_id: string
+          p_brand_id: string
+          p_model_id: string
+          p_name: string
+          p_category: Database["public"]["Enums"]["brand_category"]
+          p_price: number
+          p_cost_price: number | null
+          p_hsn_code: string | null
+          p_item_code: string | null
+          p_warranty_months: number | null
+          p_standard_time_minutes: number | null
+          p_installation_charge: number | null
+          p_description: string | null
+          p_opening_stock: number | null
+          p_min_stock: number | null
+        }
+        Returns: string
+      }
       set_primary_member: {
         Args: {
           p_customer_id: string

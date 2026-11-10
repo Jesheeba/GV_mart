@@ -47,6 +47,10 @@ export type CrudFieldDef = {
   // onUpdate.
   readOnly?: boolean
   deriveValue?: (values: Record<string, string>) => string
+  // Shown only on the Add form, hidden (and excluded from validation/submit)
+  // on Edit — for a field that only makes sense once, at creation (e.g.
+  // Products' opening stock, ProductsTab.tsx).
+  createOnly?: boolean
 }
 
 function resolveOptions(field: CrudFieldDef, values: Record<string, string>): CrudFieldOption[] {
@@ -108,6 +112,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   toFormValues,
   checkCanDelete,
   cannotDeleteMessage,
+  computeWarning,
 }: {
   fields: CrudFieldDef[]
   rows: T[]
@@ -134,6 +139,11 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   // instead of after a wasted confirm click.
   checkCanDelete?: (id: string) => Promise<boolean>
   cannotDeleteMessage?: string
+  // Non-blocking — shown above Save, never stops submit (see ProductsTab.tsx's
+  // same-name/brand/model check). Recomputed on every render of the open
+  // form; `editingId` (null while adding) lets the caller exclude the row
+  // being edited from matching against itself.
+  computeWarning?: (values: Record<string, string>, editingId: string | null) => string | null
 }) {
   const { t } = useTranslation()
   const [formOpen, setFormOpen] = useState(false)
@@ -213,9 +223,11 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
     if (editingId) setConfirmDiscardOpen(true)
     else closeForm()
   }
+  const activeFields = editingId ? fields.filter((f) => !f.createOnly) : fields
+
   async function submit() {
     setFormError(null)
-    const validationError = validateFields(fields, values, t)
+    const validationError = validateFields(activeFields, values, t)
     if (validationError) {
       setFormError(validationError)
       return
@@ -336,7 +348,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
             </p>
           ) : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {fields.map((f) => (
+            {activeFields.map((f) => (
               <div key={f.key} className={`space-y-1 ${f.type === "textarea" ? "col-span-2 sm:col-span-3" : ""}`}>
                 <Label htmlFor={`f-${f.key}`}>{f.label}</Label>
                 {f.type === "select" ? (
@@ -379,6 +391,9 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
               </div>
             ))}
           </div>
+          {computeWarning?.(values, editingId) ? (
+            <p className="mt-3 rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{computeWarning(values, editingId)}</p>
+          ) : null}
           <div className="mt-3 flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={requestCloseForm}>
               {t("common.cancel")}

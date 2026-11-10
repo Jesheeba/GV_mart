@@ -884,12 +884,32 @@
       "standardTime": "Standard time (min)",
       "installationCharge": "Installation charge (technician incentive per unit)",
       "installationChargeHint": "Not billed to the customer",
+      "openingStock": "Opening stock",
+      "openingStockHint": "Leave blank for 0 — you can add stock later via Purchase",
+      "reorderLevel": "Reorder level",
+      "reorderLevelHint": "Leave blank for the default (10)",
       "description": "Description",
       "descriptionPlaceholder": "Shown to customers in Product Enquiry",
       "add": "Add product",
       "empty": "No products yet — add your first one.",
       "needsBrandModelFirst": "Add a brand and model first — products need both.",
-      "status": "Status"
+      "status": "Status",
+      "duplicateWarning": "A product with this name, brand and model already exists. You can still save — just checking this isn't a duplicate.",
+      "bulkImport": {
+        "button": "Bulk import",
+        "title": "Bulk import products",
+        "intro": "Download the template, fill it in, then upload it here. Nothing is saved until you review the preview and confirm.",
+        "downloadTemplate": "Download CSV template",
+        "chooseFile": "Choose CSV file",
+        "validCount": "{{count}} ready to import",
+        "errorCount": "{{count}} with errors",
+        "duplicateCount": "{{count}} possible duplicate(s)",
+        "duplicateRow": "Possible duplicate — will still be imported",
+        "ok": "OK",
+        "confirmImport": "Import {{count}} product(s)",
+        "importing": "Importing {{done}} of {{total}}…",
+        "done": "Done — {{created}} created, {{skipped}} skipped, {{failed}} failed."
+      }
     },
     "spares": {
       "name": "Spare name",

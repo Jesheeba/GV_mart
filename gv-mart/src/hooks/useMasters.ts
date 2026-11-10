@@ -68,6 +68,20 @@ export const productsHooks = entityHooks("products", {
   remove: masters.deleteProduct,
 })
 
+// Dedicated mutation (not part of productsHooks.useCreate) because
+// createProductWithStock's input shape differs from a plain products insert
+// (adds openingStock/minStock) — see services/masters.ts.
+export function useCreateProductWithStock() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: masters.createProductWithStock,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products", "list"] })
+      qc.invalidateQueries({ queryKey: ["inventory", "list"] })
+    },
+  })
+}
+
 export const sparesHooks = entityHooks("spares", {
   list: masters.listSpares,
   create: masters.createSpare,

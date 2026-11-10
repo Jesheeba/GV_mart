@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ClipboardList, Image as ImageIcon, Link2, Sparkles, Timer, ToggleLeft, Wrench } from "lucide-react"
+import { ClipboardList, Image as ImageIcon, Link2, Sparkles, Timer, ToggleLeft, Upload, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
-import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
+import { brandsHooks, modelsHooks, productsHooks, useCreateProductWithStock } from "@/hooks/useMasters"
 import { useProductsWithoutLifecycleConfig } from "@/hooks/useProductLifecycle"
 import { useProfile } from "@/hooks/useProfile"
 import { productHasReferences } from "@/services/masters"
 import type { Enums, Json } from "@/types/database"
 import { ProductAttributesPanel } from "./ProductAttributesPanel"
+import { ProductBulkImportPanel } from "./ProductBulkImportPanel"
 import { ProductComplaintsPanel } from "./ProductComplaintsPanel"
 import { ProductCtaOverridesPanel } from "./ProductCtaOverridesPanel"
 import { ProductFeaturesAndRelatedPanel } from "./ProductFeaturesAndRelatedPanel"
@@ -17,7 +18,7 @@ import { ProductLifecyclePanel } from "./ProductLifecyclePanel"
 import { ProductMediaPanel } from "./ProductMediaPanel"
 import { ProductSparesPanel } from "./ProductSparesPanel"
 
-const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const satisfies readonly Enums<"brand_category">[]
+export const CATEGORIES = ["ro", "ac", "inverter", "battery"] as const satisfies readonly Enums<"brand_category">[]
 
 type ProductWithRefs = {
   id: string
@@ -63,7 +64,7 @@ export function ProductsTab() {
   const { data: brands } = brandsHooks.useList(orgId)
   const { data: models } = modelsHooks.useList(orgId)
   const { data: rows, isLoading, isError, refetch } = productsHooks.useList(orgId)
-  const createMut = productsHooks.useCreate()
+  const createMut = useCreateProductWithStock()
   const updateMut = productsHooks.useUpdate()
   const deleteMut = productsHooks.useDelete()
 
@@ -116,6 +117,8 @@ export function ProductsTab() {
   const [ctaOverridesProductId, setCtaOverridesProductId] = useState<string | null>(null)
   const ctaOverridesProduct = (rows ?? []).find((r) => r.id === ctaOverridesProductId) as ProductWithRefs | undefined
 
+  const [bulkImportOpen, setBulkImportOpen] = useState(false)
+
   const brandOptions = useMemo(() => (brands ?? []).map((b) => ({ value: b.id, label: b.name })), [brands])
   const modelOptions = useMemo(
     () =>
@@ -128,8 +131,8 @@ export function ProductsTab() {
 
   const fields: CrudFieldDef[] = [
     { key: "name", label: t("masters.products.name"), type: "text", required: true },
-    { key: "brand_id", label: t("masters.products.brand"), type: "select", options: brandOptions },
-    { key: "model_id", label: t("masters.products.model"), type: "select", options: modelOptions },
+    { key: "brand_id", label: t("masters.products.brand"), type: "select", options: brandOptions, required: true },
+    { key: "model_id", label: t("masters.products.model"), type: "select", options: modelOptions, required: true },
     {
       key: "category",
       label: t("masters.products.category"),
@@ -143,6 +146,24 @@ export function ProductsTab() {
     { key: "warranty_months", label: t("masters.products.warrantyMonths"), type: "number", step: "1", min: 0 },
     { key: "standard_time_minutes", label: t("masters.products.standardTime"), type: "number", step: "1", min: 0 },
     { key: "installation_charge", label: t("masters.products.installationCharge"), type: "number", step: "0.01", min: 0, placeholder: t("masters.products.installationChargeHint") },
+    {
+      key: "opening_stock",
+      label: t("masters.products.openingStock"),
+      type: "number",
+      step: "1",
+      min: 0,
+      placeholder: t("masters.products.openingStockHint"),
+      createOnly: true,
+    },
+    {
+      key: "min_stock",
+      label: t("masters.products.reorderLevel"),
+      type: "number",
+      step: "1",
+      min: 0,
+      placeholder: t("masters.products.reorderLevelHint"),
+      createOnly: true,
+    },
     { key: "description", label: t("masters.products.description"), type: "textarea", placeholder: t("masters.products.descriptionPlaceholder") },
   ]
 
@@ -175,6 +196,10 @@ export function ProductsTab() {
             {t("productLifecycle.noLifecycleFilterOnly", { count: noLifecycleIds.size })}
           </option>
         </select>
+        <Button size="sm" variant="outline" onClick={() => setBulkImportOpen(true)}>
+          <Upload className="size-3.5" />
+          {t("masters.products.bulkImport.button")}
+        </Button>
       </div>
 
       <EntityCrudTable<ProductWithRefs>
@@ -318,19 +343,21 @@ export function ProductsTab() {
         ]}
         onCreate={(v) =>
           createMut.mutateAsync({
-            org_id: orgId!,
+            orgId: orgId!,
             name: v.name,
-            brand_id: v.brand_id,
-            model_id: v.model_id,
+            brandId: v.brand_id,
+            modelId: v.model_id,
             category: v.category as Enums<"brand_category">,
             price: Number(v.price) || 0,
-            cost_price: v.cost_price ? Number(v.cost_price) : null,
-            hsn_code: v.hsn_code || null,
-            item_code: v.item_code || null,
-            warranty_months: Number(v.warranty_months) || 12,
-            standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
-            installation_charge: v.installation_charge ? Number(v.installation_charge) : null,
+            costPrice: v.cost_price ? Number(v.cost_price) : null,
+            hsnCode: v.hsn_code || null,
+            itemCode: v.item_code || null,
+            warrantyMonths: v.warranty_months ? Number(v.warranty_months) : 12,
+            standardTimeMinutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
+            installationCharge: v.installation_charge ? Number(v.installation_charge) : null,
             description: v.description || null,
+            openingStock: v.opening_stock ? Number(v.opening_stock) : null,
+            minStock: v.min_stock ? Number(v.min_stock) : null,
           })
         }
         onUpdate={(id, v) =>
@@ -355,6 +382,14 @@ export function ProductsTab() {
         onDelete={(id) => deleteMut.mutateAsync(id)}
         checkCanDelete={async (id) => !(await productHasReferences(id))}
         cannotDeleteMessage={t("masters.cannotDeleteInUse")}
+        computeWarning={(v, editingId) => {
+          const name = v.name?.trim().toLowerCase()
+          if (!name || !v.brand_id || !v.model_id) return null
+          const match = ((rows ?? []) as ProductWithRefs[]).some(
+            (r) => r.id !== editingId && r.name.trim().toLowerCase() === name && r.brand_id === v.brand_id && r.model_id === v.model_id
+          )
+          return match ? t("masters.products.duplicateWarning") : null
+        }}
       />
 
       {complaintsProduct ? (
@@ -427,6 +462,17 @@ export function ProductsTab() {
           productId={ctaOverridesProduct.id}
           productName={ctaOverridesProduct.name}
           onClose={() => setCtaOverridesProductId(null)}
+        />
+      ) : null}
+
+      {bulkImportOpen ? (
+        <ProductBulkImportPanel
+          orgId={orgId}
+          brands={brands ?? []}
+          models={models ?? []}
+          existingProducts={rows ?? []}
+          onClose={() => setBulkImportOpen(false)}
+          onImported={() => refetch()}
         />
       ) : null}
     </>

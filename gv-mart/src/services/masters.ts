@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import type { Tables, TablesInsert, TablesUpdate } from "@/types/database"
+import type { Enums, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 
 // delete_product/delete_spare/delete_gift (20260923100000/100100) raise
 // "ITEM_IN_USE: <message>" when the item is referenced elsewhere — the real
@@ -64,6 +64,48 @@ export async function listProducts(orgId: string) {
 }
 export async function createProduct(row: TablesInsert<"products">) {
   const { data, error } = await supabase.from("products").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+// Creates the product AND its inventory row (plus an opening-stock movement,
+// when opening stock > 0) atomically — see 20261204190000_product_opening_stock_rpc.sql.
+// Replaces a plain products insert for Masters > Products "Add Product": a
+// product created this way is visible on Inventory immediately, instead of
+// staying invisible until a Purchase Order/Bill Entry is later received.
+export async function createProductWithStock(input: {
+  orgId: string
+  brandId: string
+  modelId: string
+  name: string
+  category: Enums<"brand_category">
+  price: number
+  costPrice: number | null
+  hsnCode: string | null
+  itemCode: string | null
+  warrantyMonths: number | null
+  standardTimeMinutes: number | null
+  installationCharge: number | null
+  description: string | null
+  openingStock: number | null
+  minStock: number | null
+}) {
+  const { data, error } = await supabase.rpc("create_product_with_stock", {
+    p_org_id: input.orgId,
+    p_brand_id: input.brandId,
+    p_model_id: input.modelId,
+    p_name: input.name,
+    p_category: input.category,
+    p_price: input.price,
+    p_cost_price: input.costPrice,
+    p_hsn_code: input.hsnCode,
+    p_item_code: input.itemCode,
+    p_warranty_months: input.warrantyMonths,
+    p_standard_time_minutes: input.standardTimeMinutes,
+    p_installation_charge: input.installationCharge,
+    p_description: input.description,
+    p_opening_stock: input.openingStock,
+    p_min_stock: input.minStock,
+  })
   if (error) throw error
   return data
 }
