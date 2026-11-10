@@ -119,6 +119,19 @@ export async function listLeadActivities(leadId: string): Promise<LeadActivityRo
   return data ?? []
 }
 
+/**
+ * Raw lead_id/created_by pairs across the org's lead_activities — the data
+ * behind the "Followed by" filter. This is who actually logged a follow-up
+ * (call/note/outcome), which is NOT restricted to the lead's assignee today
+ * (only scheduling the next follow-up is ownership-gated), so the two can
+ * genuinely differ. See build-docs/features/followed-by-filter.md.
+ */
+export async function listLeadFollowupActors(orgId: string): Promise<{ leadId: string; actorId: string }[]> {
+  const { data, error } = await supabase.from("lead_activities").select("lead_id, created_by").eq("org_id", orgId).not("created_by", "is", null)
+  if (error) throw error
+  return (data ?? []).map((r) => ({ leadId: r.lead_id as string, actorId: r.created_by as string }))
+}
+
 /** A plain note (or the quotation_created timeline marker) on an open or closed lead. Contact outcomes go through logLeadOutcome. */
 export async function logLeadActivity(leadId: string, type: string, note: string | null) {
   const { data, error } = await supabase.rpc("add_lead_note", {

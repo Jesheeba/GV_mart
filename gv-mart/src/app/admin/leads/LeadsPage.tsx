@@ -8,7 +8,7 @@ import { KpiCard } from "@/components/shared/KpiCard"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { WaitingLeadsBanner } from "./WaitingLeadsBanner"
-import { useLeads } from "@/hooks/useAutomation"
+import { useLeadFollowupActors, useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
 import { NewLeadForm } from "./NewLeadForm"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
@@ -27,6 +27,7 @@ import type { LeadListItem } from "@/services/automation"
 import { cn } from "@/lib/utils"
 import { orderedCategoryChips } from "./leadCategoryChips"
 import { computeLeadSummaryTiles, type LeadSummaryTileId } from "./leadSummaryTiles"
+import { groupLeadIdsByActor } from "./followedByFilter"
 
 const TABLE_GRID_COLS =
   "grid-cols-[minmax(140px,1.3fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(100px,0.8fr)_minmax(170px,1.4fr)_minmax(110px,1fr)_minmax(80px,0.8fr)]"
@@ -56,6 +57,21 @@ export function LeadsPage() {
   const assignees = useLeadAssignees(orgId, role).data ?? []
   // "": master = everyone; sales_admin = own + unassigned. Also "mine", "unassigned", or a person id (master).
   const [assignedFilter, setAssignedFilter] = useState<string>("")
+  // Separate from assignedFilter on purpose: who is ASSIGNED a lead and who
+  // actually LOGGED a follow-up on it are different things in this app today
+  // (only scheduling is ownership-gated, logging isn't) — see
+  // build-docs/features/followed-by-filter.md.
+  const [followedBy, setFollowedBy] = useState<string>("")
+  const followupActors = useLeadFollowupActors(orgId).data ?? []
+  const leadIdsByActor = useMemo(() => groupLeadIdsByActor(followupActors.map((a) => ({ leadId: a.leadId, actorId: a.actorId }))), [followupActors])
+  const followedByOptions = useMemo(
+    () =>
+      [...leadIdsByActor.keys()]
+        .map((actorId) => ({ id: actorId, name: assignees.find((a) => a.id === actorId)?.full_name ?? t("leads.timeline.unknownUser") }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [leadIdsByActor, assignees]
+  )
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [assignOpen, setAssignOpen] = useState(false)
@@ -79,6 +95,7 @@ export function LeadsPage() {
         if (assignedFilter === "unassigned" && who !== null) return false
         if (assignedFilter === "" && !isMaster && who !== null && who !== profile?.id) return false
         if (assignedFilter && assignedFilter !== "mine" && assignedFilter !== "unassigned" && who !== assignedFilter) return false
+        if (followedBy && !leadIdsByActor.get(followedBy)?.has(l.id)) return false
         const open = l.status !== "won" && l.status !== "lost"
         if (quick === "overdue") return open && !!l.next_followup_at && isOverdueNow(l.next_followup_at)
         if (quick === "noFollowup") return open && !l.next_followup_at
@@ -86,7 +103,7 @@ export function LeadsPage() {
         return true
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [leads.data, searchTerm, quick, stuckAt, assignedFilter, assignees, profile?.id, isMaster]
+    [leads.data, searchTerm, quick, stuckAt, assignedFilter, followedBy, leadIdsByActor, assignees, profile?.id, isMaster]
   )
   const selectedOpen = filteredLeads.filter((l) => selected.has(l.id) && l.status !== "won" && l.status !== "lost")
 
@@ -204,6 +221,20 @@ export function LeadsPage() {
                 ))
             : null}
         </select>
+        <select
+          value={followedBy}
+          onChange={(e) => setFollowedBy(e.target.value)}
+          aria-label={t("leads.filters.allFollowedBy")}
+          data-testid="followed-by-filter"
+          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+        >
+          <option value="">{t("leads.filters.allFollowedBy")}</option>
+          {followedByOptions.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
         {isMaster && view === "table" ? (
           <>
             <button
@@ -240,7 +271,7 @@ export function LeadsPage() {
             </button>
           ))}
         </div>
-        {source || kind || search || quick || assignedFilter ? (
+        {source || kind || search || quick || assignedFilter || followedBy ? (
           <button
             type="button"
             onClick={() => {
@@ -249,6 +280,7 @@ export function LeadsPage() {
               setSearch("")
               setQuick("")
               setAssignedFilter("")
+              setFollowedBy("")
             }}
             className="text-xs font-semibold text-text-muted hover:text-text"
           >

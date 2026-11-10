@@ -12,7 +12,9 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Not separately tested: visual tile layout/responsive grid — manual-only, no RTL harness in this repo.
 
 ## followed-by-filter
-- Planned: query returns distinct-lead-per-actor counts (not activity-row counts) against a fixture `lead_activities` set with a repeat-actor-same-lead case to verify dedup.
+- DONE 2026-11-10. `groupLeadIdsByActor`/`distinctLeadCountByActor` extracted to pure `followedByFilter.ts`, unit-tested (`followedByFilter.test.ts`, 4 tests, all pass) — including the exact dedup case the spec calls out: an actor logging 5 activity rows on the same lead counts as 1 distinct lead, not 5. `tsc --noEmit` clean.
+- New read path `listLeadFollowupActors`/`useLeadFollowupActors` (org-wide `lead_id, created_by` from `lead_activities`, RLS-scoped) feeds the filter dropdown and the list predicate — no writes, no migration.
+- Not separately tested: dropdown name resolution for a deactivated/missing profile (falls back to "Unknown user" label) — covered by existing i18n key, not a dedicated test; manual verification only.
 
 ## lead-detail-fields
 - Planned: DB check constraint rejects negative budget and invalid `tax_tds_status`; RPC upload rejects disallowed MIME/oversized file; form round-trips all fields on an existing lead.

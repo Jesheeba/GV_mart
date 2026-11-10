@@ -10,6 +10,16 @@ export function useLeads(orgId: string | undefined, filters: LeadFilters = {}) {
     enabled: !!orgId,
   })
 }
+
+/** Raw lead_id/created_by activity pairs for the org — see listLeadFollowupActors. */
+export function useLeadFollowupActors(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["leads", "followupActors", orgId],
+    queryFn: () => automation.listLeadFollowupActors(orgId!),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  })
+}
 export function useLead(leadId: string | undefined) {
   return useQuery({
     queryKey: ["leads", "detail", leadId],
