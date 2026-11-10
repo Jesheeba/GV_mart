@@ -22,6 +22,10 @@ export const settingsSchema = z
     very_late_threshold_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     lunch_minutes_allowed: z.coerce.number().int().positive("settings.errors.positive"),
     lunch_minutes_red_threshold: z.coerce.number().int().positive("settings.errors.positive"),
+    // Technician leave request in advance (FEATURE_TECHNICIAN_LEAVE_REQUEST.md, 20261106100000):
+    // a request's leave days only stay out of the KPI if it was submitted at least this many days
+    // before the leave starts.
+    leave_notice_days: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     discount_tech_max: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
     discount_admin_max: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
     amc_book_window_days: z.coerce.number().int().positive("settings.errors.positive"),
@@ -57,6 +61,10 @@ export const settingsSchema = z
     // GV.md 1.2: "admin also sets a review time and a new-enquiry time allowance."
     review_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     enquiry_time_allowance_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    // P5 (20261108110000) — previously hard-coded constants: OVERRUN_BUFFER_MINUTES in src/lib/job-overrun.ts,
+    // and the 24h window inside report_ops_resolution.
+    job_overrun_buffer_minutes: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
+    ops_resolution_sla_hours: z.coerce.number().int().positive("settings.errors.positive"),
     // Product Enquiry rebuild (2026-08-04) Phase 2 — EMI is purely
     // illustrative display config (see 20260804100000_product_enquiry_
     // config.sql), not a real financing product: tenures held as a

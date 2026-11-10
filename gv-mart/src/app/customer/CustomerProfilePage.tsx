@@ -2,26 +2,30 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Coins, Home as HomeIcon, Loader2, LogOut, Pencil, Plus, Star, Trash2, UserPlus } from "lucide-react"
+import { Coins, Droplet, Home as HomeIcon, Loader2, LogOut, MapPinned, Pencil, Plus, Star, Trash2, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { AddressForm } from "@/components/shared/AddressForm"
+import { AddressPinDialog, AddressPinPreview } from "@/components/shared/AddressPinDialog"
 import { initials } from "@/components/shared/UserMenu"
 import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
 import { useProfile } from "@/hooks/useProfile"
 import { signOut } from "@/services/auth"
+import { LinkPhoneCard } from "@/app/customer/LinkPhoneCard"
 import {
   useAddMyAddress,
   useAddMyMember,
+  useClearMyAddressPin,
   useDeleteMyAddress,
   useMyCustomerId,
   useMyCustomerRecord,
   useMyReferralPoints,
   useRemoveMyMember,
+  useSetMyAddressPin,
   useSetMyPrimaryAddress,
   useUpdateMyAddress,
   useUpdateMyPreferredLanguage,
@@ -39,6 +43,7 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null)
+  const [pinningId, setPinningId] = useState<string | null>(null)
 
   const { data: record } = useMyCustomerRecord(customerId)
   const addresses = (record?.addresses ?? []) as AddressRow[]
@@ -47,6 +52,9 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
   const updateAddress = useUpdateMyAddress(customerId)
   const setPrimary = useSetMyPrimaryAddress(customerId)
   const deleteAddress = useDeleteMyAddress(customerId)
+  const setPin = useSetMyAddressPin(customerId)
+  const clearPin = useClearMyAddressPin(customerId)
+  const pinningAddress = pinningId ? addresses.find((a) => a.id === pinningId) ?? null : null
 
   return (
     <Card className="gap-3 lg:px-5">
@@ -92,8 +100,16 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
                 <p className="truncate text-sm text-text">
                   {[addressLocalityText(a), a.area, a.pincode].filter(Boolean).join(", ")}
                 </p>
+                {a.lat != null && a.lng != null ? (
+                  <div className="mt-1">
+                    <AddressPinPreview lat={a.lat} lng={a.lng} />
+                  </div>
+                ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <Button size="icon-xs" variant="ghost" title={t("customerApp.profile.pinAddress")} onClick={() => setPinningId(a.id)}>
+                  <MapPinned className="size-3.5" />
+                </Button>
                 {!a.is_primary ? (
                   <Button
                     size="xs"
@@ -146,6 +162,31 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
           onCancel={() => setAdding(false)}
           onSubmit={(values) =>
             addAddress.mutate({ input: values, makePrimary: addresses.length === 0 }, { onSuccess: () => setAdding(false) })
+          }
+        />
+      ) : null}
+
+      {pinningAddress ? (
+        <AddressPinDialog
+          address={pinningAddress}
+          open={!!pinningAddress}
+          onOpenChange={(next) => {
+            if (!next) setPinningId(null)
+          }}
+          isSaving={setPin.isPending}
+          isRemoving={clearPin.isPending}
+          saveError={setPin.isError ? (setPin.error as Error).message : undefined}
+          onSave={(coords) =>
+            setPin.mutate(
+              { addressId: pinningAddress.id, lat: coords.lat, lng: coords.lng, accuracyM: coords.accuracy, fields: coords.fields },
+              { onSuccess: () => setPinningId(null) }
+            )
+          }
+          onRemove={() =>
+            clearPin.mutate(pinningAddress.id, {
+              onSuccess: () => setPinningId(null),
+              onError: () => toast.error(t("common.actionFailed")),
+            })
           }
         />
       ) : null}
@@ -381,6 +422,47 @@ function ReferralWalletCard({ customerId }: { customerId: string }) {
   )
 }
 
+/**
+ * Read-only (spec default, FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md §3.4/9) — the customer
+ * sees these fields but edits them nowhere in this app; master/operation_admin edit them from
+ * the admin side. health_condition comes through the get_customer_health_condition RPC inside
+ * useMyCustomerRecord (the raw column is select-revoked for everyone), not a direct column.
+ */
+function WaterHouseholdSection({ customerId }: { customerId: string }) {
+  const { t } = useTranslation()
+  const { data: record } = useMyCustomerRecord(customerId)
+  const familyMemberCount = record?.customer_members?.length ?? 0
+
+  return (
+    <Card className="gap-3 lg:px-5">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text">
+        <Droplet className="size-4 text-text-muted" />
+        {t("customerApp.profile.waterHouseholdTitle")}
+      </h2>
+      <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
+        <span className="text-text-muted">{t("customers.detail.waterSource")}</span>
+        <span className="text-text">
+          {record?.water_source
+            ? record.water_source === "other" && record.water_source_other
+              ? record.water_source_other
+              : t(`customers.detail.waterSourceOptions.${record.water_source}`)
+            : "—"}
+        </span>
+        <span className="text-text-muted">{t("customers.detail.waterTds")}</span>
+        <span className="text-text">{record?.water_tds_ppm ?? "—"}</span>
+        <span className="text-text-muted">{t("customers.detail.waterPh")}</span>
+        <span className="text-text">{record?.water_ph ?? "—"}</span>
+        <span className="text-text-muted">{t("customers.detail.healthCondition")}</span>
+        <span className="text-text">
+          {record?.health_condition ? t(`customers.detail.healthConditionLevels.${record.health_condition}`) : "—"}
+        </span>
+        <span className="text-text-muted">{t("customers.detail.familyMembersCount")}</span>
+        <span className="text-text">{familyMemberCount}</span>
+      </div>
+    </Card>
+  )
+}
+
 export function CustomerProfilePage() {
   const { t } = useTranslation()
   const { data: profile, isLoading: loadingProfile, isError, refetch } = useProfile()
@@ -405,6 +487,8 @@ export function CustomerProfilePage() {
         </Button>
       </div>
 
+      <LinkPhoneCard />
+
       <Card className="gap-3 lg:px-5">
         <div className="flex items-center gap-3 px-1">
           <span className="flex size-12 items-center justify-center rounded-full bg-ink text-base font-semibold text-white">
@@ -424,6 +508,8 @@ export function CustomerProfilePage() {
       {customerId ? <AddressesSection customerId={customerId} orgId={orgId} /> : null}
 
       {customerId ? <MembersSection customerId={customerId} orgId={orgId} /> : null}
+
+      {customerId ? <WaterHouseholdSection customerId={customerId} /> : null}
     </div>
   )
 }

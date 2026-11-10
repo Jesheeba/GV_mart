@@ -6,6 +6,7 @@ import type { CreateComplaintInput, TicketFiltersInput } from "@/services/servic
 import * as ticketPhotos from "@/services/ticketPhotos"
 import { listPaymentProofsByInvoice } from "@/services/paymentProofs"
 import { triggerWaDispatchNow } from "@/services/whatsapp"
+import { getTechnicianAvailabilityForDate, getTechniciansAvailabilityForDate } from "@/services/technicianAvailability"
 
 /**
  * Admin-side counterpart to the "nothing is flagged" gap: the job
@@ -207,6 +208,15 @@ export function useUnassignAppointment() {
   })
 }
 
+/** Urgent reassign-error investigation (2026-11-02) — see service.ts#getConflictAppointmentInfo. */
+export function useConflictAppointmentInfo(appointmentId: string | undefined) {
+  return useQuery({
+    queryKey: ["appointments", "conflictInfo", appointmentId],
+    queryFn: () => service.getConflictAppointmentInfo(appointmentId!),
+    enabled: !!appointmentId,
+  })
+}
+
 export function useCompleteAppointment() {
   const qc = useQueryClient()
   return useMutation({
@@ -272,6 +282,29 @@ export function useAppointmentsRange(orgId: string | undefined, fromDate: string
     queryKey: ["appointments", "range", orgId, fromDate, toDate],
     queryFn: () => service.listAppointments(orgId!, fromDate, toDate),
     enabled: !!orgId,
+  })
+}
+
+/** Urgent item #5 — date-first availability: every active technician in the
+ * org on `date`, with busy/free windows + leave status. Gracefully returns
+ * `undefined` data (not an error state) until the backing migration is
+ * applied — callers should still check isNotYetAvailableError(error) to
+ * show the right message, same pattern as useTechnicianLeave.ts's hooks. */
+export function useTechniciansAvailability(orgId: string | undefined, date: string | undefined) {
+  return useQuery({
+    queryKey: ["technician_availability", "date", orgId, date],
+    queryFn: () => getTechniciansAvailabilityForDate(orgId!, date!),
+    enabled: !!orgId && !!date,
+  })
+}
+
+/** Urgent item #5 — technician-first availability: just the one
+ * technician's busy/free windows on `date`. */
+export function useTechnicianAvailability(orgId: string | undefined, date: string | undefined, technicianId: string | undefined) {
+  return useQuery({
+    queryKey: ["technician_availability", "one", orgId, date, technicianId],
+    queryFn: () => getTechnicianAvailabilityForDate(orgId!, date!, technicianId!),
+    enabled: !!orgId && !!date && !!technicianId,
   })
 }
 

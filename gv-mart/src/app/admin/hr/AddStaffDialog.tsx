@@ -28,6 +28,8 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
+  const [designation, setDesignation] = useState("")
+  const [address, setAddress] = useState("")
   const [role, setRole] = useState<StaffRole>("sales_admin")
   const [mode, setMode] = useState<"generate" | "type">("generate")
   const [typed, setTyped] = useState("")
@@ -36,12 +38,17 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
   const emailOk = EMAIL_RE.test(email.trim())
   const typedOk = mode === "generate" || new TextEncoder().encode(typed).length >= 10
-  const canSubmit = fullName.trim().length >= 2 && emailOk && typedOk && !create.isPending
+  const phoneDigits = phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "")
+  const phoneOk = phoneDigits.length === 10
+  const canSubmit =
+    fullName.trim().length >= 2 && emailOk && phoneOk && designation.trim().length >= 2 && address.trim().length >= 8 && typedOk && !create.isPending
 
   function reset() {
     setFullName("")
     setEmail("")
     setPhone("")
+    setDesignation("")
+    setAddress("")
     setRole("sales_admin")
     setMode("generate")
     setTyped("")
@@ -55,7 +62,9 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       {
         fullName: name,
         email: email.trim(),
-        phone: phone.trim() || undefined,
+        phone: phoneDigits,
+        designation: designation.trim(),
+        address: address.trim(),
         role,
         password: mode === "type" ? typed : undefined,
         reason: reason.trim() || undefined,
@@ -102,7 +111,7 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 <Label htmlFor="staff-phone" className="block text-xs font-medium text-text-muted">
                   {t("hr.staffSalary.phone")}
                 </Label>
-                <Input id="staff-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
+                <Input id="staff-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" required />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="staff-role" className="block text-xs font-medium text-text-muted">
@@ -117,6 +126,29 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 </select>
               </div>
             </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="staff-designation" className="block text-xs font-medium text-text-muted">
+                {t("hr.staffSalary.designation")}
+              </Label>
+              <Input id="staff-designation" value={designation} maxLength={80} onChange={(e) => setDesignation(e.target.value)} autoComplete="off" required />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="staff-address" className="block text-xs font-medium text-text-muted">
+                {t("hr.staffSalary.address")}
+              </Label>
+              <textarea
+                id="staff-address"
+                rows={3}
+                maxLength={400}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                required
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+              />
+            </div>
+
+            <p className="rounded-xl bg-surface-alt px-3 py-2 text-xs text-text-muted">{t("hr.staffSalary.mustChangeHint")}</p>
 
             <fieldset className="space-y-1.5">
               <legend className="text-xs font-medium text-text-muted">{t("hr.staffSalary.passwordMode")}</legend>

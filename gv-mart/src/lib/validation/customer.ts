@@ -46,19 +46,97 @@ export const peopleStepSchema = z.object({
   members: z.array(memberSchema).min(1, "customers.errors.memberRequired").max(5, "customers.errors.memberMax"),
   primaryIndex: z.number().int().min(0),
   profession: z.string().trim().max(80).optional().or(z.literal("")),
+  // The account holder's own email (customers.email) -- distinct from a family member's own
+  // optional email above. Matched against on Google auto-onboard
+  // (customer_auto_onboard, 20261130100001) -- normalized trim+lowercase on save, same as the
+  // RPC's own lower(trim(...)) comparison, so a staff-entered email always matches correctly.
+  email: z.string().trim().max(254).refine((v) => v === "" || EMAIL_REGEX.test(v), "customers.errors.emailInvalid").optional(),
   // WhatsApp message language (customers.preferred_language); "" = not set (English).
   preferredLanguage: z.union([z.enum(["en", "ta"]), z.literal("")]).optional(),
+  // Referral incentives — capture-at-creation only (never shown/edited in edit mode, per
+  // design). Same optional-uuid-or-empty-string idiom as poId (lib/validation/automation.ts)
+  // / brandId/modelId (lib/validation/service.ts) — a native <select> placeholder submits "".
+  referredByUserId: z.string().uuid().optional().or(z.literal("")),
 })
 // Same reasoning as MemberInput above: this schema embeds memberSchema
 // (which transforms relation), so useForm needs the input shape.
 export type PeopleStepInput = z.input<typeof peopleStepSchema>
 
+// Mirrors the public.water_source_type Postgres enum (reused from ro_checklists —
+// 20260915180000_ro_water_quality_readings.sql, not redefined for this feature).
+export const WATER_SOURCES = ["corporation", "borewater", "other"] as const
+export type WaterSource = (typeof WATER_SOURCES)[number]
+
+// Mirrors the public.household_health_level Postgres enum
+// (20261108100000_customer_water_profile.sql).
+export const HEALTH_CONDITION_LEVELS = ["none", "normal", "medium", "high"] as const
+export type HealthConditionLevel = (typeof HEALTH_CONDITION_LEVELS)[number]
+
+/**
+ * Who may edit the water/household profile fields (water source/TDS/pH + health_condition) —
+ * master, operation_admin and sales_admin, per FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md.
+ * Mirrors the DB's actual enforcement (guard_water_profile_edit_roles trigger for the water
+ * columns; is_staff() RLS for customer_health_profile) — this is only the UI-level gate
+ * (show/hide edit controls), the DB is still the real authority either way.
+ */
+export function canEditWaterHousehold(role: string | null | undefined): boolean {
+  return role === "master" || role === "operation_admin" || role === "sales_admin"
+}
+
+/**
+ * Whether a technician's job/history detail should even query/render the health_condition
+ * row — gated on the org's show_health_condition_to_technicians setting (default off/absent,
+ * fails closed). This is only the UI-level gate; get_customer_health_condition additionally
+ * checks the technician actually has an appointment with that customer, server-side.
+ */
+export function technicianCanSeeHealthCondition(showHealthConditionSetting: boolean | null | undefined): boolean {
+  return showHealthConditionSetting === true
+}
+
+/**
+ * Same "" vs undefined gotcha as memberSchema.relation above — a native <select> with a
+ * placeholder option submits "", not undefined.
+ */
+export const waterProfileSchema = z
+  .object({
+    waterSource: z
+      .union([z.enum(WATER_SOURCES), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    waterSourceOther: z.string().trim().max(100).optional().or(z.literal("")),
+    // DB check constraint mirrors this range (customers_water_ph_check); kept here too so the
+    // form shows an error immediately instead of round-tripping to the server first.
+    waterPh: z
+      .union([z.number().min(0, "customers.errors.waterPhInvalid").max(14, "customers.errors.waterPhInvalid"), z.nan()])
+      .optional(),
+    waterTdsPpm: z.union([z.number().min(0, "customers.errors.waterTdsInvalid"), z.nan()]).optional(),
+    healthCondition: z
+      .union([z.enum(HEALTH_CONDITION_LEVELS), z.literal("")])
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+  })
+  .refine((v) => !v.waterSourceOther || v.waterSource === "other", {
+    message: "customers.errors.waterSourceOtherRequiresOther",
+    path: ["waterSourceOther"],
+  })
+export type WaterProfileInput = z.input<typeof waterProfileSchema>
+
 export const addressStepSchema = z.object({
   // The whole address is optional — a contact can be saved without one and is
   // flagged needs_setup until an address is filled in. Pincode is only checked
   // when something was typed.
-  // Door No/Plot No/Building No/Building Name/Street-Cross/Landmark collapsed
-  // (2026-11-03) into one free-text box — see src/lib/address.ts.
+  // Clean-address-form redesign (2026-11-03): structured fields replace the
+  // single free-text box again, matching the owner's layout — see
+  // src/lib/address.ts (composeFullAddress/splitAddressForForm) for how
+  // these feed the canonical `full_address` column search/print/invoice
+  // still read. `fullAddress` is kept as the read-only fallback shown for a
+  // customer saved before this change whose structured columns are empty.
+  doorNo: z.string().trim().optional().or(z.literal("")),
+  plotNo: z.string().trim().optional().or(z.literal("")),
+  buildingName: z.string().trim().optional().or(z.literal("")),
+  streetCross: z.string().trim().optional().or(z.literal("")),
+  subArea: z.string().trim().optional().or(z.literal("")),
+  landmark: z.string().trim().optional().or(z.literal("")),
   fullAddress: z.string().trim().optional().or(z.literal("")),
   area: z.string().trim().optional().or(z.literal("")),
   pincode: z.union([z.string().regex(PINCODE_REGEX, "customers.errors.pincodeInvalid"), z.literal("")]),
@@ -76,3 +154,12 @@ export const addressStepSchema = z.object({
   healthCondition: z.string().trim().optional().or(z.literal("")),
 })
 export type AddressStepInput = z.infer<typeof addressStepSchema>
+
+/**
+ * Only the master role may save a customer address without pinning an exact
+ * map location — every other role (sales_admin included) must still confirm
+ * a pin before saving, exactly as before this was added.
+ */
+export function canSkipAddressPin(role: string | undefined) {
+  return role === "master"
+}

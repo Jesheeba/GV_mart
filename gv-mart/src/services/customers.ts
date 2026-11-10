@@ -1,8 +1,10 @@
 import { supabase } from "@/lib/supabase"
 import { itemNameLookup } from "@/services/sales"
 import { pickHistoryVisit } from "@/services/techniciansAdmin"
+import { isUndefinedTableError } from "@/lib/supabaseErrors"
 import type { Enums, Tables } from "@/types/database"
 import type { FamilyRelation } from "@/lib/validation/customer"
+import type { DuplicateContactMatch } from "@/lib/duplicateContactWarning"
 
 export type CustomerRow = Tables<"customers">
 // `relation` (migration 20260703130000_family_member_relation.sql) and
@@ -30,7 +32,7 @@ export type MemberRow = Tables<"customer_members"> & {
 export type AddressRow = Tables<"addresses">
 
 export type CustomerListItem = CustomerRow & {
-  addresses: Pick<AddressRow, "area" | "pincode" | "address_type" | "is_primary">[]
+  addresses: Pick<AddressRow, "area" | "pincode" | "address_type" | "is_primary" | "lat" | "lng">[]
   member_count: { count: number }[]
 }
 
@@ -45,6 +47,10 @@ export type CustomerListFilters = {
   amcDueSoon?: boolean
   /** Registered 180+ days ago with no invoice or service ticket in the last 180 days. */
   dormant?: boolean
+  /** source = 'customer_app' — auto-onboarded via Google sign-in, not entered by staff. */
+  appSourced?: boolean
+  /** needs_review = true — auto-onboarding couldn't link a confident match; flagged for a human. */
+  needsReview?: boolean
 }
 
 const PAGE_SIZE = 20
@@ -74,7 +80,7 @@ async function idsMatchingSearchTerm(orgId: string, term: string): Promise<strin
   const q = term.trim().replace(/[%,]/g, "")
   if (!q) return []
   const [byNameOrMobile, byAddress] = await Promise.all([
-    supabase.from("customers").select("id").eq("org_id", orgId).or(`name.ilike.%${q}%,mobile.ilike.%${q}%`),
+    supabase.from("customers").select("id").eq("org_id", orgId).or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%`),
     supabase.from("addresses").select("customer_id").eq("org_id", orgId).or(`area.ilike.%${q}%,pincode.ilike.%${q}%`),
   ])
   if (byNameOrMobile.error) throw byNameOrMobile.error
@@ -135,9 +141,9 @@ export async function listCustomers(orgId: string, filters: CustomerListFilters,
   if (idSets.length > 0) {
     const intersected = idSets.reduce((acc, set) => acc.filter((id) => set.includes(id)))
     if (intersected.length === 0) return { rows: [] as CustomerListItem[], count: 0, pageSize: PAGE_SIZE }
-    return queryCustomers(orgId, page, intersected)
+    return queryCustomers(orgId, page, intersected, filters)
   }
-  return queryCustomers(orgId, page, null)
+  return queryCustomers(orgId, page, null, filters)
 }
 
 export type CustomerFilterCounts = { total: number; hasAmc: number; amcDueSoon: number; dormant: number }
@@ -157,6 +163,27 @@ export async function getCustomerFilterCounts(_orgId: string): Promise<CustomerF
   const { data, error } = await supabase.rpc("customer_filter_counts")
   if (error) throw error
   return data as CustomerFilterCounts
+}
+
+/**
+ * Exact count of the org's is_test customers — the Customers list itself
+ * never excludes them (they stay visible with the TEST badge; decision
+ * 2026-10-26), but customer_filter_counts().total does exclude them, so the
+ * unfiltered pagination total needs this added back on top. Filtered on the
+ * partial index customers_is_test_idx (org_id) where is_test
+ * (20261016110000_test_customer_flag.sql), so this stays a cheap head count
+ * even though it's a real COUNT(*) — unlike the unfiltered total count this
+ * page used to run (20261024171000_customers_org_created_index.sql), there
+ * is no sort/range alongside it to make a real scan expensive.
+ */
+export async function getIsTestCustomerCount(orgId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("customers")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("is_test", true)
+  if (error) throw error
+  return count ?? 0
 }
 
 export type CustomerRowEnrichment = {
@@ -243,7 +270,7 @@ export async function getCustomerListEnrichment(
   return map
 }
 
-async function queryCustomers(orgId: string, page: number, ids: string[] | null) {
+async function queryCustomers(orgId: string, page: number, ids: string[] | null, filters: Pick<CustomerListFilters, "appSourced" | "needsReview"> = {}) {
   // `count: "exact"` runs a real COUNT(*) over every matching row on every
   // single page load — for a growing customers table that alone took 5+
   // seconds, dwarfing everything else the Customers list fetches (see
@@ -258,12 +285,15 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
   //     exact to the row for a count this large.
   let query = supabase
     .from("customers")
-    .select("*, addresses(area,pincode,address_type,is_primary), member_count:customer_members(count)", {
+    .select("*, addresses(area,pincode,address_type,is_primary,lat,lng), member_count:customer_members(count)", {
       count: ids ? undefined : "planned",
     })
     .eq("org_id", orgId)
+    .is("archived_at", null)
     .order("created_at", { ascending: false })
 
+  if (filters.appSourced) query = query.eq("source", "customer_app")
+  if (filters.needsReview) query = query.eq("needs_review", true)
   if (ids) query = query.in("id", ids)
 
   const from = (page - 1) * PAGE_SIZE
@@ -272,6 +302,11 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null)
   return { rows: (data ?? []) as CustomerListItem[], count: ids ? ids.length : (count ?? 0), pageSize: PAGE_SIZE }
 }
 
+// Reverted to the original select list (reviewer feedback: do not touch customers' grants or
+// column privileges at all — health_condition never lived on customers in the applied design,
+// so there's nothing to carve out of "*" here). Deploy-order safety for the 4 new water
+// columns (20261108100000_customer_water_profile.sql) comes for free with "*" — a column that
+// doesn't exist yet simply isn't in the row, no error, nothing to special-case.
 export async function getCustomer(id: string) {
   const { data, error } = await supabase
     .from("customers")
@@ -289,7 +324,71 @@ export async function getCustomer(id: string) {
   // customer_members(*) is typed from the pre-`relation`-column generated
   // schema (see MemberRow comment) — the column IS in the actual row, just
   // not the generated type.
-  return { ...data, customer_members: data.customer_members as MemberRow[] }
+  return { ...data, customer_members: data.customer_members as MemberRow[], health_condition: await getCustomerHealthProfile(id) }
+}
+
+/**
+ * health_condition lives in its own table, customer_health_profile (not a customers column —
+ * reviewer feedback: no revoke/regrant of any kind on customers). Staff/the customer read it
+ * directly here, via customer_health_profile's own RLS (staff: is_staff(); the customer: their
+ * own row). A technician instead goes through get_customer_health_condition below, the only
+ * path that respects show_health_condition_to_technicians — that RPC is not called from here.
+ * Deploy-order safety (§2): the table may not exist yet (42P01) — degrade to null.
+ */
+export async function getCustomerHealthProfile(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.from("customer_health_profile").select("health_condition").eq("customer_id", customerId).maybeSingle()
+  if (error) {
+    if (isUndefinedTableError(error)) return null
+    throw error
+  }
+  return data?.health_condition ?? null
+}
+
+export async function upsertCustomerHealthCondition(customerId: string, orgId: string, healthCondition: Enums<"household_health_level">) {
+  const { error } = await supabase
+    .from("customer_health_profile")
+    .upsert({ customer_id: customerId, org_id: orgId, health_condition: healthCondition }, { onConflict: "customer_id" })
+  if (error) throw error
+}
+
+/**
+ * A technician's ONLY path to health_condition — SECURITY DEFINER, bypasses
+ * customer_health_profile's RLS/grants entirely; checks org, role (is_staff()/the customer's
+ * own id), and show_health_condition_to_technicians internally. Staff/customer reads go
+ * through getCustomerHealthProfile above instead; this is kept for services/technician.ts.
+ */
+export async function getCustomerHealthCondition(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
+  if (error) {
+    // Postgres "function does not exist" (42883) — deploy-order safety, same idea as the
+    // 42P01 table-not-found case above, just for a function instead of a table.
+    if ((error as { code?: string }).code === "42883") return null
+    throw error
+  }
+  return data ?? null
+}
+
+// health_condition is deliberately not accepted here — it lives in customer_health_profile
+// now, written via upsertCustomerHealthCondition above, not this customers update.
+export async function updateCustomerWaterProfile(
+  customerId: string,
+  patch: {
+    waterSource?: Enums<"water_source_type"> | null
+    waterSourceOther?: string | null
+    waterTdsPpm?: number | null
+    waterPh?: number | null
+  }
+) {
+  const { error } = await supabase
+    .from("customers")
+    .update({
+      water_source: patch.waterSource,
+      water_source_other: patch.waterSourceOther,
+      water_tds_ppm: patch.waterTdsPpm,
+      water_ph: patch.waterPh,
+    })
+    .eq("id", customerId)
+  if (error) throw error
 }
 
 /**
@@ -299,34 +398,40 @@ export async function getCustomer(id: string) {
  * number resolves back to their PRIMARY customer record, the same way
  * checkMobileInUse() already does for duplicate-mobile validation.
  */
-export async function autocompleteCustomers(orgId: string, term: string) {
+export async function autocompleteCustomers(orgId: string, term: string, signal?: AbortSignal) {
   const q = term.trim().replace(/[%,]/g, "")
   if (!q) return []
+  // supabase-js's .abortSignal() wants a real AbortSignal, not undefined --
+  // callers outside React Query (e.g. tests, scripts) that don't pass one
+  // get a signal that simply never fires.
+  const effectiveSignal = signal ?? new AbortController().signal
   const [byNameOrMobile, byAddress, byMember] = await Promise.all([
-    supabase.from("customers").select("id,name,mobile").eq("org_id", orgId).or(`name.ilike.%${q}%,mobile.ilike.%${q}%`).limit(6),
+    supabase.from("customers").select("id,name,mobile").eq("org_id", orgId).is("archived_at", null).or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%`).limit(6).abortSignal(effectiveSignal),
     supabase
       .from("addresses")
       .select("customers(id,name,mobile)")
       .eq("org_id", orgId)
       .or(`area.ilike.%${q}%,pincode.ilike.%${q}%`)
-      .limit(6),
+      .limit(6)
+      .abortSignal(effectiveSignal),
     supabase
       .from("customer_members")
       .select("customers(id,name,mobile)")
       .eq("org_id", orgId)
       .or(`name.ilike.%${q}%,mobile.ilike.%${q}%`)
-      .limit(6),
+      .limit(6)
+      .abortSignal(effectiveSignal),
   ])
   if (byNameOrMobile.error) throw byNameOrMobile.error
   if (byAddress.error) throw byAddress.error
   if (byMember.error) throw byMember.error
 
-  const results = new Map<string, { id: string; name: string; mobile: string }>()
+  const results = new Map<string, { id: string; name: string; mobile: string | null }>()
   for (const c of byNameOrMobile.data ?? []) results.set(c.id, c)
-  for (const row of (byAddress.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string } | null }[]) {
+  for (const row of (byAddress.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string | null } | null }[]) {
     if (row.customers && !results.has(row.customers.id)) results.set(row.customers.id, row.customers)
   }
-  for (const row of (byMember.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string } | null }[]) {
+  for (const row of (byMember.data ?? []) as unknown as { customers: { id: string; name: string; mobile: string | null } | null }[]) {
     if (row.customers && !results.has(row.customers.id)) results.set(row.customers.id, row.customers)
   }
   return [...results.values()].slice(0, 6)
@@ -379,6 +484,9 @@ export type CreateCustomerInput = {
   orgId: string
   profession?: string
   source?: string
+  // Referral incentives — capture-at-creation only (customers.referred_by_user_id,
+  // first-write-wins, never settable in edit mode). See CustomerFormPage.tsx.
+  referredByUserId?: string
   members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation; profession?: string; email?: string }[]
   address: {
     fullAddress?: string
@@ -400,6 +508,11 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
     // parameter accepts null (a generator limitation, not a real constraint).
     p_profession: input.profession || "",
     p_source: input.source ?? "other",
+    // Referral incentives — additive RPC parameter, pending the DB stream
+    // (create_customer_with_details doesn't accept this yet; see
+    // plan.md §3.2 / stage2_corrections_addendum.md item 9). Passed through
+    // unconditionally so the DB stream can wire it up without a client change.
+    p_referred_by_user_id: input.referredByUserId || null,
     p_members: input.members.map((m) => ({
       name: m.name,
       mobile: m.mobile,
@@ -424,8 +537,46 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
   return data
 }
 
+/**
+ * Staff-side duplicate-contact warning (urgent item, 2026-11-02 investigation
+ * into "error popup yet one entry still gets created" — see
+ * 20261204130000_duplicate_contact_warning_rpc.sql, NOT applied yet). Looks
+ * up existing customers (by mobile or email) and leads (mobile only) in the
+ * caller's own org, excluding is_test rows, so CustomerFormPage / NewLeadForm
+ * can show a non-blocking "existing record found" banner before Save — never
+ * a hard block, matching this RPC having no server-side enforcement either.
+ * Returns [] (not an error) when neither field is given or the RPC isn't
+ * live yet is NOT handled here — callers gate the query on
+ * shouldLookUpDuplicates (lib/duplicateContactWarning.ts) so this is only
+ * called once there's something real to look up.
+ */
+export async function findDuplicateContacts(mobile?: string, email?: string): Promise<DuplicateContactMatch[]> {
+  const { data, error } = await supabase.rpc("find_duplicate_contacts", {
+    p_mobile: mobile?.trim() || null,
+    p_email: email?.trim() || null,
+  })
+  if (error) throw error
+  // The RPC's generated Returns type widens `source` to `string` (a
+  // database.ts hand-patch limitation, same as elsewhere in this file) --
+  // the SQL body only ever emits the literals 'customer' or 'lead'.
+  return (data ?? []) as DuplicateContactMatch[]
+}
+
 export async function updateCustomerProfession(id: string, profession: string) {
   const { data, error } = await supabase.from("customers").update({ profession }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * customers.email -- the account holder's own email, matched against on Google auto-onboard
+ * (customer_auto_onboard, 20261130100001). Normalized the same way the RPC compares it
+ * (trim+lowercase) so a staff-entered email always matches correctly regardless of how it was
+ * typed. Direct table UPDATE, same write-access shape as updateCustomerProfession above.
+ */
+export async function updateCustomerEmail(id: string, email: string) {
+  const normalized = email.trim().toLowerCase() || null
+  const { data, error } = await supabase.from("customers").update({ email: normalized }).eq("id", id).select().single()
   if (error) throw error
   return data
 }
@@ -460,6 +611,34 @@ export async function deleteCustomer(customerId: string, confirmName: string) {
  * — staff dismiss it once address/family details are filled in. */
 export async function clearCustomerNeedsSetup(id: string) {
   const { error } = await supabase.from("customers").update({ needs_setup: false }).eq("id", id)
+  if (error) throw error
+}
+
+/**
+ * Master-only stopgap while OTP linking is parked — see
+ * 20261121100000_admin_link_customer_google_account.sql for the trust model
+ * (match by Google sign-in email, not by a typed mobile number) and why the
+ * old customer-facing link_customer_google_account RPC stays revoked.
+ */
+export async function adminLinkCustomerGoogleAccount(customerId: string, googleEmail: string) {
+  const { error } = await supabase.rpc("admin_link_customer_google_account", { p_customer_id: customerId, p_google_email: googleEmail })
+  if (error) throw error
+}
+
+/** Undoes a mistaken link: clears the customer's primary_profile_id and deletes the orphaned profiles row. */
+export async function adminUnlinkCustomerGoogleAccount(customerId: string, reason: string) {
+  const { error } = await supabase.rpc("admin_unlink_customer_google_account", { p_customer_id: customerId, p_reason: reason })
+  if (error) throw error
+}
+
+/**
+ * Moves an auto-created ('app') customer's Google sign-in onto an existing customer record --
+ * for a returning customer who signed in before staff found their real record. Refuses unless
+ * the auto-created side is completely empty (no invoices/tickets/AMC/rental/warranty/quotation)
+ * and the target isn't already linked. Archives the emptied auto-created record.
+ */
+export async function adminMergeAutoCustomer(fromCustomerId: string, toCustomerId: string, reason: string) {
+  const { error } = await supabase.rpc("admin_merge_auto_customer", { p_from_customer_id: fromCustomerId, p_to_customer_id: toCustomerId, p_reason: reason })
   if (error) throw error
 }
 
@@ -559,6 +738,12 @@ export async function upsertPrimaryAddress(
   customerId: string,
   existingAddressId: string | null,
   patch: {
+    doorNo?: string
+    plotNo?: string
+    buildingName?: string
+    streetCross?: string
+    subArea?: string
+    landmark?: string
     fullAddress?: string
     area?: string
     pincode?: string
@@ -576,6 +761,12 @@ export async function upsertPrimaryAddress(
   }
 ) {
   const row = {
+    door_no: patch.doorNo || null,
+    plot_no: patch.plotNo || null,
+    building_name: patch.buildingName || null,
+    street_cross: patch.streetCross || null,
+    sub_area: patch.subArea || null,
+    landmark: patch.landmark || null,
     full_address: patch.fullAddress || null,
     area: patch.area || null,
     pincode: patch.pincode || null,
@@ -629,6 +820,30 @@ export async function getPrimaryAddressId(customerId: string) {
 
 export async function setAddressZone(addressId: string, zone: string | null) {
   const { error } = await supabase.from("addresses").update({ zone }).eq("id", addressId)
+  if (error) throw error
+}
+
+/**
+ * Same follow-up-write pattern as setAddressZone above — create_customer_with_details
+ * only accepts full_address/area/pincode/district/state (2026-11-03), so a brand-new
+ * customer's Door no/Plot no/Building Name/Street-Cross/Landmark get patched on right
+ * after creation.
+ */
+export async function setAddressStructuredFields(
+  addressId: string,
+  patch: { doorNo?: string; plotNo?: string; buildingName?: string; streetCross?: string; subArea?: string; landmark?: string }
+) {
+  const { error } = await supabase
+    .from("addresses")
+    .update({
+      door_no: patch.doorNo || null,
+      plot_no: patch.plotNo || null,
+      building_name: patch.buildingName || null,
+      street_cross: patch.streetCross || null,
+      sub_area: patch.subArea || null,
+      landmark: patch.landmark || null,
+    })
+    .eq("id", addressId)
   if (error) throw error
 }
 

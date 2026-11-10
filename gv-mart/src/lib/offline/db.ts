@@ -20,6 +20,7 @@ export type OutboxKind =
   | "attendance.lunch"
   | "attendance.checkout"
   | "spare_handover.confirm"
+  | "spare_handover.report_discrepancy"
   | "service_visit.start"
   | "service_visit.image"
   | "service_visit.arrive"
@@ -40,6 +41,11 @@ export type OutboxKind =
   // Technician KPI section (2026-09-22) — see log_technician_google_review in
   // 20260922120000_technician_kpi_review_attribution.sql.
   | "customer_member.google_review"
+  // Product Lifecycle & Automated Service Reminder System — technician marks
+  // a due/overdue part schedule as replaced from SpareSelectStep's warning
+  // list. See get_customer_due_parts (useDueParts.ts) for where the schedule
+  // rows themselves come from.
+  | "product_lifecycle.mark_replaced"
 
 /**
  * "stuck" = failed `MAX_ATTEMPTS_BEFORE_STUCK` times (see sync.ts) and no
@@ -54,6 +60,8 @@ export interface OutboxJob {
   /** Client-generated id so dependent jobs (e.g. sop_step referencing a visit created offline) can chain before the server id exists. */
   clientRefId?: string
   payload: unknown
+  /** Which app build's enqueue() wrote this job — see outboxContract.ts. Undefined for jobs queued before this field existed; never required. */
+  payloadVersion?: number
   status: OutboxStatus
   attempts: number
   lastError?: string

@@ -1,0 +1,3 @@
+HTTP_STATUS: 201
+
+[{"org_fingerprint":"6f891cf85011f08c2f22fb4a208d21bd","addresses_count_real_orgs":12039,"addresses_md5_real_orgs":"cd9ce7d67a8bffa5107f8bad558b9562","sub_area_column_already_exists_count":0,"migration_already_registered":false,"captured_at":"2026-11-03 11:12:38.514923+00"}]

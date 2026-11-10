@@ -152,6 +152,27 @@ export type PerformanceRpcRow = {
   installations: number
 }
 
+/**
+ * P5 (20261108110000) — a SEPARATE RPC (report_performance_efficiency), merged client-side into PerformanceRow
+ * rather than added to report_performance's own body. Informational only: see getPerformanceReport.
+ */
+export type PerformanceEfficiencyRpcRow = {
+  id: string
+  efficiency_percent: number | null
+  efficiency_sample_count: number
+}
+
+/** Merges report_performance_efficiency's rows into an already-mapped PerformanceRow[] by technician id. A
+ * technician with no row (no resolvable standard for any of their visits) keeps the null/0 default. */
+export function mergePerformanceEfficiency(rows: PerformanceRow[], efficiencyRows: PerformanceEfficiencyRpcRow[]): PerformanceRow[] {
+  const byId = new Map(efficiencyRows.map((r) => [r.id, r]))
+  return rows.map((row) => {
+    const e = byId.get(row.id)
+    if (!e) return row
+    return { ...row, efficiencyPercent: numOrNull(e.efficiency_percent), efficiencySampleCount: num(e.efficiency_sample_count) }
+  })
+}
+
 export function mapPerformance(rows: PerformanceRpcRow[]): PerformanceRow[] {
   return (rows ?? []).map((r) => ({
     id: r.id,
@@ -166,12 +187,17 @@ export function mapPerformance(rows: PerformanceRpcRow[]): PerformanceRow[] {
     avgCompletionMinutes: numOrNull(r.avg_completion_minutes),
     productivityJobsPerHour: numOrNull(r.productivity_jobs_per_hour),
     installations: num(r.installations),
+    efficiencyPercent: null,
+    efficiencySampleCount: 0,
   }))
 }
 
-export type OpsResolutionRpc = { resolved_within_24h: number; total_completed: number; percent: number | null }
+// resolved_within_24h keeps its name for compatibility with every existing reader, but the window behind it is now
+// configurable (settings.ops_resolution_sla_hours) — sla_hours is the real figure a label should be built from,
+// not an assumed 24.
+export type OpsResolutionRpc = { resolved_within_24h: number; total_completed: number; percent: number | null; sla_hours: number }
 export function mapOpsResolution(d: OpsResolutionRpc) {
-  return { resolvedWithin24h: num(d.resolved_within_24h), totalCompleted: num(d.total_completed), percent: numOrNull(d.percent) }
+  return { resolvedWithin24h: num(d.resolved_within_24h), totalCompleted: num(d.total_completed), percent: numOrNull(d.percent), slaHours: num(d.sla_hours) }
 }
 
 // ── report_feedback ──────────────────────────────────────────────────────
@@ -374,9 +400,12 @@ export type KpiTilesRpc = {
   } | null
   service: {
     open_tickets: { count: number; urgent: number; past_sla: number }
-    resolved_within_24h: { resolved: number; completed: number; percent: number | null }
+    resolved_within_24h: { resolved: number; completed: number; percent: number | null; sla_hours: number }
     rating: { average: number | null; count: number; below_4_5: number }
     amc: { active: number; renewal_window: number; revenue: number }
+    // Product Lifecycle widget (W4 drop). Optional: older servers that haven't deployed this
+    // RPC extension yet simply omit the key, and mapKpiTiles below treats that as null.
+    lifecycle?: { upcoming: number; due: number; overdue: number; lifetime_expiring_90d: number } | null
   } | null
   money_out: {
     spend: { total: number; by_category: { category: Enums<"expense_category">; amount: number }[]; operating_excl_purchase: number }
@@ -406,9 +435,11 @@ export type KpiTiles = {
   } | null
   service: {
     openTickets: { count: number; urgent: number; pastSla: number }
-    resolvedWithin24h: { resolved: number; completed: number; percent: number | null }
+    resolvedWithin24h: { resolved: number; completed: number; percent: number | null; slaHours: number }
     rating: { average: number | null; count: number; below45: number }
     amc: { active: number; renewalWindow: number; revenue: number }
+    /** Product Lifecycle widget (W4 drop): null until the server's report_kpi_tiles RPC returns this key. */
+    lifecycle: { upcoming: number; due: number; overdue: number; lifetimeExpiring90d: number } | null
   } | null
   moneyOut: {
     spendTotal: number
@@ -460,9 +491,22 @@ export function mapKpiTiles(d: KpiTilesRpc): KpiTiles {
     service: v
       ? {
           openTickets: { count: num(v.open_tickets.count), urgent: num(v.open_tickets.urgent), pastSla: num(v.open_tickets.past_sla) },
-          resolvedWithin24h: { resolved: num(v.resolved_within_24h.resolved), completed: num(v.resolved_within_24h.completed), percent: numOrNull(v.resolved_within_24h.percent) },
+          resolvedWithin24h: {
+            resolved: num(v.resolved_within_24h.resolved),
+            completed: num(v.resolved_within_24h.completed),
+            percent: numOrNull(v.resolved_within_24h.percent),
+            slaHours: num(v.resolved_within_24h.sla_hours),
+          },
           rating: { average: numOrNull(v.rating.average), count: num(v.rating.count), below45: num(v.rating.below_4_5) },
           amc: { active: num(v.amc.active), renewalWindow: num(v.amc.renewal_window), revenue: num(v.amc.revenue) },
+          lifecycle: v.lifecycle
+            ? {
+                upcoming: num(v.lifecycle.upcoming),
+                due: num(v.lifecycle.due),
+                overdue: num(v.lifecycle.overdue),
+                lifetimeExpiring90d: num(v.lifecycle.lifetime_expiring_90d),
+              }
+            : null,
         }
       : null,
     moneyOut: m
@@ -483,4 +527,63 @@ export function mapKpiTiles(d: KpiTilesRpc): KpiTiles {
         }
       : null,
   }
+}
+
+/** Accounts follow-up, Feature A -- read-only display fallback for an expense
+ * whose legacy `category` enum was written without ever setting the new
+ * `category_id` (every HR Salary/Staff Salary "Log to Accounts" row, and any
+ * other write path nobody has updated to pick a category yet). The one-time
+ * migration backfill only covers rows that existed at apply time; nothing
+ * keeps category_id in sync with `category` going forward (no trigger, by
+ * owner's condition 2 -- no triggers on money tables), so this resolves the
+ * display name on every read instead: the owner-managed category's name when
+ * `category_id` is set, otherwise the system category seeded for that same
+ * legacy enum value, otherwise genuinely uncategorised (null). */
+export function resolveExpenseCategoryName(
+  category: Enums<"expense_category">,
+  categoryIdName: string | null,
+  systemCategoryNameByEnum: Record<string, string>
+): string | null {
+  return categoryIdName ?? systemCategoryNameByEnum[category] ?? null
+}
+
+/** Reminder-management batch, item 3 -- "Under Category" is now the ONE
+ * category field the user sees on Log Expense; the legacy `category` enum
+ * column is still written on every insert (never removed, never left null),
+ * derived here instead of picked directly. A system category always carries
+ * its own enum_value (one per legacy value, seeded by
+ * seed_system_expense_categories); any category the user created themselves
+ * has no enum_value, so it maps to 'other' -- the same catch-all the enum
+ * already had before this feature existed. */
+export function resolveLegacyExpenseCategoryEnum(category: { is_system: boolean; enum_value: string | null }): Enums<"expense_category"> {
+  if (category.is_system && category.enum_value) return category.enum_value as Enums<"expense_category">
+  return "other"
+}
+
+/** Reminder-management batch, item 1 -- the Reminders view's filters (Due
+ * today, Overdue, Upcoming, Done/Cancelled) and the sidebar badge count both
+ * need the same bucket for a reminder; this is that one rule, kept pure and
+ * testable. Callers pass already-formatted local-calendar-date strings
+ * (toLocalDateString) rather than Date objects, so a test can assert on
+ * plain strings instead of fighting the test runner's timezone. */
+export type ReminderBucket = "overdue" | "dueToday" | "upcoming" | "doneOrCancelled"
+export function classifyReminderBucket(
+  status: "open" | "done" | "cancelled",
+  dueAtLocalDateStr: string,
+  todayLocalDateStr: string
+): ReminderBucket {
+  if (status !== "open") return "doneOrCancelled"
+  if (dueAtLocalDateStr < todayLocalDateStr) return "overdue"
+  if (dueAtLocalDateStr === todayLocalDateStr) return "dueToday"
+  return "upcoming"
+}
+
+/** How many rows of the Customer Outstanding list currently have an open
+ * follow-up task — the number the "Refresh" button's summary line reports
+ * ("N customers need follow-up"). Counts rows, not tasks: sync_outstanding_
+ * tasks enforces at most one open task per customer, but this stays a
+ * defensive >0 check rather than assuming ===1 in case that invariant is
+ * ever relaxed. */
+export function countNeedingFollowUp(rows: { open_task_count: number }[]): number {
+  return rows.filter((r) => r.open_task_count > 0).length
 }

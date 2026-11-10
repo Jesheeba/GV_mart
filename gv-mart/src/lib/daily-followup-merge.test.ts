@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { mergeBuckets, postServiceVisible } from "./daily-followup-merge"
+import { lifecycleBucket, lifecycleFollowupVisible, mergeBuckets, postServiceVisible } from "./daily-followup-merge"
 
 const lead = (id: string, bucket: string, due_at: string) => ({ id, bucket, due_at })
 const post = (id: string, bucket: string, due_at: string) => ({ id, bucket, due_at })
+const lifecycle = (id: string, status: "due_soon" | "due" | "overdue", nextDueDate: string) => ({ id, status, nextDueDate })
 
 describe("mergeBuckets", () => {
   it("puts each row in its bucket and sorts by due time across both kinds", () => {
@@ -42,5 +43,46 @@ describe("postServiceVisible", () => {
     expect(postServiceVisible({ stuckOnly: true })).toBe(false)
     expect(postServiceVisible({ kind: "product" })).toBe(false)
     expect(postServiceVisible({ kind: "warranty" })).toBe(false)
+  })
+})
+
+describe("lifecycleBucket", () => {
+  it("maps the lifecycle status tri-state onto the three My Day buckets", () => {
+    expect(lifecycleBucket("overdue")).toBe("overdue")
+    expect(lifecycleBucket("due")).toBe("today")
+    expect(lifecycleBucket("due_soon")).toBe("upcoming")
+  })
+})
+
+describe("lifecycleFollowupVisible", () => {
+  it("shows lifecycle rows when no lead-only filter and no kind filter is on", () => {
+    expect(lifecycleFollowupVisible({})).toBe(true)
+  })
+  it("hides them for a stage, a source, stuck-only, or any kind at all", () => {
+    expect(lifecycleFollowupVisible({ stage: "new" })).toBe(false)
+    expect(lifecycleFollowupVisible({ source: "whatsapp" })).toBe(false)
+    expect(lifecycleFollowupVisible({ stuckOnly: true })).toBe(false)
+    expect(lifecycleFollowupVisible({ kind: "service" })).toBe(false)
+  })
+})
+
+describe("mergeBuckets with lifecycle rows", () => {
+  it("merges lifecycle rows into the same three buckets alongside leads and post-service calls, oldest due first", () => {
+    const m = mergeBuckets(
+      [lead("l1", "today", "2026-10-13T10:00:00Z")],
+      [post("p1", "today", "2026-10-13T08:00:00Z")],
+      [lifecycle("f1", "due", "2026-10-13T09:00:00Z"), lifecycle("f2", "overdue", "2026-10-11T00:00:00Z"), lifecycle("f3", "due_soon", "2026-10-20T00:00:00Z")]
+    )
+    expect(m.overdue.map((x) => x.item.id)).toEqual(["f2"])
+    expect(m.overdue.map((x) => x.type)).toEqual(["lifecycle"])
+    expect(m.today.map((x) => x.item.id)).toEqual(["p1", "f1", "l1"])
+    expect(m.today.map((x) => x.type)).toEqual(["post", "lifecycle", "lead"])
+    expect(m.upcoming.map((x) => x.item.id)).toEqual(["f3"])
+  })
+  it("tolerates a missing lifecycle list and does not change what leads + posts alone would show", () => {
+    const leads = [lead("a", "overdue", "2026-10-01T00:00:00Z")]
+    const posts = [post("b", "today", "2026-10-13T00:00:00Z")]
+    expect(mergeBuckets(leads, posts, undefined)).toEqual(mergeBuckets(leads, posts))
+    expect(mergeBuckets(leads, posts, [])).toEqual(mergeBuckets(leads, posts))
   })
 })

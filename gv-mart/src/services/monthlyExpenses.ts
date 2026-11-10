@@ -251,21 +251,18 @@ export type MonthlyExpensesReportRow = {
   bikeAllowanceAmount: number
 }
 
-export async function getMonthlyExpensesReport(orgId: string, period: string): Promise<MonthlyExpensesReportRow[]> {
-  const { data, error } = await supabase
-    .from("salaries")
-    .select("technician_id, recharge_amount, petrol_amount, maintenance_amount, bike_allowance_amount, technicians(profiles(full_name))")
-    .eq("org_id", orgId)
-    .eq("period", period)
-  if (error) throw error
-  const rows = (data ?? []) as unknown as {
-    technician_id: string
-    recharge_amount: number
-    petrol_amount: number
-    maintenance_amount: number
-    bike_allowance_amount: number
-    technicians: { profiles: { full_name: string } | null } | null
-  }[]
+export type MonthlyExpensesReportRpcRow = {
+  technician_id: string
+  recharge_amount: number
+  petrol_amount: number
+  maintenance_amount: number
+  bike_allowance_amount: number
+  technicians: { profiles: { full_name: string } | null } | null
+}
+
+/** Pure row shaper, split out from the fetch so it can be unit-tested without
+ *  a Supabase client (see monthlyExpenses.test.ts). */
+export function mapMonthlyExpensesReport(rows: MonthlyExpensesReportRpcRow[]): MonthlyExpensesReportRow[] {
   return rows.map((r) => ({
     technicianId: r.technician_id,
     technicianName: r.technicians?.profiles?.full_name ?? "—",
@@ -274,4 +271,14 @@ export async function getMonthlyExpensesReport(orgId: string, period: string): P
     maintenanceAmount: r.maintenance_amount,
     bikeAllowanceAmount: r.bike_allowance_amount,
   }))
+}
+
+export async function getMonthlyExpensesReport(orgId: string, period: string): Promise<MonthlyExpensesReportRow[]> {
+  const { data, error } = await supabase
+    .from("salaries")
+    .select("technician_id, recharge_amount, petrol_amount, maintenance_amount, bike_allowance_amount, technicians(profiles(full_name))")
+    .eq("org_id", orgId)
+    .eq("period", period)
+  if (error) throw error
+  return mapMonthlyExpensesReport((data ?? []) as unknown as MonthlyExpensesReportRpcRow[])
 }

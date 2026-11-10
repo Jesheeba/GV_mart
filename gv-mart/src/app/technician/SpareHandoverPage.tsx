@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { CheckCircle2, History, Loader2, PackageOpen, Printer } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Flag, History, Loader2, PackageOpen, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { HandoverPrintSheet } from "@/components/shared/HandoverPrintSheet"
 import { SignaturePad } from "./components/SignaturePad"
+import { ReportDiscrepancyDialog } from "./components/ReportDiscrepancyDialog"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useOrganization } from "@/hooks/useSales"
@@ -24,6 +25,7 @@ export function SpareHandoverPage() {
   const confirmHandover = useConfirmHandover()
   const [techSign, setTechSign] = useState<string | null>(null)
   const [printing, setPrinting] = useState(false)
+  const [disputingItemId, setDisputingItemId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!printing) return
@@ -64,6 +66,9 @@ export function SpareHandoverPage() {
               <Printer className="size-4" />
             </Button>
           ) : null}
+          <Button type="button" size="icon-sm" variant="outline" title={t("technician.myStock.title")} onClick={() => navigate("/technician/spares/mine")}>
+            <PackageOpen className="size-4" />
+          </Button>
           <Button type="button" size="icon-sm" variant="outline" title={t("technician.spareHandover.history")} onClick={() => navigate("/technician/spares/history")}>
             <History className="size-4" />
           </Button>
@@ -85,12 +90,33 @@ export function SpareHandoverPage() {
             ) : (
               <div className="divide-y divide-border">
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between px-1 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-text">{item.spares?.name ?? "—"}</p>
-                      <p className="text-xs text-text-muted">{item.spares?.sku ?? "—"}</p>
+                  <div key={item.id} className="flex flex-col gap-1 px-1 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-text">{item.spares?.name ?? "—"}</p>
+                        <p className="text-xs text-text-muted">{item.spares?.sku ?? "—"}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-text">{t("technician.spareHandover.qty", { qty: item.qty_given })}</span>
+                        {item.received_qty == null ? (
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="outline"
+                            title={t("technician.spareHandover.reportProblem")}
+                            onClick={() => setDisputingItemId(item.id)}
+                          >
+                            <Flag className="size-3.5" />
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
-                    <span className="text-sm font-semibold text-text">{t("technician.spareHandover.qty", { qty: item.qty_given })}</span>
+                    {item.received_qty != null ? (
+                      <p className="flex items-center gap-1 text-xs font-medium text-warning">
+                        <AlertTriangle className="size-3.5" />
+                        {t("technician.spareHandover.disputedNote", { received: item.received_qty, given: item.qty_given })}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -144,6 +170,19 @@ export function SpareHandoverPage() {
           }))}
           adminSignUrl={data.admin_sign_url}
           techSignUrl={data.tech_sign_url}
+        />
+      ) : null}
+
+      {disputingItemId && profile?.org_id ? (
+        <ReportDiscrepancyDialog
+          orgId={profile.org_id}
+          itemId={disputingItemId}
+          spareName={items.find((i) => i.id === disputingItemId)?.spares?.name ?? "—"}
+          qtyGiven={items.find((i) => i.id === disputingItemId)?.qty_given ?? 0}
+          open={!!disputingItemId}
+          onOpenChange={(open) => {
+            if (!open) setDisputingItemId(null)
+          }}
         />
       ) : null}
     </div>

@@ -95,6 +95,11 @@ export async function createLead(row: {
   kind_key?: string | null
   /** Products/spares picked from inventory; first one also fills the lead's scalar columns (back-compat, see lead_items migration). */
   items?: { product_id?: string; spare_id?: string; qty: number }[]
+  // Referral incentives — plain column on `leads` (not owner_id/source, which stay
+  // completely untouched; see lib/validation/automation.ts's leadSchema). The
+  // structured, bonus-eligible referrer — separate from the free-text
+  // referred_by_name/referred_by_phone below.
+  referred_by_user_id?: string | null
   // Lead Dashboard Enhancement, feature 4 — see build-docs/features/lead-detail-fields.md.
   customer_requirement?: string | null
   special_description?: string | null
@@ -102,6 +107,7 @@ export async function createLead(row: {
   budget?: number | null
   when_needed?: string | null
   tds_status?: string | null
+  // Lead Dashboard Enhancement, feature 5 — free-text, coexists with referred_by_user_id above.
   referred_by_name?: string | null
   referred_by_phone?: string | null
 }) {
@@ -109,7 +115,13 @@ export async function createLead(row: {
   const first = items[0]
   const { data, error } = await supabase
     .from("leads")
-    .insert({ ...leadRow, product_id: first?.product_id ?? null, spare_id: first?.spare_id ?? null, qty: first?.qty ?? null })
+    .insert({
+      ...leadRow,
+      product_id: first?.product_id ?? null,
+      spare_id: first?.spare_id ?? null,
+      qty: first?.qty ?? null,
+      referred_by_user_id: row.referred_by_user_id ?? null,
+    })
     .select()
     .single()
   if (error) throw error
@@ -172,6 +184,59 @@ export async function logLeadActivity(leadId: string, type: string, note: string
 export async function updateLeadStatus(leadId: string, status: LeadStatus, reason: string | null = null) {
   const { error } = await supabase.rpc("update_lead_status", { p_lead_id: leadId, p_status: status, p_reason: reason })
   if (error) throw error
+}
+
+/**
+ * Edit Lead (#3, 2026-11-02). Routed through a SECURITY DEFINER RPC rather
+ * than a plain `.from("leads").update(...)` because leads' own RLS
+ * (leads_write_sales) only allows master/sales_admin — operation_admin, who
+ * this screen must also work for, has no direct write policy on leads at
+ * all. owner_id is deliberately not a parameter here — see
+ * update_lead_details's own header comment in the migration.
+ */
+export async function updateLeadDetails(input: {
+  leadId: string
+  name: string
+  mobile: string | null
+  alternateMobile: string | null
+  addressText: string | null
+  source: string
+  productTypeKey: string | null
+  notes: string | null
+}) {
+  const { data, error } = await supabase.rpc("update_lead_details", {
+    p_lead_id: input.leadId,
+    p_name: input.name,
+    p_mobile: input.mobile,
+    p_alternate_mobile: input.alternateMobile,
+    p_address_text: input.addressText,
+    p_source: input.source,
+    p_product_type_key: input.productTypeKey,
+    p_notes: input.notes,
+  })
+  if (error) throw error
+  return data
+}
+
+export type LeadDuplicateMatch = { id: string; name: string; kind: "lead" | "customer" }
+
+/**
+ * WARN-only duplicate check: any other lead or customer in this org already
+ * using this normalized mobile number (checked against both mobile AND
+ * alternate_mobile on the leads side). Both tables are already readable by
+ * staff under existing RLS (leads_select_staff / is_staff()), so this needs
+ * no new RPC — just two plain reads.
+ */
+export async function findDuplicateLeadOrCustomerByMobile(orgId: string, excludeLeadId: string, mobile: string): Promise<LeadDuplicateMatch[]> {
+  const [leadsRes, customersRes] = await Promise.all([
+    supabase.from("leads").select("id, name, mobile, alternate_mobile").eq("org_id", orgId).or(`mobile.eq.${mobile},alternate_mobile.eq.${mobile}`),
+    supabase.from("customers").select("id, name, mobile").eq("org_id", orgId).eq("mobile", mobile),
+  ])
+  if (leadsRes.error) throw leadsRes.error
+  if (customersRes.error) throw customersRes.error
+  const leadMatches: LeadDuplicateMatch[] = (leadsRes.data ?? []).filter((l) => l.id !== excludeLeadId).map((l) => ({ id: l.id, name: l.name, kind: "lead" as const }))
+  const customerMatches: LeadDuplicateMatch[] = (customersRes.data ?? []).map((c) => ({ id: c.id, name: c.name, kind: "customer" as const }))
+  return [...leadMatches, ...customerMatches]
 }
 
 /** Master only — removes the lead (quotes/tickets raised from it stay, just unlinked). */

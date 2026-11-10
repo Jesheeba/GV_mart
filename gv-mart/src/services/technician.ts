@@ -5,6 +5,7 @@ import { enqueue } from "@/lib/offline/outbox"
 import { distanceKm, expectedMinutes, type GeoPoint } from "@/lib/offline/geo"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { isTicketOverdue } from "@/lib/ticketOverdue"
+import { isUndefinedColumnError } from "@/lib/supabaseErrors"
 import type { DayVisitInput, RouteTrailPoint } from "@/lib/routeColor"
 import type { Enums, Tables } from "@/types/database"
 import type { DateRange } from "./reports"
@@ -249,6 +250,45 @@ export async function queueConfirmHandover(handoverId: string, techSignUrl: stri
   await enqueue("spare_handover.confirm", { handoverId, techSignUrl, adminSignUrl })
 }
 
+/** Requirement 2 (dispute flagging, 2026-11-14 gap fix) — technician says the physical
+ * quantity received on a hand-over line differs from what the block says was given.
+ * Queued offline like confirmHandover above: the RPC itself (report_spare_handover_
+ * discrepancy) also inserts a staff notification, so this must reach the server exactly
+ * once the device is back online, same reasoning as every other outbox job here. */
+export async function queueReportHandoverDiscrepancy(input: { orgId: string; itemId: string; receivedQty: number; note: string | null }) {
+  await enqueue("spare_handover.report_discrepancy", input)
+}
+
+export type MyStockItem = Tables<"technician_stock_levels"> & { spares: { name: string; sku: string | null } | null }
+
+/** Requirement 3 (2026-11-14 gap fix) — "My spares": the technician's own current
+ * held balance per spare, straight from technician_stock_levels (RLS already scopes this
+ * to `technician_id = current_technician_id()`). Read-only, no offline queue needed.
+ *
+ * `item_id` is polymorphic (product | spare — no real FK, same as `inventory.item_id`),
+ * so it can't be embedded via PostgREST's `spares(...)` relationship syntax (confirmed
+ * live elsewhere: PGRST200 "no relationship found"). Same fix techniciansAdmin.ts's
+ * spareNameLookup already uses: fetch spare names separately and join client-side. */
+export async function getMyStock(technicianId: string): Promise<MyStockItem[]> {
+  const { data, error } = await supabase
+    .from("technician_stock_levels")
+    .select("*")
+    .eq("technician_id", technicianId)
+    .eq("item_type", "spare")
+    .gt("stock_qty", 0)
+    .order("updated_at", { ascending: false })
+  if (error) throw error
+  const rows = data ?? []
+  if (rows.length === 0) return []
+
+  const itemIds = [...new Set(rows.map((r) => r.item_id))]
+  const { data: spares, error: spareError } = await supabase.from("spares").select("id, name, sku").in("id", itemIds)
+  if (spareError) throw spareError
+  const spareById = new Map((spares ?? []).map((s) => [s.id, { name: s.name, sku: s.sku }]))
+
+  return rows.map((row) => ({ ...row, spares: spareById.get(row.item_id) ?? null }))
+}
+
 /** Past handovers (any date, not just today) — feeds SpareHandoverHistoryPage's
  * "find and print a past receipt" list. Plain read, not offline-queued like
  * confirm above (nothing to sync back). */
@@ -379,6 +419,13 @@ export type JobDetail = ServiceTicketRow & {
     id: string
     name: string
     mobile: string
+    // Water and household profile (20261108100000_customer_water_profile.sql) — read-only
+    // here (technicians have no write access). null both when genuinely unset and when the
+    // migration hasn't been applied yet (deploy-order safety, see getJobDetail below).
+    water_source: Enums<"water_source_type"> | null
+    water_source_other: string | null
+    water_tds_ppm: number | null
+    water_ph: number | null
     customer_members: {
       id: string
       name: string
@@ -439,15 +486,43 @@ export type JobDetail = ServiceTicketRow & {
   }[]
 }
 
+const JOB_DETAIL_CUSTOMER_COLUMNS_BASE = "id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
+const JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER = "id,name,mobile,water_source,water_source_other,water_tds_ppm,water_ph,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
+const JOB_DETAIL_REST =
+  "addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
+
+/**
+ * Sensitive (FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md §3.5) — routed through
+ * get_customer_health_condition rather than a raw column select (column-select-revoked on
+ * customers for everyone). The function itself only returns a value to a technician when the
+ * org's show_health_condition_to_technicians setting is on AND they have an appointment for
+ * that customer — both checked server-side, not trusted from this layer.
+ */
+export async function getCustomerHealthConditionForTechnician(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
+  if (error) {
+    if ((error as { code?: string }).code === "42883") return null // deploy-order safety (§6)
+    throw error
+  }
+  return data ?? null
+}
+
 export async function getJobDetail(ticketId: string): Promise<JobDetail> {
   if (navigator.onLine) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("service_tickets")
-      .select(
-        "*, customers(id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)), addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
-      )
+      .select(`*, customers(${JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER}), ${JOB_DETAIL_REST}`)
       .eq("id", ticketId)
       .single()
+    if (error && isUndefinedColumnError(error)) {
+      // Deploy-order safety (§6): the water-profile columns migration hasn't landed on the
+      // customers table yet — fall back so the job-detail page still loads.
+      ;({ data, error } = await supabase
+        .from("service_tickets")
+        .select(`*, customers(${JOB_DETAIL_CUSTOMER_COLUMNS_BASE}), ${JOB_DETAIL_REST}`)
+        .eq("id", ticketId)
+        .single())
+    }
     if (!error && data) {
       const row = data as unknown as JobDetail
       await db.jobDetailCache.put({ ticketId, data: row, updatedAt: Date.now() })
@@ -1113,7 +1188,10 @@ export async function searchSpares(orgId: string, term: string) {
 // org-scoped, debounced free-search shape as searchSpares.
 export async function searchProducts(orgId: string, term: string) {
   const q = term.trim().replace(/[%,]/g, "")
-  let query = supabase.from("products").select("id, name").eq("org_id", orgId).limit(15)
+  // Installation-tracking picker (InstallationSelectStep) — active-only, same
+  // as searchSpares' is_active filter above: a technician should never be
+  // able to log an install against a discontinued/archived product.
+  let query = supabase.from("products").select("id, name").eq("org_id", orgId).eq("is_active", true).limit(15)
   if (q) query = query.ilike("name", `%${q}%`)
   const { data, error } = await query
   if (error) throw error
@@ -1227,6 +1305,33 @@ export async function listMyHistory(technicianId: string, filters: { from?: stri
   if (error) throw error
   const rows = (data ?? []) as unknown as MyHistoryEntry[]
   return filters.type ? rows.filter((r) => r.service_tickets?.type === filters.type) : rows
+}
+
+// ── Pending reviews ──────────────────────────────────────────────────────────
+// "Pending reviews": customers from THIS technician's own completed visits
+// (service_visits.technician_id = his technicians.id, same "completed" test
+// get_technician_public_stats uses -- timer_end is not null) who have not
+// yet left a rating. Display-only: nothing is sent/messaged from this list,
+// it just tells the technician who to follow up with in person.
+//
+// Ownership is enforced server-side (RLS + an explicit filter inside
+// public.list_technician_pending_reviews(), a SECURITY INVOKER function --
+// see 20261112100000_technician_pending_reviews.sql), not here: this is a
+// plain, unparameterised RPC call, so there is no technicianId argument a
+// caller could tamper with to see another technician's customers.
+export type PendingReviewEntry = {
+  visit_id: string
+  ticket_id: string
+  customer_id: string
+  customer_name: string
+  complaint: string | null
+  visit_completed_at: string
+}
+
+export async function listMyPendingReviews(): Promise<PendingReviewEntry[]> {
+  const { data, error } = await supabase.rpc("list_technician_pending_reviews")
+  if (error) throw error
+  return data ?? []
 }
 
 // ── TECH-10 Profile / stats ────────────────────────────────────────────────

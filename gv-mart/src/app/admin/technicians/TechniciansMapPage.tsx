@@ -78,29 +78,37 @@ function computeIdleMinutes(latestLocation: TechnicianLocationRow, history: Tech
 }
 
 function useTechnicianTrackingStatus(
+  technicianId: string,
   latestLocation: TechnicianLocationRow | null,
   activeJob: TechnicianActiveJob | undefined,
   history: TechnicianLocationRow[],
   nowMs: number
-): { status: TrackingStatus; idleMinutes: number } {
+): { status: TrackingStatus; idleMinutes: number; isRateLimited: boolean } {
   const origin = latestLocation ? { lat: latestLocation.lat, lng: latestLocation.lng } : null
   const destination = activeJob ? { lat: activeJob.lat, lng: activeJob.lng } : null
   // React Query dedupes this against the identical call made from the map
   // marker for the same technician — one network request, two consumers.
-  const directions = useDirectionsDistance(origin, destination)
+  // Also throttled (geocode rate-limit follow-up): re-fetches only when this
+  // technician has moved a meaningful distance AND enough time has passed,
+  // not on every Realtime location ping — see useDirectionsDistance.
+  const directions = useDirectionsDistance(technicianId, origin, destination)
+  const isRateLimited = directions.isRateLimited
 
-  if (!latestLocation) return { status: "no-location", idleMinutes: 0 }
-  if (!activeJob || !destination) return { status: "no-job", idleMinutes: 0 }
+  if (!latestLocation) return { status: "no-location", idleMinutes: 0, isRateLimited }
+  if (!activeJob || !destination) return { status: "no-job", idleMinutes: 0, isRateLimited }
 
   const idleMinutes = computeIdleMinutes(latestLocation, history, nowMs)
-  if (idleMinutes >= IDLE_TRIGGER_MINUTES) return { status: "idle", idleMinutes }
+  if (idleMinutes >= IDLE_TRIGGER_MINUTES) return { status: "idle", idleMinutes, isRateLimited }
 
   const straightKm = distanceKm(origin!, destination)
+  // Keep using the last known route (directions.data) when rate-limited — React Query already
+  // leaves `data` as the previous successful value on error, so off-route detection quietly
+  // keeps working off slightly-stale data instead of erroring out.
   const routeKm = directions.data?.distanceKm ?? null
   const offRoute = routeKm != null && straightKm > 0.1 && routeKm / straightKm > OFF_ROUTE_RATIO
-  if (offRoute) return { status: "off-route", idleMinutes: 0 }
+  if (offRoute) return { status: "off-route", idleMinutes: 0, isRateLimited }
 
-  return { status: "on-time", idleMinutes: 0 }
+  return { status: "on-time", idleMinutes: 0, isRateLimited }
 }
 
 function statusColor(status: TrackingStatus) {
@@ -145,13 +153,14 @@ function useTicker(intervalMs: number) {
  * meaningful "destination" to compare position against) while still
  * overrunning.
  */
-function useJobOverrunAlert(openVisit: TechnicianOpenVisit | undefined, nowMs: number) {
+function useJobOverrunAlert(openVisit: TechnicianOpenVisit | undefined, nowMs: number, overrunBufferMinutes: number | undefined) {
   // GV.md 1.2: allowedDurationMinutes (estimate + earned allowances — see
   // src/lib/job-allowance.ts, precomputed in listTechniciansOpenVisits)
   // replaces the raw estimatedDurationMinutes as the overrun comparison.
   return computeJobOverrun(
     { timerStart: openVisit?.timerStart, timerEnd: openVisit?.timerEnd, estimatedDurationMinutes: openVisit?.allowedDurationMinutes },
-    nowMs
+    nowMs,
+    overrunBufferMinutes
   )
 }
 
@@ -380,6 +389,7 @@ export function TechniciansMapPage() {
                   history={history[row.id] ?? []}
                   selected={selectedId === row.id}
                   onSelect={() => handleSelect(row)}
+                  overrunBufferMinutes={settings?.job_overrun_buffer_minutes}
                 />
               ))}
             </div>
@@ -418,6 +428,7 @@ export function TechniciansMapPage() {
                       activeJob={activeJobs?.get(row.id)}
                       openVisit={openVisits?.get(row.id)}
                       history={history[row.id] ?? []}
+                      overrunBufferMinutes={settings?.job_overrun_buffer_minutes}
                     />
                   ))}
                   {tracked
@@ -480,15 +491,17 @@ function TechnicianMarker({
   activeJob,
   openVisit,
   history,
+  overrunBufferMinutes,
 }: {
   row: TechnicianWithLatestLocation
   activeJob: TechnicianActiveJob | undefined
   openVisit: TechnicianOpenVisit | undefined
   history: TechnicianLocationRow[]
+  overrunBufferMinutes: number | undefined
 }) {
   const now = useTicker(15_000)
-  const { status } = useTechnicianTrackingStatus(row.latestLocation, activeJob, history, now)
-  const overrun = useJobOverrunAlert(openVisit, now)
+  const { status } = useTechnicianTrackingStatus(row.id, row.latestLocation, activeJob, history, now)
+  const overrun = useJobOverrunAlert(openVisit, now, overrunBufferMinutes)
   if (!row.latestLocation) return null
   const name = row.profiles?.full_name ?? undefined
   return (
@@ -510,6 +523,7 @@ function TechnicianRow({
   history,
   selected,
   onSelect,
+  overrunBufferMinutes,
 }: {
   row: TechnicianWithLatestLocation
   activeJob: TechnicianActiveJob | undefined
@@ -517,11 +531,12 @@ function TechnicianRow({
   history: TechnicianLocationRow[]
   selected: boolean
   onSelect: () => void
+  overrunBufferMinutes: number | undefined
 }) {
   const { t } = useTranslation()
   const now = useTicker(15_000)
-  const { status, idleMinutes } = useTechnicianTrackingStatus(row.latestLocation, activeJob, history, now)
-  const overrun = useJobOverrunAlert(openVisit, now)
+  const { status, idleMinutes, isRateLimited } = useTechnicianTrackingStatus(row.id, row.latestLocation, activeJob, history, now)
+  const overrun = useJobOverrunAlert(openVisit, now, overrunBufferMinutes)
   const minutesAgo = row.latestLocation ? Math.round((now - new Date(row.latestLocation.recorded_at).getTime()) / 60_000) : null
 
   const label =
@@ -562,6 +577,7 @@ function TechnicianRow({
           {t("technicians.map.offRoute")}
         </p>
       ) : null}
+      {isRateLimited ? <p className="text-xs text-text-muted">{t("technicians.map.updatesPaused")}</p> : null}
       {overrun.isOverrun ? (
         <p className="rounded-md border border-danger/30 bg-danger/10 px-2 py-1 text-xs font-medium text-danger">
           {t("technicians.map.jobOverrunBy", { count: Math.round(overrun.overrunByMinutes!) })}

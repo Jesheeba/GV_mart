@@ -1,0 +1,3 @@
+HTTP_STATUS: 400
+
+{"message":"Failed to run sql query: ERROR:  P0001: DRYRUN_OK: all apply-script checks passed; nothing was committed (forced rollback)\nCONTEXT:  PL/pgSQL function inline_code_block line 118 at RAISE\n"}

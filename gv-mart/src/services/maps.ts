@@ -1,5 +1,18 @@
 import { supabase } from "@/lib/supabase"
 
+/**
+ * Per-user rate limit (20261202100100_geocode_rate_limit.sql) -- the `geocode` Edge Function
+ * returns 429 for autocomplete/details/geocode/directions/reverse alike once a signed-in user
+ * exceeds either window. `error.context` is the raw Response the Edge Function returned;
+ * supabase-js never unwraps its status onto `error` itself. Callers use this to show a
+ * friendly "too many requests" message and fall back to manual typing, instead of the generic
+ * network-error message.
+ */
+export function isTooManyRequestsError(error: unknown): boolean {
+  const context = (error as { context?: unknown } | null)?.context as { status?: number } | undefined
+  return context?.status === 429
+}
+
 export type GeocodeResult = {
   formatted: string
   lat: number
@@ -14,6 +27,11 @@ export type GeocodeResult = {
   // survey-number/rural addresses), see the geocode Edge Function's own
   // comment on this field.
   locationType: string | null
+  // "Use my current location" reverse-geocode fill — null (never invented)
+  // when Google's result has no such component. See the geocode Edge
+  // Function's own comment on this field.
+  streetNumber: string | null
+  route: string | null
 }
 
 /** True for Google location_type values precise enough to auto-confirm
@@ -55,6 +73,21 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult[]> {
   })
   if (error) throw error
   return data?.results ?? []
+}
+
+/**
+ * Reverse geocode ("Use my current location" -> address text). Same Edge
+ * Function, same Google Maps API key, same billing project as the forward
+ * `geocodeAddress` above -- no new secret, no new paid API. One-shot, no
+ * session token (reverse geocode has no autocomplete-style session concept).
+ */
+export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeResult> {
+  const { data, error } = await supabase.functions.invoke<{ result: GeocodeResult }>("geocode", {
+    body: { action: "reverse", lat, lng },
+  })
+  if (error) throw error
+  if (!data?.result) throw new Error("No address found for that location")
+  return data.result
 }
 
 /**

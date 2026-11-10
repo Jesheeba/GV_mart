@@ -1,9 +1,11 @@
 import type { ReactNode } from "react"
 import { getIstNow } from "@/lib/ist"
 import { useTranslation } from "react-i18next"
-import { Package, ShieldCheck } from "lucide-react"
+import { History, Package, ShieldCheck } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { StatusDot } from "@/components/shared/StatusDot"
+import { PartDueBadge } from "@/app/customer/components/PartDueBadge"
+import { isLifetimeExpiryNear, type CustomerPartSchedule } from "@/hooks/useCustomerLifecycle"
 import type { MyOwnedProduct } from "@/hooks/useCustomerApp"
 import type { MyAmcContractRow, MyWarrantyRow } from "@/services/customerApp"
 
@@ -26,6 +28,9 @@ export function OwnedProductStatusCard({
   showAmcSection,
   onHeaderClick,
   actionSlot,
+  dueParts,
+  lifetimeExpiryDate,
+  onViewHistory,
 }: {
   product: MyOwnedProduct
   amc: MyAmcContractRow | undefined
@@ -33,10 +38,16 @@ export function OwnedProductStatusCard({
   showAmcSection: boolean
   onHeaderClick?: () => void
   actionSlot?: ReactNode
+  /** Product Lifecycle (Drop 2, W3) — this product's due/overdue parts, if any. */
+  dueParts?: CustomerPartSchedule[]
+  /** Soonest lifetime-expiry date among this product's active installed units. */
+  lifetimeExpiryDate?: string | null
+  onViewHistory?: () => void
 }) {
   const { t } = useTranslation()
   const today = getIstNow().date
   const brandModel = [product.brands?.name, product.models?.name].filter(Boolean).join(" · ")
+  const lifetimeNear = isLifetimeExpiryNear(lifetimeExpiryDate, today)
 
   const header = (
     <div className="flex items-start justify-between px-1">
@@ -96,6 +107,27 @@ export function OwnedProductStatusCard({
             <StatusDot tone="neutral" label={t("customerApp.amc.noAmcForProduct")} />
           </div>
         )
+      ) : null}
+
+      {(dueParts && dueParts.length > 0) || lifetimeNear ? (
+        <div className="space-y-1.5 rounded-xl border border-border px-3.5 py-2 text-xs">
+          {(dueParts ?? []).map((part) => (
+            <div key={part.id} className="flex items-center justify-between">
+              <span className="text-text">{part.label}</span>
+              <PartDueBadge status={part.status as "due_soon" | "due" | "overdue"} />
+            </div>
+          ))}
+          {lifetimeNear ? (
+            <p className="text-text-muted">{t("customerLifecycle.card.lifetimeExpiry", { date: lifetimeExpiryDate })}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {onViewHistory ? (
+        <button type="button" onClick={onViewHistory} className="flex items-center gap-1.5 px-1 text-xs font-medium text-accent">
+          <History className="size-3.5" />
+          {t("customerLifecycle.card.viewHistory")}
+        </button>
       ) : null}
 
       {actionSlot}

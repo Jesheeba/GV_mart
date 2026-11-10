@@ -11,6 +11,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useCheckOut, useLunchToggle, useMarkAttendance, useMyTechnician, useTechnicianSettings, useTodayAttendance } from "@/hooks/useTechnician"
 import type { AttendanceRowWithCheckOut } from "@/services/technician"
 import { classifyGeoError, getCurrentPosition, isInsideGeofence, type GeoPoint } from "@/lib/offline/geo"
+import { useGeoPermissionRecheck } from "@/hooks/useGeoPermissionRecheck"
 import { attendanceSchema } from "@/lib/validation/technician"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
 import { StatusDot } from "@/components/shared/StatusDot"
@@ -27,6 +28,15 @@ function formatWorkedDuration(startIso: string, endIso: string): string {
 
 type Tick = "affirmation" | "pledge" | "meeting"
 const TICK_ORDER: Tick[] = ["affirmation", "pledge", "meeting"]
+
+// A building-scale geofence (attendance) needs a much tighter accuracy bar
+// than MapPage's route-ETA one (LOW_ACCURACY_WARNING_M = 500 there) -- a fix
+// this coarse is routinely wider than the office radius itself and could
+// read as "outside the office" (or "inside") by pure GPS noise. Advisory
+// only: never gates the Mark button by itself, the existing insideGeofence
+// check (unchanged) still does that; this just tells the technician why an
+// "outside office" reading might be wrong before they give up.
+const LOW_ACCURACY_WARNING_M = 50
 
 const GEO_ERROR_KEYS: Record<ReturnType<typeof classifyGeoError>, string> = {
   unsupported: "technician.attendance.locationUnsupported",
@@ -79,6 +89,12 @@ export function AttendancePage() {
     void refreshLocation()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Self-heal: once a location error is showing, re-check automatically when
+  // the tab regains focus/visibility or the permission itself changes, so
+  // the error clears on its own after the technician fixes it in Chrome's
+  // site settings -- the existing Retry button below still works too.
+  useGeoPermissionRecheck(!!geoError, refreshLocation)
 
   if (technician.isLoading || settings.isLoading || attendance.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (technician.isError || !technician.data) {
@@ -276,6 +292,11 @@ export function AttendancePage() {
           {geoError ? (
             <p className="flex items-center gap-1.5 px-1 text-xs text-danger">
               <TriangleAlert className="size-3.5" /> {geoError}
+            </p>
+          ) : position?.accuracy != null && position.accuracy > LOW_ACCURACY_WARNING_M ? (
+            <p className="flex items-center gap-1.5 px-1 text-xs text-warning">
+              <TriangleAlert className="size-3.5 shrink-0" />
+              {t("technician.attendance.lowAccuracyWarning", { accuracy: Math.round(position.accuracy).toLocaleString("en-IN") })}
             </p>
           ) : null}
 

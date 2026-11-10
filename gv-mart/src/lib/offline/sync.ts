@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { Json, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 import { db, type OutboxJob } from "./db"
+import { assertRequiredFields } from "./outboxContract"
 import { triggerWaDispatchNow } from "@/services/whatsapp"
 
 type AttendanceRow = Tables<"attendance">
@@ -87,6 +88,10 @@ export function getSyncState() {
 
 async function runJob(job: OutboxJob): Promise<void> {
   const p = job.payload as Record<string, unknown>
+  // Guards against a genuinely broken enqueue call site, not against an
+  // older/newer app version — see outboxContract.ts for why this never
+  // rejects a job merely for lacking a field added after it was queued.
+  assertRequiredFields(job.kind, p)
   switch (job.kind) {
     case "attendance.mark": {
       const { data, error } = await supabase
@@ -127,6 +132,16 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_handover_id: p.handoverId as string,
         p_tech_sign_url: p.techSignUrl as string,
         p_admin_sign_url: p.adminSignUrl as string,
+      })
+      if (error) throw error
+      return
+    }
+    case "spare_handover.report_discrepancy": {
+      const { error } = await supabase.rpc("report_spare_handover_discrepancy", {
+        p_org_id: p.orgId as string,
+        p_item_id: p.itemId as string,
+        p_received_qty: p.receivedQty as number,
+        p_note: (p.note as string | null) ?? null,
       })
       if (error) throw error
       return

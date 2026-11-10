@@ -208,11 +208,39 @@ describe("validateTypedPassword (bytes, deny-list)", () => {
 })
 
 describe("validateCreateStaffInput", () => {
-  const good = { fullName: "  Priya Dharshini ", email: " Priya@Example.COM ", role: "sales_admin" }
+  const good = {
+    fullName: "  Priya Dharshini ",
+    email: " Priya@Example.COM ",
+    role: "sales_admin",
+    phone: "98765 43210",
+    designation: " Sales executive ",
+    address: " 12 Main Road, Anna Nagar, Chennai 600040 ",
+  }
 
-  it("accepts the minimum (name, email, role) and normalises it", () => {
+  it("accepts the minimum (name, email, role, mobile, designation, address) and normalises it", () => {
     const r = validateCreateStaffInput(good)
-    expect(r).toEqual({ ok: true, value: { fullName: "Priya Dharshini", email: "priya@example.com", phone: null, role: "sales_admin", password: null, reason: null } })
+    expect(r).toEqual({
+      ok: true,
+      value: {
+        fullName: "Priya Dharshini",
+        email: "priya@example.com",
+        phone: "9876543210",
+        designation: "Sales executive",
+        address: "12 Main Road, Anna Nagar, Chennai 600040",
+        role: "sales_admin",
+        password: null,
+        reason: null,
+      },
+    })
+  })
+  it("requires a mobile number, a designation and a full address", () => {
+    for (const k of ["phone", "designation", "address"] as const) {
+      const { [k]: _omit, ...rest } = good
+      expect(validateCreateStaffInput(rest).ok, k).toBe(false)
+      expect(validateCreateStaffInput({ ...good, [k]: "  " }).ok, k + " blank").toBe(false)
+    }
+    expect(validateCreateStaffInput({ ...good, address: "short" }).ok).toBe(false)
+    expect(validateCreateStaffInput({ ...good, designation: "x".repeat(81) }).ok).toBe(false)
   })
   it("accepts operation_admin, a phone in common formats, a typed password and a reason", () => {
     const r = validateCreateStaffInput({ ...good, role: "operation_admin", phone: "+91 98765-43210", password: "correct horse", reason: "covers Coimbatore" })
@@ -226,7 +254,7 @@ describe("validateCreateStaffInput", () => {
   it("ignores fields the client must not control (org, id, is_active)", () => {
     const r = validateCreateStaffInput({ ...good, org_id: "other-org", id: "x", is_active: false, orgId: "other-org" })
     expect(r.ok).toBe(true)
-    if (r.ok) expect(Object.keys(r.value).sort()).toEqual(["email", "fullName", "password", "phone", "reason", "role"])
+    if (r.ok) expect(Object.keys(r.value).sort()).toEqual(["address", "designation", "email", "fullName", "password", "phone", "reason", "role"])
   })
   it("requires a valid email", () => {
     for (const email of ["", "no-at-sign", "a@b", "a b@c.com", undefined, 12, "x".repeat(250) + "@a.co"]) {

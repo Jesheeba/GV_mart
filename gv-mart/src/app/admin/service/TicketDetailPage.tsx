@@ -30,7 +30,9 @@ import {
   useTechnicians,
   useTicket,
   useTicketEvidence,
+  useConflictAppointmentInfo,
   useTicketPhotos,
+  useUnassignAppointment,
   useUpdateTicketAddress,
   useUpdateTicketEstimatedDuration,
   useUpdateTicketProduct,
@@ -127,7 +129,17 @@ export function TicketDetailPage() {
   const exemptionWindows = useCustomerExemptionWindows(ticket?.customer_id)
   const autoAssign = useAutoAssignTicket()
   const assign = useAssignTicketTechnician()
+  const unassign = useUnassignAppointment()
+  // Urgent reassign-error investigation (2026-11-02) — names the actual
+  // conflicting job/time in the "busy" message below, instead of a bare
+  // reason_key with no context for the master to act on.
+  const assignConflictInfo = useConflictAppointmentInfo(assign.data && !assign.data.assigned ? assign.data.conflict_appointment_id : undefined)
   const [pickerTechId, setPickerTechId] = useState("")
+  // Urgent item 1 fix (2026-11-02): this card used to have no way to change
+  // an already-assigned technician from this page at all (only the
+  // Appointments screen could reassign) -- opening this reveals the same
+  // explicit picker used for the first assignment, below.
+  const [reassigning, setReassigning] = useState(false)
 
   // Task 5 (2026-07-30/31) — exception path on top of unchanged
   // auto-assignment: log a phone-confirmed availability window (customer
@@ -239,7 +251,8 @@ export function TicketDetailPage() {
   })
   const overrun = computeJobOverrun(
     { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
-    now
+    now,
+    settings?.job_overrun_buffer_minutes
   )
 
   function startEditingEstimate() {
@@ -668,20 +681,40 @@ export function TicketDetailPage() {
 
       <Card className="gap-3 px-5">
         <h2 className="text-sm font-semibold text-text">{t("service.detail.assignment")}</h2>
-        {appointment?.technician_id ? (
-          <p className="text-sm text-text">
-            {t("service.detail.assignedTo", { name: appointment.technicians?.profiles?.full_name ?? "—" })}
-          </p>
-        ) : appointment ? (
+        {appointment?.technician_id && !reassigning ? (
           <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-text">
+              {t("service.detail.assignedTo", { name: appointment.technicians?.profiles?.full_name ?? "—" })}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => { setPickerTechId(""); setReassigning(true) }}>
+              {t("service.appointments.reassign")}
+            </Button>
             <Button
               size="sm"
-              onClick={() => autoAssign.mutate(ticket.id, { onError: () => toast.error(t("common.actionFailed")) })}
-              disabled={autoAssign.isPending || !productDefined}
+              variant="outline"
+              disabled={unassign.isPending}
+              onClick={() => appointment && unassign.mutate(appointment.id, { onError: () => toast.error(t("common.actionFailed")) })}
             >
-              {autoAssign.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UserCog className="size-3.5" />}
-              {t("service.detail.autoAssign")}
+              {unassign.isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              {t("service.appointments.unassign")}
             </Button>
+          </div>
+        ) : appointment ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {appointment.technician_id ? (
+              <p className="w-full text-sm text-text">
+                {t("service.detail.assignedTo", { name: appointment.technicians?.profiles?.full_name ?? "—" })}
+              </p>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => autoAssign.mutate(ticket.id, { onError: () => toast.error(t("common.actionFailed")) })}
+                disabled={autoAssign.isPending || !productDefined}
+              >
+                {autoAssign.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <UserCog className="size-3.5" />}
+                {t("service.detail.autoAssign")}
+              </Button>
+            )}
             <select
               value={pickerTechId}
               onChange={(e) => setPickerTechId(e.target.value)}
@@ -703,12 +736,50 @@ export function TicketDetailPage() {
                 appointment &&
                 assign.mutate(
                   { appointmentId: appointment.id, technicianId: pickerTechId },
-                  { onError: () => toast.error(t("common.actionFailed")) }
+                  { onSuccess: () => setReassigning(false), onError: () => toast.error(t("common.actionFailed")) }
                 )
               }
             >
-              {t("service.detail.assignManually")}
+              {appointment.technician_id ? t("service.appointments.reassign") : t("service.detail.assignManually")}
             </Button>
+            {reassigning ? (
+              <Button size="sm" variant="outline" onClick={() => setReassigning(false)}>
+                {t("common.cancel")}
+              </Button>
+            ) : null}
+            {/* Force-reassign is the one place a deliberate double-booking
+                override already exists (assign_ticket_technician's p_force) —
+                surfaced only once the plain assign above has already told us
+                there's a real conflict, never offered pre-emptively.
+                p_force bypasses BOTH technicianBusy and customerBusy
+                server-side (it does not bypass exemptionWindowConflict,
+                which the RPC returns unconditionally) — this button must
+                cover both reason_keys the backend actually honours force
+                for; it used to only check technicianBusy, silently leaving
+                master with no override for the (equally force-able)
+                customerBusy case. */}
+            {assign.data &&
+            !assign.data.assigned &&
+            (assign.data.reason_key === "service.assign.technicianBusy" || assign.data.reason_key === "service.assign.customerBusy") ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-warning/50 text-warning"
+                disabled={assign.isPending}
+                onClick={() =>
+                  appointment &&
+                  assign.mutate(
+                    { appointmentId: appointment.id, technicianId: pickerTechId, force: true },
+                    { onError: () => toast.error(t("common.actionFailed")) }
+                  )
+                }
+              >
+                <TriangleAlert className="size-3.5" /> {t("service.appointments.forceReassign")}
+              </Button>
+            ) : null}
+            {/* Urgent outage hotfix (2026-11-02): hidden -- this called
+                get_technician_availability_for_date, whose migration
+                (20261202100000) is not live yet. Restore once applied. */}
           </div>
         ) : (
           <p className="text-sm text-text-muted">{t("service.detail.noAppointment")}</p>
@@ -719,7 +790,22 @@ export function TicketDetailPage() {
         {autoAssign.data && !autoAssign.data.assigned ? (
           <p className="text-xs text-warning">{t(autoAssign.data.reason_key ?? "service.assign.noneAvailable")}</p>
         ) : null}
-        {assign.data && !assign.data.assigned ? <p className="text-xs text-warning">{t(assign.data.reason_key ?? "service.assign.technicianBusy")}</p> : null}
+        {assign.data && !assign.data.assigned ? (
+          <p className="text-xs text-warning">
+            {assignConflictInfo.data && assign.data.conflict_appointment_id
+              ? t(
+                  assign.data.reason_key === "service.assign.customerBusy"
+                    ? "service.assign.customerBusyDetail"
+                    : "service.assign.technicianBusyDetail",
+                  {
+                    job: assignConflictInfo.data.jobLabel,
+                    from: formatDateTime(assignConflictInfo.data.scheduledAt),
+                    to: formatDateTime(assignConflictInfo.data.endsAt),
+                  }
+                )
+              : t(assign.data.reason_key ?? "service.assign.technicianBusy")}
+          </p>
+        ) : null}
       </Card>
 
       {appointment ? (

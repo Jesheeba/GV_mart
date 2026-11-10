@@ -1,13 +1,15 @@
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { SalesServiceReportTab } from "./SalesServiceReportTab"
-import { PnlReportTab } from "./PnlReportTab"
 import { PerformanceReportTab } from "./PerformanceReportTab"
 import { FeedbackReportTab } from "./FeedbackReportTab"
 import { TopCustomersReportTab } from "./TopCustomersReportTab"
 import { CoverageReportTab } from "./CoverageReportTab"
 import { SalesInsightsReportTab } from "./SalesInsightsReportTab"
+import { MonthlyExpensesReportTab } from "./MonthlyExpensesReportTab"
+import { ReferralBonusReportTab } from "./ReferralBonusReportTab"
 
 export function ReportsPage() {
   const { t } = useTranslation()
@@ -17,25 +19,30 @@ export function ReportsPage() {
       <div className="print:hidden">
         <h1 className="text-2xl font-bold text-text">{t("nav.reports")}</h1>
         <p className="text-sm text-text-muted">{t("reports.subtitle")}</p>
+        <p className="mt-1 text-xs text-text-muted">
+          {t("reports.pnlMovedNote")}{" "}
+          <Link to="/admin/accounts" className="font-semibold text-accent underline">
+            {t("nav.accounts")}
+          </Link>
+          .
+        </p>
       </div>
 
       <Tabs defaultValue="salesService">
         <TabsList className="flex-wrap print:hidden">
           <TabsTrigger value="salesService">{t("reports.tabs.salesService")}</TabsTrigger>
-          <TabsTrigger value="pnl">{t("reports.tabs.pnl")}</TabsTrigger>
           <TabsTrigger value="performance">{t("reports.tabs.performance")}</TabsTrigger>
           <TabsTrigger value="feedback">{t("reports.tabs.feedback")}</TabsTrigger>
           <TabsTrigger value="topCustomers">{t("reports.tabs.topCustomers")}</TabsTrigger>
           <TabsTrigger value="coverage">{t("reports.tabs.coverage")}</TabsTrigger>
           <TabsTrigger value="insights">{t("reports.tabs.insights")}</TabsTrigger>
+          <TabsTrigger value="monthlyExpenses">{t("reports.tabs.monthlyExpenses")}</TabsTrigger>
+          <TabsTrigger value="referralBonus">{t("reports.tabs.referralBonus")}</TabsTrigger>
         </TabsList>
 
         <Card size="default" className="mt-3 print:m-0 print:border-0 print:p-0 print:shadow-none">
           <TabsContent value="salesService">
             <SalesServiceReportTab />
-          </TabsContent>
-          <TabsContent value="pnl">
-            <PnlReportTab />
           </TabsContent>
           <TabsContent value="performance">
             <PerformanceReportTab />
@@ -51,6 +58,12 @@ export function ReportsPage() {
           </TabsContent>
           <TabsContent value="insights">
             <SalesInsightsReportTab />
+          </TabsContent>
+          <TabsContent value="monthlyExpenses">
+            <MonthlyExpensesReportTab />
+          </TabsContent>
+          <TabsContent value="referralBonus">
+            <ReferralBonusReportTab />
           </TabsContent>
         </Card>
       </Tabs>

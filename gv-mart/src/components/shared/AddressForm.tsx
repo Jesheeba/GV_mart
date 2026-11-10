@@ -2,14 +2,15 @@ import { useEffect, useId, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Loader2 } from "lucide-react"
+import { Loader2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
-import { useGeocodeAddress } from "@/hooks/useMaps"
-import { isPreciseGeocodeResult } from "@/services/maps"
+import { useGeocodeAddress, useReverseGeocode } from "@/hooks/useMaps"
+import { isPreciseGeocodeResult, isTooManyRequestsError } from "@/services/maps"
+import { geocodeResultToAddressFields, mergeAddressFieldsPreservingTyped } from "@/lib/geocodeToAddressFields"
 import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validation/customerApp"
 import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
@@ -122,6 +123,51 @@ export function AddressForm({
     setSuggestedPin(null)
   }, [locationText])
 
+  // "Use my current location" -> address text. Fires only for a drag-confirm
+  // or a geolocation confirm (source !== "search" -- a search result already
+  // arrives with its own components via onAddressSelect above, no reverse
+  // lookup needed or wanted for that path). Only ever fills fields that are
+  // still empty -- never overwrites text the customer has already typed, the
+  // same policy onAddressSelect already uses for search results.
+  const reverseGeocode = useReverseGeocode()
+  const [locateError, setLocateError] = useState<"denied" | "unavailable" | "timeout" | null>(null)
+  const [locationFilledNotice, setLocationFilledNotice] = useState(false)
+  const [locationLookupFailed, setLocationLookupFailed] = useState(false)
+  const [locationRateLimited, setLocationRateLimited] = useState(false)
+
+  function handleConfirm(coords: { lat: number; lng: number; accuracy?: number; source: "search" | "drag" | "location" }) {
+    setValue("lat", coords.lat, { shouldValidate: true })
+    setValue("lng", coords.lng, { shouldValidate: true })
+    setSuggestedPin(null)
+    confirmedLocationTextRef.current = locationText
+    setLocateError(null)
+    setLocationFilledNotice(false)
+    setLocationLookupFailed(false)
+    setLocationRateLimited(false)
+    if (coords.source === "search") return
+    reverseGeocode.mutate(
+      { lat: coords.lat, lng: coords.lng },
+      {
+        onSuccess: (result) => {
+          const derived = geocodeResultToAddressFields(result)
+          const current = {
+            fullAddress: getValues("fullAddress"),
+            area: getValues("area"),
+            pincode: getValues("pincode"),
+            district: getValues("district"),
+            state: getValues("state"),
+          }
+          const patch = mergeAddressFieldsPreservingTyped(current, derived)
+          const patchedKeys = Object.keys(patch) as (keyof typeof patch)[]
+          if (patchedKeys.length === 0) return
+          for (const key of patchedKeys) setValue(key, patch[key]!, { shouldValidate: true })
+          setLocationFilledNotice(true)
+        },
+        onError: (err) => (isTooManyRequestsError(err) ? setLocationRateLimited(true) : setLocationLookupFailed(true)),
+      }
+    )
+  }
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5 border-t border-border pt-3">
       <div className="space-y-1">
@@ -164,6 +210,19 @@ export function AddressForm({
           ) : null}
         </div>
         <p className="text-xs text-text-muted">{t("customerApp.profile.address.mapHint")}</p>
+        <p className="text-xs text-text-muted">{t("customerApp.profile.address.locationPrivacyNotice")}</p>
+        {locateError ? (
+          <p className="flex items-center gap-1.5 rounded-lg bg-warning-soft px-2.5 py-2 text-xs text-warning">
+            <TriangleAlert className="size-3.5 shrink-0" />
+            {t(
+              locateError === "denied"
+                ? "customerApp.profile.address.locateDenied"
+                : locateError === "timeout"
+                  ? "customerApp.profile.address.locateTimeout"
+                  : "customerApp.profile.address.locateUnavailable"
+            )}
+          </p>
+        ) : null}
         <AddressMapPicker
           lat={lat}
           lng={lng}
@@ -171,12 +230,8 @@ export function AddressForm({
           suggestedLng={suggestedPin?.lng}
           suggestedFormatted={suggestedPin?.formatted}
           suggestedPrecise={suggestedPin?.precise}
-          onConfirm={({ lat: newLat, lng: newLng }) => {
-            setValue("lat", newLat, { shouldValidate: true })
-            setValue("lng", newLng, { shouldValidate: true })
-            setSuggestedPin(null)
-            confirmedLocationTextRef.current = locationText
-          }}
+          onConfirm={handleConfirm}
+          onLocateError={setLocateError}
           onAddressSelect={(r) => {
             if (!getValues("area") && (r.suburb || r.city)) setValue("area", r.suburb ?? r.city ?? "", { shouldValidate: true })
             if (!getValues("pincode") && r.postcode) setValue("pincode", r.postcode, { shouldValidate: true })
@@ -184,6 +239,15 @@ export function AddressForm({
             if (!getValues("state") && r.state) setValue("state", r.state, { shouldValidate: true })
           }}
         />
+        {reverseGeocode.isPending ? (
+          <p className="flex items-center gap-1.5 text-xs text-text-muted">
+            <Loader2 className="size-3 animate-spin" />
+            {t("customerApp.profile.address.locationLookingUp")}
+          </p>
+        ) : null}
+        {locationFilledNotice ? <p className="text-xs text-success">{t("customerApp.profile.address.locationFilledNotice")}</p> : null}
+        {locationLookupFailed ? <p className="text-xs text-text-muted">{t("customerApp.profile.address.locationLookupFailed")}</p> : null}
+        {locationRateLimited ? <p className="text-xs text-warning">{t("customerApp.profile.address.tooManyRequests")}</p> : null}
         {lat == null || lng == null ? <p className="text-xs text-warning">{t("customerApp.profile.address.mapRequired")}</p> : null}
       </div>
 

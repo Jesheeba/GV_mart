@@ -1,0 +1,3 @@
+HTTP_STATUS: 201
+
+[{"version_registered":"20261204170000","column_exists":true,"column_type_correct":true,"addresses_fingerprint_unchanged":true,"applied_at":"2026-11-03 11:16:25.813511+00"}]

@@ -4,14 +4,17 @@ import { Bell, ChevronLeft, Search } from "lucide-react"
 import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { ADMIN_NAV } from "./nav"
+import { ADMIN_NAV, groupNavSections } from "./nav"
 import { useProfile } from "@/hooks/useProfile"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { canWorkFollowups, useFollowupCounts } from "@/hooks/useLeadFollowups"
+import { usePendingLeaveRequestCount } from "@/hooks/useTechnicianLeave"
+import { useOverdueOrDueTodayReminderCount } from "@/hooks/useAccountsFollowup"
 import { CallReturnPrompt } from "./leads/CallReturnPrompt"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useTicketSearch, useServiceTicketsRealtimeInvalidate } from "@/hooks/useService"
 import { useTechniciansOpenVisits, useTechniciansWithLocation } from "@/hooks/useTechniciansAdmin"
+import { useSettings } from "@/hooks/useMasters"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useToast } from "@/components/ui/toast-context"
 import { Autocomplete } from "@/components/shared/Autocomplete"
@@ -31,7 +34,7 @@ import { PoReceiptPromptModal } from "./purchase/PoReceiptPromptModal"
 // wired up to invoices — no quick invoice search exists anywhere else in the
 // app to reuse, and inventing one is out of scope for wiring up this input.
 type GlobalSearchResult =
-  | { kind: "customer"; id: string; name: string; mobile: string }
+  | { kind: "customer"; id: string; name: string; mobile: string | null }
   | { kind: "ticket"; id: string; complaint: string | null; customerName: string | null }
 
 function AdminGlobalSearch({ orgId }: { orgId: string }) {
@@ -124,6 +127,10 @@ export function AdminShell() {
   const { data: profile, isLoading, isError, refetch } = useProfile()
   const { data: unreadCount } = useUnreadNotificationCount(profile?.org_id, profile?.id, profile?.role)
   const { data: followupCounts } = useFollowupCounts(profile?.role)
+  const { data: pendingLeaveCount } = usePendingLeaveRequestCount(
+    profile?.role === "master" || profile?.role === "operation_admin" ? profile?.org_id : undefined
+  )
+  const overdueOrDueTodayCount = useOverdueOrDueTodayReminderCount(profile?.role === "master")
   useServiceTicketsRealtimeInvalidate(profile?.org_id)
 
   // Job-overrun popup: this used to run only inside TechniciansMapPage, so an
@@ -135,6 +142,7 @@ export function AdminShell() {
   const { toast } = useToast()
   const { data: openVisits } = useTechniciansOpenVisits(profile?.org_id)
   const { data: techniciansWithLocation } = useTechniciansWithLocation(profile?.org_id)
+  const { data: settings } = useSettings(profile?.org_id)
   const notifiedVisitIdsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     const orgId = profile?.org_id
@@ -144,7 +152,8 @@ export function AdminShell() {
       for (const [techId, visit] of openVisits!) {
         const overrun = computeJobOverrun(
           { timerStart: visit.timerStart, timerEnd: visit.timerEnd, estimatedDurationMinutes: visit.allowedDurationMinutes },
-          nowMs
+          nowMs,
+          settings?.job_overrun_buffer_minutes
         )
         if (!overrun.isOverrun || notifiedVisitIdsRef.current.has(visit.visitId)) continue
         notifiedVisitIdsRef.current.add(visit.visitId)
@@ -175,6 +184,74 @@ export function AdminShell() {
   }
 
   const items = ADMIN_NAV.filter((item) => item.roles.includes(profile.role))
+  const dashboard = items.find((item) => item.key === "dashboard")
+  const sections = groupNavSections(items)
+
+  function renderNavLink(item: (typeof items)[number]) {
+    const Icon = item.icon
+    return (
+      <NavLink
+        key={item.key}
+        to={item.path}
+        end={item.end}
+        aria-label={t(item.labelKey)}
+        onMouseEnter={(e) => {
+          if (!sidebarCollapsed) return
+          const rect = e.currentTarget.getBoundingClientRect()
+          setHoveredNavTooltip({ label: t(item.labelKey), top: rect.top + rect.height / 2, left: rect.right + 8 })
+        }}
+        onMouseLeave={() => setHoveredNavTooltip(null)}
+        onFocus={(e) => {
+          if (!sidebarCollapsed) return
+          const rect = e.currentTarget.getBoundingClientRect()
+          setHoveredNavTooltip({ label: t(item.labelKey), top: rect.top + rect.height / 2, left: rect.right + 8 })
+        }}
+        onBlur={() => setHoveredNavTooltip(null)}
+        className={({ isActive }) =>
+          cn(
+            "relative flex shrink-0 items-center rounded-xl transition-colors",
+            sidebarCollapsed ? "size-10 justify-center" : "h-10 w-full gap-3 px-3",
+            isActive ? "bg-ink text-white" : "text-text-muted hover:bg-surface-alt hover:text-text"
+          )
+        }
+      >
+        <span className="relative flex shrink-0">
+          <Icon className="size-5" />
+          {item.key === "myDay" && followupCounts?.total ? (
+            <span
+              data-testid="myday-badge"
+              className={cn(
+                "absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-4 text-white",
+                followupCounts.overdue > 0 ? "bg-danger" : "bg-accent"
+              )}
+              title={t("leads.myDay.badgeTitle", { overdue: followupCounts.overdue, today: followupCounts.today })}
+            >
+              {followupCounts.total > 99 ? "99+" : followupCounts.total}
+            </span>
+          ) : null}
+          {item.key === "leaveRequests" && pendingLeaveCount ? (
+            <span
+              data-testid="leave-requests-badge"
+              className="absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold leading-4 text-white"
+              title={t("leaveRequests.badgeTitle", { count: pendingLeaveCount })}
+            >
+              {pendingLeaveCount > 99 ? "99+" : pendingLeaveCount}
+            </span>
+          ) : null}
+          {item.key === "customerOutstanding" && overdueOrDueTodayCount > 0 ? (
+            <span
+              data-testid="customer-outstanding-badge"
+              className="absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold leading-4 text-white"
+              title={t("accounts.outstanding.badgeTitle", { count: overdueOrDueTodayCount })}
+            >
+              {overdueOrDueTodayCount > 99 ? "99+" : overdueOrDueTodayCount}
+            </span>
+          ) : null}
+        </span>
+        {!sidebarCollapsed ? <span className="truncate text-sm font-medium">{t(item.labelKey)}</span> : null}
+      </NavLink>
+    )
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg print:block print:h-auto print:overflow-visible">
@@ -219,53 +296,19 @@ export function AdminShell() {
           <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
         </span>
         <nav className={cn("flex flex-1 flex-col gap-1", sidebarCollapsed ? "items-center" : "items-stretch")}>
-          {items.map((item) => {
-            const Icon = item.icon
-            return (
-              <NavLink
-                key={item.key}
-                to={item.path}
-                end={item.end}
-                aria-label={t(item.labelKey)}
-                onMouseEnter={(e) => {
-                  if (!sidebarCollapsed) return
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  setHoveredNavTooltip({ label: t(item.labelKey), top: rect.top + rect.height / 2, left: rect.right + 8 })
-                }}
-                onMouseLeave={() => setHoveredNavTooltip(null)}
-                onFocus={(e) => {
-                  if (!sidebarCollapsed) return
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  setHoveredNavTooltip({ label: t(item.labelKey), top: rect.top + rect.height / 2, left: rect.right + 8 })
-                }}
-                onBlur={() => setHoveredNavTooltip(null)}
-                className={({ isActive }) =>
-                  cn(
-                    "relative flex shrink-0 items-center rounded-xl transition-colors",
-                    sidebarCollapsed ? "size-10 justify-center" : "h-10 w-full gap-3 px-3",
-                    isActive ? "bg-ink text-white" : "text-text-muted hover:bg-surface-alt hover:text-text"
-                  )
-                }
-              >
-                <span className="relative flex shrink-0">
-                  <Icon className="size-5" />
-                  {item.key === "myDay" && followupCounts?.total ? (
-                    <span
-                      data-testid="myday-badge"
-                      className={cn(
-                        "absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-4 text-white",
-                        followupCounts.overdue > 0 ? "bg-danger" : "bg-accent"
-                      )}
-                      title={t("leads.myDay.badgeTitle", { overdue: followupCounts.overdue, today: followupCounts.today })}
-                    >
-                      {followupCounts.total > 99 ? "99+" : followupCounts.total}
-                    </span>
-                  ) : null}
-                </span>
-                {!sidebarCollapsed ? <span className="truncate text-sm font-medium">{t(item.labelKey)}</span> : null}
-              </NavLink>
-            )
-          })}
+          {dashboard ? renderNavLink(dashboard) : null}
+          {sections.map(({ section, items: sectionItems }) => (
+            <div key={section} className="contents">
+              {sidebarCollapsed ? (
+                <div className="my-1 h-px w-8 shrink-0 bg-border" aria-hidden="true" />
+              ) : (
+                <div className="mt-3 mb-1 px-3 text-[10px] font-bold uppercase tracking-wide text-text-muted first:mt-1">
+                  {t(`navGroups.${section}`)}
+                </div>
+              )}
+              {sectionItems.map((item) => renderNavLink(item))}
+            </div>
+          ))}
         </nav>
       </aside>
 

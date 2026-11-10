@@ -86,6 +86,15 @@ export async function resolveEventContext(admin: SupabaseClient, row: PendingRow
         // There is no per-invoice customer page or PDF yet (plan open item 4): the link is the customer app home.
         if (appUrl) vars.link = `${appUrl}/customer`
       }
+    } else if (row.ref_type === "customer_link_otp") {
+      // Phase 2, Item 1 (template discovery): the raw code (written alongside the rendered body
+      // text by request_customer_link_code — 20261120100000_customer_link_otp.sql) is the single
+      // named parameter the customer_link_otp whatsapp_event_templates row maps to Wasi's
+      // 'lexdraft_otp' AUTHENTICATION template. Read directly off payload, never re-derived or
+      // looked up elsewhere — there is nowhere else to get it from (only a salted hash is stored
+      // in customer_link_otp_challenges). Deliberately no customer name/language override here:
+      // customerLanguageAndName above already resolved both correctly for this row.
+      vars.code = (row.payload as { code?: string | null } | null)?.code ?? null
     } else if (row.ref_type === "purchase_quote_request" && row.ref_id) {
       const { data: q } = await admin.from("purchase_quote_requests").select("pdf_url").eq("id", row.ref_id).abortSignal(AbortSignal.timeout(DB_TIMEOUT_MS)).maybeSingle()
       vars.pdf_url = (q as { pdf_url?: string | null } | null)?.pdf_url ?? null

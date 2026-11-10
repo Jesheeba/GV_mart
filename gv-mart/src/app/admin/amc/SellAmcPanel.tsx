@@ -124,7 +124,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
           )}
           onSelect={(c) => {
             form.setValue("customerId", c.id, { shouldValidate: true })
-            setCustomerLabel(`${c.name} · ${c.mobile}`)
+            setCustomerLabel(c.mobile ? `${c.name} · ${c.mobile}` : c.name)
           }}
         />
         {form.formState.errors.customerId ? <p className="text-xs text-danger">{t(form.formState.errors.customerId.message!)}</p> : null}

@@ -1,0 +1,11 @@
+{
+  "channel": "technician-test",
+  "version": "2026-10-29-b3",
+  "buildNumber": 3,
+  "url": "https://gv-mart.vercel.app/ota/technician-test/bundle-3.zip",
+  "checksum": "26391223e1fa38b36ade8fe9c2abd5bd04bc0e14359383cafb443b8ec9a30b02",
+  "minNativeBuild": 1,
+  "frozen": false,
+  "publishedAt": "2026-10-29T11:00:19.940Z",
+  "signature": "kR7+ksyD7/prtofcigmB7EnZgXJXfMfwHxycumUhLMsAvuvc4cxA/CMavM0CYA3Diika3PzjXHOkgFQnzD63BA=="
+}

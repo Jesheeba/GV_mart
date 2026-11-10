@@ -7,8 +7,10 @@ import {
   mapKpiTiles,
   mapOpsResolution,
   mapPerformance,
+  mergePerformanceEfficiency,
   mapPnl,
   mapSalaryByStaff,
+  resolveExpenseCategoryName,
   mapSalesService,
   mapTopCustomers,
   mapYearOverYear,
@@ -16,6 +18,7 @@ import {
   type KpiTiles,
   type KpiTilesRpc,
   type OpsResolutionRpc,
+  type PerformanceEfficiencyRpcRow,
   type PerformanceRpcRow,
   type PnlRpc,
   type SalaryByStaffRpcRow,
@@ -403,7 +406,12 @@ export async function getPnlReportLegacy(orgId: string, range: DateRange): Promi
       .select("category, amount, date")
       .eq("org_id", orgId)
       .gte("date", range.from)
-      .lte("date", range.to),
+      .lte("date", range.to)
+      // Incentive audit, Finding H-03 follow-up (2026-10-29) — must match
+      // report_pnl()'s own `voided_at is null` filter exactly, or this
+      // deprecated-but-still-exercised-by-the-parity-test twin would diverge
+      // from the RPC the moment any expense is ever voided.
+      .is("voided_at", null),
     supabase
       .from("invoice_items")
       .select("qty, price, discount, cost")
@@ -512,6 +520,15 @@ export type PerformanceRow = {
   productivityJobsPerHour: number | null
   /** Units logged in installations_logged in range (sum of qty). */
   installations: number
+  /**
+   * P5 (20261108110000) — INFORMATIONAL ONLY: sum(standard minutes) ÷ sum(actual minutes) × 100, over visits
+   * whose standard could be resolved (complaint_types.standard_minutes, else the ticket type's
+   * settings.default_duration_* default). Null when no visit in range had a resolvable standard. Not read by
+   * compute_incentives or any review/flag logic — see report_performance_efficiency's own migration comment.
+   */
+  efficiencyPercent: number | null
+  /** How many of this technician's visits in range contributed to efficiencyPercent. */
+  efficiencySampleCount: number
 }
 
 /** @deprecated browser-side aggregation (silently capped at 1000 rows). Kept only for the parity test; remove in a later cleanup. */
@@ -586,6 +603,8 @@ export async function getPerformanceReportLegacy(orgId: string, range: DateRange
       avgCompletionMinutes: null,
       productivityJobsPerHour: null,
       installations: 0,
+      efficiencyPercent: null,
+      efficiencySampleCount: 0,
     }
     row.jobsDone += 1
     row.revenue += v.service_charge ?? 0
@@ -659,6 +678,8 @@ export async function getPerformanceReportLegacy(orgId: string, range: DateRange
         avgCompletionMinutes: null,
         productivityJobsPerHour: null,
         installations: 0,
+        efficiencyPercent: null,
+        efficiencySampleCount: 0,
       })
     }
   }
@@ -855,12 +876,34 @@ export async function getPnlReport(_orgId: string, range: DateRange): Promise<Pn
 }
 
 export async function getPerformanceReport(_orgId: string, range: DateRange): Promise<PerformanceRow[]> {
-  return mapPerformance(await callReport<PerformanceRpcRow[]>("report_performance", rpcArgs(range)))
+  const [perf, efficiency] = await Promise.all([
+    callReport<PerformanceRpcRow[]>("report_performance", rpcArgs(range)),
+    callReport<PerformanceEfficiencyRpcRow[]>("report_performance_efficiency", rpcArgs(range)),
+  ])
+  return mergePerformanceEfficiency(mapPerformance(perf), efficiency)
 }
 
-/** Operation-admin KPI: % of tickets in range resolved (completed) within 24h of creation. */
-export async function getOpsResolutionKpi(_orgId: string, range: DateRange): Promise<{ resolvedWithin24h: number; totalCompleted: number; percent: number | null }> {
+/** Operation-admin KPI: % of tickets in range resolved (completed) within the resolution SLA window (configurable, settings.ops_resolution_sla_hours — slaHours carries the actual figure). */
+export async function getOpsResolutionKpi(_orgId: string, range: DateRange): Promise<{ resolvedWithin24h: number; totalCompleted: number; percent: number | null; slaHours: number }> {
   return mapOpsResolution(await callReport<OpsResolutionRpc>("report_ops_resolution", rpcArgs(range)))
+}
+
+// ── reports.parity.test.ts helpers ───────────────────────────────────────
+// Extracted so the skip decision (does this org's SLA still match what the deprecated legacy aggregation
+// hardcodes?) can be unit-tested with the settings fetch mocked, without needing a live org.
+
+/** Mirrors report_ops_resolution's own defaulting exactly: a missing settings row (maybeSingle returns null) and a
+ * null column value both collapse to 24, same as the RPC's `coalesce(s.ops_resolution_sla_hours, 24)` / second
+ * `coalesce(v_sla_hours, 24)` for a missing row. */
+export async function getOpsResolutionParitySlaHours(orgId: string): Promise<number> {
+  const { data, error } = await supabase.from("settings").select("ops_resolution_sla_hours").eq("org_id", orgId).maybeSingle()
+  if (error) throw error
+  return data?.ops_resolution_sla_hours ?? 24
+}
+
+/** null when the parity comparison should run (SLA is still the legacy-assumed 24); otherwise the skip reason, with the actual value in it. */
+export function opsResolutionParitySkipReason(slaHours: number): string | null {
+  return slaHours === 24 ? null : `org's ops_resolution_sla_hours is ${slaHours}, not the legacy-assumed 24 — see comment above`
 }
 
 export async function getFeedbackReport(_orgId: string, range: DateRange): Promise<FeedbackReport> {
@@ -907,6 +950,9 @@ export type CreateExpenseInput = {
    * spend is one combined figure with per-person drill-down. Unset for
    * every other category. */
   staffId?: string | null
+  /** "Under Category" (Accounts follow-up spec) — owner-managed, additive
+   * alongside the enum above; null leaves the expense uncategorised. */
+  categoryId?: string | null
 }
 
 export async function createExpense(input: CreateExpenseInput) {
@@ -922,6 +968,7 @@ export async function createExpense(input: CreateExpenseInput) {
       is_recurring: !!input.recurringTaskId,
       logged_by: input.loggedBy ?? null,
       staff_id: input.staffId ?? null,
+      category_id: input.categoryId ?? null,
     })
     .select()
     .single()
@@ -942,19 +989,39 @@ export type ExpenseEntry = {
   staffId: string | null
   staffName: string | null
   createdAt: string
+  categoryId: string | null
+  categoryName: string | null
 }
 
 export async function getExpensesList(orgId: string, range: DateRange): Promise<ExpenseEntry[]> {
-  const { data, error } = await supabase
-    .from("expenses")
-    .select(
-      "id, category, amount, date, note, is_recurring, recurring_task_id, created_at, staff_id, logged_by_profile:profiles!expenses_logged_by_fkey(full_name), staff:profiles!expenses_staff_id_fkey(full_name)"
-    )
-    .eq("org_id", orgId)
-    .gte("date", range.from)
-    .lte("date", range.to)
-    .order("date", { ascending: false })
+  const [{ data, error }, { data: systemCategories, error: systemCategoriesError }] = await Promise.all([
+    supabase
+      .from("expenses")
+      .select(
+        "id, category, amount, date, note, is_recurring, recurring_task_id, created_at, staff_id, category_id, logged_by_profile:profiles!expenses_logged_by_fkey(full_name), staff:profiles!expenses_staff_id_fkey(full_name), expense_category:expense_categories!expenses_category_id_fkey(name)"
+      )
+      .eq("org_id", orgId)
+      .gte("date", range.from)
+      .lte("date", range.to)
+      // Incentive audit, Finding H-03 follow-up (2026-10-29) — a voided expense
+      // (reopen_salary_posting's reversal of a "Log to Accounts" post) must drop
+      // out of the Accounts list, its "Under Category" totals, and every filter
+      // derived from this list client-side — same exclusion every report
+      // RPC that sums expenses.amount already applies.
+      .is("voided_at", null)
+      .order("date", { ascending: false }),
+    // Read-only fallback source (owner's condition: resolve "Uncategorised" on
+    // read, never write category_id for a row that doesn't already have it).
+    supabase.from("expense_categories").select("enum_value, name").eq("org_id", orgId).eq("is_system", true).not("enum_value", "is", null),
+  ])
   if (error) throw error
+  if (systemCategoriesError) throw systemCategoriesError
+
+  const systemCategoryNameByEnum: Record<string, string> = {}
+  for (const c of systemCategories ?? []) {
+    if (c.enum_value) systemCategoryNameByEnum[c.enum_value] = c.name
+  }
+
   return (data ?? []).map((e) => ({
     id: e.id,
     category: e.category,
@@ -967,6 +1034,8 @@ export async function getExpensesList(orgId: string, range: DateRange): Promise<
     staffId: e.staff_id,
     staffName: (e.staff as { full_name: string } | null)?.full_name ?? null,
     createdAt: e.created_at,
+    categoryId: e.category_id,
+    categoryName: resolveExpenseCategoryName(e.category, (e.expense_category as { name: string } | null)?.name ?? null, systemCategoryNameByEnum),
   }))
 }
 
@@ -1000,6 +1069,9 @@ export async function getSalarySpendByStaffLegacy(orgId: string, range: DateRang
     .not("staff_id", "is", null)
     .gte("date", range.from)
     .lte("date", range.to)
+    // Incentive audit, Finding H-03 follow-up (2026-10-29) — matches
+    // report_expenses_salary_by_staff()'s own `voided_at is null` filter.
+    .is("voided_at", null)
   if (error) throw error
   const byStaff = new Map<string, StaffSalaryTotal>()
   for (const row of data ?? []) {
@@ -1035,6 +1107,9 @@ export async function getExpensesYearOverYearLegacy(orgId: string, yearsBack = 3
     .select("category, amount, date")
     .eq("org_id", orgId)
     .gte("date", `${earliestYear}-01-01`)
+    // Incentive audit, Finding H-03 follow-up (2026-10-29) — matches
+    // report_expenses_year_over_year()'s own `voided_at is null` filter.
+    .is("voided_at", null)
   if (error) throw error
 
   const years = new Map<number, { full: number; ytd: number; byCategory: Map<Enums<"expense_category">, number> }>()

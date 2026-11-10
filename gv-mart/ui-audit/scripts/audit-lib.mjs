@@ -13,7 +13,20 @@ export const CREDS = {
   technician: "technician@gvmart.test",
   customer: "customer@gvmart.test",
 }
-export const PASSWORD = "GvMart@2026"
+
+// The password is a credential, not a fixture -- it must never sit in
+// source, even for a test-only local Supabase account. Every ui-audit
+// script imports PASSWORD from here, so gating it at this one import site
+// makes every one of them refuse to run (fail at import, before any browser
+// or network action) when UI_AUDIT_PASSWORD isn't set, with no fallback.
+export const PASSWORD = process.env.UI_AUDIT_PASSWORD
+if (!PASSWORD) {
+  throw new Error(
+    "UI_AUDIT_PASSWORD is not set. Export it before running any ui-audit script " +
+      "(e.g. `export UI_AUDIT_PASSWORD=$(grep '^MASTER_TEST_PASSWORD=' .env.test | cut -d= -f2-)`, " +
+      "since every demo role here shares one password)."
+  )
+}
 
 export const WIDTHS = {
   mobile: { width: 375, height: 812, name: "375" },

@@ -68,6 +68,10 @@
   cursor: pointer;
 }
 
+.gv-calendar .fc-event {
+  border-left: 5px solid transparent;
+}
+
 .gv-calendar .fc-event.gv-event-done {
   opacity: 0.5;
   text-decoration: line-through;
@@ -91,4 +95,10 @@
 .gv-calendar th,
 .gv-calendar td {
   border-color: var(--border) !important;
+}
+
+/* overdue (open, due before today): red with a left bar so it still reads on a printed or colour-blind view */
+.gv-calendar .gv-event-overdue {
+  border-left: 4px solid #7f1d1d;
+  font-weight: 700;
 }

@@ -4,11 +4,15 @@ import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, CalendarClock, ChevronRight, CheckCircle2, MapPin, Navigation, Phone, Route } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { AddressPinPreview } from "@/components/shared/AddressPinDialog"
 import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
-import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
+import { useCustomerHealthCondition, useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
+import { filterDueOrOverdueParts, useDueParts } from "@/hooks/useDueParts"
 import { useProfile } from "@/hooks/useProfile"
 import { computeJobOverrun } from "@/lib/job-overrun"
+import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
 import { cn } from "@/lib/utils"
 import { computeTicketAllowedDuration, findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
@@ -39,6 +43,13 @@ export function JobDetailPage() {
   const history = useCustomerHistory(jobDetail.data?.customer_id, jobDetail.data?.product_id, ticketId)
   const technician = useMyTechnician()
   const logCall = useLogCall()
+  // Product Lifecycle & Automated Service Reminder System — same hook/query
+  // key the home list's chip and SpareSelectStep's warning list use, so all
+  // three surfaces always agree on which parts are due for this customer.
+  const dueParts = useDueParts(jobDetail.data?.customer_id)
+  const duePartsToShow = filterDueOrOverdueParts(dueParts.data)
+  const showHealthCondition = technicianCanSeeHealthCondition(settings.data?.show_health_condition_to_technicians)
+  const healthCondition = useCustomerHealthCondition(jobDetail.data?.customers?.id, showHealthCondition)
 
   const openVisit = jobDetail.data ? findOpenVisit(jobDetail.data.service_visits) : null
   const now = useNowTick(!!openVisit)
@@ -58,7 +69,8 @@ export function JobDetailPage() {
   const allowedDuration = openVisit ? computeTicketAllowedDuration(ticket, openVisit, settings.data) : null
   const overrun = computeJobOverrun(
     { timerStart: openVisit?.timer_start, timerEnd: openVisit?.timer_end, estimatedDurationMinutes: allowedDuration },
-    now
+    now,
+    settings.data?.job_overrun_buffer_minutes
   )
   // Display-only version of the same figure, shown even before a visit
   // starts (GV.md 1.2: "on each job, the technician sees the estimated
@@ -160,6 +172,11 @@ export function JobDetailPage() {
               .join(", ") || "—"}
           </span>
         </p>
+        {ticket.addresses?.lat != null && ticket.addresses?.lng != null ? (
+          <div className="px-1">
+            <AddressPinPreview lat={ticket.addresses.lat} lng={ticket.addresses.lng} />
+          </div>
+        ) : null}
         <p className="flex items-center gap-1.5 px-1 text-sm text-text-muted">
           <CalendarClock className="size-3.5 shrink-0" />
           {appointment?.mode === "always"
@@ -180,6 +197,32 @@ export function JobDetailPage() {
         ) : null}
       </Card>
 
+      {duePartsToShow.length > 0 ? (
+        <Card className="gap-2">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-sm font-semibold text-text">{t("technicianLifecycle.jobDetail.title")}</p>
+            <Badge variant="warning">{t("technicianLifecycle.duePartsChip", { count: duePartsToShow.length })}</Badge>
+          </div>
+          <ul className="space-y-1 px-1 text-sm text-text-muted">
+            {duePartsToShow.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-2">
+                <span className="truncate text-text">{p.label}</span>
+                <span className={cn("shrink-0 text-xs", p.status === "overdue" ? "text-danger" : "text-text-muted")}>
+                  {t(
+                    p.status === "overdue"
+                      ? "technicianLifecycle.warningList.overdue"
+                      : p.status === "due"
+                        ? "technicianLifecycle.warningList.due"
+                        : "technicianLifecycle.warningList.dueSoon",
+                    { date: formatDate(p.nextDueDate) }
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       <Card className="gap-2">
         <p className="px-1 text-sm font-semibold text-text">{t("technician.jobDetail.productTitle")}</p>
         <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
@@ -189,6 +232,34 @@ export function JobDetailPage() {
           <span className="text-text">{ticket.brands?.name ?? "—"}</span>
           <span className="text-text-muted">{t("technician.jobDetail.model")}</span>
           <span className="text-text">{ticket.models?.name ?? "—"}</span>
+        </div>
+      </Card>
+
+      <Card className="gap-2">
+        <p className="px-1 text-sm font-semibold text-text">{t("technician.jobDetail.waterHouseholdTitle")}</p>
+        <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
+          <span className="text-text-muted">{t("technician.jobDetail.waterSource")}</span>
+          <span className="text-text">
+            {ticket.customers?.water_source
+              ? ticket.customers.water_source === "other" && ticket.customers.water_source_other
+                ? ticket.customers.water_source_other
+                : t(`customers.detail.waterSourceOptions.${ticket.customers.water_source}`)
+              : "—"}
+          </span>
+          <span className="text-text-muted">{t("technician.jobDetail.waterTds")}</span>
+          <span className="text-text">{ticket.customers?.water_tds_ppm ?? "—"}</span>
+          <span className="text-text-muted">{t("technician.jobDetail.waterPh")}</span>
+          <span className="text-text">{ticket.customers?.water_ph ?? "—"}</span>
+          <span className="text-text-muted">{t("technician.jobDetail.familyMembersCount")}</span>
+          <span className="text-text">{members.length}</span>
+          {showHealthCondition ? (
+            <>
+              <span className="text-text-muted">{t("technician.jobDetail.healthCondition")}</span>
+              <span className="text-text">
+                {healthCondition.data ? t(`customers.detail.healthConditionLevels.${healthCondition.data}`) : "—"}
+              </span>
+            </>
+          ) : null}
         </div>
       </Card>
 

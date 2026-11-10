@@ -67,6 +67,16 @@ export function useUpdateLeadStatus() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
   })
 }
+export function useUpdateLeadDetails() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: automation.updateLeadDetails,
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      qc.invalidateQueries({ queryKey: ["leads", "detail", variables.leadId] })
+    },
+  })
+}
 export function useDeleteLead() {
   const qc = useQueryClient()
   return useMutation({

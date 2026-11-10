@@ -74,9 +74,9 @@
       "help": "Service tickets that are open, assigned or in progress right now."
     },
     "resolved": {
-      "title": "Fixed within 24 hours",
-      "sub": "{{resolved}} of {{completed}} completed",
-      "help": "Of the tickets raised in this period and now completed, the share completed within 24 hours."
+      "title": "Fixed within SLA",
+      "sub": "{{resolved}} of {{completed}} completed within {{hours}}h",
+      "help": "Of the tickets raised in this period and now completed, the share completed within the resolution SLA (the hour window set in Settings — see the figure in the line below)."
     },
     "rating": {
       "title": "Customer rating",
@@ -114,6 +114,7 @@
     "retry": "Retry",
     "search": "Search",
     "save": "Save",
+    "edit": "Edit",
     "cancel": "Cancel",
     "remove": "Remove",
     "back": "Back",
@@ -139,6 +140,7 @@
     "ongoing": "ongoing",
     "tapToExpand": "Tap to expand",
     "referredByTechnician": "Referred by technician (optional)",
+    "referralNotRecorded": "Referral not recorded — see note",
     "errors": {
       "fieldRequired": "{{field}} is required",
       "fieldMustBeNumber": "{{field}} must be a number",
@@ -165,11 +167,13 @@
     "amcWarranty": "AMC & Warranty",
     "rentals": "Rentals",
     "technicians": "Technicians",
+    "leaveRequests": "Leave requests",
     "inventory": "Inventory",
     "suppliers": "Suppliers",
     "automation": "Automation",
     "hr": "HR & Payroll",
     "accounts": "Accounts",
+    "customerOutstanding": "Customer Outstanding",
     "reports": "Reports",
     "masters": "Masters / Settings",
     "workspace": "My Workspace",
@@ -183,9 +187,30 @@
     "returns": "Returns",
     "auditLog": "Audit Log",
     "myDay": "Daily Follow Up",
-    "expenses": "Expenses"
+    "expenses": "Fuel & Bike Allowances"
+  },
+  "navGroups": {
+    "salesPipeline": "Sales Pipeline",
+    "myWork": "My Work",
+    "serviceOps": "Service Operations",
+    "supplyChain": "Supply Chain",
+    "money": "Money",
+    "marketing": "Marketing & Messaging",
+    "admin": "Admin / Oversight",
+    "more": "More"
   },
   "auth": {
+    "forcedPassword": {
+      "title": "Choose your own password",
+      "hint": "Your account was set up with a password that was shared with you. Choose a new one that only you know before you continue.",
+      "newPassword": "New password",
+      "confirm": "Confirm new password",
+      "tooShort": "Use at least {{count}} characters.",
+      "mismatch": "The two passwords do not match.",
+      "submit": "Save and continue",
+      "failed": "The password could not be changed. Try again.",
+      "signOut": "Sign out"
+    },
     "heroTitle": "Sign in to your workspace",
     "heroSubtitle": "Each role has its own secure login. You'll only see the dashboard and tools your role allows — nothing more.",
     "secureAccessBadge": "Role-based secure access",
@@ -207,14 +232,34 @@
     "orDivider": "or",
     "signInWithGoogle": "Sign in with Google",
     "linkAccountTitle": "One more step",
-    "linkAccountSubtitle": "Enter the mobile number registered with GV Mart to link it to your Google account.",
+    "linkAccountSubtitle": "Enter your mobile number to link it to your Google account. We will text a verification code on WhatsApp.",
     "mobileLabel": "Mobile number",
     "mobilePlaceholder": "10-digit mobile number",
     "linkAccountButton": "Link account",
     "linkingAccount": "Linking…",
+    "useDifferentAccount": "Sign out and use a different account",
+    "linkAccountSendCode": "Send code",
+    "linkAccountSendingCode": "Sending…",
+    "linkAccountCodeSentNotice": "If that number is registered, a verification code was sent on WhatsApp. Enter it below.",
+    "linkAccountCodeLabel": "Verification code",
+    "linkAccountCodePlaceholder": "6-digit code",
+    "linkAccountVerifyButton": "Verify and link",
+    "linkAccountVerifyingCode": "Verifying…",
+    "linkAccountChangeNumber": "Use a different number",
+    "linkAccountResendCode": "Resend code",
+    "linkAccountResendCooldown": "You can resend in {{seconds}}s",
+    "linkAccountInvalidOrExpired": "That code did not work. Attempts left: {{attemptsLeft}}.",
+    "linkAccountLockedOrExpired": "That code did not work. Request a new one.",
+    "linkAccountCodeInvalidFormat": "Enter the 6-digit code.",
+    "linkAccountRequestFailed": "Something went wrong sending the code. Please try again.",
+    "linkAccountVerifyFailed": "Something went wrong checking the code. Please try again.",
+    "linkAccountUnavailableTitle": "Account linking is not available yet",
+    "linkAccountUnavailableBody": "Account linking is not available yet. Please contact the shop and they will help you.",
     "linkAccountNotFound": "We couldn't find a customer account with this mobile number. Please contact us to get set up.",
     "linkAccountAlreadyLinked": "This mobile number is already linked to another account.",
     "linkAccountGenericError": "Couldn't link your account. Please try again.",
+    "linkAccountUnavailable": "Account linking is not available yet. Please contact the shop and they will help you.",
+    "staffAccountNotice": "This Google account belongs to a staff login. Please sign in with your email and password instead.",
     "useDifferentAccount": "Sign out and use a different account"
   },
   "shell": {
@@ -328,6 +373,8 @@
   },
   "customers": {
     "testBadge": "Test",
+    "appBadge": "App",
+    "needsReviewBadge": "Needs review",
     "delete": {
       "title": "Delete customer",
       "warning": "This permanently deletes {{name}}. This cannot be undone.",
@@ -358,6 +405,8 @@
     "table": {
       "customer": "Customer",
       "area": "Area",
+      "email": "Email",
+      "referredBy": "Referred by",
       "products": "Products",
       "amc": "AMC",
       "noAmc": "No AMC",
@@ -367,6 +416,7 @@
     "export": {
       "name": "Name",
       "mobile": "Mobile",
+      "email": "Email",
       "profession": "Profession",
       "area": "Area",
       "pincode": "Pincode",
@@ -376,6 +426,8 @@
       "quickAll": "All",
       "amcDueSoon": "AMC due soon",
       "dormant": "Dormant",
+      "app": "App",
+      "needsReview": "Needs review",
       "moreFilters": "Filters",
       "allTypes": "All types",
       "residential": "Residential",
@@ -440,7 +492,9 @@
         "range": "Observed range: {{low}}–{{high}} ppm",
         "source": "{{source}}, {{year}} · {{count}} samples"
       },
-      "referredBy": "Referred by {{name}}",
+      "referredBy": "Referred by {{name}} ({{source}})",
+      "referrerSourceDirect": "direct",
+      "referrerSourceLegacy": "from earlier lead",
       "needsSetup": "Needs setup",
       "needsSetupHint": "Auto-created from a won lead — address/family details are incomplete.",
       "familyChip": "{{count}} family: {{names}}",
@@ -470,11 +524,83 @@
         "products": "Products",
         "service": "Service History",
         "invoices": "Invoices",
+        "water": "Water & Household",
         "family": "Family",
         "exemptions": "Exemptions",
         "rentals": "Rentals",
-        "whatsapp": "WhatsApp"
+        "whatsapp": "WhatsApp",
+        "googleLink": "Google Account"
       },
+      "googleLink": {
+        "title": "Link Google account",
+        "hint": "Stopgap while OTP-verified linking is built. Ask the customer which Google email they signed in with, then link it here. Nothing is sent to the customer.",
+        "emailLabel": "Google email",
+        "emailPlaceholder": "customer@gmail.com",
+        "linkAction": "Link",
+        "confirmLink": "Link this customer to {{email}}? Double-check this is the right customer and the right email before continuing — this grants that Google account full access to this customer's record.",
+        "alreadyLinked": "This customer's login is linked.",
+        "unlinkReasonLabel": "Reason for unlinking",
+        "unlinkReasonPlaceholder": "e.g. linked the wrong customer by mistake",
+        "unlinkAction": "Unlink",
+        "confirmUnlink": "Unlink this customer's Google sign-in? They won't be able to sign in with it again until it's relinked.",
+        "linkSuccess": "Linked. The customer can now sign in with that Google account.",
+        "unlinkSuccess": "Unlinked.",
+        "errors": {
+          "customer_not_found": "Customer not found.",
+          "test_customer": "This is a test customer — linking is not available for test customers.",
+          "already_linked": "This customer is already linked to a Google sign-in.",
+          "invalid_email": "Enter a valid email address.",
+          "no_matching_signin": "No Google sign-in with that email was found. Ask the customer to try signing in first, then link again.",
+          "ambiguous_signin": "More than one Google sign-in matches that email — contact support before linking.",
+          "signin_already_linked": "That Google sign-in is already linked to another login.",
+          "not_linked": "This customer isn't linked to a Google sign-in.",
+          "reason_required": "Enter a reason for unlinking.",
+          "unlink_blocked_has_records": "Can't unlink — this login has other records attached. Contact support."
+        }
+      },
+      "mergeAuto": {
+        "title": "Link to an existing customer",
+        "hint": "This login was created automatically from a Google sign-in. If this is actually a returning customer you already have on file, link it to their real record here instead of leaving it as a separate, empty one.",
+        "targetLabel": "Existing customer",
+        "reasonLabel": "Reason",
+        "reasonPlaceholder": "e.g. this is the same person as an existing customer",
+        "action": "Link to this customer",
+        "confirm": "Move this sign-in from \"{{from}}\" onto \"{{to}}\"? The empty auto-created record will be archived. This cannot be undone from here.",
+        "success": "Linked. The empty auto-created record has been archived.",
+        "errors": {
+          "reason_required": "Enter a reason.",
+          "same_customer": "Pick a different customer to link to.",
+          "from_customer_not_found": "Customer not found.",
+          "to_customer_not_found": "Customer not found.",
+          "from_customer_not_auto_created": "This customer wasn't auto-created — use Unlink/Link instead.",
+          "from_customer_already_archived": "This customer has already been archived.",
+          "from_customer_not_linked": "This customer isn't linked to a sign-in.",
+          "to_customer_is_test": "Can't link to a test customer.",
+          "to_customer_archived": "That customer has been archived.",
+          "to_customer_already_linked": "That customer is already linked to a sign-in.",
+          "from_customer_has_records": "Can't link — this auto-created customer already has invoices, tickets, AMC, rental, warranty or quotation records."
+        }
+      },
+      "waterHouseholdTitle": "Water & household",
+      "waterSource": "Water source",
+      "waterSourceOtherPlaceholder": "Describe the source",
+      "waterSourceOptions": {
+        "corporation": "Corporation",
+        "borewater": "Borewell",
+        "other": "Other"
+      },
+      "waterTds": "Water TDS (ppm)",
+      "waterPh": "Water pH",
+      "healthCondition": "Health condition",
+      "healthConditionPlaceholder": "Not asked yet",
+      "healthConditionLevels": {
+        "none": "No",
+        "normal": "Normal",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "familyMembersCount": "Family members",
+      "latestReadingTitle": "Latest on-site reading ({{date}})",
       "rentals": {
         "startDate": "Started {{date}}",
         "nextBilling": "Next billing {{date}}",
@@ -546,6 +672,9 @@
       "memberRelationPlaceholder": "Relation to primary contact",
       "memberProfession": "Profession (e.g. Teacher, Shop Owner)",
       "memberEmail": "Email (optional)",
+      "email": "Customer email (optional)",
+      "emailPlaceholder": "customer@gmail.com",
+      "referredBy": "Referred by (optional)",
       "preferredLanguage": "Message language (optional)",
       "preferredLanguageHint": "WhatsApp messages are sent in this language. Leave empty for English.",
       "languageEnglish": "English",
@@ -561,17 +690,18 @@
       },
       "maxMembersReached": "Maximum of 5 family members reached",
       "duplicateWarning": "This number is already linked to {{name}}",
-      "fullAddress": "Full address",
+      "fullAddress": "Previously saved address",
       "fullAddressPlaceholder": "Door/flat no., building, street, landmark...",
-      "doorNo": "Door No.",
+      "doorNo": "Door no",
       "flatNo": "Flat / Building No.",
       "buildingNo": "Building No.",
       "buildingName": "Building Name",
-      "plotNo": "Plot No.",
-      "streetCross": "Street / Cross",
+      "plotNo": "Plot no",
+      "streetCross": "Street/Cross",
+      "subArea": "Sub Area",
       "area": "Main Area",
-      "pincode": "PIN code",
-      "landmark": "Sub Area",
+      "pincode": "PIN Code",
+      "landmark": "Landmark",
       "district": "District",
       "state": "State",
       "zone": "Zone",
@@ -586,7 +716,10 @@
       "map": {
         "title": "Pin location on map",
         "autoLocating": "Locating from the address above…",
+        "pinned": "Location pinned",
+        "notPinned": "Exact location not pinned",
         "pinRequired": "This address has no confirmed pin yet — search or drag the pin below so the technician navigates to the right place.",
+        "pinOptionalMasterNote": "No exact pin yet — you can save without one, but technicians won't get a map location for this address until it's pinned.",
         "searchPlaceholder": "Search for the address…",
         "searchError": "Couldn't search right now. Check your connection and try again.",
         "selectError": "Couldn't get details for that place. Try another result.",
@@ -599,7 +732,12 @@
         "confirmLocationDisabledHint": "Drag the pin to the exact spot first",
         "suggestedPlaceLabel": "Google matched this to: {{place}}",
         "confirmedPin": "Location confirmed · {{lat}}, {{lng}}",
-        "confirmLocation": "Confirm location"
+        "confirmLocation": "Confirm location",
+        "accuracyLabel": "Accuracy: ~{{accuracy}} m",
+        "accuracyWarning": "Location may be approximate (~{{accuracy}} m) — please adjust the pin and check the address",
+        "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or type the address yourself.",
+        "useMyCurrentLocation": "Use my current location",
+        "locating": "Finding your location…"
       },
       "water": {
         "title": "Water & household",
@@ -614,6 +752,15 @@
         "familyMembers": "Family members"
       }
     },
+    "duplicateContactWarning": {
+      "title_one": "Possible duplicate — 1 existing record found for this number/email",
+      "title_other": "Possible duplicate — {{count}} existing records found for this number/email",
+      "sourceCustomer": "Customer",
+      "sourceLead": "Lead",
+      "activity": "{{tickets}} ticket(s), {{invoices}} invoice(s)",
+      "openExisting": "Open existing",
+      "createAnyway": "I've checked — create a new record anyway"
+    },
     "errors": {
       "nameRequired": "Enter a name (at least 2 characters)",
       "mobileInvalid": "Enter a valid 10-digit mobile number",
@@ -622,7 +769,10 @@
       "memberMax": "A customer can have at most 5 members",
       "doorNoRequired": "Door/Flat number is required",
       "areaRequired": "Area is required",
-      "pincodeInvalid": "Enter a valid 6-digit PIN code"
+      "pincodeInvalid": "Enter a valid 6-digit PIN code",
+      "waterPhInvalid": "pH must be between 0 and 14",
+      "waterTdsInvalid": "TDS cannot be negative",
+      "waterSourceOtherRequiresOther": "Only set this when the source is \"Other\""
     }
   },
   "masters": {
@@ -671,7 +821,8 @@
       "settingsDesc": "Discount, travel, hours & SLA",
       "paymentSettingsDesc": "UPI merchant details for customer QR payments",
       "installationRatesDesc": "{{count}} per-unit rates",
-      "leadOutcomesDesc": "{{count}} outcomes + working schedule"
+      "leadOutcomesDesc": "{{count}} outcomes + working schedule",
+      "referralBonusRateDesc": "Per-referral bonus amount"
     },
     "tabs": {
       "brands": "Brands",
@@ -696,7 +847,8 @@
       "settings": "Settings",
       "paymentSettings": "Payment Settings",
       "installationRates": "Installation Rates",
-      "leadOutcomes": "Lead Outcomes"
+      "leadOutcomes": "Lead Outcomes",
+      "referralBonusRate": "Referral Bonus Rate"
     },
     "categories": {
       "ro": "RO / Water Purifier",
@@ -727,6 +879,7 @@
       "price": "Price",
       "costPrice": "Cost price",
       "hsn": "HSN code",
+      "itemCode": "Item code",
       "warrantyMonths": "Warranty (months)",
       "standardTime": "Standard time (min)",
       "installationCharge": "Installation charge (technician incentive per unit)",
@@ -868,6 +1021,18 @@
       "duplicate": "An outcome with this name already exists.",
       "cannotDelete": "This outcome can't be deleted — it's built-in or already used in a logged call. Mark it Inactive instead."
     },
+    "accountsOutstanding": {
+      "title": "Customer outstanding follow-ups",
+      "hint": "Who gets assigned a follow-up task, and the minimum unpaid balance and age before one is created.",
+      "minBalance": "Minimum balance (₹)",
+      "minBalanceHint": "A customer's total unpaid balance must reach this before a follow-up task is created.",
+      "minDays": "Minimum age (days)",
+      "minDaysHint": "The oldest unpaid invoice must be at least this many days old.",
+      "owner": "Default owner",
+      "ownerDefault": "The master (default)",
+      "ownerHint": "Who new follow-up tasks are assigned to. Already-assigned tasks can still be reassigned from the task list.",
+      "saved": "Customer outstanding settings saved"
+    },
     "waterQuality": {
       "districtsTitle": "District TDS reference",
       "aliasesTitle": "District name matching",
@@ -967,6 +1132,7 @@
       "empty": "No roles yet — add one."
     },
     "incentives": {
+      "finderCreditNote": "Do not create a finder_credit rule; referral rewards are paid through the Referral Bonus rate (below, not here).",
       "type": "Type",
       "types": {
         "service_income": "Extra service income",
@@ -983,11 +1149,34 @@
       "active": "Active",
       "inactive": "Inactive"
     },
+    "referralBonusRate": {
+      "title": "Referral bonus rate",
+      "note": "Amount paid per qualifying referral. A deliberately separate screen from Incentive Rules above — see the referral incentives build notes. Changing the rate never edits the old one in place: it closes the current rate and starts a new one, so past months keep the amount that was in force when they qualified.",
+      "noRate": "No referral bonus rate set yet.",
+      "allSources": "All sources",
+      "sources": {
+        "sale": "Sale",
+        "amc": "AMC",
+        "service": "Service"
+      },
+      "effectiveFrom": "Effective from {{date}}",
+      "history": "History",
+      "changeRate": "Change rate",
+      "dialogTitle": "Change referral bonus rate",
+      "dialogHint": "This applies to all qualifying referrals from {{date}} — it never edits the old rate in place, so past months are unaffected.",
+      "amount": "Amount",
+      "source": "Source (optional)",
+      "confirm": "Confirm change",
+      "saved": "Referral bonus rate updated.",
+      "amountInvalid": "Enter an amount greater than 0."
+    },
     "complaintTypes": {
       "hint": "These are the default complaint types for every product in a category. A product only gets its own list when someone adds product-specific complaints for it from Inventory or Masters > Products — otherwise it uses these defaults.",
       "category": "Category (applies to all its products)",
       "label": "Complaint type",
       "labelPlaceholder": "e.g. Not Cooling, No Water",
+      "standardMinutes": "Standard time (min)",
+      "standardMinutesHint": "Expected minutes for this complaint type",
       "add": "Add complaint type",
       "empty": "No category defaults yet — add your first one."
     },
@@ -1305,6 +1494,8 @@
     "attendanceStatusHint": "A technician's check-in is automatically classified Early / On Time / Late / Very Late against these times — no code change needed when you update them here.",
     "lunchAllowed": "Lunch allowed (minutes)",
     "lunchRed": "Lunch shows red after (minutes)",
+    "leaveNoticeDays": "Leave notice (days)",
+    "leaveNoticeDaysHint": "A technician's leave request only stays out of the KPI if it was submitted at least this many days before the leave starts.",
     "discountTechMax": "Technician discount cap (%)",
     "discountAdminMax": "Admin discount cap (%)",
     "gstRate": "GST rate (%)",
@@ -1345,6 +1536,9 @@
     "reviewTimeAllowance": "Review time allowance (minutes)",
     "enquiryTimeAllowance": "Enquiry time allowance (minutes)",
     "allowanceHint": "Added to a job's allowed time only when this visit actually collected a Google review click or logged a new enquiry.",
+    "jobOverrunBuffer": "Overrun alert buffer (minutes)",
+    "opsResolutionSla": "Resolution SLA (hours)",
+    "overrunSlaHint": "The overrun buffer delays the on-site overrun alert past a job's allowed time. The resolution SLA is the window a completed ticket must land inside to count as \"resolved on time\" in reports.",
     "narrowWindowThreshold": "Narrow-window threshold (minutes)",
     "narrowWindowThresholdHint": "If a customer's unavailable-window marks leave only this many minutes (or less) free in the day, it's treated as a specific-time booking instead of a flexible day booking.",
     "appointmentSlots": {
@@ -1568,7 +1762,9 @@
       "paymentInvalid": "Check the payment details and try again",
       "amountPaidInvalid": "Enter a valid amount collected",
       "amountPaidExceedsTotal": "Amount collected cannot exceed the payable total",
-      "recordPaymentInvalid": "Enter an amount greater than 0 and no more than the balance due"
+      "recordPaymentInvalid": "Enter an amount greater than 0 and no more than the balance due",
+      "noStockRecord": "No stock record for \"{{name}}\" — add stock before selling",
+      "insufficientStock": "Only {{available}} of \"{{name}}\" in stock — reduce the quantity"
     },
     "summary": {
       "title": "Summary",
@@ -1778,7 +1974,8 @@
       "amc": "AMC",
       "warranty": "Warranty",
       "unassigned": "Unassigned",
-      "missingProduct": "Missing product"
+      "missingProduct": "Missing product",
+      "repeat": "Repeat complaint"
     },
     "table": {
       "ticket": "Ticket",
@@ -1904,7 +2101,10 @@
       "natureOfComplaintHint": "Additional details to help the technician.",
       "priority": "Priority",
       "scheduledAt": "Scheduled date & time",
+      "preferredTechnician": "Will try to assign to {{name}} at the picked slot.",
       "autoAssign": "Auto-assign to available technician",
+      "assignTechnician": "Assign to technician (optional)",
+      "createdUnassigned": "Ticket created, but NOT assigned —",
       "create": "Create complaint",
       "typeNotSelectable": "Type is auto-detected and non-selectable.",
       "amcCoverage": "AMC coverage: {{start}} to {{expiry}}",
@@ -2080,8 +2280,25 @@
     "assign": {
       "noneAvailable": "No technicians available for auto-assign.",
       "technicianBusy": "Technician is busy at scheduled time.",
+      "technicianBusyDetail": "Technician is busy with \"{{job}}\" from {{from}} to {{to}}.",
+      "customerBusy": "This customer already has another open appointment.",
+      "customerBusyDetail": "This customer already has another open appointment — \"{{job}}\" scheduled {{from}} to {{to}}.",
       "exemptionWindowConflict": "This customer has an exemption window covering this time — no technician can be assigned then.",
       "productRequired": "This ticket needs a product before it can be assigned."
+    },
+    "availability": {
+      "title": "Technician availability",
+      "mode": {
+        "date": "By date",
+        "technician": "By technician"
+      },
+      "pickDateFirst": "Pick a date to see technician availability.",
+      "notAvailableYet": "The availability assistant isn't available yet.",
+      "onLeave": "On leave this day",
+      "noFreeWindow": "No free slot left this day.",
+      "narrowSlotHint": "This slot is shorter than the estimated {{minutes}} min job.",
+      "noTechnicians": "No technicians found.",
+      "busyOverrideWarning": "This technician shows busy at this time. You can still assign them, but it will double-book unless you confirm the override."
     },
     "missingProductAlert": {
       "title": "Tickets missing a product",
@@ -2210,6 +2427,12 @@
     }
   },
   "customerApp": {
+    "linkPhoneCard": {
+      "title": "Add your mobile number",
+      "subtitle": "Link your phone to get WhatsApp updates on your services and AMC.",
+      "success": "Your number is now linked.",
+      "dismiss": "Not now"
+    },
     "home": {
       "deliverTo": "Your Address",
       "noAddressYet": "No address on file yet",
@@ -2328,9 +2551,21 @@
       "addressesTitle": "Addresses",
       "addAddress": "Add address",
       "noAddresses": "No addresses yet. Add one so we know where to send the technician.",
+      "waterHouseholdTitle": "Water & household",
       "primary": "Primary",
       "setPrimary": "Set primary",
       "confirm": "Confirm",
+      "pinAddress": "Pin my address",
+      "pinDialogTitle": "Pin my address",
+      "pinDialogHint": "Set the exact location of this address so technicians and our team can navigate straight to it.",
+      "pinLocateDenied": "Location permission denied. You can still search for the address or drag the pin on the map.",
+      "pinLocateUnavailable": "Couldn't get your location right now. You can still search for the address or drag the pin on the map.",
+      "pinLocateTimeout": "Getting your location took too long. You can still search for the address or drag the pin on the map.",
+      "pinLocationFilledNotice": "Some address details were filled in from your location — please review them before saving.",
+      "pinLocationLookupFailed": "Couldn't look up the address for this location. You can fill in the details yourself.",
+      "pinLocationLookingUp": "Looking up the address for this location…",
+      "pinRemove": "Remove pin",
+      "openInMaps": "Open in Google Maps",
       "address": {
         "fullAddress": "Full address",
         "fullAddressPlaceholder": "Door/flat no., building, street, landmark...",
@@ -2353,7 +2588,15 @@
         "rental": "Rental",
         "mapLabel": "Pin your exact location",
         "mapHint": "Search for your address or use your current location, then drag the pin if it's not quite right — this is what the technician sees on their map.",
-        "mapRequired": "Please confirm your location on the map before saving."
+        "mapRequired": "Please confirm your location on the map before saving.",
+        "locationPrivacyNotice": "Your location is used only to fill in this address and is saved only if you save it.",
+        "locateDenied": "Location permission denied. You can still type the address or search for it above.",
+        "locateUnavailable": "Couldn't get your location right now. You can still type the address or search for it above.",
+        "locateTimeout": "Getting your location took too long. You can still type the address or search for it above.",
+        "locationLookingUp": "Looking up the address for this location…",
+        "locationFilledNotice": "Some fields were filled in from your location — please review them before saving.",
+        "locationLookupFailed": "Couldn't look up the address for this location. Please fill in the details yourself.",
+        "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or fill in the address yourself."
       },
       "membersTitle": "Family members ({{count}}/{{max}})",
       "maxMembersReached": "Maximum of 5 family members reached",
@@ -2453,6 +2696,9 @@
     "technicianAssignedAlert": {
       "message": "Technician assigned — tap to track"
     },
+    "needsReviewAlert": {
+      "message": "We're reviewing your account and will contact you shortly."
+    },
     "bookingDetail": {
       "loadError": "Couldn't load this booking. Please retry.",
       "back": "Back to bookings",
@@ -2515,6 +2761,7 @@
       "bookNow": "Book AMC",
       "paymentSimulatedNote": "This is a simulated payment confirmation for this environment — no real charge will occur.",
       "payAmount": "Pay {{amount}}",
+      "referralNotMatched": "We couldn't find a technician with that name, so no referral credit was applied this time. Your renewal was completed successfully.",
       "status": {
         "active": "Active",
         "due_soon": "Due soon",
@@ -2739,7 +2986,7 @@
   "technician": {
     "deactivated": {
       "title": "Account deactivated",
-      "body": "Your admin has deactivated your account. You won't see active bookings or receive new assignments. Contact your admin if you think this is a mistake.",
+      "body": "Your account has been deactivated. You won't see active bookings or receive new assignments. Please contact the office — call or visit in person to sort this out.",
       "signOut": "Sign out"
     },
     "locationPrompt": {
@@ -2769,9 +3016,10 @@
       "recheckLocation": "Recheck location",
       "locationError": "Unable to get your location. Please enable location services and try again.",
       "locationUnknown": "Location unknown",
-      "locationPermissionDenied": "Location access denied. Enable location permission for this site in your browser settings, then recheck.",
-      "locationUnavailable": "Couldn't determine your location. Move to an area with a clearer GPS/network signal and try again.",
-      "locationTimeout": "Location request timed out. Please try again.",
+      "locationPermissionDenied": "Location access denied. Tap the lock icon next to the address, then Permissions, then Location, then Allow, and reload. Chrome also needs Location allowed in your phone's Settings → Apps → Chrome → Permissions → Location.",
+      "locationUnavailable": "Turn on Location in your phone's quick settings, or move to an area with a clearer GPS/network signal.",
+      "locationTimeout": "Couldn't get your location, try again.",
+      "lowAccuracyWarning": "GPS accuracy is low (~{{accuracy}} m). Move to an open area and retry.",
       "locationInsecureContext": "Location requires a secure connection. Open the technician app using its HTTPS address, then allow location access.",
       "locationUnsupported": "This browser doesn't provide location services. Open the app in Chrome or Safari, or use the GV Mart app.",
       "locationBraveBlocked": "Brave is blocking location for this site. Tap the Brave Shields icon in the address bar, turn Shields off or allow Location for this site, then recheck.",
@@ -2932,12 +3180,36 @@
       "confirmedTitle": "Handover confirmed",
       "techSignTitle": "Your signature",
       "confirmButton": "Confirm received",
-      "history": "Past handovers"
+      "history": "Past handovers",
+      "myStock": "My spares",
+      "reportProblem": "Report a quantity problem",
+      "reportProblemTitle": "Report a quantity problem — {{name}}",
+      "givenQtyLabel": "Handed over: {{qty}}",
+      "receivedQtyLabel": "Quantity you actually received",
+      "noteLabel": "Note (optional)",
+      "reportSubmit": "Flag for staff",
+      "reportCancel": "Cancel",
+      "reportSuccess": "Staff has been notified of the mismatch.",
+      "reportFailed": "Could not report the problem. Try again.",
+      "receivedQtyRequired": "Enter the quantity you actually received.",
+      "receivedQtyMatches": "That matches the quantity given — nothing to report.",
+      "disputedBadge": "Flagged",
+      "disputedNote": "You reported receiving {{received}} (handed over: {{given}})."
+    },
+    "myStock": {
+      "title": "My Spares",
+      "subtitle": "Spares currently in your van, from every confirmed hand-over",
+      "qty": "Qty: {{qty}}",
+      "empty": "You have no spares in hand right now.",
+      "loadFailed": "Could not load your spares."
     },
     "expenses": {
       "title": "Expenses",
       "history": "History",
-      "claimTypeValues": { "petrol": "Petrol bill", "maintenance": "Maintenance bill" },
+      "claimTypeValues": {
+        "petrol": "Petrol bill",
+        "maintenance": "Maintenance bill"
+      },
       "amount": "Amount spent",
       "enterAmountFirst": "Enter the amount before attaching the bill photo.",
       "uploadFromGallery": "Upload photo",
@@ -2964,6 +3236,7 @@
       "unknownCustomer": "Customer",
       "inProgress": "In progress",
       "spareReceipt": "Spare receipt",
+      "pendingReviews": "Pending Reviews",
       "searchCustomers": "Search customers",
       "todaysJobs": "Today's jobs",
       "jobCount_one": "{{count}} job",
@@ -2985,9 +3258,9 @@
     "map": {
       "title": "Map",
       "locationError": "Unable to get your location. Please enable location services.",
-      "locationPermissionDenied": "Location access denied. Enable location permission for this site in your browser settings.",
-      "locationUnavailable": "Couldn't determine your location. Move to an area with a clearer GPS/network signal.",
-      "locationTimeout": "Location request timed out. Retrying…",
+      "locationPermissionDenied": "Location access denied. Tap the lock icon next to the address, then Permissions, then Location, then Allow, and reload. Chrome also needs Location allowed in your phone's Settings → Apps → Chrome → Permissions → Location.",
+      "locationUnavailable": "Turn on Location in your phone's quick settings, or move to an area with a clearer GPS/network signal.",
+      "locationTimeout": "Couldn't get your location, try again.",
       "locationInsecureContext": "Location requires a secure connection. Open the technician app using its HTTPS address, then allow location access.",
       "locationUnsupported": "This browser doesn't provide location services. Open the app in Chrome or Safari, or use the GV Mart app.",
       "locationBraveBlocked": "Brave is blocking location for this site. Tap the Brave Shields icon in the address bar, turn Shields off or allow Location for this site, then try again.",
@@ -3000,6 +3273,8 @@
       "lowAccuracyWarning": "Location accuracy is low (~{{accuracy}} m) — distance and ETA may be off. This is common on desktop/laptop browsers, which use Wi-Fi/IP-based location instead of real GPS. Try a mobile device outdoors for an accurate fix.",
       "noDestinationTitle": "No destination selected",
       "noDestinationBody": "Open this from a job card to navigate to a customer.",
+      "noPinTitle": "Exact location not pinned",
+      "noPinBody": "This customer's address has no confirmed map pin yet — ask the office to add one.",
       "jobClosedTitle": "This job is already completed",
       "jobClosedBody": "It's already been finished and rated — no need to navigate or start it again.",
       "distance": "Distance",
@@ -3026,7 +3301,8 @@
       "hint": "Search by area, door number or PIN code.",
       "empty": "No matches found.",
       "call": "Call",
-      "navigate": "Navigate"
+      "navigate": "Navigate",
+      "notPinned": "Exact location not pinned"
     },
     "jobDetail": {
       "title": "Job Detail",
@@ -3038,6 +3314,12 @@
       "product": "Product",
       "brand": "Brand",
       "model": "Model",
+      "waterHouseholdTitle": "Water & household",
+      "waterSource": "Water source",
+      "waterTds": "Water TDS (ppm)",
+      "waterPh": "Water pH",
+      "healthCondition": "Health condition",
+      "familyMembersCount": "Family members",
       "complaintTitle": "Complaint",
       "raised": "Raised {{date}}",
       "costingRuleTitle": "Costing rule",
@@ -3322,6 +3604,16 @@
         "submitted": "Review logged — pending sync."
       }
     },
+    "pendingReviews": {
+      "title": "Pending Reviews",
+      "viewLink": "Pending Reviews",
+      "subtitle": "Customers from your own completed visits who haven't left a review yet.",
+      "emptyTitle": "All caught up",
+      "emptyBody": "Every customer from your completed visits has left a review.",
+      "customerFallback": "Customer",
+      "completedOn": "Completed {{date}}",
+      "noComplaint": "—"
+    },
     "profile": {
       "title": "Profile",
       "earningsTitle": "Earnings",
@@ -3337,7 +3629,38 @@
       "referralsTitle": "My Referrals",
       "referralsCount_one": "{{count}} customer referred",
       "referralsCount_other": "{{count}} customers referred",
-      "noReferrals": "No referrals yet — refer a customer during a sale, service booking, or AMC sign-up to see it here."
+      "noReferrals": "No referrals yet — refer a customer during a sale, service booking, or AMC sign-up to see it here.",
+      "referralBonus": {
+        "title": "Referral bonus this month",
+        "earned": "Earned",
+        "pending_one": "{{count}} pending",
+        "pending_other": "{{count}} pending",
+        "voided_one": "{{count}} voided",
+        "voided_other": "{{count}} voided",
+        "noEvents": "No referral bonus activity yet this month.",
+        "loadFailed": "Couldn't load referral bonus details.",
+        "source": {
+          "sale": "Sale",
+          "amc": "AMC",
+          "service": "Service"
+        },
+        "status": {
+          "pending": "Pending",
+          "approved": "Approved",
+          "paid": "Paid",
+          "voided": "Voided"
+        }
+      },
+      "appVersion": "App version",
+      "appVersionDetail": "v{{versionName}} ({{build}}) · update {{bundleVersion}}",
+      "storeUpdateRequired": "A required update is waiting on the Play Store. Open the Play Store app to install it.",
+      "openPlayStore": "Open Play Store",
+      "activeChannel": "This phone is on the {{channel}} update channel",
+      "confirmChannelSwitch": "Switch this phone to the {{channel}} update channel?",
+      "channelName": {
+        "production": "production",
+        "technician-test": "test"
+      }
     },
     "daySheet": {
       "title": "Day Sheet",
@@ -3370,6 +3693,7 @@
       "topic": "Topic",
       "status": "Status",
       "technician": "Technician",
+      "referredBy": "Referred by",
       "created": "Created",
       "nextFollowup": "Next follow-up"
     },
@@ -3395,6 +3719,7 @@
       "name": "Name",
       "mobile": "Mobile",
       "source": "Source",
+      "referredBy": "Referred by (optional)",
       "enquiryType": "Enquiry type",
       "kind": "Kind",
       "customerRequirement": "Customer requirement",
@@ -3486,6 +3811,7 @@
     },
     "detail": {
       "selectHint": "Select a lead to view activity and update status.",
+      "referredBy": "Referred by {{name}}",
       "items": "Items",
       "quotations": "Quotations",
       "logActivity": "Log activity",
@@ -3531,6 +3857,28 @@
         "tooLarge": "File is too large (max 10 MB)."
       }
     },
+    "errors": {
+      "nameRequired": "Enter a name (at least 2 characters)",
+      "sourceRequired": "Select a source"
+    },
+    "edit": {
+      "title": "Edit lead",
+      "subtitle": "Update this lead's contact details and notes.",
+      "alternateMobile": "Alternate mobile",
+      "address": "Address",
+      "saved": "Lead updated",
+      "saveAnyway": "Save anyway",
+      "duplicateWarning": "Another record already uses this number:",
+      "duplicateKind": {
+        "lead": "Lead: {{name}}",
+        "customer": "Customer: {{name}}"
+      },
+      "referralLockedHint": "This lead's source is Referral and can't be changed here — it's set by the referral program and tied to a technician's incentive.",
+      "errors": {
+        "mobileInvalid": "Enter a valid 10-digit mobile number",
+        "referralLocked": "Source can't be changed to or from Referral here"
+      }
+    },
     "quick": {
       "label": "Follow-up filters",
       "overdue": "Overdue",
@@ -3553,9 +3901,19 @@
       "unassigned": "Unassigned",
       "assign": "Assign",
       "reassign": "Reassign",
-      "action": { "assign": "Assign", "reassign": "Reassign", "pickup": "Pick up", "handover": "Hand over" },
+      "action": {
+        "assign": "Assign",
+        "reassign": "Reassign",
+        "pickup": "Pick up",
+        "handover": "Hand over"
+      },
       "scopeLabel": "Whose leads",
-      "scope": { "all": "All leads", "mine": "My leads", "unassigned": "Unassigned", "mineUnassigned": "Mine + unassigned" },
+      "scope": {
+        "all": "All leads",
+        "mine": "My leads",
+        "unassigned": "Unassigned",
+        "mineUnassigned": "Mine + unassigned"
+      },
       "filterLabel": "Assigned to",
       "select": "Select leads",
       "selectDone": "Done selecting",
@@ -3758,9 +4116,9 @@
       "note": "Note",
       "stageChange": "Stage: {{from}} → {{to}}",
       "assigned": "Assigned to {{to}}",
-        "reassigned": "Reassigned from {{from}} to {{to}}",
-        "unassigned": "Unassigned",
-        "stageSet": "Stage: {{to}}",
+      "reassigned": "Reassigned from {{from}} to {{to}}",
+      "unassigned": "Unassigned",
+      "stageSet": "Stage: {{to}}",
       "followupSet": "Follow-up set for {{when}} ({{type}})",
       "followupDone": "Follow-up completed (was due {{when}})",
       "followupDoneEarly": "Follow-up completed early (was due {{when}})",
@@ -3959,17 +4317,11 @@
       "stateSkipped": "Not sent: no approved template",
       "stateDeliveryFailed": "Delivery failed",
       "stateStuck": "Stuck sending: needs a human",
-
       "alertStuck": "{{count}} WhatsApp message(s) have been pending for more than 15 minutes. They are not resent automatically: check the dispatcher, then resend or close each one.",
-
       "alertSkipped": "{{count}} message(s) were not sent today because no approved template exists (alert threshold: {{threshold}} a day).",
-
       "thresholdLabel": "Skipped messages per day before an alert",
-
       "thresholdHint": "0 switches the alert off. Default 10.",
-
       "thresholdSaved": "Alert threshold saved.",
-
       "thresholdFailed": "Could not save the alert threshold.",
       "empty": "No failed sends — nothing stuck right now."
     }
@@ -4120,9 +4472,13 @@
       "addTechnicianHint": "For a login already created outside this app (e.g. via the Supabase dashboard) that isn't a technician yet.",
       "noEligibleProfiles": "No eligible logins found.",
       "pickProfile": "Select a person",
+      "errors": {
+        "addressTooShort": "The full address must be at least 8 characters"
+      },
       "fields": {
         "fullName": "Full Name",
         "email": "Email",
+        "designation": "Designation",
         "photo": "Profile Photo",
         "photoUpload": "Upload photo",
         "photoChange": "Change photo",
@@ -4185,7 +4541,9 @@
         "totalReviews": "Total Google Reviews",
         "totalInstallations": "Total Installations",
         "reviewRateFootnote": "{{rate}}% review-claim rate over {{visits}} completed visits.",
-        "flaggedBanner": "Review-claim rate ({{rate}}% over {{visits}} visits) looks unusually high — worth a manual check."
+        "flaggedBanner": "Review-claim rate ({{rate}}% over {{visits}} visits) looks unusually high — worth a manual check.",
+        "protectedLeaveDays": "{{count}} day(s) excluded this month (approved leave)",
+        "protectedLeaveDaysFailed": "Couldn't load excluded days."
       },
       "viewTicket": "View ticket",
       "outsideGeofence": "Outside office",
@@ -4233,6 +4591,7 @@
       "noActiveJob": "No active job",
       "idleForMinutes": "Idle for {{count}} min",
       "offRoute": "Taking a longer route than expected",
+      "updatesPaused": "Live route updates paused for a moment — showing the last known route",
       "jobOverrunBy": "Job overrunning by {{count}} min",
       "updatedMinutesAgo": "Updated {{count}}m ago",
       "noLocationYet": "No location yet",
@@ -4324,7 +4683,15 @@
       "logKindHandover": "Handover",
       "logKindReturn": "Return",
       "print": "Print",
-      "printTitle": "Spare Handover Receipt"
+      "printTitle": "Spare Handover Receipt",
+      "givenBy": "Given By",
+      "disputedBadge": "Technician flagged a quantity mismatch",
+      "ledgerTitle": "Technician Ledger",
+      "ledgerSubtitle": "Handed over, used, returned and current balance, per technician and spare",
+      "ledgerHandedOver": "Handed Over",
+      "ledgerUsed": "Used",
+      "ledgerReturned": "Returned",
+      "ledgerBalance": "Balance"
     }
   },
   "expenses": {
@@ -4344,7 +4711,10 @@
     "bikeAssignment": {
       "hint": "Assign each technician to their own or a company motorcycle, with a petrol rate per km.",
       "ownership": "Ownership",
-      "ownershipValues": { "own": "Own bike", "company": "Company bike" },
+      "ownershipValues": {
+        "own": "Own bike",
+        "company": "Company bike"
+      },
       "rate": "Petrol rate (₹/km)",
       "effectiveFrom": "Effective from",
       "save": "Save",
@@ -4388,7 +4758,10 @@
       "person": "Person",
       "selectPerson": "Select a person",
       "target": "Applies to",
-      "targetValues": { "recharge": "Recharge allowance", "bike_allowance": "Own-bike allowance" },
+      "targetValues": {
+        "recharge": "Recharge allowance",
+        "bike_allowance": "Own-bike allowance"
+      },
       "type": "Type",
       "topUp": "Top-up",
       "exclude": "Exclude this month",
@@ -4428,9 +4801,24 @@
       "empty": "No salary records for this month",
       "loadFailed": "Failed to load salaries",
       "logToAccounts": "Log to Accounts",
-      "logged": "Logged"
+      "logged": "Logged",
+      "logFailed": "Couldn't log this salary to Accounts.",
+      "locked": "Locked",
+      "lockedHint": "Already logged to Accounts — recompute is refused until this is reopened.",
+      "reopen": "Reopen",
+      "reopened": "Reopened — the posted expense was voided.",
+      "reopenFailed": "Couldn't reopen this salary.",
+      "reopenDialogTitle": "Reopen this salary",
+      "reopenDialogHint": "This voids the expense already posted to Accounts for {{name}} and unlocks the row so it can be recomputed. A reason is required and is kept on an audit record.",
+      "reopenReason": "Reason",
+      "reopenConfirm": "Reopen and void",
+      "shortfall": "Shortfall: {{amount}}",
+      "shortfallHint": "Deductions exceeded pay — net was floored at zero; this is the unrecovered amount."
     },
     "staffSalary": {
+      "designation": "Designation",
+      "address": "Full address",
+      "mustChangeHint": "The person must choose their own password the first time they sign in.",
       "inactive": "Inactive",
       "activate": "Activate",
       "deactivate": "Deactivate",
@@ -4463,11 +4851,12 @@
       "subtitle": "Master, Operation Admin and Sales person salaries — typed manually each time, no fixed or auto-repeating amount. Technician salaries stay on the Salary tab (calculated automatically).",
       "month": "Month",
       "staff": "Staff",
-      "role": "Role",
       "amount": "Amount",
       "logSalary": "Log Salary",
+      "logFailed": "Couldn't log this salary to Accounts.",
       "logged": "Logged this month: {{amount}}",
       "notLoggedYet": "Not logged this month",
+      "pendingReferralPayout": "Referral bonus pending: {{amount}}",
       "empty": "No staff found",
       "setupReminders": "Set up monthly salary reminders",
       "remindersSetUp_one": "Created {{count}} reminder",
@@ -4496,7 +4885,11 @@
         "reason": "Reason for voiding",
         "reasonRequired": "Enter a reason to void this credit."
       },
-      "perUnit": "per unit"
+      "perUnit": "per unit",
+      "referralOnly": "Referral only",
+      "referralPendingLocked": "{{count}} referral bonus pending — month locked",
+      "referralPendingNoRate": "{{count}} qualifying referrals waiting for a rate",
+      "referralEmpty": "No referral-sourced incentives for this month yet"
     },
     "rewards": {
       "month": "Month",
@@ -4531,7 +4924,8 @@
     }
   },
   "reports": {
-    "subtitle": "Sales, service, P&L and performance — all in one place.",
+    "subtitle": "Sales, service and performance — all in one place.",
+    "pnlMovedNote": "Looking for P&L? It now lives under",
     "empty": "No data for this range yet.",
     "loadFailed": "Could not load report data.",
     "invoicedLabel": "Invoiced",
@@ -4543,7 +4937,9 @@
       "feedback": "Feedback",
       "topCustomers": "Top Customers",
       "coverage": "Coverage",
-      "insights": "Sales Insights"
+      "insights": "Sales Insights",
+      "monthlyExpenses": "Monthly Expenses",
+      "referralBonus": "Referral Bonus"
     },
     "filters": {
       "from": "From",
@@ -4672,13 +5068,14 @@
       "avgRating": "Avg Rating",
       "reviewsShort": "Reviews",
       "conversion": "Conversion",
-      "opsKpiLabel": "Ops KPI: tickets resolved within 24h",
-      "kpiNote": "Operation Admin KPI = complaints resolved within 24h; Sales person KPI = lead conversion rate.",
+      "opsKpiLabel": "Ops KPI: tickets resolved within the SLA window",
+      "kpiNote": "Operation Admin KPI = complaints resolved within the resolution SLA (set in Settings); Sales person KPI = lead conversion rate.",
       "legendCaption": "1st-fix rate, technician-wise",
       "legendStrong": "≥ 90% strong",
       "legendWatch": "80–89% watch",
       "legendCoach": "< 80% coach",
-      "installations": "Installations"
+      "installations": "Installations",
+      "efficiency": "Efficiency — standard per visit, informational only"
     },
     "feedback": {
       "starsDistribution": "Star Rating Distribution",
@@ -4752,6 +5149,15 @@
       "installPerVisitFormula": "{{installs}} installs ÷ {{visits}} service visits",
       "installPerMonth": "Per month"
     },
+    "monthlyExpenses": {
+      "month": "Month",
+      "technician": "Technician",
+      "recharge": "Recharge",
+      "petrol": "Petrol",
+      "maintenance": "Maintenance",
+      "bikeAllowance": "Bike allowance",
+      "total": "Total"
+    },
     "insights": {
       "customersTitle": "Customers",
       "totalCustomers": "Total customers",
@@ -4787,11 +5193,47 @@
       "cost": "Cost",
       "margin": "Margin %",
       "productNote": "Revenue = qty × price − discount per line. Cost and margin show — when any sold line has no cost recorded. Gifts are excluded."
+    },
+    "referralBonus": {
+      "month": "Month",
+      "technician": "Technician",
+      "allTechnicians": "All technicians",
+      "referrer": "Referrer",
+      "customer": "Referred customer",
+      "qualifiedAt": "Qualified on",
+      "amount": "Amount",
+      "statusLabel": "Status",
+      "totalEvents": "Total referrals",
+      "empty": "No referral bonus events for this month yet.",
+      "pendingMonthLocked": "{{count}} referral bonus pending — month locked",
+      "pendingNoRate": "{{count}} qualifying referrals waiting for a rate",
+      "voidNote": "Voiding only has a real signal for AMC referrals today (contract cancelled). Sale/service referrals have no cancellation mechanism in this app, so those can only be voided for an inactive referrer or a test customer.",
+      "source": {
+        "label": "Source",
+        "sale": "Sale",
+        "amc": "AMC",
+        "service": "Service"
+      },
+      "kind": {
+        "label": "Referrer type",
+        "technician": "Technician",
+        "staff": "Staff"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "paid": "Paid",
+        "voided": "Voided"
+      }
     }
   },
   "accounts": {
     "title": "Accounts",
     "subtitle": "What the business spends — salaries, rent, EB, and everything else, tracked and totalled over time.",
+    "tabs": {
+      "overview": "Overview",
+      "pnl": "P&L"
+    },
     "masterOnlyNote": "Visible to master role only.",
     "logExpense": "Log Expense",
     "thisMonth": "This Month",
@@ -4808,7 +5250,59 @@
     "notePlaceholder": "e.g. TNEB, Landlord, technician name",
     "loggedBy": "Logged By",
     "linkToTask": "Link to Recurring Task",
-    "noTaskLink": "No task — standalone expense"
+    "noTaskLink": "No task — standalone expense",
+    "underCategory": "Under Category",
+    "noCategory": "No category",
+    "chooseCategory": "Choose a category",
+    "allCategories": "All categories",
+    "uncategorised": "Uncategorised",
+    "createNewCategory": "+ Create new category",
+    "newCategoryName": "Category name",
+    "manageCategories": "Manage Categories",
+    "manageCategoriesHint": "Create, rename and deactivate your own categories. System categories are fixed and can't be changed.",
+    "systemCategory": "system",
+    "deactivate": "Deactivate",
+    "rename": "Rename",
+    "outstanding": {
+      "title": "Customer Outstanding",
+      "subtitle": "Customers with an unpaid or part-paid bill, with reminders and tasks to follow up.",
+      "navLink": "Customer Outstanding",
+      "none": "Nothing outstanding",
+      "noneHint": "Customers with an unpaid balance show here, with a reminder and task to follow up.",
+      "badgeTitle": "{{count}} outstanding reminder(s) overdue or due today",
+      "refresh": "Refresh",
+      "refreshSummary": "{{count}} customers need follow-up",
+      "customer": "Customer",
+      "amount": "Outstanding",
+      "oldestInvoice": "Oldest bill",
+      "reminders": "Reminders",
+      "tasks": "Tasks",
+      "remindersCount": "{{count}} open · next {{date}}",
+      "tasksCount": "{{count}} open · {{assignee}}",
+      "followUp": "Follow up",
+      "followUpFor": "Follow up — {{name}}",
+      "followUpHint": "Outstanding: {{amount}}",
+      "reminder": "Reminder",
+      "task": "Task",
+      "dueDate": "Due date",
+      "assignee": "Assignee",
+      "noAssignee": "Unassigned",
+      "taskTitle": "Follow up: outstanding payment — {{name}}",
+      "tabOutstanding": "Outstanding",
+      "tabReminders": "Reminders",
+      "noReminders": "No reminders here",
+      "status": "Status",
+      "statusOpen": "Open",
+      "statusDone": "Done",
+      "statusCancelled": "Cancelled",
+      "markDone": "Mark done",
+      "reminderFilter": {
+        "dueToday": "Due today",
+        "overdue": "Overdue",
+        "upcoming": "Upcoming",
+        "doneOrCancelled": "Done / Cancelled"
+      }
+    }
   },
   "workspace": {
     "subtitle": "Your daily checklist, notifications and follow-ups.",
@@ -4834,12 +5328,24 @@
     },
     "markDone": "Mark done",
     "markOpen": "Mark open",
+    "moveToToday": "Move to today",
     "rolledOverCount_one": "Rolled over {{count}} day",
     "rolledOverCount_other": "Rolled over {{count}} days",
     "daysOverdue_one": "{{count}} day overdue",
     "daysOverdue_other": "{{count}} days overdue"
   },
   "huddle": {
+    "raiseTitle": "Raise a problem",
+    "raisePlaceholder": "What is the problem? Say what happened and where.",
+    "raiseButton": "Raise problem",
+    "raised": "Problem raised. The master has been told.",
+    "proposeSolution": "Suggest a solution",
+    "proposeHint": "Your suggestion is shown on the problem and the master is told. Staff mark the problem solved.",
+    "proposePlaceholder": "What should be done to fix it?",
+    "proposeSend": "Send suggestion",
+    "proposed": "Suggestion sent. The master has been told.",
+    "solutionBy": "solution by {{name}}",
+    "solvedBy": "Solved by {{name}}",
     "subtitle": "Record the daily meeting: problems, root causes, solutions and action items. Open problems carry forward until solved.",
     "technicianSubtitle": "Read-only view of the daily meeting notes and open problems.",
     "view": {
@@ -4890,7 +5396,7 @@
       "title": "Performance — {{date}}",
       "collected": "Collected",
       "completedVisits": "Completed tickets",
-      "within24h": "Resolved within 24h",
+      "within24h": "Resolved within {{hours}}h",
       "openTickets": "Open tickets now",
       "unavailable": "Performance numbers unavailable."
     },
@@ -4910,13 +5416,59 @@
     "recentMeetings": "Recent meetings"
   },
   "tasks": {
+    "overdue": "Overdue",
+    "onlyAssigneeFinishes": "Only {{name}} can mark this finished",
+    "log": {
+      "title": "Work log",
+      "empty": "Nothing logged yet.",
+      "loadFailed": "Could not load the work log.",
+      "system": "The system",
+      "nobody": "nobody",
+      "add": "Add to log",
+      "note": "Note",
+      "notePlaceholder": "What was done, or what is blocking it?",
+      "minutesSpent": "Minutes spent",
+      "minutesInvalid": "Minutes must be a whole number from 0 to 1440.",
+      "nextDate": "Next planned on",
+      "nextNote": "What next",
+      "next": "Next",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "totalMinutes_one": "Total: {{count}} minute",
+      "totalMinutes_other": "Total: {{count}} minutes",
+      "reassigned": "{{who}} reassigned this from {{from}} to {{to}}",
+      "status": "{{who}} changed the status from {{from}} to {{to}}",
+      "dueMoved": "{{who}} moved the due date from {{from}} to {{to}}",
+      "statusValue": {
+        "open": "open",
+        "done": "finished",
+        "rolled": "rolled over"
+      }
+    },
+    "cannotFinish": {
+      "not_assignee": "Only {{name}} can mark this finished.",
+      "unassigned": "This task has no assignee. Ask operations to finish it.",
+      "po_needs_master": "Only the master can finish a purchase-order task, because the master approves and pays purchase orders. Ask the master to finish it, or reassign it."
+    },
     "subtitle": "Assign and track tasks across the whole team.",
+    "teamTime": {
+      "title": "Total time logged, per person (cumulative)",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes"
+    },
     "assignTask": "Assign Task",
     "loadFailed": "Could not load tasks.",
     "empty": "No tasks here.",
     "unknownUser": "Unknown",
     "recurring": "Repeats monthly",
     "assignedBy": "Assigned by {{name}}",
+    "outstandingLinkTitle": "Linked to a customer's outstanding balance",
+    "outstandingLinkAmount": "Outstanding: {{amount}}",
+    "outstandingBadgePaymentReceived": "Payment received",
+    "outstandingLinkStaffNote": "This task follows up a customer's outstanding payment.",
+    "needsReviewLinkTitle": "Matching records",
+    "needsReviewLinkNoContact": "This customer has no mobile or email on file yet to check against.",
+    "needsReviewLinkViewCustomer": "View customer",
     "due": "Due {{date}}",
     "filters": {
       "open": "Open",
@@ -4925,10 +5477,12 @@
       "all": "All"
     },
     "view": {
+      "myDay": "My Day",
       "list": "List",
       "calendar": "Calendar"
     },
     "detailDialog": {
+      "readOnly": "You can view this task but only its assignee, the person who assigned it, or operations can change it.",
       "title": "Task",
       "subtitle": "Reassign, reschedule, or update this task.",
       "statusOpen": "Open",
@@ -4988,7 +5542,8 @@
       "lead_callback_reminder": "Callback reminder",
       "enquiry_lead": "New enquiry",
       "callback_requested": "Callback requested",
-      "wa_lead_captured": "New WhatsApp lead"
+      "wa_lead_captured": "New WhatsApp lead",
+      "customer_needs_review": "Customer needs account review"
     }
   },
   "approvals": {
@@ -5042,7 +5597,7 @@
     "loadFailed": "Could not load campaigns.",
     "empty": "No campaigns yet.",
     "newCampaign": "New Campaign",
-    "noSendIntegrationNote": "This app has no live send integration — campaigns here are create/track only.",
+    "noSendIntegrationNote": "Log only: nothing is sent to customers from here. Campaigns logged on this page are for planning and tracking only — no WhatsApp, SMS, email or call is actually dispatched.",
     "table": {
       "name": "Name",
       "channel": "Channel",
@@ -5298,5 +5853,237 @@
         "none": "We don't currently have any {{category}} products listed. Reply \"expert\" to check with our team."
       }
     }
+  },
+  "leaveRequests": {
+    "subtitle": "Approve, reject or revoke technician leave requested in advance.",
+    "badgeTitle": "{{count}} leave request(s) pending",
+    "filters": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "closed": "Rejected / revoked / cancelled"
+    },
+    "loadFailed": "Could not load leave requests.",
+    "notAvailableYet": "This feature isn't available yet. Please check back later.",
+    "empty": "No leave requests here.",
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "revoked": "Revoked"
+    },
+    "badge": {
+      "inAdvance": "In advance",
+      "late": "Late (KPI not protected)"
+    },
+    "days": "day(s)",
+    "requestedAt": "Requested {{date}}",
+    "decisionNote": "Note: {{note}}",
+    "actions": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "revoke": "Revoke"
+    },
+    "toast": {
+      "approved": "Leave approved",
+      "rejected": "Leave rejected",
+      "revoked": "Leave revoked"
+    },
+    "decideDialog": {
+      "title": {
+        "approved": "Approve leave",
+        "rejected": "Reject leave",
+        "revoked": "Revoke leave"
+      },
+      "range": "{{technician}}: {{start}} – {{end}}",
+      "assignedVisitsWarning": "{{count}} visit(s) already assigned on these days — reassign them yourself, nothing here does it automatically.",
+      "noAssignedVisits": "No visits are assigned to this technician on these days.",
+      "assignedVisitsCheckFailed": "Couldn't check for assigned visits.",
+      "noteLabel": "Note (required)",
+      "notePlaceholder": "Why?",
+      "confirm": {
+        "approved": "Approve",
+        "rejected": "Reject",
+        "revoked": "Revoke"
+      }
+    }
+  },
+  "technicianLeave": {
+    "request": {
+      "title": "Request leave",
+      "subtitle": "Submit in advance so your leave does not affect your KPI.",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "reason": "Reason (optional)",
+      "submit": "Submit request",
+      "submitted": "Leave request submitted",
+      "errors": {
+        "endBeforeStart": "End date cannot be before start date.",
+        "tooLong": "A single request cannot exceed 30 days."
+      }
+    },
+    "notAvailableYet": "This feature isn't available yet. Please check back later.",
+    "valuesKept": "Your entered details are kept — you can try again.",
+    "myLeave": {
+      "title": "My leave",
+      "request": "Request leave",
+      "empty": "You have no leave requests yet.",
+      "cancel": "Cancel request",
+      "cancelled": "Leave request cancelled"
+    }
+  },
+  "productLifecycle": {
+    "manage": "Lifecycle & reminders",
+    "title": "Lifecycle & spare schedule",
+    "close": "Close",
+    "loadFailed": "Could not load the lifecycle schedule.",
+    "noLifecycleFilterLabel": "Filter by lifecycle configuration",
+    "noLifecycleFilterAll": "All products",
+    "noLifecycleFilterOnly": "No lifecycle configured ({{count}})",
+    "noLifecycleBadge": "No lifecycle",
+    "noLifecycleBadgeHint": "This product has no active lifecycle configuration yet.",
+    "lifetime": {
+      "title": "Product lifetime",
+      "hint": "How long this product is expected to last before it needs replacing.",
+      "valueLabel": "Lifetime value",
+      "unit": { "months": "Months", "years": "Years" },
+      "save": "Save lifetime",
+      "saved": "Lifetime saved",
+      "saveFailed": "Could not save the lifetime.",
+      "errors": { "valueInvalid": "Enter a whole number greater than 0." }
+    },
+    "spares": {
+      "title": "Spare part replacement schedule",
+      "empty": "No spare part schedules yet — add one below.",
+      "addRow": "Add spare row",
+      "pickPlaceholder": "Pick a spare (optional)",
+      "noSparePicked": "No spare — free text only",
+      "labelLabel": "Label",
+      "labelPlaceholder": "e.g. Pre-filter",
+      "intervalLabel": "Replace every",
+      "save": "Save",
+      "saved": "Spare schedule saved",
+      "saveFailed": "Could not save this row.",
+      "remove": "Remove",
+      "confirmRemove": "Remove this row?",
+      "removeFailed": "Could not remove this row.",
+      "errors": { "labelRequired": "Label is required.", "intervalValueInvalid": "Enter a whole number greater than 0." }
+    },
+    "retroactiveNote": "Changing this schedule does not retroactively change due dates already calculated for customers who already have this product installed.",
+    "apply": {
+      "button": "Apply updated schedule to existing installations",
+      "previewing": "Checking installed units…",
+      "previewResult": "{{count}} installed unit(s) will get {{parts}} new part schedule(s) added",
+      "previewEmpty": "No installed units need updating.",
+      "previewFailed": "Could not check installed units.",
+      "confirm": "Apply now",
+      "applying": "Applying…",
+      "applied": "Schedule applied to {{count}} installation(s).",
+      "applyFailed": "Could not apply the updated schedule."
+    }
+  },
+  "technicianLifecycle": {
+    "duePartsChip_one": "{{count}} part due",
+    "duePartsChip_other": "{{count}} parts due",
+    "warningList": {
+      "title": "Parts due for replacement",
+      "dueSoon": "Due soon — {{date}}",
+      "due": "Due — {{date}}",
+      "overdue": "Overdue since {{date}}",
+      "markReplaced": "Mark Replaced"
+    },
+    "markReplacedForm": {
+      "title": "Mark \"{{label}}\" as replaced",
+      "replacedDate": "Replaced on",
+      "spareUsed": "Spare used (optional)",
+      "spareUsedPlaceholder": "Search spares…",
+      "note": "Note (optional)",
+      "submit": "Save",
+      "cancel": "Cancel",
+      "saved": "Recorded — will sync when you're back online."
+    },
+    "jobDetail": {
+      "title": "Parts due"
+    }
+  },
+  "lifecycleDashboard": {
+    "widget": {
+      "title": "Product Lifecycle",
+      "upcoming": "Upcoming",
+      "due": "Due",
+      "overdue": "Overdue",
+      "lifetimeExpiring90d": "Lifetime expiring (90d)"
+    },
+    "overview": {
+      "title": "Product Lifecycle",
+      "subtitle": "Installed-product part schedules and lifetime-expiry tracking.",
+      "tab": {
+        "due_soon": "Upcoming",
+        "due": "Due",
+        "overdue": "Overdue",
+        "lifetime_expiring_90d": "Lifetime expiring (90d)"
+      },
+      "search": "Search customer or product",
+      "recordCount": "{{count}} records",
+      "loadFailed": "Couldn't load this list. Check your connection and try again.",
+      "empty": "No part schedules in this status.",
+      "emptyExpiring": "No products nearing lifetime expiry.",
+      "customer": "Customer",
+      "product": "Product",
+      "part": "Part",
+      "dueDate": "Due date",
+      "status": "Status",
+      "lifetimeExpiry": "Lifetime expiry",
+      "statusLabel": {
+        "due_soon": "Upcoming",
+        "due": "Due",
+        "overdue": "Overdue",
+        "lifetime_expiring_90d": "Lifetime expiring"
+      }
+    }
+  },
+  "customerLifecycle": {
+    "badge": {
+      "due_soon": "Due soon",
+      "due": "Due",
+      "overdue": "Overdue"
+    },
+    "home": {
+      "partDueTitle": "{{label}} due",
+      "partOverdue": "Overdue since {{date}}",
+      "partInDays_one": "Due in {{count}} day ({{date}})",
+      "partInDays_other": "Due in {{count}} days ({{date}})"
+    },
+    "card": {
+      "lifetimeExpiry": "Lifetime expiry {{date}}",
+      "viewHistory": "Replacement history"
+    },
+    "history": {
+      "back": "Back to products",
+      "title": "Replacement history",
+      "empty": "No parts have been replaced on this product yet.",
+      "replacedOn": "Replaced on {{date}}",
+      "nextDue": "Next due {{date}}",
+      "loadError": "Couldn't load this product. Please retry."
+    }
+  },
+  "lifecycleFollowups": {
+    "badge": "Service reminder",
+    "statusLabel": {
+      "due_soon": "Upcoming",
+      "due": "Due",
+      "overdue": "Overdue"
+    },
+    "markContacted": "Mark contacted",
+    "markContactedNotePlaceholder": "Note (optional)",
+    "markContactedSave": "Save",
+    "markContactedSaved": "Marked as contacted.",
+    "snooze": "Snooze",
+    "snoozeUntilLabel": "Snooze until",
+    "snoozeSave": "Snooze",
+    "snoozeSaved": "Snoozed to {{date}}.",
+    "snoozeMustBeFuture": "Pick a date after today.",
+    "createServiceRequest": "Create service request",
+    "serviceRequestCreated": "Service ticket created ({{ticketId}})."
   }
 }

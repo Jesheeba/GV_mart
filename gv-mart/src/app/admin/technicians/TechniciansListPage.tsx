@@ -237,6 +237,7 @@ function AddTechnicianPanel({
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
+  const [designation, setDesignation] = useState("")
   const [passwordMode, setPasswordMode] = useState<"generate" | "type">("generate")
   const [typedPassword, setTypedPassword] = useState("")
   const [address, setAddress] = useState("")
@@ -268,7 +269,14 @@ function AddTechnicianPanel({
   const capacityValid = /^\d+$/.test(dailyCapacity.trim()) && Number(dailyCapacity) > 0
   const phoneValid = MOBILE_REGEX.test(phone.trim())
   const typedPasswordValid = passwordMode === "generate" || new TextEncoder().encode(typedPassword).length >= 10
-  const formValid = fullName.trim().length > 0 && phoneValid && EMAIL_RE.test(email.trim()) && capacityValid && typedPasswordValid
+  const formValid =
+    fullName.trim().length > 0 &&
+    phoneValid &&
+    EMAIL_RE.test(email.trim()) &&
+    capacityValid &&
+    designation.trim().length >= 2 &&
+    address.trim().length >= 8 &&
+    typedPasswordValid
 
   function handleCreate() {
     if (!formValid) return
@@ -277,8 +285,9 @@ function AddTechnicianPanel({
         fullName: fullName.trim(),
         phone: phone.trim(),
         email: email.trim(),
+        designation: designation.trim(),
         password: passwordMode === "type" ? typedPassword : undefined,
-        address: address.trim() || null,
+        address: address.trim(),
         city: city.trim() || null,
         state: state.trim() || null,
         pincode: pincode.trim() || null,
@@ -323,6 +332,15 @@ function AddTechnicianPanel({
           <Label htmlFor="new-tech-email">{t("technicians.list.fields.email")}</Label>
           <Input id="new-tech-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!email && !EMAIL_RE.test(email)} />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-tech-designation">{t("technicians.list.fields.designation")}</Label>
+          <Input
+            id="new-tech-designation"
+            value={designation}
+            onChange={(e) => setDesignation(e.target.value)}
+            aria-invalid={!!designation && designation.trim().length < 2}
+          />
+        </div>
         <fieldset className="space-y-1.5 sm:col-span-3">
           <legend className="text-xs font-medium text-text-muted">{t("hr.staffSalary.passwordMode")}</legend>
           <label className="flex items-center gap-2 text-sm text-text">
@@ -349,7 +367,13 @@ function AddTechnicianPanel({
         </fieldset>
         <div className="space-y-1 sm:col-span-3">
           <Label htmlFor="new-tech-address">{t("technicians.detail.fields.address")}</Label>
-          <Input id="new-tech-address" value={address} onChange={(e) => setAddress(e.target.value)} />
+          <Input
+            id="new-tech-address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            aria-invalid={!!address && address.trim().length < 8}
+          />
+          {address && address.trim().length < 8 ? <p className="text-xs text-danger">{t("technicians.list.errors.addressTooShort")}</p> : null}
         </div>
         <div className="space-y-1">
           <Label htmlFor="new-tech-city">{t("technicians.detail.fields.city")}</Label>

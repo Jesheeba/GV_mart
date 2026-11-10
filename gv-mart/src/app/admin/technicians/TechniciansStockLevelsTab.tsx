@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next"
-import { TriangleAlert } from "lucide-react"
+import { Flag, TriangleAlert } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
-import { useAllTechnicianStock, useSpareHandovers, useSpareReturns } from "@/hooks/useTechniciansAdmin"
-import { buildStockLog, type StockLogEntry, type TechnicianStockLevelItem } from "@/services/techniciansAdmin"
+import { useAllTechnicianStock, useSpareHandovers, useSpareReturns, useTechnicianSpareLedger } from "@/hooks/useTechniciansAdmin"
+import { buildStockLog, type StockLogEntry, type TechnicianSpareLedgerRow, type TechnicianStockLevelItem } from "@/services/techniciansAdmin"
 import { formatDate } from "@/lib/formatDate"
 
 /**
@@ -17,6 +17,7 @@ export function TechniciansStockLevelsTab({ orgId }: { orgId: string | undefined
   const stock = useAllTechnicianStock(orgId)
   const handovers = useSpareHandovers(orgId)
   const returns = useSpareReturns(orgId)
+  const ledger = useTechnicianSpareLedger(orgId)
 
   const stockColumns: DataTableColumn<TechnicianStockLevelItem>[] = [
     { key: "technician", header: t("technicians.spares.technician"), render: (r) => r.technicians?.profiles?.full_name ?? "—" },
@@ -50,14 +51,39 @@ export function TechniciansStockLevelsTab({ orgId }: { orgId: string | undefined
     {
       key: "kind",
       header: t("technicians.spares.status"),
-      render: (r) => (r.kind === "handover" ? t("technicians.spares.logKindHandover") : t("technicians.spares.logKindReturn")),
+      render: (r) => (
+        <span className="inline-flex items-center gap-1">
+          {r.kind === "handover" ? t("technicians.spares.logKindHandover") : t("technicians.spares.logKindReturn")}
+          {r.disputed ? <Flag className="size-3.5 text-warning" aria-label={t("technicians.spares.disputedBadge")} /> : null}
+        </span>
+      ),
     },
     { key: "technician", header: t("technicians.spares.technician"), render: (r) => r.technicianName },
+    // Requirement 2 (2026-11-14 gap fix): who gave it (hand-over rows only — a return has no
+    // "given by", it's staff recording what came back).
+    { key: "givenBy", header: t("technicians.spares.givenBy"), render: (r) => r.givenByName ?? "—" },
     {
       key: "items",
       header: t("technicians.spares.items"),
       render: (r) => <span className="text-xs text-text-muted">{r.items.length === 0 ? "—" : r.items.map((i) => `${i.name} ×${i.qty}`).join(", ")}</span>,
     },
+  ]
+
+  const ledgerColumns: DataTableColumn<TechnicianSpareLedgerRow>[] = [
+    { key: "technician", header: t("technicians.spares.technician"), render: (r) => r.technician_name ?? "—" },
+    {
+      key: "spare",
+      header: t("technicians.spares.spareColumn"),
+      render: (r) => (
+        <span className="flex items-center gap-1.5">
+          {r.spare_name ?? "?"} {r.spare_sku ? <span className="text-xs text-text-muted">({r.spare_sku})</span> : null}
+        </span>
+      ),
+    },
+    { key: "handedOver", header: t("technicians.spares.ledgerHandedOver"), render: (r) => r.qty_handed_over },
+    { key: "used", header: t("technicians.spares.ledgerUsed"), render: (r) => r.qty_used },
+    { key: "returned", header: t("technicians.spares.ledgerReturned"), render: (r) => r.qty_returned },
+    { key: "balance", header: t("technicians.spares.ledgerBalance"), render: (r) => <span className="font-semibold text-text">{r.balance}</span> },
   ]
 
   const log = buildStockLog(handovers.data ?? [], returns.data ?? [])
@@ -94,6 +120,22 @@ export function TechniciansStockLevelsTab({ orgId }: { orgId: string | undefined
             handovers.refetch()
             returns.refetch()
           }}
+          emptyMessage={t("technicians.spares.empty")}
+        />
+      </Card>
+
+      <Card size="default">
+        <div className="mb-2 px-1">
+          <p className="text-sm font-semibold text-text">{t("technicians.spares.ledgerTitle")}</p>
+          <p className="text-xs text-text-muted">{t("technicians.spares.ledgerSubtitle")}</p>
+        </div>
+        <DataTable
+          columns={ledgerColumns}
+          rows={ledger.data ?? []}
+          rowKey={(r) => `${r.technician_id}:${r.spare_id}`}
+          loading={ledger.isLoading}
+          error={ledger.isError ? t("technicians.spares.loadFailed") : null}
+          onRetry={() => ledger.refetch()}
           emptyMessage={t("technicians.spares.empty")}
         />
       </Card>

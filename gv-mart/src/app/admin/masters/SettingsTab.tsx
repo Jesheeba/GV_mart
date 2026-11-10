@@ -17,6 +17,7 @@ import { settingsSchema, type SettingsFormInput, type SettingsOutput } from "@/l
 import { cn } from "@/lib/utils"
 import { AppointmentSlotsCard } from "./AppointmentSlotsCard"
 import { AutoAssignLeadsCard } from "./AutoAssignLeadsCard"
+import { AccountsOutstandingSettingsCard } from "./AccountsOutstandingSettingsCard"
 
 function hhmm(value: string) {
   return value.slice(0, 5)
@@ -47,6 +48,7 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     very_late_threshold_minutes: settings.very_late_threshold_minutes,
     lunch_minutes_allowed: settings.lunch_minutes_allowed,
     lunch_minutes_red_threshold: settings.lunch_minutes_red_threshold,
+    leave_notice_days: settings.leave_notice_days,
     discount_tech_max: Number(settings.discount_tech_max),
     discount_admin_max: Number(settings.discount_admin_max),
     amc_book_window_days: settings.amc_book_window_days,
@@ -64,6 +66,8 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     default_duration_warranty_minutes: settings.default_duration_warranty_minutes,
     default_duration_amc_minutes: settings.default_duration_amc_minutes,
     default_duration_installation_minutes: settings.default_duration_installation_minutes,
+    job_overrun_buffer_minutes: settings.job_overrun_buffer_minutes,
+    ops_resolution_sla_hours: settings.ops_resolution_sla_hours,
     narrow_window_threshold_minutes: settings.narrow_window_threshold_minutes,
     po_approval_threshold: Number(settings.po_approval_threshold),
     po_requires_approval: settings.po_requires_approval,
@@ -86,7 +90,15 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
 const FIELD_GROUPS = {
   discountGift: ["discount_tech_max", "discount_admin_max"],
   travel: ["per_km_minutes", "geofence_radius_m", "geofence_radius_job_m", "office_lat", "office_lng"],
-  attendance: ["work_start", "work_end", "late_cutoff", "very_late_threshold_minutes", "lunch_minutes_allowed", "lunch_minutes_red_threshold"],
+  attendance: [
+    "work_start",
+    "work_end",
+    "late_cutoff",
+    "very_late_threshold_minutes",
+    "lunch_minutes_allowed",
+    "lunch_minutes_red_threshold",
+    "leave_notice_days",
+  ],
   gst: ["gst_rate"],
   sla: ["sla_hours_very_urgent", "sla_hours_urgent", "sla_hours_normal"],
   jobDuration: [
@@ -96,6 +108,8 @@ const FIELD_GROUPS = {
     "default_duration_installation_minutes",
     "review_time_allowance_minutes",
     "enquiry_time_allowance_minutes",
+    "job_overrun_buffer_minutes",
+    "ops_resolution_sla_hours",
   ],
   booking: ["narrow_window_threshold_minutes"],
   amcReferral: [
@@ -264,8 +278,10 @@ export function SettingsTab() {
           {field("very_late_threshold_minutes", t("settings.veryLateThreshold"), "number", "1")}
           {field("lunch_minutes_allowed", t("settings.lunchAllowed"), "number", "1")}
           {field("lunch_minutes_red_threshold", t("settings.lunchRed"), "number", "1")}
+          {field("leave_notice_days", t("settings.leaveNoticeDays"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.attendanceStatusHint")}</p>
+        <p className="px-1 text-xs text-text-muted">{t("settings.leaveNoticeDaysHint")}</p>
         <GroupSaveRow groupKey="attendance" />
       </Card>
 
@@ -303,6 +319,11 @@ export function SettingsTab() {
           {field("enquiry_time_allowance_minutes", t("settings.enquiryTimeAllowance"), "number", "1")}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.allowanceHint")}</p>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("job_overrun_buffer_minutes", t("settings.jobOverrunBuffer"), "number", "1")}
+          {field("ops_resolution_sla_hours", t("settings.opsResolutionSla"), "number", "1")}
+        </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.overrunSlaHint")}</p>
         <GroupSaveRow groupKey="jobDuration" />
       </Card>
 
@@ -323,6 +344,7 @@ export function SettingsTab() {
           per-group Save button here would be misleading — there is never
           anything pending to commit. */}
       <AutoAssignLeadsCard />
+      <AccountsOutstandingSettingsCard />
       <AppointmentSlotsCard />
 
       <Card className="gap-4">

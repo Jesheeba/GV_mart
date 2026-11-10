@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { billBreakdown, formatCurrency, round2 } from "./sale-calc"
+import { billBreakdown, findStockGap, formatCurrency, round2 } from "./sale-calc"
 
 describe("round2", () => {
   it("rounds up at the .005 boundary (Number.EPSILON nudge)", () => {
@@ -51,5 +51,49 @@ describe("formatCurrency", () => {
   })
   it("always shows exactly 2 decimal places", () => {
     expect(formatCurrency(99.999)).toBe("₹100.00")
+  })
+})
+
+describe("findStockGap", () => {
+  const stock = [{ item_id: "p1", stock_qty: 3 }]
+
+  it("returns null when every line has enough stock", () => {
+    expect(findStockGap([{ itemId: "p1", name: "Widget", qty: 2 }], stock)).toBeNull()
+  })
+
+  it("flags no_record when the product has no inventory row at all (distinct from zero stock)", () => {
+    expect(findStockGap([{ itemId: "p2", name: "Gadget", qty: 1 }], stock)).toEqual({ kind: "no_record", name: "Gadget" })
+  })
+
+  it("flags insufficient when a row exists but qty requested exceeds stock_qty", () => {
+    expect(findStockGap([{ itemId: "p1", name: "Widget", qty: 5 }], stock)).toEqual({ kind: "insufficient", name: "Widget", available: 3 })
+  })
+
+  it("treats an inventory row with stock_qty=0 as insufficient, not no_record", () => {
+    expect(findStockGap([{ itemId: "z", name: "Zero Stock Item", qty: 1 }], [{ item_id: "z", stock_qty: 0 }])).toEqual({
+      kind: "insufficient",
+      name: "Zero Stock Item",
+      available: 0,
+    })
+  })
+
+  it("checks lines in order and returns the first gap found", () => {
+    expect(
+      findStockGap(
+        [
+          { itemId: "p1", name: "Widget", qty: 1 },
+          { itemId: "missing", name: "No Row Item", qty: 1 },
+        ],
+        stock
+      )
+    ).toEqual({ kind: "no_record", name: "No Row Item" })
+  })
+
+  it("treats an empty line list as no gap", () => {
+    expect(findStockGap([], stock)).toBeNull()
+  })
+
+  it("treats undefined stock data (not yet loaded) as no record for any line", () => {
+    expect(findStockGap([{ itemId: "p1", name: "Widget", qty: 1 }], undefined)).toEqual({ kind: "no_record", name: "Widget" })
   })
 })

@@ -1,0 +1,186 @@
+-- DRYRUN-OK copy of the GO APPLY script for migration 20261121100200_customer_link_otp_template_mapping.sql
+-- (the customer_link_otp -> lexdraft_otp mapping, LAST in this feature's ordering, after the
+-- redaction-hardening migration), branch feat/customer-otp-link.
+--
+-- WRITTEN ONLY -- never executed against any database by the agent that produced this file
+-- except as a DRYRUN (see below) through the sha256-verified supabase/ops/run_rehearsal.mjs.
+
+drop table if exists pg_temp.template_mapping_apply_status;
+create temp table template_mapping_apply_status (
+  migration_version text,
+  version_registered boolean,
+  column_exists boolean,
+  mapping_row_correct boolean,
+  org_fingerprint_before text,
+  org_fingerprint_after text,
+  applied_at timestamptz
+);
+
+do $apply$
+declare
+  v_ist_hour                 int;
+  v_expected_org_fingerprint text := '6f891cf85011f08c2f22fb4a208d21bd';
+  v_org_fingerprint_before   text;
+  v_org_fingerprint_after    text;
+  v_expected_migration_hash  text := '641a90a7b3f540e6853d2ad768184dc22eb8772bd3b7a296b15f109f350a9317';
+  v_actual_migration_hash    text;
+  v_migration_version        text := '20261121100200';
+  v_already_registered       boolean;
+  v_embedded_migration       text := $migration$-- 20261121100200_customer_link_otp_template_mapping.sql
+--
+-- Phase 3 continuation, docs/DECISIONS.md section 10. Wires the `customer_link_otp` event to the
+-- real, owner-confirmed WhatsApp template -- the LAST step in this feature's template plumbing,
+-- deliberately ordered AFTER 20261121100100_customer_link_otp_dispatch_hardening.sql so file
+-- ordering itself enforces that this feature's redaction coverage is in place before any mapping
+-- that could ever cause a real template send to exist. `guard_secret_ref_type_template_mapping`
+-- (20261120100200_whatsapp_outbox_secret_payload_scrub.sql, committed by a concurrent session, NOT
+-- edited here) already refuses to let this insert succeed unless `customer_link_otp` is registered
+-- with `redaction_covered = true` in `whatsapp_payload_secret_ref_types` -- confirmed it already is
+-- (that migration's own insert); this migration relies on that guard firing for real, not just on
+-- reading its code.
+--
+-- Template facts, owner-confirmed directly from the live Wasi template edit form (2026-10-30, not
+-- guessed, not re-derived from any sync job -- the live `whatsapp_wasi_templates` mirror has empty
+-- `param_keys` for this template, confirmed read-only, which is why these facts could not come from
+-- the database and had to come from the owner):
+--   - `lexdraft_otp`, category Authentication, language `en` (matches the live mirror row), status
+--     approved.
+--   - Body is Meta-generated, not editable: "Your verification code is *{{1}}*." plus an optional
+--     security-disclaimer line and an optional expiry line whose presence is not guaranteed --
+--     nothing in this migration or the dispatcher depends on those two optional lines existing.
+--   - Brand check: PASSED (Meta-generated body, no third-party brand text — the owner's original
+--     concern about the name "lexdraft" was about ownership of the WhatsApp Business Account, not
+--     the message content, and the owner separately confirmed this account is the right one).
+--   - Exactly one Copy Code button. Per the owner's explicit instruction and Meta's own documented
+--     shape for this button type, the send payload needs the code in BOTH the body component AND
+--     the button component (sub_type "url", index "0", text = the code) -- built in
+--     wa-send-core.ts's `buildTemplateRequest` (this phase's own commit) via the new
+--     `has_auth_copy_code_button` column below, which duplicates the single resolved body param
+--     into a `components` array on the outgoing request. That `components` array is NEVER
+--     persisted to `whatsapp_outbox` (same as `headerMediaUrl` already isn't) -- only the flat
+--     `params` map is, and that is already covered end-to-end by the reconciled redaction design in
+--     20261121100100.
+--
+-- NOT proof the feature works end-to-end -- per the owner's own explicit instruction, that is only
+-- proven by the owner's own later live phone test (a separately-gated step, not run by this
+-- migration or this phase). This migration is a pure data change (one row + one new column),
+-- exactly as the dispatcher-side code was already built to expect (wa-event-context.ts's
+-- `vars.code` wiring, phase 2) -- no application code depends on this migration existing to keep
+-- working; everything else in this feature functions identically whether or not this row exists.
+
+do $mig$
+begin
+  if to_regclass('public.whatsapp_event_templates') is null then
+    raise exception 'customer_link_otp_template_mapping: whatsapp_event_templates missing -- base schema not applied';
+  end if;
+
+  if to_regclass('public.whatsapp_payload_secret_ref_types') is null then
+    raise exception 'customer_link_otp_template_mapping: whatsapp_payload_secret_ref_types missing -- 20261120100200 not applied first';
+  end if;
+
+  if not exists (
+    select 1 from public.whatsapp_payload_secret_ref_types
+    where ref_type = 'customer_link_otp' and redaction_covered = true
+  ) then
+    raise exception 'customer_link_otp_template_mapping: customer_link_otp is not registered as redaction_covered -- refusing to map a template to it';
+  end if;
+
+  -- 1. New column, additive, defaults false (every existing mapping row is unaffected).
+  alter table public.whatsapp_event_templates
+    add column if not exists has_auth_copy_code_button boolean not null default false;
+
+  -- 2. The mapping row itself. One per organisation, same pattern as the po.quote_request /
+  -- test.hello mappings (20261016320000_wa_dispatch_v2_alerts_and_mappings.sql). param_map key "1"
+  -- matches Meta's own positional placeholder numbering ({{1}}) for this template's single body
+  -- parameter; "code" is the variable key wa-event-context.ts already populates for
+  -- ref_type = 'customer_link_otp' (phase 2). This insert itself is the thing
+  -- `guard_secret_ref_type_template_mapping` evaluates -- it will raise and roll back this whole
+  -- migration if that guard's precondition is ever false, which is exactly the mechanical
+  -- enforcement this migration's own file ordering is meant to rely on, not just reasoning about it.
+  insert into public.whatsapp_event_templates (org_id, event_key, language, wasi_template_name, param_map, has_auth_copy_code_button)
+  select o.id, 'customer_link_otp', 'en', 'lexdraft_otp', '{"1": "code"}'::jsonb, true
+  from public.organizations o
+  on conflict (org_id, event_key, language) do update
+    set wasi_template_name = excluded.wasi_template_name,
+        param_map = excluded.param_map,
+        has_auth_copy_code_button = excluded.has_auth_copy_code_button;
+
+  -- 3. Assertions.
+  if not exists (
+    select 1 from public.whatsapp_event_templates
+    where event_key = 'customer_link_otp' and language = 'en' and wasi_template_name = 'lexdraft_otp'
+      and has_auth_copy_code_button = true and param_map = '{"1": "code"}'::jsonb
+  ) then
+    raise exception 'assertion failed: customer_link_otp -> lexdraft_otp mapping row is missing or wrong';
+  end if;
+
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'whatsapp_event_templates' and column_name = 'has_auth_copy_code_button'
+  ) then
+    raise exception 'assertion failed: has_auth_copy_code_button column was not created';
+  end if;
+end
+$mig$;
+$migration$;
+begin
+  raise exception 'DRYRUN_OK: this exact apply script compiles cleanly -- stopped at the first statement by design, nothing below this line ran, nothing committed';
+
+  select md5(o.id::text || '|' || o.name) into v_org_fingerprint_before
+  from public.organizations o where o.name not like '\_\_TEST%' escape '\' order by o.created_at asc limit 1;
+  if v_org_fingerprint_before is distinct from v_expected_org_fingerprint then
+    raise exception 'APPLY_REFUSED: organisation fingerprint mismatch (expected %, got %)', v_expected_org_fingerprint, v_org_fingerprint_before;
+  end if;
+
+  perform set_config('lock_timeout', '5s', true);
+
+  v_ist_hour := extract(hour from (now() at time zone 'Asia/Kolkata'))::int;
+  if v_ist_hour < 11 then
+    raise exception 'APPLY_REFUSED: this script only runs after 11:00 IST (current IST hour=%)', v_ist_hour;
+  end if;
+
+  select exists(select 1 from supabase_migrations.schema_migrations where version = v_migration_version) into v_already_registered;
+  if v_already_registered then
+    raise exception 'APPLY_REFUSED: migration % is already registered -- stop, nothing applied', v_migration_version;
+  end if;
+
+  -- precondition: the hardening migration must already be live.
+  if to_regprocedure('public.scrub_expired_customer_link_otp_outbox()') is null then
+    raise exception 'APPLY_REFUSED: prerequisite migration 20261121100100_customer_link_otp_dispatch_hardening.sql is not applied live yet';
+  end if;
+  if not exists (select 1 from public.whatsapp_payload_secret_ref_types where ref_type = 'customer_link_otp' and redaction_covered = true) then
+    raise exception 'APPLY_REFUSED: customer_link_otp is not registered as redaction_covered';
+  end if;
+  if exists (select 1 from public.whatsapp_event_templates where event_key = 'customer_link_otp' and wasi_template_name = 'lexdraft_otp') then
+    raise exception 'APPLY_REFUSED: a customer_link_otp -> lexdraft_otp mapping row already exists before this migration ran';
+  end if;
+
+  v_actual_migration_hash := encode(sha256(convert_to(replace(v_embedded_migration, E'\r', ''), 'UTF8')), 'hex');
+  if v_actual_migration_hash is distinct from v_expected_migration_hash then
+    raise exception 'APPLY_REFUSED: embedded migration text does not match its pinned sha256 (expected %, got %)', v_expected_migration_hash, v_actual_migration_hash;
+  end if;
+
+  execute replace(v_embedded_migration, E'\r', '');
+
+  insert into supabase_migrations.schema_migrations (version, name, statements)
+  values (v_migration_version, 'customer_link_otp_template_mapping', array[replace(v_embedded_migration, E'\r', '')]);
+
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'whatsapp_event_templates' and column_name = 'has_auth_copy_code_button') then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- has_auth_copy_code_button column missing';
+  end if;
+  if not exists (select 1 from public.whatsapp_event_templates where event_key = 'customer_link_otp' and wasi_template_name = 'lexdraft_otp' and has_auth_copy_code_button = true) then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- mapping row missing or wrong';
+  end if;
+
+  select md5(o.id::text || '|' || o.name) into v_org_fingerprint_after
+  from public.organizations o where o.name not like '\_\_TEST%' escape '\' order by o.created_at asc limit 1;
+  if v_org_fingerprint_after is distinct from v_org_fingerprint_before then
+    raise exception 'APPLY_REFUSED: post-apply check failed -- real-organisation fingerprint changed (before %, after %)', v_org_fingerprint_before, v_org_fingerprint_after;
+  end if;
+
+  insert into pg_temp.template_mapping_apply_status (migration_version, version_registered, column_exists, mapping_row_correct, org_fingerprint_before, org_fingerprint_after, applied_at)
+  values (v_migration_version, true, true, true, v_org_fingerprint_before, v_org_fingerprint_after, now());
+end
+$apply$;
+
+select * from pg_temp.template_mapping_apply_status;

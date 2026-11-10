@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, Megaphone, Plus, Trash2 } from "lucide-react"
+import { Loader2, Megaphone, Plus, Trash2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -128,7 +128,14 @@ export function CampaignsPage() {
         </Button>
       </div>
 
-      <p className="rounded-xl bg-surface-alt px-3 py-2 text-xs text-text-muted">{t("campaigns.noSendIntegrationNote")}</p>
+      {/* 2026-10-28: made this warning hard to miss (was a quiet muted-grey
+          caption) — a master could otherwise believe a logged campaign was
+          actually sent. No send path is wired here; that stays out of scope
+          for this change (see PHASE2_PROPOSALS.md). */}
+      <div className="flex items-start gap-2.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm font-medium text-warning">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+        <span>{t("campaigns.noSendIntegrationNote")}</span>
+      </div>
 
       {formOpen ? (
         <Card size="default" className="gap-3 px-5">

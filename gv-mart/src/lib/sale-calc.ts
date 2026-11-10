@@ -13,3 +13,29 @@ export function billBreakdown(subtotal: number, discountPercent: number, gstRate
 export function formatCurrency(n: number) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
+
+/**
+ * create_sale's stock check (_sale_create_line_invoice) is a single
+ * `UPDATE ... WHERE stock_qty >= qty RETURNING ...`, so "no inventory row
+ * exists at all" and "a row exists but qty is too low" both come back as
+ * the same generic "insufficient stock" exception -- the two cases need
+ * very different instructions for a cashier (add a stock record vs. just
+ * sell fewer units), so NewSalePage checks this client-side, before
+ * submitting, against the same read-only inventory list the stock hints
+ * already use. Pure/no I/O so it's testable without rendering the page.
+ */
+export type StockGap =
+  | { kind: "no_record"; name: string }
+  | { kind: "insufficient"; name: string; available: number }
+
+export function findStockGap(
+  lines: Array<{ itemId: string; name: string; qty: number }>,
+  stock: Array<{ item_id: string; stock_qty: number }> | undefined
+): StockGap | null {
+  for (const line of lines) {
+    const row = (stock ?? []).find((r) => r.item_id === line.itemId)
+    if (!row) return { kind: "no_record", name: line.name }
+    if (row.stock_qty < line.qty) return { kind: "insufficient", name: line.name, available: row.stock_qty }
+  }
+  return null
+}

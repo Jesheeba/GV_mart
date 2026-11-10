@@ -26,8 +26,14 @@ export const expenseCategories = [
   "other",
 ] as const
 
+/** Accounts follow-up, "Under Category" is now the ONE category field the user
+ * sees on Log Expense (reminder-management batch, item 3) -- the legacy fixed
+ * `category` enum column still exists and is still written on every insert
+ * (never touched or removed), but it is now derived from the chosen owner-
+ * managed category rather than picked directly: see
+ * resolveLegacyExpenseCategoryEnum() in services/reportMappers.ts. */
 export const createExpenseSchema = z.object({
-  category: z.enum(expenseCategories, { message: "reports.errors.expenseCategoryRequired" }),
+  categoryId: z.string().min(1, "reports.errors.expenseCategoryRequired"),
   amount: z.coerce.number().positive("reports.errors.expenseAmountPositive"),
   date: z.string().min(1, "reports.errors.expenseDateRequired"),
   note: z.string().optional(),

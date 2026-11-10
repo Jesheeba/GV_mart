@@ -12,6 +12,9 @@ function todayIso() {
 }
 
 // ── ADM-31 Workspace: to-do checklist over `tasks` ───────────────────────
+// There is no automatic rollover any more: an overdue task stays overdue (red) until its assignee moves it with the explicit
+// "Move to today" action, which is recorded in the task's work log. (The old lazy rollover rewrote due_date on every fetch, which
+// hid overdue work and wrote no history.) What the old behaviour was:
 // Genuine lazy rollover: there is no cron/scheduled-job infrastructure in
 // this project, so "carrying a task forward" happens the first time an
 // overdue-but-not-done task is actually fetched. For every row still
@@ -22,37 +25,23 @@ function todayIso() {
 // part of the roll, the very next fetch that same day no longer matches
 // `due_date < today`, so a task is never re-rolled twice in one day without
 // needing any extra "already rolled today" bookkeeping column.
-async function rollOverOverdueTasks(rows: TaskRowWithRollover[]): Promise<TaskRowWithRollover[]> {
-  const today = todayIso()
-  const overdue = rows.filter((r) => r.status !== "done" && !!r.due_date && r.due_date < today)
-  if (overdue.length === 0) return rows
-
-  const rolled = await Promise.all(
-    overdue.map(async (task) => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .update({
-          original_due_date: task.original_due_date ?? task.due_date,
-          due_date: today,
-          rolled_count: (task.rolled_count ?? 0) + 1,
-        })
-        .eq("id", task.id)
-        .select()
-        .single()
-      if (error) throw error
-      return data
+/** The assignee moves one of their own overdue tasks to today. Explicit and logged (the task_logs trigger records old and new date). */
+export async function moveTaskToToday(task: Pick<TaskRow, "id" | "due_date" | "original_due_date" | "rolled_count">): Promise<TaskRow> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({
+      original_due_date: task.original_due_date ?? task.due_date,
+      due_date: todayIso(),
+      rolled_count: (task.rolled_count ?? 0) + 1,
     })
-  )
-
-  const rolledById = new Map(rolled.map((r) => [r.id, r]))
-  return rows.map((r) => rolledById.get(r.id) ?? r)
+    .eq("id", task.id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
 }
 
-// "Today's list" = due_date <= today AND status != 'done'. Any row that's
-// still overdue (due_date < today) is rolled forward via
-// rollOverOverdueTasks before the list is returned, so the UI always shows
-// a task's *current* due_date (today, once rolled) plus rolled_count/
-// original_due_date for the "rolled over Nx" treatment.
+// "Today's list" = due_date <= today AND status != 'done'. Overdue rows are returned as they are (due_date < today) and shown red.
 export async function listMyWorkspaceTasks(orgId: string, assigneeId: string): Promise<TaskRowWithRollover[]> {
   const { data, error } = await supabase
     .from("tasks")
@@ -63,7 +52,7 @@ export async function listMyWorkspaceTasks(orgId: string, assigneeId: string): P
     .neq("status", "done")
     .order("due_date", { ascending: true })
   if (error) throw error
-  return rollOverOverdueTasks(data ?? [])
+  return data ?? []
 }
 
 export async function listUpcomingWorkspaceTasks(orgId: string, assigneeId: string): Promise<TaskRow[]> {

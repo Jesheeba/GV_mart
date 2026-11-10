@@ -6,8 +6,10 @@ import { Controller, useForm } from "react-hook-form"
 import { Loader2, Plus } from "lucide-react"
 import { useProfile } from "@/hooks/useProfile"
 import { usePnlReport, useCreateExpense } from "@/hooks/useReports"
+import { useExpenseCategories } from "@/hooks/useAccountsFollowup"
 import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue } from "@/services/reports"
 import { createExpenseSchema, expenseCategories, type CreateExpenseFormInput, type CreateExpenseOutput } from "@/lib/validation/reports"
+import { resolveLegacyExpenseCategoryEnum } from "@/services/reportMappers"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
@@ -362,16 +364,19 @@ function PnlRow({ label, value, sub, tone }: { label: string; value: string; sub
 function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefined; onClose: () => void; onLogged: () => void }) {
   const { t } = useTranslation()
   const createExpense = useCreateExpense()
+  const { data: expenseCategoryOptions } = useExpenseCategories(orgId)
 
   const form = useForm<CreateExpenseFormInput, unknown, CreateExpenseOutput>({
     resolver: zodResolver(createExpenseSchema),
     mode: "onChange",
-    defaultValues: { category: "marketing", amount: 0, date: toLocalDateString(new Date()) },
+    defaultValues: { categoryId: "", amount: 0, date: toLocalDateString(new Date()) },
   })
 
   async function onSubmit(values: CreateExpenseOutput) {
     if (!orgId) return
-    await createExpense.mutateAsync({ orgId, category: values.category, amount: values.amount, date: values.date })
+    const category = (expenseCategoryOptions ?? []).find((c) => c.id === values.categoryId)
+    if (!category) return
+    await createExpense.mutateAsync({ orgId, category: resolveLegacyExpenseCategoryEnum(category), categoryId: values.categoryId, amount: values.amount, date: values.date })
     onLogged()
   }
 
@@ -386,19 +391,24 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
-          <Label htmlFor="pnl-expense-category">{t("reports.pnl.category")}</Label>
+          <Label htmlFor="pnl-expense-under-category">{t("accounts.underCategory")}</Label>
           <select
-            id="pnl-expense-category"
-            {...form.register("category")}
+            id="pnl-expense-under-category"
+            {...form.register("categoryId")}
             className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
-            {expenseCategories.map((c) => (
-              <option key={c} value={c}>
-                {t(`reports.pnl.expenseCategory.${c}`)}
-              </option>
-            ))}
+            <option value="" disabled>
+              {t("accounts.chooseCategory")}
+            </option>
+            {(expenseCategoryOptions ?? [])
+              .filter((c) => c.is_active)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
           </select>
-          {form.formState.errors.category ? <p className="text-xs text-danger">{t(form.formState.errors.category.message!)}</p> : null}
+          {form.formState.errors.categoryId ? <p className="text-xs text-danger">{t(form.formState.errors.categoryId.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pnl-expense-amount">{t("reports.pnl.amount")}</Label>

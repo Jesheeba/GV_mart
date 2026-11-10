@@ -5,10 +5,13 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
+import { InlineErrorState } from "@/components/shared/InlineErrorState"
 import { PeriodFilter } from "@/app/admin/reports/PeriodFilter"
 import { periodToRange, type PeriodValue } from "@/services/reports"
 import { useMyTechnician } from "@/hooks/useTechnician"
 import { useKmLogEntries, useMyExpenseClaims } from "@/hooks/useMonthlyExpenses"
+import { isNotYetAvailableError } from "@/lib/supabaseErrors"
+import { resolveSectionState } from "@/lib/listState"
 
 /** Monthly Expenses spec §1.5/§1.8 — a technician's own submissions and
  *  history, filtered by date range or by month, reusing PeriodFilter
@@ -29,6 +32,8 @@ export function ExpensesHistoryPage() {
   }
 
   const filteredClaims = (claims.data ?? []).filter((c) => c.period >= range.from.slice(0, 7) + "-01" && c.period <= range.to)
+  const claimsState = resolveSectionState({ isLoading: claims.isLoading, isError: claims.isError, isEmpty: filteredClaims.length === 0 })
+  const kmEntriesState = resolveSectionState({ isLoading: kmEntries.isLoading, isError: kmEntries.isError, isEmpty: (kmEntries.data ?? []).length === 0 })
 
   return (
     <div className="space-y-4 pt-2">
@@ -37,7 +42,15 @@ export function ExpensesHistoryPage() {
 
       <div className="space-y-2">
         <p className="text-sm font-semibold text-text">{t("technician.expenses.myClaims")}</p>
-        {filteredClaims.length === 0 ? (
+        {claimsState === "loading" ? (
+          <p className="text-sm text-text-muted">{t("common.loading")}</p>
+        ) : claimsState === "error" ? (
+          <InlineErrorState
+            message={isNotYetAvailableError(claims.error) ? t("technician.expenses.notAvailableYet") : t("technician.errors.loadFailed")}
+            onRetry={() => claims.refetch()}
+            retryLabel={t("common.retry")}
+          />
+        ) : claimsState === "empty" ? (
           <p className="text-sm text-text-muted">{t("technician.expenses.noClaims")}</p>
         ) : (
           filteredClaims.map((c) => (
@@ -67,7 +80,15 @@ export function ExpensesHistoryPage() {
 
       <div className="space-y-2">
         <p className="text-sm font-semibold text-text">{t("technician.expenses.myKmLog")}</p>
-        {(kmEntries.data ?? []).length === 0 ? (
+        {kmEntriesState === "loading" ? (
+          <p className="text-sm text-text-muted">{t("common.loading")}</p>
+        ) : kmEntriesState === "error" ? (
+          <InlineErrorState
+            message={isNotYetAvailableError(kmEntries.error) ? t("technician.expenses.notAvailableYet") : t("technician.errors.loadFailed")}
+            onRetry={() => kmEntries.refetch()}
+            retryLabel={t("common.retry")}
+          />
+        ) : kmEntriesState === "empty" ? (
           <p className="text-sm text-text-muted">{t("technician.expenses.noKmEntries")}</p>
         ) : (
           kmEntries.data!.map((e) => (

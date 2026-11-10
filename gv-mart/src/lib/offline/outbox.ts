@@ -1,12 +1,24 @@
 import { db, type OutboxJob, type OutboxKind } from "./db"
+import { OUTBOX_PAYLOAD_VERSION } from "./outboxContract"
 
-/** Queues a mutation for sync. Returns the local outbox row id (not a server id). */
+/**
+ * Queues a mutation for sync. Returns the local outbox row id (not a server
+ * id). Tags the JOB (not the payload — several kinds spread `payload`
+ * verbatim into a Supabase insert/upsert, so a stray field inside it would
+ * try to write a non-existent column) with `payloadVersion`, see
+ * outboxContract.ts. Purely for triage, never branched on by the replayer:
+ * the additive-only rule means every version's required fields are a
+ * superset of every earlier version's, so a job tagged `payloadVersion: 1`
+ * and a job with no tag at all (queued before this field existed) both
+ * replay through the exact same code path.
+ */
 export async function enqueue(kind: OutboxKind, payload: unknown, clientRefId?: string) {
   const now = Date.now()
   const job: OutboxJob = {
     kind,
     clientRefId,
     payload,
+    payloadVersion: OUTBOX_PAYLOAD_VERSION,
     status: "pending",
     attempts: 0,
     createdAt: now,

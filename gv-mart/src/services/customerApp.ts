@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { isUndefinedTableError } from "@/lib/supabaseErrors"
 import type { Enums, Tables } from "@/types/database"
 
 /**
@@ -27,6 +28,9 @@ export type SettingsRow = Tables<"settings">
 
 // ── Profile / customer record ─────────────────────────────────────────────
 
+// Reverted to the original select (reviewer feedback: no revoke/regrant of any kind on
+// customers; health_condition never lived there). Deploy-order safety for the 4 new water
+// columns comes for free with "*" — a column that doesn't exist yet simply isn't in the row.
 export async function getMyCustomerRecord(customerId: string) {
   const { data, error } = await supabase
     .from("customers")
@@ -36,7 +40,21 @@ export async function getMyCustomerRecord(customerId: string) {
     .order("is_primary", { referencedTable: "customer_members", ascending: false })
     .single()
   if (error) throw error
-  return data
+  return { ...data, health_condition: await getMyHealthCondition(customerId) }
+}
+
+/**
+ * health_condition lives in customer_health_profile (not a customers column). The customer
+ * reads their own row directly, via that table's own RLS (customer_health_profile_select_own).
+ * Deploy-order safety: the table may not exist yet (42P01) — degrade to null.
+ */
+export async function getMyHealthCondition(customerId: string): Promise<Enums<"household_health_level"> | null> {
+  const { data, error } = await supabase.from("customer_health_profile").select("health_condition").eq("customer_id", customerId).maybeSingle()
+  if (error) {
+    if (isUndefinedTableError(error)) return null
+    throw error
+  }
+  return data?.health_condition ?? null
 }
 
 export async function updateMyProfession(customerId: string, profession: string) {
@@ -119,6 +137,57 @@ export async function updateMyAddress(addressId: string, input: AddressInput) {
 export async function setMyPrimaryAddress(customerId: string, addressId: string) {
   await supabase.from("addresses").update({ is_primary: false }).eq("customer_id", customerId).eq("is_primary", true)
   const { error } = await supabase.from("addresses").update({ is_primary: true }).eq("id", addressId)
+  if (error) throw error
+}
+
+/**
+ * "Pin my address" (20261201100000) -- a focused action distinct from the full add/edit
+ * AddressForm (which already requires a pin as part of saving the whole address). Relies on
+ * the existing addresses_write_own RLS policy (customer_id = current_customer_id(), org_id =
+ * current_org_id(), 20261006190000_lock_down_own_row_policies.sql) for ownership -- no new RPC;
+ * a plain .update() here can only ever touch the caller's own row.
+ *
+ * "Use my current location" (address-from-location) extends this with an optional patch of
+ * address TEXT fields, reverse-geocoded from the same coordinates and merged in by the caller
+ * (never overwriting a field the customer already typed -- see geocodeToAddressFields.ts).
+ * Columns are named for the `.update()` payload directly, not CustomerAddressInput's camelCase
+ * shape. `fields` is explicitly picked down to exactly these 6 keys below (never spread
+ * wholesale) -- defense-in-depth so a caller passing extra keys (e.g. a stray `customer_id`)
+ * can never reach the `.update()` payload, even though TypeScript already erases that risk for
+ * every actual call site in this codebase (independent security review, address-from-location).
+ */
+export type AddressTextFieldsPatch = Partial<{
+  full_address: string
+  area: string
+  pincode: string
+  district: string
+  state: string
+}>
+
+function pickAddressTextFields(fields: AddressTextFieldsPatch | undefined): AddressTextFieldsPatch {
+  if (!fields) return {}
+  const picked: AddressTextFieldsPatch = {}
+  if (fields.full_address !== undefined) picked.full_address = fields.full_address
+  if (fields.area !== undefined) picked.area = fields.area
+  if (fields.pincode !== undefined) picked.pincode = fields.pincode
+  if (fields.district !== undefined) picked.district = fields.district
+  if (fields.state !== undefined) picked.state = fields.state
+  return picked
+}
+
+export async function setMyAddressPin(addressId: string, lat: number, lng: number, accuracyM?: number, fields?: AddressTextFieldsPatch) {
+  const { error } = await supabase
+    .from("addresses")
+    .update({ lat, lng, pinned_at: new Date().toISOString(), location_accuracy_m: accuracyM ?? null, ...pickAddressTextFields(fields) })
+    .eq("id", addressId)
+  if (error) throw error
+}
+
+export async function clearMyAddressPin(addressId: string) {
+  const { error } = await supabase
+    .from("addresses")
+    .update({ lat: null, lng: null, pinned_at: null, location_accuracy_m: null })
+    .eq("id", addressId)
   if (error) throw error
 }
 
@@ -428,8 +497,12 @@ export type RenewAmcInput = {
    * technician's name, not their id) — renew_amc_plan resolves it
    * server-side to a real technicians.id -> leads.owner_id so it feeds the
    * existing finder-credit incentive plumbing, never stored as a raw column
-   * nothing reads. Silently ignored (no attribution, sale still succeeds)
-   * if the name doesn't match exactly one active technician in the org.
+   * nothing reads. If the name doesn't match exactly one active technician
+   * in the org, the sale still succeeds (never blocked by this), but the
+   * RPC now reports it via `referral_matched: false` (connection-map
+   * follow-up finding F-05) instead of silently dropping the credit with no
+   * signal — see `renewAmcPlan`'s return type and `AmcBookingPanel.tsx`'s
+   * warning toast.
    */
   referredByTechnicianName?: string
   /** Task 3 (2026-07-30) — customer-picked service address; falls back to
@@ -448,7 +521,10 @@ export async function renewAmcPlan(input: RenewAmcInput) {
     p_address_id: input.addressId ?? null,
   })
   if (error) throw error
-  return data as { contract_id: string; ticket_ids: string[]; expiry_date: string }
+  // referral_matched: null when no name was given at all; true when given and
+  // matched; false when given but did not match exactly one active technician
+  // (F-05 — the caller should warn the customer in this case, not stay silent).
+  return data as { contract_id: string; ticket_ids: string[]; expiry_date: string; referral_matched: boolean | null }
 }
 
 export type AmcHistoryVisit = {

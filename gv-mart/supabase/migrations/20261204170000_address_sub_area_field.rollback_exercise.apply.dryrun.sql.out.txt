@@ -1,0 +1,3 @@
+HTTP_STATUS: 400
+
+{"message":"Failed to run sql query: ERROR:  P0001: PRECONDITION FAILED: sub_area already exists -- this probe assumes nothing is live yet\nCONTEXT:  PL/pgSQL function inline_code_block line 14 at RAISE\n"}

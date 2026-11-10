@@ -15,16 +15,19 @@ import {
   useCustomerFilterCounts,
   useCustomerListEnrichment,
   useCustomersList,
+  useIsTestCustomerCount,
 } from "@/hooks/useCustomers"
+import { useReferrersForCustomers } from "@/hooks/useReferrals"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { AMC_STATUS_TONE } from "@/lib/amc-status"
+import { computeCustomersListCount } from "@/lib/customers-list-count"
 import { cn } from "@/lib/utils"
 import { getCustomerListEnrichment, listCustomers } from "@/services/customers"
 import type { CustomerListItem, CustomerRowEnrichment } from "@/services/customers"
 import type { Enums } from "@/types/database"
 
-type QuickFilter = "all" | "hasAmc" | "amcDueSoon" | "dormant"
+type QuickFilter = "all" | "hasAmc" | "amcDueSoon" | "dormant" | "app" | "needsReview"
 
 function toCsv(
   rows: CustomerListItem[],
@@ -37,7 +40,8 @@ function toCsv(
     const info = enrichment?.get(r.id)
     return [
       r.name,
-      r.mobile,
+      r.mobile ?? "",
+      r.email ?? "",
       r.profession ?? "",
       primary?.area ?? "",
       primary?.pincode ?? "",
@@ -93,6 +97,8 @@ export function CustomersListPage() {
       hasAmc: quickFilter === "hasAmc" ? true : undefined,
       amcDueSoon: quickFilter === "amcDueSoon" ? true : undefined,
       dormant: quickFilter === "dormant" ? true : undefined,
+      appSourced: quickFilter === "app" ? true : undefined,
+      needsReview: quickFilter === "needsReview" ? true : undefined,
     }),
     [search, addressType, area, pincode, hasWarranty, quickFilter]
   )
@@ -101,12 +107,27 @@ export function CustomersListPage() {
   const { data, isLoading, isFetching, isError, refetch } = useCustomersList(orgId, filters, page)
   const autocomplete = useCustomerAutocomplete(orgId, searchInput)
   const counts = useCustomerFilterCounts(orgId)
+  // The Customers list itself never excludes is_test customers (they stay
+  // visible, tagged with the TEST badge) but counts.data.total does
+  // (is_test = false) — see computeCustomersListCount's own doc comment for
+  // why the unfiltered pagination total needs this added back in.
+  const testCount = useIsTestCustomerCount(orgId)
   const enrichment = useCustomerListEnrichment(
     orgId,
     (data?.rows ?? []).map((r) => r.id)
   )
+  // Package 5: "Referred by" column -- one batch call per page (pageSize 20, well under the
+  // RPC's own 200-id cap). A customer with no referrer simply has no entry here.
+  const referrers = useReferrersForCustomers((data?.rows ?? []).map((r) => r.id))
+  const referrerByCustomerId = new Map((referrers.data ?? []).map((r) => [r.customer_id, r]))
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.count / (data.pageSize ?? 20))) : 1
+  const effectiveCount = computeCustomersListCount({
+    hasActiveFilters,
+    queryCount: data?.count,
+    exactNonTestTotal: counts.data?.total,
+    testCustomerCount: testCount.data,
+  })
+  const totalPages = data ? Math.max(1, Math.ceil(effectiveCount / (data.pageSize ?? 20))) : 1
 
   function clearFilters() {
     setSearchInput("")
@@ -119,11 +140,11 @@ export function CustomersListPage() {
   }
 
   async function exportCsv() {
-    if (!orgId || !data?.count) return
+    if (!orgId || !effectiveCount) return
     setIsExporting(true)
     try {
-      const pageSize = data.pageSize ?? 20
-      const pageCount = Math.max(1, Math.ceil(data.count / pageSize))
+      const pageSize = data?.pageSize ?? 20
+      const pageCount = Math.max(1, Math.ceil(effectiveCount / pageSize))
       const pages = await Promise.all(
         Array.from({ length: pageCount }, (_, i) => listCustomers(orgId, filters, i + 1))
       )
@@ -135,6 +156,7 @@ export function CustomersListPage() {
       const header = [
         t("customers.export.name"),
         t("customers.export.mobile"),
+        t("customers.export.email"),
         t("customers.export.profession"),
         t("customers.export.area"),
         t("customers.export.pincode"),
@@ -178,6 +200,19 @@ export function CustomersListPage() {
                     {t("customers.testBadge")}
                   </span>
                 ) : null}
+                {c.source === "customer_app" ? (
+                  <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                    {t("customers.appBadge")}
+                  </span>
+                ) : null}
+                {c.needs_review ? (
+                  <span
+                    title={c.needs_review_reason ?? t("customers.needsReviewBadge")}
+                    className="rounded-full bg-[#F97316]/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#F97316]"
+                  >
+                    {t("customers.needsReviewBadge")}
+                  </span>
+                ) : null}
                 {c.needs_setup ? (
                   <span
                     role="img"
@@ -187,7 +222,7 @@ export function CustomersListPage() {
                   />
                 ) : null}
               </div>
-              <div className="gv-tnum text-xs text-text-muted">{c.mobile}</div>
+              <div className="gv-tnum text-xs text-text-muted">{c.mobile || "—"}</div>
             </div>
           </div>
         )
@@ -198,7 +233,36 @@ export function CustomersListPage() {
       header: t("customers.table.area"),
       render: (c) => {
         const primary = c.addresses.find((a) => a.is_primary) ?? c.addresses[0]
-        return primary?.area ?? "—"
+        if (!primary) return "—"
+        return (
+          <div className="space-y-0.5">
+            <div>{primary.area ?? "—"}</div>
+            {primary.lat != null && primary.lng != null ? (
+              <StatusDot tone="success" label={t("customers.form.map.pinned")} />
+            ) : (
+              <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: "email",
+      header: t("customers.table.email"),
+      render: (c) => c.email ?? "—",
+    },
+    {
+      key: "referredBy",
+      header: t("customers.table.referredBy"),
+      render: (c) => {
+        const r = referrerByCustomerId.get(c.id)
+        if (!r) return "—"
+        const source = r.source_label === "direct" ? t("customers.detail.referrerSourceDirect") : t("customers.detail.referrerSourceLegacy")
+        return (
+          <span title={`${r.referrer_name} (${source})`} className="truncate">
+            {r.referrer_name} <span className="text-text-muted">({source})</span>
+          </span>
+        )
       },
     },
     {
@@ -277,6 +341,22 @@ export function CustomersListPage() {
           label={`${t("customers.filters.dormant")} · ${counts.data?.dormant ?? "—"}`}
           onClick={() => {
             setQuickFilter("dormant")
+            setPage(1)
+          }}
+        />
+        <QuickFilterChip
+          active={quickFilter === "app"}
+          label={t("customers.filters.app")}
+          onClick={() => {
+            setQuickFilter("app")
+            setPage(1)
+          }}
+        />
+        <QuickFilterChip
+          active={quickFilter === "needsReview"}
+          label={t("customers.filters.needsReview")}
+          onClick={() => {
+            setQuickFilter("needsReview")
             setPage(1)
           }}
         />
@@ -402,10 +482,10 @@ export function CustomersListPage() {
           />
         )}
 
-        {data && data.count > 0 ? (
+        {data && effectiveCount > 0 ? (
           <div className="flex items-center justify-between px-1 pt-1">
             <p className="text-xs text-text-muted">
-              {t("customers.pagination.pageInfo", { page, totalPages, count: data.count })}
+              {t("customers.pagination.pageInfo", { page, totalPages, count: effectiveCount })}
               {isFetching ? ` · ${t("common.loading")}` : ""}
             </p>
             <div className="flex gap-2">

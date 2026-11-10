@@ -335,14 +335,14 @@ function buildSendDeps(admin: SupabaseClient): SendDeps {
     async findApprovedMapping(orgId, eventKey, language) {
       const { data: m } = await admin
         .from("whatsapp_event_templates")
-        .select("wasi_template_name, param_map")
+        .select("wasi_template_name, param_map, has_auth_copy_code_button")
         .eq("org_id", orgId)
         .eq("event_key", eventKey)
         .eq("language", language)
         .eq("is_active", true)
         .abortSignal(AbortSignal.timeout(DB_CALL_TIMEOUT_MS))
         .maybeSingle()
-      const mapping = m as { wasi_template_name: string; param_map: Record<string, string> | null } | null
+      const mapping = m as { wasi_template_name: string; param_map: Record<string, string> | null; has_auth_copy_code_button: boolean | null } | null
       if (!mapping) return null
       const { data: t } = await admin
         .from("whatsapp_wasi_templates")
@@ -361,6 +361,7 @@ function buildSendDeps(admin: SupabaseClient): SendDeps {
         paramMap: mapping.param_map ?? {},
         paramKeys: mirror.param_keys ?? null,
         headerType: mirror.header_type ?? null,
+        hasAuthCopyCodeButton: mapping.has_auth_copy_code_button ?? false,
       }
     },
     async insertRow(row) {

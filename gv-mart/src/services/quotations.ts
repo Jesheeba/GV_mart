@@ -34,7 +34,9 @@ export async function listQuotations(orgId: string, dateRange?: DateRange, opts:
 export type QuotationDetail = QuotationRow & {
   customers: { name: string; mobile: string } | null
   leads: { name: string } | null
-  quotation_items: (QuotationItemRow & { itemName: string })[]
+  // itemCode: a camelCase alias of quotation_items.item_code (20261104110000), stamped by a BEFORE INSERT
+  // trigger at line-creation time — read straight off the row, not looked up from the live catalog.
+  quotation_items: (QuotationItemRow & { itemName: string; itemCode: string | null })[]
 }
 
 async function itemNameLookup(orgId: string, items: { item_type: Enums<"item_type">; item_id: string }[]) {
@@ -69,7 +71,7 @@ export async function getQuotation(orgId: string, id: string): Promise<Quotation
   const names = await itemNameLookup(orgId, data.quotation_items)
   return {
     ...data,
-    quotation_items: data.quotation_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—" })),
+    quotation_items: data.quotation_items.map((it) => ({ ...it, itemName: names.get(it.item_id) ?? "—", itemCode: it.item_code ?? null })),
   } as QuotationDetail
 }
 

@@ -9,18 +9,39 @@ import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { useProfile } from "@/hooks/useProfile"
 import { useSetReceivesNewLeads } from "@/hooks/useLeadAssignment"
-import { useNonTechnicianStaff, useResetStaffPassword, useSetStaffActive, useSetStaffRoleKey } from "@/hooks/useHr"
+import { useLogSalaryToAccounts, useNonTechnicianStaff, useResetStaffPassword, useSetStaffActive, useSetStaffRoleKey } from "@/hooks/useHr"
 import { roleBaseSalariesHooks } from "@/hooks/useMasters"
-import { useCreateExpense, useSalarySpendByStaff } from "@/hooks/useReports"
+import { useSalarySpendByStaff } from "@/hooks/useReports"
 import { useAssignableProfiles, useAssignTask, useOrgTasks } from "@/hooks/useTasks"
 import { formatCurrency } from "@/lib/sale-calc"
 import { useToast } from "@/components/ui/toast-context"
 import type { StaffOption } from "@/services/hr"
 import { AddStaffDialog } from "./AddStaffDialog"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { useReferralBonusReport } from "@/hooks/useReferrals"
+import { Gift } from "lucide-react"
 
 function currentMonthIso() {
   return getIstNow().date.slice(0, 7)
+}
+
+/** Owner correction 7 (referral incentives, 2026-11-02): a staff referrer (not a technician) has
+ * no `salaries`/`compute_salary` row to pay into — DB package 2's compute_incentives block skips
+ * referrer_technician_id IS NULL rows entirely, so a staff member's referral bonus never
+ * auto-posts anywhere. Surfaced here as a manual pending-payout note, same discipline as every
+ * other amount on this screen (master types it, clicks Log Salary — this just tells them there's
+ * something to add on top this month). Keyed by referred_by_user_id, which for a staff referrer
+ * IS the profiles.id row shown in this table. */
+function useStaffPendingReferralPayouts(month: string) {
+  const period = `${month}-01`
+  const { data } = useReferralBonusReport(period)
+  const byProfileId = new Map<string, number>()
+  for (const row of data?.rows ?? []) {
+    if (row.referrer_kind === "staff" && row.status === "pending") {
+      byProfileId.set(row.referred_by_user_id, (byProfileId.get(row.referred_by_user_id) ?? 0) + row.rate_amount)
+    }
+  }
+  return byProfileId
 }
 
 function monthToRange(month: string) {
@@ -48,7 +69,8 @@ export function StaffSalaryTab() {
   const { data: staff, isLoading, isError, refetch } = useNonTechnicianStaff(orgId)
   const { data: staffSalaryTotals } = useSalarySpendByStaff(orgId, range)
   const totalsByStaffId = new Map((staffSalaryTotals ?? []).map((s) => [s.staffId, s.total]))
-  const createExpense = useCreateExpense()
+  const pendingReferralByProfileId = useStaffPendingReferralPayouts(month)
+  const logMut = useLogSalaryToAccounts()
   // Role base salaries (Masters > Role Salaries). Pre-fills the amount for a
   // staff member linked via profiles.staff_role_key; master can still override.
   const { data: roleSalaries } = roleBaseSalariesHooks.useList(orgId)
@@ -88,23 +110,32 @@ export function StaffSalaryTab() {
     return base && base > 0 ? String(base) : ""
   }
 
+  // Incentive audit, Finding H-01 (payroll-fixes, 2026-10-29) — the audit
+  // specifically flagged this path as having "zero protection" against a
+  // repeated click (not even the client-side guard SalaryTab had). Now goes
+  // through the same master-only, DB-idempotent log_salary_to_accounts() RPC
+  // SalaryTab uses (salaryId omitted — non-technician staff have no `salaries`
+  // row; the DB enforces "one per staff per month" via a partial unique index
+  // instead).
   function logSalary(person: StaffOption) {
     const raw = effectiveAmount(person)
     const amount = Number(raw)
     if (!orgId || !raw || !(amount > 0)) return
     setLoggingId(person.id)
-    createExpense.mutate(
+    logMut.mutate(
       {
         orgId,
-        category: "salary",
+        staffId: person.id,
         amount,
         date: getIstNow().date,
         note: `Salary — ${month}`,
-        staffId: person.id,
-        loggedBy: profile?.id ?? null,
       },
       {
-        onSuccess: () => setAmounts((prev) => ({ ...prev, [person.id]: "" })),
+        onSuccess: (result) => {
+          if (result.inserted) setAmounts((prev) => ({ ...prev, [person.id]: "" }))
+          else toast.success(result.message)
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : t("hr.staffSalary.logFailed")),
         onSettled: () => setLoggingId(null),
       }
     )
@@ -212,10 +243,21 @@ export function StaffSalaryTab() {
       header: "",
       render: (r) => {
         const total = totalsByStaffId.get(r.id)
-        return total ? (
-          <span className="text-xs font-semibold text-success">{t("hr.staffSalary.logged", { amount: formatCurrency(total) })}</span>
-        ) : (
-          <span className="text-xs text-text-muted">{t("hr.staffSalary.notLoggedYet")}</span>
+        const pendingReferral = pendingReferralByProfileId.get(r.id)
+        return (
+          <div className="flex flex-col gap-0.5">
+            {total ? (
+              <span className="text-xs font-semibold text-success">{t("hr.staffSalary.logged", { amount: formatCurrency(total) })}</span>
+            ) : (
+              <span className="text-xs text-text-muted">{t("hr.staffSalary.notLoggedYet")}</span>
+            )}
+            {pendingReferral ? (
+              <span className="flex items-center gap-1 text-xs font-medium text-accent">
+                <Gift className="size-3" />
+                {t("hr.staffSalary.pendingReferralPayout", { amount: formatCurrency(pendingReferral) })}
+              </span>
+            ) : null}
+          </div>
         )
       },
     },

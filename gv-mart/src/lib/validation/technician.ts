@@ -25,6 +25,20 @@ export const spareHandoverSignSchema = z.object({
 })
 export type SpareHandoverSignInput = z.infer<typeof spareHandoverSignSchema>
 
+// Requirement 2 dispute flagging (2026-11-14 gap fix) — report_spare_handover_discrepancy
+// itself refuses a received_qty equal to qty_given server-side too; this just gives the
+// technician the same feedback before the round trip.
+export const spareHandoverDiscrepancySchema = (qtyGiven: number) =>
+  z.object({
+    receivedQty: z.coerce
+      .number()
+      .int()
+      .min(0, "technician.spareHandover.receivedQtyRequired")
+      .refine((v) => v !== qtyGiven, "technician.spareHandover.receivedQtyMatches"),
+    note: z.string().trim().max(500).optional(),
+  })
+export type SpareHandoverDiscrepancyInput = z.infer<ReturnType<typeof spareHandoverDiscrepancySchema>>
+
 // TECH-07 step 6 — Charges / discount
 export const chargesStepSchema = z.object({
   serviceCharge: z.coerce.number().min(0, "technician.errors.nonNegative"),

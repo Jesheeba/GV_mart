@@ -14,6 +14,15 @@
 // technician, staff) qualifies, since the address picker is used by
 // customers too, not just staff.
 //
+// That alone is STILL not a real bound in practice: customer_auto_onboard
+// grants a 'customer' profile to any Google sign-in with no vetting, so
+// "any signed-in role" is, functionally, "anyone with a Google account".
+// Right after the getUser check, every action below also passes through a
+// per-user rate limit (20261202100100_geocode_rate_limit.sql) -- a burst
+// window and a daily window, both enforced server-side in one small table +
+// SECURITY DEFINER function. Fails OPEN (never blocks a real request) if the
+// rate-limit check itself errors for any reason.
+//
 // Four actions, matching Google's own two-step Autocomplete flow plus a
 // plain-geocode fallback and a driving-distance lookup for live tracking:
 //   - "autocomplete": Places Autocomplete API — live-as-you-type predictions
@@ -34,6 +43,10 @@
 //     standard and to flag an off-route technician (driving distance far
 //     exceeding the straight-line distance). Requires "Directions API"
 //     enabled on the same Google Cloud project/key as the other three.
+//   - "reverse": Geocoding API's reverse mode (coordinates -> address) —
+//     "Use my current location" in the customer app's address form / Pin my
+//     address dialog. Same API, same key, same billing project as "geocode"
+//     (forward) above -- no new secret, no new paid API.
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
 
@@ -57,6 +70,14 @@ export type GeocodeResult = {
   // auto-suggestion instead of treating every geocode result as equally
   // trustworthy.
   locationType: string | null
+  // "Use my current location" (reverse geocode) needs finer-grained components
+  // than any existing caller did -- street_number/route let the address form
+  // prefill door-number/street-name fields separately, instead of only the
+  // area/district/state/postcode block the forward-geocode/autocomplete
+  // callers have used until now. Null (never invented) when Google's result
+  // has no such component -- common outside India or for rural addresses.
+  streetNumber: string | null
+  route: string | null
 }
 
 type AutocompletePrediction = { placeId: string; description: string }
@@ -68,6 +89,7 @@ type GeocodeRequest =
   | { action: "details"; placeId: string; sessionToken: string }
   | { action: "geocode"; query: string }
   | { action: "directions"; origin: LatLng; destination: LatLng }
+  | { action: "reverse"; lat: number; lng: number }
 
 type GoogleAddressComponent = { long_name: string; short_name: string; types: string[] }
 
@@ -97,6 +119,8 @@ function extractComponents(components: GoogleAddressComponent[]) {
     state: find("administrative_area_level_1"),
     postcode: find("postal_code"),
     suburb: find("sublocality_level_1") ?? find("sublocality") ?? find("neighborhood"),
+    streetNumber: find("street_number"),
+    route: find("route"),
   }
 }
 
@@ -108,8 +132,20 @@ function toGeocodeResult(r: {
   const lat = r.geometry?.location?.lat
   const lon = r.geometry?.location?.lng
   if (lat == null || lon == null) return null
-  const { city, district, state, postcode, suburb } = extractComponents(r.address_components ?? [])
-  return { formatted: r.formatted_address ?? "", lat, lon, city, district, state, postcode, suburb, locationType: r.geometry?.location_type ?? null }
+  const { city, district, state, postcode, suburb, streetNumber, route } = extractComponents(r.address_components ?? [])
+  return {
+    formatted: r.formatted_address ?? "",
+    lat,
+    lon,
+    city,
+    district,
+    state,
+    postcode,
+    suburb,
+    streetNumber,
+    route,
+    locationType: r.geometry?.location_type ?? null,
+  }
 }
 
 // GV Mart operates out of Chennai — a soft preference (biases ranking, does
@@ -165,6 +201,58 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
   const { data: userRes, error: userErr } = await admin.auth.getUser(token)
   if (userErr || !userRes?.user) return jsonError("Invalid or expired session", 401)
+
+  // Per-user rate limit (20261202100100_geocode_rate_limit.sql) -- covers every action below
+  // from this one call site. customer_auto_onboard grants a 'customer' profile to ANY Google
+  // sign-in with no vetting, so the auth check above alone does not bound who can run up
+  // billed Google Maps calls through this function.
+  //
+  // ROLE-BASED TIERS (code-only -- the RPC itself is tier-agnostic, just 4 numeric params):
+  //   - staff (master / operation_admin / sales_admin): burst 150 calls / 2 min, daily
+  //     STAFF_DAILY_MAX. Sized for a dispatcher actively watching the fleet live-tracking map
+  //     (TechniciansMapPage.tsx's useDirectionsDistance, several technicians at once, each a
+  //     separate `directions` call whenever their rounded position bucket changes -- not
+  //     throttled by React Query's staleTime). STAFF_DAILY_MAX was originally 2500, but that
+  //     alone exceeds the project's entire Google Cloud Console daily quota for this API
+  //     (~1000/day for everyone combined) -- lowered to 800 so even one heavy dispatcher-day
+  //     cannot single-handedly exhaust the shared quota, while the real cause (the live-
+  //     tracking map re-fetching far more often than the UI actually needs) is fixed
+  //     separately on the frontend (throttled refetch, hidden-tab pause, no-active-job skip --
+  //     see TechniciansMapPage.tsx/useDirectionsDistance).
+  //   - everyone else (customer, technician, or no profile row yet): burst 40 calls / 2 min,
+  //     daily 200. The owner's own invariant: a single customer's daily cap must stay at or
+  //     under ~1/5 of the Google Cloud Console daily quota set for this project (~1000/day
+  //     for everyone combined) -- 200 is exactly that fifth. Comfortably above this
+  //     codebase's own measured realistic-heavy-day estimate for one customer (~100-150
+  //     calls: several autocomplete/geocode/reverse address-entry sessions in one day), so no
+  //     legitimate customer should ever hit it; a single abusive account is capped at 20% of
+  //     the entire shared quota, not free to exhaust it alone. Burst (40/2min) matches this
+  //     codebase's own measured worst-case single-session address-entry burst. Technician is
+  //     deliberately NOT given the staff tier here: a technician's own MapPage shows exactly
+  //     one destination at a time (their current job), a far lower volume than a dispatcher
+  //     watching many technicians at once -- grouped with "everyone else" as the safe default
+  //     until/unless the owner asks for a dedicated technician tier.
+  //
+  // FAIL OPEN on any error from the rate-limit check itself (RPC missing/not yet migrated,
+  // network hiccup, anything) -- a DB hiccup on the counter must never block real address
+  // entry. Logged via console.error so it is visible in Supabase function logs without ever
+  // surfacing as a hard error to the caller.
+  const STAFF_DAILY_MAX = 800
+  const STAFF_ROLES = new Set(["master", "operation_admin", "sales_admin"])
+  const { data: profileRow } = await admin.from("profiles").select("role").eq("id", userRes.user.id).maybeSingle()
+  const isStaff = !!profileRow?.role && STAFF_ROLES.has(profileRow.role)
+  const rateLimitParams = isStaff
+    ? { p_burst_window_seconds: 120, p_burst_max: 150, p_day_window_seconds: 86400, p_day_max: STAFF_DAILY_MAX }
+    : { p_burst_window_seconds: 120, p_burst_max: 40, p_day_window_seconds: 86400, p_day_max: 200 }
+  const { data: rateLimitAllowed, error: rateLimitErr } = await admin.rpc("check_and_increment_geocode_rate_limit", {
+    p_user_id: userRes.user.id,
+    ...rateLimitParams,
+  })
+  if (rateLimitErr) {
+    console.error("geocode rate-limit check failed, failing open:", rateLimitErr.message)
+  } else if (rateLimitAllowed === false) {
+    return jsonError("Too many location/address lookups. Please wait a few minutes and try again.", 429)
+  }
 
   let body: GeocodeRequest
   try {
@@ -269,7 +357,25 @@ Deno.serve(async (req) => {
       })
     }
 
-    return jsonError("action must be one of: autocomplete, details, geocode, directions", 400)
+    if (body.action === "reverse") {
+      const { lat, lng } = body
+      if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return jsonError("lat/lng must be finite numbers within valid coordinate ranges", 400)
+      }
+      const data = await callGoogle("geocode", {
+        latlng: `${lat},${lng}`,
+        key: apiKey,
+        language: "en",
+      })
+      // Google returns reverse results most-specific-first; the first one is
+      // the right pick the same way forward "geocode" above already treats
+      // its own results[0] as the best match.
+      const result = data.results?.[0] ? toGeocodeResult(data.results[0]) : null
+      if (!result) return jsonError("Could not resolve that location to an address", 502)
+      return jsonOk({ result })
+    }
+
+    return jsonError("action must be one of: autocomplete, details, geocode, directions, reverse", 400)
   } catch (e) {
     if (e instanceof Response) return e
     return jsonError("Unexpected error while geocoding", 500)

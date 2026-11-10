@@ -3,6 +3,7 @@ import * as customers from "@/services/customers"
 import type { CreateCustomerInput, CustomerListFilters, MemberRow } from "@/services/customers"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { getCustomerMeasuredWaterReading, getCustomerTdsSuggestion } from "@/services/waterQuality"
+import { shouldLookUpDuplicates } from "@/lib/duplicateContactWarning"
 
 const MOBILE_REGEX = /^[6-9]\d{9}$/
 
@@ -12,6 +13,26 @@ export function useMobileDuplicateCheck(orgId: string | undefined, mobile: strin
     queryKey: ["customers", "duplicateCheck", orgId, debounced, excludeCustomerId],
     queryFn: () => customers.checkMobileInUse(orgId!, debounced, excludeCustomerId),
     enabled: !!orgId && MOBILE_REGEX.test(debounced),
+  })
+}
+
+/**
+ * Urgent item (2026-11-02): the richer staff-side duplicate-contact warning
+ * (find_duplicate_contacts RPC — 20261204130000_duplicate_contact_warning_rpc.sql,
+ * NOT applied yet). Unlike useMobileDuplicateCheck above (customers +
+ * customer_members only, a single name), this also searches leads and
+ * returns ticket/invoice counts, feeding the DuplicateContactWarning banner
+ * used by both CustomerFormPage (Create Customer) and NewLeadForm (Create
+ * Lead). Reuses the same useDebouncedValue hook as every other debounced
+ * lookup in this file — no second debounce implementation.
+ */
+export function useDuplicateContactWarning(orgId: string | undefined, mobile: string, email = "") {
+  const debouncedMobile = useDebouncedValue(mobile, 400)
+  const debouncedEmail = useDebouncedValue(email, 400)
+  return useQuery({
+    queryKey: ["customers", "duplicateContacts", orgId, debouncedMobile, debouncedEmail],
+    queryFn: () => customers.findDuplicateContacts(debouncedMobile, debouncedEmail),
+    enabled: !!orgId && shouldLookUpDuplicates(debouncedMobile, debouncedEmail),
   })
 }
 
@@ -41,10 +62,45 @@ export function useCustomer(id: string | undefined) {
   })
 }
 
+/** Water columns only (customers table) — see WaterHouseholdPanel. health_condition is
+ *  written separately via useUpsertCustomerHealthCondition below (its own table now). */
+export function useUpdateCustomerWaterProfile(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (patch: Parameters<typeof customers.updateCustomerWaterProfile>[1]) => customers.updateCustomerWaterProfile(customerId, patch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
+  })
+}
+
+/** customer_health_profile — master/operation_admin/sales_admin (is_staff()) only, per its
+ *  own RLS, not a customers column. */
+export function useUpsertCustomerHealthCondition(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orgId, healthCondition }: { orgId: string; healthCondition: Parameters<typeof customers.upsertCustomerHealthCondition>[2] }) =>
+      customers.upsertCustomerHealthCondition(customerId, orgId, healthCondition),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
+  })
+}
+
 export function useCustomerFilterCounts(orgId: string | undefined) {
   return useQuery({
     queryKey: ["customers", "filterCounts", orgId],
     queryFn: () => customers.getCustomerFilterCounts(orgId!),
+    enabled: !!orgId,
+  })
+}
+
+export function useIsTestCustomerCount(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "isTestCount", orgId],
+    queryFn: () => customers.getIsTestCustomerCount(orgId!),
     enabled: !!orgId,
   })
 }
@@ -105,10 +161,17 @@ export function useCustomerLifetimeSummary(orgId: string | undefined, customerId
 }
 
 export function useCustomerAutocomplete(orgId: string | undefined, term: string) {
+  // Debounced here (not left to callers) so every one of this hook's many
+  // callers (New Complaint, New Sale, rentals, quotations, leads, merge,
+  // AMC, the admin header search, the customers list) gets the same
+  // keystroke-coalescing and request-cancellation instead of each firing
+  // 3 Supabase queries per keystroke -- that fan-out, uncancelled, is what
+  // queued the shared-table search into the ground under concurrent load.
+  const debouncedTerm = useDebouncedValue(term, 300)
   return useQuery({
-    queryKey: ["customers", "autocomplete", orgId, term],
-    queryFn: () => customers.autocompleteCustomers(orgId!, term),
-    enabled: !!orgId && term.trim().length > 0,
+    queryKey: ["customers", "autocomplete", orgId, debouncedTerm],
+    queryFn: ({ signal }) => customers.autocompleteCustomers(orgId!, debouncedTerm, signal),
+    enabled: !!orgId && debouncedTerm.trim().length > 0,
     staleTime: 10_000,
   })
 }
@@ -141,6 +204,17 @@ export function useUpdateCustomerProfession(customerId: string) {
   })
 }
 
+export function useUpdateCustomerEmail(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (email: string) => customers.updateCustomerEmail(customerId, email),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
+  })
+}
+
 export function useCustomerDeleteImpact(customerId: string | undefined, enabled: boolean) {
   return useQuery({
     queryKey: ["customers", "deleteImpact", customerId],
@@ -164,6 +238,33 @@ export function useClearCustomerNeedsSetup(customerId: string) {
     mutationFn: () => customers.clearCustomerNeedsSetup(customerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+    },
+  })
+}
+
+export function useAdminLinkCustomerGoogleAccount(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (googleEmail: string) => customers.adminLinkCustomerGoogleAccount(customerId, googleEmail),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] }),
+  })
+}
+
+export function useAdminUnlinkCustomerGoogleAccount(customerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (reason: string) => customers.adminUnlinkCustomerGoogleAccount(customerId, reason),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] }),
+  })
+}
+
+export function useAdminMergeAutoCustomer(fromCustomerId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ toCustomerId, reason }: { toCustomerId: string; reason: string }) => customers.adminMergeAutoCustomer(fromCustomerId, toCustomerId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", fromCustomerId] })
       queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
     },
   })

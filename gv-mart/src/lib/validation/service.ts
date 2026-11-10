@@ -42,6 +42,12 @@ export const complaintAppointmentStepSchema = z.object({
     .array(z.object({ start: z.string(), end: z.string() }))
     .refine((windows) => windows.every((w) => w.end > w.start), "customerApp.bookService.unavailability.invalidRange"),
   autoAssign: z.boolean(),
+  // Urgent item 1 (2026-11-02): explicit master-picked technician for this
+  // complaint, independent of autoAssign. Empty string ("") means "no
+  // explicit pick" — NewComplaintPage.tsx sends this as null, never a
+  // stand-in technician. When set, it takes priority over autoAssign on the
+  // RPC side (see create_complaint_ticket's p_technician_id).
+  technicianId: z.string().optional().or(z.literal("")),
 })
 export type ComplaintAppointmentStepInput = z.infer<typeof complaintAppointmentStepSchema>
 

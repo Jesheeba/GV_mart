@@ -1,0 +1,3 @@
+HTTP_STATUS: 400
+
+{"message":"Failed to run sql query: ERROR:  P0001: RESULTS: customer1=5794ad09-fc8c-4023-8e8d-f5be7942b072 customer2=36926f39-a935-42e7-ac7d-69321a06188c manual_create_no_dedupe=t lead_reuses_existing=t cross_org_result=move_lead_to_customer: lead 214478e3-b059-43d5-8eda-a03d0692b5d6 not found cross_org_sqlstate=P0001 anon_result=correctly rejected anon_sqlstate=42501\nCONTEXT:  PL/pgSQL function inline_code_block line 385 at RAISE\n"}

@@ -49,6 +49,27 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_private: {
+        Row: {
+          profile_id: string
+          org_id: string
+          address: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          org_id: string
+          address?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           id: string
@@ -59,6 +80,9 @@ export type Database = {
           photo_url: string | null
           language: string
           is_active: boolean
+          designation: string | null
+          must_change_password: boolean
+          task_color: string | null
           staff_role_key: string | null
           created_at: string
           updated_at: string
@@ -73,6 +97,8 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          designation?: string | null
+          task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
@@ -87,6 +113,8 @@ export type Database = {
           photo_url?: string | null
           language?: string
           is_active?: boolean
+          designation?: string | null
+          task_color?: string | null
           staff_role_key?: string | null
           created_at?: string
           updated_at?: string
@@ -173,6 +201,9 @@ export type Database = {
           shift_end: string | null
           created_at: string
           updated_at: string
+          // FEATURE_TECHNICIAN_LEAVE_REQUEST.md — hand-added, 20261106100000
+          leave_request_id: string | null
+          protected: boolean
         }
         Insert: {
           id?: string
@@ -184,6 +215,8 @@ export type Database = {
           shift_end?: string | null
           created_at?: string
           updated_at?: string
+          leave_request_id?: string | null
+          protected?: boolean
         }
         Update: {
           id?: string
@@ -195,6 +228,8 @@ export type Database = {
           shift_end?: string | null
           created_at?: string
           updated_at?: string
+          leave_request_id?: string | null
+          protected?: boolean
         }
         Relationships: [
           {
@@ -478,6 +513,73 @@ export type Database = {
           },
         ]
       }
+      // FEATURE_TECHNICIAN_LEAVE_REQUEST.md — hand-added stub, 20261106100000 (no codegen run).
+      technician_leave_requests: {
+        Row: {
+          id: string
+          org_id: string
+          technician_id: string
+          start_date: string
+          end_date: string
+          reason: string | null
+          status: string
+          protected: boolean
+          requested_by: string
+          created_at: string
+          decided_by: string | null
+          decided_at: string | null
+          decision_note: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          technician_id: string
+          start_date: string
+          end_date: string
+          reason?: string | null
+          status?: string
+          protected?: boolean
+          requested_by: string
+          created_at?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          decision_note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          technician_id?: string
+          start_date?: string
+          end_date?: string
+          reason?: string | null
+          status?: string
+          protected?: boolean
+          requested_by?: string
+          created_at?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          decision_note?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technician_leave_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technician_leave_requests_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           is_test: boolean
@@ -485,7 +587,9 @@ export type Database = {
           org_id: string
           primary_profile_id: string | null
           name: string
-          mobile: string
+          // Nullable since 20261130100000 — a Google-auto-onboarded customer has no phone until
+          // they provide one later (see customer_auto_onboard()).
+          mobile: string | null
           profession: string | null
           preferred_language: string | null
           source: string | null
@@ -495,6 +599,29 @@ export type Database = {
           // only when update_lead_status auto-creates this customer from a
           // won lead; staff clear it once address/family details are filled.
           needs_setup: boolean
+          // customer_auto_onboard() (20261130100001) — the account-holder's own Google email,
+          // matched against on auto-onboard; never customer_members.email.
+          email: string | null
+          // Set when auto-onboarding had to create a new customer instead of linking, because
+          // the email match was ambiguous or already claimed by a different sign-in.
+          needs_review: boolean
+          needs_review_reason: string | null
+          // Set by admin_unlink_customer_google_account (20261130100002), cleared only by a
+          // master relinking via admin_link_customer_google_account -- stops customer_auto_onboard()
+          // from silently re-linking a customer a master deliberately unlinked.
+          auto_link_blocked_at: string | null
+          auto_link_blocked_by: string | null
+          // Set by admin_merge_auto_customer (20261130100003) when an empty auto-created
+          // customer's link is moved onto an existing one. Excluded from the default customer
+          // list/search; the row and its audit_log trail are kept, never hard-deleted.
+          archived_at: string | null
+          archived_by: string | null
+          // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
+          // is NOT here — it lives in its own table, customer_health_profile, below.
+          water_source: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other: string | null
+          water_tds_ppm: number | null
+          water_ph: number | null
           created_at: string
           updated_at: string
         }
@@ -504,13 +631,24 @@ export type Database = {
           org_id: string
           primary_profile_id?: string | null
           name: string
-          mobile: string
+          mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
+          email?: string | null
+          needs_review?: boolean
+          needs_review_reason?: string | null
+          auto_link_blocked_at?: string | null
+          auto_link_blocked_by?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          water_source?: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other?: string | null
+          water_tds_ppm?: number | null
+          water_ph?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -520,13 +658,24 @@ export type Database = {
           org_id?: string
           primary_profile_id?: string | null
           name?: string
-          mobile?: string
+          mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
           needs_setup?: boolean
+          email?: string | null
+          needs_review?: boolean
+          needs_review_reason?: string | null
+          auto_link_blocked_at?: string | null
+          auto_link_blocked_by?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          water_source?: Database["public"]["Enums"]["water_source_type"] | null
+          water_source_other?: string | null
+          water_tds_ppm?: number | null
+          water_ph?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -543,6 +692,47 @@ export type Database = {
             columns: ["primary_profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      // 20261108100000_customer_water_profile.sql — health_condition's own table (not a
+      // customers column). No column-level grant games on customers at all.
+      customer_health_profile: {
+        Row: {
+          customer_id: string
+          org_id: string
+          health_condition: Database["public"]["Enums"]["household_health_level"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          customer_id: string
+          org_id: string
+          health_condition: Database["public"]["Enums"]["household_health_level"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          customer_id?: string
+          org_id?: string
+          health_condition?: Database["public"]["Enums"]["household_health_level"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_health_profile_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_health_profile_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -674,12 +864,18 @@ export type Database = {
           state: string | null
           lat: number | null
           lng: number | null
+          // "Pin my address" (20261201100000) -- when the pin was last set/changed, and the
+          // browser geolocation accuracy (metres) when it came from "use my current location".
+          pinned_at: string | null
+          location_accuracy_m: number | null
           address_type: Database["public"]["Enums"]["address_type"]
           ownership: Database["public"]["Enums"]["ownership_type"]
           is_primary: boolean
           zone: string | null
           /** Single free-text address box — see migration 20261103090000. */
           full_address: string | null
+          /** Added 2026-12-04 — clean-address-form redesign, see migration 20261204170000. */
+          sub_area: string | null
           /** Added 2026-11-03 — Water & household step, see migration 20261103120000. */
           water_source: string | null
           water_tds: number | null
@@ -705,11 +901,14 @@ export type Database = {
           state?: string | null
           lat?: number | null
           lng?: number | null
+          pinned_at?: string | null
+          location_accuracy_m?: number | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
           zone?: string | null
           full_address?: string | null
+          sub_area?: string | null
           water_source?: string | null
           water_tds?: number | null
           water_ph?: number | null
@@ -734,11 +933,14 @@ export type Database = {
           state?: string | null
           lat?: number | null
           lng?: number | null
+          pinned_at?: string | null
+          location_accuracy_m?: number | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
           zone?: string | null
           full_address?: string | null
+          sub_area?: string | null
           water_source?: string | null
           water_tds?: number | null
           water_ph?: number | null
@@ -855,6 +1057,8 @@ export type Database = {
           price: number
           cost_price: number | null
           hsn_code: string | null
+          // Hand-patched, see 20261104100000_product_item_code.sql
+          item_code: string | null
           warranty_months: number
           standard_time_minutes: number | null
           // Task 6 (2026-07-30) — see 20260730170000_product_spare_mapping_and_active_flags.sql.
@@ -882,6 +1086,7 @@ export type Database = {
           price: number
           cost_price?: number | null
           hsn_code?: string | null
+          item_code?: string | null
           warranty_months?: number
           standard_time_minutes?: number | null
           is_active?: boolean
@@ -902,6 +1107,7 @@ export type Database = {
           price?: number
           cost_price?: number | null
           hsn_code?: string | null
+          item_code?: string | null
           warranty_months?: number
           standard_time_minutes?: number | null
           is_active?: boolean
@@ -2680,6 +2886,7 @@ export type Database = {
           language: string
           wasi_template_name: string
           param_map: Json
+          has_auth_copy_code_button: boolean
           is_active: boolean
           created_at: string
           updated_at: string
@@ -2691,6 +2898,7 @@ export type Database = {
           language: string
           wasi_template_name: string
           param_map?: Json
+          has_auth_copy_code_button?: boolean
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -2702,6 +2910,7 @@ export type Database = {
           language?: string
           wasi_template_name?: string
           param_map?: Json
+          has_auth_copy_code_button?: boolean
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -2882,6 +3091,9 @@ export type Database = {
           item_id: string
           qty: number
           price: number
+          // Hand-patched, see 20261104110000_invoice_quotation_item_code_snapshot.sql. Stamped by a BEFORE INSERT
+          // trigger from the catalog at line-creation time; a client-supplied value is ignored.
+          item_code: string | null
           created_at: string
           updated_at: string
         }
@@ -2893,6 +3105,7 @@ export type Database = {
           item_id: string
           qty: number
           price: number
+          item_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2904,6 +3117,7 @@ export type Database = {
           item_id?: string
           qty?: number
           price?: number
+          item_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3155,6 +3369,9 @@ export type Database = {
           price: number
           discount: number
           cost: number | null
+          // Hand-patched, see 20261104110000_invoice_quotation_item_code_snapshot.sql. Stamped by a BEFORE INSERT
+          // trigger from the catalog at line-creation time; a client-supplied value is ignored.
+          item_code: string | null
           created_at: string
           updated_at: string
         }
@@ -3168,6 +3385,7 @@ export type Database = {
           price: number
           discount?: number
           cost?: number | null
+          item_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3181,6 +3399,7 @@ export type Database = {
           price?: number
           discount?: number
           cost?: number | null
+          item_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4206,6 +4425,8 @@ export type Database = {
           product_category: Database["public"]["Enums"]["brand_category"]
           product_id: string | null
           label: string
+          // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
+          standard_minutes: number | null
           created_at: string
           updated_at: string
         }
@@ -4215,6 +4436,7 @@ export type Database = {
           product_category: Database["public"]["Enums"]["brand_category"]
           product_id?: string | null
           label: string
+          standard_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -4224,6 +4446,7 @@ export type Database = {
           product_category?: Database["public"]["Enums"]["brand_category"]
           product_id?: string | null
           label?: string
+          standard_minutes?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -4916,6 +5139,7 @@ export type Database = {
           admin_sign_url: string | null
           tech_sign_url: string | null
           status: string
+          given_by: string | null
           created_at: string
           updated_at: string
         }
@@ -4927,6 +5151,7 @@ export type Database = {
           admin_sign_url?: string | null
           tech_sign_url?: string | null
           status?: string
+          given_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4938,6 +5163,7 @@ export type Database = {
           admin_sign_url?: string | null
           tech_sign_url?: string | null
           status?: string
+          given_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4956,6 +5182,13 @@ export type Database = {
             referencedRelation: "technicians"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "spare_handovers_given_by_fkey"
+            columns: ["given_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       spare_handover_items: {
@@ -4966,6 +5199,8 @@ export type Database = {
           spare_id: string
           qty_given: number
           qty_returned: number
+          received_qty: number | null
+          dispute_note: string | null
           created_at: string
           updated_at: string
         }
@@ -4976,6 +5211,8 @@ export type Database = {
           spare_id: string
           qty_given?: number
           qty_returned?: number
+          received_qty?: number | null
+          dispute_note?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -4986,6 +5223,8 @@ export type Database = {
           spare_id?: string
           qty_given?: number
           qty_returned?: number
+          received_qty?: number | null
+          dispute_note?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -5181,8 +5420,15 @@ export type Database = {
           created_at: string
           updated_at: string
           auto_assign_pending: boolean
+          // Edit Lead screen (2026-11-02) — 20261201110000_lead_edit_details.sql.
+          // Nullable. NOT applied yet — see migration header.
+          alternate_mobile: string | null
+          address_text: string | null
+          // Referral incentives — hand-patched ahead of DB package 1's actual migration
+          // (plain table column, not an RPC; see services/automation.ts createLead()).
+          referred_by_user_id: string | null
           // Lead Dashboard Enhancement, feature 4 (2026-11-10) — see
-          // 20261110100000_lead_detail_fields.sql.
+          // 20261110100000_lead_detail_fields.sql. Applied live.
           customer_requirement: string | null
           special_description: string | null
           user_source: string | null
@@ -5191,7 +5437,8 @@ export type Database = {
           tds_status: string | null
           report_storage_path: string | null
           // Lead Dashboard Enhancement, feature 5 (2026-11-10) — see
-          // 20261110110000_lead_referral_details.sql.
+          // 20261110110000_lead_referral_details.sql. Applied live. Free-text,
+          // coexists with referred_by_user_id above — see MEMORY.md.
           referred_by_name: string | null
           referred_by_phone: string | null
         }
@@ -5225,6 +5472,9 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_pending?: boolean
+          alternate_mobile?: string | null
+          address_text?: string | null
+          referred_by_user_id?: string | null
           customer_requirement?: string | null
           special_description?: string | null
           user_source?: string | null
@@ -5265,6 +5515,9 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_pending?: boolean
+          alternate_mobile?: string | null
+          address_text?: string | null
+          referred_by_user_id?: string | null
           customer_requirement?: string | null
           special_description?: string | null
           user_source?: string | null
@@ -6178,6 +6431,14 @@ export type Database = {
           recurring_task_id: string | null
           logged_by: string | null
           staff_id: string | null
+          // Accounts follow-up (20261115110000) — hand-patched, no Docker to regenerate.
+          category_id: string | null
+          // Incentive audit, Findings H-01/H-03 (20261117100000/20261117100001) —
+          // hand-patched, same reason as category_id above.
+          salary_id: string | null
+          voided_at: string | null
+          voided_by: string | null
+          void_reason: string | null
           created_at: string
           updated_at: string
         }
@@ -6193,6 +6454,11 @@ export type Database = {
           recurring_task_id?: string | null
           logged_by?: string | null
           staff_id?: string | null
+          category_id?: string | null
+          salary_id?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          void_reason?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6208,6 +6474,11 @@ export type Database = {
           recurring_task_id?: string | null
           logged_by?: string | null
           staff_id?: string | null
+          category_id?: string | null
+          salary_id?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          void_reason?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6238,6 +6509,13 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
             referencedColumns: ["id"]
           },
         ]
@@ -6285,6 +6563,8 @@ export type Database = {
           owner_id: string | null
           date_raised: string
           date_solved: string | null
+          solution_by: string | null
+          solved_by: string | null
           created_at: string
           updated_at: string
         }
@@ -6300,6 +6580,8 @@ export type Database = {
           owner_id?: string | null
           date_raised: string
           date_solved?: string | null
+          solution_by?: string | null
+          solved_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6315,6 +6597,8 @@ export type Database = {
           owner_id?: string | null
           date_raised?: string
           date_solved?: string | null
+          solution_by?: string | null
+          solved_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6323,6 +6607,12 @@ export type Database = {
       settings: {
         Row: {
           review_incentives_enabled: boolean
+          // 20261108100000_customer_water_profile.sql — gates whether a technician's job/
+          // history detail shows the customer's health_condition level. Default false.
+          show_health_condition_to_technicians: boolean
+          // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
+          job_overrun_buffer_minutes: number
+          ops_resolution_sla_hours: number
           id: string
           org_id: string
           per_km_minutes: number
@@ -6416,9 +6706,18 @@ export type Database = {
           created_at: string
           updated_at: string
           auto_assign_leads: boolean
+          // FEATURE_TECHNICIAN_LEAVE_REQUEST.md — hand-added, 20261106100000
+          leave_notice_days: number
+          // 20261204100000_sync_outstanding_tasks.sql — hand-added, 2026-11-02
+          min_outstanding_balance: number
+          min_outstanding_days: number
+          default_accounts_owner_id: string | null
         }
         Insert: {
           review_incentives_enabled?: boolean
+          show_health_condition_to_technicians?: boolean
+          job_overrun_buffer_minutes?: number
+          ops_resolution_sla_hours?: number
           id?: string
           org_id: string
           per_km_minutes?: number
@@ -6493,9 +6792,16 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_leads?: boolean
+          leave_notice_days?: number
+          min_outstanding_balance?: number
+          min_outstanding_days?: number
+          default_accounts_owner_id?: string | null
         }
         Update: {
           review_incentives_enabled?: boolean
+          show_health_condition_to_technicians?: boolean
+          job_overrun_buffer_minutes?: number
+          ops_resolution_sla_hours?: number
           id?: string
           org_id?: string
           per_km_minutes?: number
@@ -6570,6 +6876,10 @@ export type Database = {
           created_at?: string
           updated_at?: string
           auto_assign_leads?: boolean
+          leave_notice_days?: number
+          min_outstanding_balance?: number
+          min_outstanding_days?: number
+          default_accounts_owner_id?: string | null
         }
         Relationships: [
           {
@@ -6950,6 +7260,56 @@ export type Database = {
           },
         ]
       }
+      task_logs: {
+        Row: {
+          id: string
+          org_id: string
+          task_id: string
+          kind: string
+          created_by: string | null
+          actor_name: string | null
+          note: string | null
+          minutes_spent: number | null
+          next_planned_date: string | null
+          next_planned_note: string | null
+          from_user: string | null
+          to_user: string | null
+          from_name: string | null
+          to_name: string | null
+          from_value: string | null
+          to_value: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          task_id: string
+          kind?: string
+          created_by?: string | null
+          actor_name?: string | null
+          note?: string | null
+          minutes_spent?: number | null
+          next_planned_date?: string | null
+          next_planned_note?: string | null
+          from_user?: string | null
+          to_user?: string | null
+          from_name?: string | null
+          to_name?: string | null
+          from_value?: string | null
+          to_value?: string | null
+          created_at?: string
+        }
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "task_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           id: string
@@ -7145,9 +7505,115 @@ export type Database = {
           },
         ]
       }
+      // Accounts follow-up (20261115100000) — hand-patched, no Docker to regenerate.
+      customer_outstanding_reminders: {
+        Row: {
+          id: string
+          org_id: string
+          customer_id: string
+          due_at: string
+          note: string | null
+          status: Database["public"]["Enums"]["customer_outstanding_reminder_status"]
+          source: string
+          created_by: string | null
+          created_at: string
+          closed_by: string | null
+          closed_at: string | null
+          close_reason: string | null
+          updated_at: string
+        }
+        // Read-only from the client: writes go through the create/reschedule/close/cancel RPCs only.
+        Insert: never
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "customer_outstanding_reminders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_outstanding_links: {
+        Row: {
+          id: string
+          org_id: string
+          task_id: string | null
+          reminder_id: string | null
+          customer_id: string
+          invoice_id: string | null
+          amount_snapshot: number
+          created_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "customer_outstanding_links_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_outstanding_links_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: true
+            referencedRelation: "customer_outstanding_reminders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_categories: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          is_system: boolean
+          enum_value: Database["public"]["Enums"]["expense_category"] | null
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        // Read-only from the client: writes go through the create/rename/deactivate/delete RPCs only.
+        Insert: never
+        Update: never
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      task_minute_totals: {
+        Row: {
+          task_id: string | null
+          total_minutes: number | null
+        }
+        Relationships: []
+      }
+      person_minute_totals: {
+        Row: {
+          profile_id: string | null
+          total_minutes: number | null
+        }
+        Relationships: []
+      }
+      technician_spare_ledger: {
+        Row: {
+          org_id: string
+          technician_id: string
+          profile_id: string | null
+          technician_name: string | null
+          spare_id: string
+          spare_name: string | null
+          spare_sku: string | null
+          qty_handed_over: number
+          qty_used: number
+          qty_returned: number
+          balance: number
+        }
+        Relationships: []
+      }
     }
     Functions: {
       set_customer_preferred_language: {
@@ -7182,11 +7648,63 @@ export type Database = {
         }
         Returns: Json
       }
+      get_customer_health_condition: {
+        Args: {
+          p_customer_id: string
+        }
+        Returns: Database["public"]["Enums"]["household_health_level"] | null
+      }
       link_customer_google_account: {
         Args: {
           p_mobile: string
         }
         Returns: string
+      }
+      is_customer_link_otp_enabled: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      customer_link_otp_card_eligible: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      request_customer_link_code: {
+        Args: {
+          p_mobile: string
+        }
+        Returns: Json
+      }
+      verify_customer_link_code: {
+        Args: {
+          p_code: string
+        }
+        Returns: Json
+      }
+      admin_link_customer_google_account: {
+        Args: {
+          p_customer_id: string
+          p_google_email: string
+        }
+        Returns: undefined
+      }
+      customer_auto_onboard: {
+        Args: Record<PropertyKey, never>
+        Returns: Database["public"]["Tables"]["customers"]["Row"]
+      }
+      admin_merge_auto_customer: {
+        Args: {
+          p_from_customer_id: string
+          p_to_customer_id: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
+      admin_unlink_customer_google_account: {
+        Args: {
+          p_customer_id: string
+          p_reason: string
+        }
+        Returns: undefined
       }
       create_customer_with_details: {
         Args: {
@@ -7195,8 +7713,34 @@ export type Database = {
           p_source: string
           p_members: Json
           p_address: Json
+          // Referral incentives (UI-forms stream) — additive, hand-patched ahead of the DB
+          // stream's actual migration (same "post-dates codegen" convention as other hand
+          // patches in this file; see services/hr.ts's header for the general rationale).
+          // Not yet accepted server-side — see services/customers.ts createCustomerWithDetails().
+          p_referred_by_user_id?: string | null
         }
         Returns: string
+      }
+      // Urgent item (2026-11-02), hand-patched ahead of the DB stream's actual
+      // migration (same "post-dates codegen" convention as other hand patches
+      // in this file — see services/hr.ts's header for the general rationale).
+      // Migration: 20261204130000_duplicate_contact_warning_rpc.sql, NOT
+      // applied yet — see services/customers.ts findDuplicateContacts().
+      find_duplicate_contacts: {
+        Args: {
+          p_mobile?: string | null
+          p_email?: string | null
+        }
+        Returns: {
+          source: string
+          id: string
+          name: string
+          mobile: string | null
+          email: string | null
+          created_at: string
+          ticket_count: number
+          invoice_count: number
+        }[]
       }
       set_primary_member: {
         Args: {
@@ -7321,6 +7865,10 @@ export type Database = {
           // takes, now preferred over p_slot_id when provided. See
           // 20261024160000_admin_complaint_unavailable_windows.sql.
           p_unavailable_windows?: Json | null
+          // Urgent item 1 fix (2026-11-02) — explicit master-picked
+          // technician, takes priority over p_auto_assign. See
+          // 20261202090000_complaint_explicit_technician_assignment.sql.
+          p_technician_id?: string | null
         }
         Returns: Json
       }
@@ -7468,6 +8016,21 @@ export type Database = {
       mark_google_review_clicked: {
         Args: { p_org_id: string; p_visit_id: string }
         Returns: undefined
+      }
+      // Technician "Pending reviews" (2026-11-12) — hand-patched, see
+      // 20261112100000_technician_pending_reviews.sql; this file predates
+      // that migration and Docker-based `supabase gen types` isn't
+      // available in this environment (see memory: hand-patch instead).
+      list_technician_pending_reviews: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          visit_id: string
+          ticket_id: string
+          customer_id: string
+          customer_name: string
+          complaint: string | null
+          visit_completed_at: string
+        }[]
       }
       // Hand-patched, see 20260922120000_technician_kpi_review_attribution.sql
       // (Docker-based `supabase gen types` isn't available in this environment).
@@ -7656,6 +8219,22 @@ export type Database = {
       // 20260925100100_po_paid_functions.sql; Docker-based `supabase gen
       // types` isn't available in this environment (see memory: hand-patch
       // instead).
+      arm_forced_password_change: {
+        Args: { p_profile_id: string }
+        Returns: undefined
+      }
+      raise_huddle_issue: {
+        Args: { p_description: string }
+        Returns: string
+      }
+      propose_huddle_solution: {
+        Args: { p_issue_id: string; p_solution: string }
+        Returns: undefined
+      }
+      complete_forced_password_change: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       mark_po_paid: {
         Args: { p_po_id: string }
         Returns: Database["public"]["Tables"]["purchase_orders"]["Row"]
@@ -7891,6 +8470,11 @@ export type Database = {
         Args: { p_from: string; p_to: string }
         Returns: Json
       }
+      // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
+      report_performance_efficiency: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       report_kpi_tiles: {
         Args: { p_from: string; p_to: string }
         Returns: Json
@@ -7955,6 +8539,20 @@ export type Database = {
         Args: { p_lead_id: string; p_status: Database["public"]["Enums"]["lead_status"]; p_reason?: string | null }
         Returns: undefined
       }
+      // Edit Lead screen (2026-11-02) — 20261201110000_lead_edit_details.sql. NOT applied yet.
+      update_lead_details: {
+        Args: {
+          p_lead_id: string
+          p_name: string
+          p_mobile: string | null
+          p_alternate_mobile: string | null
+          p_address_text: string | null
+          p_source: string
+          p_product_type_key: string | null
+          p_notes: string | null
+        }
+        Returns: Database["public"]["Tables"]["leads"]["Row"]
+      }
       award_referral_points: {
         Args: { p_org_id: string; p_customer_id: string; p_points: number; p_reason: string | null; p_ref_id: string | null }
         Returns: string
@@ -7966,6 +8564,10 @@ export type Database = {
       create_spare_handover: {
         Args: { p_org_id: string; p_technician_id: string; p_date: string; p_items: Json }
         Returns: string
+      }
+      report_spare_handover_discrepancy: {
+        Args: { p_org_id: string; p_item_id: string; p_received_qty: number; p_note: string | null }
+        Returns: undefined
       }
       admin_sign_spare_handover: {
         Args: { p_handover_id: string; p_admin_sign_url: string }
@@ -8015,9 +8617,86 @@ export type Database = {
         Args: { p_org_id: string; p_period: string }
         Returns: { category: Database["public"]["Enums"]["reward_category"]; technician_id: string; metric: number }[]
       }
+      // Accounts follow-up (20261115100200-100300) — hand-patched, no Docker to regenerate.
+      report_customer_outstanding: {
+        Args: { p_cursor: string | null; p_limit: number }
+        Returns: {
+          customer_id: string
+          customer_name: string
+          outstanding_amount: number
+          oldest_invoice_date: string | null
+          open_reminder_count: number
+          next_reminder_at: string | null
+          open_task_count: number
+          task_assignee_name: string | null
+          task_status: string | null
+        }[]
+      }
+      report_customer_outstanding_detail: {
+        Args: { p_customer: string }
+        Returns: {
+          customer_id: string
+          customer_name: string
+          outstanding_amount: number
+          oldest_invoice_date: string | null
+          open_reminder_count: number
+          next_reminder_at: string | null
+          open_task_count: number
+        }[]
+      }
+      create_customer_outstanding_reminder: {
+        Args: { p_customer: string; p_due_at: string; p_note?: string | null; p_invoice?: string | null; p_amount?: number }
+        Returns: Database["public"]["Tables"]["customer_outstanding_reminders"]["Row"]
+      }
+      reschedule_customer_outstanding_reminder: {
+        Args: { p_reminder: string; p_due_at: string; p_note?: string | null }
+        Returns: Database["public"]["Tables"]["customer_outstanding_reminders"]["Row"]
+      }
+      close_customer_outstanding_reminder: {
+        Args: { p_reminder: string }
+        Returns: Database["public"]["Tables"]["customer_outstanding_reminders"]["Row"]
+      }
+      cancel_customer_outstanding_reminder: {
+        Args: { p_reminder: string; p_reason?: string | null }
+        Returns: Database["public"]["Tables"]["customer_outstanding_reminders"]["Row"]
+      }
+      create_customer_outstanding_task: {
+        Args: { p_customer: string; p_assignee: string | null; p_title: string; p_due_date: string; p_invoice?: string | null; p_amount?: number }
+        Returns: Database["public"]["Tables"]["tasks"]["Row"]
+      }
+      close_outstanding_reminders_if_zero: {
+        Args: { p_customer: string }
+        Returns: number
+      }
+      close_outstanding_reminders_if_zero_bulk: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      create_expense_category: {
+        Args: { p_name: string }
+        Returns: Database["public"]["Tables"]["expense_categories"]["Row"]
+      }
+      rename_expense_category: {
+        Args: { p_id: string; p_name: string }
+        Returns: Database["public"]["Tables"]["expense_categories"]["Row"]
+      }
+      deactivate_expense_category: {
+        Args: { p_id: string }
+        Returns: Database["public"]["Tables"]["expense_categories"]["Row"]
+      }
+      delete_expense_category: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      // 20261204100000_sync_outstanding_tasks.sql — hand-added, 2026-11-02
+      refresh_outstanding_tasks: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
     }
     Enums: {
       user_role: "master" | "operation_admin" | "sales_admin" | "technician" | "customer"
+      customer_outstanding_reminder_status: "open" | "done" | "cancelled"
       brand_category: "ro" | "ac" | "inverter" | "battery"
       item_type: "product" | "spare" | "gift"
       location_type: "warehouse" | "van"
@@ -8027,6 +8706,7 @@ export type Database = {
       quotation_status: "open" | "converted" | "lost"
       invoice_type: "product" | "spare" | "amc" | "rent"
       water_source_type: "corporation" | "borewater" | "other"
+      household_health_level: "none" | "normal" | "medium" | "high"
       payment_method: "cash" | "transfer" | "upi"
       payment_status: "paid" | "partial" | "due"
       ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"
@@ -8092,6 +8772,7 @@ export type Database = {
 
 type PublicSchema = Database["public"]
 
+export type Views<T extends keyof PublicSchema["Views"]> = PublicSchema["Views"][T]["Row"]
 export type Tables<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Row"]
 export type TablesInsert<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Insert"]
 export type TablesUpdate<T extends keyof PublicSchema["Tables"]> = PublicSchema["Tables"][T]["Update"]

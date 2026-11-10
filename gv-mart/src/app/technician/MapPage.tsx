@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { CheckCircle2, Loader2, MapPin, Navigation, RefreshCw, TriangleAlert } from "lucide-react"
@@ -8,6 +8,7 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useProfile } from "@/hooks/useProfile"
 import { useDirectionsDistance } from "@/hooks/useMaps"
 import { useJobDetail, useMyTechnician, useStartVisit, useTechnicianSettings, useTodaysJobs } from "@/hooks/useTechnician"
+import { useGeoPermissionRecheck } from "@/hooks/useGeoPermissionRecheck"
 import { classifyGeoError, distanceKm, expectedMinutes, getCurrentPosition, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
 import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, queueArrivalAddressConfirm, queueArrivalBlock, selectNextJob } from "@/services/technician"
 import { cn } from "@/lib/utils"
@@ -154,7 +155,7 @@ export function MapPage() {
   // silently show the technician a real "office → customer" distance/ETA
   // whenever their own GPS fix hasn't arrived yet, with nothing on screen to
   // say it isn't actually their position.
-  const directions = useDirectionsDistance(dest && position ? position : null, dest)
+  const directions = useDirectionsDistance(technician.data?.id ?? null, dest && position ? position : null, dest)
 
   // The confirm-window interval below is set up once and never re-runs (see
   // its own comment), so it must call through a ref rather than closing over
@@ -202,15 +203,35 @@ export function MapPage() {
 
   // Continuous position while this screen is open — feeds both the
   // live-updating distance/ETA display and the arrival state machine below.
-  useEffect(() => {
-    setGeoError(null)
-    const stop = watchPosition(
-      (pos) => setPosition(pos),
+  // Extracted (with its own stop-function ref) so useGeoPermissionRecheck
+  // can restart a dead watch: a browser doesn't resume watchPosition on its
+  // own after the user grants permission mid-session (see
+  // useGeoPermissionRecheck's doc comment) -- restarting means stopping the
+  // old (dead) watch and starting a genuinely new one, not layering a
+  // second watch on top of an already-stopped one.
+  const watchStopRef = useRef<(() => void) | null>(null)
+  const startWatch = useCallback(() => {
+    watchStopRef.current?.()
+    watchStopRef.current = watchPosition(
+      (pos) => {
+        setGeoError(null)
+        setPosition(pos)
+      },
       (err) => setGeoError(t(GEO_ERROR_KEYS[classifyGeoError(err)]))
     )
-    return stop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    setGeoError(null)
+    startWatch()
+    return () => {
+      watchStopRef.current?.()
+      watchStopRef.current = null
+    }
+  }, [startWatch])
+
+  useGeoPermissionRecheck(!!geoError, startWatch)
 
   // Manual re-fetch for when the continuous watch above is stuck on a stale
   // fix — some browsers/OSes only push a fresh Wi-Fi/IP-based position
@@ -391,8 +412,10 @@ export function MapPage() {
       ) : !dest ? (
         <Card className="items-center gap-2 py-8 text-center">
           <MapPin className="size-8 text-text-muted" />
-          <p className="text-sm font-medium text-text">{t("technician.map.noDestinationTitle")}</p>
-          <p className="text-xs text-text-muted">{t("technician.map.noDestinationBody")}</p>
+          <p className="text-sm font-medium text-text">
+            {destTicketId ? t("technician.map.noPinTitle") : t("technician.map.noDestinationTitle")}
+          </p>
+          <p className="text-xs text-text-muted">{destTicketId ? t("technician.map.noPinBody") : t("technician.map.noDestinationBody")}</p>
         </Card>
       ) : (
         <>

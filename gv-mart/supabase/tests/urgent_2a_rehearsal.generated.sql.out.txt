@@ -1,0 +1,3 @@
+HTTP_STATUS: 400
+
+{"message":"Failed to run sql query: ERROR:  P0001: RESULTS: normalize_test=9876543210 customer1=8b1a6c01-b105-4137-bc6b-e6cdefe6d97c customer2=7b802cdc-893c-4087-a9d2-c98f973cb95e manual_create_no_dedupe_preserved=t lead_conversion_reuses_existing=t lead_customer=8b1a6c01-b105-4137-bc6b-e6cdefe6d97c\nCONTEXT:  PL/pgSQL function inline_code_block line 358 at RAISE\n"}

@@ -9,6 +9,7 @@ import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { OtpAlertBanner } from "@/app/customer/components/OtpAlertBanner"
 import { TechnicianAssignedBanner } from "@/app/customer/components/TechnicianAssignedBanner"
+import { NeedsReviewBanner } from "@/app/customer/components/NeedsReviewBanner"
 
 export function CustomerShell() {
   const { t } = useTranslation()
@@ -57,6 +58,7 @@ export function CustomerShell() {
       </header>
       <TechnicianAssignedBanner />
       <OtpAlertBanner />
+      <NeedsReviewBanner />
       <main className="px-4 lg:px-25">
         <Outlet />
       </main>

@@ -20,9 +20,11 @@ import { PeriodFilter } from "./PeriodFilter"
 // <table> can't express — same rationale AmcWarrantyListPage.tsx uses for
 // its bespoke CSS-grid rows — so the template is now built from whichever
 // metric columns are visible.
-const PERF_COLUMNS = ["jobs", "avgPerCall", "firstFix", "avgCompletion", "productivity", "reviews", "conversion", "installations", "revenue"] as const
+const PERF_COLUMNS = ["jobs", "avgPerCall", "firstFix", "avgCompletion", "productivity", "reviews", "conversion", "installations", "revenue", "efficiency"] as const
 type PerfColumn = (typeof PERF_COLUMNS)[number]
-// installations + revenue are new/optional, off until the admin ticks them.
+// installations + revenue + efficiency are new/optional, off until the admin ticks them.
+// efficiency (P5, 20261108110000) is informational only — standard vs actual minutes, read nowhere near
+// compute_incentives or any review/flag logic.
 const PERF_DEFAULT_COLUMNS: PerfColumn[] = ["jobs", "avgPerCall", "firstFix", "avgCompletion", "productivity", "reviews", "conversion"]
 const PERF_HEADER_KEY: Record<PerfColumn, string> = {
   jobs: "jobsShort",
@@ -34,6 +36,7 @@ const PERF_HEADER_KEY: Record<PerfColumn, string> = {
   conversion: "conversion",
   installations: "installations",
   revenue: "revenue",
+  efficiency: "efficiency",
 }
 
 // "Xh Ym" once we cross an hour, plain minutes below that — kept simple per
@@ -99,6 +102,7 @@ export function PerformanceReportTab() {
         t("reports.performance.productivity"),
         t("reports.performance.conversion"),
         t("reports.performance.installations"),
+        t("reports.performance.efficiency"),
       ],
       data.map((r) => [
         r.name,
@@ -110,6 +114,7 @@ export function PerformanceReportTab() {
         r.productivityJobsPerHour,
         r.conversionPercent,
         r.installations,
+        r.efficiencyPercent,
       ])
     )
     downloadCsv(`performance-report_${range.from}_${range.to}.csv`, csv)
@@ -254,7 +259,17 @@ function renderPerfCell(col: PerfColumn, r: PerformanceRow, avgPerCall: number |
       return r.installations
     case "revenue":
       return formatCurrency(r.revenue)
+    case "efficiency":
+      return formatEfficiency(r.efficiencyPercent, r.efficiencySampleCount)
   }
+}
+
+// Informational only — a low number (standard time ÷ actual time, as a %) means slower than the master's
+// standard-minutes master (Masters > Complaint Types), not a penalty. "—" when nothing in range has a resolvable
+// standard, which is a real and expected case while the master is still filling in standard minutes.
+function formatEfficiency(percent: number | null, sampleCount: number) {
+  if (percent == null || sampleCount === 0) return "—"
+  return `${percent}%`
 }
 
 function LegendDot({ toneClass, dotClass, label }: { toneClass: string; dotClass: string; label: string }) {

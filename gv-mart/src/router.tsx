@@ -3,7 +3,9 @@ import { createBrowserRouter, Navigate } from "react-router-dom"
 import { LoginPage } from "@/app/auth/LoginPage"
 import { NotFoundPage } from "@/app/NotFoundPage"
 import { RouteFallback } from "@/components/shared/RouteFallback"
+import { RouteErrorPage } from "@/components/shared/RouteErrorPage"
 import { RequireAuth, RequireRole } from "@/lib/guards"
+import { ChangePasswordPage } from "@/app/auth/ChangePasswordPage"
 import { STAFF_ROLES } from "@/lib/roles"
 
 /**
@@ -45,6 +47,7 @@ const TicketDetailPage = lazyPage(() => import("@/app/admin/service/TicketDetail
 const AppointmentsPage = lazyPage(() => import("@/app/admin/service/AppointmentsPage"), "AppointmentsPage")
 const AmcWarrantyListPage = lazyPage(() => import("@/app/admin/amc/AmcWarrantyListPage"), "AmcWarrantyListPage")
 const AmcContractDetailPage = lazyPage(() => import("@/app/admin/amc/AmcContractDetailPage"), "AmcContractDetailPage")
+const LifecycleOverviewPage = lazyPage(() => import("@/app/admin/lifecycle/LifecycleOverviewPage"), "LifecycleOverviewPage")
 const RentalsListPage = lazyPage(() => import("@/app/admin/rentals/RentalsListPage"), "RentalsListPage")
 const LeadsPage = lazyPage(() => import("@/app/admin/leads/LeadsPage"), "LeadsPage")
 const LeadDetailPage = lazyPage(() => import("@/app/admin/leads/LeadDetailPage"), "LeadDetailPage")
@@ -59,12 +62,13 @@ const TechniciansSpareHandoverPage = lazyPage(() => import("@/app/admin/technici
 const HrPage = lazyPage(() => import("@/app/admin/hr/HrPage"), "HrPage")
 const ExpensesPage = lazyPage(() => import("@/app/admin/expenses/ExpensesPage"), "ExpensesPage")
 const AccountsPage = lazyPage(() => import("@/app/admin/accounts/AccountsPage"), "AccountsPage")
+const CustomerOutstandingPage = lazyPage(() => import("@/app/admin/accounts/CustomerOutstandingPage"), "CustomerOutstandingPage")
 const ReportsPage = lazyPage(() => import("@/app/admin/reports/ReportsPage"), "ReportsPage")
-const WorkspacePage = lazyPage(() => import("@/app/admin/workspace/WorkspacePage"), "WorkspacePage")
 const TasksPage = lazyPage(() => import("@/app/admin/tasks/TasksPage"), "TasksPage")
 const HuddlePage = lazyPage(() => import("@/app/admin/huddle/HuddlePage"), "HuddlePage")
 const NotificationsPage = lazyPage(() => import("@/app/admin/notifications/NotificationsPage"), "NotificationsPage")
 const ApprovalsPage = lazyPage(() => import("@/app/admin/approvals/ApprovalsPage"), "ApprovalsPage")
+const LeaveRequestsPage = lazyPage(() => import("@/app/admin/leaveRequests/LeaveRequestsPage"), "LeaveRequestsPage")
 const ComplaintsPage = lazyPage(() => import("@/app/admin/complaints/ComplaintsPage"), "ComplaintsPage")
 const CampaignsPage = lazyPage(() => import("@/app/admin/campaigns/CampaignsPage"), "CampaignsPage")
 const ReturnsPage = lazyPage(() => import("@/app/admin/returns/ReturnsPage"), "ReturnsPage")
@@ -80,17 +84,21 @@ const SpareHandoverPage = lazyPage(() => import("@/app/technician/SpareHandoverP
 const SpareHandoverHistoryPage = lazyPage(() => import("@/app/technician/SpareHandoverHistoryPage"), "SpareHandoverHistoryPage")
 const TechnicianExpensesPage = lazyPage(() => import("@/app/technician/ExpensesPage"), "ExpensesPage")
 const TechnicianExpensesHistoryPage = lazyPage(() => import("@/app/technician/ExpensesHistoryPage"), "ExpensesHistoryPage")
+const MySparesPage = lazyPage(() => import("@/app/technician/MySparesPage"), "MySparesPage")
 const JobDetailPage = lazyPage(() => import("@/app/technician/JobDetailPage"), "JobDetailPage")
 const JobRoutePage = lazyPage(() => import("@/app/technician/JobRoutePage"), "JobRoutePage")
 const OnSiteVisitPage = lazyPage(() => import("@/app/technician/onsite/OnSiteVisitPage"), "OnSiteVisitPage")
 const RatingPage = lazyPage(() => import("@/app/technician/RatingPage"), "RatingPage")
 const HistoryPage = lazyPage(() => import("@/app/technician/HistoryPage"), "HistoryPage")
 const HistoryDetailPage = lazyPage(() => import("@/app/technician/HistoryDetailPage"), "HistoryDetailPage")
+const PendingReviewsPage = lazyPage(() => import("@/app/technician/PendingReviewsPage"), "PendingReviewsPage")
 const TechnicianProfilePage = lazyPage(() => import("@/app/technician/ProfilePage"), "ProfilePage")
 const DaySheetPage = lazyPage(() => import("@/app/technician/DaySheetPage"), "DaySheetPage")
 const TechnicianNotificationsPage = lazyPage(() => import("@/app/technician/NotificationsPage"), "NotificationsPage")
 const TechnicianTasksPage = lazyPage(() => import("@/app/technician/TasksPage"), "TasksPage")
 const TechnicianHuddlePage = lazyPage(() => import("@/app/technician/HuddlePage"), "HuddlePage")
+const MyLeavePage = lazyPage(() => import("@/app/technician/MyLeavePage"), "MyLeavePage")
+const RequestLeavePage = lazyPage(() => import("@/app/technician/RequestLeavePage"), "RequestLeavePage")
 
 // --- Customer ---
 const CustomerShell = lazyPage(() => import("@/app/customer/CustomerShell"), "CustomerShell")
@@ -110,18 +118,32 @@ const CustomerRequestCallbackPage = lazyPage(() => import("@/app/customer/Custom
 const CustomerCompareProductsPage = lazyPage(() => import("@/app/customer/CustomerCompareProductsPage"), "CustomerCompareProductsPage")
 const CustomerSpareEnquiryPage = lazyPage(() => import("@/app/customer/CustomerSpareEnquiryPage"), "CustomerSpareEnquiryPage")
 const BookServicePage = lazyPage(() => import("@/app/customer/service/BookServicePage"), "BookServicePage")
+const ProductReplacementHistoryPage = lazyPage(
+  () => import("@/app/customer/ProductReplacementHistoryPage"),
+  "ProductReplacementHistoryPage"
+)
 const CustomerNotificationsPage = lazyPage(() => import("@/app/customer/NotificationsPage"), "NotificationsPage")
 
 const SALES_ROLES = ["master", "sales_admin"] as const
 const OPS_ROLES = ["master", "operation_admin"] as const
 const MASTER_ONLY = ["master"] as const
 
+// Stale-chunk fix, part 2: one shared `errorElement` wrapping every route below (a pathless
+// layout route with no `element` of its own just passes through to whichever child actually
+// matched) -- catches a lazy route chunk failing to load (or any other render/loader error)
+// nearer the failure than the global ErrorBoundary in main.tsx, without taking down the whole
+// app shell. `vite:preloadError`'s one-time auto-reload (main.tsx) silently handles the common
+// stale-deploy case before a user ever sees this.
 export const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/login" replace /> },
+  {
+    errorElement: <RouteErrorPage />,
+    children: [
+      { path: "/", element: <Navigate to="/login" replace /> },
   { path: "/login", element: <LoginPage /> },
   {
     element: <RequireAuth />,
     children: [
+      { path: "/change-password", element: <ChangePasswordPage /> },
       {
         path: "/admin",
         element: <RequireRole roles={[...STAFF_ROLES]} />,
@@ -191,6 +213,8 @@ export const router = createBrowserRouter([
                       { path: ":id", element: <TechnicianDetailPage /> },
                     ],
                   },
+                  { path: "leave-requests", element: <LeaveRequestsPage /> },
+                  { path: "lifecycle", element: <LifecycleOverviewPage /> },
                   { path: "inventory", element: <InventoryPage /> },
                   { path: "suppliers", element: <SuppliersPage /> },
                   { path: "purchase", element: <PurchasePage /> },
@@ -211,6 +235,7 @@ export const router = createBrowserRouter([
                   },
                   { path: "hr", element: <HrPage /> },
                   { path: "accounts", element: <AccountsPage /> },
+                  { path: "accounts/outstanding", element: <CustomerOutstandingPage /> },
                   { path: "reports", element: <ReportsPage /> },
                   { path: "masters", element: <MastersPage /> },
                   { path: "approvals", element: <ApprovalsPage /> },
@@ -220,7 +245,8 @@ export const router = createBrowserRouter([
               {
                 element: <RequireRole roles={[...STAFF_ROLES]} />,
                 children: [
-                  { path: "workspace", element: <WorkspacePage /> },
+                  // "My Workspace" is now the Tasks page's My Day tab (client item 4: one place, not two).
+                  { path: "workspace", element: <Navigate to="/admin/tasks?view=myDay" replace /> },
                   { path: "tasks", element: <TasksPage /> },
                   { path: "huddle", element: <HuddlePage /> },
                   { path: "notifications", element: <NotificationsPage /> },
@@ -250,11 +276,13 @@ export const router = createBrowserRouter([
               { path: "attendance", element: <AttendancePage /> },
               { path: "history", element: <HistoryPage /> },
               { path: "history/:visitId", element: <HistoryDetailPage /> },
+              { path: "pending-reviews", element: <PendingReviewsPage /> },
               { path: "profile", element: <TechnicianProfilePage /> },
               { path: "spares", element: <SpareHandoverPage /> },
               { path: "spares/history", element: <SpareHandoverHistoryPage /> },
               { path: "expenses", element: <TechnicianExpensesPage /> },
               { path: "expenses/history", element: <TechnicianExpensesHistoryPage /> },
+              { path: "spares/mine", element: <MySparesPage /> },
               { path: "search", element: <SearchPage /> },
               { path: "jobs/:ticketId", element: <JobDetailPage /> },
               { path: "jobs/:ticketId/route", element: <JobRoutePage /> },
@@ -263,6 +291,8 @@ export const router = createBrowserRouter([
               { path: "notifications", element: <TechnicianNotificationsPage /> },
               { path: "tasks", element: <TechnicianTasksPage /> },
               { path: "huddle", element: <TechnicianHuddlePage /> },
+              { path: "leave", element: <MyLeavePage /> },
+              { path: "leave/new", element: <RequestLeavePage /> },
             ],
           },
           // Full-screen on-site stepper — deliberately outside TechnicianShell
@@ -292,7 +322,13 @@ export const router = createBrowserRouter([
             ),
             children: [
               { index: true, element: <CustomerHomePage /> },
-              { path: "products", element: <CustomerProductsPage /> },
+              {
+                path: "products",
+                children: [
+                  { index: true, element: <CustomerProductsPage /> },
+                  { path: ":productId/history", element: <ProductReplacementHistoryPage /> },
+                ],
+              },
               {
                 path: "bookings",
                 children: [
@@ -326,5 +362,7 @@ export const router = createBrowserRouter([
       },
     ],
   },
-  { path: "*", element: <NotFoundPage /> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
 ])

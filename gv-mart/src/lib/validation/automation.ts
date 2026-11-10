@@ -9,6 +9,12 @@ export const leadSchema = z.object({
   productCategory: z.string().trim().max(60).optional().or(z.literal("")),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
   kind: z.string().trim().max(60).optional().or(z.literal("")),
+  // Referral incentives — same optional-uuid-or-empty-string idiom as poId below
+  // (a native <select> submits "", not undefined). Does not touch owner_id/
+  // source — see services/automation.ts's createLead(). This is the
+  // structured, bonus-eligible referrer picker, separate from the free-text
+  // referredByName/referredByPhone below.
+  referredByUserId: z.string().uuid().optional().or(z.literal("")),
   // Lead Dashboard Enhancement, feature 4 — see build-docs/features/lead-detail-fields.md.
   customerRequirement: z.string().trim().max(2000).optional().or(z.literal("")),
   specialDescription: z.string().trim().max(2000).optional().or(z.literal("")),
@@ -22,6 +28,8 @@ export const leadSchema = z.object({
   tdsStatus: z.enum(["", "applicable", "not_applicable", "to_be_confirmed"]).optional(),
   whenNeeded: z.string().trim().max(200).optional().or(z.literal("")),
   // Lead Dashboard Enhancement, feature 5 — see build-docs/features/referral-details.md.
+  // Free-text fields for a referrer who may not be an existing
+  // customer/profile — coexists with referredByUserId above, doesn't replace it.
   referredByName: z.string().trim().max(120).optional().or(z.literal("")),
   referredByPhone: z.string().trim().max(20).optional().or(z.literal("")),
 })

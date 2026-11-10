@@ -21,7 +21,13 @@ import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete, useCustomerExemptionWindows } from "@/hooks/useCustomers"
 import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks, useSettings } from "@/hooks/useMasters"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { useCreateComplaintTicket, useCustomerAddresses, useDetectTicketType, useOwnedEquipment, useTechnicians } from "@/hooks/useService"
+import {
+  useCreateComplaintTicket,
+  useCustomerAddresses,
+  useDetectTicketType,
+  useOwnedEquipment,
+  useTechnicians,
+} from "@/hooks/useService"
 import {
   complaintAppointmentStepSchema,
   complaintDetailsStepSchema,
@@ -29,6 +35,9 @@ import {
   type ComplaintDetailsStepInput,
 } from "@/lib/validation/service"
 import { getIstNow } from "@/lib/ist"
+import { formatDateTime } from "@/lib/formatDate"
+import { useToast } from "@/components/ui/toast-context"
+import { getConflictAppointmentInfo } from "@/services/service"
 import { TicketTypeBadge } from "./TicketBadges"
 
 function todayInput() {
@@ -61,6 +70,7 @@ type NewComplaintDraftData = {
 
 export function NewComplaintPage() {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const prefilledCustomerId = searchParams.get("customerId")
@@ -102,7 +112,7 @@ export function NewComplaintPage() {
   useEffect(() => {
     if (prefilledCustomer.data && !customerId) {
       setCustomerId(prefilledCustomer.data.id)
-      setCustomerLabel(`${prefilledCustomer.data.name} · ${prefilledCustomer.data.mobile}`)
+      setCustomerLabel(prefilledCustomer.data.mobile ? `${prefilledCustomer.data.name} · ${prefilledCustomer.data.mobile}` : prefilledCustomer.data.name)
       setEquipmentMode("owned")
       setStep(1)
       setMaxStepReached((m) => Math.max(m, 1))
@@ -186,7 +196,7 @@ export function NewComplaintPage() {
   const appointmentForm = useForm<ComplaintAppointmentStepInput>({
     resolver: zodResolver(complaintAppointmentStepSchema),
     mode: "onChange",
-    defaultValues: { scheduledDate: "", unavailableWindows: [], autoAssign: true },
+    defaultValues: { scheduledDate: "", unavailableWindows: [], autoAssign: true, technicianId: "" },
   })
   const { data: settings } = useSettings(orgId)
   const exemptionWindows = useCustomerExemptionWindows(customerId || undefined)
@@ -259,7 +269,7 @@ export function NewComplaintPage() {
     setNewProductId("")
     setUnlistedProductName("")
     detailsForm.reset({ nameOfComplaint: "", natureOfComplaint: "", priority: "normal" })
-    appointmentForm.reset({ scheduledDate: "", unavailableWindows: [], autoAssign: true })
+    appointmentForm.reset({ scheduledDate: "", unavailableWindows: [], autoAssign: true, technicianId: "" })
   }
 
   const steps = [
@@ -316,7 +326,50 @@ export function NewComplaintPage() {
       scheduledDate: appt.scheduledDate || null,
       unavailableWindows: appt.unavailableWindows ?? [],
       referredByTechnicianId: referredByTechnicianId || null,
+      // Urgent item 1 fix (2026-11-02): the master's explicit "Assign to"
+      // pick, if any — "" (nothing picked) must become null, never a
+      // fallback technician. The RPC gives this priority over autoAssign.
+      technicianId: appt.technicianId || null,
     })
+
+    // Urgent hotfix (2026-11-02): creating a complaint with an explicit
+    // technician pick (or auto-assign) can silently fail the ASSIGNMENT
+    // step even though the ticket itself is created fine -- most commonly
+    // customerBusy (this customer already has another open job, even on a
+    // completely different day -- that check has no date filter yet) or
+    // technicianBusy. _create_complaint_ticket_internal never raises for a
+    // failed assignment, it just returns assign_result.assigned=false, and
+    // this page used to silently navigate away without ever looking at it
+    // -- the master would see a brand-new unassigned ticket with zero
+    // explanation of why. Always tell them, and always still navigate (the
+    // ticket is never left orphaned/unknown-to-the-master): Force-reassign
+    // is already available on the ticket detail page for both reason keys.
+    const assignResult = result.assign_result as
+      | { assigned?: boolean; reason_key?: string; conflict_appointment_id?: string }
+      | null
+      | undefined
+    if (assignResult && assignResult.assigned === false) {
+      let detail: string | null = null
+      if (assignResult.conflict_appointment_id) {
+        try {
+          const info = await getConflictAppointmentInfo(assignResult.conflict_appointment_id)
+          if (info) {
+            detail = t(
+              assignResult.reason_key === "service.assign.customerBusy"
+                ? "service.assign.customerBusyDetail"
+                : "service.assign.technicianBusyDetail",
+              { job: info.jobLabel, from: formatDateTime(info.scheduledAt), to: formatDateTime(info.endsAt) }
+            )
+          }
+        } catch {
+          // fall through to the plain reason_key message below
+        }
+      }
+      toast.error(
+        `${t("service.newComplaint.createdUnassigned")} ${detail ?? t(assignResult.reason_key ?? "service.assign.technicianBusy")}`
+      )
+    }
+
     clearDraft()
     navigate(`/admin/service/${result.ticket_id}`)
   }
@@ -372,7 +425,7 @@ export function NewComplaintPage() {
             )}
             onSelect={(c) => {
               setCustomerId(c.id)
-              setCustomerLabel(`${c.name} · ${c.mobile}`)
+              setCustomerLabel(c.mobile ? `${c.name} · ${c.mobile}` : c.name)
               setEquipmentMode("owned")
               setSelectedOwnedProductId("")
               setAddressId("")
@@ -669,12 +722,62 @@ export function NewComplaintPage() {
                 />
               )}
             />
+
+            {/* Urgent item #5's technician-first/date-first availability
+                picker stays hidden here -- it depends on
+                get_technician_availability_for_date, which is still not
+                live (separate migration, blocked on its own version-
+                collision issue). Restore it once that migration is
+                applied through its own pipeline. */}
           </div>
 
           <label className="flex items-center gap-2 text-sm text-text">
-            <input type="checkbox" {...appointmentForm.register("autoAssign")} className="size-4 rounded border-border" />
+            <input
+              type="checkbox"
+              {...appointmentForm.register("autoAssign")}
+              disabled={!!appointmentForm.watch("technicianId")}
+              onChange={(e) => {
+                appointmentForm.setValue("autoAssign", e.target.checked)
+                // Mutually exclusive with an explicit pick below -- checking
+                // this clears any manual pick so the two can't silently
+                // disagree about who actually gets the job.
+                if (e.target.checked) appointmentForm.setValue("technicianId", "")
+              }}
+              className="size-4 rounded border-border"
+            />
             {t("service.newComplaint.autoAssign")}
           </label>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="newComplaintTechnicianId">{t("service.newComplaint.assignTechnician")}</Label>
+            <Controller
+              control={appointmentForm.control}
+              name="technicianId"
+              render={({ field }) => (
+                <select
+                  id="newComplaintTechnicianId"
+                  value={field.value ?? ""}
+                  onChange={(e) => {
+                    field.onChange(e.target.value)
+                    // Explicitly picking someone here always wins over
+                    // auto-assign -- uncheck it so the UI never implies both
+                    // are active at once (the RPC would prioritise this pick
+                    // regardless, but showing autoAssign still checked would
+                    // be misleading).
+                    if (e.target.value) appointmentForm.setValue("autoAssign", false)
+                  }}
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
+                >
+                  <option value="">{t("service.detail.pickTechnician")}</option>
+                  {(technicians ?? []).map((tech) => (
+                    <option key={tech.id} value={tech.id}>
+                      {tech.full_name} {tech.is_on_duty ? "" : `(${t("service.detail.offDuty")})`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            />
+          </div>
 
           <div className="space-y-1.5">
             <Label>{t("common.referredByTechnician")}</Label>

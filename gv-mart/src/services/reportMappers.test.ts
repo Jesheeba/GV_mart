@@ -5,12 +5,17 @@ import {
   mapFeedback,
   mapOpsResolution,
   mapPerformance,
+  mergePerformanceEfficiency,
   mapPnl,
   mapProductSales,
   mapSalaryByStaff,
   mapSalesService,
+  classifyReminderBucket,
+  countNeedingFollowUp,
   mapTopCustomers,
   mapYearOverYear,
+  resolveExpenseCategoryName,
+  resolveLegacyExpenseCategoryEnum,
   type SalesServiceRpc,
 } from "./reportMappers"
 
@@ -134,18 +139,46 @@ describe("mapPerformance / mapOpsResolution", () => {
       { id: "a", name: "Tech One", role: "technician", jobs_done: 3, on_time_percent: 66.7, revenue: 800, avg_rating: 4.5, review_count: 2, conversion_percent: 50, avg_completion_minutes: 60, productivity_jobs_per_hour: 0.19, installations: 2 },
       { id: "c", name: "Lead Only", role: "technician", jobs_done: 0, on_time_percent: null, revenue: 0, avg_rating: null, review_count: 0, conversion_percent: 33.3, avg_completion_minutes: null, productivity_jobs_per_hour: null, installations: 0 },
     ])
-    expect(rows[0]).toEqual({ id: "a", name: "Tech One", role: "technician", jobsDone: 3, onTimePercent: 66.7, revenue: 800, avgRating: 4.5, reviewCount: 2, conversionPercent: 50, avgCompletionMinutes: 60, productivityJobsPerHour: 0.19, installations: 2 })
+    expect(rows[0]).toEqual({
+      id: "a",
+      name: "Tech One",
+      role: "technician",
+      jobsDone: 3,
+      onTimePercent: 66.7,
+      revenue: 800,
+      avgRating: 4.5,
+      reviewCount: 2,
+      conversionPercent: 50,
+      avgCompletionMinutes: 60,
+      productivityJobsPerHour: 0.19,
+      installations: 2,
+      efficiencyPercent: null,
+      efficiencySampleCount: 0,
+    })
     expect(rows[1].name).toBe("Lead Only")
     expect(rows[1].onTimePercent).toBeNull()
     expect(rows[1].avgRating).toBeNull()
     expect(rows[1].avgCompletionMinutes).toBeNull()
     expect(rows[1].productivityJobsPerHour).toBeNull()
     expect(rows[1].conversionPercent).toBe(33.3)
+    // P5: efficiency is merged separately (mergePerformanceEfficiency), mapPerformance alone always defaults it.
+    expect(rows[1].efficiencyPercent).toBeNull()
+    expect(rows[1].efficiencySampleCount).toBe(0)
   })
 
-  it("maps the 24h resolution KPI, including no completed tickets", () => {
-    expect(mapOpsResolution({ resolved_within_24h: 2, total_completed: 3, percent: 66.7 })).toEqual({ resolvedWithin24h: 2, totalCompleted: 3, percent: 66.7 })
-    expect(mapOpsResolution({ resolved_within_24h: 0, total_completed: 0, percent: null })).toEqual({ resolvedWithin24h: 0, totalCompleted: 0, percent: null })
+  it("mergePerformanceEfficiency fills in only the technicians report_performance_efficiency returned a row for", () => {
+    const base = mapPerformance([
+      { id: "a", name: "Tech One", role: "technician", jobs_done: 3, on_time_percent: 66.7, revenue: 800, avg_rating: 4.5, review_count: 2, conversion_percent: 50, avg_completion_minutes: 60, productivity_jobs_per_hour: 0.19, installations: 2 },
+      { id: "b", name: "Tech Two", role: "technician", jobs_done: 1, on_time_percent: 100, revenue: 100, avg_rating: null, review_count: 0, conversion_percent: null, avg_completion_minutes: 90, productivity_jobs_per_hour: 0.1, installations: 0 },
+    ])
+    const merged = mergePerformanceEfficiency(base, [{ id: "a", efficiency_percent: 66.7, efficiency_sample_count: 2 }])
+    expect(merged.find((r) => r.id === "a")).toMatchObject({ efficiencyPercent: 66.7, efficiencySampleCount: 2 })
+    expect(merged.find((r) => r.id === "b")).toMatchObject({ efficiencyPercent: null, efficiencySampleCount: 0 })
+  })
+
+  it("maps the resolution KPI, including no completed tickets, carrying the real SLA hours (not an assumed 24)", () => {
+    expect(mapOpsResolution({ resolved_within_24h: 2, total_completed: 3, percent: 66.7, sla_hours: 6 })).toEqual({ resolvedWithin24h: 2, totalCompleted: 3, percent: 66.7, slaHours: 6 })
+    expect(mapOpsResolution({ resolved_within_24h: 0, total_completed: 0, percent: null, sla_hours: 24 })).toEqual({ resolvedWithin24h: 0, totalCompleted: 0, percent: null, slaHours: 24 })
   })
 
   it("an empty list stays empty", () => {
@@ -262,5 +295,89 @@ describe("mapSalesService by_kind (Sales & Invoices tiles)", () => {
     const k = mapSalesService({ ...withKind, by_kind: { product: { count: "3" as unknown as number, total: "300.50" as unknown as number, gst: 0, collected: 0 } } }).byKind!
     expect(k.product.avgTicket).toBe(100.17)
     expect(k.amc).toMatchObject({ count: 0, total: 0, avgTicket: null })
+  })
+})
+
+describe("resolveExpenseCategoryName", () => {
+  const systemMap = { salary: "Salary", electricity: "Electricity" }
+
+  it("uses the owner-managed category_id name when it's set, even if a system category also maps the enum", () => {
+    expect(resolveExpenseCategoryName("salary", "My Custom Payroll Bucket", systemMap)).toBe("My Custom Payroll Bucket")
+  })
+
+  it("falls back to the system category mapped from the legacy enum when category_id is unset", () => {
+    expect(resolveExpenseCategoryName("salary", null, systemMap)).toBe("Salary")
+  })
+
+  it("is the exact gap this fixes: an HR 'Log to Accounts' row never gets category_id set, but must not show Uncategorised", () => {
+    expect(resolveExpenseCategoryName("salary", null, systemMap)).not.toBeNull()
+  })
+
+  it("stays genuinely uncategorised (null) only when neither source has a name", () => {
+    expect(resolveExpenseCategoryName("other", null, systemMap)).toBeNull()
+  })
+
+  it("never consults the enum fallback once category_id already resolved a name", () => {
+    expect(resolveExpenseCategoryName("other", "Hand-picked", systemMap)).toBe("Hand-picked")
+  })
+})
+
+describe("resolveLegacyExpenseCategoryEnum", () => {
+  it("maps a system category to its own enum_value", () => {
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: true, enum_value: "salary" })).toBe("salary")
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: true, enum_value: "electricity" })).toBe("electricity")
+  })
+
+  it("maps a user-created category (no enum_value) to 'other'", () => {
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: false, enum_value: null })).toBe("other")
+  })
+
+  it("maps the one system category with no enum mapping (Incentives) to 'other'", () => {
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: true, enum_value: null })).toBe("other")
+  })
+
+  it("never returns the legacy enum for a category flagged is_system=false even if enum_value were somehow set", () => {
+    // defensive: is_system is the real gate (system categories are DB-locked, see
+    // _guard_expense_category_system_locked), not enum_value alone
+    expect(resolveLegacyExpenseCategoryEnum({ is_system: false, enum_value: "salary" })).toBe("other")
+  })
+})
+
+describe("classifyReminderBucket", () => {
+  const today = "2026-10-29"
+
+  it("buckets a done reminder as doneOrCancelled regardless of its due date", () => {
+    expect(classifyReminderBucket("done", "2026-10-29", today)).toBe("doneOrCancelled")
+    expect(classifyReminderBucket("done", "2026-11-05", today)).toBe("doneOrCancelled")
+  })
+
+  it("buckets a cancelled reminder as doneOrCancelled regardless of its due date", () => {
+    expect(classifyReminderBucket("cancelled", "2026-10-01", today)).toBe("doneOrCancelled")
+  })
+
+  it("buckets an open reminder due before today as overdue", () => {
+    expect(classifyReminderBucket("open", "2026-10-28", today)).toBe("overdue")
+  })
+
+  it("buckets an open reminder due exactly today as dueToday", () => {
+    expect(classifyReminderBucket("open", "2026-10-29", today)).toBe("dueToday")
+  })
+
+  it("buckets an open reminder due after today as upcoming", () => {
+    expect(classifyReminderBucket("open", "2026-10-30", today)).toBe("upcoming")
+  })
+})
+
+describe("countNeedingFollowUp", () => {
+  it("returns 0 for an empty list", () => {
+    expect(countNeedingFollowUp([])).toBe(0)
+  })
+
+  it("returns 0 when no row has an open task", () => {
+    expect(countNeedingFollowUp([{ open_task_count: 0 }, { open_task_count: 0 }])).toBe(0)
+  })
+
+  it("counts only rows with at least one open task", () => {
+    expect(countNeedingFollowUp([{ open_task_count: 0 }, { open_task_count: 1 }, { open_task_count: 2 }])).toBe(2)
   })
 })

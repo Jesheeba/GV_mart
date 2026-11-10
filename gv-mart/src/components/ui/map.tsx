@@ -14,6 +14,7 @@ import { createPortal } from "react-dom"
 import { Locate, Loader2, Minus, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme/ThemeProvider"
+import { useGeolocateOnce } from "@/hooks/useGeolocateOnce"
 
 declare global {
   interface Window {
@@ -634,7 +635,9 @@ type MapControlsProps = {
   showZoom?: boolean
   showLocate?: boolean
   className?: string
-  onLocate?: (coords: { longitude: number; latitude: number }) => void
+  onLocate?: (coords: { longitude: number; latitude: number; accuracy: number }) => void
+  /** Fires on denied permission, unavailable geolocation, a request that timed out, or no `navigator.geolocation` at all -- previously silently swallowed. `kind` lets the caller show a message tailored to each case per the customer app's "Pin my address" / "Use my current location" flows; existing callers that don't pass this keep the old silent-fail behavior. */
+  onLocateError?: (kind: "denied" | "unavailable" | "timeout") => void
 }
 
 const positionClasses = {
@@ -681,9 +684,9 @@ function ControlButton({
   )
 }
 
-function MapControls({ position = "bottom-right", showZoom = true, showLocate = false, className, onLocate }: MapControlsProps) {
+function MapControls({ position = "bottom-right", showZoom = true, showLocate = false, className, onLocate, onLocateError }: MapControlsProps) {
   const { map } = useMap()
-  const [locating, setLocating] = useState(false)
+  const { locating, locate } = useGeolocateOnce()
 
   const handleZoomIn = useCallback(() => {
     if (!map) return
@@ -696,19 +699,15 @@ function MapControls({ position = "bottom-right", showZoom = true, showLocate = 
   }, [map])
 
   const handleLocate = useCallback(() => {
-    if (!("geolocation" in navigator)) return
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords = { longitude: pos.coords.longitude, latitude: pos.coords.latitude }
+    locate(
+      (coords) => {
         map?.panTo({ lat: coords.latitude, lng: coords.longitude })
         map?.setZoom(15)
         onLocate?.(coords)
-        setLocating(false)
       },
-      () => setLocating(false)
+      (kind) => onLocateError?.(kind)
     )
-  }, [map, onLocate])
+  }, [map, locate, onLocate, onLocateError])
 
   return (
     <div className={cn("absolute z-10 flex flex-col gap-1.5", positionClasses[position], className)}>

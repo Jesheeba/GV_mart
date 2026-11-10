@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
+import { AddressPinPreview } from "@/components/shared/AddressPinDialog"
 import { useToast } from "@/components/ui/toast-context"
 import {
   useCustomer,
@@ -21,7 +22,8 @@ import {
   useCustomerTimeline,
   useSetCustomerPreferredLanguage,
 } from "@/hooks/useCustomers"
-import { useLeads, useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
+import { useWhatsappOutboxForCustomer } from "@/hooks/useAutomation"
+import { useReferrersForCustomers } from "@/hooks/useReferrals"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
@@ -31,8 +33,12 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
+import { canEditWaterHousehold } from "@/lib/validation/customer"
 import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
+import { GoogleAccountLinkPanel } from "./GoogleAccountLinkPanel"
+import { MergeAutoCustomerPanel } from "./MergeAutoCustomerPanel"
+import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
 
@@ -108,9 +114,13 @@ export function CustomerDetailPage() {
   const markRentalReturned = useMarkRentalReturned()
   const { toast } = useToast()
   const setPreferredLanguage = useSetCustomerPreferredLanguage(customer?.id)
-  const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile)
-  const referral = useLeads(orgId, { source: "referral", customerId: customer?.id })
-  const referredByTechnicianName = referral.data?.[0]?.technicians?.profiles?.full_name ?? null
+  const whatsappHistory = useWhatsappOutboxForCustomer(orgId, customer?.mobile ?? undefined)
+  // Package 5: resolved referrer (customers.referred_by_user_id first, else the legacy
+  // source='referral' lead owner -- see get_referrers_for_customers). Replaces an earlier,
+  // technician-only, legacy-lead-only lookup that couldn't see a staff referrer or the newer
+  // direct referred_by_user_id field at all.
+  const customerReferrers = useReferrersForCustomers(customer?.id ? [customer.id] : [])
+  const referrer = customerReferrers.data?.[0] ?? null
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
   const tdsSuggestion = useCustomerTdsSuggestion(orgId, primaryDistrict)
   const measuredWater = useCustomerMeasuredWaterReading(orgId, customer?.id)
@@ -121,7 +131,7 @@ export function CustomerDetailPage() {
   }
 
   const primaryAddress = customer.addresses.find((a) => a.is_primary) ?? customer.addresses[0]
-  const waNumber = customer.mobile.replace(/\D/g, "")
+  const waNumber = (customer.mobile ?? "").replace(/\D/g, "")
   const palette = avatarPalette(customer.name)
   const subtitleParts = [
     customer.profession || null,
@@ -348,6 +358,16 @@ export function CustomerDetailPage() {
                           .filter(Boolean)
                           .join(", ")}
                       </span>
+                      <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold">
+                        {primaryAddress.lat != null && primaryAddress.lng != null ? (
+                          <StatusDot tone="success" label={t("customers.form.map.pinned")} />
+                        ) : (
+                          <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
+                        )}
+                      </span>
+                      {primaryAddress.lat != null && primaryAddress.lng != null ? (
+                        <AddressPinPreview lat={primaryAddress.lat} lng={primaryAddress.lng} />
+                      ) : null}
                     </>
                   ) : (
                     <span className="text-sm text-text-muted">{t("customers.detail.noAddress")}</span>
@@ -361,10 +381,13 @@ export function CustomerDetailPage() {
                       <span className="text-sm text-text">{t("customers.detail.needsSetup")}</span>
                     </span>
                   ) : null}
-                  {referredByTechnicianName ? (
+                  {referrer ? (
                     <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
                       <UserPlus className="size-3" />
-                      {t("customers.detail.referredBy", { name: referredByTechnicianName })}
+                      {t("customers.detail.referredBy", {
+                        name: referrer.referrer_name,
+                        source: referrer.source_label === "direct" ? t("customers.detail.referrerSourceDirect") : t("customers.detail.referrerSourceLegacy"),
+                      })}
                     </span>
                   ) : null}
                   {customer.customer_members.length > 0 ? (
@@ -380,9 +403,11 @@ export function CustomerDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
-                <Phone className="size-4" />
-              </Button>
+              {customer.mobile ? (
+                <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
+                  <Phone className="size-4" />
+                </Button>
+              ) : null}
               <Button variant="outline" size="icon" title={t("customers.detail.actions.edit")} onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
                 <Pencil className="size-4" />
               </Button>
@@ -408,15 +433,17 @@ export function CustomerDetailPage() {
             <Button variant="ghost" className="bg-accent-soft text-accent hover:bg-accent-soft/80" onClick={() => navigate("/admin/amc")}>
               {t("customers.detail.actions.sellAmc")}
             </Button>
-            <Button
-              variant="ghost"
-              className="bg-success/15 text-success hover:bg-success/25"
-              nativeButton={false}
-              render={<a href={`https://wa.me/91${waNumber}`} target="_blank" rel="noreferrer" />}
-            >
-              <MessageCircle className="size-3.5" />
-              {t("customers.detail.whatsapp")}
-            </Button>
+            {waNumber ? (
+              <Button
+                variant="ghost"
+                className="bg-success/15 text-success hover:bg-success/25"
+                nativeButton={false}
+                render={<a href={`https://wa.me/91${waNumber}`} target="_blank" rel="noreferrer" />}
+              >
+                <MessageCircle className="size-3.5" />
+                {t("customers.detail.whatsapp")}
+              </Button>
+            ) : null}
           </div>
         </Card>
 
@@ -497,6 +524,7 @@ export function CustomerDetailPage() {
           </TabsTrigger>
           <TabsTrigger value="service">{t("customers.detail.tabs.service")}</TabsTrigger>
           <TabsTrigger value="invoices">{t("customers.detail.tabs.invoices")}</TabsTrigger>
+          <TabsTrigger value="water">{t("customers.detail.tabs.water")}</TabsTrigger>
           <TabsTrigger value="family">
             {t("customers.detail.tabs.family")} ({customer.customer_members.length})
           </TabsTrigger>
@@ -507,6 +535,7 @@ export function CustomerDetailPage() {
             {t("customers.detail.tabs.rentals")} ({(rentals.data ?? []).filter((r) => r.status === "active").length})
           </TabsTrigger>
           <TabsTrigger value="whatsapp">{t("customers.detail.tabs.whatsapp")}</TabsTrigger>
+          {profile?.role === "master" ? <TabsTrigger value="googleLink">{t("customers.detail.tabs.googleLink")}</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="products" className="mt-3.5">
@@ -541,6 +570,23 @@ export function CustomerDetailPage() {
               ))
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="water" className="mt-3.5">
+          <Card size="default">
+            <WaterHouseholdPanel
+              customerId={customer.id}
+              orgId={orgId}
+              waterSource={customer.water_source}
+              waterSourceOther={customer.water_source_other}
+              waterTdsPpm={customer.water_tds_ppm}
+              waterPh={customer.water_ph}
+              healthCondition={customer.health_condition}
+              familyMemberCount={customer.customer_members.length}
+              measuredReading={measured}
+              canEdit={canEditWaterHousehold(profile?.role)}
+            />
+          </Card>
         </TabsContent>
 
         <TabsContent value="family" className="mt-3.5">
@@ -616,6 +662,17 @@ export function CustomerDetailPage() {
         <TabsContent value="whatsapp" className="mt-3.5">
           {renderWhatsappHistory()}
         </TabsContent>
+
+        {profile?.role === "master" ? (
+          <TabsContent value="googleLink" className="mt-3.5">
+            <Card size="default">
+              <GoogleAccountLinkPanel customerId={customer.id} linked={customer.primary_profile_id != null} />
+              {customer.source === "customer_app" ? (
+                <MergeAutoCustomerPanel orgId={orgId} customerId={customer.id} customerName={customer.name} />
+              ) : null}
+            </Card>
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   )
