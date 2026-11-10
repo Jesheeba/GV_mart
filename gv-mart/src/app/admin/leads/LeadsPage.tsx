@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Inbox, LayoutGrid, Plus, Search, Table2, Target, TrendingUp, TriangleAlert, Trophy, XCircle } from "lucide-react"
+import { FileText, Inbox, LayoutGrid, Phone, Plus, Search, Sparkles, Table2, Target, TriangleAlert, Trophy, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard } from "@/components/shared/KpiCard"
@@ -26,6 +26,7 @@ import { isOverdueNow } from "@/lib/lead-followups"
 import type { LeadListItem } from "@/services/automation"
 import { cn } from "@/lib/utils"
 import { orderedCategoryChips } from "./leadCategoryChips"
+import { computeLeadSummaryTiles, type LeadSummaryTileId } from "./leadSummaryTiles"
 
 const TABLE_GRID_COLS =
   "grid-cols-[minmax(140px,1.3fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(70px,0.7fr)_minmax(90px,0.9fr)_minmax(100px,0.8fr)_minmax(170px,1.4fr)_minmax(110px,1fr)_minmax(80px,0.8fr)]"
@@ -64,18 +65,8 @@ export function LeadsPage() {
   const assigneeName = (l: LeadListItem) => assignees.find((a) => a.id === activeAssignee(l))?.full_name ?? null
   const openLead = (l: LeadListItem) => navigate("/admin/leads/" + l.id)
 
-  const stats = useMemo(() => {
-    const rows = leads.data ?? []
-    const won = rows.filter((r) => r.status === "won").length
-    const lost = rows.filter((r) => r.status === "lost").length
-    const closed = won + lost
-    // Item 5 (2026-09-16): Won%/Lost% both read "of closed leads" — same
-    // denominator conversionRate already used, so a lead still New/Contacted/
-    // Quoted doesn't dilute either percentage.
-    const wonPct = closed > 0 ? Math.round((won / closed) * 100) : 0
-    const lostPct = closed > 0 ? Math.round((lost / closed) * 100) : 0
-    return { total: rows.length, won, wonPct, lost, lostPct, conversionRate: wonPct }
-  }, [leads.data])
+  const summaryTiles = useMemo(() => computeLeadSummaryTiles(leads.data ?? []), [leads.data])
+  const tileById = useMemo(() => Object.fromEntries(summaryTiles.map((t) => [t.id, t])) as Record<LeadSummaryTileId, (typeof summaryTiles)[number]>, [summaryTiles])
 
   const searchTerm = search.trim().toLowerCase()
   const stuckAt = schedule.lead_stuck_postpones
@@ -141,34 +132,30 @@ export function LeadsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label={t("leads.kpi.total")} value={stats.total} icon={<Target className="size-4" />} loading={leads.isLoading} />
-        <KpiCard
-          label={t("leads.kpi.won")}
-          value={
-            <>
-              {stats.won} <span className="text-base font-medium text-text-muted">({stats.wonPct}%)</span>
-            </>
-          }
-          icon={<Trophy className="size-4" />}
-          loading={leads.isLoading}
-        />
-        <KpiCard
-          label={t("leads.kpi.lost")}
-          value={
-            <>
-              {stats.lost} <span className="text-base font-medium text-text-muted">({stats.lostPct}%)</span>
-            </>
-          }
-          icon={<XCircle className="size-4" />}
-          loading={leads.isLoading}
-        />
-        <KpiCard
-          label={t("leads.kpi.conversionRate")}
-          value={`${stats.conversionRate}%`}
-          icon={<TrendingUp className="size-4" />}
-          loading={leads.isLoading}
-        />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" aria-label={t("leads.kpi.groupLabel")}>
+        {(["total", "new", "contacted", "quoted", "won", "lost"] as LeadSummaryTileId[]).map((id) => {
+          const tile = tileById[id]
+          const icon =
+            id === "total" ? <Target className="size-4" /> :
+            id === "new" ? <Sparkles className="size-4" /> :
+            id === "contacted" ? <Phone className="size-4" /> :
+            id === "quoted" ? <FileText className="size-4" /> :
+            id === "won" ? <Trophy className="size-4" /> :
+            <XCircle className="size-4" />
+          return (
+            <KpiCard
+              key={id}
+              label={t(`leads.kpi.${id}`)}
+              value={
+                <span aria-label={t("leads.kpi.tileAria", { label: t(`leads.kpi.${id}`), count: tile?.count ?? 0, pct: tile?.pct ?? 0 })}>
+                  {tile?.count ?? 0} <span className="text-base font-medium text-text-muted">({tile?.pct ?? 0}%)</span>
+                </span>
+              }
+              icon={icon}
+              loading={leads.isLoading}
+            />
+          )
+        })}
       </div>
 
       {showNew ? <NewLeadForm onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); leads.refetch() }} /> : null}

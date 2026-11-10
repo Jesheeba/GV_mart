@@ -7,7 +7,9 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Not separately tested (manual-only, no test harness for this): visual active/pressed state, "All topics" filter removed from DOM, "Lead type" select removed from DOM — verified by code reading, not an automated test.
 
 ## lead-summary-tiles
-- Planned: unit test on the tile-computation function with fixture lead lists (0 leads, mixed statuses, all-one-status) asserting count+% per tile incl. zero-total 0% rule.
+- DONE 2026-11-10. Count+% logic extracted to pure `leadSummaryTiles.ts` (`computeLeadSummaryTiles`), unit-tested (`leadSummaryTiles.test.ts`, 4 tests, all pass): zero-leads case (all 0%, Total 0%), mixed-status counts/percentages, rounding, fixed tile order (total/new/contacted/quoted/won/lost). `tsc --noEmit` clean.
+- Behavior change (per spec, documented in PLAN.md): Won%/Lost% now read "of total leads" (count/total*100), replacing the previous "of closed leads" denominator the 4-tile block used. Conversion-rate tile removed (not in the new 6-tile spec); no other code referenced it.
+- Not separately tested: visual tile layout/responsive grid — manual-only, no RTL harness in this repo.
 
 ## followed-by-filter
 - Planned: query returns distinct-lead-per-actor counts (not activity-row counts) against a fixture `lead_activities` set with a repeat-actor-same-lead case to verify dedup.

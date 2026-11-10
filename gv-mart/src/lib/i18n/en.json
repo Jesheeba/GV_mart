@@ -3399,9 +3399,13 @@
     },
     "kpi": {
       "total": "Total leads",
+      "new": "New",
+      "contacted": "Contacted",
+      "quoted": "Quotation",
       "won": "Won",
       "lost": "Lost",
-      "conversionRate": "Conversion rate"
+      "groupLabel": "Lead status summary",
+      "tileAria": "{{label}}: {{count}} leads, {{pct}} percent"
     },
     "kanban": {
       "empty": "No leads here"
