@@ -17,15 +17,17 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Not separately tested: dropdown name resolution for a deactivated/missing profile (falls back to "Unknown user" label) — covered by existing i18n key, not a dedicated test; manual verification only.
 
 ## lead-detail-fields
-- DONE (code) 2026-11-10, **migration NOT yet applied to the live DB** — per the standing rule "no DB write unless named in chat," `supabase/migrations/20261110100000_lead_detail_fields.sql` is written and committed as text only; waiting for the owner to explicitly say to apply it.
-- `tsc --noEmit` clean. `validateLeadDocument` unit-tested (`leadDocuments.test.ts`, 4 tests, all pass): accepts allowed type/size, rejects disallowed MIME, rejects over-size, accepts exactly-at-limit.
-- Correction caught before applying: the first draft of this feature's design doc omitted "When do they need it?" (in the original requirements) — added `when_needed` to the migration, types, schema, form, and detail card before anything went live.
-- Not yet tested (needs the live DB): check constraint rejecting negative budget/invalid tds_status at the DB layer, RPC `record_lead_document` end-to-end, storage policies. Will run once the migration is applied.
+- DONE 2026-11-10, **migration APPLIED LIVE** (owner said "GO APPLY"). `supabase/migrations/20261110100000_lead_detail_fields.sql` ran against the production DB directly via `pg` (psql unavailable in this environment), each migration in its own transaction, then registered in `supabase_migrations.schema_migrations`.
+- Pre-apply check (not skipped): queried the live schema first and found it had diverged from this worktree's local checkout — other sessions had applied migrations up to `20261204190000` that aren't in this branch's `supabase/migrations/` history, and `leads` already had `referred_by_user_id`/`referral_type` columns this worktree's `database.ts` didn't know about. Confirmed no name collisions with the new columns/bucket/function before applying.
+- Post-apply verification (read-only): `leads` has all 7 new columns with correct type/nullability; `lead-reports` bucket exists (private, 10 MB limit); `record_lead_document` function exists. All confirmed via direct query, not assumed.
+- `tsc --noEmit` clean. `validateLeadDocument` unit-tested (`leadDocuments.test.ts`, 4 tests, all pass).
+- Correction caught before applying: the first draft of this feature's design doc omitted "When do they need it?" — added `when_needed` to the migration, types, schema, form, and detail card before anything went live.
+- Not yet tested: a full authenticated end-to-end RPC call (`record_lead_document`) from the running app — only the function's existence and the schema were verified directly against the DB; a real upload through the UI hasn't been exercised.
 
 ## referral-details
-- DONE (code) 2026-11-10, **migration NOT yet applied to the live DB** — `supabase/migrations/20261110110000_lead_referral_details.sql` is written and committed as text only; waiting for explicit authorization to apply.
-- `tsc --noEmit` clean; full leads test suite re-run (16/16 pass) as a regression check — no behavior change to prior features.
-- Correction from the original plan: there is no `referred_by_user_id`/`ReferrerPicker` to coexist with (verified in code, see MEMORY.md) — so this feature is just two new free-text columns, simpler than originally scoped.
+- DONE 2026-11-10, **migration APPLIED LIVE** alongside lead-detail-fields (same apply run, same transaction-per-file approach).
+- **Correction to my own earlier correction:** I'd said "no `referred_by_user_id` exists" based on this worktree's local checkout, and built this feature on that basis. The live-DB check done before applying (see lead-detail-fields above) found `referred_by_user_id` AND `referral_type` genuinely DO exist live — added by another session's migration not yet in this branch. The ORIGINAL plan decision ("keep both mechanisms, don't merge") was right all along; my in-between "simpler than planned" claim was wrong, though harmless — `referred_by_name`/`referred_by_phone` are new, independent, additive columns regardless of what else exists on `leads`, so nothing had to change in the actual migration or code.
+- `tsc --noEmit` clean; full leads test suite re-run (20/20 pass) as a regression check.
 
 ## followup-workspace-reminders
 - DONE 2026-11-10. No migration needed — `tasks.ref_type`/`ref_id`/`due_at`/`description` already existed on the table, just not exposed by `CreateTaskInput`; extended it (additive optional params, all existing call sites unaffected).

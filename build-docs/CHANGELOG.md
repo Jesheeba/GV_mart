@@ -17,18 +17,18 @@
 - New read-only service/hook `listLeadFollowupActors`/`useLeadFollowupActors`; grouping/dedup logic extracted to `followedByFilter.ts` + unit tests (count = distinct leads, never activity-row count).
 - No migration, no write path, no change to the existing assignment filter.
 
-## lead-detail-fields (2026-11-10) — code committed, migration NOT yet applied live
-- New columns (migration text only, not yet run): `customer_requirement`, `special_description`, `user_source`, `budget`, `when_needed`, `tds_status`, `report_storage_path` on `leads`; new `lead-reports` storage bucket + `record_lead_document` RPC.
+## lead-detail-fields (2026-11-10) — LIVE
+- New columns on `leads`: `customer_requirement`, `special_description`, `user_source`, `budget`, `when_needed`, `tds_status`, `report_storage_path`; new `lead-reports` storage bucket + `record_lead_document` RPC.
 - Caught and fixed before going live: original draft missed "When do they need it?" — added as `when_needed` across migration/types/schema/form/detail card.
 - `NewLeadForm.tsx` gets the new optional create-time fields; `LeadDetailPage.tsx` gets a new `LeadDetailFieldsCard` (view/edit the fields + upload/view the document).
 - Hand-patched `database.ts` (Docker/`gen types` unavailable in this environment).
-- **Waiting on explicit "apply this migration" from the owner before running it against the live DB**, per the standing no-DB-write-unless-named rule.
+- **Applied 2026-11-10 on owner's "GO APPLY"**, via direct `pg` connection (no psql in this environment), one transaction per migration file, versions registered in `supabase_migrations.schema_migrations`. Pre-apply check found the live DB had diverged from this branch (other sessions' migrations up to `20261204190000` not in this branch's history) — checked for collisions before applying; found none. Post-apply verified columns/bucket/function exist via direct query.
 
-## referral-details (2026-11-10) — code committed, migration NOT yet applied live
-- New columns (migration text only, not yet run): `referred_by_name`, `referred_by_phone` on `leads`.
+## referral-details (2026-11-10) — LIVE
+- New columns on `leads`: `referred_by_name`, `referred_by_phone`.
 - `NewLeadForm.tsx` and `LeadDetailFieldsCard.tsx` get the two new inputs, grouped as "Referral details."
-- Confirmed in code before building: no existing `referred_by_user_id`/`ReferrerPicker` to coexist with — the app's only prior "referral" UI is a manual points-award action unrelated to the lead row.
-- Same apply-authorization gate as lead-detail-fields above.
+- **Correction to an earlier correction:** this plan's original decision ("keep both the points-award flow and new freeform fields, don't merge") was right. A mid-build claim that `referred_by_user_id` didn't exist was based on this worktree's stale local checkout — the live-DB check before applying found it (and `referral_type`) genuinely do exist, added by another session. Doesn't change anything about this feature's own columns, which are independent and additive either way.
+- Applied in the same run as lead-detail-fields above.
 
 ## followup-workspace-reminders (2026-11-10) — no migration needed
 - "Today's conversation": relabeled the existing single-line "Add note" into a multiline textarea on the same `add_lead_note` RPC path — no new write path.

@@ -19,6 +19,11 @@
 ## Open questions (business, not technical)
 - None blocking — all 4 flagged decisions confirmed 2026-11-10. See PLAN.md §3.
 
+## Live-DB divergence found 2026-11-10 (before applying the feature 4/5 migrations)
+- This worktree's `supabase/migrations/` only went up to `20261103120000` locally, but the live DB's `supabase_migrations.schema_migrations` already had migrations up to `20261204190000` — applied by other concurrent sessions (expected per [[gv-mart-deliberate-parallel-sessions]]), not yet reflected in this branch's git history or hand-patched `database.ts`.
+- Concretely: `leads.referred_by_user_id` and `leads.referral_type` exist live today but are absent from this worktree's `database.ts` — the earlier "no referred_by_user_id exists" claim in this doc (and in referral-details.md) was checked against the stale local checkout, not the live schema, and was wrong for live reality. Harmless here (my new columns were independent and additive regardless), but **next time, verify assumptions about "does X column exist" against the live DB with a direct query, not just the local `database.ts`/migrations folder** — they can and do diverge.
+- Confirmed no collision before applying (checked `leads` columns, `lead-reports` bucket, `record_lead_document` function, `leads_update_sales` policy, and the three helper functions my RPC/policies use — all either absent-as-expected or present-and-compatible).
+
 ## Known issues / risks
 - `CreateTaskInput` in `workspace.ts` may not yet expose `ref_type`/`ref_id` params even though the `tasks` table has the columns — must verify before building feature 6 (followup-workspace-reminders).
 - Rescheduling an existing follow-up with an active reminder task could orphan a stale task if not explicitly handled — flagged in followup-workspace-reminders.md, needs a small design check during implementation.
