@@ -32,6 +32,8 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
     budget: lead.budget != null ? String(lead.budget) : "",
     when_needed: lead.when_needed ?? "",
     tds_status: lead.tds_status ?? "",
+    referred_by_name: lead.referred_by_name ?? "",
+    referred_by_phone: lead.referred_by_phone ?? "",
   })
   const budgetInvalid = form.budget !== "" && Number(form.budget) < 0
 
@@ -47,6 +49,8 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
           budget: form.budget !== "" ? Number(form.budget) : null,
           when_needed: form.when_needed.trim() || null,
           tds_status: form.tds_status || null,
+          referred_by_name: form.referred_by_name.trim() || null,
+          referred_by_phone: form.referred_by_phone.trim() || null,
         },
       })
       setEditing(false)
@@ -151,6 +155,16 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
               <option value="to_be_confirmed">{t("leads.tds.toBeConfirmed")}</option>
             </select>
           </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <Label htmlFor="field-referred-name">{t("leads.new.referredByName")}</Label>
+              <Input id="field-referred-name" value={form.referred_by_name} onChange={(e) => setForm((f) => ({ ...f, referred_by_name: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="field-referred-phone">{t("leads.new.referredByPhone")}</Label>
+              <Input id="field-referred-phone" type="tel" value={form.referred_by_phone} onChange={(e) => setForm((f) => ({ ...f, referred_by_phone: e.target.value }))} />
+            </div>
+          </div>
         </div>
       ) : (
         <div className="space-y-2 text-sm">
@@ -160,6 +174,8 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
           <Field label={t("leads.new.budget")} value={lead.budget != null ? `₹${lead.budget}` : null} />
           <Field label={t("leads.new.whenNeeded")} value={lead.when_needed} />
           <Field label={t("leads.new.tds")} value={lead.tds_status ? t(`leads.tds.${lead.tds_status === "not_applicable" ? "notApplicable" : lead.tds_status === "to_be_confirmed" ? "toBeConfirmed" : "applicable"}`) : null} />
+          <Field label={t("leads.new.referredByName")} value={lead.referred_by_name} />
+          <Field label={t("leads.new.referredByPhone")} value={lead.referred_by_phone} />
         </div>
       )}
 

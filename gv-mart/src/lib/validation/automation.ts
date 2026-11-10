@@ -21,6 +21,9 @@ export const leadSchema = z.object({
     .refine((v) => !v || Number(v) >= 0, "leads.errors.budgetNonNegative"),
   tdsStatus: z.enum(["", "applicable", "not_applicable", "to_be_confirmed"]).optional(),
   whenNeeded: z.string().trim().max(200).optional().or(z.literal("")),
+  // Lead Dashboard Enhancement, feature 5 — see build-docs/features/referral-details.md.
+  referredByName: z.string().trim().max(120).optional().or(z.literal("")),
+  referredByPhone: z.string().trim().max(20).optional().or(z.literal("")),
 })
 export type LeadInput = z.infer<typeof leadSchema>
 

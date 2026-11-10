@@ -5190,6 +5190,10 @@ export type Database = {
           when_needed: string | null
           tds_status: string | null
           report_storage_path: string | null
+          // Lead Dashboard Enhancement, feature 5 (2026-11-10) — see
+          // 20261110110000_lead_referral_details.sql.
+          referred_by_name: string | null
+          referred_by_phone: string | null
         }
         Insert: {
           is_test?: boolean
@@ -5228,6 +5232,8 @@ export type Database = {
           when_needed?: string | null
           tds_status?: string | null
           report_storage_path?: string | null
+          referred_by_name?: string | null
+          referred_by_phone?: string | null
         }
         Update: {
           is_test?: boolean
@@ -5266,6 +5272,8 @@ export type Database = {
           when_needed?: string | null
           tds_status?: string | null
           report_storage_path?: string | null
+          referred_by_name?: string | null
+          referred_by_phone?: string | null
         }
         Relationships: [
           {

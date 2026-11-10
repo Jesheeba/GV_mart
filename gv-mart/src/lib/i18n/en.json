@@ -3404,7 +3404,9 @@
       "budget": "Budget (₹)",
       "whenNeeded": "When do they need it?",
       "whenNeededPlaceholder": "e.g. Immediately / within 2 weeks",
-      "tds": "TDS"
+      "tds": "TDS",
+      "referredByName": "Referred by — name",
+      "referredByPhone": "Referred by — phone"
     },
     "kpi": {
       "total": "Total leads",

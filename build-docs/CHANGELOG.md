@@ -23,3 +23,9 @@
 - `NewLeadForm.tsx` gets the new optional create-time fields; `LeadDetailPage.tsx` gets a new `LeadDetailFieldsCard` (view/edit the fields + upload/view the document).
 - Hand-patched `database.ts` (Docker/`gen types` unavailable in this environment).
 - **Waiting on explicit "apply this migration" from the owner before running it against the live DB**, per the standing no-DB-write-unless-named rule.
+
+## referral-details (2026-11-10) — code committed, migration NOT yet applied live
+- New columns (migration text only, not yet run): `referred_by_name`, `referred_by_phone` on `leads`.
+- `NewLeadForm.tsx` and `LeadDetailFieldsCard.tsx` get the two new inputs, grouped as "Referral details."
+- Confirmed in code before building: no existing `referred_by_user_id`/`ReferrerPicker` to coexist with — the app's only prior "referral" UI is a manual points-award action unrelated to the lead row.
+- Same apply-authorization gate as lead-detail-fields above.

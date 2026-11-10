@@ -102,6 +102,8 @@ export async function createLead(row: {
   budget?: number | null
   when_needed?: string | null
   tds_status?: string | null
+  referred_by_name?: string | null
+  referred_by_phone?: string | null
 }) {
   const { items = [], ...leadRow } = row
   const first = items[0]
@@ -127,6 +129,8 @@ export type LeadDetailFieldsPatch = {
   budget?: number | null
   when_needed?: string | null
   tds_status?: string | null
+  referred_by_name?: string | null
+  referred_by_phone?: string | null
 }
 
 /** Plain column update — unlike assigned_to, these fields have no trigger/RPC gate (leads_update_sales RLS covers them). */

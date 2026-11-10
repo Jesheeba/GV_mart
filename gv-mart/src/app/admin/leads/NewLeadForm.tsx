@@ -36,6 +36,8 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       budget: "",
       whenNeeded: "",
       tdsStatus: "",
+      referredByName: "",
+      referredByPhone: "",
     },
   })
 
@@ -54,6 +56,8 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       budget: values.budget ? Number(values.budget) : null,
       when_needed: values.whenNeeded || null,
       tds_status: values.tdsStatus || null,
+      referred_by_name: values.referredByName || null,
+      referred_by_phone: values.referredByPhone || null,
     })
     onCreated()
   }
@@ -157,6 +161,16 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             <option value="not_applicable">{t("leads.tds.notApplicable")}</option>
             <option value="to_be_confirmed">{t("leads.tds.toBeConfirmed")}</option>
           </select>
+        </div>
+        <div className="space-y-1.5 sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="lead-referred-name">{t("leads.new.referredByName")}</Label>
+            <Input id="lead-referred-name" {...form.register("referredByName")} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lead-referred-phone">{t("leads.new.referredByPhone")}</Label>
+            <Input id="lead-referred-phone" type="tel" {...form.register("referredByPhone")} />
+          </div>
         </div>
       </div>
       {createLead.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createLead.error as Error).message}</p> : null}

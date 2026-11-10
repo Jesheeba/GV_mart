@@ -3402,7 +3402,9 @@
       "budget": "பட்ஜெட் (₹)",
       "whenNeeded": "அவர்களுக்கு எப்போது தேவை?",
       "whenNeededPlaceholder": "எ.கா. உடனடியாக / 2 வாரங்களில்",
-      "tds": "TDS"
+      "tds": "TDS",
+      "referredByName": "பரிந்துரைத்தவர் — பெயர்",
+      "referredByPhone": "பரிந்துரைத்தவர் — தொலைபேசி"
     },
     "kpi": {
       "total": "மொத்த லீட்கள்",

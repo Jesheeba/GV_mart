@@ -23,7 +23,9 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Not yet tested (needs the live DB): check constraint rejecting negative budget/invalid tds_status at the DB layer, RPC `record_lead_document` end-to-end, storage policies. Will run once the migration is applied.
 
 ## referral-details
-- Planned: both `referred_by_user_id` and freeform name/phone can be set independently without one clobbering the other.
+- DONE (code) 2026-11-10, **migration NOT yet applied to the live DB** — `supabase/migrations/20261110110000_lead_referral_details.sql` is written and committed as text only; waiting for explicit authorization to apply.
+- `tsc --noEmit` clean; full leads test suite re-run (16/16 pass) as a regression check — no behavior change to prior features.
+- Correction from the original plan: there is no `referred_by_user_id`/`ReferrerPicker` to coexist with (verified in code, see MEMORY.md) — so this feature is just two new free-text columns, simpler than originally scoped.
 
 ## followup-workspace-reminders
 - Planned: saving "Today's conversation" produces exactly one `lead_activities` row; setting next-follow-up updates `leads.next_followup_at`; enabling a reminder creates one `tasks` row with correct `ref_type`/`ref_id`/`due_at`; rescheduling doesn't orphan a stale task.
