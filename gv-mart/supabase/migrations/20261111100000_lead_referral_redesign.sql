@@ -37,6 +37,9 @@ on conflict (org_id, key) do nothing;
 -- 2. list_followups -- live body pinned above, byte-identical except for the
 --    one additive `when_needed` output column (My Day / daily follow-up list
 --    now shows the customer's stated urgency alongside the due date).
+--    New output column needs DROP first -- CREATE OR REPLACE can't change a
+--    RETURNS TABLE(...) column list in place.
+DROP FUNCTION IF EXISTS public.list_followups(text, lead_status, text, text, boolean, text, uuid);
 CREATE OR REPLACE FUNCTION public.list_followups(p_bucket text DEFAULT 'all'::text, p_stage lead_status DEFAULT NULL::lead_status, p_source text DEFAULT NULL::text, p_kind text DEFAULT NULL::text, p_stuck_only boolean DEFAULT false, p_scope text DEFAULT 'auto'::text, p_assignee uuid DEFAULT NULL::uuid)
  RETURNS TABLE(followup_id uuid, lead_id uuid, lead_name text, mobile text, source text, kind text, enquiry_type enquiry_type, lead_status lead_status, product_name text, due_at timestamp with time zone, followup_type lead_followup_type, followup_note text, is_exact_time boolean, postpone_count integer, is_stuck boolean, bucket text, last_outcome_code text, last_outcome_label_en text, last_outcome_label_ta text, last_outcome_note text, last_outcome_at timestamp with time zone, assignee_id uuid, assignee_name text, when_needed text)
  LANGUAGE plpgsql
@@ -118,6 +121,7 @@ $function$;
 --    body pinned above, otherwise byte-identical. This is the list staff see
 --    BEFORE a follow-up even exists, so the customer's stated urgency is the
 --    one thing most worth surfacing here.
+DROP FUNCTION IF EXISTS public.list_leads_without_followup(lead_status, text, text, text, uuid);
 CREATE OR REPLACE FUNCTION public.list_leads_without_followup(p_stage lead_status DEFAULT NULL::lead_status, p_source text DEFAULT NULL::text, p_kind text DEFAULT NULL::text, p_scope text DEFAULT 'auto'::text, p_assignee uuid DEFAULT NULL::uuid)
  RETURNS TABLE(lead_id uuid, lead_name text, mobile text, source text, kind text, enquiry_type enquiry_type, lead_status lead_status, product_name text, created_at timestamp with time zone, postpone_count integer, assignee_id uuid, assignee_name text, last_outcome_label_en text, last_outcome_label_ta text, last_outcome_note text, last_outcome_at timestamp with time zone, when_needed text)
  LANGUAGE plpgsql

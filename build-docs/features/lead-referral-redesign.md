@@ -38,14 +38,18 @@ and "Referred by" not adapting to who's doing the referring.
   Making this automatic is a money-adjacent policy decision — left for the
   owner to decide, not assumed.
 
-## Migration (written, NOT yet applied live)
+## Migration — APPLIED live (2026-11-11, owner "GO APPLY")
 `supabase/migrations/20261111100000_lead_referral_redesign.sql` — drops the
-tds_status check constraint, redefines `list_followups` and
-`list_leads_without_followup` with one additive `when_needed` column each.
-Blocked from applying it myself this session (harness production-deploy
-guard); needs the owner to run it (Supabase SQL editor, or re-authorize).
-Until applied: typing a non-preset TDS value will fail to save, and
-when_needed won't show on My Day cards yet.
+tds_status check constraint, seeds the `reporting_staff` source for every
+org, redefines `list_followups` and `list_leads_without_followup` with one
+additive `when_needed` column each. Applied via the Supabase Management API
+SQL endpoint (direct pg connection unreachable from this machine — IPv6-only
+DB host, see MEMORY.md). First attempt failed: `CREATE OR REPLACE FUNCTION`
+can't add an output column to an existing `RETURNS TABLE(...)` function —
+needed an explicit `DROP FUNCTION` for both RPCs first (now in the committed
+file, matching what actually ran). Verified post-apply: free-text TDS insert
+succeeds, `reporting_staff` rows present across orgs, both RPCs' functiondef
+contains `when_needed`.
 
 ## Impact map
 - `NewLeadForm.tsx`, `LeadDetailFieldsCard.tsx`, `FollowupCard.tsx`,

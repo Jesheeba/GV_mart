@@ -41,5 +41,8 @@
 - Removed duplicate "User source / referred through" field from lead create/detail.
 - when_needed surfaced on My Day (list_followups) and no-followup (list_leads_without_followup) cards.
 - Referred-by redesigned: Technician/Staff picker, existing-customer search (prefills name/phone), or free-text, shown only for referral/customer_app sources.
-- Migration written (20261111100000_lead_referral_redesign.sql) but NOT applied live — blocked by harness production-deploy guard this session.
+- Migration (20261111100000_lead_referral_redesign.sql) APPLIED live 2026-11-11 (owner GO APPLY) — see entry below.
 - Verified (not changed): referral-points award on conversion is still manual only, not automatic — see feature doc.
+
+## lead-referral-redesign migration applied live (2026-11-11)
+- 20261111100000_lead_referral_redesign.sql applied live on owner's "GO APPLY": tds_status check constraint dropped, reporting_staff source seeded (all orgs), list_followups/list_leads_without_followup redefined with when_needed. Fixed in-flight: CREATE OR REPLACE can't add an output column to a RETURNS TABLE function -- needed DROP FUNCTION first for both RPCs (committed fix matches what ran). Verified live: free-text TDS insert succeeds, reporting_staff rows present, both RPCs expose when_needed.
