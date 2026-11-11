@@ -271,6 +271,7 @@ export function AddressMapPicker({
           onFocus={() => dropdownRows.length > 0 && setDropdownOpen(true)}
           onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
           placeholder={t("customers.form.map.searchPlaceholder")}
+          autoComplete="off"
           className="pr-9"
         />
         {suggestionsLoading || resolvingSelection ? (

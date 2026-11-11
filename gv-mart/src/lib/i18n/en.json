@@ -696,7 +696,7 @@
       },
       "maxMembersReached": "Maximum of 5 family members reached",
       "duplicateWarning": "This number is already linked to {{name}}",
-      "fullAddress": "Previously saved address",
+      "fullAddress": "Full address",
       "fullAddressPlaceholder": "Door/flat no., building, street, landmark...",
       "doorNo": "Door no",
       "flatNo": "Flat / Building No.",

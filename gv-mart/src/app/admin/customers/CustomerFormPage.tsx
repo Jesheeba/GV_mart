@@ -631,7 +631,7 @@ export function CustomerFormPage() {
           <div className="px-1">
             <div className="space-y-1.5">
               <Label htmlFor="zone">{t("customers.form.zone")}</Label>
-              <Input id="zone" {...addressForm.register("zone")} />
+              <Input id="zone" autoComplete="off" {...addressForm.register("zone")} />
             </div>
           </div>
 
