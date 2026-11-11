@@ -5,13 +5,14 @@ import * as productEnquiryConfig from "@/services/productEnquiryConfig"
 import * as productMedia from "@/services/productMedia"
 import type { Json, TablesInsert, TablesUpdate } from "@/types/database"
 
-// All three generics are inferred from the concrete functions passed in
-// `api` (e.g. masters.createBrand) — call sites never specify type args.
-function entityHooks<TRow, TInsert, TUpdate>(
+// All generics are inferred from the concrete functions passed in `api`
+// (e.g. masters.createBrand) — call sites never specify type args. TCreate
+// defaults to TRow since every create function here returns the inserted row.
+function entityHooks<TRow, TInsert, TUpdate, TCreate = TRow>(
   key: string,
   api: {
     list: (orgId: string) => Promise<TRow[]>
-    create: (row: TInsert) => Promise<unknown>
+    create: (row: TInsert) => Promise<TCreate>
     update: (id: string, patch: TUpdate) => Promise<unknown>
     remove: (id: string) => Promise<void>
   }
