@@ -30,6 +30,7 @@ All decisions now confirmed — see `build-docs/MEMORY.md`. Ready to implement p
 4. **[lead-detail-fields](features/lead-detail-fields.md)** — migration adding `customer_requirement`, `special_description`, `user_source`, `budget`, `tds_status`, `report_storage_path` + storage bucket + RPC.
 5. **[referral-details](features/referral-details.md)** — migration adding `referred_by_name`, `referred_by_phone`. Depends on decision #2.
 6. **[followup-workspace-reminders](features/followup-workspace-reminders.md)** — wires "Today's conversation" → `lead_activities` insert, "Next follow-up" → existing `SetFollowupDialog`/`lead_followups`, "Reminder" → `tasks` (`ref_type='lead'`). Depends on #3 decision and features 1–3 landing first (shares the detail page layout).
+7. **[lead-unified-interaction-log](features/lead-unified-interaction-log.md)** — DONE 2026-11-11. Merged the three separate "Log Outcome" / "Reschedule" / "Today's Conversation" entry points into one "Log interaction" sheet so a lead's stage, postpone_count/stuck flag, and next follow-up move correctly no matter which mode staff use. No migration, no new RPC — client-side consolidation only, reusing `log_lead_outcome`/`reschedule_followup`/`add_lead_note` as-is.
 
 Each feature ships as its own commit per the global workflow (design doc already written below; tests + build-docs updates happen per-feature during implementation, not now).
 

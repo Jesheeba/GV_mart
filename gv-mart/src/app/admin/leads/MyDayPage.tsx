@@ -22,8 +22,7 @@ import { PostServiceCallSheet } from "./PostServiceCallSheet"
 import { usePostServiceFollowups } from "@/hooks/usePostServiceFollowups"
 import { lifecycleFollowupVisible, mergeBuckets, postServiceVisible } from "@/lib/daily-followup-merge"
 import type { PostServiceFollowupItem } from "@/services/postServiceFollowups"
-import { LogOutcomeSheet } from "./LogOutcomeSheet"
-import { RescheduleDialog } from "./RescheduleDialog"
+import { LogInteractionSheet } from "./LogInteractionSheet"
 import { formatIstDate, getIstNow } from "@/lib/lead-followups"
 import { cn } from "@/lib/utils"
 import type { FollowupBucket, FollowupListItem, FollowupScope, LeadWithoutFollowup } from "@/services/leadFollowups"
@@ -63,8 +62,8 @@ export function MyDayPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkOpen, setBulkOpen] = useState(false)
 
-  const [outcomeFor, setOutcomeFor] = useState<FollowupListItem | null>(null)
-  const [rescheduleFor, setRescheduleFor] = useState<FollowupListItem | null>(null)
+  const [interactionFor, setInteractionFor] = useState<FollowupListItem | null>(null)
+  const [interactionMode, setInteractionMode] = useState<"outcome" | "reschedule">("outcome")
   const [postCallFor, setPostCallFor] = useState<PostServiceFollowupItem | null>(null)
 
   const list = useFollowups({ bucket: "all", stage: stage || undefined, source: source || undefined, kind: kind || undefined, stuckOnly, scope })
@@ -289,8 +288,10 @@ export function MyDayPage() {
                 key={r.item.followup_id}
                 item={r.item}
                 technicianName={technicianNames.data?.get(r.item.lead_id) ?? null}
-                onLogOutcome={setOutcomeFor}
-                onReschedule={setRescheduleFor}
+                onLogInteraction={(item, mode) => {
+                  setInteractionFor(item)
+                  setInteractionMode(mode)
+                }}
                 onAssign={assignActionFor(role, profile?.id, r.item.assignee_id, assignees) ? setAssignFor : undefined}
               />
             )
@@ -299,10 +300,15 @@ export function MyDayPage() {
       )}
 
       <PostServiceCallSheet item={postCallFor} open={!!postCallFor} onOpenChange={(o) => !o && setPostCallFor(null)} />
-      <LogOutcomeSheet
-        lead={outcomeFor ? { id: outcomeFor.lead_id, name: outcomeFor.lead_name, mobile: outcomeFor.mobile, status: outcomeFor.lead_status } : null}
-        open={!!outcomeFor}
-        onOpenChange={(o) => !o && setOutcomeFor(null)}
+      <LogInteractionSheet
+        lead={
+          interactionFor
+            ? { id: interactionFor.lead_id, name: interactionFor.lead_name, mobile: interactionFor.mobile, status: interactionFor.lead_status, postponeCount: interactionFor.postpone_count }
+            : null
+        }
+        open={!!interactionFor}
+        onOpenChange={(o) => !o && setInteractionFor(null)}
+        defaultMode={interactionMode}
       />
       <AssignLeadDialog
         leads={assignFor ? [{ id: assignFor.lead_id, name: assignFor.lead_name, assignedTo: assignFor.assignee_id }] : []}
@@ -319,7 +325,6 @@ export function MyDayPage() {
           setSelectMode(false)
         }}
       />
-      <RescheduleDialog lead={rescheduleFor ? { id: rescheduleFor.lead_id, name: rescheduleFor.lead_name } : null} open={!!rescheduleFor} onOpenChange={(o) => !o && setRescheduleFor(null)} />
     </div>
   )
 }

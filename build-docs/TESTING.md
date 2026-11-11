@@ -37,6 +37,15 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - `tsc --noEmit` clean; full leads test suite re-run (20/20 pass) as regression check.
 - **Known gap, documented not silently skipped:** reminder creation is only wired into the first-time "Set follow-up" dialog. `RescheduleDialog` does not yet create/update a reminder task, and there is no dedup/cancel-existing-task logic if a lead is rescheduled after a reminder was already created — flagged in the feature doc's edge cases as needing its own design pass, not solved here under this plan's scope.
 
+## lead-unified-interaction-log
+- DONE 2026-11-11. No migration, no new RPC — pure client-side consolidation of `LogOutcomeSheet.tsx` + `RescheduleDialog.tsx` + the inline "Add note" toggle into one `LogInteractionSheet.tsx`, reusing `log_lead_outcome`/`reschedule_followup`/`add_lead_note` exactly as before (verified by reading `useLeadFollowups.ts`: all three mutation hooks already invalidate the same `["followups"]`/`["leads"]` query keys, so the "lead moves accordingly" requirement held without new invalidation code).
+- `CallReturnPrompt.tsx` (the auto-open-after-call prompt) repointed at the merged sheet, defaulted to Mode A ("outcome") with `defaultChannel="call"` — this was missed in the first draft of the design doc and caught before implementing (see feature doc's impact map).
+- `FollowupCard.tsx` keeps two quick-action buttons ("Log interaction" / "Reschedule") for one-tap speed from the My Day list, but both now open the same merged sheet via one `onLogInteraction(item, mode)` callback — not two separate write paths.
+- Stuck-threshold warning implemented only for Mode B (reschedule): the rule is documented and unambiguous (`reschedule_followup` always bumps `postpone_count` when pushed later). Deliberately NOT implemented for Mode A (outcome) — there is no client-visible field on `lead_outcomes` distinguishing which outcomes count as a postpone server-side, and a guessed warning risks being wrong, which is worse than showing none.
+- `tsc --noEmit` clean. `oxlint` clean on all 5 changed/added files. No RTL component-test harness exists in this repo (consistent with every other feature in this plan) — verified by code reading: grepped for remaining `LogOutcomeSheet`/`RescheduleDialog`/`OutcomeSheetLead` references before deleting the two old files (none found outside themselves).
+- Full leads-related pure-logic regression suite re-run (`lead-edit`, `lead-followups`, `lead-lists`, `lead-outcome-followup`, `lead-spread`, `leadReferrers`, `call-return`): 52/52 pass, unchanged — none of those files were modified, confirming no logic regression in the reused helpers.
+- Not yet tested: a real device walkthrough of all three modes + the call-return auto-open + the stuck warning threshold in the running app (manual-only, no RTL harness in this repo, consistent with every other feature above).
+
 ## Regression sweep (run after any feature lands)
 - Existing assignment filter (`assignedFilter`) on `LeadsPage.tsx`.
 - Existing stage-change buttons, quotation creation, referral-points award flow on `LeadDetailPanel.tsx`.

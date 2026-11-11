@@ -49,3 +49,12 @@
 
 ## regression fix: list_followups/list_leads_without_followup grants (2026-11-11)
 - The DROP FUNCTION + CREATE OR REPLACE used earlier today to add when_needed silently dropped authenticated's execute grant on both RPCs (new function object, old GRANTs not carried over) -- broke Daily Follow Up for every role, reported as "not loading in master". Fixed live: granted execute back to authenticated on both. New migration 20261111110000_fix_list_followups_grants.sql records it.
+
+## lead-unified-interaction-log (2026-11-11) — no migration needed
+- Merged `LogOutcomeSheet.tsx` + `RescheduleDialog.tsx` + the inline "Add note" toggle on `LeadDetailPage.tsx` into one new `LogInteractionSheet.tsx` with a 3-way mode switch (Reached customer / Couldn't reach · push it / Just a note). Deleted the two old files — no lingering dead code.
+- `LeadDetailPage.tsx`: one "Log interaction" button (+ a "Reschedule" quick button when a follow-up is already set) replaces the old three separate buttons/toggle.
+- `MyDayPage.tsx` / `FollowupCard.tsx`: the two per-row quick-action buttons ("Log interaction", "Reschedule") now open the same merged sheet via one `onLogInteraction(item, mode)` callback instead of two separate dialogs/write paths.
+- `CallReturnPrompt.tsx` (auto-opens after a staff member returns to the app post-call) repointed at the merged sheet, defaulted to Mode A with `defaultChannel="call"` — this entry point was missed in the first design-doc draft and fixed before building.
+- No new RPC: all three modes call the pre-existing `log_lead_outcome` / `reschedule_followup` / `add_lead_note` RPCs exactly as before; `reschedule_followup`'s already-existing but previously-unused `note` parameter is now actually passed, so a reschedule's conversation note is captured instead of silently dropped.
+- Added a stuck-threshold warning (Mode B only — reschedule's postpone rule is unambiguous; outcome-mode has no client-visible field to base a correct warning on, so none is shown there rather than guessing).
+- New i18n keys: `leads.interaction.title`, `leads.interaction.mode.{outcome,reschedule,note}`, `leads.interaction.stuckWarning` (en + ta).
