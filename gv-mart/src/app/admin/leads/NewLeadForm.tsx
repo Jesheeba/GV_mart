@@ -18,7 +18,19 @@ import { useProfile } from "@/hooks/useProfile"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLists"
 
-export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function NewLeadForm({
+  onClose,
+  onCreated,
+  existingCustomer,
+}: {
+  onClose: () => void
+  onCreated: () => void
+  /** Set when this form was opened from a customer's own page ("New lead" button)
+   *  for a repeat enquiry — the created lead starts out attached to them instead of
+   *  only linking up at conversion, and the duplicate-contact warning (which would
+   *  otherwise just flag this exact customer as "a possible duplicate") is skipped. */
+  existingCustomer?: { id: string; name: string; mobile: string | null }
+}) {
   const { t } = useTranslation()
   const { toast } = useToast()
   const { data: profile } = useProfile()
@@ -31,8 +43,8 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
     resolver: zodResolver(leadSchema),
     mode: "onChange",
     defaultValues: {
-      name: "",
-      mobile: "",
+      name: existingCustomer?.name ?? "",
+      mobile: existingCustomer?.mobile ?? "",
       source: "other",
       productCategory: "",
       notes: "",
@@ -51,11 +63,13 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
   // Urgent item (2026-11-02): same non-blocking staff-side duplicate-contact
   // warning as CustomerFormPage's Create Customer flow (DuplicateContactWarning
   // has the full rationale). Leads have no email field, so this is mobile-only.
+  // Skipped entirely for an existingCustomer lead — the "duplicate" would always
+  // just be this same customer, which isn't a warning, it's the point.
   const leadMobile = form.watch("mobile") ?? ""
-  const dupWarning = useDuplicateContactWarning(profile?.org_id, leadMobile)
+  const dupWarning = useDuplicateContactWarning(profile?.org_id, existingCustomer ? "" : leadMobile)
   const dupWarningKey = duplicateWarningKey(leadMobile, "")
   const [confirmedDupWarningKey, setConfirmedDupWarningKey] = useState<string | null>(null)
-  const dupWarningConfirmed = confirmedDupWarningKey === dupWarningKey
+  const dupWarningConfirmed = !!existingCustomer || confirmedDupWarningKey === dupWarningKey
 
   async function onSubmit(values: LeadInput) {
     const referredByUserId = values.referredByUserId || null
@@ -75,6 +89,7 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       tds_status: values.tdsStatus || null,
       referred_by_name: values.referredByName || null,
       referred_by_phone: values.referredByPhone || null,
+      customer_id: existingCustomer?.id ?? null,
     })
     // Self-referral / anti-abuse guard (stage2_corrections_addendum.md item 9) —
     // a referral attempt can be silently nulled server-side rather than erroring,
@@ -100,6 +115,9 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           {t("common.cancel")}
         </Button>
       </div>
+      {existingCustomer ? (
+        <p className="rounded-lg bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent">{t("leads.new.forExistingCustomer", { name: existingCustomer.name })}</p>
+      ) : null}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="space-y-0.5">
           <Label htmlFor="lead-name">{t("leads.new.name")}</Label>
@@ -110,14 +128,16 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           <Label htmlFor="lead-mobile">{t("leads.new.mobile")}</Label>
           <Input id="lead-mobile" className="h-8 px-2.5" {...form.register("mobile")} />
         </div>
-        <div className="sm:col-span-2">
-          <DuplicateContactWarning
-            matches={dupWarning.data}
-            isLoading={dupWarning.isFetching}
-            confirmed={dupWarningConfirmed}
-            onConfirmedChange={(next) => setConfirmedDupWarningKey(next ? dupWarningKey : null)}
-          />
-        </div>
+        {!existingCustomer ? (
+          <div className="sm:col-span-2">
+            <DuplicateContactWarning
+              matches={dupWarning.data}
+              isLoading={dupWarning.isFetching}
+              confirmed={dupWarningConfirmed}
+              onConfirmedChange={(next) => setConfirmedDupWarningKey(next ? dupWarningKey : null)}
+            />
+          </div>
+        ) : null}
         <div className="space-y-0.5">
           <Label htmlFor="lead-source">{t("leads.new.source")}</Label>
           <select id="lead-source" {...form.register("source")} className={fieldClass}>

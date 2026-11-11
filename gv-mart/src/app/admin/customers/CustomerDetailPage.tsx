@@ -430,6 +430,14 @@ export function CustomerDetailPage() {
             <Button variant="outline" onClick={() => navigate(`/admin/service/new?customerId=${customer.id}`)}>
               {t("customers.detail.actions.newTicket")}
             </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                navigate("/admin/leads", { state: { newLeadForCustomer: { id: customer.id, name: customer.name, mobile: customer.mobile ?? null } } })
+              }
+            >
+              {t("customers.detail.actions.newLead")}
+            </Button>
             <Button variant="ghost" className="bg-accent-soft text-accent hover:bg-accent-soft/80" onClick={() => navigate("/admin/amc")}>
               {t("customers.detail.actions.sellAmc")}
             </Button>

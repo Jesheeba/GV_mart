@@ -110,6 +110,10 @@ export async function createLead(row: {
   // Lead Dashboard Enhancement, feature 5 — free-text, coexists with referred_by_user_id above.
   referred_by_name?: string | null
   referred_by_phone?: string | null
+  // Existing-customer new-enquiry flow (2026-11-11): set when this lead is
+  // created from CustomerDetailPage's "New lead" button, so the lead starts
+  // out attached to that customer instead of only linking up at conversion.
+  customer_id?: string | null
 }) {
   const { items = [], ...leadRow } = row
   const first = items[0]

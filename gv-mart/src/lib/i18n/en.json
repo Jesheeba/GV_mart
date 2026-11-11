@@ -658,6 +658,7 @@
       "actions": {
         "newSale": "New Sale",
         "newTicket": "New Service",
+        "newLead": "New Lead",
         "sellAmc": "Sell AMC",
         "edit": "Edit",
         "delete": "Delete"
@@ -3727,6 +3728,7 @@
       "inStock": "{{count}} in stock",
       "qty": "Quantity",
       "title": "New Lead",
+      "forExistingCustomer": "New enquiry for an existing customer: {{name}} — this lead will stay linked to their record.",
       "name": "Name",
       "mobile": "Mobile",
       "source": "Source",

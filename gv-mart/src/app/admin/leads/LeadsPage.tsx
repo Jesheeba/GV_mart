@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useEffect, useMemo, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { FileText, Inbox, LayoutGrid, Phone, Plus, Search, Sparkles, Table2, Target, TriangleAlert, Trophy, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -51,6 +51,21 @@ export function LeadsPage() {
   const leads = useLeads(orgId, { source: source || undefined, kind: kind || undefined })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  // Arrived here from a customer's "New lead" button (repeat enquiry) — open
+  // the form pre-filled and attached to that customer. Read once into local
+  // state (not re-derived from location.state on every render) because the
+  // nav state gets cleared right after, so a refresh/back doesn't reopen it.
+  const [newLeadForCustomer] = useState(
+    () => (location.state as { newLeadForCustomer?: { id: string; name: string; mobile: string | null } } | null)?.newLeadForCustomer
+  )
+  useEffect(() => {
+    if (newLeadForCustomer) {
+      setShowNew(true)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const schedule = useLeadSchedule(orgId).data ?? DEFAULT_LEAD_SCHEDULE
   const [quick, setQuick] = useState<QuickFilter>("")
   const role = profile?.role as UserRole | undefined
@@ -176,7 +191,16 @@ export function LeadsPage() {
         })}
       </div>
 
-      {showNew ? <NewLeadForm onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); leads.refetch() }} /> : null}
+      {showNew ? (
+        <NewLeadForm
+          existingCustomer={newLeadForCustomer}
+          onClose={() => setShowNew(false)}
+          onCreated={() => {
+            setShowNew(false)
+            leads.refetch()
+          }}
+        />
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="flex w-56 items-center gap-2.25 rounded-full border border-border bg-surface-alt px-3.5 py-2">
