@@ -31,7 +31,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
 import { getPrimaryAddressId, setAddressWaterHousehold, setAddressZone, setCustomerPreferredLanguage, updateCustomerEmail } from "@/services/customers"
-import { addressLocalityText } from "@/lib/address"
+import { addressLine } from "@/lib/address"
 import {
   useCreateCustomer,
   useCustomer,
@@ -328,9 +328,12 @@ export function CustomerFormPage() {
       setEditEmail(existing.data.email ?? "")
       const primary = existing.data.addresses.find((a) => a.is_primary) ?? existing.data.addresses[0]
       if (primary) {
-        // Pre-migration rows have no full_address yet — fall back to the legacy
-        // concatenation so editing an old address doesn't look blank.
-        const fullAddressValue = primary.full_address ?? addressLocalityText(primary)
+        // Pre-redesign rows have no full_address yet -- most have nothing in the
+        // old door/street columns either, only `area` (e.g. "Vignesh Nagar -
+        // Palpannai" style entries from the old Area field). Falling back to
+        // addressLocalityText alone (door/street columns only, no area) left
+        // this box blank for exactly those rows -- addressLine folds area in too.
+        const fullAddressValue = primary.full_address ?? addressLine(primary)
         addressForm.reset({
           fullAddress: fullAddressValue,
           area: primary.area ?? "",
