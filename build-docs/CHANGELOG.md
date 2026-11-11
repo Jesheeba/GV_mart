@@ -46,3 +46,6 @@
 
 ## lead-referral-redesign migration applied live (2026-11-11)
 - 20261111100000_lead_referral_redesign.sql applied live on owner's "GO APPLY": tds_status check constraint dropped, reporting_staff source seeded (all orgs), list_followups/list_leads_without_followup redefined with when_needed. Fixed in-flight: CREATE OR REPLACE can't add an output column to a RETURNS TABLE function -- needed DROP FUNCTION first for both RPCs (committed fix matches what ran). Verified live: free-text TDS insert succeeds, reporting_staff rows present, both RPCs expose when_needed.
+
+## regression fix: list_followups/list_leads_without_followup grants (2026-11-11)
+- The DROP FUNCTION + CREATE OR REPLACE used earlier today to add when_needed silently dropped authenticated's execute grant on both RPCs (new function object, old GRANTs not carried over) -- broke Daily Follow Up for every role, reported as "not loading in master". Fixed live: granted execute back to authenticated on both. New migration 20261111110000_fix_list_followups_grants.sql records it.
