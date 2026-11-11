@@ -15,6 +15,7 @@ import { useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { useCreateQuotation } from "@/hooks/useQuotations"
 import { formatCurrency } from "@/lib/sale-calc"
+import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { Enums } from "@/types/database"
 
 const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
@@ -66,6 +67,15 @@ export function QuotationFormPage() {
   const activeProducts = useMemo(() => (products ?? []).filter((p) => p.is_active), [products])
   const activeSpares = useMemo(() => (spares ?? []).filter((s) => s.is_active), [spares])
   const [productId, setProductId] = useState("")
+  const [productLabel, setProductLabel] = useState("")
+  const [productQuery, setProductQuery] = useState("")
+  // Brand/Model/Product are three master tables, but one search box: typing
+  // a brand name ("Amaron") surfaces its products the same as typing the
+  // product's own name would (see src/lib/productSearch.ts).
+  const productSuggestions = useMemo(
+    () => activeProducts.filter((p) => productMatchesQuery(p, productQuery)),
+    [activeProducts, productQuery]
+  )
   const [spareId, setSpareId] = useState("")
   const [productQty, setProductQty] = useState("1")
   const [spareQty, setSpareQty] = useState("1")
@@ -108,6 +118,8 @@ export function QuotationFormPage() {
     if (!p) return
     setLines((ls) => [...ls, { itemType: "product", itemId: p.id, name: p.name, price: Number(p.price), qty: Math.max(1, Math.floor(Number(productQty) || 1)) }])
     setProductId("")
+    setProductLabel("")
+    setProductQuery("")
     setProductQty("1")
   }
   function addSpareLine() {
@@ -186,14 +198,29 @@ export function QuotationFormPage() {
       <Card className="gap-3 px-5">
         <p className="px-1 text-sm font-semibold text-text">{t("quotations.form.itemsTitle")}</p>
         <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
-          <select aria-label={t("sales.items.selectProduct")} className={selectClass} value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">{t("sales.items.selectProduct")}</option>
-            {activeProducts.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {formatCurrency(Number(p.price))}
-              </option>
-            ))}
-          </select>
+          <Autocomplete
+            className="sm:col-span-2"
+            value={productId ? productLabel : productQuery}
+            onChange={(v) => {
+              setProductQuery(v)
+              setProductId("")
+            }}
+            onSelect={(p) => {
+              setProductId(p.id)
+              setProductLabel(productSearchLabel(p))
+            }}
+            suggestions={productSuggestions}
+            openOnFocus
+            placeholder={t("sales.items.selectProduct")}
+            emptyMessage={t("common.noData")}
+            getKey={(p) => p.id}
+            getLabel={(p) => (
+              <span>
+                {productSearchLabel(p)} <span className="text-text-muted">— {formatCurrency(Number(p.price))}</span>
+              </span>
+            )}
+            inputClassName="h-8"
+          />
           <Input type="number" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
           <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={addProductLine}>
             <Plus className="size-3.5" />

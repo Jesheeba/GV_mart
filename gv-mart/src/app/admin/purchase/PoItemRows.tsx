@@ -1,8 +1,11 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Autocomplete } from "@/components/shared/Autocomplete"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
+import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { PoItemInput } from "@/lib/validation/automation"
 
 /** Shared "line items" editor for both Purchase Order creation and Bill
@@ -12,6 +15,10 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
   const { t } = useTranslation()
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
+  // Per-row in-progress product search text, keyed by row index — only
+  // needed until a product is picked (after that the row's own itemId
+  // resolves back to a label, see productLabelFor below).
+  const [productQueries, setProductQueries] = useState<Record<number, string>>({})
 
   function update(i: number, patch: Partial<PoItemInput>) {
     onChange(items.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
@@ -26,7 +33,11 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
   // Active-only for products, same as the sales cart's own picker
   // (ItemsStep.tsx) — a PO/bill shouldn't let anyone restock a discontinued
   // product. Spares have no equivalent archive flow yet, so left as-is.
-  const options = (type: "product" | "spare") => (type === "product" ? (products ?? []).filter((p) => p.is_active) : (spares ?? []))
+  const activeProducts = (products ?? []).filter((p) => p.is_active)
+  const spareOptions = spares ?? []
+  function productSuggestionsFor(i: number) {
+    return activeProducts.filter((p) => productMatchesQuery(p, productQueries[i] ?? ""))
+  }
 
   return (
     <div className="space-y-2">
@@ -40,18 +51,39 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
             <option value="spare">{t("masters.tabs.spares")}</option>
             <option value="product">{t("masters.tabs.products")}</option>
           </select>
-          <select
-            value={row.itemId}
-            onChange={(e) => update(i, { itemId: e.target.value })}
-            className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-          >
-            <option value="">{t("purchase.items.selectItem")}</option>
-            {options(row.itemType).map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+          {row.itemType === "product" ? (
+            <Autocomplete
+              value={row.itemId ? productSearchLabel(activeProducts.find((p) => p.id === row.itemId) ?? { name: "" }) : (productQueries[i] ?? "")}
+              onChange={(v) => {
+                setProductQueries((q) => ({ ...q, [i]: v }))
+                update(i, { itemId: "" })
+              }}
+              onSelect={(p) => {
+                update(i, { itemId: p.id })
+                setProductQueries((q) => ({ ...q, [i]: "" }))
+              }}
+              suggestions={productSuggestionsFor(i)}
+              openOnFocus
+              placeholder={t("purchase.items.selectItem")}
+              emptyMessage={t("common.noData")}
+              getKey={(p) => p.id}
+              getLabel={(p) => productSearchLabel(p)}
+              inputClassName="h-10"
+            />
+          ) : (
+            <select
+              value={row.itemId}
+              onChange={(e) => update(i, { itemId: e.target.value })}
+              className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+            >
+              <option value="">{t("purchase.items.selectItem")}</option>
+              {spareOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          )}
           <Input
             type="number"
             min={1}
