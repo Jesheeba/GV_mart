@@ -23,6 +23,11 @@ export function ReferrerPicker({
   id,
   label,
   disabled,
+  // Lead referred-by redesign (2026-11-11): Source already says which kind
+  // is wanted (Technician source vs. a Reporting staff source), so that
+  // picker doesn't need both kinds mixed together — this stays undefined
+  // (both kinds, grouped) for every other caller.
+  kindFilter,
 }: {
   orgId: string | undefined
   value: string
@@ -30,12 +35,13 @@ export function ReferrerPicker({
   id?: string
   label: string
   disabled?: boolean
+  kindFilter?: "technician" | "staff"
 }) {
   const { t } = useTranslation()
   const { data: referrers } = useActiveReferrers(orgId)
-  const technicians = (referrers ?? []).filter((r) => r.kind === "technician")
-  const staff = (referrers ?? []).filter((r) => r.kind === "staff")
-  const hasBothKinds = technicians.length > 0 && staff.length > 0
+  const technicians = kindFilter === "staff" ? [] : (referrers ?? []).filter((r) => r.kind === "technician")
+  const staff = kindFilter === "technician" ? [] : (referrers ?? []).filter((r) => r.kind === "staff")
+  const hasBothKinds = !kindFilter && technicians.length > 0 && staff.length > 0
 
   return (
     <div className="space-y-1">

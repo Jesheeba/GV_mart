@@ -1,29 +1,32 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 
-/** Sources where "who referred this lead" is worth asking about at all. */
-export const REFERRAL_RELEVANT_SOURCES = ["referral", "customer_app"]
+type Mode = "none" | "technician" | "staff" | "customer" | "other"
 
-type Mode = "none" | "technician" | "customer" | "other"
+/** Source key -> what the Referred-by block shows. Anything not listed hides it entirely. */
+const MODE_BY_SOURCE: Record<string, Mode> = {
+  field: "technician", // seeded source label is "Technician"
+  reporting_staff: "staff",
+  referral: "other",
+  customer_app: "customer",
+}
 
 /**
- * Referred-by redesign (2026-11-11) — one block, shape depends on Source:
- * - source = referral / customer_app: a 3-way picker shows up — pick a
- *   technician/staff (bonus-eligible, referredByUserId), search an existing
- *   customer (prefills the free-text name/phone below — no new column), or
- *   type a name/phone for someone not in the system yet.
- * - customer_app leads are, by construction, from an existing customer —
- *   the picker defaults to "Existing customer" so staff isn't left typing a
- *   name the app already has on file.
- * - any other source: hidden, unless the lead already carries referral data
- *   (so editing an older lead never silently drops what's there).
+ * Referred-by redesign (2026-11-11, v2) — fully driven by Source, no separate
+ * "who referred this" choice to make: pick Source and the right field just
+ * appears, pick a different one and it's gone.
+ * - field ("Technician"): technician-only picker (referredByUserId).
+ * - reporting_staff ("Reporting staff"): staff-only picker, same picker UI.
+ * - referral: free-text name/phone (not in the system yet).
+ * - customer_app: existing-customer search (prefills name/phone, no new column —
+ *   an app lead is by construction from an existing customer).
+ * - every other source: nothing shown.
  */
 export function ReferredBySection({
   orgId,
@@ -37,8 +40,8 @@ export function ReferredBySection({
   // Technician/staff attribution (referredByUserId) is a bonus-eligible,
   // set-once-at-creation field (see referral_bonus_rates/_carry_over_lead_referral)
   // — LeadDetailFieldsCard's edit form doesn't touch it, so it hides that
-  // option rather than show a picker that silently does nothing on save.
-  allowTechnician = true,
+  // picker there rather than show one that silently does nothing on save.
+  allowTechnicianOrStaff = true,
 }: {
   orgId: string | undefined
   source: string
@@ -48,101 +51,71 @@ export function ReferredBySection({
   onReferredByNameChange: (next: string) => void
   referredByPhone: string
   onReferredByPhoneChange: (next: string) => void
-  allowTechnician?: boolean
+  allowTechnicianOrStaff?: boolean
 }) {
   const { t } = useTranslation()
-  const hasExistingData = !!referredByUserId || !!referredByName || !!referredByPhone
-  const relevant = REFERRAL_RELEVANT_SOURCES.includes(source) || hasExistingData
+  const rawMode = MODE_BY_SOURCE[source] ?? "none"
+  const mode = (rawMode === "technician" || rawMode === "staff") && !allowTechnicianOrStaff ? "none" : rawMode
 
-  const [mode, setMode] = useState<Mode>(() => {
-    if (referredByUserId) return "technician"
-    if (referredByName || referredByPhone) return "other"
-    return source === "customer_app" ? "customer" : "none"
-  })
   const [customerSearch, setCustomerSearch] = useState("")
   const customerAutocomplete = useCustomerAutocomplete(orgId, customerSearch)
 
-  if (!relevant) return null
-
-  function switchMode(next: Mode) {
-    setMode(next)
-    // Each mode writes to its own field(s) only — clear the others so a
-    // stale value from a mode the user backed out of never gets submitted.
-    if (next !== "technician") onReferredByUserIdChange("")
-    if (next !== "other" && next !== "customer") {
-      onReferredByNameChange("")
-      onReferredByPhoneChange("")
+  // Switching Source away from a mode clears that mode's own fields, so
+  // stale data from a source the user backed out of never gets submitted.
+  const prevMode = useRef(mode)
+  useEffect(() => {
+    if (prevMode.current !== mode) {
+      if (prevMode.current === "technician" || prevMode.current === "staff") onReferredByUserIdChange("")
+      if (prevMode.current === "other" || prevMode.current === "customer") {
+        onReferredByNameChange("")
+        onReferredByPhoneChange("")
+      }
+      setCustomerSearch("")
+      prevMode.current = mode
     }
-    if (next !== "customer") setCustomerSearch("")
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
 
-  const modeOptions = [
-    allowTechnician ? ({ key: "technician", label: t("leads.referredBy.technicianOrStaff") } as const) : null,
-    { key: "customer", label: t("leads.referredBy.existingCustomer") } as const,
-    { key: "other", label: t("leads.referredBy.someoneElse") } as const,
-  ].filter((x): x is { key: Mode; label: string } => x !== null)
+  if (mode === "none") return null
 
   return (
     <div className="space-y-1.5 sm:col-span-2">
       <Label>{t("leads.new.referredBy")}</Label>
 
-      {mode === "none" ? (
-        // Nothing picked yet — show the 3 choices, pick one.
-        <div className="flex flex-wrap gap-1.5">
-          {modeOptions.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => switchMode(key)}
-              className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-text hover:bg-surface-alt"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : (
-        // A choice is active — show ONLY that field, not the other two options,
-        // with a small way back to "none" if it was picked by mistake.
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-text-muted">{modeOptions.find((o) => o.key === mode)?.label}</span>
-          <Button type="button" size="sm" variant="ghost" onClick={() => switchMode("none")}>
-            {t("common.change")}
-          </Button>
-        </div>
-      )}
-
       {mode === "technician" ? (
-        <ReferrerPicker id="lead-referred-by-technician" orgId={orgId} label={t("leads.referredBy.pickTechnicianOrStaff")} value={referredByUserId} onChange={onReferredByUserIdChange} />
+        <ReferrerPicker id="lead-referred-by-technician" orgId={orgId} kindFilter="technician" label={t("leads.referredBy.pickTechnician")} value={referredByUserId} onChange={onReferredByUserIdChange} />
+      ) : null}
+
+      {mode === "staff" ? (
+        <ReferrerPicker id="lead-referred-by-staff" orgId={orgId} kindFilter="staff" label={t("leads.referredBy.pickStaff")} value={referredByUserId} onChange={onReferredByUserIdChange} />
       ) : null}
 
       {mode === "customer" ? (
-        <div className="space-y-1">
-          <Autocomplete
-            id="lead-referred-by-customer"
-            value={referredByName && !customerSearch ? (referredByPhone ? `${referredByName} · ${referredByPhone}` : referredByName) : customerSearch}
-            onChange={(v) => {
-              setCustomerSearch(v)
-              onReferredByNameChange("")
-              onReferredByPhoneChange("")
-            }}
-            suggestions={customerAutocomplete.data ?? []}
-            loading={customerAutocomplete.isFetching}
-            placeholder={t("leads.referredBy.searchCustomerPlaceholder")}
-            icon={<Search className="size-4" />}
-            emptyMessage={t("common.noData")}
-            getKey={(c) => c.id}
-            getLabel={(c) => (
-              <span>
-                <span className="font-medium">{c.name}</span> <span className="text-text-muted">{c.mobile}</span>
-              </span>
-            )}
-            onSelect={(c) => {
-              onReferredByNameChange(c.name)
-              onReferredByPhoneChange(c.mobile ?? "")
-              setCustomerSearch("")
-            }}
-          />
-        </div>
+        <Autocomplete
+          id="lead-referred-by-customer"
+          value={referredByName && !customerSearch ? (referredByPhone ? `${referredByName} · ${referredByPhone}` : referredByName) : customerSearch}
+          onChange={(v) => {
+            setCustomerSearch(v)
+            onReferredByNameChange("")
+            onReferredByPhoneChange("")
+          }}
+          suggestions={customerAutocomplete.data ?? []}
+          loading={customerAutocomplete.isFetching}
+          placeholder={t("leads.referredBy.searchCustomerPlaceholder")}
+          icon={<Search className="size-4" />}
+          emptyMessage={t("common.noData")}
+          getKey={(c) => c.id}
+          getLabel={(c) => (
+            <span>
+              <span className="font-medium">{c.name}</span> <span className="text-text-muted">{c.mobile}</span>
+            </span>
+          )}
+          onSelect={(c) => {
+            onReferredByNameChange(c.name)
+            onReferredByPhoneChange(c.mobile ?? "")
+            setCustomerSearch("")
+          }}
+        />
       ) : null}
 
       {mode === "other" ? (

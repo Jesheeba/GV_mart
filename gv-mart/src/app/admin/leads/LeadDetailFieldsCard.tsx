@@ -143,7 +143,7 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
           <ReferredBySection
             orgId={profile?.org_id}
             source={lead.source}
-            allowTechnician={false}
+            allowTechnicianOrStaff={false}
             referredByUserId=""
             onReferredByUserIdChange={() => {}}
             referredByName={form.referred_by_name}

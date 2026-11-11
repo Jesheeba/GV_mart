@@ -5,6 +5,35 @@
 --    the enum-style check constraint; column stays `text`, no data loss.
 alter table public.leads drop constraint if exists leads_tds_status_check;
 
+-- 1b. New seeded source "Reporting staff" (key reporting_staff), alongside the
+--     existing 6 (field/customer_app/whatsapp/walk_in/referral/other) -- live
+--     body pinned above, additive row only. Picking it on the lead form shows
+--     the same Referred-by picker as "Technician" (source=field), just scoped
+--     to staff (master/operation_admin/sales_admin) instead of technicians --
+--     see ReferredBySection.tsx / ReferrerPicker's kindFilter.
+CREATE OR REPLACE FUNCTION public.seed_lead_sources(p_org_id uuid)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.lead_sources (org_id, key, label, is_system)
+  values
+    (p_org_id, 'field', 'Field', true),
+    (p_org_id, 'customer_app', 'Customer app', true),
+    (p_org_id, 'whatsapp', 'WhatsApp', true),
+    (p_org_id, 'walk_in', 'Walk-in', true),
+    (p_org_id, 'referral', 'Referral', true),
+    (p_org_id, 'reporting_staff', 'Reporting staff', true),
+    (p_org_id, 'other', 'Other', true)
+  on conflict (org_id, key) do nothing;
+$function$;
+
+-- Backfill: every org that already ran the old seed is missing this one row.
+insert into public.lead_sources (org_id, key, label, is_system)
+select id, 'reporting_staff', 'Reporting staff', true from public.organizations
+on conflict (org_id, key) do nothing;
+
 -- 2. list_followups -- live body pinned above, byte-identical except for the
 --    one additive `when_needed` output column (My Day / daily follow-up list
 --    now shows the customer's stated urgency alongside the due date).

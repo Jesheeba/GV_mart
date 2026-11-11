@@ -3734,10 +3734,8 @@
       "referredByPhone": "Referred by — phone"
     },
     "referredBy": {
-      "technicianOrStaff": "Technician / Staff",
-      "existingCustomer": "Existing customer",
-      "someoneElse": "Someone else",
-      "pickTechnicianOrStaff": "Pick technician / staff",
+      "pickTechnician": "Pick technician",
+      "pickStaff": "Pick staff",
       "searchCustomerPlaceholder": "Search name, mobile…"
     },
     "kpi": {
@@ -3770,6 +3768,7 @@
       "whatsapp": "WhatsApp",
       "walk_in": "Walk-in",
       "referral": "Referral",
+      "reporting_staff": "Reporting staff",
       "other": "Other"
     },
     "enquiryType": {

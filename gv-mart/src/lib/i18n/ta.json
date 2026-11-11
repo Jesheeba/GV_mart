@@ -3729,10 +3729,8 @@
       "referredByPhone": "பரிந்துரைத்தவர் — தொலைபேசி"
     },
     "referredBy": {
-      "technicianOrStaff": "டெக்னீஷியன் / பணியாளர்",
-      "existingCustomer": "ஏற்கனவே உள்ள வாடிக்கையாளர்",
-      "someoneElse": "வேறு ஒருவர்",
-      "pickTechnicianOrStaff": "டெக்னீஷியன் / பணியாளரைத் தேர்ந்தெடுக்கவும்",
+      "pickTechnician": "டெக்னீஷியனைத் தேர்ந்தெடுக்கவும்",
+      "pickStaff": "பணியாளரைத் தேர்ந்தெடுக்கவும்",
       "searchCustomerPlaceholder": "பெயர், மொபைல் தேடவும்…"
     },
     "kpi": {
@@ -3765,6 +3763,7 @@
       "whatsapp": "வாட்ஸ்அப்",
       "walk_in": "நேரடி வருகை",
       "referral": "பரிந்துரை",
+      "reporting_staff": "நிர்வாக பணியாளர்",
       "other": "மற்றவை"
     },
     "enquiryType": {
