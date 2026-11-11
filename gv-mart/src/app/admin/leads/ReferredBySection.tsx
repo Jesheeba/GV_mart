@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
-import { cn } from "@/lib/utils"
 
 /** Sources where "who referred this lead" is worth asking about at all. */
 export const REFERRAL_RELEVANT_SOURCES = ["referral", "customer_app"]
@@ -77,35 +76,40 @@ export function ReferredBySection({
     if (next !== "customer") setCustomerSearch("")
   }
 
+  const modeOptions = [
+    allowTechnician ? ({ key: "technician", label: t("leads.referredBy.technicianOrStaff") } as const) : null,
+    { key: "customer", label: t("leads.referredBy.existingCustomer") } as const,
+    { key: "other", label: t("leads.referredBy.someoneElse") } as const,
+  ].filter((x): x is { key: Mode; label: string } => x !== null)
+
   return (
     <div className="space-y-1.5 sm:col-span-2">
       <Label>{t("leads.new.referredBy")}</Label>
-      <div className="flex flex-wrap gap-1.5">
-        {(
-          [
-            allowTechnician ? ({ key: "technician", label: t("leads.referredBy.technicianOrStaff") } as const) : null,
-            { key: "customer", label: t("leads.referredBy.existingCustomer") } as const,
-            { key: "other", label: t("leads.referredBy.someoneElse") } as const,
-          ].filter((x): x is { key: Mode; label: string } => x !== null)
-        ).map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => switchMode(key)}
-            className={cn(
-              "rounded-full border px-3 py-1 text-xs font-semibold",
-              mode === key ? "border-accent bg-accent text-accent-foreground" : "border-border text-text hover:bg-surface-alt"
-            )}
-          >
-            {label}
-          </button>
-        ))}
-        {mode !== "none" ? (
+
+      {mode === "none" ? (
+        // Nothing picked yet — show the 3 choices, pick one.
+        <div className="flex flex-wrap gap-1.5">
+          {modeOptions.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => switchMode(key)}
+              className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-text hover:bg-surface-alt"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        // A choice is active — show ONLY that field, not the other two options,
+        // with a small way back to "none" if it was picked by mistake.
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-text-muted">{modeOptions.find((o) => o.key === mode)?.label}</span>
           <Button type="button" size="sm" variant="ghost" onClick={() => switchMode("none")}>
-            {t("common.none")}
+            {t("common.change")}
           </Button>
-        ) : null}
-      </div>
+        </div>
+      )}
 
       {mode === "technician" ? (
         <ReferrerPicker id="lead-referred-by-technician" orgId={orgId} label={t("leads.referredBy.pickTechnicianOrStaff")} value={referredByUserId} onChange={onReferredByUserIdChange} />
