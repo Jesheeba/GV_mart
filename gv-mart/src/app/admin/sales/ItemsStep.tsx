@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Search, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Autocomplete } from "@/components/shared/Autocomplete"
 import { brandsHooks, modelsHooks, productsHooks, sparesHooks, amcPlansHooks } from "@/hooks/useMasters"
 import { useInventoryList } from "@/hooks/useInventory"
 import { formatCurrency } from "@/lib/sale-calc"
+import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { CartAmc, CartProductLine, SaleCartState } from "./types"
 
 const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none disabled:opacity-50"
@@ -23,9 +25,9 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
   const { data: productStock } = useInventoryList(orgId, "product")
   const { data: spareStock } = useInventoryList(orgId, "spare")
 
-  const [brandId, setBrandId] = useState("")
-  const [modelId, setModelId] = useState("")
   const [productId, setProductId] = useState("")
+  const [productLabel, setProductLabel] = useState("")
+  const [productQuery, setProductQuery] = useState("")
   const [productQty, setProductQty] = useState("1")
 
   const [spareId, setSpareId] = useState("")
@@ -53,13 +55,16 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
     )
   }, [cart.spareLines.length])
 
-  const filteredModels = useMemo(() => (models ?? []).filter((m) => !brandId || m.brand_id === brandId), [models, brandId])
   // Skip/Revoke (20260923) — a new sale can only pick active products/
   // spares; this is a create-only picker, so there's no "existing line"
   // to preserve if it's since been archived.
-  const filteredProducts = useMemo(
-    () => (products ?? []).filter((p) => p.is_active && (!brandId || p.brand_id === brandId) && (!modelId || p.model_id === modelId)),
-    [products, brandId, modelId]
+  const activeProducts = useMemo(() => (products ?? []).filter((p) => p.is_active), [products])
+  // Brand/Model/Product are three master tables, but one search box: typing
+  // a brand name ("Amaron") surfaces its products the same as typing the
+  // product's own name would (see src/lib/productSearch.ts).
+  const productSuggestions = useMemo(
+    () => activeProducts.filter((p) => productMatchesQuery(p, productQuery)),
+    [activeProducts, productQuery]
   )
   const activeSpares = useMemo(() => (spares ?? []).filter((s) => s.is_active), [spares])
   const selectedProduct = (products ?? []).find((p) => p.id === productId)
@@ -89,9 +94,9 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
     }
     setCart((c) => ({ ...c, productLines: [...c.productLines, line] }))
     setProductLineIds((ids) => [...ids, crypto.randomUUID()])
-    setBrandId("")
-    setModelId("")
     setProductId("")
+    setProductLabel("")
+    setProductQuery("")
     setProductQty("1")
   }
 
@@ -146,47 +151,30 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
           </TabsList>
 
           <TabsContent value="product">
-            <div className="grid grid-cols-2 gap-2 px-1 pt-3 sm:grid-cols-4">
-              <select
-                className={selectClass}
-                value={brandId}
-                onChange={(e) => {
-                  setBrandId(e.target.value)
-                  setModelId("")
+            <div className="grid grid-cols-1 gap-2 px-1 pt-3 sm:grid-cols-[2fr_1fr]">
+              <Autocomplete
+                value={productId ? productLabel : productQuery}
+                onChange={(v) => {
+                  setProductQuery(v)
                   setProductId("")
                 }}
-              >
-                <option value="">{t("sales.items.selectBrand")}</option>
-                {(brands ?? []).map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={selectClass}
-                value={modelId}
-                disabled={!brandId}
-                onChange={(e) => {
-                  setModelId(e.target.value)
-                  setProductId("")
+                onSelect={(p) => {
+                  setProductId(p.id)
+                  setProductLabel(productSearchLabel(p))
                 }}
-              >
-                <option value="">{t("sales.items.selectModel")}</option>
-                {filteredModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-              <select className={selectClass} value={productId} disabled={!brandId} onChange={(e) => setProductId(e.target.value)}>
-                <option value="">{t("sales.items.selectProduct")}</option>
-                {filteredProducts.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — {formatCurrency(Number(p.price))}
-                  </option>
-                ))}
-              </select>
+                suggestions={productSuggestions}
+                openOnFocus
+                icon={<Search className="size-4" />}
+                placeholder={t("sales.items.selectProduct")}
+                emptyMessage={t("common.noData")}
+                getKey={(p) => p.id}
+                getLabel={(p) => (
+                  <span>
+                    {productSearchLabel(p)} <span className="text-text-muted">— {formatCurrency(Number(p.price))}</span>
+                  </span>
+                )}
+                inputClassName="h-8"
+              />
               <Input type="number" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
             </div>
             <div className="flex items-center justify-between px-1 pt-2">
