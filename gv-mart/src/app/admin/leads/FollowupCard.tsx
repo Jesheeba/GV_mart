@@ -18,15 +18,14 @@ import type { FollowupListItem } from "@/services/leadFollowups"
 export function FollowupCard({
   item,
   technicianName,
-  onLogOutcome,
-  onReschedule,
+  onLogInteraction,
   onAssign,
 }: {
   item: FollowupListItem
   /** The lead's technician (leads.owner_id): "Referred by X" for referral leads, "Technician X" otherwise. */
   technicianName?: string | null
-  onLogOutcome: (item: FollowupListItem) => void
-  onReschedule: (item: FollowupListItem) => void
+  /** Opens the merged Log Interaction sheet, defaulted to "outcome" (reached customer) or "reschedule" (push it). */
+  onLogInteraction: (item: FollowupListItem, mode: "outcome" | "reschedule") => void
   /** Set only when the signed-in person may assign this lead (see assignActionFor). */
   onAssign?: (item: FollowupListItem) => void
 }) {
@@ -99,11 +98,11 @@ export function FollowupCard({
             </a>
           </>
         ) : null}
-        <Button size="sm" variant="accent" onClick={() => onLogOutcome(item)}>
+        <Button size="sm" variant="accent" onClick={() => onLogInteraction(item, "outcome")}>
           <ClipboardCheck className="size-3.5" />
-          {t("leads.followup.logOutcome")}
+          {t("leads.interaction.title")}
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => onReschedule(item)}>
+        <Button size="sm" variant="ghost" onClick={() => onLogInteraction(item, "reschedule")}>
           {t("leads.followup.reschedule")}
         </Button>
         {onAssign ? (

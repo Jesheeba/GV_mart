@@ -1,16 +1,14 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, CalendarPlus, ClipboardCheck, Loader2, MessageCircle, Phone, RotateCcw, StickyNote, UserRound } from "lucide-react"
+import { ArrowLeft, CalendarPlus, ClipboardCheck, MessageCircle, Phone, RotateCcw, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusDot } from "@/components/shared/StatusDot"
-import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useLead } from "@/hooks/useAutomation"
-import { useAddLeadNote, useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
+import { useLeadAssignees, useLeadSchedule } from "@/hooks/useLeadFollowups"
 import { AssignLeadDialog } from "./AssignLeadDialog"
 import { assignActionFor, canScheduleLead } from "@/lib/lead-assign"
 import type { UserRole } from "@/lib/roles"
@@ -18,8 +16,7 @@ import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLists"
 import { LeadDetailPanel } from "./LeadDetailPanel"
 import { LeadTimeline } from "./LeadTimeline"
-import { LogOutcomeSheet } from "./LogOutcomeSheet"
-import { RescheduleDialog } from "./RescheduleDialog"
+import { LogInteractionSheet } from "./LogInteractionSheet"
 import { SetFollowupDialog } from "./SetFollowupDialog"
 import { FollowupChip, PostponeBadge, StuckBadge } from "./FollowupBadges"
 import { rememberCall } from "@/lib/call-return"
@@ -30,7 +27,6 @@ import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 /** Full lead page: header (who, stage, next follow-up, postpones), quick actions, unified timeline, and the lead's other actions. */
 export function LeadDetailPage() {
   const { t } = useTranslation()
-  const { toast } = useToast()
   const { leadId } = useParams<{ leadId: string }>()
   const { data: profile } = useProfile()
   const { label: sourceLabel } = useLeadSourceOptions()
@@ -38,15 +34,12 @@ export function LeadDetailPage() {
   const { label: productTypeLabel } = useLeadProductTypeOptions()
   const schedule = useLeadSchedule(profile?.org_id).data ?? DEFAULT_LEAD_SCHEDULE
   const lead = useLead(leadId)
-  const addNote = useAddLeadNote()
 
-  const [outcomeOpen, setOutcomeOpen] = useState(false)
-  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  const [interactionOpen, setInteractionOpen] = useState(false)
+  const [interactionMode, setInteractionMode] = useState<"outcome" | "reschedule">("outcome")
   const [setFollowupOpen, setSetFollowupOpen] = useState(false)
-  const [noteOpen, setNoteOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const assignees = useLeadAssignees(profile?.org_id, profile?.role as UserRole | undefined).data ?? []
-  const [note, setNote] = useState("")
 
   if (lead.isLoading) {
     return (
@@ -74,21 +67,14 @@ export function LeadDetailPage() {
   const mobile = l.mobile ?? l.customers?.mobile ?? null
   const stuck = !closed && l.postpone_count >= schedule.lead_stuck_postpones
   const tone = l.status === "won" ? "success" : l.status === "lost" ? "danger" : l.status === "new" ? "info" : "warning"
-  const sheetLead = { id: l.id, name, mobile, status: l.status }
+  const sheetLead = { id: l.id, name, mobile, status: l.status, postponeCount: l.postpone_count }
   const assigneeName = assignees.find((a) => a.id === l.assigned_to)?.full_name ?? null
   const canSchedule = canScheduleLead(profile?.role as UserRole | undefined, profile?.id, l.assigned_to, assignees)
   const assignAction = closed ? null : assignActionFor(profile?.role as UserRole | undefined, profile?.id, l.assigned_to, assignees)
 
-  async function saveNote() {
-    if (!note.trim()) return
-    try {
-      await addNote.mutateAsync({ leadId: l!.id, note: note.trim() })
-      setNote("")
-      setNoteOpen(false)
-      toast.success(t("leads.detail.noteSaved"))
-    } catch (e) {
-      toast.error(e instanceof Error && e.message ? e.message : t("common.actionFailed"))
-    }
+  function openInteraction(mode: "outcome" | "reschedule") {
+    setInteractionMode(mode)
+    setInteractionOpen(true)
   }
 
   return (
@@ -101,7 +87,13 @@ export function LeadDetailPage() {
       <Card className="gap-3 px-5" data-testid="lead-header">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <h1 className="truncate text-xl font-bold text-text">{name}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="truncate text-xl font-bold text-text">{name}</h1>
+              {/* Urgent outage hotfix (2026-11-02): hidden -- Save calls
+                  update_lead_details, whose migration (20261201110000) is
+                  not live yet (checked by live read-only audit). Restore
+                  once applied. See DECISIONS.md. */}
+            </div>
             {mobile ? (
               <a href={telHref(mobile)} onClick={() => rememberCall(sheetLead)} className="inline-flex items-center gap-1.5 text-sm font-medium text-text hover:underline">
                 <Phone className="size-3.5" />
@@ -132,18 +124,18 @@ export function LeadDetailPage() {
 
         <div className="flex flex-wrap gap-1.5">
           {closed ? (
-            <Button size="sm" variant="accent" onClick={() => setOutcomeOpen(true)}>
+            <Button size="sm" variant="accent" onClick={() => openInteraction("outcome")}>
               <RotateCcw className="size-3.5" />
               {t("leads.detail.reopen")}
             </Button>
           ) : (
             <>
-              <Button size="sm" variant="accent" onClick={() => setOutcomeOpen(true)}>
+              <Button size="sm" variant="accent" onClick={() => openInteraction("outcome")}>
                 <ClipboardCheck className="size-3.5" />
-                {t("leads.followup.logOutcome")}
+                {t("leads.interaction.title")}
               </Button>
               {l.next_followup_at ? (
-                <Button size="sm" variant="outline" onClick={() => setRescheduleOpen(true)}>
+                <Button size="sm" variant="outline" onClick={() => openInteraction("reschedule")}>
                   {t("leads.followup.reschedule")}
                 </Button>
               ) : canSchedule ? (
@@ -160,10 +152,6 @@ export function LeadDetailPage() {
               {t(`leads.assign.action.${assignAction}`)}
             </Button>
           ) : null}
-          <Button size="sm" variant="outline" onClick={() => setNoteOpen((v) => !v)}>
-            <StickyNote className="size-3.5" />
-            {t("leads.detail.addNote")}
-          </Button>
           {mobile ? (
             <a
               href={toWhatsappLink(mobile, "")}
@@ -176,15 +164,6 @@ export function LeadDetailPage() {
             </a>
           ) : null}
         </div>
-
-        {noteOpen ? (
-          <div className="flex gap-2">
-            <Input autoFocus value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("leads.detail.notePlaceholder")} onKeyDown={(e) => e.key === "Enter" && saveNote()} />
-            <Button size="sm" onClick={saveNote} disabled={!note.trim() || addNote.isPending}>
-              {addNote.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
-            </Button>
-          </div>
-        ) : null}
       </Card>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
@@ -197,8 +176,7 @@ export function LeadDetailPage() {
         </div>
       </div>
 
-      <LogOutcomeSheet lead={sheetLead} open={outcomeOpen} onOpenChange={setOutcomeOpen} />
-      <RescheduleDialog lead={{ id: l.id, name }} open={rescheduleOpen} onOpenChange={setRescheduleOpen} />
+      <LogInteractionSheet lead={sheetLead} open={interactionOpen} onOpenChange={setInteractionOpen} defaultMode={closed ? "outcome" : interactionMode} />
       <SetFollowupDialog lead={{ id: l.id, name }} open={setFollowupOpen} onOpenChange={setSetFollowupOpen} />
 
       <AssignLeadDialog leads={[{ id: l.id, name, assignedTo: l.assigned_to }]} open={assignOpen} onOpenChange={setAssignOpen} />

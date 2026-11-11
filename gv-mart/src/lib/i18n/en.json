@@ -4096,6 +4096,15 @@
         "lead_lost": "lead lost",
         "rescheduled": "rescheduled"
       }
+    },
+    "interaction": {
+      "title": "Log interaction",
+      "mode": {
+        "outcome": "Reached customer",
+        "reschedule": "Couldn't reach / push it",
+        "note": "Just a note"
+      },
+      "stuckWarning": "This will push the lead to Stuck (3 postpones in a row)."
     }
   },
   "automation": {
