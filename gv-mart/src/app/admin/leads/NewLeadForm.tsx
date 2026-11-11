@@ -89,23 +89,26 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
     onCreated()
   }
 
+  const fieldClass = "h-8 w-full rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none"
+  const textareaClass = "w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-sm text-text outline-none"
+
   return (
-    <Card className="gap-3 px-5">
+    <Card size="sm" className="gap-2 px-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-text">{t("leads.new.title")}</h2>
         <Button size="sm" variant="ghost" onClick={onClose}>
           {t("common.cancel")}
         </Button>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="space-y-0.5">
           <Label htmlFor="lead-name">{t("leads.new.name")}</Label>
-          <Input id="lead-name" {...form.register("name")} />
+          <Input id="lead-name" className="h-8 px-2.5" {...form.register("name")} />
           {form.formState.errors.name ? <p className="text-xs text-danger">{t(form.formState.errors.name.message!)}</p> : null}
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-0.5">
           <Label htmlFor="lead-mobile">{t("leads.new.mobile")}</Label>
-          <Input id="lead-mobile" {...form.register("mobile")} />
+          <Input id="lead-mobile" className="h-8 px-2.5" {...form.register("mobile")} />
         </div>
         <div className="sm:col-span-2">
           <DuplicateContactWarning
@@ -115,9 +118,9 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             onConfirmedChange={(next) => setConfirmedDupWarningKey(next ? dupWarningKey : null)}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-0.5">
           <Label htmlFor="lead-source">{t("leads.new.source")}</Label>
-          <select id="lead-source" {...form.register("source")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+          <select id="lead-source" {...form.register("source")} className={fieldClass}>
             {activeSources.map((s) => (
               <option key={s.key} value={s.key}>
                 {sourceLabel(s.key)}
@@ -125,69 +128,10 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             ))}
           </select>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
-          <select id="lead-product-category" {...form.register("productCategory")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-            <option value="">{t("service.filters.all")}</option>
-            {activeProductTypes.map((p) => (
-              <option key={p.key} value={p.key}>
-                {productTypeLabel(p.key)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
-          <select id="lead-kind" {...form.register("kind")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-            <option value="">{t("service.filters.all")}</option>
-            {activeKinds.map((k) => (
-              <option key={k.key} value={k.key}>
-                {kindLabel(k.key)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="lead-notes">{t("leads.new.notes")}</Label>
-          <textarea
-            id="lead-notes"
-            rows={4}
-            placeholder={t("leads.new.notesPlaceholder")}
-            {...form.register("notes")}
-            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
-          />
-        </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="lead-customer-requirement">{t("leads.new.customerRequirement")}</Label>
-          <textarea
-            id="lead-customer-requirement"
-            rows={3}
-            {...form.register("customerRequirement")}
-            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
-          />
-        </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="lead-special-description">{t("leads.new.specialDescription")}</Label>
-          <textarea
-            id="lead-special-description"
-            rows={3}
-            {...form.register("specialDescription")}
-            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
-          <Input id="lead-budget" type="number" min={0} {...form.register("budget")} />
-          {form.formState.errors.budget ? <p className="text-xs text-danger">{t(form.formState.errors.budget.message!)}</p> : null}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="lead-when-needed">{t("leads.new.whenNeeded")}</Label>
-          <Input id="lead-when-needed" {...form.register("whenNeeded")} placeholder={t("leads.new.whenNeededPlaceholder")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="lead-tds">{t("leads.new.tds")}</Label>
-          <Input id="lead-tds" {...form.register("tdsStatus")} placeholder={t("leads.new.tdsPlaceholder")} />
-        </div>
+        {/* Sits next to Source in the grid: appears only when the chosen
+            source has a referrer to capture, taking Source's row -- when it
+            renders nothing (most sources), the field after this one simply
+            flows into this slot instead. */}
         <ReferredBySection
           orgId={profile?.org_id}
           source={form.watch("source")}
@@ -198,8 +142,55 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           referredByPhone={form.watch("referredByPhone") ?? ""}
           onReferredByPhoneChange={(next) => form.setValue("referredByPhone", next)}
         />
+        <div className="space-y-0.5">
+          <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
+          <select id="lead-product-category" {...form.register("productCategory")} className={fieldClass}>
+            <option value="">{t("service.filters.all")}</option>
+            {activeProductTypes.map((p) => (
+              <option key={p.key} value={p.key}>
+                {productTypeLabel(p.key)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-0.5">
+          <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
+          <select id="lead-kind" {...form.register("kind")} className={fieldClass}>
+            <option value="">{t("service.filters.all")}</option>
+            {activeKinds.map((k) => (
+              <option key={k.key} value={k.key}>
+                {kindLabel(k.key)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-0.5">
+          <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
+          <Input id="lead-budget" type="number" min={0} className="h-8 px-2.5" {...form.register("budget")} />
+          {form.formState.errors.budget ? <p className="text-xs text-danger">{t(form.formState.errors.budget.message!)}</p> : null}
+        </div>
+        <div className="space-y-0.5">
+          <Label htmlFor="lead-when-needed">{t("leads.new.whenNeeded")}</Label>
+          <Input id="lead-when-needed" className="h-8 px-2.5" {...form.register("whenNeeded")} placeholder={t("leads.new.whenNeededPlaceholder")} />
+        </div>
+        <div className="space-y-0.5">
+          <Label htmlFor="lead-tds">{t("leads.new.tds")}</Label>
+          <Input id="lead-tds" className="h-8 px-2.5" {...form.register("tdsStatus")} placeholder={t("leads.new.tdsPlaceholder")} />
+        </div>
+        <div className="space-y-0.5 sm:col-span-2">
+          <Label htmlFor="lead-notes">{t("leads.new.notes")}</Label>
+          <textarea id="lead-notes" rows={2} placeholder={t("leads.new.notesPlaceholder")} {...form.register("notes")} className={textareaClass} />
+        </div>
+        <div className="space-y-0.5 sm:col-span-2">
+          <Label htmlFor="lead-customer-requirement">{t("leads.new.customerRequirement")}</Label>
+          <textarea id="lead-customer-requirement" rows={2} {...form.register("customerRequirement")} className={textareaClass} />
+        </div>
+        <div className="space-y-0.5 sm:col-span-2">
+          <Label htmlFor="lead-special-description">{t("leads.new.specialDescription")}</Label>
+          <textarea id="lead-special-description" rows={2} {...form.register("specialDescription")} className={textareaClass} />
+        </div>
       </div>
-      {createLead.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createLead.error as Error).message}</p> : null}
+      {createLead.error ? <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{(createLead.error as Error).message}</p> : null}
       <div className="flex justify-end">
         <Button
           onClick={form.handleSubmit(onSubmit)}

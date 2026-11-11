@@ -79,7 +79,7 @@ export function ReferredBySection({
   if (mode === "none") return null
 
   return (
-    <div className="space-y-1.5 sm:col-span-2">
+    <div className="space-y-0.5">
       <Label>{t("leads.new.referredBy")}</Label>
 
       {mode === "technician" ? (
@@ -119,12 +119,19 @@ export function ReferredBySection({
       ) : null}
 
       {mode === "other" ? (
-        <div className="grid grid-cols-2 gap-3">
-          <Input aria-label={t("leads.new.referredByName")} placeholder={t("leads.new.referredByName")} value={referredByName} onChange={(e) => onReferredByNameChange(e.target.value)} />
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            aria-label={t("leads.new.referredByName")}
+            placeholder={t("leads.new.referredByName")}
+            className="h-8 px-2.5"
+            value={referredByName}
+            onChange={(e) => onReferredByNameChange(e.target.value)}
+          />
           <Input
             aria-label={t("leads.new.referredByPhone")}
             type="tel"
             placeholder={t("leads.new.referredByPhone")}
+            className="h-8 px-2.5"
             value={referredByPhone}
             onChange={(e) => onReferredByPhoneChange(e.target.value)}
           />
