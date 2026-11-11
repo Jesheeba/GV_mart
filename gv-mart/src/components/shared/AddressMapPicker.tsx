@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Check, Loader2, MapPin, Search, TriangleAlert } from "lucide-react"
+import { Check, Loader2, MapPin, TriangleAlert } from "lucide-react"
 import { Map, MapControls, MapMarker, MarkerContent } from "@/components/ui/map"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -265,14 +265,13 @@ export function AddressMapPicker({
   return (
     <div className="space-y-2.5">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => dropdownRows.length > 0 && setDropdownOpen(true)}
           onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
           placeholder={t("customers.form.map.searchPlaceholder")}
-          className="pl-9 pr-9"
+          className="pr-9"
         />
         {suggestionsLoading || resolvingSelection ? (
           <Loader2 className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-text-muted" />
