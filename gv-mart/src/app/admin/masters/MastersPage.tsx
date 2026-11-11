@@ -1,13 +1,12 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Ban, PhoneCall, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Hammer, Layers, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wallet, Wrench } from "lucide-react"
+import { Ban, PhoneCall, Megaphone, CalendarClock, CheckSquare, ClipboardList, Droplet, Gift, Hammer, Package, QrCode, ShieldCheck, SlidersHorizontal, SquareStack, Tag, TrendingUp, Wallet, Wrench } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useProfile } from "@/hooks/useProfile"
 import { MissingProductAlert } from "@/components/shared/MissingProductAlert"
 import {
   amcPlansHooks,
-  brandsHooks,
   complaintTypesHooks,
   giftExclusionProductsHooks,
   giftsHooks,
@@ -17,7 +16,6 @@ import {
   leadKindsHooks,
   leadProductTypesHooks,
   leadSourcesHooks,
-  modelsHooks,
   productEnquiryTabsHooks,
   productsHooks,
   rentalPlansHooks,
@@ -26,8 +24,6 @@ import {
   waterQualityReferenceHooks,
 } from "@/hooks/useMasters"
 import { cn } from "@/lib/utils"
-import { BrandsTab } from "./BrandsTab"
-import { ModelsTab } from "./ModelsTab"
 import { ProductsTab } from "./ProductsTab"
 import { SparesTab } from "./SparesTab"
 import { GiftsTab } from "./GiftsTab"
@@ -54,8 +50,6 @@ import { LeadOutcomesTab } from "./LeadOutcomesTab"
 import { useLeadOutcomes } from "@/hooks/useLeadFollowups"
 
 type ModuleId =
-  | "brands"
-  | "models"
   | "products"
   | "spares"
   | "gifts"
@@ -96,8 +90,6 @@ export function MastersPage() {
   const orgId = profile?.org_id
   const [activeTab, setActiveTab] = useState<ModuleId>("products")
 
-  const { data: brands } = brandsHooks.useList(orgId)
-  const { data: models } = modelsHooks.useList(orgId)
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
   const { data: gifts } = giftsHooks.useList(orgId)
@@ -124,8 +116,6 @@ export function MastersPage() {
   const complaintTypeDefaultsCount = (complaintTypes ?? []).filter((c) => c.product_id === null).length
 
   const modules: { id: ModuleId; icon: typeof Tag; swatch: keyof typeof SWATCH; title: string; desc: string; group?: "dailyFollowup" }[] = [
-    { id: "brands", icon: Tag, swatch: "ink", title: t("masters.tabs.brands"), desc: t("masters.overview.brandsDesc", { count: brands?.length ?? 0 }) },
-    { id: "models", icon: Layers, swatch: "info", title: t("masters.tabs.models"), desc: t("masters.overview.modelsDesc", { count: models?.length ?? 0 }) },
     { id: "products", icon: Package, swatch: "accent", title: t("masters.tabs.products"), desc: t("masters.overview.productsDesc", { count: products?.length ?? 0 }) },
     { id: "spares", icon: Wrench, swatch: "ink", title: t("masters.tabs.spares"), desc: t("masters.overview.sparesDesc", { count: spares?.length ?? 0 }) },
     { id: "gifts", icon: Gift, swatch: "green", title: t("masters.tabs.gifts"), desc: t("masters.overview.giftsDesc", { count: gifts?.length ?? 0 }) },
@@ -222,12 +212,6 @@ export function MastersPage() {
         </div>
 
         <Card size="default" className="mt-4.5">
-          <TabsContent value="brands">
-            <BrandsTab />
-          </TabsContent>
-          <TabsContent value="models">
-            <ModelsTab />
-          </TabsContent>
           <TabsContent value="products">
             <ProductsTab />
           </TabsContent>

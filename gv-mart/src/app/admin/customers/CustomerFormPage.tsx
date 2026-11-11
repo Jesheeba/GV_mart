@@ -21,7 +21,6 @@ import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import {
   addressStepSchema,
   peopleStepSchema,
-  canSkipAddressPin,
   FAMILY_RELATIONS,
   canEditWaterHousehold,
   type AddressStepInput,
@@ -31,15 +30,8 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
-import {
-  getPrimaryAddressId,
-  setAddressStructuredFields,
-  setAddressWaterHousehold,
-  setAddressZone,
-  setCustomerPreferredLanguage,
-  updateCustomerEmail,
-} from "@/services/customers"
-import { composeFullAddress, splitAddressForForm } from "@/lib/address"
+import { getPrimaryAddressId, setAddressWaterHousehold, setAddressZone, setCustomerPreferredLanguage, updateCustomerEmail } from "@/services/customers"
+import { addressLocalityText } from "@/lib/address"
 import {
   useCreateCustomer,
   useCustomer,
@@ -56,7 +48,7 @@ import { guardReentry } from "@/lib/async-guard"
 /** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
 function hasAddressText(a: AddressStepInput) {
   return (
-    [a.doorNo, a.plotNo, a.buildingName, a.streetCross, a.subArea, a.landmark, a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some(
+    [a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some(
       (v) => v?.trim()
     ) ||
     a.lat != null ||
@@ -195,7 +187,6 @@ export function CustomerFormPage() {
   const mode: "create" | "edit" = id ? "edit" : "create"
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
-  const pinOptional = canSkipAddressPin(profile?.role)
 
   const existing = useCustomer(mode === "edit" ? id : undefined)
   const [step, setStep] = useState(0)
@@ -235,12 +226,6 @@ export function CustomerFormPage() {
     resolver: zodResolver(addressStepSchema),
     mode: "onChange",
     defaultValues: {
-      doorNo: "",
-      plotNo: "",
-      buildingName: "",
-      streetCross: "",
-      subArea: "",
-      landmark: "",
       fullAddress: "",
       area: "",
       pincode: "",
@@ -258,24 +243,13 @@ export function CustomerFormPage() {
     },
   })
   const [waterEditing, setWaterEditing] = useState(false)
-  const doorNo = addressForm.watch("doorNo") ?? ""
-  const plotNo = addressForm.watch("plotNo") ?? ""
-  const buildingName = addressForm.watch("buildingName") ?? ""
-  const streetCross = addressForm.watch("streetCross") ?? ""
-  const subArea = addressForm.watch("subArea") ?? ""
-  const landmark = addressForm.watch("landmark") ?? ""
-  const legacyFullAddress = addressForm.watch("fullAddress") ?? ""
+  const fullAddress = addressForm.watch("fullAddress") ?? ""
   const area = addressForm.watch("area") ?? ""
   const pincode = addressForm.watch("pincode")
   const district = addressForm.watch("district")
   const state = addressForm.watch("state")
   const lat = addressForm.watch("lat")
   const lng = addressForm.watch("lng")
-  // The canonical composed text geocoding/compare/save all use — structured
-  // fields take over the moment any of them has text; otherwise this falls
-  // back to the old free-text full_address so a pre-redesign customer's
-  // address isn't silently dropped. See src/lib/address.ts.
-  const fullAddress = composeFullAddress({ doorNo, plotNo, buildingName, streetCross, subArea, area, landmark }) || legacyFullAddress
   const pincodeLookup = usePincodeLookup(orgId, pincode)
   const autoLocate = useGeocodeAddress()
 
@@ -308,9 +282,7 @@ export function CustomerFormPage() {
   // renders as an amber DRAFT pin (draggable, "needs confirmation") that
   // staff must explicitly confirm or correct, exactly like every other
   // ambiguous "search anyway" result already behaves.
-  // `fullAddress` already folds `area` in (see composeFullAddress above), so
-  // it isn't repeated here.
-  const autoLocateQuery = [fullAddress, pincode, district, state].filter(Boolean).join(", ")
+  const autoLocateQuery = [fullAddress, area, pincode, district, state].filter(Boolean).join(", ")
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {
@@ -356,20 +328,12 @@ export function CustomerFormPage() {
       setEditEmail(existing.data.email ?? "")
       const primary = existing.data.addresses.find((a) => a.is_primary) ?? existing.data.addresses[0]
       if (primary) {
-        // Structured columns win when any are populated; a customer saved
-        // before this redesign (all structured columns empty) falls back to
-        // showing the old free-text full_address instead, so editing it
-        // doesn't look blank. See src/lib/address.ts.
-        const split = splitAddressForForm(primary)
+        // Pre-migration rows have no full_address yet — fall back to the legacy
+        // concatenation so editing an old address doesn't look blank.
+        const fullAddressValue = primary.full_address ?? addressLocalityText(primary)
         addressForm.reset({
-          doorNo: split.doorNo,
-          plotNo: split.plotNo,
-          buildingName: split.buildingName,
-          streetCross: split.streetCross,
-          subArea: split.subArea,
-          landmark: split.landmark,
-          fullAddress: split.legacyFullAddress || composeFullAddress(split),
-          area: split.area,
+          fullAddress: fullAddressValue,
+          area: primary.area ?? "",
           pincode: primary.pincode ?? "",
           district: primary.district ?? "",
           state: primary.state ?? "",
@@ -383,8 +347,9 @@ export function CustomerFormPage() {
           waterPh: primary.water_ph ?? undefined,
           healthCondition: primary.health_condition ?? "",
         })
-        const composed = composeFullAddress(split) || split.legacyFullAddress
-        confirmedLocationTextRef.current = [composed, primary.pincode, primary.district, primary.state].filter(Boolean).join(", ")
+        confirmedLocationTextRef.current = [fullAddressValue, primary.area, primary.pincode, primary.district, primary.state]
+          .filter(Boolean)
+          .join(", ")
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -442,10 +407,6 @@ export function CustomerFormPage() {
     const valid = await addressForm.trigger()
     if (!valid) return
     const addressValues = addressForm.getValues()
-    // Structured fields are the source of truth the moment any is filled;
-    // only a customer that still has nothing but the legacy fallback box
-    // keeps that text as full_address. See composeFullAddress in src/lib/address.ts.
-    const composedFullAddress = composeFullAddress(addressValues) || addressValues.fullAddress?.trim() || ""
 
     if (mode === "create") {
       const peopleValues = peopleForm.getValues()
@@ -464,7 +425,7 @@ export function CustomerFormPage() {
           email: m.email?.trim() || undefined,
         })),
         address: {
-          fullAddress: composedFullAddress,
+          fullAddress: addressValues.fullAddress,
           area: addressValues.area,
           pincode: addressValues.pincode,
           district: addressValues.district,
@@ -518,32 +479,6 @@ export function CustomerFormPage() {
           toast.error(t("common.actionFailed"))
         }
       }
-      // Clean-address-form redesign (2026-11-03): create_customer_with_details
-      // only accepts full_address/area/pincode/district/state — the structured
-      // columns behind the new Door no/Plot no/Building Name/Street-Cross/
-      // Sub Area/Landmark fields get the same direct follow-up write as zone
-      // above. sub_area ships in migration 20261204170000 — until that's
-      // applied live, this write optimistically includes it (same pattern
-      // the water/household columns used ahead of their own migration) and
-      // Supabase simply ignores/rejects the unknown key until then.
-      const hasStructuredFields =
-        addressValues.doorNo?.trim() || addressValues.plotNo?.trim() || addressValues.buildingName?.trim() ||
-        addressValues.streetCross?.trim() || addressValues.subArea?.trim() || addressValues.landmark?.trim()
-      if (hasStructuredFields && hasAddressText(addressValues)) {
-        try {
-          const primaryAddressId = await getPrimaryAddressId(newId)
-          await setAddressStructuredFields(primaryAddressId, {
-            doorNo: addressValues.doorNo?.trim() || undefined,
-            plotNo: addressValues.plotNo?.trim() || undefined,
-            buildingName: addressValues.buildingName?.trim() || undefined,
-            streetCross: addressValues.streetCross?.trim() || undefined,
-            subArea: addressValues.subArea?.trim() || undefined,
-            landmark: addressValues.landmark?.trim() || undefined,
-          })
-        } catch {
-          toast.error(t("common.actionFailed"))
-        }
-      }
       // Water & household step — same follow-up-write reasoning as zone
       // above (the create RPC has no slot for these), and the same guard:
       // no addresses row exists at all unless some address text was given.
@@ -570,7 +505,7 @@ export function CustomerFormPage() {
     const existingAddressId = existing.data!.addresses.find((a) => a.is_primary)?.id ?? existing.data!.addresses[0]?.id ?? null
     // Blank address on a customer with none stays "needs setup" — no empty row.
     if (existingAddressId || hasAddressText(addressValues)) {
-      await upsertAddress.mutateAsync({ existingAddressId, patch: { ...addressValues, fullAddress: composedFullAddress } })
+      await upsertAddress.mutateAsync({ existingAddressId, patch: addressValues })
     }
     navigate(`/admin/customers/${id}`)
   }
@@ -693,21 +628,6 @@ export function CustomerFormPage() {
         </Card>
       ) : step === 1 ? (
         <Card className="gap-4 px-5">
-          <div className="space-y-1.5 px-1">
-            <Label htmlFor="fullAddress">{t("customers.form.fullAddress")}</Label>
-            <Input
-              id="fullAddress"
-              placeholder={t("customers.form.fullAddressPlaceholder")}
-              aria-invalid={!!addressForm.formState.errors.fullAddress}
-              {...addressForm.register("fullAddress")}
-            />
-            {addressForm.formState.errors.fullAddress ? (
-              <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
-            ) : null}
-            {addressForm.formState.errors.pincode ? (
-              <p className="text-xs text-danger">{t(addressForm.formState.errors.pincode.message!)}</p>
-            ) : null}
-          </div>
           <div className="px-1">
             <div className="space-y-1.5">
               <Label htmlFor="zone">{t("customers.form.zone")}</Label>
@@ -715,9 +635,9 @@ export function CustomerFormPage() {
             </div>
           </div>
 
-          <div className="space-y-1.5 border-t border-border px-1 pt-3">
+          <div className="space-y-1.5 px-1">
             <div className="flex items-center gap-2">
-              <Label>{t("customers.form.map.title")}</Label>
+              <Label>{t("customers.form.fullAddress")}</Label>
               {lat != null && lng != null ? (
                 <StatusDot tone="success" label={t("customers.form.map.pinned")} />
               ) : (
@@ -730,9 +650,17 @@ export function CustomerFormPage() {
                 </span>
               ) : null}
             </div>
+            {addressForm.formState.errors.fullAddress ? (
+              <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
+            ) : null}
+            {addressForm.formState.errors.pincode ? (
+              <p className="text-xs text-danger">{t(addressForm.formState.errors.pincode.message!)}</p>
+            ) : null}
             <AddressMapPicker
               lat={addressForm.watch("lat")}
               lng={addressForm.watch("lng")}
+              query={addressForm.watch("fullAddress") ?? ""}
+              onQueryChange={(v) => addressForm.setValue("fullAddress", v, { shouldValidate: true })}
               suggestedLat={suggestedPin?.lat}
               suggestedLng={suggestedPin?.lng}
               suggestedFormatted={suggestedPin?.formatted}
@@ -744,9 +672,6 @@ export function CustomerFormPage() {
                 confirmedLocationTextRef.current = autoLocateQuery
               }}
               onAddressSelect={(r) => {
-                if (!addressForm.getValues("fullAddress") && r.formatted) {
-                  addressForm.setValue("fullAddress", r.formatted, { shouldValidate: true })
-                }
                 if (!addressForm.getValues("area") && (r.suburb || r.city)) {
                   addressForm.setValue("area", r.suburb ?? r.city ?? "", { shouldValidate: true })
                 }
@@ -762,9 +687,7 @@ export function CustomerFormPage() {
               }}
             />
             {lat == null && lng == null && !autoLocate.isPending && hasAddressText(addressForm.getValues()) ? (
-              <p className="text-xs text-warning">
-                {pinOptional ? t("customers.form.map.pinOptionalMasterNote") : t("customers.form.map.pinRequired")}
-              </p>
+              <p className="text-xs text-warning">{t("customers.form.map.pinOptionalMasterNote")}</p>
             ) : null}
           </div>
 
@@ -874,15 +797,16 @@ export function CustomerFormPage() {
           <Button
             type="button"
             onClick={handleAddressNext}
-            disabled={
-              (!pinOptional && lat == null && lng == null && hasAddressText(addressForm.getValues())) ||
-              (mode === "create" && !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed))
-            }
+            disabled={mode === "create" && !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed)}
           >
             {t("customers.form.next")}
           </Button>
         ) : (
-          <Button type="button" onClick={handleSaveAndFinish} disabled={isSaving}>
+          <Button
+            type="button"
+            onClick={handleSaveAndFinish}
+            disabled={isSaving || (mode === "create" && !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed))}
+          >
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
           </Button>
         )}
