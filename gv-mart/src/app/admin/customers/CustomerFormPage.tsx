@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
-import { Autocomplete } from "@/components/shared/Autocomplete"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -42,7 +41,6 @@ import {
 } from "@/services/customers"
 import { composeFullAddress, splitAddressForForm } from "@/lib/address"
 import {
-  useAreaAutocomplete,
   useCreateCustomer,
   useCustomer,
   useDuplicateContactWarning,
@@ -260,7 +258,6 @@ export function CustomerFormPage() {
     },
   })
   const [waterEditing, setWaterEditing] = useState(false)
-  const [hasLegacyAddressOnly, setHasLegacyAddressOnly] = useState(false)
   const doorNo = addressForm.watch("doorNo") ?? ""
   const plotNo = addressForm.watch("plotNo") ?? ""
   const buildingName = addressForm.watch("buildingName") ?? ""
@@ -279,7 +276,6 @@ export function CustomerFormPage() {
   // back to the old free-text full_address so a pre-redesign customer's
   // address isn't silently dropped. See src/lib/address.ts.
   const fullAddress = composeFullAddress({ doorNo, plotNo, buildingName, streetCross, subArea, area, landmark }) || legacyFullAddress
-  const areaAutocomplete = useAreaAutocomplete(orgId, area)
   const pincodeLookup = usePincodeLookup(orgId, pincode)
   const autoLocate = useGeocodeAddress()
 
@@ -365,7 +361,6 @@ export function CustomerFormPage() {
         // showing the old free-text full_address instead, so editing it
         // doesn't look blank. See src/lib/address.ts.
         const split = splitAddressForForm(primary)
-        setHasLegacyAddressOnly(!split.hasStructuredFields && !!split.legacyFullAddress)
         addressForm.reset({
           doorNo: split.doorNo,
           plotNo: split.plotNo,
@@ -373,7 +368,7 @@ export function CustomerFormPage() {
           streetCross: split.streetCross,
           subArea: split.subArea,
           landmark: split.landmark,
-          fullAddress: split.legacyFullAddress,
+          fullAddress: split.legacyFullAddress || composeFullAddress(split),
           area: split.area,
           pincode: primary.pincode ?? "",
           district: primary.district ?? "",
@@ -698,79 +693,22 @@ export function CustomerFormPage() {
         </Card>
       ) : step === 1 ? (
         <Card className="gap-4 px-5">
-          {hasLegacyAddressOnly ? (
-            <div className="space-y-1.5 px-1">
-              <Label htmlFor="fullAddress">{t("customers.form.fullAddress")}</Label>
-              <textarea
-                id="fullAddress"
-                rows={3}
-                placeholder={t("customers.form.fullAddressPlaceholder")}
-                aria-invalid={!!addressForm.formState.errors.fullAddress}
-                className="w-full resize-none rounded-xl border border-input bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-                {...addressForm.register("fullAddress")}
-              />
-              {addressForm.formState.errors.fullAddress ? (
-                <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="grid grid-cols-2 gap-3 px-1">
-            <div className="space-y-1.5">
-              <Label htmlFor="doorNo">{t("customers.form.doorNo")}</Label>
-              <Input id="doorNo" {...addressForm.register("doorNo")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="plotNo">{t("customers.form.plotNo")}</Label>
-              <Input id="plotNo" {...addressForm.register("plotNo")} />
-            </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="buildingName">{t("customers.form.buildingName")}</Label>
-              <Input id="buildingName" {...addressForm.register("buildingName")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="streetCross">{t("customers.form.streetCross")}</Label>
-              <Input id="streetCross" {...addressForm.register("streetCross")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="subArea">{t("customers.form.subArea")}</Label>
-              <Input id="subArea" {...addressForm.register("subArea")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="area">{t("customers.form.area")}</Label>
-              <Autocomplete
-                id="area"
-                value={area}
-                onChange={(v) => addressForm.setValue("area", v, { shouldValidate: true })}
-                suggestions={areaAutocomplete.data ?? []}
-                loading={areaAutocomplete.isFetching}
-                getKey={(a) => a}
-                getLabel={(a) => a}
-                onSelect={(a) => addressForm.setValue("area", a, { shouldValidate: true })}
-                emptyMessage={t("common.noData")}
-              />
-              {addressForm.formState.errors.area ? (
-                <p className="text-xs text-danger">{t(addressForm.formState.errors.area.message!)}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="landmark">{t("customers.form.landmark")}</Label>
-              <Input id="landmark" {...addressForm.register("landmark")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pincode">{t("customers.form.pincode")}</Label>
-              <Input id="pincode" maxLength={6} aria-invalid={!!addressForm.formState.errors.pincode} {...addressForm.register("pincode")} />
-              {addressForm.formState.errors.pincode ? (
-                <p className="text-xs text-danger">{t(addressForm.formState.errors.pincode.message!)}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="district">{t("customers.form.district")}</Label>
-              <Input id="district" {...addressForm.register("district")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="state">{t("customers.form.state")}</Label>
-              <Input id="state" {...addressForm.register("state")} />
-            </div>
+          <div className="space-y-1.5 px-1">
+            <Label htmlFor="fullAddress">{t("customers.form.fullAddress")}</Label>
+            <Input
+              id="fullAddress"
+              placeholder={t("customers.form.fullAddressPlaceholder")}
+              aria-invalid={!!addressForm.formState.errors.fullAddress}
+              {...addressForm.register("fullAddress")}
+            />
+            {addressForm.formState.errors.fullAddress ? (
+              <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
+            ) : null}
+            {addressForm.formState.errors.pincode ? (
+              <p className="text-xs text-danger">{t(addressForm.formState.errors.pincode.message!)}</p>
+            ) : null}
+          </div>
+          <div className="px-1">
             <div className="space-y-1.5">
               <Label htmlFor="zone">{t("customers.form.zone")}</Label>
               <Input id="zone" {...addressForm.register("zone")} />
@@ -806,6 +744,9 @@ export function CustomerFormPage() {
                 confirmedLocationTextRef.current = autoLocateQuery
               }}
               onAddressSelect={(r) => {
+                if (!addressForm.getValues("fullAddress") && r.formatted) {
+                  addressForm.setValue("fullAddress", r.formatted, { shouldValidate: true })
+                }
                 if (!addressForm.getValues("area") && (r.suburb || r.city)) {
                   addressForm.setValue("area", r.suburb ?? r.city ?? "", { shouldValidate: true })
                 }
