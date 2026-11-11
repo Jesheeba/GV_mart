@@ -802,7 +802,11 @@ export function CustomerFormPage() {
             {t("customers.form.next")}
           </Button>
         ) : (
-          <Button type="button" onClick={handleSaveAndFinish} disabled={isSaving}>
+          <Button
+            type="button"
+            onClick={handleSaveAndFinish}
+            disabled={isSaving || (mode === "create" && !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed))}
+          >
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
           </Button>
         )}

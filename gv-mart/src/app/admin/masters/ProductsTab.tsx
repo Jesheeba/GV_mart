@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ClipboardList, Image as ImageIcon, Link2, Sparkles, Timer, ToggleLeft, Wrench } from "lucide-react"
+import { ClipboardList, Image as ImageIcon, Link2, Settings2, Sparkles, Timer, ToggleLeft, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCrudTable"
 import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
+import { ManageBrandsModelsPanel } from "./ManageBrandsModelsPanel"
 import { useProductsWithoutLifecycleConfig } from "@/hooks/useProductLifecycle"
 import { useProfile } from "@/hooks/useProfile"
 import { productHasReferences } from "@/services/masters"
@@ -66,6 +67,8 @@ export function ProductsTab() {
   const createMut = productsHooks.useCreate()
   const updateMut = productsHooks.useUpdate()
   const deleteMut = productsHooks.useDelete()
+  const createBrandMut = brandsHooks.useCreate()
+  const createModelMut = modelsHooks.useCreate()
 
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
@@ -116,20 +119,45 @@ export function ProductsTab() {
   const [ctaOverridesProductId, setCtaOverridesProductId] = useState<string | null>(null)
   const ctaOverridesProduct = (rows ?? []).find((r) => r.id === ctaOverridesProductId) as ProductWithRefs | undefined
 
+  const [manageBrandsModelsOpen, setManageBrandsModelsOpen] = useState(false)
+
   const brandOptions = useMemo(() => (brands ?? []).map((b) => ({ value: b.id, label: b.name })), [brands])
-  const modelOptions = useMemo(
-    () =>
-      (models ?? []).map((m) => ({
-        value: m.id,
-        label: `${m.name} (${(m as { brands: { name: string } | null }).brands?.name ?? "—"})`,
-      })),
-    [models]
-  )
+  // Scoped to the brand currently picked in the open form — same "derived
+  // from in-progress values" pattern CrudFieldDef.options already supports.
+  const modelOptionsForBrand = (values: Record<string, string>) =>
+    (models ?? []).filter((m) => m.brand_id === values.brand_id).map((m) => ({ value: m.id, label: m.name }))
 
   const fields: CrudFieldDef[] = [
     { key: "name", label: t("masters.products.name"), type: "text", required: true },
-    { key: "brand_id", label: t("masters.products.brand"), type: "select", options: brandOptions },
-    { key: "model_id", label: t("masters.products.model"), type: "select", options: modelOptions },
+    {
+      key: "brand_id",
+      label: t("masters.products.brand"),
+      type: "creatable",
+      required: true,
+      options: brandOptions,
+      placeholder: t("masters.products.brandPlaceholder"),
+      onCreateOption: async (query, values) => {
+        const created = await createBrandMut.mutateAsync({
+          org_id: orgId!,
+          name: query,
+          category: (values.category as Enums<"brand_category">) || CATEGORIES[0],
+        })
+        return { value: created.id, label: created.name }
+      },
+    },
+    {
+      key: "model_id",
+      label: t("masters.products.model"),
+      type: "creatable",
+      required: true,
+      options: modelOptionsForBrand,
+      placeholder: t("masters.products.modelPlaceholder"),
+      createDisabled: (values) => (values.brand_id ? null : t("masters.products.selectBrandFirst")),
+      onCreateOption: async (query, values) => {
+        const created = await createModelMut.mutateAsync({ org_id: orgId!, brand_id: values.brand_id, name: query, type: null })
+        return { value: created.id, label: created.name }
+      },
+    },
     {
       key: "category",
       label: t("masters.products.category"),
@@ -145,10 +173,6 @@ export function ProductsTab() {
     { key: "installation_charge", label: t("masters.products.installationCharge"), type: "number", step: "0.01", min: 0, placeholder: t("masters.products.installationChargeHint") },
     { key: "description", label: t("masters.products.description"), type: "textarea", placeholder: t("masters.products.descriptionPlaceholder") },
   ]
-
-  if (!brands?.length || !models?.length) {
-    return <p className="px-1 text-sm text-text-muted">{t("masters.products.needsBrandModelFirst")}</p>
-  }
 
   return (
     <>
@@ -175,6 +199,10 @@ export function ProductsTab() {
             {t("productLifecycle.noLifecycleFilterOnly", { count: noLifecycleIds.size })}
           </option>
         </select>
+        <Button size="sm" variant="outline" onClick={() => setManageBrandsModelsOpen(true)} className="ml-auto">
+          <Settings2 className="size-3.5" />
+          {t("masters.manageBrandsModels.open")}
+        </Button>
       </div>
 
       <EntityCrudTable<ProductWithRefs>
@@ -429,6 +457,8 @@ export function ProductsTab() {
           onClose={() => setCtaOverridesProductId(null)}
         />
       ) : null}
+
+      {manageBrandsModelsOpen ? <ManageBrandsModelsPanel onClose={() => setManageBrandsModelsOpen(false)} /> : null}
     </>
   )
 }
