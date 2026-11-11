@@ -8,7 +8,7 @@ import { brandsHooks, modelsHooks, productsHooks } from "@/hooks/useMasters"
 import { ManageBrandsModelsPanel } from "./ManageBrandsModelsPanel"
 import { useProductsWithoutLifecycleConfig } from "@/hooks/useProductLifecycle"
 import { useProfile } from "@/hooks/useProfile"
-import { productHasReferences } from "@/services/masters"
+import { productHasReferences, type BrandRow, type ModelRow } from "@/services/masters"
 import type { Enums, Json } from "@/types/database"
 import { ProductAttributesPanel } from "./ProductAttributesPanel"
 import { ProductComplaintsPanel } from "./ProductComplaintsPanel"
@@ -137,11 +137,11 @@ export function ProductsTab() {
       options: brandOptions,
       placeholder: t("masters.products.brandPlaceholder"),
       onCreateOption: async (query, values) => {
-        const created = await createBrandMut.mutateAsync({
+        const created = (await createBrandMut.mutateAsync({
           org_id: orgId!,
           name: query,
           category: (values.category as Enums<"brand_category">) || CATEGORIES[0],
-        })
+        })) as BrandRow
         return { value: created.id, label: created.name }
       },
     },
@@ -154,7 +154,7 @@ export function ProductsTab() {
       placeholder: t("masters.products.modelPlaceholder"),
       createDisabled: (values) => (values.brand_id ? null : t("masters.products.selectBrandFirst")),
       onCreateOption: async (query, values) => {
-        const created = await createModelMut.mutateAsync({ org_id: orgId!, brand_id: values.brand_id, name: query, type: null })
+        const created = (await createModelMut.mutateAsync({ org_id: orgId!, brand_id: values.brand_id, name: query, type: null })) as ModelRow
         return { value: created.id, label: created.name }
       },
     },
