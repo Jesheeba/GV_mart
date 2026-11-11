@@ -16,6 +16,7 @@ import { PhotoCapture } from "../components/PhotoCapture"
 import { PaymentProofUpload } from "../components/PaymentProofUpload"
 import { SignaturePad } from "../components/SignaturePad"
 import { VoiceNoteRecorder } from "../components/VoiceNoteRecorder"
+import { SyncStatusChip } from "../components/SyncStatusChip"
 import { SpareSelectStep, type SelectedSpare } from "./SpareSelectStep"
 import { InstallationSelectStep, type SelectedInstallation } from "./InstallationSelectStep"
 import { SellAmcSection } from "./SellAmcSection"
@@ -49,7 +50,8 @@ import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/service
 import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema } from "@/lib/validation/technician"
 import { formatCurrency } from "@/lib/sale-calc"
 import { db } from "@/lib/offline/db"
-import { startSyncEngine } from "@/lib/offline/sync"
+import { startSyncEngine, flushOutbox } from "@/lib/offline/sync"
+import { getPendingStartVisitJob, pendingCount } from "@/lib/offline/outbox"
 import type { Enums } from "@/types/database"
 
 // GV.md 1.1/D4: the SOP checklist is now populated from the job's actual
@@ -261,6 +263,11 @@ export function OnSiteVisitPage() {
   const [otpRemaining, setOtpRemaining] = useState<number | null>(null)
   const [otpGenerating, setOtpGenerating] = useState(false)
   const otpRequestedForVisitRef = useRef<string | null>(null)
+  // Set when the visit's own `service_visit.start` outbox job hasn't synced
+  // yet — completing via OTP would otherwise fail with an opaque "visit not
+  // found" from the server the instant it's attempted. Null = not blocked.
+  const [visitNotSyncedPendingCount, setVisitNotSyncedPendingCount] = useState<number | null>(null)
+  const [retryingSync, setRetryingSync] = useState(false)
 
   const [step, setStep] = useState(0)
   // Only ever grows — tracks the furthest step reached so navigating back
@@ -944,6 +951,22 @@ export function OnSiteVisitPage() {
 
     setOtpErrorKey(null)
     setOtpRemaining(null)
+
+    // The visit-creation INSERT is itself a queued outbox job (see
+    // service_visit.start in sync.ts) — if it hasn't synced yet, the server
+    // has no row for this visit, and verify_visit_otp would fail with an
+    // opaque "visit not found". Flush once and re-check before attempting
+    // the live round-trip, rather than surfacing that failure to the
+    // technician as a generic error.
+    if (await getPendingStartVisitJob(visitId)) {
+      await flushOutbox()
+      if (await getPendingStartVisitJob(visitId)) {
+        setVisitNotSyncedPendingCount(await pendingCount())
+        return
+      }
+    }
+    setVisitNotSyncedPendingCount(null)
+
     try {
       const outcome = await verifyOtp.mutateAsync({ orgId: profile.org_id, visitId, code: trimmedCode, enquiryGenerated, notes: visitNotes })
       if (!outcome.ok) {
@@ -962,7 +985,28 @@ export function OnSiteVisitPage() {
       if (message.includes("otp_expired")) setOtpErrorKey("technician.onsite.otp.errors.expired")
       else if (message.includes("otp_locked")) setOtpErrorKey("technician.onsite.otp.errors.locked")
       else if (message.includes("otp_missing")) setOtpErrorKey("technician.onsite.otp.errors.missing")
+      // verify_visit_otp: visit % not found — the row genuinely isn't on the
+      // server despite the outbox looking empty a moment ago (e.g. another
+      // step's job is still mid-flight). Distinct from the generic fallback
+      // so the technician sees "not synced yet", not an unexplained failure.
+      else if (message.includes("not found")) setOtpErrorKey("technician.onsite.otp.errors.notSynced")
       else toast.error(t("common.actionFailed"))
+    }
+  }
+
+  /** Re-flushes the outbox on demand from the "visit not synced yet" banner and re-checks whether the start job has landed. */
+  async function handleRetrySync() {
+    if (!visitId) return
+    setRetryingSync(true)
+    try {
+      await flushOutbox()
+      if (await getPendingStartVisitJob(visitId)) {
+        setVisitNotSyncedPendingCount(await pendingCount())
+      } else {
+        setVisitNotSyncedPendingCount(null)
+      }
+    } finally {
+      setRetryingSync(false)
     }
   }
 
@@ -1054,14 +1098,17 @@ export function OnSiteVisitPage() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-text">{t("technician.onsite.title")}</h1>
-        <span
-          className={cn(
-            "rounded-full px-3 py-1 font-mono text-sm font-semibold",
-            overrun.isOverrun ? "bg-danger text-white" : "bg-primary text-primary-foreground"
-          )}
-        >
-          {minutes}:{seconds}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <SyncStatusChip />
+          <span
+            className={cn(
+              "rounded-full px-3 py-1 font-mono text-sm font-semibold",
+              overrun.isOverrun ? "bg-danger text-white" : "bg-primary text-primary-foreground"
+            )}
+          >
+            {minutes}:{seconds}
+          </span>
+        </div>
       </div>
       <p className="px-1 text-sm text-text-muted">{ticket.customers?.name} — {ticket.products?.name ?? ticket.name_of_complaint}</p>
 
@@ -1708,6 +1755,18 @@ export function OnSiteVisitPage() {
                 {enquiryConfirmError ? <p className="text-xs text-danger">{t(enquiryConfirmError)}</p> : null}
               </div>
 
+              {visitNotSyncedPendingCount !== null ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
+                  <span className="flex items-center gap-1.5">
+                    <TriangleAlert className="size-4 shrink-0" />
+                    {t("technician.onsite.otp.sync.notSyncedYet", { count: visitNotSyncedPendingCount })}
+                  </span>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void handleRetrySync()} disabled={retryingSync}>
+                    {retryingSync ? <Loader2 className="size-3.5 animate-spin" /> : t("technician.onsite.otp.sync.retryButton")}
+                  </Button>
+                </div>
+              ) : null}
+
               <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
                 <p className="text-sm font-semibold text-text">{t("technician.onsite.otp.title")}</p>
                 <p className="text-xs text-text-muted">{t("technician.onsite.otp.hint")}</p>
@@ -1735,7 +1794,7 @@ export function OnSiteVisitPage() {
                 ) : null}
               </div>
 
-              <Button type="button" onClick={handlePaymentSubmit} disabled={verifyOtp.isPending}>
+              <Button type="button" onClick={handlePaymentSubmit} disabled={verifyOtp.isPending || retryingSync}>
                 {verifyOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.payment.complete")}
               </Button>
             </>

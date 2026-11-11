@@ -86,7 +86,8 @@ export function getSyncState() {
   return state
 }
 
-async function runJob(job: OutboxJob): Promise<void> {
+/** Exported for tests only — applies one outbox job against Supabase; see flushOutbox for the retry/backoff loop that drives it. */
+export async function runJob(job: OutboxJob): Promise<void> {
   const p = job.payload as Record<string, unknown>
   // Guards against a genuinely broken enqueue call site, not against an
   // older/newer app version — see outboxContract.ts for why this never
@@ -153,17 +154,25 @@ async function runJob(job: OutboxJob): Promise<void> {
       return
     }
     case "service_visit.arrive": {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("service_visits")
         .update(p.patch as TablesUpdate<"service_visits">)
         .eq("id", p.visitId as string)
+        .select("id")
       if (error) throw error
+      // A plain `.update()` with no matching row is NOT an error — Supabase
+      // reports success with zero rows affected. Without this check, a photo/
+      // signature patch queued right after `service_visit.start` would report
+      // "synced" even though `start`'s own insert hasn't landed yet, silently
+      // dropping the patch instead of retrying once the row exists.
+      if (!data || data.length === 0) throw new Error(`service_visit.arrive: visit ${String(p.visitId)} has no matching row yet (zero rows updated)`)
       return
     }
     case "service_visit.image": {
       const patch = { [p.column as string]: p.url as string } as TablesUpdate<"service_visits">
-      const { error } = await supabase.from("service_visits").update(patch).eq("id", p.visitId as string)
+      const { data, error } = await supabase.from("service_visits").update(patch).eq("id", p.visitId as string).select("id")
       if (error) throw error
+      if (!data || data.length === 0) throw new Error(`service_visit.image: visit ${String(p.visitId)} has no matching row yet (zero rows updated)`)
       return
     }
     case "sop_step.complete": {
@@ -278,6 +287,20 @@ async function runJob(job: OutboxJob): Promise<void> {
   }
 }
 
+/**
+ * A job that has never failed has no `nextRetryAt` and is always due — this
+ * is what keeps the happy path (succeeds on 1st/2nd try) exactly as fast as
+ * before; only a job that has already failed at least once waits out its
+ * backoff. `jobs` must already be sorted oldest-first (createdAt ascending —
+ * see flushOutbox's Dexie query) so replay stays in enqueue order, same as
+ * every job kind's own update-in-insertion-order assumption (e.g.
+ * queueVisitEvidencePhotos' full-array-replace comment in technician.ts).
+ * Exported as a pure function so queue ordering is testable without Dexie.
+ */
+export function selectDueJobs(jobs: readonly OutboxJob[], now: number): OutboxJob[] {
+  return jobs.filter((job) => !job.nextRetryAt || job.nextRetryAt <= now)
+}
+
 let flushing = false
 
 export async function flushOutbox() {
@@ -290,10 +313,7 @@ export async function flushOutbox() {
     // "stuck" jobs are deliberately excluded — they only leave that state via
     // an explicit technician retry (outbox.ts's retryStuckJob), not this loop.
     const jobs = await db.outbox.where("status").anyOf(["pending", "failed"]).sortBy("createdAt")
-    // A job that has never failed has no nextRetryAt and is always due —
-    // this is what keeps the happy path (succeeds on 1st/2nd try) exactly as
-    // fast as before; only jobs that have already failed at least once wait.
-    const due = jobs.filter((job) => !job.nextRetryAt || job.nextRetryAt <= now)
+    const due = selectDueJobs(jobs, now)
     for (const job of due) {
       if (!navigator.onLine) break
       try {

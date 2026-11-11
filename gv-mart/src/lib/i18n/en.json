@@ -3521,7 +3521,12 @@
           "locked": "Too many incorrect attempts. Tap Resend to get a new one.",
           "missing": "No code has been generated yet. Tap Resend.",
           "offline": "You're offline — connect to the internet to verify and complete this job.",
-          "generateFailed": "Couldn't send the code. Check your connection and tap Resend."
+          "generateFailed": "Couldn't send the code. Check your connection and tap Resend.",
+          "notSynced": "This visit hasn't finished syncing yet. Wait for a connection, then try again."
+        },
+        "sync": {
+          "notSyncedYet": "Visit not synced yet, {{count}} item(s) pending",
+          "retryButton": "Retry sync"
         }
       },
       "sellAmc": {

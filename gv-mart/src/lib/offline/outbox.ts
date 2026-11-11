@@ -32,6 +32,20 @@ export function pendingCount() {
   return db.outbox.where("status").anyOf(["pending", "failed"]).count()
 }
 
+/**
+ * The still-unsynced `service_visit.start` job for this visit, if any —
+ * existence alone means the row doesn't exist on the server yet (a synced
+ * job is deleted from the outbox, see sync.ts's flushOutbox), regardless of
+ * whether it's pending/failed/stuck. Lets a caller (OnSiteVisitPage's OTP
+ * step) tell "not synced yet" apart from "synced, something else is wrong"
+ * before attempting a live round-trip that would otherwise fail with an
+ * unhelpful "visit not found".
+ */
+export async function getPendingStartVisitJob(visitId: string) {
+  const jobs = await db.outbox.where("kind").equals("service_visit.start").toArray()
+  return jobs.find((job) => (job.payload as { id?: string } | null)?.id === visitId)
+}
+
 /** Jobs that gave up auto-retrying after too many failures — see sync.ts's MAX_ATTEMPTS_BEFORE_STUCK. Not dropped, just no longer retried unattended. */
 export function stuckCount() {
   return db.outbox.where("status").equals("stuck").count()
