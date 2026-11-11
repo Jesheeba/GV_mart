@@ -18,11 +18,24 @@ export function useNonTechnicianStaff(orgId: string | undefined) {
   })
 }
 
+// Every place in the app that lists "who can this go to" off profiles/role —
+// adding, activating or deactivating a staff member must refresh all of
+// them, not just the Staff Salary table itself (owner-reported 2026-11-11:
+// a brand-new sales_admin didn't show up in the Assign Lead dropdown because
+// only nonTechnicianStaff was being invalidated).
+function invalidateStaffDerivedLists(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["profiles", "nonTechnicianStaff"] })
+  qc.invalidateQueries({ queryKey: ["lead_assignees"] }) // Assign Lead dialog (Leads list, My Day, dashboard)
+  qc.invalidateQueries({ queryKey: ["referrals", "activeReferrers"] }) // Referred-by technician/staff picker
+  qc.invalidateQueries({ queryKey: ["tasks", "assignableProfiles"] }) // Task assignment picker
+  qc.invalidateQueries({ queryKey: ["leadAssign"] }) // round-robin receiver count
+}
+
 export function useSetStaffActive() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ profileId, isActive }: { profileId: string; isActive: boolean }) => hr.setStaffActive(profileId, isActive),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["profiles", "nonTechnicianStaff"] }),
+    onSuccess: () => invalidateStaffDerivedLists(qc),
   })
 }
 
@@ -30,7 +43,7 @@ export function useCreateStaff() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: hr.CreateStaffInput) => hr.createStaff(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["profiles", "nonTechnicianStaff"] }),
+    onSuccess: () => invalidateStaffDerivedLists(qc),
   })
 }
 
