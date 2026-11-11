@@ -36,6 +36,8 @@ function newSessionToken() {
 export function AddressMapPicker({
   lat,
   lng,
+  query: controlledQuery,
+  onQueryChange,
   suggestedLat,
   suggestedLng,
   suggestedFormatted,
@@ -46,6 +48,15 @@ export function AddressMapPicker({
 }: {
   lat?: number
   lng?: number
+  /**
+   * Lets the caller use this search box AS the address text field itself
+   * (one box instead of a separate "full address" input plus this one) —
+   * every keystroke and every selected result both flow through
+   * `onQueryChange` instead of this component's own internal state. Omit
+   * both to keep the old self-contained search-only behavior.
+   */
+  query?: string
+  onQueryChange?: (query: string) => void
   /**
    * An auto-geocoded GUESS the caller hasn't confirmed yet (e.g. derived
    * from typed address fields, not from the user searching/dragging on
@@ -83,7 +94,13 @@ export function AddressMapPicker({
   const placeDetails = usePlaceDetails()
   const geocodeFallback = useGeocodeAddress()
 
-  const [query, setQuery] = useState("")
+  const isQueryControlled = controlledQuery !== undefined
+  const [internalQuery, setInternalQuery] = useState("")
+  const query = isQueryControlled ? controlledQuery! : internalQuery
+  function setQuery(next: string) {
+    if (isQueryControlled) onQueryChange?.(next)
+    else setInternalQuery(next)
+  }
   const debouncedQuery = useDebouncedValue(query, 300)
   const [predictions, setPredictions] = useState<AutocompletePrediction[]>([])
   const [fallbackResults, setFallbackResults] = useState<GeocodeResult[]>([])
