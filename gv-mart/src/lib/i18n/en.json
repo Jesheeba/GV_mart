@@ -329,6 +329,8 @@
     "topTechnicians": "Top Technicians",
     "jobs": "jobs",
     "noTechnicianActivity": "No technician activity this month yet",
+    "unassignedLeads": "Unassigned leads",
+    "noUnassignedLeads": "Every open lead has someone on it",
     "needsAttention": "Needs Attention",
     "lowStockCount": "{{count}} spares out of stock",
     "lowStockSubtitle": "Below minimum stock level",

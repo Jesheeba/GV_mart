@@ -2,11 +2,13 @@ import { useState } from "react"
 import { useQueries } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import { TriangleAlert } from "lucide-react"
+import { TriangleAlert, UserPlus } from "lucide-react"
 import { useSalesServiceReport } from "@/hooks/useReports"
 import { useKpiTiles } from "@/hooks/useKpiTiles"
 import { useTicketsList } from "@/hooks/useService"
 import { useInventoryList } from "@/hooks/useInventory"
+import { useLeads } from "@/hooks/useAutomation"
+import { AssignLeadDialog, type AssignableLead } from "../leads/AssignLeadDialog"
 import * as reports from "@/services/reports"
 import { defaultPeriodValue, periodToRange, type PeriodValue } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -55,6 +57,13 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
   const { data: kpiToday } = useKpiTiles(todayRange())
   const { data: tickets, isLoading: ticketsLoading } = useTicketsList(orgId, { excludeTest: true })
   const { data: spares } = useInventoryList(orgId, "spare")
+
+  // Master-only manual assign, straight from the dashboard (owner request
+  // 2026-11-11) — same AssignLeadDialog the Leads list and My Day use, just
+  // triggered from here for whichever lead still has nobody on it.
+  const { data: allLeadsForAssign, isLoading: unassignedLoading } = useLeads(orgId, { excludeTest: true })
+  const unassignedLeads = (allLeadsForAssign ?? []).filter((l) => !l.assigned_to && l.status !== "won" && l.status !== "lost").slice(0, 5)
+  const [assignLead, setAssignLead] = useState<AssignableLead | null>(null)
 
   const monthlyPnl = useQueries({
     queries: months.map((m) => ({
@@ -307,9 +316,49 @@ export function OwnerDashboard({ orgId, firstName }: { orgId: string; firstName:
             </div>
           </div>
 
+          <div className="rounded-card border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(26,26,26,.04),0_14px_30px_-22px_rgba(26,26,26,.16)]">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-bold tracking-tight text-text">{t("dashboard.unassignedLeads")}</h3>
+              <button type="button" onClick={() => navigate("/admin/leads")} className="text-xs font-bold text-accent">
+                {t("common.viewAll")}
+              </button>
+            </div>
+            {unassignedLoading ? (
+              <p className="text-sm text-text-muted">{t("common.loading")}</p>
+            ) : unassignedLeads.length === 0 ? (
+              <p className="text-sm text-text-muted">{t("dashboard.noUnassignedLeads")}</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {unassignedLeads.map((l) => (
+                  <div key={l.id} className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 leading-tight">
+                      <div className="truncate text-[13px] font-semibold text-text">{l.customers?.name ?? l.name}</div>
+                      <div className="text-[11px] font-medium text-text-muted">{l.mobile ?? l.customers?.mobile ?? "—"}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAssignLead({ id: l.id, name: l.customers?.name ?? l.name, assignedTo: l.assigned_to })}
+                      className="flex shrink-0 items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text hover:bg-surface-alt"
+                    >
+                      <UserPlus className="size-3" />
+                      {t("leads.assign.assign")}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <LifecycleWidgetCard lifecycle={kpi?.service?.lifecycle ?? null} onNavigate={navigate} />
         </div>
       </div>
+
+      <AssignLeadDialog
+        leads={assignLead ? [assignLead] : []}
+        open={!!assignLead}
+        onOpenChange={(open) => !open && setAssignLead(null)}
+        onDone={() => setAssignLead(null)}
+      />
     </div>
   )
 }
