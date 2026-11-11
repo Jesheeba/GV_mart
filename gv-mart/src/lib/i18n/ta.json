@@ -3719,14 +3719,20 @@
       "kind": "வகை",
       "customerRequirement": "வாடிக்கையாளர் தேவை",
       "specialDescription": "சிறப்பு விவரம்",
-      "userSource": "பயனர் மூலம் / பரிந்துரைக்கப்பட்ட வழி",
-      "userSourcePlaceholder": "எ.கா. ஏற்கனவே வாடிக்கையாளர், விளம்பர பிரச்சாரம்",
       "budget": "பட்ஜெட் (₹)",
       "whenNeeded": "அவர்களுக்கு எப்போது தேவை?",
       "whenNeededPlaceholder": "எ.கா. உடனடியாக / 2 வாரங்களில்",
       "tds": "TDS",
+      "tdsPlaceholder": "எ.கா. 180 ppm, அல்லது குறிப்பு",
       "referredByName": "பரிந்துரைத்தவர் — பெயர்",
       "referredByPhone": "பரிந்துரைத்தவர் — தொலைபேசி"
+    },
+    "referredBy": {
+      "technicianOrStaff": "டெக்னீஷியன் / பணியாளர்",
+      "existingCustomer": "ஏற்கனவே உள்ள வாடிக்கையாளர்",
+      "someoneElse": "வேறு ஒருவர்",
+      "pickTechnicianOrStaff": "டெக்னீஷியன் / பணியாளரைத் தேர்ந்தெடுக்கவும்",
+      "searchCustomerPlaceholder": "பெயர், மொபைல் தேடவும்…"
     },
     "kpi": {
       "total": "மொத்த லீட்கள்",
@@ -3972,6 +3978,7 @@
       "stuck": "சிக்கியது",
       "call": "அழை",
       "whatsapp": "வாட்ஸ்அப்",
+      "whenNeeded": "வாடிக்கையாளருக்கு தேவை: {{when}}",
       "logOutcome": "முடிவைப் பதிவு செய்",
       "reschedule": "மாற்றியமை",
       "setButton": "பின்தொடர்தலை அமை",

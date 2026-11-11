@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
-import { CalendarClock, ClipboardCheck, MessageCircle, Phone, UserRound } from "lucide-react"
+import { CalendarClock, ClipboardCheck, Clock3, MessageCircle, Phone, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { StatusDot } from "@/components/shared/StatusDot"
@@ -68,6 +68,12 @@ export function FollowupCard({
           {t(`leads.followup.type.${item.followup_type}`)}
           {item.followup_note ? ` · ${item.followup_note}` : ""}
         </span>
+        {item.when_needed ? (
+          <span className="inline-flex items-center gap-1 font-medium text-text">
+            <Clock3 className="size-3" />
+            {t("leads.followup.whenNeeded", { when: item.when_needed })}
+          </span>
+        ) : null}
       </div>
 
       {outcomeLabel ? (

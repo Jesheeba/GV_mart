@@ -10,6 +10,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useUpdateLeadDetailFields } from "@/hooks/useAutomation"
 import { leadDocumentSignedUrl, uploadLeadDocument, validateLeadDocument } from "@/services/leadDocuments"
 import type { LeadListItem } from "@/services/automation"
+import { ReferredBySection } from "./ReferredBySection"
 
 /**
  * Lead Dashboard Enhancement, feature 4 — customer requirement, special
@@ -28,7 +29,6 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
   const [form, setForm] = useState({
     customer_requirement: lead.customer_requirement ?? "",
     special_description: lead.special_description ?? "",
-    user_source: lead.user_source ?? "",
     budget: lead.budget != null ? String(lead.budget) : "",
     when_needed: lead.when_needed ?? "",
     tds_status: lead.tds_status ?? "",
@@ -45,7 +45,6 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
         patch: {
           customer_requirement: form.customer_requirement.trim() || null,
           special_description: form.special_description.trim() || null,
-          user_source: form.user_source.trim() || null,
           budget: form.budget !== "" ? Number(form.budget) : null,
           when_needed: form.when_needed.trim() || null,
           tds_status: form.tds_status || null,
@@ -129,10 +128,6 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="field-user-source">{t("leads.new.userSource")}</Label>
-            <Input id="field-user-source" value={form.user_source} onChange={(e) => setForm((f) => ({ ...f, user_source: e.target.value }))} />
-          </div>
-          <div className="space-y-1">
             <Label htmlFor="field-budget">{t("leads.new.budget")}</Label>
             <Input id="field-budget" type="number" min={0} value={form.budget} onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))} />
             {budgetInvalid ? <p className="text-xs text-danger">{t("leads.errors.budgetNonNegative")}</p> : null}
@@ -143,37 +138,27 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
           </div>
           <div className="space-y-1">
             <Label htmlFor="field-tds">{t("leads.new.tds")}</Label>
-            <select
-              id="field-tds"
-              value={form.tds_status}
-              onChange={(e) => setForm((f) => ({ ...f, tds_status: e.target.value }))}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            >
-              <option value="">{t("leads.tds.select")}</option>
-              <option value="applicable">{t("leads.tds.applicable")}</option>
-              <option value="not_applicable">{t("leads.tds.notApplicable")}</option>
-              <option value="to_be_confirmed">{t("leads.tds.toBeConfirmed")}</option>
-            </select>
+            <Input id="field-tds" value={form.tds_status} onChange={(e) => setForm((f) => ({ ...f, tds_status: e.target.value }))} placeholder={t("leads.new.tdsPlaceholder")} />
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label htmlFor="field-referred-name">{t("leads.new.referredByName")}</Label>
-              <Input id="field-referred-name" value={form.referred_by_name} onChange={(e) => setForm((f) => ({ ...f, referred_by_name: e.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="field-referred-phone">{t("leads.new.referredByPhone")}</Label>
-              <Input id="field-referred-phone" type="tel" value={form.referred_by_phone} onChange={(e) => setForm((f) => ({ ...f, referred_by_phone: e.target.value }))} />
-            </div>
-          </div>
+          <ReferredBySection
+            orgId={profile?.org_id}
+            source={lead.source}
+            allowTechnician={false}
+            referredByUserId=""
+            onReferredByUserIdChange={() => {}}
+            referredByName={form.referred_by_name}
+            onReferredByNameChange={(next) => setForm((f) => ({ ...f, referred_by_name: next }))}
+            referredByPhone={form.referred_by_phone}
+            onReferredByPhoneChange={(next) => setForm((f) => ({ ...f, referred_by_phone: next }))}
+          />
         </div>
       ) : (
         <div className="space-y-2 text-sm">
           <Field label={t("leads.new.customerRequirement")} value={lead.customer_requirement} />
           <Field label={t("leads.new.specialDescription")} value={lead.special_description} />
-          <Field label={t("leads.new.userSource")} value={lead.user_source} />
           <Field label={t("leads.new.budget")} value={lead.budget != null ? `₹${lead.budget}` : null} />
           <Field label={t("leads.new.whenNeeded")} value={lead.when_needed} />
-          <Field label={t("leads.new.tds")} value={lead.tds_status ? t(`leads.tds.${lead.tds_status === "not_applicable" ? "notApplicable" : lead.tds_status === "to_be_confirmed" ? "toBeConfirmed" : "applicable"}`) : null} />
+          <Field label={t("leads.new.tds")} value={lead.tds_status} />
           <Field label={t("leads.new.referredByName")} value={lead.referred_by_name} />
           <Field label={t("leads.new.referredByPhone")} value={lead.referred_by_phone} />
         </div>

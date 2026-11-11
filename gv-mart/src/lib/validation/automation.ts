@@ -16,16 +16,20 @@ export const leadSchema = z.object({
   // referredByName/referredByPhone below.
   referredByUserId: z.string().uuid().optional().or(z.literal("")),
   // Lead Dashboard Enhancement, feature 4 — see build-docs/features/lead-detail-fields.md.
+  // userSource (freeform "e.g. Existing customer, campaign") dropped 2026-11-11 —
+  // duplicated the Source dropdown immediately above it; see the Referred-by
+  // redesign below for the real "who referred this lead" capture.
   customerRequirement: z.string().trim().max(2000).optional().or(z.literal("")),
   specialDescription: z.string().trim().max(2000).optional().or(z.literal("")),
-  userSource: z.string().trim().max(200).optional().or(z.literal("")),
   budget: z
     .string()
     .trim()
     .optional()
     .or(z.literal(""))
     .refine((v) => !v || Number(v) >= 0, "leads.errors.budgetNonNegative"),
-  tdsStatus: z.enum(["", "applicable", "not_applicable", "to_be_confirmed"]).optional(),
+  // tds_status: free text since 2026-11-11 (was a fixed Applicable/Not applicable/
+  // To be confirmed dropdown) — staff wanted to type the actual reading/note.
+  tdsStatus: z.string().trim().max(200).optional().or(z.literal("")),
   whenNeeded: z.string().trim().max(200).optional().or(z.literal("")),
   // Lead Dashboard Enhancement, feature 5 — see build-docs/features/referral-details.md.
   // Free-text fields for a referrer who may not be an existing

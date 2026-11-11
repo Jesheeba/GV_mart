@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
 import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
+import { ReferredBySection } from "./ReferredBySection"
 import { useToast } from "@/components/ui/toast-context"
 import { useCreateLead } from "@/hooks/useAutomation"
 import { useDuplicateContactWarning } from "@/hooks/useCustomers"
@@ -40,7 +40,6 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       referredByUserId: "",
       customerRequirement: "",
       specialDescription: "",
-      userSource: "",
       budget: "",
       whenNeeded: "",
       tdsStatus: "",
@@ -71,7 +70,6 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
       referred_by_user_id: referredByUserId,
       customer_requirement: values.customerRequirement || null,
       special_description: values.specialDescription || null,
-      user_source: values.userSource || null,
       budget: values.budget ? Number(values.budget) : null,
       when_needed: values.whenNeeded || null,
       tds_status: values.tdsStatus || null,
@@ -127,13 +125,6 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
             ))}
           </select>
         </div>
-        <ReferrerPicker
-          id="lead-referred-by"
-          orgId={profile?.org_id}
-          label={t("leads.new.referredBy")}
-          value={form.watch("referredByUserId") ?? ""}
-          onChange={(next) => form.setValue("referredByUserId", next)}
-        />
         <div className="space-y-1.5">
           <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
           <select id="lead-product-category" {...form.register("productCategory")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
@@ -185,10 +176,6 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="lead-user-source">{t("leads.new.userSource")}</Label>
-          <Input id="lead-user-source" {...form.register("userSource")} placeholder={t("leads.new.userSourcePlaceholder")} />
-        </div>
-        <div className="space-y-1.5">
           <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
           <Input id="lead-budget" type="number" min={0} {...form.register("budget")} />
           {form.formState.errors.budget ? <p className="text-xs text-danger">{t(form.formState.errors.budget.message!)}</p> : null}
@@ -199,23 +186,18 @@ export function NewLeadForm({ onClose, onCreated }: { onClose: () => void; onCre
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="lead-tds">{t("leads.new.tds")}</Label>
-          <select id="lead-tds" {...form.register("tdsStatus")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-            <option value="">{t("leads.tds.select")}</option>
-            <option value="applicable">{t("leads.tds.applicable")}</option>
-            <option value="not_applicable">{t("leads.tds.notApplicable")}</option>
-            <option value="to_be_confirmed">{t("leads.tds.toBeConfirmed")}</option>
-          </select>
+          <Input id="lead-tds" {...form.register("tdsStatus")} placeholder={t("leads.new.tdsPlaceholder")} />
         </div>
-        <div className="space-y-1.5 sm:col-span-2 sm:grid sm:grid-cols-2 sm:gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="lead-referred-name">{t("leads.new.referredByName")}</Label>
-            <Input id="lead-referred-name" {...form.register("referredByName")} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="lead-referred-phone">{t("leads.new.referredByPhone")}</Label>
-            <Input id="lead-referred-phone" type="tel" {...form.register("referredByPhone")} />
-          </div>
-        </div>
+        <ReferredBySection
+          orgId={profile?.org_id}
+          source={form.watch("source")}
+          referredByUserId={form.watch("referredByUserId") ?? ""}
+          onReferredByUserIdChange={(next) => form.setValue("referredByUserId", next)}
+          referredByName={form.watch("referredByName") ?? ""}
+          onReferredByNameChange={(next) => form.setValue("referredByName", next)}
+          referredByPhone={form.watch("referredByPhone") ?? ""}
+          onReferredByPhoneChange={(next) => form.setValue("referredByPhone", next)}
+        />
       </div>
       {createLead.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createLead.error as Error).message}</p> : null}
       <div className="flex justify-end">

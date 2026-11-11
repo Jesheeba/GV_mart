@@ -8387,6 +8387,7 @@ export type Database = {
           last_outcome_at: string | null
           assignee_id: string | null
           assignee_name: string | null
+          when_needed: string | null
         }[]
       }
       followup_counts: {
@@ -8422,6 +8423,7 @@ export type Database = {
           last_outcome_label_ta: string | null
           last_outcome_note: string | null
           last_outcome_at: string | null
+          when_needed: string | null
         }[]
       }
       set_lead_followups_bulk: {

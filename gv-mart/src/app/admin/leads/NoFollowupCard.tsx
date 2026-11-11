@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
-import { CalendarPlus, MessageCircle, Phone, UserRound } from "lucide-react"
+import { CalendarPlus, Clock3, MessageCircle, Phone, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { StatusDot } from "@/components/shared/StatusDot"
@@ -80,6 +80,12 @@ export function NoFollowupCard({
           <UserRound className="size-3" />
           {item.assignee_name ?? t("leads.assign.unassigned")}
         </span>
+        {item.when_needed ? (
+          <span className="inline-flex items-center gap-1 font-medium text-text">
+            <Clock3 className="size-3" />
+            {t("leads.followup.whenNeeded", { when: item.when_needed })}
+          </span>
+        ) : null}
       </div>
 
       {outcomeLabel ? (

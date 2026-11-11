@@ -3724,14 +3724,20 @@
       "kind": "Kind",
       "customerRequirement": "Customer requirement",
       "specialDescription": "Special description",
-      "userSource": "User source / referred through",
-      "userSourcePlaceholder": "e.g. Existing customer, campaign",
       "budget": "Budget (₹)",
       "whenNeeded": "When do they need it?",
       "whenNeededPlaceholder": "e.g. Immediately / within 2 weeks",
       "tds": "TDS",
+      "tdsPlaceholder": "e.g. 180 ppm, or any note",
       "referredByName": "Referred by — name",
       "referredByPhone": "Referred by — phone"
+    },
+    "referredBy": {
+      "technicianOrStaff": "Technician / Staff",
+      "existingCustomer": "Existing customer",
+      "someoneElse": "Someone else",
+      "pickTechnicianOrStaff": "Pick technician / staff",
+      "searchCustomerPlaceholder": "Search name, mobile…"
     },
     "kpi": {
       "total": "Total leads",
@@ -3977,6 +3983,7 @@
       "stuck": "Stuck",
       "call": "Call",
       "whatsapp": "WhatsApp",
+      "whenNeeded": "Customer needs it: {{when}}",
       "logOutcome": "Log outcome",
       "reschedule": "Reschedule",
       "setButton": "Set follow-up",

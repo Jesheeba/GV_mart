@@ -35,3 +35,11 @@
 - "Next follow-up date/time": unchanged, already the existing `SetFollowupDialog`/`set_lead_followup` RPC.
 - "Reminder": new selector in `SetFollowupDialog` (at / 15 min / 1 hour / 1 day before) creates a `tasks` row via the extended `createTask`/`CreateTaskInput` (now exposes `dueAt`/`refType`/`refId`/`description`, which already existed on the table).
 - Known gap: reminders are not yet wired into `RescheduleDialog`, and there's no dedup if a lead is rescheduled after a reminder task already exists — documented, not solved in this pass.
+
+## lead-referral-redesign (2026-11-11)
+- TDS: dropdown -> free text input (3-preset check constraint dropped).
+- Removed duplicate "User source / referred through" field from lead create/detail.
+- when_needed surfaced on My Day (list_followups) and no-followup (list_leads_without_followup) cards.
+- Referred-by redesigned: Technician/Staff picker, existing-customer search (prefills name/phone), or free-text, shown only for referral/customer_app sources.
+- Migration written (20261111100000_lead_referral_redesign.sql) but NOT applied live — blocked by harness production-deploy guard this session.
+- Verified (not changed): referral-points award on conversion is still manual only, not automatic — see feature doc.
