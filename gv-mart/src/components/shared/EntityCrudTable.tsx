@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,7 @@ export type CrudFieldOption = { value: string; label: string }
 export type CrudFieldDef = {
   key: string
   label: string
-  type: "text" | "number" | "email" | "tel" | "url" | "select" | "textarea"
+  type: "text" | "number" | "email" | "tel" | "url" | "select" | "textarea" | "creatable"
   // Either a static list, or derived from the form's current in-progress
   // values — e.g. a Model select filtered down to whichever Brand is
   // currently selected in the same open form. Re-evaluated on every render
@@ -31,6 +31,14 @@ export type CrudFieldDef = {
   options?: CrudFieldOption[] | ((values: Record<string, string>) => CrudFieldOption[])
   step?: string
   placeholder?: string
+  // "creatable" only — lets the field's own search box create a brand-new
+  // option (e.g. a new Brand or Model) without leaving this form, instead of
+  // requiring it to already exist elsewhere first. Returns the newly created
+  // option so the field can select it immediately.
+  onCreateOption?: (query: string, values: Record<string, string>) => Promise<CrudFieldOption>
+  // "creatable" only — when non-null, creating a new option is blocked and
+  // this message is shown instead (e.g. "pick a brand first").
+  createDisabled?: (values: Record<string, string>) => string | null
   // Client-side type checking, enforced in submit() before onCreate/onUpdate
   // ever sees the values (this component isn't a real <form>, so a plain
   // `required` attribute on the <input> would never block the Save button).
@@ -84,6 +92,118 @@ function validateFields(fields: CrudFieldDef[], values: Record<string, string>, 
     }
   }
   return null
+}
+
+/**
+ * A text box that searches `options` as you type and, when nothing matches,
+ * offers to create a brand-new option in place (via `field.onCreateOption`)
+ * — e.g. typing a Brand name that doesn't exist yet creates it without
+ * leaving the Product form. Stores the selected option's `value` (an id)
+ * in the parent form's values, same as a plain "select" field.
+ */
+function CreatableSelectField({
+  field,
+  value,
+  values,
+  onChange,
+}: {
+  field: CrudFieldDef
+  value: string
+  values: Record<string, string>
+  onChange: (next: string) => void
+}) {
+  const { t } = useTranslation()
+  const options = resolveOptions(field, values)
+  const selected = options.find((o) => o.value === value)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onPointerDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onPointerDown)
+    return () => document.removeEventListener("mousedown", onPointerDown)
+  }, [])
+
+  const q = query.trim()
+  const term = q.toLowerCase()
+  const filtered = term ? options.filter((o) => o.label.toLowerCase().includes(term)) : options
+  const exactMatch = options.some((o) => o.label.trim().toLowerCase() === term)
+  const blockedReason = field.createDisabled ? field.createDisabled(values) : null
+
+  async function handleCreate() {
+    if (!field.onCreateOption || !q || blockedReason) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      const created = await field.onCreateOption(q, values)
+      onChange(created.value)
+      setOpen(false)
+      setQuery("")
+    } catch (e) {
+      setCreateError(extractErrorMessage(e))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Input
+        id={`f-${field.key}`}
+        placeholder={field.placeholder}
+        value={open ? query : (selected?.label ?? "")}
+        onFocus={() => {
+          setQuery(selected?.label ?? "")
+          setOpen(true)
+        }}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setCreateError(null)
+          setOpen(true)
+        }}
+      />
+      {open ? (
+        <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border bg-surface py-1 shadow-lg">
+          {filtered.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              className="block w-full px-3 py-2 text-left text-sm text-text hover:bg-surface-alt"
+              onClick={() => {
+                onChange(o.value)
+                setOpen(false)
+                setQuery("")
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+          {!filtered.length ? <p className="px-3 py-2 text-xs text-text-muted">{t("common.noMatches")}</p> : null}
+          {field.onCreateOption && q && !exactMatch ? (
+            blockedReason ? (
+              <p className="px-3 py-2 text-xs text-text-muted">{blockedReason}</p>
+            ) : (
+              <button
+                type="button"
+                disabled={creating}
+                className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-sm font-medium text-accent hover:bg-surface-alt disabled:opacity-50"
+                onClick={handleCreate}
+              >
+                {creating ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                {t("common.addNewOption", { value: q })}
+              </button>
+            )
+          ) : null}
+        </div>
+      ) : null}
+      {createError ? <p className="mt-1 text-xs text-danger">{createError}</p> : null}
+    </div>
+  )
 }
 
 /**
@@ -165,6 +285,8 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
     // value doesn't match any option, so an untouched select would submit ""
     // while displaying something else entirely (and "" fails enum columns).
     setValues(Object.fromEntries(fields.map((f) => [f.key, f.type === "select" ? (resolveOptions(f, {})[0]?.value ?? "") : ""])))
+    // "creatable" fields deliberately start empty (unlike "select" above) —
+    // there's no sensible first option to force on a brand-new Product.
     setFormError(null)
     setFormOpen(true)
   }
@@ -339,7 +461,14 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
             {fields.map((f) => (
               <div key={f.key} className={`space-y-1 ${f.type === "textarea" ? "col-span-2 sm:col-span-3" : ""}`}>
                 <Label htmlFor={`f-${f.key}`}>{f.label}</Label>
-                {f.type === "select" ? (
+                {f.type === "creatable" ? (
+                  <CreatableSelectField
+                    field={f}
+                    value={values[f.key] ?? ""}
+                    values={values}
+                    onChange={(next) => setValues((v) => ({ ...v, [f.key]: next }))}
+                  />
+                ) : f.type === "select" ? (
                   <select
                     id={`f-${f.key}`}
                     value={values[f.key] ?? ""}

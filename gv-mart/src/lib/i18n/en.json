@@ -131,6 +131,8 @@
     "today": "today",
     "viewAll": "View all",
     "actionFailed": "Something went wrong. Please try again.",
+    "noMatches": "No matches",
+    "addNewOption": "+ Add \"{{value}}\"",
     "errorBoundaryTitle": "Something went wrong",
     "errorBoundaryBody": "An unexpected error occurred. Reloading the page usually fixes it.",
     "reload": "Reload",
@@ -875,7 +877,10 @@
     "products": {
       "name": "Product name",
       "brand": "Brand",
+      "brandPlaceholder": "Type to search or add a brand",
       "model": "Model",
+      "modelPlaceholder": "Type to search or add a model",
+      "selectBrandFirst": "Pick a brand first",
       "category": "Category",
       "price": "Price",
       "costPrice": "Cost price",
@@ -889,8 +894,11 @@
       "descriptionPlaceholder": "Shown to customers in Product Enquiry",
       "add": "Add product",
       "empty": "No products yet — add your first one.",
-      "needsBrandModelFirst": "Add a brand and model first — products need both.",
       "status": "Status"
+    },
+    "manageBrandsModels": {
+      "open": "Manage brands & models",
+      "title": "Manage brands & models"
     },
     "spares": {
       "name": "Spare name",
@@ -1922,8 +1930,8 @@
     "quotationNo": "Quotation #{{id}}",
     "quotationNoLabel": "Quotation No",
     "origin": {
-      "direct": "Direct",
-      "fromLead": "From lead: {{name}}"
+      "fromLead": "Lead: {{name}}",
+      "fromCustomer": "Customer: {{name}}"
     },
     "stats": {
       "open": "Open",
@@ -3861,6 +3869,28 @@
       "error": {
         "unsupportedType": "That file type isn't supported. Allowed: PDF, Word, Excel, JPG, PNG.",
         "tooLarge": "File is too large (max 10 MB)."
+      }
+    },
+    "errors": {
+      "nameRequired": "Enter a name (at least 2 characters)",
+      "sourceRequired": "Select a source"
+    },
+    "edit": {
+      "title": "Edit lead",
+      "subtitle": "Update this lead's contact details and notes.",
+      "alternateMobile": "Alternate mobile",
+      "address": "Address",
+      "saved": "Lead updated",
+      "saveAnyway": "Save anyway",
+      "duplicateWarning": "Another record already uses this number:",
+      "duplicateKind": {
+        "lead": "Lead: {{name}}",
+        "customer": "Customer: {{name}}"
+      },
+      "referralLockedHint": "This lead's source is Referral and can't be changed here — it's set by the referral program and tied to a technician's incentive.",
+      "errors": {
+        "mobileInvalid": "Enter a valid 10-digit mobile number",
+        "referralLocked": "Source can't be changed to or from Referral here"
       }
     },
     "errors": {
