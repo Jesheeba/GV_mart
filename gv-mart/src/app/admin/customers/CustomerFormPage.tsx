@@ -12,14 +12,19 @@ import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
+import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
+import { StatusDot } from "@/components/shared/StatusDot"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
+import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import {
   addressStepSchema,
   peopleStepSchema,
+  canSkipAddressPin,
   FAMILY_RELATIONS,
+  canEditWaterHousehold,
   type AddressStepInput,
   type PeopleStepInput,
 } from "@/lib/validation/customer"
@@ -27,16 +32,21 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
-import { getPrimaryAddressId, setAddressWaterHousehold, setAddressZone, setCustomerPreferredLanguage } from "@/services/customers"
+import { getPrimaryAddressId, setAddressWaterHousehold, setAddressZone, setCustomerPreferredLanguage, updateCustomerEmail } from "@/services/customers"
 import { addressLocalityText } from "@/lib/address"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
   useCustomer,
+  useDuplicateContactWarning,
   useMobileDuplicateCheck,
   usePincodeLookup,
+  useUpdateCustomerEmail,
   useUpsertPrimaryAddress,
 } from "@/hooks/useCustomers"
+import { canSubmitWithWarning, duplicateWarningKey } from "@/lib/duplicateContactWarning"
+import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
+import { guardReentry } from "@/lib/async-guard"
 
 /** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
 function hasAddressText(a: AddressStepInput) {
@@ -178,9 +188,15 @@ export function CustomerFormPage() {
   const mode: "create" | "edit" = id ? "edit" : "create"
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
+  const pinOptional = canSkipAddressPin(profile?.role)
 
   const existing = useCustomer(mode === "edit" ? id : undefined)
   const [step, setStep] = useState(0)
+  // Edit mode: the account holder's own email, independent of the people-step wizard form
+  // (which only exists for create mode) -- saved immediately, same "edit one field, save it
+  // right away" shape as FamilyMembersPanel's own per-member edits below it.
+  const [editEmail, setEditEmail] = useState("")
+  const updateEmail = useUpdateCustomerEmail(id ?? "")
   // Only ever grows — tracks the furthest step reached so navigating back
   // (which decreases `step`) doesn't make already-completed steps lose their
   // checkmark in the Stepper below. See Stepper's `maxCompletedIndex` doc.
@@ -189,10 +205,24 @@ export function CustomerFormPage() {
   const peopleForm = useForm<PeopleStepInput>({
     resolver: zodResolver(peopleStepSchema),
     mode: "onChange",
-    defaultValues: { members: [{ name: "", mobile: "" }], primaryIndex: 0, profession: "" },
+    defaultValues: { members: [{ name: "", mobile: "" }], primaryIndex: 0, profession: "", referredByUserId: "" },
   })
   const { fields, append, remove } = useFieldArray({ control: peopleForm.control, name: "members" })
   const primaryIndex = peopleForm.watch("primaryIndex")
+
+  // Urgent item (2026-11-02): staff-side duplicate-contact warning (not a
+  // hard block -- see DuplicateContactWarning's own header). Only looked up
+  // in create mode, against the primary member's own mobile + the top-level
+  // email field (the two identifiers find_duplicate_contacts matches on).
+  const primaryMobile = peopleForm.watch(`members.${primaryIndex}.mobile`) ?? ""
+  const topEmail = peopleForm.watch("email") ?? ""
+  const dupWarning = useDuplicateContactWarning(mode === "create" ? orgId : undefined, primaryMobile, topEmail)
+  const dupWarningKey = duplicateWarningKey(primaryMobile, topEmail)
+  // Tracks WHICH (mobile, email) pair was confirmed, not just a bare
+  // boolean, so editing the number after confirming resets the gate instead
+  // of silently carrying the old confirmation over to a new number.
+  const [confirmedDupWarningKey, setConfirmedDupWarningKey] = useState<string | null>(null)
+  const dupWarningConfirmed = confirmedDupWarningKey === dupWarningKey
 
   const addressForm = useForm<AddressStepInput>({
     resolver: zodResolver(addressStepSchema),
@@ -298,6 +328,7 @@ export function CustomerFormPage() {
   useEffect(() => {
     if (mode === "edit" && existing.data) {
       peopleForm.reset({ members: [], primaryIndex: 0, profession: existing.data.profession ?? "" })
+      setEditEmail(existing.data.email ?? "")
       const primary = existing.data.addresses.find((a) => a.is_primary) ?? existing.data.addresses[0]
       if (primary) {
         // Pre-migration rows have no full_address yet — fall back to the legacy
@@ -329,6 +360,18 @@ export function CustomerFormPage() {
 
   const createCustomer = useCreateCustomer()
   const upsertAddress = useUpsertPrimaryAddress(orgId, id ?? "")
+  // Urgent item (2026-11-02): root-cause investigation into "error popup yet
+  // one entry still gets created" found this Save button had no re-entrancy
+  // guard, unlike AccountsPage's "+ Create" buttons -- isPending/disabled
+  // alone doesn't close the window between two fast clicks both reaching
+  // this handler before the first re-render (see async-guard.ts's own
+  // header). create_customer_with_details has no dedupe check by design, so
+  // a double-submit here would create two full customer rows, not just a
+  // stray error. No live evidence this has actually happened yet (the real
+  // duplicates found were ordinary single-submits against an already-warned
+  // number, see the migration header), but it's a real latent gap closed
+  // here regardless.
+  const savingRef = useRef(false)
 
   if (mode === "edit" && existing.isLoading) return <FullPageLoader label={t("common.loading")} />
   if (mode === "edit" && (existing.isError || !existing.data)) {
@@ -358,16 +401,24 @@ export function CustomerFormPage() {
   }
 
   async function handleSaveAndFinish() {
+    await guardReentry(savingRef, async () => {
+      await handleSaveAndFinishInner()
+    })
+  }
+
+  async function handleSaveAndFinishInner() {
     const valid = await addressForm.trigger()
     if (!valid) return
     const addressValues = addressForm.getValues()
 
     if (mode === "create") {
       const peopleValues = peopleForm.getValues()
+      const referredByUserId = peopleValues.referredByUserId || undefined
       const newId = await createCustomer.mutateAsync({
         orgId: orgId!,
         // The primary member's own profession becomes the customer's (the RPC also falls back to it).
         profession: peopleValues.members[peopleValues.primaryIndex]?.profession?.trim() || undefined,
+        referredByUserId,
         members: peopleValues.members.map((m, i) => ({
           name: m.name,
           mobile: m.mobile,
@@ -388,11 +439,32 @@ export function CustomerFormPage() {
           lng: addressValues.lng,
         },
       })
+      // Self-referral / anti-abuse guard (stage2_corrections_addendum.md item 9) — a
+      // referral attempt can be silently nulled server-side rather than erroring, so
+      // the save must never fail; this is just a non-blocking heads-up. The RPC
+      // (create_customer_with_details) currently returns only the new customer id
+      // (a bare string), so there is nothing yet to inspect here — once the DB
+      // stream's RPC starts returning a richer shape with an explicit
+      // `referral_attributed: boolean` flag, surface the same toast as the lead
+      // form does when that flag comes back false.
+      if (referredByUserId && typeof newId === "object" && (newId as { referral_attributed?: boolean }).referral_attributed === false) {
+        toast.warning(t("common.referralNotRecorded"))
+      }
       // The create RPC has no language argument: a small follow-up write, like the zone below. The customer already exists, so a
       // failure only warns and can be re-entered from the customer page.
       if (peopleValues.preferredLanguage === "en" || peopleValues.preferredLanguage === "ta") {
         try {
           await setCustomerPreferredLanguage(newId, peopleValues.preferredLanguage)
+        } catch {
+          toast.error(t("common.actionFailed"))
+        }
+      }
+      // create_customer_with_details (RPC) doesn't accept an email either -- same small
+      // follow-up write shape as the language field above (updateCustomerEmail normalizes
+      // trim+lowercase).
+      if (peopleValues.email?.trim()) {
+        try {
+          await updateCustomerEmail(newId, peopleValues.email)
         } catch {
           toast.error(t("common.actionFailed"))
         }
@@ -497,15 +569,64 @@ export function CustomerFormPage() {
               {peopleForm.formState.errors.members?.message ? (
                 <p className="text-xs text-danger">{t(peopleForm.formState.errors.members.message)}</p>
               ) : null}
+              <DuplicateContactWarning
+                matches={dupWarning.data}
+                isLoading={dupWarning.isFetching}
+                confirmed={dupWarningConfirmed}
+                onConfirmedChange={(next) => setConfirmedDupWarningKey(next ? dupWarningKey : null)}
+              />
               <PreferredLanguageSelect
                 id="new-customer-preferred-language"
                 i18nPrefix="customers.form"
                 value={(peopleForm.watch("preferredLanguage") || null) as "en" | "ta" | null}
                 onChange={(next) => peopleForm.setValue("preferredLanguage", next ?? "")}
               />
+              <div className="space-y-1">
+                <Label htmlFor="new-customer-email">{t("customers.form.email")}</Label>
+                <Input id="new-customer-email" type="email" placeholder={t("customers.form.emailPlaceholder")} {...peopleForm.register("email")} />
+                {peopleForm.formState.errors.email ? <p className="text-xs text-danger">{t(peopleForm.formState.errors.email.message!)}</p> : null}
+              </div>
+              {/* Referral incentives — capture-at-creation only, never shown in edit mode. */}
+              <ReferrerPicker
+                id="new-customer-referred-by"
+                orgId={orgId}
+                label={t("customers.form.referredBy")}
+                value={peopleForm.watch("referredByUserId") ?? ""}
+                onChange={(next) => peopleForm.setValue("referredByUserId", next)}
+              />
             </div>
           ) : (
-            <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="edit-customer-email">{t("customers.form.email")}</Label>
+                <div className="flex gap-2">
+                  <Input id="edit-customer-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder={t("customers.form.emailPlaceholder")} />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={updateEmail.isPending || editEmail.trim().toLowerCase() === (existing.data!.email ?? "")}
+                    onClick={() => updateEmail.mutate(editEmail, { onError: () => toast.error(t("common.actionFailed")) })}
+                  >
+                    {t("common.save")}
+                  </Button>
+                </div>
+              </div>
+              <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
+              <div className="border-t border-border pt-4">
+                <WaterHouseholdPanel
+                  customerId={id!}
+                  orgId={orgId}
+                  waterSource={existing.data!.water_source}
+                  waterSourceOther={existing.data!.water_source_other}
+                  waterTdsPpm={existing.data!.water_tds_ppm}
+                  waterPh={existing.data!.water_ph}
+                  healthCondition={existing.data!.health_condition}
+                  familyMemberCount={existing.data!.customer_members.length}
+                  canEdit={canEditWaterHousehold(profile?.role)}
+                />
+              </div>
+            </>
           )}
         </Card>
       ) : step === 1 ? (
@@ -564,8 +685,13 @@ export function CustomerFormPage() {
           </div>
 
           <div className="space-y-1.5 border-t border-border px-1 pt-3">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <Label>{t("customers.form.map.title")}</Label>
+              {lat != null && lng != null ? (
+                <StatusDot tone="success" label={t("customers.form.map.pinned")} />
+              ) : (
+                <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
+              )}
               {autoLocate.isPending && lat == null ? (
                 <span className="flex items-center gap-1 text-xs text-text-muted">
                   <Loader2 className="size-3 animate-spin" />
@@ -602,7 +728,9 @@ export function CustomerFormPage() {
               }}
             />
             {lat == null && lng == null && !autoLocate.isPending && hasAddressText(addressForm.getValues()) ? (
-              <p className="text-xs text-warning">{t("customers.form.map.pinRequired")}</p>
+              <p className="text-xs text-warning">
+                {pinOptional ? t("customers.form.map.pinOptionalMasterNote") : t("customers.form.map.pinRequired")}
+              </p>
             ) : null}
           </div>
 
@@ -717,7 +845,11 @@ export function CustomerFormPage() {
             {t("customers.form.next")}
           </Button>
         ) : (
-          <Button type="button" onClick={handleSaveAndFinish} disabled={isSaving}>
+          <Button
+            type="button"
+            onClick={handleSaveAndFinish}
+            disabled={isSaving || (mode === "create" && !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed))}
+          >
             {isSaving ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
           </Button>
         )}
