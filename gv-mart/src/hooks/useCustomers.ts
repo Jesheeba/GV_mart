@@ -178,55 +178,60 @@ export function useCustomerAutocomplete(orgId: string | undefined, term: string)
 
 // "Recently used" (mandatory, 2026-11-12) needs these enabled with an empty
 // term too -- that's what shows the org's recent values on focus, before
-// anything is typed, instead of only ever filtering as you type.
-export function useAreaAutocomplete(orgId: string | undefined, term: string) {
+// anything is typed, instead of only ever filtering as you type. `enabled`
+// defaults to true but every caller on the address form passes a
+// "has this field been focused yet" flag -- all 5 of these fields firing
+// their recent-values query the instant the Address step mounts (before
+// anyone has even looked at that field) was 5 extra DB round-trips on every
+// page load; now each one only fires once its own field is actually opened.
+export function useAreaAutocomplete(orgId: string | undefined, term: string, enabled = true) {
   // Was firing an unindexed ILIKE query on every keystroke -- debounced here
   // the same way useCustomerAutocomplete above already is.
   const debouncedTerm = useDebouncedValue(term, 300)
   return useQuery({
     queryKey: ["addresses", "areaAutocomplete", orgId, debouncedTerm],
     queryFn: () => customers.searchAreas(orgId!, debouncedTerm),
-    enabled: !!orgId,
+    enabled: !!orgId && enabled,
     staleTime: 30_000,
   })
 }
 
-export function useLandmarkAutocomplete(orgId: string | undefined, term: string) {
+export function useLandmarkAutocomplete(orgId: string | undefined, term: string, enabled = true) {
   const debouncedTerm = useDebouncedValue(term, 300)
   return useQuery({
     queryKey: ["addresses", "landmarkAutocomplete", orgId, debouncedTerm],
     queryFn: () => customers.searchLandmarks(orgId!, debouncedTerm),
-    enabled: !!orgId,
+    enabled: !!orgId && enabled,
     staleTime: 30_000,
   })
 }
 
-export function useStreetCrossAutocomplete(orgId: string | undefined, term: string) {
+export function useStreetCrossAutocomplete(orgId: string | undefined, term: string, enabled = true) {
   const debouncedTerm = useDebouncedValue(term, 300)
   return useQuery({
     queryKey: ["addresses", "streetCrossAutocomplete", orgId, debouncedTerm],
     queryFn: () => customers.searchStreetCrossValues(orgId!, debouncedTerm),
-    enabled: !!orgId,
+    enabled: !!orgId && enabled,
     staleTime: 30_000,
   })
 }
 
-export function useSubAreaAutocomplete(orgId: string | undefined, term: string) {
+export function useSubAreaAutocomplete(orgId: string | undefined, term: string, enabled = true) {
   const debouncedTerm = useDebouncedValue(term, 300)
   return useQuery({
     queryKey: ["addresses", "subAreaAutocomplete", orgId, debouncedTerm],
     queryFn: () => customers.searchSubAreas(orgId!, debouncedTerm),
-    enabled: !!orgId,
+    enabled: !!orgId && enabled,
     staleTime: 30_000,
   })
 }
 
-export function usePincodeSuggestions(orgId: string | undefined, term: string) {
+export function usePincodeSuggestions(orgId: string | undefined, term: string, enabled = true) {
   const debouncedTerm = useDebouncedValue(term, 300)
   return useQuery({
     queryKey: ["addresses", "pincodeSuggestions", orgId, debouncedTerm],
     queryFn: () => customers.searchPincodes(orgId!, debouncedTerm),
-    enabled: !!orgId,
+    enabled: !!orgId && enabled,
     staleTime: 30_000,
   })
 }

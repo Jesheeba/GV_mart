@@ -25,6 +25,7 @@ export function Autocomplete<T>({
   openOnFocus,
   maxLength,
   ariaInvalid,
+  onFocus,
 }: {
   id?: string
   value: string
@@ -53,6 +54,8 @@ export function Autocomplete<T>({
    * (e.g. complaint types for an already-selected product).
    */
   openOnFocus?: boolean
+  /** Fires once per focus — callers use this to lazily enable a recent-values query only once the field is actually opened, instead of on every page load. */
+  onFocus?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -101,7 +104,10 @@ export function Autocomplete<T>({
           setOpen(true)
           setActiveIndex(-1)
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true)
+          onFocus?.()
+        }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => {
           if (!showList || suggestions.length === 0) return

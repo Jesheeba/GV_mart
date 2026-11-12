@@ -287,11 +287,17 @@ export function CustomerFormPage() {
   // back to the old free-text full_address so a pre-redesign customer's
   // address isn't silently dropped. See src/lib/address.ts.
   const fullAddress = composeFullAddress({ doorNo, plotNo, buildingName, streetCross, subArea, area, landmark }) || legacyFullAddress
-  const areaAutocomplete = useAreaAutocomplete(orgId, area)
-  const landmarkAutocomplete = useLandmarkAutocomplete(orgId, landmark)
-  const streetCrossAutocomplete = useStreetCrossAutocomplete(orgId, streetCross)
-  const subAreaAutocomplete = useSubAreaAutocomplete(orgId, subArea)
-  const pincodeSuggestions = usePincodeSuggestions(orgId, pincode)
+  // Each "recently used" query only turns on once its own field is actually
+  // focused -- all 5 firing together the moment the Address step mounts was
+  // 5 extra DB round-trips competing with everything else on page load,
+  // before anyone had even looked at most of these fields.
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({})
+  const touch = (field: string) => setTouchedFields((f) => (f[field] ? f : { ...f, [field]: true }))
+  const areaAutocomplete = useAreaAutocomplete(orgId, area, touchedFields.area)
+  const landmarkAutocomplete = useLandmarkAutocomplete(orgId, landmark, touchedFields.landmark)
+  const streetCrossAutocomplete = useStreetCrossAutocomplete(orgId, streetCross, touchedFields.streetCross)
+  const subAreaAutocomplete = useSubAreaAutocomplete(orgId, subArea, touchedFields.subArea)
+  const pincodeSuggestions = usePincodeSuggestions(orgId, pincode, touchedFields.pincode)
   const pincodeLookup = usePincodeLookup(orgId, pincode)
   const autoLocate = useGeocodeAddress()
 
@@ -753,6 +759,7 @@ export function CustomerFormPage() {
                 onSelect={(v) => addressForm.setValue("streetCross", v, { shouldValidate: true })}
                 emptyMessage={t("common.noData")}
                 openOnFocus
+                onFocus={() => touch("streetCross")}
               />
             </div>
             <div className="space-y-1.5">
@@ -768,6 +775,7 @@ export function CustomerFormPage() {
                 onSelect={(v) => addressForm.setValue("subArea", v, { shouldValidate: true })}
                 emptyMessage={t("common.noData")}
                 openOnFocus
+                onFocus={() => touch("subArea")}
               />
             </div>
             <div className="space-y-1.5">
@@ -783,6 +791,7 @@ export function CustomerFormPage() {
                 onSelect={(a) => addressForm.setValue("area", a, { shouldValidate: true })}
                 emptyMessage={t("common.noData")}
                 openOnFocus
+                onFocus={() => touch("area")}
               />
               {addressForm.formState.errors.area ? (
                 <p className="text-xs text-danger">{t(addressForm.formState.errors.area.message!)}</p>
@@ -801,6 +810,7 @@ export function CustomerFormPage() {
                 onSelect={(v) => addressForm.setValue("landmark", v, { shouldValidate: true })}
                 emptyMessage={t("common.noData")}
                 openOnFocus
+                onFocus={() => touch("landmark")}
               />
             </div>
             <div className="space-y-1.5">
@@ -823,6 +833,7 @@ export function CustomerFormPage() {
                 }}
                 emptyMessage={t("common.noData")}
                 openOnFocus
+                onFocus={() => touch("pincode")}
                 maxLength={6}
                 ariaInvalid={!!addressForm.formState.errors.pincode}
               />
