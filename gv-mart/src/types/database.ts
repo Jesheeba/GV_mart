@@ -49,6 +49,34 @@ export type Database = {
         }
         Relationships: []
       }
+      // See supabase/migrations/20261212100000_pincode_directory.sql.
+      pincode_directory: {
+        Row: {
+          pincode: string
+          district: string
+          state: string
+          taluk: string | null
+          office_name: string | null
+          created_at: string
+        }
+        Insert: {
+          pincode: string
+          district: string
+          state: string
+          taluk?: string | null
+          office_name?: string | null
+          created_at?: string
+        }
+        Update: {
+          pincode?: string
+          district?: string
+          state?: string
+          taluk?: string | null
+          office_name?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       staff_private: {
         Row: {
           profile_id: string
