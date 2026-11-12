@@ -176,6 +176,9 @@ export function useCustomerAutocomplete(orgId: string | undefined, term: string)
   })
 }
 
+// "Recently used" (mandatory, 2026-11-12) needs these enabled with an empty
+// term too -- that's what shows the org's recent values on focus, before
+// anything is typed, instead of only ever filtering as you type.
 export function useAreaAutocomplete(orgId: string | undefined, term: string) {
   // Was firing an unindexed ILIKE query on every keystroke -- debounced here
   // the same way useCustomerAutocomplete above already is.
@@ -183,7 +186,47 @@ export function useAreaAutocomplete(orgId: string | undefined, term: string) {
   return useQuery({
     queryKey: ["addresses", "areaAutocomplete", orgId, debouncedTerm],
     queryFn: () => customers.searchAreas(orgId!, debouncedTerm),
-    enabled: !!orgId && debouncedTerm.trim().length > 0,
+    enabled: !!orgId,
+    staleTime: 30_000,
+  })
+}
+
+export function useLandmarkAutocomplete(orgId: string | undefined, term: string) {
+  const debouncedTerm = useDebouncedValue(term, 300)
+  return useQuery({
+    queryKey: ["addresses", "landmarkAutocomplete", orgId, debouncedTerm],
+    queryFn: () => customers.searchLandmarks(orgId!, debouncedTerm),
+    enabled: !!orgId,
+    staleTime: 30_000,
+  })
+}
+
+export function useStreetCrossAutocomplete(orgId: string | undefined, term: string) {
+  const debouncedTerm = useDebouncedValue(term, 300)
+  return useQuery({
+    queryKey: ["addresses", "streetCrossAutocomplete", orgId, debouncedTerm],
+    queryFn: () => customers.searchStreetCrossValues(orgId!, debouncedTerm),
+    enabled: !!orgId,
+    staleTime: 30_000,
+  })
+}
+
+export function useSubAreaAutocomplete(orgId: string | undefined, term: string) {
+  const debouncedTerm = useDebouncedValue(term, 300)
+  return useQuery({
+    queryKey: ["addresses", "subAreaAutocomplete", orgId, debouncedTerm],
+    queryFn: () => customers.searchSubAreas(orgId!, debouncedTerm),
+    enabled: !!orgId,
+    staleTime: 30_000,
+  })
+}
+
+export function usePincodeSuggestions(orgId: string | undefined, term: string) {
+  const debouncedTerm = useDebouncedValue(term, 300)
+  return useQuery({
+    queryKey: ["addresses", "pincodeSuggestions", orgId, debouncedTerm],
+    queryFn: () => customers.searchPincodes(orgId!, debouncedTerm),
+    enabled: !!orgId,
     staleTime: 30_000,
   })
 }

@@ -23,6 +23,8 @@ export function Autocomplete<T>({
   className,
   inputClassName,
   openOnFocus,
+  maxLength,
+  ariaInvalid,
 }: {
   id?: string
   value: string
@@ -38,6 +40,10 @@ export function Autocomplete<T>({
   className?: string
   /** Overrides the input's own classes (e.g. a pill-shaped search box) instead of the wrapper's. */
   inputClassName?: string
+  /** Forwarded to the underlying input, e.g. a 6-digit Pincode field. */
+  maxLength?: number
+  /** Forwarded to the underlying input's aria-invalid, for callers with their own validation error state. */
+  ariaInvalid?: boolean
   /**
    * Show the full suggestion list on focus, before any text is typed —
    * i.e. behave like a real dropdown. Off by default: most callers here
@@ -118,11 +124,13 @@ export function Autocomplete<T>({
         placeholder={placeholder}
         className={cn(icon && "pl-10", inputClassName)}
         autoComplete="off"
+        maxLength={maxLength}
         role="combobox"
         aria-expanded={showList}
         aria-controls={listboxId}
         aria-autocomplete="list"
         aria-activedescendant={activeOptionId}
+        aria-invalid={ariaInvalid}
       />
       {showList && dropdownRect
         ? createPortal(
