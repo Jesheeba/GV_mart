@@ -631,13 +631,6 @@ export function CustomerFormPage() {
         </Card>
       ) : step === 1 ? (
         <Card className="gap-4 px-5">
-          <div className="px-1">
-            <div className="space-y-1.5">
-              <Label htmlFor="zone">{t("customers.form.zone")}</Label>
-              <Input id="zone" autoComplete="off" {...addressForm.register("zone")} />
-            </div>
-          </div>
-
           <div className="space-y-1.5 px-1">
             <div className="flex items-center gap-2">
               <Label>{t("customers.form.fullAddress")}</Label>
@@ -686,6 +679,13 @@ export function CustomerFormPage() {
                 }
                 if (!addressForm.getValues("state") && r.state) {
                   addressForm.setValue("state", r.state, { shouldValidate: true })
+                }
+                // Zone no longer has its own box (merged into this single
+                // search field) -- auto-fill it from the matched locality the
+                // same way area/pincode/district/state already are, instead
+                // of dropping it.
+                if (!addressForm.getValues("zone") && r.suburb) {
+                  addressForm.setValue("zone", r.suburb, { shouldValidate: true })
                 }
               }}
             />
