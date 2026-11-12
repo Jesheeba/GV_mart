@@ -37,7 +37,6 @@ export function LeadDetailPage() {
   const lead = useLead(leadId)
 
   const [interactionOpen, setInteractionOpen] = useState(false)
-  const [interactionMode, setInteractionMode] = useState<"outcome" | "reschedule">("outcome")
   const [setFollowupOpen, setSetFollowupOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const assignees = useLeadAssignees(profile?.org_id, profile?.role as UserRole | undefined).data ?? []
@@ -72,11 +71,6 @@ export function LeadDetailPage() {
   const assigneeName = assignees.find((a) => a.id === l.assigned_to)?.full_name ?? null
   const canSchedule = canScheduleLead(profile?.role as UserRole | undefined, profile?.id, l.assigned_to, assignees)
   const assignAction = closed ? null : assignActionFor(profile?.role as UserRole | undefined, profile?.id, l.assigned_to, assignees)
-
-  function openInteraction(mode: "outcome" | "reschedule") {
-    setInteractionMode(mode)
-    setInteractionOpen(true)
-  }
 
   return (
     <div className="space-y-4 pt-2">
@@ -125,21 +119,17 @@ export function LeadDetailPage() {
 
         <div className="flex flex-wrap gap-1.5">
           {closed ? (
-            <Button size="sm" variant="accent" onClick={() => openInteraction("outcome")}>
+            <Button size="sm" variant="accent" onClick={() => setInteractionOpen(true)}>
               <RotateCcw className="size-3.5" />
               {t("leads.detail.reopen")}
             </Button>
           ) : (
             <>
-              <Button size="sm" variant="accent" onClick={() => openInteraction("outcome")}>
+              <Button size="sm" variant="accent" onClick={() => setInteractionOpen(true)}>
                 <ClipboardCheck className="size-3.5" />
                 {t("leads.interaction.title")}
               </Button>
-              {l.next_followup_at ? (
-                <Button size="sm" variant="outline" onClick={() => openInteraction("reschedule")}>
-                  {t("leads.followup.reschedule")}
-                </Button>
-              ) : canSchedule ? (
+              {!l.next_followup_at && canSchedule ? (
                 <Button size="sm" variant="outline" onClick={() => setSetFollowupOpen(true)} data-testid="set-followup">
                   <CalendarPlus className="size-3.5" />
                   {t("leads.followup.setButton")}
@@ -180,7 +170,7 @@ export function LeadDetailPage() {
         </div>
       </div>
 
-      <LogInteractionSheet lead={sheetLead} open={interactionOpen} onOpenChange={setInteractionOpen} defaultMode={closed ? "outcome" : interactionMode} />
+      <LogInteractionSheet lead={sheetLead} open={interactionOpen} onOpenChange={setInteractionOpen} />
       <SetFollowupDialog lead={{ id: l.id, name }} open={setFollowupOpen} onOpenChange={setSetFollowupOpen} />
 
       <AssignLeadDialog leads={[{ id: l.id, name, assignedTo: l.assigned_to }]} open={assignOpen} onOpenChange={setAssignOpen} />

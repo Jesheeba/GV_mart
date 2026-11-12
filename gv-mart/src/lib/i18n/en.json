@@ -4018,8 +4018,6 @@
       "call": "Call",
       "whatsapp": "WhatsApp",
       "whenNeeded": "Customer needs it: {{when}}",
-      "logOutcome": "Log outcome",
-      "reschedule": "Reschedule",
       "setButton": "Set follow-up",
       "setTitle": "Set follow-up",
       "setType": "What kind of follow-up?",

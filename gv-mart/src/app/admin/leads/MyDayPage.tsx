@@ -63,7 +63,6 @@ export function MyDayPage() {
   const [bulkOpen, setBulkOpen] = useState(false)
 
   const [interactionFor, setInteractionFor] = useState<FollowupListItem | null>(null)
-  const [interactionMode, setInteractionMode] = useState<"outcome" | "reschedule">("outcome")
   const [postCallFor, setPostCallFor] = useState<PostServiceFollowupItem | null>(null)
 
   const list = useFollowups({ bucket: "all", stage: stage || undefined, source: source || undefined, kind: kind || undefined, stuckOnly, scope })
@@ -288,10 +287,7 @@ export function MyDayPage() {
                 key={r.item.followup_id}
                 item={r.item}
                 technicianName={technicianNames.data?.get(r.item.lead_id) ?? null}
-                onLogInteraction={(item, mode) => {
-                  setInteractionFor(item)
-                  setInteractionMode(mode)
-                }}
+                onLogInteraction={setInteractionFor}
                 onAssign={assignActionFor(role, profile?.id, r.item.assignee_id, assignees) ? setAssignFor : undefined}
               />
             )
@@ -308,7 +304,6 @@ export function MyDayPage() {
         }
         open={!!interactionFor}
         onOpenChange={(o) => !o && setInteractionFor(null)}
-        defaultMode={interactionMode}
       />
       <AssignLeadDialog
         leads={assignFor ? [{ id: assignFor.lead_id, name: assignFor.lead_name, assignedTo: assignFor.assignee_id }] : []}

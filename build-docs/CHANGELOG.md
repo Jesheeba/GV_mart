@@ -58,3 +58,9 @@
 - No new RPC: all three modes call the pre-existing `log_lead_outcome` / `reschedule_followup` / `add_lead_note` RPCs exactly as before; `reschedule_followup`'s already-existing but previously-unused `note` parameter is now actually passed, so a reschedule's conversation note is captured instead of silently dropped.
 - Added a stuck-threshold warning (Mode B only — reschedule's postpone rule is unambiguous; outcome-mode has no client-visible field to base a correct warning on, so none is shown there rather than guessing).
 - New i18n keys: `leads.interaction.title`, `leads.interaction.mode.{outcome,reschedule,note}`, `leads.interaction.stuckWarning` (en + ta).
+
+## lead-unified-interaction-log: drop the separate quick Reschedule button (2026-11-12)
+- `LeadDetailPage.tsx` and `FollowupCard.tsx` (My Day) each had two buttons — "Log interaction" and a quick "Reschedule" — both opening the same merged sheet. Per owner request, collapsed to one "Log interaction" button everywhere; reschedule is now reached only via the mode switch inside the sheet.
+- `LeadDetailPage.tsx`: removed `interactionMode` state and the `openInteraction(mode)` helper; the button and the `reopen` path both just call `setInteractionOpen(true)` and let the sheet default to "outcome". The "Set follow-up" button (for leads with no follow-up yet, a different RPC/dialog) is unchanged.
+- `FollowupCard.tsx`: `onLogInteraction` prop dropped its `mode` argument; `MyDayPage.tsx` simplified to match (`onLogInteraction={setInteractionFor}`, no `interactionMode` state).
+- Removed the now-orphaned i18n keys `leads.followup.logOutcome` and `leads.followup.reschedule` (en + ta) — nothing references them after the button merge; `leads.interaction.title` and the in-sheet mode labels replace them.
