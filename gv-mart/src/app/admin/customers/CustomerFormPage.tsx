@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
+import { Autocomplete } from "@/components/shared/Autocomplete"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -21,6 +22,7 @@ import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import {
   addressStepSchema,
   peopleStepSchema,
+  canSkipAddressPin,
   FAMILY_RELATIONS,
   canEditWaterHousehold,
   type AddressStepInput,
@@ -31,8 +33,9 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress } from "@/hooks/useMaps"
 import { isPreciseGeocodeResult } from "@/services/maps"
 import { getPrimaryAddressId, setAddressWaterHousehold, setAddressZone, setCustomerPreferredLanguage, updateCustomerEmail } from "@/services/customers"
-import { addressLine } from "@/lib/address"
+import { addressLocalityText } from "@/lib/address"
 import {
+  useAreaAutocomplete,
   useCreateCustomer,
   useCustomer,
   useDuplicateContactWarning,
@@ -48,9 +51,7 @@ import { guardReentry } from "@/lib/async-guard"
 /** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
 function hasAddressText(a: AddressStepInput) {
   return (
-    [a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some(
-      (v) => v?.trim()
-    ) ||
+    [a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some((v) => v?.trim()) ||
     a.lat != null ||
     a.lng != null
   )
@@ -187,6 +188,7 @@ export function CustomerFormPage() {
   const mode: "create" | "edit" = id ? "edit" : "create"
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
+  const pinOptional = canSkipAddressPin(profile?.role)
 
   const existing = useCustomer(mode === "edit" ? id : undefined)
   const [step, setStep] = useState(0)
@@ -250,6 +252,7 @@ export function CustomerFormPage() {
   const state = addressForm.watch("state")
   const lat = addressForm.watch("lat")
   const lng = addressForm.watch("lng")
+  const areaAutocomplete = useAreaAutocomplete(orgId, area)
   const pincodeLookup = usePincodeLookup(orgId, pincode)
   const autoLocate = useGeocodeAddress()
 
@@ -328,12 +331,9 @@ export function CustomerFormPage() {
       setEditEmail(existing.data.email ?? "")
       const primary = existing.data.addresses.find((a) => a.is_primary) ?? existing.data.addresses[0]
       if (primary) {
-        // Pre-redesign rows have no full_address yet -- most have nothing in the
-        // old door/street columns either, only `area` (e.g. "Vignesh Nagar -
-        // Palpannai" style entries from the old Area field). Falling back to
-        // addressLocalityText alone (door/street columns only, no area) left
-        // this box blank for exactly those rows -- addressLine folds area in too.
-        const fullAddressValue = primary.full_address ?? addressLine(primary)
+        // Pre-migration rows have no full_address yet — fall back to the legacy
+        // concatenation so editing an old address doesn't look blank.
+        const fullAddressValue = primary.full_address ?? addressLocalityText(primary)
         addressForm.reset({
           fullAddress: fullAddressValue,
           area: primary.area ?? "",
@@ -632,8 +632,61 @@ export function CustomerFormPage() {
       ) : step === 1 ? (
         <Card className="gap-4 px-5">
           <div className="space-y-1.5 px-1">
+            <Label htmlFor="fullAddress">{t("customers.form.fullAddress")}</Label>
+            <textarea
+              id="fullAddress"
+              rows={3}
+              placeholder={t("customers.form.fullAddressPlaceholder")}
+              aria-invalid={!!addressForm.formState.errors.fullAddress}
+              className="w-full resize-none rounded-xl border border-input bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+              {...addressForm.register("fullAddress")}
+            />
+            {addressForm.formState.errors.fullAddress ? (
+              <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-2 gap-3 px-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="area">{t("customers.form.area")}</Label>
+              <Autocomplete
+                id="area"
+                value={area}
+                onChange={(v) => addressForm.setValue("area", v, { shouldValidate: true })}
+                suggestions={areaAutocomplete.data ?? []}
+                loading={areaAutocomplete.isFetching}
+                getKey={(a) => a}
+                getLabel={(a) => a}
+                onSelect={(a) => addressForm.setValue("area", a, { shouldValidate: true })}
+                emptyMessage={t("common.noData")}
+              />
+              {addressForm.formState.errors.area ? (
+                <p className="text-xs text-danger">{t(addressForm.formState.errors.area.message!)}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pincode">{t("customers.form.pincode")}</Label>
+              <Input id="pincode" maxLength={6} aria-invalid={!!addressForm.formState.errors.pincode} {...addressForm.register("pincode")} />
+              {addressForm.formState.errors.pincode ? (
+                <p className="text-xs text-danger">{t(addressForm.formState.errors.pincode.message!)}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="district">{t("customers.form.district")}</Label>
+              <Input id="district" {...addressForm.register("district")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="state">{t("customers.form.state")}</Label>
+              <Input id="state" {...addressForm.register("state")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="zone">{t("customers.form.zone")}</Label>
+              <Input id="zone" {...addressForm.register("zone")} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5 border-t border-border px-1 pt-3">
             <div className="flex items-center gap-2">
-              <Label>{t("customers.form.fullAddress")}</Label>
+              <Label>{t("customers.form.map.title")}</Label>
               {lat != null && lng != null ? (
                 <StatusDot tone="success" label={t("customers.form.map.pinned")} />
               ) : (
@@ -646,17 +699,9 @@ export function CustomerFormPage() {
                 </span>
               ) : null}
             </div>
-            {addressForm.formState.errors.fullAddress ? (
-              <p className="text-xs text-danger">{t(addressForm.formState.errors.fullAddress.message!)}</p>
-            ) : null}
-            {addressForm.formState.errors.pincode ? (
-              <p className="text-xs text-danger">{t(addressForm.formState.errors.pincode.message!)}</p>
-            ) : null}
             <AddressMapPicker
               lat={addressForm.watch("lat")}
               lng={addressForm.watch("lng")}
-              query={addressForm.watch("fullAddress") ?? ""}
-              onQueryChange={(v) => addressForm.setValue("fullAddress", v, { shouldValidate: true })}
               suggestedLat={suggestedPin?.lat}
               suggestedLng={suggestedPin?.lng}
               suggestedFormatted={suggestedPin?.formatted}
@@ -680,17 +725,12 @@ export function CustomerFormPage() {
                 if (!addressForm.getValues("state") && r.state) {
                   addressForm.setValue("state", r.state, { shouldValidate: true })
                 }
-                // Zone no longer has its own box (merged into this single
-                // search field) -- auto-fill it from the matched locality the
-                // same way area/pincode/district/state already are, instead
-                // of dropping it.
-                if (!addressForm.getValues("zone") && r.suburb) {
-                  addressForm.setValue("zone", r.suburb, { shouldValidate: true })
-                }
               }}
             />
             {lat == null && lng == null && !autoLocate.isPending && hasAddressText(addressForm.getValues()) ? (
-              <p className="text-xs text-warning">{t("customers.form.map.pinOptionalMasterNote")}</p>
+              <p className="text-xs text-warning">
+                {pinOptional ? t("customers.form.map.pinOptionalMasterNote") : t("customers.form.map.pinRequired")}
+              </p>
             ) : null}
           </div>
 
@@ -800,7 +840,7 @@ export function CustomerFormPage() {
           <Button
             type="button"
             onClick={handleAddressNext}
-            disabled={mode === "create" && !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed)}
+            disabled={lat == null && lng == null && hasAddressText(addressForm.getValues())}
           >
             {t("customers.form.next")}
           </Button>
