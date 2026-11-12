@@ -470,17 +470,66 @@ export async function checkMobileInUse(orgId: string, mobile: string, excludeCus
   }
 }
 
-export async function searchAreas(orgId: string, term: string) {
+/**
+ * Backs the Main Area/Landmark/Street-Cross/Sub Area suggestion dropdowns.
+ * An empty term returns the org's most-recently-entered distinct values for
+ * that column (shown on focus, before anyone types) instead of nothing —
+ * a non-empty term filters those same recent rows by substring, so typing
+ * narrows the same recency-ordered list rather than switching to a
+ * different ordering.
+ */
+async function searchRecentAddressText(orgId: string, column: "area" | "landmark" | "street_cross" | "sub_area", term: string): Promise<string[]> {
   const q = term.trim().replace(/[%,]/g, "")
-  if (!q) return []
-  const { data, error } = await supabase
-    .from("addresses")
-    .select("area")
-    .eq("org_id", orgId)
-    .ilike("area", `%${q}%`)
-    .limit(8)
+  let query = supabase.from("addresses").select(column).eq("org_id", orgId).not(column, "is", null)
+  if (q) query = query.ilike(column, `%${q}%`)
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(40)
   if (error) throw error
-  return [...new Set((data ?? []).map((r) => r.area).filter((a): a is string => !!a))]
+  const seen = new Set<string>()
+  for (const row of (data ?? []) as Record<string, string | null>[]) {
+    const value = row[column]
+    if (value) seen.add(value)
+    if (seen.size >= 8) break
+  }
+  return [...seen]
+}
+
+export async function searchAreas(orgId: string, term: string) {
+  return searchRecentAddressText(orgId, "area", term)
+}
+
+export async function searchLandmarks(orgId: string, term: string) {
+  return searchRecentAddressText(orgId, "landmark", term)
+}
+
+export async function searchStreetCrossValues(orgId: string, term: string) {
+  return searchRecentAddressText(orgId, "street_cross", term)
+}
+
+export async function searchSubAreas(orgId: string, term: string) {
+  return searchRecentAddressText(orgId, "sub_area", term)
+}
+
+export type PincodeSuggestion = { pincode: string; area: string | null; district: string | null; state: string | null }
+
+/**
+ * Same recent-first, filter-as-you-narrow shape as searchRecentAddressText
+ * above, but for Pincode — matched by prefix (how a 6-digit PIN is actually
+ * typed) and carrying the area/district/state already on file for it, so
+ * picking a suggestion can fill those in the same way onAddressSelect does.
+ */
+export async function searchPincodes(orgId: string, term: string): Promise<PincodeSuggestion[]> {
+  const q = term.trim().replace(/\D/g, "")
+  let query = supabase.from("addresses").select("pincode,area,district,state").eq("org_id", orgId).not("pincode", "is", null)
+  if (q) query = query.ilike("pincode", `${q}%`)
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(40)
+  if (error) throw error
+  const seen = new Map<string, PincodeSuggestion>()
+  for (const row of data ?? []) {
+    if (!row.pincode || seen.has(row.pincode)) continue
+    seen.set(row.pincode, { pincode: row.pincode, area: row.area, district: row.district, state: row.state })
+    if (seen.size >= 8) break
+  }
+  return [...seen.values()]
 }
 
 export async function lookupByPincode(orgId: string, pincode: string) {
