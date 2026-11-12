@@ -105,12 +105,15 @@ export function CustomerDetailPage() {
   const [tdsDialogOpen, setTdsDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
-  const products = useCustomerProducts(orgId, customer?.id)
-  const timeline = useCustomerTimeline(orgId, customer?.id)
-  const invoices = useCustomerInvoices(orgId, customer?.id)
-  const lifetime = useCustomerLifetimeSummary(orgId, customer?.id)
-  const exemptionWindows = useCustomerExemptionWindows(customer?.id)
-  const rentals = useCustomerRentalContracts(customer?.id)
+  // These only need the route's own `id`, not the resolved `customer` row --
+  // keyed off `id` directly (instead of `customer?.id`) so they fire
+  // alongside useCustomer above instead of waiting for it to resolve first.
+  const products = useCustomerProducts(orgId, id)
+  const timeline = useCustomerTimeline(orgId, id)
+  const invoices = useCustomerInvoices(orgId, id)
+  const lifetime = useCustomerLifetimeSummary(orgId, id)
+  const exemptionWindows = useCustomerExemptionWindows(id)
+  const rentals = useCustomerRentalContracts(id)
   const markRentalReturned = useMarkRentalReturned()
   const { toast } = useToast()
   const setPreferredLanguage = useSetCustomerPreferredLanguage(customer?.id)
@@ -119,7 +122,7 @@ export function CustomerDetailPage() {
   // source='referral' lead owner -- see get_referrers_for_customers). Replaces an earlier,
   // technician-only, legacy-lead-only lookup that couldn't see a staff referrer or the newer
   // direct referred_by_user_id field at all.
-  const customerReferrers = useReferrersForCustomers(customer?.id ? [customer.id] : [])
+  const customerReferrers = useReferrersForCustomers(id ? [id] : [])
   const referrer = customerReferrers.data?.[0] ?? null
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
   const tdsSuggestion = useCustomerTdsSuggestion(orgId, primaryDistrict)
