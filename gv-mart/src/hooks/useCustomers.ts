@@ -177,10 +177,13 @@ export function useCustomerAutocomplete(orgId: string | undefined, term: string)
 }
 
 export function useAreaAutocomplete(orgId: string | undefined, term: string) {
+  // Was firing an unindexed ILIKE query on every keystroke -- debounced here
+  // the same way useCustomerAutocomplete above already is.
+  const debouncedTerm = useDebouncedValue(term, 300)
   return useQuery({
-    queryKey: ["addresses", "areaAutocomplete", orgId, term],
-    queryFn: () => customers.searchAreas(orgId!, term),
-    enabled: !!orgId && term.trim().length > 0,
+    queryKey: ["addresses", "areaAutocomplete", orgId, debouncedTerm],
+    queryFn: () => customers.searchAreas(orgId!, debouncedTerm),
+    enabled: !!orgId && debouncedTerm.trim().length > 0,
     staleTime: 30_000,
   })
 }

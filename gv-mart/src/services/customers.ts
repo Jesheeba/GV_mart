@@ -129,17 +129,27 @@ async function idsDormant(orgId: string, days = DORMANT_WINDOW_DAYS): Promise<st
 }
 
 export async function listCustomers(orgId: string, filters: CustomerListFilters, page: number) {
-  const idSets: string[][] = []
-  const addrIds = await idsMatchingAddressFilter(orgId, filters)
-  if (addrIds) idSets.push(addrIds)
-  if (filters.search?.trim()) idSets.push(await idsMatchingSearchTerm(orgId, filters.search))
-  if (filters.hasAmc) idSets.push(await idsWithAmc(orgId))
-  if (filters.hasWarranty) idSets.push(await idsWithWarranty(orgId))
-  if (filters.amcDueSoon) idSets.push(await idsByAmcStatus(orgId, "due_soon"))
-  if (filters.dormant) idSets.push(await idsDormant(orgId))
+  // None of these id-gathering queries depend on each other's result -- they
+  // used to run one `await` after another, serializing up to 6 independent
+  // round trips whenever several filters were active at once.
+  const [addrIds, searchIds, amcIds, warrantyIds, dueSoonIds, dormantIds] = await Promise.all([
+    idsMatchingAddressFilter(orgId, filters),
+    filters.search?.trim() ? idsMatchingSearchTerm(orgId, filters.search) : null,
+    filters.hasAmc ? idsWithAmc(orgId) : null,
+    filters.hasWarranty ? idsWithWarranty(orgId) : null,
+    filters.amcDueSoon ? idsByAmcStatus(orgId, "due_soon") : null,
+    filters.dormant ? idsDormant(orgId) : null,
+  ])
+  const idSets = [addrIds, searchIds, amcIds, warrantyIds, dueSoonIds, dormantIds].filter((s): s is string[] => s !== null)
 
   if (idSets.length > 0) {
-    const intersected = idSets.reduce((acc, set) => acc.filter((id) => set.includes(id)))
+    // Set-based intersection (was Array.includes, O(n*m) across every set) —
+    // sort smallest-first so each pass filters against the smallest lookup set.
+    const sorted = [...idSets].sort((a, b) => a.length - b.length)
+    const intersected = sorted.slice(1).reduce((acc, set) => {
+      const lookup = new Set(set)
+      return acc.filter((id) => lookup.has(id))
+    }, sorted[0])
     if (intersected.length === 0) return { rows: [] as CustomerListItem[], count: 0, pageSize: PAGE_SIZE }
     return queryCustomers(orgId, page, intersected, filters)
   }
@@ -308,23 +318,28 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null,
 // columns (20261108100000_customer_water_profile.sql) comes for free with "*" — a column that
 // doesn't exist yet simply isn't in the row, no error, nothing to special-case.
 export async function getCustomer(id: string) {
-  const { data, error } = await supabase
-    .from("customers")
-    .select("*, addresses(*), customer_members(*)")
-    .eq("id", id)
-    // Item D3: a member "moved out" to their own customer record is soft-
-    // detached (moved_out_at set), not deleted — excluded here so every
-    // consumer of customer.customer_members (Family tab count, the family
-    // chip, this panel's own list) only ever sees active members.
-    .is("customer_members.moved_out_at", null)
-    .order("is_primary", { referencedTable: "addresses", ascending: false })
-    .order("is_primary", { referencedTable: "customer_members", ascending: false })
-    .single()
+  // The main row and the health profile only depend on `id`, not on each
+  // other — fetched in parallel instead of one `await` after the other.
+  const [{ data, error }, healthCondition] = await Promise.all([
+    supabase
+      .from("customers")
+      .select("*, addresses(*), customer_members(*)")
+      .eq("id", id)
+      // Item D3: a member "moved out" to their own customer record is soft-
+      // detached (moved_out_at set), not deleted — excluded here so every
+      // consumer of customer.customer_members (Family tab count, the family
+      // chip, this panel's own list) only ever sees active members.
+      .is("customer_members.moved_out_at", null)
+      .order("is_primary", { referencedTable: "addresses", ascending: false })
+      .order("is_primary", { referencedTable: "customer_members", ascending: false })
+      .single(),
+    getCustomerHealthProfile(id),
+  ])
   if (error) throw error
   // customer_members(*) is typed from the pre-`relation`-column generated
   // schema (see MemberRow comment) — the column IS in the actual row, just
   // not the generated type.
-  return { ...data, customer_members: data.customer_members as MemberRow[], health_condition: await getCustomerHealthProfile(id) }
+  return { ...data, customer_members: data.customer_members as MemberRow[], health_condition: healthCondition }
 }
 
 /**
