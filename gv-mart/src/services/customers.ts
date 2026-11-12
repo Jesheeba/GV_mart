@@ -516,20 +516,40 @@ export type PincodeSuggestion = { pincode: string; area: string | null; district
  * above, but for Pincode — matched by prefix (how a 6-digit PIN is actually
  * typed) and carrying the area/district/state already on file for it, so
  * picking a suggestion can fill those in the same way onAddressSelect does.
+ *
+ * Org-fed addresses alone only ever suggested pincodes a customer had
+ * already been saved with — typing a real, valid pincode nobody had used
+ * yet (e.g. 622302, Tiruchirappalli) showed nothing. `pincode_directory`
+ * (20261212100000_pincode_directory.sql) is the India Post reference list,
+ * seeded for Tamil Nadu — this org's own recent pincodes still come first
+ * (most relevant to how this org actually works), topped up with directory
+ * matches for anything the org hasn't typed yet.
  */
 export async function searchPincodes(orgId: string, term: string): Promise<PincodeSuggestion[]> {
   const q = term.trim().replace(/\D/g, "")
-  let query = supabase.from("addresses").select("pincode,area,district,state").eq("org_id", orgId).not("pincode", "is", null)
-  if (q) query = query.ilike("pincode", `${q}%`)
-  const { data, error } = await query.order("created_at", { ascending: false }).limit(40)
-  if (error) throw error
+  let recentQuery = supabase.from("addresses").select("pincode,area,district,state").eq("org_id", orgId).not("pincode", "is", null)
+  let directoryQuery = supabase.from("pincode_directory").select("pincode,district,state")
+  if (q) {
+    recentQuery = recentQuery.ilike("pincode", `${q}%`)
+    directoryQuery = directoryQuery.ilike("pincode", `${q}%`)
+  }
+  const [recentRes, directoryRes] = await Promise.all([
+    recentQuery.order("created_at", { ascending: false }).limit(40),
+    directoryQuery.order("pincode", { ascending: true }).limit(40),
+  ])
+  if (recentRes.error) throw recentRes.error
+  if (directoryRes.error) throw directoryRes.error
+
   const seen = new Map<string, PincodeSuggestion>()
-  for (const row of data ?? []) {
+  for (const row of recentRes.data ?? []) {
     if (!row.pincode || seen.has(row.pincode)) continue
     seen.set(row.pincode, { pincode: row.pincode, area: row.area, district: row.district, state: row.state })
-    if (seen.size >= 8) break
   }
-  return [...seen.values()]
+  for (const row of directoryRes.data ?? []) {
+    if (seen.has(row.pincode)) continue
+    seen.set(row.pincode, { pincode: row.pincode, area: null, district: row.district, state: row.state })
+  }
+  return [...seen.values()].slice(0, 8)
 }
 
 export async function lookupByPincode(orgId: string, pincode: string) {
@@ -541,7 +561,17 @@ export async function lookupByPincode(orgId: string, pincode: string) {
     .eq("pincode", pincode)
     .limit(1)
   if (error) throw error
-  return data?.[0] ?? null
+  if (data?.[0]) return data[0]
+  // Nobody at this org has used this pincode yet -- fall back to the India
+  // Post reference directory so District/State still auto-fill for any
+  // real pincode, not only ones already fed into this org's own data.
+  const { data: directoryRow, error: directoryError } = await supabase
+    .from("pincode_directory")
+    .select("district,state")
+    .eq("pincode", pincode)
+    .maybeSingle()
+  if (directoryError) throw directoryError
+  return directoryRow ? { area: null, district: directoryRow.district, state: directoryRow.state } : null
 }
 
 export type CreateCustomerInput = {

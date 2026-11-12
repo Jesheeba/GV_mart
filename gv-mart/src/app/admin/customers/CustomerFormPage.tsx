@@ -873,8 +873,22 @@ export function CustomerFormPage() {
                 confirmedLocationTextRef.current = autoLocateQuery
               }}
               onAddressSelect={(r) => {
+                // Typing a full address into the map's own search box sorts
+                // straight into the matching structured fields below, so
+                // staff never have to type the same thing twice.
+                if (!addressForm.getValues("streetCross") && r.route) {
+                  addressForm.setValue("streetCross", r.route, { shouldValidate: true })
+                }
+                if (!addressForm.getValues("doorNo") && r.streetNumber) {
+                  addressForm.setValue("doorNo", r.streetNumber, { shouldValidate: true })
+                }
                 if (!addressForm.getValues("area") && (r.suburb || r.city)) {
                   addressForm.setValue("area", r.suburb ?? r.city ?? "", { shouldValidate: true })
+                }
+                // Google's geocode result has no separate "zone" component --
+                // same best-effort fallback (suburb) area itself uses above.
+                if (!addressForm.getValues("zone") && r.suburb) {
+                  addressForm.setValue("zone", r.suburb, { shouldValidate: true })
                 }
                 if (!addressForm.getValues("pincode") && r.postcode) {
                   addressForm.setValue("pincode", r.postcode, { shouldValidate: true })
