@@ -11,6 +11,8 @@ import { VideoLibraryTab } from "./VideoLibraryTab"
 import { InboundTestTab } from "./InboundTestTab"
 import { ConversationsTab } from "./ConversationsTab"
 import { TemplatesTab } from "./TemplatesTab"
+import { EventTemplatesTab } from "./EventTemplatesTab"
+import { SegmentsTab } from "./SegmentsTab"
 import { FailedSendsTab } from "./FailedSendsTab"
 import { AutomationJobsTab } from "./AutomationJobsTab"
 import { PhraseManagerTab } from "./PhraseManagerTab"
@@ -161,6 +163,8 @@ export function AutomationPage() {
           <TabsTrigger value="inbox">{t("automation.tabs.inbox")}</TabsTrigger>
           <TabsTrigger value="conversations">{t("automation.tabs.conversations")}</TabsTrigger>
           <TabsTrigger value="templates">{t("automation.tabs.templates")}</TabsTrigger>
+          <TabsTrigger value="eventTemplates">{t("automation.tabs.eventTemplates")}</TabsTrigger>
+          <TabsTrigger value="segments">{t("automation.tabs.segments")}</TabsTrigger>
           <TabsTrigger value="failedSends">{t("automation.tabs.failedSends")}</TabsTrigger>
           <TabsTrigger value="jobs">{t("automation.tabs.jobs")}</TabsTrigger>
           <TabsTrigger value="phrases">{t("automation.tabs.phrases")}</TabsTrigger>
@@ -180,6 +184,12 @@ export function AutomationPage() {
           </TabsContent>
           <TabsContent value="templates">
             <TemplatesTab />
+          </TabsContent>
+          <TabsContent value="eventTemplates">
+            <EventTemplatesTab />
+          </TabsContent>
+          <TabsContent value="segments">
+            <SegmentsTab />
           </TabsContent>
           <TabsContent value="failedSends">
             <FailedSendsTab />

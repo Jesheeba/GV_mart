@@ -437,6 +437,24 @@ export async function deleteWhatsappTemplate(id: string) {
   if (error) throw error
 }
 
+// ── Event → Wasi template mapping (v2 — the approved gvm_* templates, not
+// the v1 whatsapp_templates free-text table above). Rows are seeded by
+// migration, not created from this UI — the toggle below is the only write
+// this surface needs (is_active), reusing the column the send path
+// (findApprovedMapping in _shared/whatsapp.ts) already filters on. ─────────
+export type WhatsappEventTemplateRow = Tables<"whatsapp_event_templates">
+
+export async function listWhatsappEventTemplates(orgId: string): Promise<WhatsappEventTemplateRow[]> {
+  const { data, error } = await supabase.from("whatsapp_event_templates").select("*").eq("org_id", orgId).order("event_key")
+  if (error) throw error
+  return data ?? []
+}
+export async function setWhatsappEventTemplateActive(id: string, isActive: boolean) {
+  const { data, error } = await supabase.from("whatsapp_event_templates").update({ is_active: isActive }).eq("id", id).select().single()
+  if (error) throw error
+  return data
+}
+
 // ── Purchase Orders & Bill Entry (ADM-20/21) ─────────────────────────────
 export type PurchaseOrderRow = Tables<"purchase_orders">
 export type PoItemRow = Tables<"po_items">

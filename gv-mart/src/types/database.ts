@@ -2906,6 +2906,87 @@ export type Database = {
         }
         Relationships: []
       }
+      audience_segments: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          condition_tree: Json
+          wasi_template_name: string | null
+          is_standing: boolean
+          dedupe_days: number
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          condition_tree: Json
+          wasi_template_name?: string | null
+          is_standing?: boolean
+          dedupe_days?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string
+          condition_tree?: Json
+          wasi_template_name?: string | null
+          is_standing?: boolean
+          dedupe_days?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      audience_segment_runs: {
+        Row: {
+          id: string
+          org_id: string
+          segment_id: string
+          wasi_template_name: string
+          mode: string
+          matched_count: number
+          queued_count: number
+          skipped_opted_out_count: number
+          skipped_recent_count: number
+          fired_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          segment_id: string
+          wasi_template_name: string
+          mode: string
+          matched_count?: number
+          queued_count?: number
+          skipped_opted_out_count?: number
+          skipped_recent_count?: number
+          fired_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          segment_id?: string
+          wasi_template_name?: string
+          mode?: string
+          matched_count?: number
+          queued_count?: number
+          skipped_opted_out_count?: number
+          skipped_recent_count?: number
+          fired_at?: string
+          created_by?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_event_templates: {
         Row: {
           id: string
@@ -7644,6 +7725,22 @@ export type Database = {
       }
     }
     Functions: {
+      audience_segment_match_count: {
+        Args: { p_org_id: string; p_condition_tree: Json }
+        Returns: number
+      }
+      audience_segment_match_preview: {
+        Args: { p_org_id: string; p_condition_tree: Json; p_limit?: number }
+        Returns: { customer_id: string; name: string; mobile: string }[]
+      }
+      audience_segment_send_now: {
+        Args: { p_segment_id: string }
+        Returns: string
+      }
+      audience_segment_set_standing: {
+        Args: { p_segment_id: string; p_is_standing: boolean; p_wasi_template_name?: string | null }
+        Returns: undefined
+      }
       set_customer_preferred_language: {
         Args: { p_customer_id: string; p_language: string | null }
         Returns: undefined

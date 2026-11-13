@@ -197,6 +197,18 @@ export function useDeleteWhatsappTemplate() {
   return useMutation({ mutationFn: automation.deleteWhatsappTemplate, onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsappTemplates"] }) })
 }
 
+// ── Event → Wasi template mapping (v2, is_active toggle only) ─────────────
+export function useWhatsappEventTemplates(orgId: string | undefined) {
+  return useQuery({ queryKey: ["whatsappEventTemplates", orgId], queryFn: () => automation.listWhatsappEventTemplates(orgId!), enabled: !!orgId })
+}
+export function useSetWhatsappEventTemplateActive() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => automation.setWhatsappEventTemplateActive(id, isActive),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsappEventTemplates"] }),
+  })
+}
+
 // ── Purchase ──────────────────────────────────────────────────────────────
 export function usePurchaseOrders(orgId: string | undefined) {
   return useQuery({ queryKey: ["purchaseOrders", orgId], queryFn: () => automation.listPurchaseOrders(orgId!), enabled: !!orgId })
