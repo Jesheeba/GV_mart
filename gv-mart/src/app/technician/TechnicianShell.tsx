@@ -111,7 +111,7 @@ export function TechnicianShell() {
       <header className="flex items-center justify-between gap-1.5 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] print:hidden">
         <div className="flex min-w-0 shrink items-center gap-2">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-white p-1">
-            <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
+            <img src="/logo-icon.png" alt="GV Mart" className="size-full object-contain" />
           </span>
           {/* Hidden below sm: the header's right-side cluster (sync status,
               theme, notifications, language, user menu) alone is already

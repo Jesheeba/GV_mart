@@ -58,6 +58,37 @@ function checkGeoSupport() {
   }
 }
 
+// cordova-plugin-request-location-accuracy's JS surface (no official
+// TypeScript types ship with it). Android only — triggers Google Play
+// Services' native one-tap "Turn on device location?" dialog when the
+// device's location mode (e.g. "Device only"/GPS-only) isn't accurate
+// enough, instead of making the technician hunt through Settings
+// themselves. iOS has no equivalent API, so this is skipped there.
+type LocationAccuracyPlugin = {
+  request: (success: () => void, error: (err: unknown) => void, priority: number) => void
+  REQUEST_PRIORITY_HIGH_ACCURACY: number
+}
+
+function getLocationAccuracyPlugin(): LocationAccuracyPlugin | null {
+  const w = window as unknown as { cordova?: { plugins?: { locationAccuracy?: LocationAccuracyPlugin } } }
+  return w.cordova?.plugins?.locationAccuracy ?? null
+}
+
+/**
+ * Best-effort only: never throws, and a decline/dismiss/unavailable result
+ * just falls through to getCurrentPosition's own existing error handling
+ * below (the manual-fix banners), so this can only improve the common
+ * case, never regress it.
+ */
+async function ensureHighAccuracyLocationEnabled(): Promise<void> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return
+  const plugin = getLocationAccuracyPlugin()
+  if (!plugin) return
+  await new Promise<void>((resolve) => {
+    plugin.request(resolve, () => resolve(), plugin.REQUEST_PRIORITY_HIGH_ACCURACY)
+  })
+}
+
 // Routed through @capacitor/geolocation rather than navigator.geolocation
 // directly — on native it drives proper Android/iOS permission prompts, and
 // on web it transparently falls back to the same browser Geolocation API,
@@ -65,6 +96,7 @@ function checkGeoSupport() {
 
 export async function getCurrentPosition(options?: PositionOptions): Promise<GeoPoint> {
   checkGeoSupport()
+  await ensureHighAccuracyLocationEnabled()
 
   try {
     const pos = await Geolocation.getCurrentPosition({
@@ -111,14 +143,19 @@ export function watchPosition(cb: (pos: GeoPoint) => void, onError?: (err: Geolo
     return () => {}
   }
 
-  Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 }, (pos, err) => {
-    if (err) {
-      onError?.(normalizeGeoError(err))
-      return
-    }
-    if (pos) cb(toGeoPoint(pos))
-  })
+  ensureHighAccuracyLocationEnabled()
+    .then(() => {
+      if (cancelled) return
+      return Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 }, (pos, err) => {
+        if (err) {
+          onError?.(normalizeGeoError(err))
+          return
+        }
+        if (pos) cb(toGeoPoint(pos))
+      })
+    })
     .then((id) => {
+      if (!id) return
       if (cancelled) void Geolocation.clearWatch({ id })
       else watchId = id
     })

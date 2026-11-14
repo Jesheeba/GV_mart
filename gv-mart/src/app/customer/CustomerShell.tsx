@@ -34,7 +34,7 @@ export function CustomerShell() {
       <header className="flex items-center justify-between px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] lg:px-25">
         <div className="flex items-center gap-2">
           <span className="flex size-8 items-center justify-center rounded-md border border-border bg-white p-1">
-            <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
+            <img src="/logo-icon.png" alt="GV Mart" className="size-full object-contain" />
           </span>
           <span className="text-sm font-semibold text-text">{t("shell.customerAppTitle")}</span>
         </div>

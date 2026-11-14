@@ -114,13 +114,7 @@ export function LoginPage() {
       {/* Hero panel */}
       <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-ink px-12 py-10 text-white lg:flex">
         <div className="relative flex items-center gap-3">
-          <img src="/logo-icon.svg" alt="GV Mart" className="size-12" />
-          <div>
-            <p className="text-lg font-bold leading-none">
-              <span className="text-accent">GV</span>mart
-            </p>
-            <p className="text-xs uppercase tracking-wide text-white/60">{t("common.tagline")}</p>
-          </div>
+          <img src="/logo-icon.png" alt="GV Mart" className="h-20 w-auto" />
         </div>
         <div className="relative max-w-sm">
           <h1 className="text-3xl font-bold leading-tight">{t("auth.heroTitle")}</h1>
@@ -135,7 +129,7 @@ export function LoginPage() {
       {/* Form panel */}
       <div className="flex w-full flex-col items-center justify-center px-6 py-10 lg:w-1/2">
         <div className="mb-6 flex w-full max-w-sm items-center justify-between lg:hidden">
-          <img src="/logo-icon.svg" alt="GV Mart" className="size-11" />
+          <img src="/logo-icon.png" alt="GV Mart" className="h-20 w-auto" />
           <LanguageToggle />
         </div>
 

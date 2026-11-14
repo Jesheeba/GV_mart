@@ -293,7 +293,7 @@ export function AdminShell() {
             !sidebarCollapsed && "self-start"
           )}
         >
-          <img src="/logo-icon.svg" alt="GV Mart" className="size-full object-contain" />
+          <img src="/logo-icon.png" alt="GV Mart" className="size-full object-contain" />
         </span>
         <nav className={cn("flex flex-1 flex-col gap-1", sidebarCollapsed ? "items-center" : "items-stretch")}>
           {dashboard ? renderNavLink(dashboard) : null}

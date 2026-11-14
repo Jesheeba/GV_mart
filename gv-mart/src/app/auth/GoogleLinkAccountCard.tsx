@@ -28,7 +28,7 @@ export function GoogleLinkAccountCard({ reason }: { reason: "staff_account" | "e
     <div className="flex min-h-screen items-center justify-center bg-bg px-6 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center justify-between">
-          <img src="/logo-icon.svg" alt="GV Mart" className="size-11" />
+          <img src="/logo-icon.png" alt="GV Mart" className="size-11" />
           <LanguageToggle />
         </div>
 

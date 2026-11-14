@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType } from "react"
 import { createBrowserRouter, Navigate } from "react-router-dom"
 import { LoginPage } from "@/app/auth/LoginPage"
+import { PrivacyPolicyPage } from "@/app/legal/PrivacyPolicyPage"
 import { NotFoundPage } from "@/app/NotFoundPage"
 import { RouteFallback } from "@/components/shared/RouteFallback"
 import { RouteErrorPage } from "@/components/shared/RouteErrorPage"
@@ -140,6 +141,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <Navigate to="/login" replace /> },
   { path: "/login", element: <LoginPage /> },
+  { path: "/privacy-policy", element: <PrivacyPolicyPage /> },
   {
     element: <RequireAuth />,
     children: [
