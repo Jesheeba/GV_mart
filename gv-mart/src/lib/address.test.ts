@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { composeFullAddress, splitAddressForForm } from "./address"
+import { addressLine, addressLocalityText, composeFullAddress, splitAddressForForm } from "./address"
 
 describe("composeFullAddress", () => {
   it("joins all structured fields in order, skipping blanks", () => {
@@ -36,6 +36,24 @@ describe("composeFullAddress", () => {
 
   it("trims whitespace around each field", () => {
     expect(composeFullAddress({ doorNo: "  12A  ", area: "  Anna Nagar  " })).toBe("12A, Anna Nagar")
+  })
+})
+
+describe("addressLocalityText / addressLine", () => {
+  // Regression: full_address saved via composeFullAddress bakes `area` into the
+  // joined text (e.g. "2/22E, Kamaraja Nagar, Oil Mill" with area = "Oil Mill").
+  // Every caller that does `[addressLocalityText(a), a.area].join(", ")` must not
+  // show "Oil Mill" twice.
+  it("does not duplicate area when full_address already bakes it in", () => {
+    const addr = { full_address: "2/22E, Kamaraja Nagar, Oil Mill", area: "Oil Mill" }
+    expect(addressLocalityText(addr)).toBe("2/22E, Kamaraja Nagar")
+    expect(addressLine(addr)).toBe("2/22E, Kamaraja Nagar, Oil Mill")
+  })
+
+  it("still appends area for a legacy full_address that never included it", () => {
+    const addr = { full_address: "No. 5, Old Street, near bus stop", area: "Anna Nagar" }
+    expect(addressLocalityText(addr)).toBe("No. 5, Old Street, near bus stop")
+    expect(addressLine(addr)).toBe("No. 5, Old Street, near bus stop, Anna Nagar")
   })
 })
 

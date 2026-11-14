@@ -17,13 +17,26 @@ type LegacyAddressFields = {
   street_cross?: string | null
   landmark?: string | null
   flat_no?: string | null
+  area?: string | null
 }
 
-/** The street-level portion only (no area/pincode/district/state) — callers that already append those keep doing so. */
+/**
+ * The street-level portion only (no area/pincode/district/state) — callers that already append `a.area` keep doing so.
+ * `full_address` saved via composeFullAddress bakes `area` in as one of its comma-joined tokens (see below), so that
+ * token is stripped back out here to honour this contract — otherwise every one of those callers would show the area
+ * twice (once from here, once from their own appended `a.area`).
+ */
 export function addressLocalityText(a: LegacyAddressFields | null | undefined): string {
   if (!a) return ""
   const full = a.full_address?.trim()
-  if (full) return full
+  if (full) {
+    const area = a.area?.trim()
+    if (!area) return full
+    return full
+      .split(", ")
+      .filter((part) => part !== area)
+      .join(", ")
+  }
   return [a.door_no, a.plot_no, a.building_no, a.building_name, a.flat_no, a.street_cross, a.landmark].filter((v) => v?.trim()).join(", ")
 }
 
