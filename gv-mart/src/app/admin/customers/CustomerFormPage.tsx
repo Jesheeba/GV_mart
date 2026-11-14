@@ -1025,7 +1025,7 @@ export function CustomerFormPage() {
           <Button
             type="button"
             onClick={handleAddressNext}
-            disabled={lat == null && lng == null && hasAddressText(addressForm.getValues())}
+            disabled={!pinOptional && lat == null && lng == null && hasAddressText(addressForm.getValues())}
           >
             {t("customers.form.next")}
           </Button>
