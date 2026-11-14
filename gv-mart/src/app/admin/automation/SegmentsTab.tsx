@@ -185,7 +185,7 @@ function NewSegmentPanel({ orgId }: { orgId: string }) {
   )
 }
 
-function SegmentRow({ orgId, segment }: { orgId: string; segment: import("@/services/audienceSegments").AudienceSegmentRow }) {
+function SegmentRow({ segment }: { segment: import("@/services/audienceSegments").AudienceSegmentRow }) {
   const { t } = useTranslation()
   const [showRuns, setShowRuns] = useState(false)
   const sendMut = useSendSegmentNow()
@@ -283,7 +283,7 @@ export function SegmentsTab() {
       ) : (
         <div className="space-y-2">
           {segments.map((s) => (
-            <SegmentRow key={s.id} orgId={orgId!} segment={s} />
+            <SegmentRow key={s.id} segment={s} />
           ))}
         </div>
       )}
