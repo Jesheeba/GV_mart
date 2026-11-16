@@ -416,6 +416,11 @@ export function MapPage() {
             {destTicketId ? t("technician.map.noPinTitle") : t("technician.map.noDestinationTitle")}
           </p>
           <p className="text-xs text-text-muted">{destTicketId ? t("technician.map.noPinBody") : t("technician.map.noDestinationBody")}</p>
+          {!destTicketId ? (
+            <Button type="button" variant="outline" className="mt-2" onClick={() => navigate("/technician")}>
+              {t("technician.map.goToHome")}
+            </Button>
+          ) : null}
         </Card>
       ) : (
         <>

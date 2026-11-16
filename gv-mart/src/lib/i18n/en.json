@@ -3285,6 +3285,7 @@
       "lowAccuracyWarning": "Location accuracy is low (~{{accuracy}} m) — distance and ETA may be off. This is common on desktop/laptop browsers, which use Wi-Fi/IP-based location instead of real GPS. Try a mobile device outdoors for an accurate fix.",
       "noDestinationTitle": "No destination selected",
       "noDestinationBody": "Open this from a job card to navigate to a customer.",
+      "goToHome": "Go to today's jobs",
       "noPinTitle": "Exact location not pinned",
       "noPinBody": "This customer's address has no confirmed map pin yet — ask the office to add one.",
       "jobClosedTitle": "This job is already completed",

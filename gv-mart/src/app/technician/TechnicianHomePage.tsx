@@ -221,23 +221,23 @@ export function TechnicianHomePage() {
     <div className="space-y-4 pt-2">
       <h1 className="text-xl font-bold text-text">{t("dashboard.welcomeBack", { name: profile.full_name.split(" ")[0] })}</h1>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         <Button
           type="button"
           variant="outline"
-          className="h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          className="h-auto min-h-16 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
           onClick={() => navigate("/technician/spares")}
         >
-          <Wrench className="size-3.5" />
+          <Wrench className="size-4" />
           {t("technician.home.spareReceipt")}
         </Button>
         <Button
           type="button"
           variant="outline"
-          className="relative h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          className="relative h-auto min-h-16 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
           onClick={() => navigate("/technician/pending-reviews")}
         >
-          <Star className="size-3.5" />
+          <Star className="size-4" />
           {t("technician.home.pendingReviews")}
           {pendingReviewsCount > 0 ? (
             <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-[11px] font-bold text-white">
@@ -248,46 +248,46 @@ export function TechnicianHomePage() {
         <Button
           type="button"
           variant="outline"
-          className="h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          className="h-auto min-h-16 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
           onClick={() => navigate("/technician/expenses")}
         >
-          <Fuel className="size-3.5" />
+          <Fuel className="size-4" />
           {t("nav.expenses")}
         </Button>
         <Button
           type="button"
           variant="outline"
-          className="h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          className="h-auto min-h-16 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
           onClick={() => navigate("/technician/search")}
         >
-          <ClipboardList className="size-3.5" />
+          <ClipboardList className="size-4" />
           {t("technician.home.searchCustomers")}
         </Button>
         <Button
           type="button"
           variant="outline"
-          className="h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          className="h-auto min-h-16 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
           onClick={() => navigate("/technician/tasks")}
         >
-          <ListChecks className="size-3.5" />
+          <ListChecks className="size-4" />
           {t("nav.tasks")}
         </Button>
         <Button
           type="button"
           variant="outline"
-          className="h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          className="h-auto min-h-16 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
           onClick={() => navigate("/technician/huddle")}
         >
-          <Users2 className="size-3.5" />
+          <Users2 className="size-4" />
           {t("nav.huddle")}
         </Button>
         <Button
           type="button"
           variant="outline"
-          className="h-auto min-h-11 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
+          className="h-auto min-h-16 flex-col gap-1 rounded-2xl px-1.5 py-2.5 text-center text-[11px] leading-tight whitespace-normal"
           onClick={() => navigate("/technician/leave")}
         >
-          <CalendarOff className="size-3.5" />
+          <CalendarOff className="size-4" />
           {t("technicianLeave.myLeave.title")}
         </Button>
       </div>
