@@ -42,8 +42,17 @@ function setAppliedBuild(buildNumber: number) {
   }
 }
 
+// Fixed absolute origin, not `location.origin` — on native, the WebView's
+// own origin is Capacitor's internal "https://localhost" virtual address
+// (no `server.url` is configured), which only ever serves the bundle baked
+// into the app at build time. Fetching from that origin can never discover
+// a newer manifest published after install, defeating OTA entirely. This
+// function only runs on native (checkForOtaUpdate early-returns on web), so
+// hardcoding the real host here is always correct, never a web regression.
+const OTA_SITE_ORIGIN = "https://gv-mart.vercel.app"
+
 async function fetchManifest(channel: OtaChannel): Promise<OtaManifest | null> {
-  const url = `${location.origin}/ota/${channel}/manifest.json?t=${Date.now()}`
+  const url = `${OTA_SITE_ORIGIN}/ota/${channel}/manifest.json?t=${Date.now()}`
   const response = await fetch(url, { cache: "no-store" })
   if (!response.ok) return null
   return (await response.json()) as OtaManifest

@@ -68,18 +68,10 @@ describe("ota on native: manifest fetch/verify edge cases never crash, retry, or
     vi.clearAllMocks()
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true)
     vi.mocked(CapacitorAppMock.getInfo).mockResolvedValue({ build: "1" } as never)
-    // fetchManifest() builds its URL from `location.origin`, which this repo's
-    // Node vitest environment doesn't provide (see router.test.ts's own note
-    // on why DOM globals aren't available here) -- without this, every test
-    // below would fail inside fetchManifest itself ("location is not
-    // defined") before ever reaching the mocked fetch, which would silently
-    // test the wrong thing.
-    vi.stubGlobal("location", { origin: "https://gv-mart.vercel.app" })
   })
 
   afterEach(() => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false)
-    vi.unstubAllGlobals()
   })
 
   function expectNoBundleReplacementAndNoErrorScreen() {
