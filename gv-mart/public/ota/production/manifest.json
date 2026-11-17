@@ -1,11 +1,11 @@
 {
   "channel": "production",
-  "version": "2026-11-17-b1",
-  "buildNumber": 1,
-  "url": "https://gv-mart.vercel.app/ota/production/bundle-1.zip",
-  "checksum": "1f80f823613c2e3296b8522156d8166947c56c7ad157b1b4192fb5ac08ddccb2",
-  "minNativeBuild": 1,
+  "version": "2026-11-17-b2",
+  "buildNumber": 2,
+  "url": "https://gv-mart.vercel.app/ota/production/bundle-2.zip",
+  "checksum": "aee8f51c81d2d0d2b28e19c5dceb14ea91a070130ed57aa3db59aa88ff5876a4",
+  "minNativeBuild": 5,
   "frozen": false,
-  "publishedAt": "2026-11-17T09:45:13.660Z",
-  "signature": "++TfKZNNyAEqv2lrl/R1MqXjXVDygm8cICknVvItQSEi0RE+u+r7rspqF3slNiED2lRBarYli3LJX2GMb1cRBw=="
+  "publishedAt": "2026-11-17T10:29:43.567Z",
+  "signature": "+efSL30vSCTIuprDks7kzmBE0d+wKHoZ8Jux68IJ3bDWEBHd880frdJZPw3JSHt1f03d/gaC8Q6/evgY5fFMBA=="
 }
