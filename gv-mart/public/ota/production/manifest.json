@@ -1,0 +1,11 @@
+{
+  "channel": "production",
+  "version": "2026-11-17-b1",
+  "buildNumber": 1,
+  "url": "https://gv-mart.vercel.app/ota/production/bundle-1.zip",
+  "checksum": "1f80f823613c2e3296b8522156d8166947c56c7ad157b1b4192fb5ac08ddccb2",
+  "minNativeBuild": 1,
+  "frozen": false,
+  "publishedAt": "2026-11-17T09:45:13.660Z",
+  "signature": "++TfKZNNyAEqv2lrl/R1MqXjXVDygm8cICknVvItQSEi0RE+u+r7rspqF3slNiED2lRBarYli3LJX2GMb1cRBw=="
+}
