@@ -8,13 +8,14 @@ import {
   useAudienceSegments,
   useDeleteAudienceSegment,
   useSaveAudienceSegment,
+  useSegmentFieldValues,
   useSegmentMatchCount,
   useSegmentMatchPreview,
   useSegmentRuns,
   useSendSegmentNow,
   useSetSegmentStanding,
 } from "@/hooks/useAudienceSegments"
-import { SEGMENT_FIELDS, type SegmentConditionLeaf, type SegmentConditionTree } from "@/services/audienceSegments"
+import { SEGMENT_FIELDS, SEGMENT_TEXT_OPERATORS, type SegmentConditionLeaf, type SegmentConditionTree } from "@/services/audienceSegments"
 import { cn } from "@/lib/utils"
 
 /** Advanced/secondary automation — build an audience from any combination of customer + purchase
@@ -25,7 +26,33 @@ function emptyTree(): SegmentConditionTree {
   return { op: "and", conditions: [{ field: SEGMENT_FIELDS[0].field, operator: "=", value: "" }] }
 }
 
-function ConditionBuilder({ tree, onChange }: { tree: SegmentConditionTree; onChange: (t: SegmentConditionTree) => void }) {
+/** One leaf's value box — a native text input with a <datalist> of real existing values for the
+ * chosen field, so the admin can pick from what's actually in the data instead of typing blind
+ * (free typing still works; the datalist only suggests). */
+function ConditionValueInput({ orgId, field, value, onChange }: { orgId: string; field: string; value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation()
+  const listId = `segment-field-values-${field}`
+  const { data: suggestions } = useSegmentFieldValues(orgId, field, value)
+
+  return (
+    <>
+      <input
+        className="rounded border border-border bg-surface px-2 py-1 text-xs"
+        placeholder={t("automation.segments.valuePlaceholder")}
+        list={listId}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <datalist id={listId}>
+        {(suggestions ?? []).map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+    </>
+  )
+}
+
+function ConditionBuilder({ orgId, tree, onChange }: { orgId: string; tree: SegmentConditionTree; onChange: (t: SegmentConditionTree) => void }) {
   const { t } = useTranslation()
   const leaves = tree.conditions as SegmentConditionLeaf[]
 
@@ -57,7 +84,7 @@ function ConditionBuilder({ tree, onChange }: { tree: SegmentConditionTree; onCh
             <select
               className="rounded border border-border bg-surface px-2 py-1 text-xs"
               value={leaf.field}
-              onChange={(e) => updateLeaf(i, { field: e.target.value, value: fieldDef.kind === "boolean" ? true : "" })}
+              onChange={(e) => updateLeaf(i, { field: e.target.value, operator: "=", value: fieldDef.kind === "boolean" ? true : "" })}
             >
               {SEGMENT_FIELDS.map((f) => (
                 <option key={f.field} value={f.field}>
@@ -75,12 +102,25 @@ function ConditionBuilder({ tree, onChange }: { tree: SegmentConditionTree; onCh
                 <option value="false">{t("automation.segments.no")}</option>
               </select>
             ) : (
-              <input
-                className="rounded border border-border bg-surface px-2 py-1 text-xs"
-                placeholder={t("automation.segments.valuePlaceholder")}
-                value={typeof leaf.value === "string" ? leaf.value : ""}
-                onChange={(e) => updateLeaf(i, { value: e.target.value })}
-              />
+              <>
+                <select
+                  className="rounded border border-border bg-surface px-2 py-1 text-xs"
+                  value={leaf.operator}
+                  onChange={(e) => updateLeaf(i, { operator: e.target.value })}
+                >
+                  {SEGMENT_TEXT_OPERATORS.map((o) => (
+                    <option key={o.operator} value={o.operator}>
+                      {t(`automation.segments.operator.${o.operator === "=" ? "equals" : "contains"}`)}
+                    </option>
+                  ))}
+                </select>
+                <ConditionValueInput
+                  orgId={orgId}
+                  field={leaf.field}
+                  value={typeof leaf.value === "string" ? leaf.value : ""}
+                  onChange={(v) => updateLeaf(i, { value: v })}
+                />
+              </>
             )}
             <Button size="sm" variant="ghost" onClick={() => removeLeaf(i)} disabled={leaves.length <= 1}>
               <Trash2 className="size-3.5" />
@@ -125,7 +165,7 @@ function NewSegmentPanel({ orgId }: { orgId: string }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      <ConditionBuilder tree={tree} onChange={setTree} />
+      <ConditionBuilder orgId={orgId} tree={tree} onChange={setTree} />
 
       <div className="flex items-center gap-2">
         <span className="text-xs text-text-muted">{t("automation.segments.matchingNow")}:</span>

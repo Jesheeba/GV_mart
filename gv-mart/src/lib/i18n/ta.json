@@ -4386,6 +4386,10 @@
       "ofTheseConditions": "இந்த நிபந்தனைகளில்",
       "addCondition": "நிபந்தனை சேர்",
       "valuePlaceholder": "மதிப்பு",
+      "operator": {
+        "equals": "சமம்",
+        "contains": "கொண்டுள்ளது"
+      },
       "yes": "ஆம்",
       "no": "இல்லை",
       "matchingNow": "இப்போது பொருந்துபவர்",

@@ -4391,6 +4391,10 @@
       "ofTheseConditions": "of these conditions",
       "addCondition": "Add condition",
       "valuePlaceholder": "Value",
+      "operator": {
+        "equals": "equals",
+        "contains": "contains"
+      },
       "yes": "Yes",
       "no": "No",
       "matchingNow": "Matching now",
