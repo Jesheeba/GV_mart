@@ -113,6 +113,7 @@ type VisitDraftData = {
   evidenceImages: string[]
   selectedSpares: SelectedSpare[]
   selectedInstallations: SelectedInstallation[]
+  discountEnabled: boolean
   discountInput: string
   discountMode: "percent" | "amount"
   discountAmountInput: string
@@ -210,6 +211,9 @@ export function OnSiteVisitPage() {
   // selectedSpares: logs which products were newly installed, for incentive
   // counting, not parts consumed as a repair.
   const [selectedInstallations, setSelectedInstallations] = useState<SelectedInstallation[]>([])
+  // Off by default — discount is an exception the technician opts into at
+  // the invoice step, not a mandatory question on every job.
+  const [discountEnabled, setDiscountEnabled] = useState(false)
   const [discountInput, setDiscountInput] = useState("0")
   // Task 1 — technician can enter the discount as a ₹ amount instead of a
   // %; the underlying `discountPercent` (derived below, right after
@@ -386,6 +390,7 @@ export function OnSiteVisitPage() {
       if (d.evidenceImages?.length) setEvidenceImages(d.evidenceImages)
       if (d.selectedSpares?.length) setSelectedSpares(d.selectedSpares)
       if (d.selectedInstallations?.length) setSelectedInstallations(d.selectedInstallations)
+      if (d.discountEnabled != null) setDiscountEnabled(d.discountEnabled)
       if (d.discountInput != null) setDiscountInput(d.discountInput)
       if (d.discountMode) setDiscountMode(d.discountMode)
       if (d.discountAmountInput != null) setDiscountAmountInput(d.discountAmountInput)
@@ -439,6 +444,7 @@ export function OnSiteVisitPage() {
     evidenceImages,
     selectedSpares,
     selectedInstallations,
+    discountEnabled,
     discountInput,
     discountMode,
     discountAmountInput,
@@ -491,6 +497,7 @@ export function OnSiteVisitPage() {
     setSelectedTemplateId("")
     setEvidenceImages([])
     setSelectedSpares([])
+    setDiscountEnabled(false)
     setDiscountInput("0")
     setDiscountMode("percent")
     setDiscountAmountInput("0")
@@ -715,8 +722,9 @@ export function OnSiteVisitPage() {
   // banners, invoice total, create_service_invoice payload) only ever sees
   // the resulting `discountPercent`, so the admin's existing % policy and
   // approval logic apply identically regardless of which mode was used.
-  const discountPercent =
-    discountMode === "amount"
+  const discountPercent = !discountEnabled
+    ? 0
+    : discountMode === "amount"
       ? subtotal > 0
         ? Math.max(0, ((Number(discountAmountInput) || 0) / subtotal) * 100)
         : 0
@@ -802,7 +810,6 @@ export function OnSiteVisitPage() {
   function canAdvanceFrom(key: (typeof STEP_KEYS)[number]) {
     if (key === "sop") return sopAllDone
     if (key === "spares") return !!beforeImage
-    if (key === "charges") return !isDiscountBlocked(discountPercent, adminMax)
     if (key === "ro") return roValid
     if (key === "afterphoto") return !!afterImage && stickerStepDone
     if (key === "invoice") return invoiceQueued
@@ -1262,47 +1269,8 @@ export function OnSiteVisitPage() {
             {!chargeable ? <p className="text-xs text-text-muted">{t("technician.onsite.charges.notChargeableNote", { type: t(`service.type.${ticket.type ?? "warranty"}`) })}</p> : null}
           </div>
 
-          <div className="space-y-1.5 px-1">
-            <Label htmlFor="discount">{t("technician.onsite.charges.discountLabel")}</Label>
-            <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-              {(["percent", "amount"] as const).map((m) => (
-                <SegButton key={m} active={discountMode === m} onClick={() => setDiscountMode(m)}>
-                  {t(`technician.onsite.charges.discountMode.${m}`)}
-                </SegButton>
-              ))}
-            </div>
-            {discountMode === "amount" ? (
-              <>
-                <Input
-                  id="discountAmount"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={discountAmountInput}
-                  onChange={(e) => setDiscountAmountInput(e.target.value)}
-                  className="w-32"
-                />
-                <p className="text-xs text-text-muted">
-                  {t("technician.onsite.charges.computedPercent", { percent: discountPercent.toFixed(1) })}
-                </p>
-              </>
-            ) : (
-              <Input id="discount" type="number" min={0} max={adminMax} step="0.5" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-32" />
-            )}
-            <p className="text-xs text-text-muted">{t("technician.onsite.charges.freeUpTo", { max: techMax })}</p>
-            <p className="text-xs text-warning">{t("technician.onsite.charges.approvalBand", { min: techMax, max: adminMax })}</p>
-            <p className="text-xs text-danger">{t("technician.onsite.charges.blockedAbove", { max: adminMax })}</p>
-            {isDiscountBlocked(discountPercent, adminMax) ? (
-              <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{t("technician.onsite.charges.blockedMessage", { max: adminMax })}</p>
-            ) : discountNeedsApproval(discountPercent, techMax, adminMax) ? (
-              <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{t("technician.onsite.charges.needsApprovalMessage")}</p>
-            ) : null}
-          </div>
-
           <div className="space-y-1 px-1 text-sm">
             <div className="flex justify-between"><span className="text-text-muted">{t("technician.onsite.charges.subtotal")}</span><span className="text-text">{formatCurrency(subtotal)}</span></div>
-            <div className="flex justify-between"><span className="text-text-muted">{t("technician.onsite.charges.discountAmount")}</span><span className="text-text">-{formatCurrency(discountAmount)}</span></div>
-            <div className="flex justify-between font-semibold"><span className="text-text">{t("technician.onsite.charges.total")}</span><span className="text-text">{formatCurrency(invoiceTotal)}</span></div>
           </div>
         </Card>
       ) : null}
@@ -1545,16 +1513,85 @@ export function OnSiteVisitPage() {
                 <span>{formatCurrency(chargeable ? s.price * s.qty : 0)}</span>
               </div>
             ))}
-            <div className="flex justify-between border-t border-border pt-1 font-semibold"><span className="text-text">{t("technician.onsite.charges.total")}</span><span className="text-text">{formatCurrency(invoiceTotal)}</span></div>
           </div>
           {!chargeable ? <p className="px-1 text-xs text-text-muted">{t("technician.jobDetail.costingRuleFree")}</p> : null}
+
+          {chargeable && subtotal > 0 ? (
+            <div className="space-y-1.5 border-t border-border px-1 pt-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="discount">{t("technician.onsite.charges.discountLabel")}</Label>
+                <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
+                  {([false, true] as const).map((v) => (
+                    <SegButton
+                      key={String(v)}
+                      active={discountEnabled === v}
+                      onClick={() => {
+                        setDiscountEnabled(v)
+                        if (!v) {
+                          setDiscountInput("0")
+                          setDiscountAmountInput("0")
+                        }
+                      }}
+                    >
+                      {t(v ? "common.yes" : "common.no")}
+                    </SegButton>
+                  ))}
+                </div>
+              </div>
+              {discountEnabled ? (
+                <>
+                  <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
+                    {(["percent", "amount"] as const).map((m) => (
+                      <SegButton key={m} active={discountMode === m} onClick={() => setDiscountMode(m)}>
+                        {t(`technician.onsite.charges.discountMode.${m}`)}
+                      </SegButton>
+                    ))}
+                  </div>
+                  {discountMode === "amount" ? (
+                    <>
+                      <Input
+                        id="discountAmount"
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={discountAmountInput}
+                        onChange={(e) => setDiscountAmountInput(e.target.value)}
+                        className="w-32"
+                      />
+                      <p className="text-xs text-text-muted">
+                        {t("technician.onsite.charges.computedPercent", { percent: discountPercent.toFixed(1) })}
+                      </p>
+                    </>
+                  ) : (
+                    <Input id="discount" type="number" min={0} max={adminMax} step="0.5" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-32" />
+                  )}
+                  <p className="text-xs text-text-muted">{t("technician.onsite.charges.freeUpTo", { max: techMax })}</p>
+                  <p className="text-xs text-warning">{t("technician.onsite.charges.approvalBand", { min: techMax, max: adminMax })}</p>
+                  <p className="text-xs text-danger">{t("technician.onsite.charges.blockedAbove", { max: adminMax })}</p>
+                  {isDiscountBlocked(discountPercent, adminMax) ? (
+                    <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{t("technician.onsite.charges.blockedMessage", { max: adminMax })}</p>
+                  ) : discountNeedsApproval(discountPercent, techMax, adminMax) ? (
+                    <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{t("technician.onsite.charges.needsApprovalMessage")}</p>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="space-y-1 px-1 text-sm">
+            <div className="flex justify-between"><span className="text-text-muted">{t("technician.onsite.charges.subtotal")}</span><span className="text-text">{formatCurrency(subtotal)}</span></div>
+            {discountEnabled ? (
+              <div className="flex justify-between"><span className="text-text-muted">{t("technician.onsite.charges.discountAmount")}</span><span className="text-text">-{formatCurrency(discountAmount)}</span></div>
+            ) : null}
+            <div className="flex justify-between border-t border-border pt-1 font-semibold"><span className="text-text">{t("technician.onsite.charges.total")}</span><span className="text-text">{formatCurrency(invoiceTotal)}</span></div>
+          </div>
 
           {invoiceQueued ? (
             <p className="flex items-center gap-1.5 rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success">
               <CheckCircle2 className="size-4" /> {t("technician.onsite.invoice.queued")}
             </p>
           ) : (
-            <Button type="button" onClick={handleCreateInvoice} disabled={createInvoice.isPending || !visitId}>
+            <Button type="button" onClick={handleCreateInvoice} disabled={createInvoice.isPending || !visitId || isDiscountBlocked(discountPercent, adminMax)}>
               {createInvoice.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.invoice.create")}
             </Button>
           )}

@@ -26,7 +26,7 @@ import { SaleSummaryPanel } from "./SaleSummaryPanel"
 import { cartIsEmpty, combinedSubtotal, payableTotal, type CartProductLine, type CartSpareLine, type SaleCartState } from "./types"
 import type { Enums } from "@/types/database"
 
-const STEP_KEYS = ["customer", "items", "discount", "gift", "payment", "review"] as const
+const STEP_KEYS = ["customer", "items", "gift", "payment", "review"] as const
 const DRAFT_KEY = "gv_mart_draft:admin_new_sale"
 
 /** Restorable subset of the wizard's state — see useLocalDraft. Skipped
@@ -39,6 +39,7 @@ type NewSaleDraftData = {
   customerLabel: string
   customerSearch: string
   cart: SaleCartState
+  discountEnabled: boolean
   discountInput: string
   discountAmountInput: string
   giftId: string | null
@@ -79,9 +80,12 @@ export function NewSalePage() {
   const customerResults = useCustomerAutocomplete(orgId, customerSearch)
 
   const [cart, setCart] = useState<SaleCartState>({ productLines: [], spareLines: [], amc: null })
+  // Off by default — discount is an exception the cashier opts into at the
+  // last step, not a mandatory question on every sale.
+  const [discountEnabled, setDiscountEnabled] = useState(false)
   const [discountInput, setDiscountInput] = useState("0")
   const [discountAmountInput, setDiscountAmountInput] = useState("0")
-  const discountPercent = Math.max(0, Number(discountInput) || 0)
+  const discountPercent = discountEnabled ? Math.max(0, Number(discountInput) || 0) : 0
   const [giftId, setGiftId] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method">>("cash")
   const [txnId, setTxnId] = useState("")
@@ -210,6 +214,7 @@ export function NewSalePage() {
     customerLabel,
     customerSearch,
     cart,
+    discountEnabled,
     discountInput,
     discountAmountInput,
     giftId,
@@ -233,6 +238,7 @@ export function NewSalePage() {
     if (restoredDraft.customerLabel) setCustomerLabel(restoredDraft.customerLabel)
     if (restoredDraft.customerSearch) setCustomerSearch(restoredDraft.customerSearch)
     if (restoredDraft.cart) setCart(restoredDraft.cart)
+    if (restoredDraft.discountEnabled != null) setDiscountEnabled(restoredDraft.discountEnabled)
     if (restoredDraft.discountInput != null) setDiscountInput(restoredDraft.discountInput)
     if (restoredDraft.discountAmountInput != null) setDiscountAmountInput(restoredDraft.discountAmountInput)
     if (restoredDraft.giftId !== undefined) setGiftId(restoredDraft.giftId)
@@ -265,7 +271,6 @@ export function NewSalePage() {
   function canAdvanceFrom(index: number) {
     if (index === 0) return !!customerId
     if (index === 1) return !cartIsEmpty(cart)
-    if (index === 2) return !isDiscountBlocked(discountPercent, adminMax)
     return true
   }
 
@@ -280,8 +285,8 @@ export function NewSalePage() {
       return
     }
     setPaymentError(null)
-    setStep(5)
-    setMaxStepReached((m) => Math.max(m, 5))
+    setStep(4)
+    setMaxStepReached((m) => Math.max(m, 4))
   }
 
   function stockGapMessage(): string | null {
@@ -354,6 +359,7 @@ export function NewSalePage() {
             setCustomerLabel("")
             setCustomerSearch("")
             setCart({ productLines: [], spareLines: [], amc: null })
+            setDiscountEnabled(false)
             setDiscountInput("0")
             setDiscountAmountInput("0")
             setGiftId(null)
@@ -414,62 +420,6 @@ export function NewSalePage() {
 
           {step === 2 ? (
             <Card className="gap-3 px-5">
-              <Label>{t("sales.discount.label")}</Label>
-              <div className="flex flex-wrap items-start gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="discount" className="text-xs text-text-muted">
-                    {t("sales.discount.percentLabel")}
-                  </Label>
-                  <Input
-                    id="discount"
-                    type="number"
-                    min={0}
-                    max={adminMax}
-                    step="0.5"
-                    value={discountInput}
-                    onChange={(e) => {
-                      const raw = e.target.value
-                      setDiscountInput(raw)
-                      const pct = Math.max(0, Number(raw) || 0)
-                      setDiscountAmountInput(((pct / 100) * combined).toFixed(2))
-                    }}
-                    className="w-32"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="discountAmount" className="text-xs text-text-muted">
-                    {t("sales.discount.amountLabel")}
-                  </Label>
-                  <Input
-                    id="discountAmount"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={discountAmountInput}
-                    onChange={(e) => {
-                      const raw = e.target.value
-                      setDiscountAmountInput(raw)
-                      const amt = Math.max(0, Number(raw) || 0)
-                      const pct = combined > 0 ? (amt / combined) * 100 : 0
-                      setDiscountInput(pct.toFixed(2))
-                    }}
-                    className="w-32"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-text-muted">{t("sales.discount.freeUpTo", { max: techMax })}</p>
-              <p className="text-xs text-warning">{t("sales.discount.approvalBand", { min: techMax, max: adminMax })}</p>
-              <p className="text-xs text-danger">{t("sales.discount.blockedAbove", { max: adminMax })}</p>
-              {isDiscountBlocked(discountPercent, adminMax) ? (
-                <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{t("sales.discount.blockedMessage", { max: adminMax })}</p>
-              ) : discountNeedsApproval(discountPercent, techMax, adminMax) ? (
-                <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{t("sales.discount.needsApprovalMessage")}</p>
-              ) : null}
-            </Card>
-          ) : null}
-
-          {step === 3 ? (
-            <Card className="gap-3 px-5">
               <p className="text-sm font-semibold text-text">{t("sales.gift.title")}</p>
               {eligibleGifts.length === 0 ? (
                 <p className="text-sm text-text-muted">{t("sales.gift.noneEligible")}</p>
@@ -508,7 +458,7 @@ export function NewSalePage() {
             </Card>
           ) : null}
 
-          {step === 4 ? (
+          {step === 3 ? (
             <Card className="gap-3 px-5">
               <Label>{t("sales.payment.method")}</Label>
               <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
@@ -588,16 +538,95 @@ export function NewSalePage() {
             </Card>
           ) : null}
 
-          {step === 5 ? (
+          {step === 4 ? (
             <Card className="gap-3 px-5">
               <p className="text-sm font-semibold text-text">{t("sales.review.title")}</p>
               <p className="text-sm text-text">{t("sales.review.customer", { customer: customerLabel })}</p>
-              <p className="text-sm text-text">{t("sales.review.discount", { percent: discountPercent })}</p>
               <p className="text-sm text-text">{t("sales.review.payment", { method: t(`sales.payment.${paymentMethod}`) })}</p>
               {selectedGift ? <p className="text-sm text-success">{t("sales.summary.giftApplied", { gift: selectedGift.name })}</p> : null}
               {redeemPoints > 0 ? (
                 <p className="text-sm text-success">{t("sales.review.redeemPoints", { points: redeemPoints, amount: formatCurrency(redeemAmount) })}</p>
               ) : null}
+
+              <div className="space-y-1.5 border-t border-border pt-3">
+                <div className="flex items-center justify-between">
+                  <Label>{t("sales.discount.label")}</Label>
+                  <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
+                    {([false, true] as const).map((v) => (
+                      <button
+                        key={String(v)}
+                        type="button"
+                        onClick={() => {
+                          setDiscountEnabled(v)
+                          if (!v) {
+                            setDiscountInput("0")
+                            setDiscountAmountInput("0")
+                          }
+                        }}
+                        className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${discountEnabled === v ? "bg-ink text-white" : "text-text-muted"}`}
+                      >
+                        {t(v ? "common.yes" : "common.no")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {discountEnabled ? (
+                  <>
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="discount" className="text-xs text-text-muted">
+                          {t("sales.discount.percentLabel")}
+                        </Label>
+                        <Input
+                          id="discount"
+                          type="number"
+                          min={0}
+                          max={adminMax}
+                          step="0.5"
+                          value={discountInput}
+                          onChange={(e) => {
+                            const raw = e.target.value
+                            setDiscountInput(raw)
+                            const pct = Math.max(0, Number(raw) || 0)
+                            setDiscountAmountInput(((pct / 100) * combined).toFixed(2))
+                          }}
+                          className="w-32"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="discountAmount" className="text-xs text-text-muted">
+                          {t("sales.discount.amountLabel")}
+                        </Label>
+                        <Input
+                          id="discountAmount"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={discountAmountInput}
+                          onChange={(e) => {
+                            const raw = e.target.value
+                            setDiscountAmountInput(raw)
+                            const amt = Math.max(0, Number(raw) || 0)
+                            const pct = combined > 0 ? (amt / combined) * 100 : 0
+                            setDiscountInput(pct.toFixed(2))
+                          }}
+                          className="w-32"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-text-muted">{t("sales.discount.freeUpTo", { max: techMax })}</p>
+                    <p className="text-xs text-warning">{t("sales.discount.approvalBand", { min: techMax, max: adminMax })}</p>
+                    <p className="text-xs text-danger">{t("sales.discount.blockedAbove", { max: adminMax })}</p>
+                    {isDiscountBlocked(discountPercent, adminMax) ? (
+                      <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{t("sales.discount.blockedMessage", { max: adminMax })}</p>
+                    ) : discountNeedsApproval(discountPercent, techMax, adminMax) ? (
+                      <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{t("sales.discount.needsApprovalMessage")}</p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-sm text-text">{t("sales.review.discount", { percent: 0 })}</p>
+                )}
+              </div>
 
               <div className="space-y-1.5 border-t border-border pt-3">
                 <Label>{t("common.referredByTechnician")}</Label>
@@ -631,7 +660,7 @@ export function NewSalePage() {
         <Button type="button" variant="outline" onClick={() => (step === 0 ? navigate(-1) : setStep(step - 1))}>
           {step === 0 ? t("common.cancel") : t("sales.newSale.back")}
         </Button>
-        {step < 4 ? (
+        {step < 3 ? (
           <Button
             type="button"
             disabled={!canAdvanceFrom(step)}
@@ -643,12 +672,12 @@ export function NewSalePage() {
           >
             {t("sales.newSale.next")}
           </Button>
-        ) : step === 4 ? (
+        ) : step === 3 ? (
           <Button type="button" onClick={handlePaymentContinue}>
             {t("sales.newSale.next")}
           </Button>
         ) : (
-          <Button type="button" onClick={handleGenerate} disabled={createSale.isPending}>
+          <Button type="button" onClick={handleGenerate} disabled={createSale.isPending || isDiscountBlocked(discountPercent, adminMax)}>
             {createSale.isPending ? <Loader2 className="size-4 animate-spin" /> : t("sales.newSale.generate")}
           </Button>
         )}
