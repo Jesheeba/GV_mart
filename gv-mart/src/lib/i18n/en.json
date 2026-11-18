@@ -4392,6 +4392,10 @@
       "ofTheseConditions": "of these conditions",
       "addCondition": "Add condition",
       "valuePlaceholder": "Value",
+      "operator": {
+        "equals": "equals",
+        "contains": "contains"
+      },
       "yes": "Yes",
       "no": "No",
       "matchingNow": "Matching now",
@@ -5579,6 +5583,9 @@
     "needsReviewLinkTitle": "Matching records",
     "needsReviewLinkNoContact": "This customer has no mobile or email on file yet to check against.",
     "needsReviewLinkViewCustomer": "View customer",
+    "arrivalMismatchLinkTitle": "Technician arrived outside the pinned location",
+    "arrivalMismatchLinkBody": "The map pin may be wrong or stale. Open the customer and drop a corrected pin.",
+    "arrivalMismatchLinkViewCustomer": "View customer",
     "due": "Due {{date}}",
     "filters": {
       "open": "Open",
@@ -5653,7 +5660,9 @@
       "enquiry_lead": "New enquiry",
       "callback_requested": "Callback requested",
       "wa_lead_captured": "New WhatsApp lead",
-      "customer_needs_review": "Customer needs account review"
+      "customer_needs_review": "Customer needs account review",
+      "arrival_location_mismatch": "Address may need a recheck",
+      "arrival_location_mismatch_flood": "Multiple addresses need a recheck"
     }
   },
   "approvals": {

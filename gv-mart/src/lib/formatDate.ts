@@ -26,3 +26,11 @@ export function formatDateTime(value: string | number | Date | null | undefined)
   const timePart = date.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: IST_TIME_ZONE })
   return `${datePart}, ${timePart}`
 }
+
+/** IST time only, lowercase am/pm — "4:54 pm", for chat-style timestamps. */
+export function formatTime(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined || value === "") return ""
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: IST_TIME_ZONE }).toLowerCase()
+}

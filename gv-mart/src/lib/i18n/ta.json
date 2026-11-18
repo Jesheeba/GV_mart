@@ -4387,6 +4387,10 @@
       "ofTheseConditions": "இந்த நிபந்தனைகளில்",
       "addCondition": "நிபந்தனை சேர்",
       "valuePlaceholder": "மதிப்பு",
+      "operator": {
+        "equals": "சமம்",
+        "contains": "கொண்டுள்ளது"
+      },
       "yes": "ஆம்",
       "no": "இல்லை",
       "matchingNow": "இப்போது பொருந்துபவர்",
@@ -5574,6 +5578,9 @@
     "needsReviewLinkTitle": "பொருந்தும் பதிவுகள்",
     "needsReviewLinkNoContact": "இந்த வாடிக்கையாளருக்கு இன்னும் மொபைல் அல்லது மின்னஞ்சல் பதிவு செய்யப்படவில்லை.",
     "needsReviewLinkViewCustomer": "வாடிக்கையாளரைக் காண்க",
+    "arrivalMismatchLinkTitle": "பின் செய்யப்பட்ட இடத்திற்கு வெளியே தொழில்நுட்ப நிபுணர் வந்தடைந்தார்",
+    "arrivalMismatchLinkBody": "வரைபடப் பின் தவறாக அல்லது பழையதாக இருக்கலாம். வாடிக்கையாளரைத் திறந்து சரியான பின்னை இடவும்.",
+    "arrivalMismatchLinkViewCustomer": "வாடிக்கையாளரைக் காண்க",
     "due": "நிலுவை {{date}}",
     "filters": {
       "open": "திறந்தவை",
@@ -5648,7 +5655,9 @@
       "enquiry_lead": "புதிய விசாரணை",
       "callback_requested": "அழைப்பு கோரிக்கை",
       "wa_lead_captured": "புதிய வாட்ஸ்அப் லீட்",
-      "customer_needs_review": "வாடிக்கையாளர் கணக்கு மதிப்பாய்வு தேவை"
+      "customer_needs_review": "வாடிக்கையாளர் கணக்கு மதிப்பாய்வு தேவை",
+      "arrival_location_mismatch": "முகவரி மறுபரிசீலனை தேவைப்படலாம்",
+      "arrival_location_mismatch_flood": "பல முகவரிகள் மறுபரிசீலனை தேவைப்படுகின்றன"
     }
   },
   "approvals": {

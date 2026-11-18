@@ -11,6 +11,12 @@ export type AudienceSegmentRunRow = Tables<"audience_segment_runs">
 export type SegmentConditionLeaf = { field: string; operator: string; value: string | boolean | string[] }
 export type SegmentConditionTree = { op: "and" | "or"; conditions: (SegmentConditionLeaf | SegmentConditionTree)[] }
 
+/** Text-field operators the UI offers; boolean fields have no operator control (yes/no is unambiguous). */
+export const SEGMENT_TEXT_OPERATORS = [
+  { operator: "=", label: "equals" },
+  { operator: "contains", label: "contains" },
+] as const
+
 export const SEGMENT_FIELDS = [
   { field: "customer.city", label: "City", kind: "text" },
   { field: "customer.tag", label: "Customer tag", kind: "text" },
@@ -58,6 +64,14 @@ export async function matchPreview(orgId: string, conditionTree: SegmentConditio
   return data ?? []
 }
 
+/** Real existing values for a field (e.g. actual cities/brands already in the data), so the value
+ * box can suggest instead of the admin guessing exact spelling/case blind. */
+export async function segmentFieldValues(orgId: string, field: string, query = ""): Promise<string[]> {
+  const { data, error } = await supabase.rpc("audience_segment_field_values", { p_org_id: orgId, p_field: field, p_query: query })
+  if (error) throw error
+  return (data ?? []).map((r: { value: string }) => r.value).filter((v: string | null): v is string => !!v)
+}
+
 export async function sendSegmentNow(segmentId: string): Promise<string> {
   const { data, error } = await supabase.rpc("audience_segment_send_now", { p_segment_id: segmentId })
   if (error) throw error
@@ -77,7 +91,12 @@ export async function listSegmentRuns(segmentId: string): Promise<AudienceSegmen
 
 /** Approved gvm_* templates available to pick from — the same source the Chunk A/B wiring reads. */
 export async function listApprovedTemplateNames(): Promise<string[]> {
-  const { data, error } = await supabase.from("whatsapp_wasi_templates").select("wasi_name").eq("status", "approved").order("wasi_name")
+  const { data, error } = await supabase
+    .from("whatsapp_wasi_templates")
+    .select("wasi_name")
+    .eq("status", "approved")
+    .ilike("wasi_name", "gvm_%")
+    .order("wasi_name")
   if (error) throw error
   return (data ?? []).map((r) => r.wasi_name)
 }

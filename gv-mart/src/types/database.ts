@@ -7741,6 +7741,10 @@ export type Database = {
         Args: { p_segment_id: string; p_is_standing: boolean; p_wasi_template_name?: string | null }
         Returns: undefined
       }
+      audience_segment_field_values: {
+        Args: { p_org_id: string; p_field: string; p_query?: string }
+        Returns: { value: string }[]
+      }
       set_customer_preferred_language: {
         Args: { p_customer_id: string; p_language: string | null }
         Returns: undefined

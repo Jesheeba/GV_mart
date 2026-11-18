@@ -52,6 +52,10 @@ export function TaskDetailDialog({
   const deleteTask = useDeleteTask()
 
   const isCustomerOutstandingTask = task.ref_type === "customer_outstanding"
+  // Arrival Location Mismatch Alerts (build-docs/features/arrival-location-mismatch-alerts.md):
+  // ref_id is the customer whose pin a technician couldn't reach, same ref_id-is-a-customer
+  // shape as isCustomerNeedsReviewTask below.
+  const isArrivalLocationMismatchTask = task.ref_type === "arrival_location_mismatch"
   const { data: outstandingDetail } = useCustomerOutstandingDetail(
     isCustomerOutstandingTask && profile?.role === "master" ? (task.ref_id ?? undefined) : undefined
   )
@@ -226,6 +230,16 @@ export function TaskDetailDialog({
                 {t("tasks.needsReviewLinkViewCustomer")}
               </Button>
             ) : null}
+          </div>
+        ) : null}
+
+        {isArrivalLocationMismatchTask && task.ref_id ? (
+          <div className="space-y-2 rounded-xl border border-border bg-surface-alt px-3 py-2.5 text-sm">
+            <p className="font-medium text-text">{t("tasks.arrivalMismatchLinkTitle")}</p>
+            <p className="text-text-muted">{t("tasks.arrivalMismatchLinkBody")}</p>
+            <Button type="button" size="sm" variant="outline" onClick={() => navigate(`/admin/customers/${task.ref_id}`)}>
+              {t("tasks.arrivalMismatchLinkViewCustomer")}
+            </Button>
           </div>
         ) : null}
 

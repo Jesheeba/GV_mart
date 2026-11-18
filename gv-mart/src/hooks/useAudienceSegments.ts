@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as segments from "@/services/audienceSegments"
 import type { SegmentConditionTree } from "@/services/audienceSegments"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 
 export function useAudienceSegments(orgId: string | undefined) {
   return useQuery({ queryKey: ["audienceSegments", orgId], queryFn: () => segments.listAudienceSegments(orgId!), enabled: !!orgId })
@@ -57,4 +58,15 @@ export function useSegmentRuns(segmentId: string | undefined) {
 
 export function useApprovedTemplateNames() {
   return useQuery({ queryKey: ["approvedTemplateNames"], queryFn: segments.listApprovedTemplateNames })
+}
+
+/** Suggests real existing values for a field as the admin types, debounced so it doesn't fire on every keystroke. */
+export function useSegmentFieldValues(orgId: string | undefined, field: string, query: string) {
+  const debouncedQuery = useDebouncedValue(query, 300)
+  return useQuery({
+    queryKey: ["segmentFieldValues", orgId, field, debouncedQuery],
+    queryFn: () => segments.segmentFieldValues(orgId!, field, debouncedQuery),
+    enabled: !!orgId && !!field,
+    placeholderData: (prev) => prev,
+  })
 }
