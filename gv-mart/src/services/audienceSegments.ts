@@ -91,7 +91,12 @@ export async function listSegmentRuns(segmentId: string): Promise<AudienceSegmen
 
 /** Approved gvm_* templates available to pick from — the same source the Chunk A/B wiring reads. */
 export async function listApprovedTemplateNames(): Promise<string[]> {
-  const { data, error } = await supabase.from("whatsapp_wasi_templates").select("wasi_name").eq("status", "approved").order("wasi_name")
+  const { data, error } = await supabase
+    .from("whatsapp_wasi_templates")
+    .select("wasi_name")
+    .eq("status", "approved")
+    .ilike("wasi_name", "gvm_%")
+    .order("wasi_name")
   if (error) throw error
   return (data ?? []).map((r) => r.wasi_name)
 }
