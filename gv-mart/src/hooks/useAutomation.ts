@@ -148,7 +148,10 @@ export function useSimulateInboundWhatsapp() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: automation.simulateInboundWhatsapp,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsappOutbox"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["whatsappOutbox"] })
+      qc.invalidateQueries({ queryKey: ["whatsappTranscript"] })
+    },
   })
 }
 export function useFailedWhatsappOutbox(orgId: string | undefined) {
