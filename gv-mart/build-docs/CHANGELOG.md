@@ -1,5 +1,21 @@
 # Changelog
 
+## Arrival Location Mismatch Alerts — 2026-11-18
+Built, committed, NOT applied to live DB (owner must say "GO APPLY" per [[gv-mart-no-db-write-unless-named]]), NOT pushed.
+
+- New migration `20261212120000_arrival_location_mismatch_notify.sql`: AFTER INSERT trigger on
+  `technician_arrival_blocks` → `_notify_arrival_block()`, creates one open task
+  (`ref_type = 'arrival_location_mismatch'`, assigned to oldest active operation_admin/master) +
+  one `notifications` row (role `operation_admin`) per customer whose pin a technician couldn't
+  reach — same fail-safe/dedup/flood-cap shape as `20261204140000_customer_needs_review_notify.sql`.
+  Rollback: `supabase/rollbacks/20261212120000_arrival_location_mismatch_notify.rollback.sql`.
+- `TaskDetailDialog.tsx`: new "View customer" block for this task type (mirrors the existing
+  `isCustomerNeedsReviewTask` block).
+- i18n: `tasks.arrivalMismatch*` + `notifications.types.arrival_location_mismatch[_flood]` (en/ta).
+- Feature doc: `build-docs/features/arrival-location-mismatch-alerts.md`.
+- Full suite 1078/1080 passing (2 pre-existing unrelated failures in `waOutboxSentGuard.test.ts`
+  and `wa-event-context.test.ts`, not touched by this change).
+
 ## Segment Builder (advanced/secondary automation) — 2026-11-13
 Built, not committed/pushed, not applied to live DB (blocked, see TESTING.md).
 

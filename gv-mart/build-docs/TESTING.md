@@ -1,5 +1,14 @@
 # Testing
 
+## Arrival Location Mismatch Alerts
+
+| Area | Test | Result |
+|---|---|---|
+| New i18n keys (en/ta) valid JSON, present in both locales | manual check + `src/lib/i18n/parity.test.ts` | ✅ 2/2 pass |
+| Regression: whole suite after this feature's changes | `npx vitest run` | ✅ 1078/1080 pass (2 pre-existing failures in `waOutboxSentGuard.test.ts`/`wa-event-context.test.ts`, unrelated — not touched by this feature) |
+| Type safety across all edits | `tsc -b` | ✅ clean |
+| New migration (`20261212120000_arrival_location_mismatch_notify.sql`) — trigger + function | manual review against `customer_needs_review_notify`'s already-applied, same-shape precedent (dedup, flood cap, fail-safe exception block) — **not run against any database** (no SQL-trigger/function test harness exists in this repo) | not applied — awaits owner's "GO APPLY" per [[gv-mart-no-db-write-unless-named]] |
+
 ## Segment Builder (advanced/secondary automation)
 
 | Area | Test | Result |
