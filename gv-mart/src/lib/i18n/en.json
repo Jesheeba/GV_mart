@@ -1694,7 +1694,6 @@
     "steps": {
       "customer": "Customer",
       "items": "Items",
-      "discount": "Discount",
       "gift": "Gift",
       "payment": "Payment",
       "review": "Review"
