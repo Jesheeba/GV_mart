@@ -70,5 +70,6 @@
 - Master-only `list_login_activity()` RPC (IST date range ≤366 days, role filter, search, paging ≤200).
 - 90-day retention: `purge_login_sessions()` + pg_cron `purge-login-sessions` daily 02:30 IST.
 - HR → new "Login Activity" tab (`LoginActivityTab.tsx`): Name/phone, Role, Login, Last active, Logout or "Signed in", Duration, Device. en + ta strings.
-- No IP stored (owner decision). Migration NOT applied live yet.
+- No IP stored (owner decision). Migration applied live 2026-11-23.
+- fix: HR tab bar + role chips wrap at phone width (E2E found sideways overflow at 390px).
 - Branch `feat/login-activity`, worktree `_local_only/worktrees/login-activity`.

@@ -26,7 +26,7 @@ export function HrPage() {
       </div>
 
       <Tabs defaultValue="salary">
-        <TabsList>
+        <TabsList className="h-auto max-w-full flex-wrap">
           <TabsTrigger value="salary">{t("hr.tabs.salary")}</TabsTrigger>
           <TabsTrigger value="incentives">{t("hr.tabs.incentives")}</TabsTrigger>
           <TabsTrigger value="rewards">{t("hr.tabs.rewards")}</TabsTrigger>

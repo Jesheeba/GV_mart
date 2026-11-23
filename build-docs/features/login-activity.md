@@ -1,6 +1,6 @@
 # Feature: login-activity (HR → Login Activity tab)
 
-**Status 2026-11-23:** code + tests done, migration `20261213100000_login_activity.sql` rehearsed (rolled back), **NOT applied live**: waits for owner's GO APPLY.
+**Status 2026-11-23:** LIVE. Migration `20261213100000_login_activity.sql` applied on GO APPLY; DB 30/30, unit 27/27, Playwright E2E 20/20.
 
 ## Purpose
 Master needs to see when every user (staff, technicians, customers) signed in and out, with date and time, in its own section under HR. There's no source for this today:

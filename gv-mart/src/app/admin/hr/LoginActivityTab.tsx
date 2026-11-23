@@ -95,7 +95,7 @@ export function LoginActivityTab() {
         </div>
       </div>
 
-      <div role="group" aria-label={t("hr.loginActivity.role")} className="flex gap-[3px] self-start rounded-full border border-border bg-surface-alt p-1 w-fit">
+      <div role="group" aria-label={t("hr.loginActivity.role")} className="flex w-fit max-w-full flex-wrap gap-[3px] self-start rounded-3xl border border-border bg-surface-alt p-1">
         {LOGIN_ROLE_FILTERS.map((r) => (
           <SegButton key={r} active={role === r} onClick={() => update(setRole)(r)}>
             {t(`hr.loginActivity.filters.${r}`)}

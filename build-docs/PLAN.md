@@ -37,7 +37,7 @@ Each feature ships as its own commit per the global workflow (design doc already
 ## 5. Build order rationale
 Chips/tiles/filter (1–3) touch no schema and are safe to ship first, independently reviewable. Detail-field and referral migrations (4–5) are additive-only (`alter table ... add column`, nullable) so they don't block 1–3. Reminders (6) depends on the detail page already having its new layout from 1–3 and the follow-up actor concept from 3.
 
-## 7. Login Activity in HR (approved + built 2026-11-23; migration awaits GO APPLY)
+## 7. Login Activity in HR (approved, built, LIVE 2026-11-23)
 - **Goal:** master sees every user's (staff, technicians, customers) sign-in/sign-out date and time in a separate HR tab.
 - **Out of scope:** attendance/working hours, payroll, real-time "who's online now" push, alerts on suspicious logins, history from before deploy (none exists: auth audit log is empty).
 - **Single feature:** [login-activity](features/login-activity.md): `login_sessions` table filled by `auth.sessions` triggers + master-only RPC + HR tab.
