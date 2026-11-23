@@ -4898,7 +4898,42 @@
       "salary": "Salary",
       "staffSalary": "Staff Salary",
       "incentives": "Incentives",
-      "rewards": "Rewards"
+      "rewards": "Rewards",
+      "loginActivity": "Login Activity"
+    },
+    "loginActivity": {
+      "name": "Name",
+      "role": "Role",
+      "login": "Login",
+      "lastActive": "Last active",
+      "logout": "Logout",
+      "signedIn": "Signed in",
+      "duration": "Duration",
+      "device": "Device",
+      "from": "From",
+      "to": "To",
+      "search": "Search",
+      "searchPlaceholder": "Name or phone",
+      "filters": {
+        "all": "All",
+        "staff": "Staff",
+        "technician": "Technicians",
+        "customer": "Customers"
+      },
+      "roles": {
+        "master": "Master",
+        "operation_admin": "Operations Admin",
+        "sales_admin": "Sales Admin",
+        "technician": "Technician",
+        "customer": "Customer"
+      },
+      "invalidRange": "Choose a valid date range (From before To, at most 366 days).",
+      "loadFailed": "Couldn't load login activity.",
+      "empty": "No logins in this period.",
+      "pageInfo": "Page {{page}} of {{pages}} · {{total}} logins",
+      "prev": "Previous",
+      "next": "Next",
+      "note": "Times are IST. Logout shows only when someone signs out or the session expires; closing the app keeps them signed in, so check Last active. History is kept for 90 days."
     },
     "salary": {
       "month": "Month",

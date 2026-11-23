@@ -64,3 +64,11 @@
 - `LeadDetailPage.tsx`: removed `interactionMode` state and the `openInteraction(mode)` helper; the button and the `reopen` path both just call `setInteractionOpen(true)` and let the sheet default to "outcome". The "Set follow-up" button (for leads with no follow-up yet, a different RPC/dialog) is unchanged.
 - `FollowupCard.tsx`: `onLogInteraction` prop dropped its `mode` argument; `MyDayPage.tsx` simplified to match (`onLogInteraction={setInteractionFor}`, no `interactionMode` state).
 - Removed the now-orphaned i18n keys `leads.followup.logOutcome` and `leads.followup.reschedule` (en + ta) — nothing references them after the button merge; `leads.interaction.title` and the in-sheet mode labels replace them.
+
+## login-activity (2026-11-23)
+- New `public.login_sessions` table filled by 3 triggers on `auth.sessions` (login / token refresh / sign-out); errors swallowed so logins can't be blocked. Backfills currently open sessions.
+- Master-only `list_login_activity()` RPC (IST date range ≤366 days, role filter, search, paging ≤200).
+- 90-day retention: `purge_login_sessions()` + pg_cron `purge-login-sessions` daily 02:30 IST.
+- HR → new "Login Activity" tab (`LoginActivityTab.tsx`): Name/phone, Role, Login, Last active, Logout or "Signed in", Duration, Device. en + ta strings.
+- No IP stored (owner decision). Migration NOT applied live yet.
+- Branch `feat/login-activity`, worktree `_local_only/worktrees/login-activity`.

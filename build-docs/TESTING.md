@@ -50,3 +50,11 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Existing assignment filter (`assignedFilter`) on `LeadsPage.tsx`.
 - Existing stage-change buttons, quotation creation, referral-points award flow on `LeadDetailPanel.tsx`.
 - Existing `MyDayPage.tsx` follow-up worklist (overdue/today/upcoming/none tabs).
+
+## login-activity (2026-11-23)
+- DB: `supabase/tests/login_activity.test.sql`, 30 checks, run as an always-rolled-back rehearsal (migration + test, one txn, ends in RAISE) on live: **30/30 ok**. Covers AC1 (capture, one row/session, refresh → last_seen), AC2 (sign-out + `revoke_user_sessions` → ended_at), AC3 (forced capture failure still lets the login commit), AC4/AC5 (role/date/search/paging, LIKE wildcards literal), AC6 (sales_admin/technician/customer/anon rejected, direct select denied), AC7 (cross-org isolation), retention purge, grants, cron.
+- Post-rehearsal live check: table/function/triggers/cron job/test orgs all absent → rollback verified, nothing written.
+- Unit: `src/services/loginActivity.test.ts`, 31 tests pass (RPC param mapping, invalid input never reaches RPC, device labels, duration).
+- Regression: `tsc --noEmit -p tsconfig.app.json` clean; full suite 1105 passed / 2 failed / 17 skipped. Both failures (`waOutboxSentGuard`, `wa-event-context` audience_segment_match) are **pre-existing on origin/main**: same 2 fail with this feature's changes stashed.
+- Not tested: visual check of the tab against live data (needs the migration applied first). No ESLint config in repo.
+- Gotcha: vitest on Windows fails with "failed to find the runner" when cwd uses lowercase `c:`; run from `C:\...`.

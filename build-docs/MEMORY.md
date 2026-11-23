@@ -41,3 +41,8 @@
 
 ## Postgres gotcha: DROP FUNCTION drops its GRANTs (2026-11-11)
 - When a RETURNS TABLE(...) function's output columns change, DROP FUNCTION + CREATE OR REPLACE is required (plain CREATE OR REPLACE errors: "cannot change return type of existing function"). But DROP FUNCTION makes a brand-new function object -- any prior explicit GRANT EXECUTE is gone, falling back to schema defaults. This broke list_followups/list_leads_without_followup's authenticated execute grant and took down Daily Follow Up for every role. **Lesson: whenever a live RPC signature change requires DROP FUNCTION, re-grant execute to whatever roles it had before (check with has_function_privilege(role, func, 'execute') before AND after) in the same migration -- never assume CREATE OR REPLACE alone preserves permissions once a DROP happened.**
+
+## Login Activity decisions (2026-11-23)
+- No login history exists before this feature: `auth.audit_log_entries` is empty on this project, `auth.sessions` deletes rows on sign-out. Capture via triggers on `auth.sessions` → `public.login_sessions`.
+- Owner chose: login+logout+last active+duration; device only, **no IP**; **90-day** retention; customers in same HR tab with role filter.
+- Trigger must swallow its own errors: a failing trigger on `auth.sessions` would block every login.

@@ -7,6 +7,7 @@ import { SalaryTab } from "./SalaryTab"
 import { StaffSalaryTab } from "./StaffSalaryTab"
 import { IncentivesTab } from "./IncentivesTab"
 import { RewardsTab } from "./RewardsTab"
+import { LoginActivityTab } from "./LoginActivityTab"
 
 // 2026-10-28 nav audit: Salary and Staff Salary used to be two separate tabs
 // even though both just write to the same `expenses` (category='salary')
@@ -29,6 +30,7 @@ export function HrPage() {
           <TabsTrigger value="salary">{t("hr.tabs.salary")}</TabsTrigger>
           <TabsTrigger value="incentives">{t("hr.tabs.incentives")}</TabsTrigger>
           <TabsTrigger value="rewards">{t("hr.tabs.rewards")}</TabsTrigger>
+          <TabsTrigger value="loginActivity">{t("hr.tabs.loginActivity")}</TabsTrigger>
         </TabsList>
 
         <Card size="default" className="mt-3">
@@ -48,6 +50,9 @@ export function HrPage() {
           </TabsContent>
           <TabsContent value="rewards">
             <RewardsTab />
+          </TabsContent>
+          <TabsContent value="loginActivity">
+            <LoginActivityTab />
           </TabsContent>
         </Card>
       </Tabs>
