@@ -80,6 +80,28 @@ export function groupNavSections(items: AdminNavItem[]): AdminNavSectionGroup[] 
   return SECTION_ORDER.filter((s) => buckets.has(s)).map((section) => ({ section, items: buckets.get(section)! }))
 }
 
+/** localStorage key for a user's "Frequently used" sidebar pins (per profile, per browser). */
+export const pinnedNavStorageKey = (profileId: string) => `gv_mart_admin_sidebar_pins:${profileId}`
+
+/** Parses the stored pin list defensively — anything malformed becomes [] / is dropped. */
+export function parsePinnedKeys(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return [...new Set(parsed.filter((k): k is string => typeof k === "string"))]
+  } catch {
+    return []
+  }
+}
+
+/** Pinned keys → visible (already role-filtered) items, in pin order. Unknown,
+ * role-hidden and Dashboard keys are dropped. */
+export function resolvePinnedItems(keys: string[], items: AdminNavItem[]): AdminNavItem[] {
+  const byKey = new Map(items.map((item) => [item.key, item]))
+  return keys.flatMap((k) => (k !== "dashboard" && byKey.has(k) ? [byKey.get(k)!] : []))
+}
+
 const ALL_STAFF: UserRole[] = ["master", "operation_admin", "sales_admin"]
 
 // Role -> sidebar mapping per the Vite plan's Phase 2 prompt: master = all;

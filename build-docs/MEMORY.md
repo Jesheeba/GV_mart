@@ -41,3 +41,8 @@
 
 ## Postgres gotcha: DROP FUNCTION drops its GRANTs (2026-11-11)
 - When a RETURNS TABLE(...) function's output columns change, DROP FUNCTION + CREATE OR REPLACE is required (plain CREATE OR REPLACE errors: "cannot change return type of existing function"). But DROP FUNCTION makes a brand-new function object -- any prior explicit GRANT EXECUTE is gone, falling back to schema defaults. This broke list_followups/list_leads_without_followup's authenticated execute grant and took down Daily Follow Up for every role. **Lesson: whenever a live RPC signature change requires DROP FUNCTION, re-grant execute to whatever roles it had before (check with has_function_privilege(role, func, 'execute') before AND after) in the same migration -- never assume CREATE OR REPLACE alone preserves permissions once a DROP happened.**
+
+## Sidebar "Frequently used" pins (2026-11-25)
+- Pins are manual (user-chosen), not auto-ranked by usage.
+- Storage: localStorage `gv_mart_admin_sidebar_pins:<profile.id>` — user chose browser-only over a DB prefs table (no migration; pins don't sync across devices).
+- Pinned items stay in their original group too (user's choice) — nothing moves.

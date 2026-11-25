@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Bell, ChevronLeft, Search } from "lucide-react"
+import { Bell, ChevronLeft, Pin, PinOff, Search } from "lucide-react"
 import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { ADMIN_NAV, groupNavSections } from "./nav"
+import { ADMIN_NAV, groupNavSections, parsePinnedKeys, pinnedNavStorageKey, resolvePinnedItems } from "./nav"
 import { useProfile } from "@/hooks/useProfile"
 import { useUnreadNotificationCount } from "@/hooks/useSystemPages"
 import { canWorkFollowups, useFollowupCounts } from "@/hooks/useLeadFollowups"
@@ -125,6 +125,26 @@ export function AdminShell() {
     setHoveredNavTooltip(null)
   }, [sidebarCollapsed])
   const { data: profile, isLoading, isError, refetch } = useProfile()
+  // "Frequently used" pins — per user, per browser (localStorage).
+  const [pinnedKeys, setPinnedKeys] = useState<string[]>([])
+  useEffect(() => {
+    if (!profile?.id) return
+    try {
+      setPinnedKeys(parsePinnedKeys(localStorage.getItem(pinnedNavStorageKey(profile.id))))
+    } catch {
+      setPinnedKeys([]) // storage blocked — pins still work for this session
+    }
+  }, [profile?.id])
+  function togglePin(key: string) {
+    if (!profile?.id) return
+    const next = pinnedKeys.includes(key) ? pinnedKeys.filter((k) => k !== key) : [...pinnedKeys, key]
+    setPinnedKeys(next)
+    try {
+      localStorage.setItem(pinnedNavStorageKey(profile.id), JSON.stringify(next))
+    } catch {
+      // ignore — storage blocked
+    }
+  }
   const { data: unreadCount } = useUnreadNotificationCount(profile?.org_id, profile?.id, profile?.role)
   const { data: followupCounts } = useFollowupCounts(profile?.role)
   const { data: pendingLeaveCount } = usePendingLeaveRequestCount(
@@ -186,10 +206,13 @@ export function AdminShell() {
   const items = ADMIN_NAV.filter((item) => item.roles.includes(profile.role))
   const dashboard = items.find((item) => item.key === "dashboard")
   const sections = groupNavSections(items)
+  const pinnedItems = resolvePinnedItems(pinnedKeys, items)
 
   function renderNavLink(item: (typeof items)[number]) {
     const Icon = item.icon
-    return (
+    const pinnable = item.key !== "dashboard"
+    const isPinned = pinnedKeys.includes(item.key)
+    const link = (
       <NavLink
         key={item.key}
         to={item.path}
@@ -209,8 +232,9 @@ export function AdminShell() {
         onBlur={() => setHoveredNavTooltip(null)}
         className={({ isActive }) =>
           cn(
-            "relative flex shrink-0 items-center rounded-xl transition-colors",
+            "peer relative flex shrink-0 items-center rounded-xl transition-colors",
             sidebarCollapsed ? "size-10 justify-center" : "h-10 w-full gap-3 px-3",
+            !sidebarCollapsed && pinnable && "pr-9",
             isActive ? "bg-ink text-white" : "text-text-muted hover:bg-surface-alt hover:text-text"
           )
         }
@@ -250,6 +274,26 @@ export function AdminShell() {
         </span>
         {!sidebarCollapsed ? <span className="truncate text-sm font-medium">{t(item.labelKey)}</span> : null}
       </NavLink>
+    )
+    if (sidebarCollapsed || !pinnable) return link
+    const label = t(isPinned ? "shell.unpinItem" : "shell.pinItem")
+    const PinIcon = isPinned ? PinOff : Pin
+    // Sibling of the link (a <button> can't nest inside an <a>). Shown on
+    // hover/focus; always visible on touch screens, which have no hover.
+    return (
+      <div key={item.key} className="group relative shrink-0">
+        {link}
+        <button
+          type="button"
+          onClick={() => togglePin(item.key)}
+          aria-label={`${label}: ${t(item.labelKey)}`}
+          aria-pressed={isPinned}
+          title={label}
+          className="absolute right-1.5 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted opacity-0 transition-opacity hover:bg-surface-alt hover:text-text focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 peer-aria-[current=page]:text-white/80 peer-aria-[current=page]:hover:bg-white/15 peer-aria-[current=page]:hover:text-white [@media(hover:none)]:opacity-100"
+        >
+          <PinIcon className="size-3.5" />
+        </button>
+      </div>
     )
   }
 
@@ -297,7 +341,7 @@ export function AdminShell() {
         </span>
         <nav className={cn("flex flex-1 flex-col gap-1", sidebarCollapsed ? "items-center" : "items-stretch")}>
           {dashboard ? renderNavLink(dashboard) : null}
-          {sections.map(({ section, items: sectionItems }) => (
+          {[...(pinnedItems.length ? [{ section: "pinned", items: pinnedItems }] : []), ...sections].map(({ section, items: sectionItems }) => (
             <div key={section} className="contents">
               {sidebarCollapsed ? (
                 <div className="my-1 h-px w-8 shrink-0 bg-border" aria-hidden="true" />

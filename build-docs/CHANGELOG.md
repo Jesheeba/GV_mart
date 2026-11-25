@@ -64,3 +64,6 @@
 - `LeadDetailPage.tsx`: removed `interactionMode` state and the `openInteraction(mode)` helper; the button and the `reopen` path both just call `setInteractionOpen(true)` and let the sheet default to "outcome". The "Set follow-up" button (for leads with no follow-up yet, a different RPC/dialog) is unchanged.
 - `FollowupCard.tsx`: `onLogInteraction` prop dropped its `mode` argument; `MyDayPage.tsx` simplified to match (`onLogInteraction={setInteractionFor}`, no `interactionMode` state).
 - Removed the now-orphaned i18n keys `leads.followup.logOutcome` and `leads.followup.reschedule` (en + ta) — nothing references them after the button merge; `leads.interaction.title` and the in-sheet mode labels replace them.
+
+## sidebar-pinned-items (2026-11-25)
+- Admin sidebar: pin any item to a "Frequently used" section below Dashboard (per user, localStorage). en + ta labels.

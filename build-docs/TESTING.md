@@ -50,3 +50,8 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Existing assignment filter (`assignedFilter`) on `LeadsPage.tsx`.
 - Existing stage-change buttons, quotation creation, referral-points award flow on `LeadDetailPanel.tsx`.
 - Existing `MyDayPage.tsx` follow-up worklist (overdue/today/upcoming/none tabs).
+
+## sidebar-pinned-items (2026-11-25)
+- `src/app/admin/nav.test.ts` › "sidebar-pinned-items": 6 tests (per-user key, corrupt storage, dedupe/order, pin order, unknown+Dashboard dropped, role-hidden key hidden) — PASS.
+- `tsc -b` clean. Full suite: 1084 pass, 2 fail — `waOutboxSentGuard.test.ts`, `wa-event-context.test.ts`: pre-existing on main, unrelated (don't import changed files).
+- Not covered by automated tests (no DOM test env): pin button render/hover, collapsed view — manual check needed.

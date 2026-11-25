@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ADMIN_NAV, groupNavSections, type AdminNavItem } from "./nav"
+import { ADMIN_NAV, groupNavSections, parsePinnedKeys, pinnedNavStorageKey, resolvePinnedItems, type AdminNavItem } from "./nav"
 import type { UserRole } from "@/lib/roles"
 import { LayoutDashboard } from "lucide-react"
 
@@ -166,5 +166,37 @@ describe("fallback 'More' group for items that ship without a group", () => {
     expect(moreSection?.items.some((i) => i.key === "futureFeature") ?? false).toBe(false)
     const moneySection = sections.find((s) => s.section === "money")
     expect(moneySection?.items.some((i) => i.key === "futureFeature")).toBe(true)
+  })
+})
+
+describe("sidebar-pinned-items: Frequently used pins", () => {
+  it("storage key is per user", () => {
+    expect(pinnedNavStorageKey("u1")).not.toBe(pinnedNavStorageKey("u2"))
+  })
+
+  it("edge: missing, corrupt or non-array stored value parses to []", () => {
+    for (const raw of [null, "", "not json", "{", '{"a":1}', '"leads"', "42", "null"]) {
+      expect(parsePinnedKeys(raw)).toEqual([])
+    }
+  })
+
+  it("edge: non-string entries and duplicates are dropped, pin order kept", () => {
+    expect(parsePinnedKeys('["tasks", 1, null, "leads", "tasks", {"x":1}]')).toEqual(["tasks", "leads"])
+  })
+
+  it("resolves pinned items in pin order", () => {
+    const items = sidebarItemsFor("master")
+    expect(resolvePinnedItems(["tasks", "leads"], items).map((i) => i.key)).toEqual(["tasks", "leads"])
+  })
+
+  it("edge: unknown keys and Dashboard are never shown as pinned", () => {
+    const items = sidebarItemsFor("master")
+    expect(resolvePinnedItems(["dashboard", "no-such-page", "leads"], items).map((i) => i.key)).toEqual(["leads"])
+  })
+
+  it("security: a key pinned under a role that no longer allows it stays hidden", () => {
+    // leads is master + sales_admin only
+    expect(resolvePinnedItems(["leads"], sidebarItemsFor("operation_admin"))).toEqual([])
+    expect(resolvePinnedItems(["leads"], sidebarItemsFor("sales_admin")).map((i) => i.key)).toEqual(["leads"])
   })
 })
