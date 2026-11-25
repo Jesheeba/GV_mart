@@ -40,7 +40,7 @@ import {
   setCustomerPreferredLanguage,
   updateCustomerEmail,
 } from "@/services/customers"
-import { composeFullAddress, splitAddressForForm } from "@/lib/address"
+import { composeFullAddress, splitAddressForForm, type StructuredAddressFields } from "@/lib/address"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
@@ -193,6 +193,11 @@ function MemberFieldRow({
   )
 }
 
+/** The address text a map pin belongs to -- what auto-locate geocodes and what a confirmed pin is compared against. */
+function locationText(v: StructuredAddressFields & { fullAddress?: string; pincode?: string; district?: string; state?: string }) {
+  return [composeFullAddress(v) || v.fullAddress, v.pincode, v.district, v.state].filter(Boolean).join(", ")
+}
+
 // Compact field sizing for every step card (Autocomplete renders the same Input).
 const COMPACT_CARD = "gap-3 px-4 [&_input]:h-8 [&_input]:px-2.5 [&_label]:text-xs [&_select]:h-8"
 
@@ -335,7 +340,7 @@ export function CustomerFormPage() {
   // ambiguous "search anyway" result already behaves.
   // `fullAddress` already folds `area` in (see composeFullAddress above), so
   // it isn't repeated here.
-  const autoLocateQuery = [fullAddress, pincode, district, state].filter(Boolean).join(", ")
+  const autoLocateQuery = locationText({ doorNo, plotNo, buildingName, streetCross, subArea, area, landmark, fullAddress: legacyFullAddress, pincode, district, state })
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {
@@ -367,6 +372,9 @@ export function CustomerFormPage() {
   // the moment the address text diverges from it, so the auto-suggest effect
   // above treats it like a fresh, unconfirmed address again.
   const confirmedLocationTextRef = useRef(autoLocateQuery)
+  // The map search box mirrors the address typed above, so staff never type it twice.
+  const [mapQuery, setMapQuery] = useState(autoLocateQuery)
+  useEffect(() => setMapQuery(autoLocateQuery), [autoLocateQuery])
   useEffect(() => {
     if ((lat == null && lng == null) || autoLocateQuery === confirmedLocationTextRef.current) return
     addressForm.setValue("lat", undefined, { shouldValidate: true })
@@ -878,6 +886,8 @@ export function CustomerFormPage() {
             <AddressMapPicker
               lat={addressForm.watch("lat")}
               lng={addressForm.watch("lng")}
+              query={mapQuery}
+              onQueryChange={setMapQuery}
               suggestedLat={suggestedPin?.lat}
               suggestedLng={suggestedPin?.lng}
               suggestedFormatted={suggestedPin?.formatted}
@@ -915,6 +925,10 @@ export function CustomerFormPage() {
                 if (!addressForm.getValues("state") && r.state) {
                   addressForm.setValue("state", r.state, { shouldValidate: true })
                 }
+                // The pin was confirmed (onConfirm) before these blanks were
+                // filled -- re-snapshot so the fill isn't mistaken for an
+                // address edit that clears the pin just picked.
+                confirmedLocationTextRef.current = locationText(addressForm.getValues())
               }}
             />
             {lat == null && lng == null && !autoLocate.isPending && hasAddressText(addressForm.getValues()) ? (

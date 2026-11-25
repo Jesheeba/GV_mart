@@ -2,6 +2,15 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## customer-form-map-search-prefill
+- 2026-11-25. `tsc --noEmit` clean. No automated test: vitest runs in plain Node with no DOM/RTL harness.
+- Manual browser check on local dev server (master test account, nothing saved), all pass:
+  - Typing Door/Street/PIN fills the map search box ("3/353, 10th Street, 620019, Trichy, Tamil Nadu"); no dropdown pops up on its own.
+  - Focusing the pre-filled box shows matching Google suggestions.
+  - Picking a suggestion fills blank Main Area/Zone AND stays "Location pinned / Location confirmed" (failed before the fix: showed "Exact location not pinned").
+  - Editing Landmark after pinning clears the pin and updates the box text (existing stale-pin safety kept).
+- Not checked: edit-mode customer with an existing pin; AddressForm/AddressPinDialog callers (logic change there is only "no re-search after selecting").
+
 ## lead-category-chips
 - DONE 2026-11-10. Chip order/active-filter logic extracted to a pure function (`leadCategoryChips.ts`) and unit-tested (`leadCategoryChips.test.ts`, 4 tests, all pass): fixed Service→Product→Spare→AMC order regardless of input order, drops inactive categories, empty-list case, ignores unknown keys. `tsc --noEmit` clean. No RTL component tests — this codebase has no `@testing-library/react` dependency; pure-logic extraction follows the existing `kpiTilesView.ts` convention instead.
 - Not separately tested (manual-only, no test harness for this): visual active/pressed state, "All topics" filter removed from DOM, "Lead type" select removed from DOM — verified by code reading, not an automated test.

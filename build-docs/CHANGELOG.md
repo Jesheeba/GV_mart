@@ -1,5 +1,11 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## customer-form-map-search-prefill (2026-11-25)
+- Map search box on the customer Address step now mirrors the typed address fields (door/street/area/PIN/district/state) -- no retyping.
+- Mirrored text never auto-opens suggestions or spends a Places call; focusing the pre-filled box searches it once. User-typed text searches live as before.
+- Fixed (pre-existing): picking a map suggestion auto-filled blank fields (Main Area/Zone) AFTER the pin snapshot, so the pin was immediately cleared ("Exact location not pinned"). Snapshot now re-taken after the fill via shared `locationText()`.
+- Files: `CustomerFormPage.tsx`, `AddressMapPicker.tsx` (also used by `AddressForm`, `AddressPinDialog` -- uncontrolled there, only change is no re-search after picking a result).
+
 ## customer-form-compact (2026-11-25)
 - `CustomerFormPage.tsx`: Door no / Plot no / Building Name now share one 3-column row.
 - All step cards use compact fields (inputs/selects h-8, labels text-xs) via one `COMPACT_CARD` class; page width max-w-2xl -> max-w-xl.
