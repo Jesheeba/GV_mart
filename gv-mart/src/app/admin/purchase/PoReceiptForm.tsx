@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { useProfile } from "@/hooks/useProfile"
 import { useConfirmPoReceipt, usePoItems, usePurchaseOrders } from "@/hooks/useAutomation"
 import type { PurchaseOrderListItem } from "@/services/automation"
+import { hasReceivedQuantity } from "@/lib/purchase"
 
 /**
  * Shared receipt-confirmation form — used both by the shell-mounted
@@ -39,7 +40,10 @@ export function PoReceiptForm({ po, onDone }: { po: PurchaseOrderListItem; onDon
     onDone()
   }
 
-  const busy = confirmReceipt.isPending || poItems.isLoading
+  const qtys = (poItems.data ?? []).map((item) => Number(receivedQty[item.id] ?? item.qty))
+  const nothingReceived = !poItems.isLoading && !hasReceivedQuantity(qtys)
+  const gstInvalid = gst !== "" && !(Number(gst) >= 0)
+  const busy = confirmReceipt.isPending || poItems.isLoading || nothingReceived || gstInvalid
 
   return (
     <div className="space-y-3">
@@ -85,6 +89,8 @@ export function PoReceiptForm({ po, onDone }: { po: PurchaseOrderListItem; onDon
         <Input type="number" min={0} step="0.01" value={gst} onChange={(e) => setGst(e.target.value)} />
       </div>
 
+      {nothingReceived ? <p className="text-xs text-danger">{t("purchase.receiptPrompt.nothingReceived")}</p> : null}
+      {gstInvalid ? <p className="text-xs text-danger">{t("purchase.errors.gstNonNegative")}</p> : null}
       {confirmReceipt.isError ? <p className="text-xs text-danger">{(confirmReceipt.error as Error).message}</p> : null}
 
       <div className="flex justify-end">

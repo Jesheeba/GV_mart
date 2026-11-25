@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { fileToDataUrl, resizeImage } from "@/lib/offline/capture"
 import { getIstNow, istDayStartIso, istDayEndIso } from "@/lib/ist"
 import type { Enums, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 import type { DateRange } from "./reports"
@@ -554,6 +555,37 @@ export async function markPoPaid(input: { poId: string }) {
   const { data, error } = await supabase.rpc("mark_po_paid", { p_po_id: input.poId })
   if (error) throw error
   return data
+}
+
+/** Undo a mistaken "paid" (master-only server-side); reopens the payment-reminder task. */
+export async function unmarkPoPaid(input: { poId: string }) {
+  const { data, error } = await supabase.rpc("unmark_po_paid", { p_po_id: input.poId })
+  if (error) throw error
+  return data
+}
+
+// Bill photo / PDF — private bucket, ops staff, own org folder (20261213100000_vendor_flow_fixes.sql).
+const BILL_PHOTO_BUCKET = "purchase-bill-photos"
+export const BILL_PHOTO_MAX_BYTES = 5 * 1024 * 1024
+
+export async function uploadPurchaseBillPhoto(orgId: string, file: File): Promise<string> {
+  const isPdf = file.type === "application/pdf"
+  let body: Blob = file
+  if (!isPdf) {
+    const resized = await resizeImage(await fileToDataUrl(file))
+    body = await (await fetch(resized)).blob()
+  }
+  if (body.size > BILL_PHOTO_MAX_BYTES) throw new Error("purchase.bill.photoTooLarge")
+  const path = `${orgId}/${crypto.randomUUID()}.${isPdf ? "pdf" : "jpg"}`
+  const { error } = await supabase.storage.from(BILL_PHOTO_BUCKET).upload(path, body, { contentType: isPdf ? "application/pdf" : "image/jpeg" })
+  if (error) throw error
+  return path
+}
+
+export async function purchaseBillPhotoSignedUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(BILL_PHOTO_BUCKET).createSignedUrl(path, 3600)
+  if (error) throw error
+  return data.signedUrl
 }
 
 export async function listPurchaseBills(orgId: string): Promise<(PurchaseBillRow & { suppliers: { name: string } | null })[]> {

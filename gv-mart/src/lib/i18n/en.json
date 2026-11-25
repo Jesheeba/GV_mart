@@ -1678,7 +1678,15 @@
     "preferred": "Preferred",
     "preferredYes": "Preferred",
     "markPreferred": "Mark preferred",
-    "noItemsLinked": "No items linked to this supplier yet."
+    "noItemsLinked": "No items linked to this supplier yet.",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "cannotDelete": "This supplier has purchase orders or bills, so it can't be deleted. Edit it and set Status to Inactive instead.",
+    "duplicateLink": "This item is already linked to this supplier. Edit the existing row instead.",
+    "actionFailed": "Couldn't save the change. Try again.",
+    "whatsappInvalid": "Enter a 10-digit mobile number (with or without +91).",
+    "noWhatsapp": "No valid WhatsApp"
   },
   "sales": {
     "newSale": {
@@ -4444,6 +4452,15 @@
     }
   },
   "purchase": {
+    "errors": {
+      "itemRequired": "Pick an item for every line.",
+      "qtyPositive": "Quantity must be at least 1.",
+      "pricePositive": "Every line needs a price above ₹0.",
+      "supplierRequired": "Pick a supplier.",
+      "itemsRequired": "Add at least one item.",
+      "gstNonNegative": "GST cannot be negative.",
+      "billDateRequired": "Pick the bill date."
+    },
     "subtitle": "Purchase orders auto-draft when stock runs low, or create one manually; record supplier bills here.",
     "loadFailed": "Could not load purchase data.",
     "tabs": {
@@ -4492,11 +4509,18 @@
       "qty": "Qty",
       "lineTotal": "Line total",
       "markPaid": "Mark Paid",
+      "awaitingApproval": "Awaiting approval",
+      "paidOn": "Paid {{date}}",
+      "confirmPaid": "Mark ₹{{total}} as paid?",
+      "confirmPaidYes": "Yes, paid",
+      "undoPaid": "Undo paid",
+      "receivedOf": "{{received}} of {{qty}} received",
       "statuses": {
         "draft": "Draft",
         "sent": "Sent",
         "received": "Received",
-        "paid": "Paid"
+        "paid": "Paid",
+        "cancelled": "Cancelled"
       }
     },
     "approvalPrompt": {
@@ -4514,7 +4538,8 @@
       "received": "Received",
       "confirm": "Confirm receipt",
       "notYet": "Not yet",
-      "confirmReceiptButton": "Confirm Receipt"
+      "confirmReceiptButton": "Confirm Receipt",
+      "nothingReceived": "Enter a received quantity above 0 for at least one item."
     },
     "bill": {
       "title": "Bill Entry",
@@ -4525,7 +4550,12 @@
       "gst": "GST",
       "empty": "No bills recorded yet.",
       "prefillNotice": "Prefilled from the last bill entered for this supplier.",
-      "clearPrefill": "Clear"
+      "clearPrefill": "Clear",
+      "photo": "Bill photo or PDF (optional, max 5 MB)",
+      "viewPhoto": "View bill",
+      "photoTooLarge": "The file is larger than 5 MB. Use a smaller photo or PDF.",
+      "prefilledFromPo": "Items filled from the selected PO. Change quantities to what actually arrived.",
+      "poHasGifts": "This PO has gift items, which can't be edited here. Use Confirm Receipt on the Orders tab instead."
     },
     "items": {
       "item": "Item",

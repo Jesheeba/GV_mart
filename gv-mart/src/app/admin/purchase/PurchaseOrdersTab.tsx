@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Banknote, Loader2, PackageCheck, Plus, Search } from "lucide-react"
+import { Banknote, Loader2, PackageCheck, Plus, Search, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
@@ -8,17 +8,17 @@ import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
-import { useCreatePurchaseOrder, useMarkPoPaid, usePoItems, usePurchaseOrders } from "@/hooks/useAutomation"
+import { useCreatePurchaseOrder, useMarkPoPaid, usePoItems, usePurchaseOrders, useUnmarkPoPaid } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
 import { PoReceiptForm } from "./PoReceiptForm"
-import type { PoItemInput } from "@/lib/validation/automation"
+import { createPurchaseOrderSchema, type PoItemInput } from "@/lib/validation/automation"
+import { lineShortfall, poPaymentActions } from "@/lib/purchase"
 import type { PurchaseOrderListItem } from "@/services/automation"
 import { formatDate } from "@/lib/formatDate"
 
-// money-flow-audit item 2 — 'paid' is a real, queryable settlement state
-// now (20260925100000_po_paid_status_enum.sql), not just the cosmetic
-// payment-reminder task.
-const STATUS_TONE: Record<string, StatusTone> = { draft: "neutral", sent: "warning", received: "success", paid: "success" }
+// Status is delivery only; payment is paid_at (20261213100000_vendor_flow_fixes.sql). Legacy
+// "paid" rows were backfilled to sent/received + paid_at, the key stays for safety.
+const STATUS_TONE: Record<string, StatusTone> = { draft: "neutral", sent: "warning", received: "success", paid: "success", cancelled: "danger" }
 
 export function PurchaseOrdersTab() {
   const { t } = useTranslation()
@@ -29,6 +29,10 @@ export function PurchaseOrdersTab() {
   const { data: suppliers } = useSuppliersList(orgId)
   const createPo = useCreatePurchaseOrder()
   const markPaid = useMarkPoPaid()
+  const unmarkPaid = useUnmarkPoPaid()
+  const [confirmPayId, setConfirmPayId] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const activeSuppliers = (suppliers ?? []).filter((s) => s.is_active)
   const isMaster = profile?.role === "master"
 
   const [showNew, setShowNew] = useState(false)
@@ -45,7 +49,13 @@ export function PurchaseOrdersTab() {
   )
 
   async function submit() {
-    await createPo.mutateAsync({ orgId: orgId!, supplierId, items: items.filter((i) => i.itemId && i.qty > 0) })
+    const parsed = createPurchaseOrderSchema.safeParse({ supplierId, items: items.filter((i) => i.itemId) })
+    if (!parsed.success) {
+      setFormError(t(parsed.error.issues[0].message))
+      return
+    }
+    setFormError(null)
+    await createPo.mutateAsync({ orgId: orgId!, supplierId, items: parsed.data.items })
     setShowNew(false)
     setSupplierId("")
     setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
@@ -55,14 +65,25 @@ export function PurchaseOrdersTab() {
     { key: "supplier", header: t("purchase.po.supplier"), render: (r) => r.suppliers?.name ?? "—" },
     { key: "total", header: t("purchase.po.total"), render: (r) => `₹${r.total.toLocaleString("en-IN")}` },
     { key: "channel", header: t("purchase.po.channel"), render: (r) => r.sent_channel ?? "—" },
-    { key: "status", header: t("purchase.po.status"), render: (r) => <StatusDot tone={STATUS_TONE[r.status] ?? "neutral"} label={t(`purchase.po.statuses.${r.status}`)} /> },
+    {
+      key: "status",
+      header: t("purchase.po.status"),
+      render: (r) => (
+        <div className="flex flex-col gap-0.5">
+          <StatusDot tone={STATUS_TONE[r.status] ?? "neutral"} label={t(r.status === "draft" ? "purchase.po.awaitingApproval" : `purchase.po.statuses.${r.status}`)} />
+          {r.paid_at ? <span className="text-xs text-success">{t("purchase.po.paidOn", { date: formatDate(r.paid_at) })}</span> : null}
+        </div>
+      ),
+    },
     { key: "created", header: t("purchase.po.created"), render: (r) => formatDate(r.created_at) },
     {
       key: "actions",
       header: "",
       className: "text-right",
-      render: (r) => (
-        <div className="flex justify-end gap-2">
+      render: (r) => {
+        const pay = poPaymentActions(r, isMaster)
+        return (
+        <div className="flex flex-wrap justify-end gap-2">
           {r.status === "sent" ? (
             <Button
               size="sm"
@@ -76,22 +97,51 @@ export function PurchaseOrdersTab() {
               {t("purchase.receiptPrompt.confirmReceiptButton")}
             </Button>
           ) : null}
-          {isMaster && (r.status === "sent" || r.status === "received") ? (
+          {pay.canMarkPaid && confirmPayId !== r.id ? (
             <Button
               size="sm"
               variant="outline"
-              disabled={markPaid.isPending}
               onClick={(e) => {
                 e.stopPropagation()
-                markPaid.mutate({ poId: r.id })
+                setConfirmPayId(r.id)
               }}
             >
-              {markPaid.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Banknote className="size-3.5" />}
+              <Banknote className="size-3.5" />
               {t("purchase.po.markPaid")}
             </Button>
           ) : null}
+          {pay.canMarkPaid && confirmPayId === r.id ? (
+            <span className="flex items-center gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
+              {t("purchase.po.confirmPaid", { total: r.total.toLocaleString("en-IN") })}
+              <Button
+                size="sm"
+                disabled={markPaid.isPending && markPaid.variables?.poId === r.id}
+                onClick={() => markPaid.mutate({ poId: r.id }, { onSettled: () => setConfirmPayId(null) })}
+              >
+                {markPaid.isPending && markPaid.variables?.poId === r.id ? <Loader2 className="size-3.5 animate-spin" /> : t("purchase.po.confirmPaidYes")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmPayId(null)}>
+                {t("common.cancel")}
+              </Button>
+            </span>
+          ) : null}
+          {pay.canUndoPaid ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={unmarkPaid.isPending && unmarkPaid.variables?.poId === r.id}
+              onClick={(e) => {
+                e.stopPropagation()
+                unmarkPaid.mutate({ poId: r.id })
+              }}
+            >
+              {unmarkPaid.isPending && unmarkPaid.variables?.poId === r.id ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
+              {t("purchase.po.undoPaid")}
+            </Button>
+          ) : null}
         </div>
-      ),
+        )
+      },
     },
   ]
 
@@ -124,7 +174,7 @@ export function PurchaseOrdersTab() {
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
             >
               <option value="">{t("purchase.items.selectItem")}</option>
-              {(suppliers ?? []).map((s) => (
+              {activeSuppliers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
@@ -132,6 +182,7 @@ export function PurchaseOrdersTab() {
             </select>
           </div>
           <PoItemRows orgId={orgId} items={items} onChange={setItems} />
+          {formError ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{formError}</p> : null}
           {createPo.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createPo.error as Error).message}</p> : null}
           <div className="flex justify-end">
             <Button onClick={submit} disabled={!supplierId || items.every((i) => !i.itemId) || createPo.isPending}>
@@ -142,6 +193,7 @@ export function PurchaseOrdersTab() {
       ) : null}
 
       {markPaid.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(markPaid.error as Error).message}</p> : null}
+      {unmarkPaid.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(unmarkPaid.error as Error).message}</p> : null}
 
       <DataTable
         columns={columns}
@@ -166,6 +218,11 @@ export function PurchaseOrdersTab() {
                   <span>{i.products?.name ?? i.spares?.name ?? i.gifts?.name ?? "—"}</span>
                   <span className="text-text-muted">
                     {i.qty} × ₹{i.price}
+                    {i.received_qty != null ? (
+                      <span className={lineShortfall(i) > 0 ? "ml-2 font-medium text-danger" : "ml-2 text-success"}>
+                        {t("purchase.po.receivedOf", { received: i.received_qty, qty: i.qty })}
+                      </span>
+                    ) : null}
                   </span>
                 </li>
               ))}

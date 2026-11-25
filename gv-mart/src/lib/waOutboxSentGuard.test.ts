@@ -28,6 +28,9 @@ const BASELINE_MIGRATIONS_WRITING_SENT = new Set([
   "20260901120000_supplier_monthly_rfq_phase3.sql",
   "20260922100000_supplier_credit_terms_and_po_payment_reminder_tasks.sql",
   "20261015100000_whatsapp_outbound_gate.sql", // send_staff_whatsapp: staff-queued row, purchase_order refs are never dispatched
+  // _queue_supplier_whatsapp re-issues the supplier sends above: writes 'pending' when v2 is on and 'sent' only when it is off
+  // (legacy dispatcher needs it), the same rule as _trg_wa_outbox_pending_normalise. Owner decision pending, see vendor-flow-fixes.md.
+  "20261213100000_vendor_flow_fixes.sql",
 ])
 
 /** Edge Function sources allowed to write status "sent" next to whatsapp_outbox: the legacy (flag OFF) send path and the

@@ -99,7 +99,7 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
             step="0.01"
             className="w-24"
             placeholder={t("purchase.items.price")}
-            value={row.price}
+            value={row.price || ""}
             onChange={(e) => update(i, { price: Number(e.target.value) || 0 })}
           />
           <Button size="icon-xs" variant="ghost" onClick={() => remove(i)} aria-label={t("common.remove")}>

@@ -20,6 +20,16 @@ export async function updateSupplier(id: string, patch: TablesUpdate<"suppliers"
   if (error) throw error
   return data
 }
+/** Suppliers with any PO or bill cannot be deleted (FK RESTRICT) — set them inactive instead. */
+export async function supplierHasPurchaseHistory(id: string): Promise<boolean> {
+  const [po, bill] = await Promise.all([
+    supabase.from("purchase_orders").select("id", { count: "exact", head: true }).eq("supplier_id", id),
+    supabase.from("purchase_bills").select("id", { count: "exact", head: true }).eq("supplier_id", id),
+  ])
+  if (po.error) throw po.error
+  if (bill.error) throw bill.error
+  return (po.count ?? 0) + (bill.count ?? 0) > 0
+}
 export async function deleteSupplier(id: string) {
   const { error } = await supabase.from("suppliers").delete().eq("id", id)
   if (error) throw error

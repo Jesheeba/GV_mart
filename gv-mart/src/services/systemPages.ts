@@ -139,8 +139,9 @@ export async function decideApproval(id: string, approverId: string, status: "ap
  * Build Order C2: approving a `type = 'po'` approval must actually release
  * the linked draft purchase order (transition to `sent` + dispatch), which
  * `decideApproval` above does not do — it only flips the approvals row.
- * Rejecting a PO approval still goes through `decideApproval`: the PO simply
- * stays `draft` forever, already the correct terminal state.
+ * Rejecting a PO approval still goes through `decideApproval`; the
+ * approvals_reject_cancels_po trigger then moves the draft PO to `cancelled`
+ * (20261213100000_vendor_flow_fixes.sql) so it stops blocking auto-reorder.
  */
 export async function approvePurchaseOrder(approvalId: string): Promise<void> {
   const { error } = await supabase.rpc("approve_purchase_order", { p_approval_id: approvalId })

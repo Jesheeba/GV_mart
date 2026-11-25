@@ -46,3 +46,9 @@
 - Pins are manual (user-chosen), not auto-ranked by usage.
 - Storage: localStorage `gv_mart_admin_sidebar_pins:<profile.id>` — user chose browser-only over a DB prefs table (no migration; pins don't sync across devices).
 - Pinned items stay in their original group too (user's choice) — nothing moves.
+
+## Vendor flow fixes (2026-11-25)
+- Payment separate from delivery: `purchase_orders.paid_at`; `status` is delivery only (`paid` enum value kept, no longer written). Owner said "fix them all" → recommended option (a).
+- Quote-request resolution already runs every 5 min via GH Actions `wa-scheduled-tasks` → `wa_resolve_purchase_quote_requests`; no pg_cron added (earlier review claim was wrong).
+- Supplier WhatsApp queue writes `pending` when `wa_dispatch_v2_enabled`, else `sent` (legacy dispatcher needs it). Migration added to `waOutboxSentGuard` frozen list — OPEN: owner to confirm or choose "pending only" (would stop supplier quote messages while v2 is off).
+- Known, not fixed here: `purchase_order` outbox rows are never dispatched (not in `MILESTONE_REF_TYPES`); PO WhatsApp to suppliers does not actually go out.

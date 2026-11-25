@@ -67,3 +67,11 @@
 
 ## sidebar-pinned-items (2026-11-25)
 - Admin sidebar: pin any item to a "Frequently used" section below Dashboard (per user, localStorage). en + ta labels.
+
+## vendor-flow-fixes (2026-11-25) — built, NOT applied, NOT pushed
+- Approval before sending for over-threshold POs; reject cancels the draft.
+- Payment tracked separately (paid_at) with confirm + undo; prepaid POs can be received.
+- Bill Entry: only sent POs, PO prefill, supplier match, bill photo/PDF upload, bill date.
+- Receipts: warehouse-only stock, per-line received qty + short alert, all-zero blocked.
+- Low-stock trigger warehouse-only. Suppliers: active flag, unique item link, validated WhatsApp + admin alert, test mode respected.
+- Price > 0, GST ≥ 0, item must belong to org — client + server.

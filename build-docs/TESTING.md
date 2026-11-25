@@ -55,3 +55,11 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - `src/app/admin/nav.test.ts` › "sidebar-pinned-items": 6 tests (per-user key, corrupt storage, dedupe/order, pin order, unknown+Dashboard dropped, role-hidden key hidden) — PASS.
 - `tsc -b` clean. Full suite: 1084 pass, 2 fail — `waOutboxSentGuard.test.ts`, `wa-event-context.test.ts`: pre-existing on main, unrelated (don't import changed files).
 - Not covered by automated tests (no DOM test env): pin button render/hover, collapsed view — manual check needed.
+
+## vendor-flow-fixes (2026-11-25)
+- `src/lib/purchase.test.ts` › "vendor-flow-fixes": 19 tests (AC3/4/7/8/10/11) — PASS.
+- `tsc -b` clean. Full suite: 1103 pass, 2 fail — `waOutboxSentGuard.test.ts` (offender `20261204220000_wire_gvm_templates_phase_b_new_triggers.sql`, already failing on main) and `wa-event-context.test.ts`, both identical on a clean origin/main run.
+- `supabase/tests/vendor_flow_fixes.test.sql`: 43 checks AC1–AC12 + grants. NOT RUN — needs the migration applied first (new enum value), and DB writes need owner's named approval. Runs in its own transaction, ends in `raise exception 'RESULTS…'`.
+- Migration, rollback, test SQL: parsed with libpg-query (Postgres 17 parser): all statements OK; 13/13 non-trigger PL/pgSQL bodies OK; 3 trigger bodies hit a parser-library JSON bug that live, known-valid trigger functions hit identically.
+- Bug found while testing: first draft of `_queue_supplier_whatsapp` always wrote `'sent'` (guard test caught it); now `pending` under v2 dispatch, `sent` only when v2 is off (live: off).
+- Not covered automatically (no DOM test env): the UI flows — manual check needed after apply.

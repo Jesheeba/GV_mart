@@ -236,6 +236,16 @@ export function useMarkPoPaid() {
     },
   })
 }
+export function useUnmarkPoPaid() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { poId: string }) => automation.unmarkPoPaid(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchaseOrders"] })
+      qc.invalidateQueries({ queryKey: ["tasks"] })
+    },
+  })
+}
 export function usePurchaseBills(orgId: string | undefined) {
   return useQuery({ queryKey: ["purchaseBills", orgId], queryFn: () => automation.listPurchaseBills(orgId!), enabled: !!orgId })
 }

@@ -81,7 +81,7 @@ export const poItemSchema = z.object({
   itemType: z.enum(["product", "spare"]),
   itemId: z.string().uuid("purchase.errors.itemRequired"),
   qty: z.coerce.number().int().positive("purchase.errors.qtyPositive"),
-  price: z.coerce.number().min(0, "purchase.errors.priceNonNegative"),
+  price: z.coerce.number().positive("purchase.errors.pricePositive"),
 })
 export type PoItemInput = z.infer<typeof poItemSchema>
 

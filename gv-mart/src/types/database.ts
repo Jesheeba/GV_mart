@@ -2312,6 +2312,7 @@ export type Database = {
           whatsapp: string | null
           rating: number | null
           credit_days: number
+          is_active: boolean
           created_at: string
           updated_at: string
         }
@@ -2323,6 +2324,7 @@ export type Database = {
           whatsapp?: string | null
           rating?: number | null
           credit_days?: number
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -2334,6 +2336,7 @@ export type Database = {
           whatsapp?: string | null
           rating?: number | null
           credit_days?: number
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -2412,6 +2415,8 @@ export type Database = {
           status: Database["public"]["Enums"]["po_status"]
           total: number
           sent_channel: string | null
+          paid_at: string | null
+          paid_by: string | null
           created_at: string
           updated_at: string
         }
@@ -2422,6 +2427,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["po_status"]
           total?: number
           sent_channel?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2432,6 +2439,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["po_status"]
           total?: number
           sent_channel?: string | null
+          paid_at?: string | null
+          paid_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -2461,6 +2470,7 @@ export type Database = {
           item_id: string
           qty: number
           price: number
+          received_qty: number | null
           created_at: string
           updated_at: string
         }
@@ -2472,6 +2482,7 @@ export type Database = {
           item_id: string
           qty: number
           price: number
+          received_qty?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -2483,6 +2494,7 @@ export type Database = {
           item_id?: string
           qty?: number
           price?: number
+          received_qty?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -2695,6 +2707,7 @@ export type Database = {
           amount: number
           gst: number
           bill_image_url: string | null
+          bill_date: string
           created_at: string
           updated_at: string
         }
@@ -2706,6 +2719,7 @@ export type Database = {
           amount: number
           gst?: number
           bill_image_url?: string | null
+          bill_date?: string
           created_at?: string
           updated_at?: string
         }
@@ -2717,6 +2731,7 @@ export type Database = {
           amount?: number
           gst?: number
           bill_image_url?: string | null
+          bill_date?: string
           created_at?: string
           updated_at?: string
         }
@@ -8368,6 +8383,10 @@ export type Database = {
         Args: { p_po_id: string }
         Returns: Database["public"]["Tables"]["purchase_orders"]["Row"]
       }
+      unmark_po_paid: {
+        Args: { p_po_id: string }
+        Returns: Database["public"]["Tables"]["purchase_orders"]["Row"]
+      }
       approve_purchase_order: {
         Args: { p_approval_id: string }
         Returns: undefined
@@ -8833,7 +8852,7 @@ export type Database = {
       location_type: "warehouse" | "van"
       address_type: "residential" | "commercial"
       ownership_type: "own" | "rental"
-      po_status: "draft" | "sent" | "received" | "paid"
+      po_status: "draft" | "sent" | "received" | "paid" | "cancelled"
       quotation_status: "open" | "converted" | "lost"
       invoice_type: "product" | "spare" | "amc" | "rent"
       water_source_type: "corporation" | "borewater" | "other"

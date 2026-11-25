@@ -15,6 +15,7 @@ import {
   useUpdateSupplierItem,
 } from "@/hooks/useSuppliers"
 import type { ItemType, SupplierRow } from "@/services/suppliers"
+import { supplierWriteErrorKey } from "@/lib/purchase"
 
 type LinkedRow = {
   id: string
@@ -58,6 +59,10 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
   const [leadTime, setLeadTime] = useState("")
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
+  const writeError = linkMut.error ?? updateMut.error ?? unlinkMut.error
+  const writeErrorKey = writeError ? supplierWriteErrorKey(writeError) : null
+  const writeErrorText = writeError ? (writeErrorKey ? t(writeErrorKey) : (writeError as Error).message || t("suppliers.actionFailed")) : null
+
   const catalogOptions = useMemo(() => {
     if (itemType === "product") return catalog?.products ?? []
     if (itemType === "gift") return catalog?.gifts ?? []
@@ -65,7 +70,7 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
   }, [catalog, itemType])
 
   function submitLink() {
-    if (!itemId || !price) return
+    if (!itemId || !(Number(price) > 0)) return
     linkMut.mutate(
       { item_type: itemType, item_id: itemId, price: Number(price) || 0, lead_time_days: leadTime ? Number(leadTime) : null, is_preferred: false },
       { onSuccess: () => { setShowForm(false); setItemId(""); setPrice(""); setLeadTime("") } }
@@ -177,12 +182,14 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
             <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>
               {t("common.cancel")}
             </Button>
-            <Button size="sm" onClick={submitLink} disabled={linkMut.isPending || !itemId || !price}>
+            <Button size="sm" onClick={submitLink} disabled={linkMut.isPending || !itemId || !(Number(price) > 0)}>
               {linkMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
             </Button>
           </div>
         </div>
       ) : null}
+
+      {writeErrorText ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{writeErrorText}</p> : null}
 
       <DataTable
         columns={columns}
