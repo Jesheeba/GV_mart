@@ -193,6 +193,9 @@ function MemberFieldRow({
   )
 }
 
+// Compact field sizing for every step card (Autocomplete renders the same Input).
+const COMPACT_CARD = "gap-3 px-4 [&_input]:h-8 [&_input]:px-2.5 [&_label]:text-xs [&_select]:h-8"
+
 export function CustomerFormPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
@@ -602,7 +605,7 @@ export function CustomerFormPage() {
   const saveError = (createCustomer.error ?? upsertAddress.error) as Error | null
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 pt-2">
+    <div className="mx-auto max-w-xl space-y-3 pt-2">
       <h1 className="text-2xl font-bold text-text">
         {mode === "create" ? t("customers.form.createTitle") : t("customers.form.editTitle")}
       </h1>
@@ -612,7 +615,7 @@ export function CustomerFormPage() {
       </Card>
 
       {step === 0 ? (
-        <Card className="gap-4 px-5">
+        <Card className={COMPACT_CARD}>
           {mode === "create" ? (
             <div className="space-y-2 px-1">
               <div className="flex items-center justify-between">
@@ -715,7 +718,7 @@ export function CustomerFormPage() {
           )}
         </Card>
       ) : step === 1 ? (
-        <Card className="gap-4 px-5">
+        <Card className={COMPACT_CARD}>
           {hasLegacyAddressOnly ? (
             <div className="space-y-1.5 px-1">
               <Label htmlFor="fullAddress">{t("customers.form.fullAddress")}</Label>
@@ -733,17 +736,19 @@ export function CustomerFormPage() {
             </div>
           ) : null}
           <div className="grid grid-cols-2 gap-3 px-1">
-            <div className="space-y-1.5">
-              <Label htmlFor="doorNo">{t("customers.form.doorNo")}</Label>
-              <Input id="doorNo" {...addressForm.register("doorNo")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="plotNo">{t("customers.form.plotNo")}</Label>
-              <Input id="plotNo" {...addressForm.register("plotNo")} />
-            </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="buildingName">{t("customers.form.buildingName")}</Label>
-              <Input id="buildingName" {...addressForm.register("buildingName")} />
+            <div className="col-span-2 grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="doorNo">{t("customers.form.doorNo")}</Label>
+                <Input id="doorNo" {...addressForm.register("doorNo")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="plotNo">{t("customers.form.plotNo")}</Label>
+                <Input id="plotNo" {...addressForm.register("plotNo")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="buildingName">{t("customers.form.buildingName")}</Label>
+                <Input id="buildingName" {...addressForm.register("buildingName")} />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="streetCross">{t("customers.form.streetCross")}</Label>
@@ -943,7 +948,7 @@ export function CustomerFormPage() {
           </div>
         </Card>
       ) : (
-        <Card className="gap-4 px-5">
+        <Card className={COMPACT_CARD}>
           <div className="flex items-center justify-between px-1">
             <Label>{t("customers.form.water.title")}</Label>
             <Button type="button" size="sm" variant="outline" onClick={() => setWaterEditing((v) => !v)}>

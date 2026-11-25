@@ -1,5 +1,11 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## customer-form-compact (2026-11-25)
+- `CustomerFormPage.tsx`: Door no / Plot no / Building Name now share one 3-column row.
+- All step cards use compact fields (inputs/selects h-8, labels text-xs) via one `COMPACT_CARD` class; page width max-w-2xl -> max-w-xl.
+- Styling only; no logic/data changes. tsc clean; no existing tests cover this page.
+- Branch: `feat/customer-form-compact`, worktree `_local_only/worktrees/customer-form-compact`.
+
 ## lead-category-chips (2026-11-10)
 - Removed "All topics" filter and the hidden "Lead type" select from `LeadsPage.tsx`.
 - Added a visible category chip bar (All leads / Service / Product / Spare / AMC) bound to the existing `kind` filter — no new column, reuses `leads.kind`/`kind_key`.
