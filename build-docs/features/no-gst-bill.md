@@ -1,6 +1,6 @@
 # Feature: no-gst-bill (2026-11-26)
 
-Status: BUILT on feat/no-gst-bill. Migration 20270101100000 REHEARSED (21/21), NOT applied live; waits for the owner's "go apply".
+Status: SHIPPED 2026-11-26. Migration 20270101100000 APPLIED LIVE (owner "go apply"): baseline md5s matched, dry run OK, post-check OK.
 
 ## Purpose
 - Owner: a bill can be made **without GST** (0 tax on the invoice) wherever GST is charged today.
