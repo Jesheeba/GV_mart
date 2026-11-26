@@ -13,7 +13,7 @@ import { DEFAULT_LEAD_SCHEDULE, type FollowupType, type LeadOutcomeRow } from "@
 import { addDays, defaultNextFor, formatIstDateTime, getIstNow, isNextFollowupValid, nextWorkingDay, toIso, type NextFollowupValue } from "@/lib/lead-followups"
 import { LOST_REASON_PRESETS, isLostReasonPreset, type LostReasonPreset } from "@/lib/lead-lost-reasons"
 import { askFollowupQuestion, canSaveOutcome, defaultFollowupNeeded, scheduleNext } from "@/lib/lead-outcome-followup"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 
 /** A lead as the sheet needs it. `postponeCount` is optional — omit it where it isn't already loaded
@@ -42,7 +42,8 @@ export function LogInteractionSheet({
   lead,
   open,
   onOpenChange,
-  defaultChannel = "call",
+  // Only a caller that knows the channel (e.g. returning from a phone call) passes one; otherwise it starts unchosen.
+  defaultChannel,
   defaultMode = "outcome",
   onDone,
 }: {
@@ -83,7 +84,7 @@ function SheetBody({
 }: {
   lead: InteractionLead
   reopen: boolean
-  defaultChannel: Channel
+  defaultChannel?: Channel
   defaultMode: Mode
   onClose: () => void
   onDone?: () => void
@@ -103,7 +104,9 @@ function SheetBody({
   // Shared across modes so switching never loses what was typed.
   const [note, setNote] = useState("")
   const [reopenReason, setReopenReason] = useState("")
-  const [channel, setChannel] = useState<Channel>(defaultChannel)
+  const [channel, setChannel] = useState<Channel | null>(defaultChannel ?? null)
+  // Which unchosen button group blocked the last save (choice-no-preselect).
+  const [choiceError, setChoiceError] = useState<"channel" | "nextType" | null>(null)
 
   // Mode "outcome"
   const [outcomeId, setOutcomeId] = useState<string | null>(null)
@@ -113,7 +116,8 @@ function SheetBody({
     return { date: n.date, time: n.time, exact: false }
   })
   const [keepNonWorking, setKeepNonWorking] = useState<string | null>(null)
-  const [followupType, setFollowupType] = useState<FollowupType>("call")
+  // Unchosen until picked — or set from the chosen outcome's configured default (chooseOutcome).
+  const [followupType, setFollowupType] = useState<FollowupType | null>(null)
   const [lostPreset, setLostPreset] = useState<LostReasonPreset | "">("")
   const [lostOther, setLostOther] = useState("")
   const [needsFollowup, setNeedsFollowup] = useState(false)
@@ -136,6 +140,7 @@ function SheetBody({
     setOutcomeId(o.id)
     setNeedsFollowup(defaultFollowupNeeded(o))
     setFollowupType(o.default_followup_type)
+    setChoiceError(null)
     const d = defaultNextFor(o, getIstNow(), schedule.lead_work_days, schedule.lead_work_end)
     setNext({ date: d.date, time: d.time, exact: d.exact })
     setKeepNonWorking(null)
@@ -170,9 +175,15 @@ function SheetBody({
   // warning is shown there rather than guessing and risking a wrong one.
   const willStuck = !reopen && mode === "reschedule" && lead.postponeCount != null && lead.postponeCount + 1 >= schedule.lead_stuck_postpones
 
+  function blockOnChoice(which: "channel" | "nextType") {
+    setChoiceError(which)
+    focusChoice(which === "channel" ? "interaction-channel" : "interaction-next-type")
+  }
+
   async function save() {
     try {
       if (reopen) {
+        if (!followupType) return blockOnChoice("nextType")
         const res = await reopenLead.mutateAsync({
           leadId: lead.id,
           nextDueAt: toIso(next.date!, next.time!),
@@ -184,6 +195,8 @@ function SheetBody({
         toast.success(t("leads.outcomeSheet.reopened", { when: formatIstDateTime(res.next_due_at, lang) }))
       } else if (mode === "outcome" && selected) {
         const withNext = scheduleNext(selected, needsFollowup)
+        if (!channel) return blockOnChoice("channel")
+        if (withNext && !followupType) return blockOnChoice("nextType")
         const res = await logOutcome.mutateAsync({
           leadId: lead.id,
           outcomeId: selected.id,
@@ -311,14 +324,23 @@ function SheetBody({
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="interaction-note">{mode === "note" ? t("leads.detail.notePlaceholder") : t("leads.outcomeSheet.step2")}</Label>
             {!reopen && mode === "outcome" ? (
-              <div className="flex gap-1" role="group" aria-label={t("leads.outcomeSheet.how")}>
+              <div
+                id="interaction-channel"
+                className="flex gap-1"
+                role="group"
+                aria-label={t("leads.outcomeSheet.how")}
+                aria-describedby={choiceError === "channel" ? "interaction-channel-error" : undefined}
+              >
                 {(["call", "whatsapp", "visit"] as const).map((c) => {
                   const Icon = CHANNEL_ICON[c]
                   return (
                     <button
                       key={c}
                       type="button"
-                      onClick={() => setChannel(c)}
+                      onClick={() => {
+                        setChannel(c)
+                        if (choiceError === "channel") setChoiceError(null)
+                      }}
                       aria-pressed={channel === c}
                       title={t(`leads.followup.type.${c}`)}
                       className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold", channel === c ? chipOn : chipOff)}
@@ -331,6 +353,11 @@ function SheetBody({
               </div>
             ) : null}
           </div>
+          {!reopen && mode === "outcome" && choiceError === "channel" ? (
+            <p id="interaction-channel-error" role="alert" className="text-right text-xs text-danger">
+              {t("leads.outcomeSheet.channelRequired")}
+            </p>
+          ) : null}
           <textarea
             id="interaction-note"
             rows={4}
@@ -398,12 +425,21 @@ function SheetBody({
         <section className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label>{t("leads.outcomeSheet.step3")}</Label>
-            <div className="flex gap-1" role="group" aria-label={t("leads.outcomeSheet.nextType")}>
+            <div
+              id="interaction-next-type"
+              className="flex gap-1"
+              role="group"
+              aria-label={t("leads.outcomeSheet.nextType")}
+              aria-describedby={choiceError === "nextType" ? "interaction-next-type-error" : undefined}
+            >
               {FOLLOWUP_TYPES.map((ty) => (
                 <button
                   key={ty}
                   type="button"
-                  onClick={() => setFollowupType(ty)}
+                  onClick={() => {
+                    setFollowupType(ty)
+                    if (choiceError === "nextType") setChoiceError(null)
+                  }}
                   aria-pressed={followupType === ty}
                   className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold", followupType === ty ? chipOn : chipOff)}
                 >
@@ -412,6 +448,11 @@ function SheetBody({
               ))}
             </div>
           </div>
+          {choiceError === "nextType" ? (
+            <p id="interaction-next-type-error" role="alert" className="text-right text-xs text-danger">
+              {t("leads.outcomeSheet.nextTypeRequired")}
+            </p>
+          ) : null}
           <NextFollowupPicker
             value={next}
             onChange={setNext}

@@ -167,12 +167,13 @@ function OutcomesList() {
   const fields: CrudFieldDef[] = [
     { key: "label_en", label: t("masters.postService.outcomeEn"), type: "text", required: true },
     { key: "label_ta", label: t("masters.postService.outcomeTa"), type: "text", required: true },
-    { key: "retry", label: t("masters.postService.retry"), type: "select", options: yesNo },
-    { key: "alert", label: t("masters.postService.alert"), type: "select", options: yesNo },
+    { key: "retry", label: t("masters.postService.retry"), type: "select", defaultValue: "false", options: yesNo },
+    { key: "alert", label: t("masters.postService.alert"), type: "select", defaultValue: "false", options: yesNo },
     {
       key: "is_active",
       label: t("masters.leadKinds.status"),
       type: "select",
+      defaultValue: "true",
       options: [
         { value: "true", label: t("masters.leadKinds.active") },
         { value: "false", label: t("masters.leadKinds.inactive") },

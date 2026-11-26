@@ -105,6 +105,8 @@
     "toggleGroup": "Show or hide {{group}}"
   },
   "common": {
+    "chooseOption": "Choose an option",
+    "selectPlaceholder": "Select…",
     "appName": "GV Mart",
     "adminApp": "GV Mart Admin",
     "tagline": "Sales | Service | Spares",
@@ -781,6 +783,8 @@
       "createAnyway": "I've checked — create a new record anyway"
     },
     "errors": {
+      "ownershipRequired": "Choose Own or Rental",
+      "addressTypeRequired": "Choose Residential or Commercial",
       "nameRequired": "Enter a name (at least 2 characters)",
       "mobileInvalid": "Enter a valid 10-digit mobile number",
       "emailInvalid": "Enter a valid email address",
@@ -1247,6 +1251,7 @@
       "add": "Add"
     },
     "productMedia": {
+      "docTypeLabel": "Document type",
       "manage": "Manage media",
       "title": "Media",
       "imagesTab": "Images",
@@ -1306,6 +1311,7 @@
       }
     },
     "productFeatures": {
+      "relationTypeLabel": "Relation type",
       "manage": "Manage features & related products",
       "title": "Features & Related Products",
       "bulletsTitle": "Feature bullets",
@@ -1781,6 +1787,7 @@
       "redeemPoints": "Referral points redeemed: {{points}} ({{amount}})"
     },
     "errors": {
+      "paymentMethodRequired": "Choose a payment method",
       "txnIdRequired": "Enter the transaction ID for a bank transfer",
       "paymentDescriptionRequired": "Enter a short description for the bank transfer",
       "paymentInvalid": "Check the payment details and try again",
@@ -2188,6 +2195,7 @@
       },
       "attachedPhotos": "Customer-attached photos",
       "confirmedAvailability": {
+        "reasonRequired": "Choose a reason",
         "title": "Confirmed availability",
         "logButton": "Log a call",
         "empty": "No confirmed-availability calls logged yet.",
@@ -4034,6 +4042,7 @@
       "badgeTitle": "Daily Follow Up: {{overdue}} overdue, {{today}} due today"
     },
     "followup": {
+      "typeRequired": "Choose a follow-up type",
       "none": "No follow-up",
       "overdue": "Overdue",
       "postponed": "Postponed ×{{count}}",
@@ -4124,6 +4133,8 @@
       "savedAlert": "Call logged. Master and operations have been notified."
     },
     "outcomeSheet": {
+      "nextTypeRequired": "Choose the next follow-up type",
+      "channelRequired": "Choose how you contacted them",
       "title": "Log outcome",
       "reopenTitle": "Reopen lead",
       "step1": "What happened?",
@@ -6089,11 +6100,12 @@
       "title": "Product lifetime",
       "hint": "How long this product is expected to last before it needs replacing.",
       "valueLabel": "Lifetime value",
+      "unitLabel": "Unit",
       "unit": { "months": "Months", "years": "Years" },
       "save": "Save lifetime",
       "saved": "Lifetime saved",
       "saveFailed": "Could not save the lifetime.",
-      "errors": { "valueInvalid": "Enter a whole number greater than 0." }
+      "errors": { "valueInvalid": "Enter a whole number greater than 0.", "unitRequired": "Choose months or years" }
     },
     "spares": {
       "title": "Spare part replacement schedule",

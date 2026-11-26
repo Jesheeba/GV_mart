@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
-import type { PoItemInput } from "@/lib/validation/automation"
+import { emptyPoItem, type PoItemDraft } from "@/lib/validation/automation"
 
 /** Shared "line items" editor for both Purchase Order creation and Bill
  * Entry — same shape (item type/id/qty/price), matching how the sales cart
  * (src/app/admin/sales/ItemsStep.tsx) builds product/spare rows. */
-export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefined; items: PoItemInput[]; onChange: (items: PoItemInput[]) => void }) {
+export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefined; items: PoItemDraft[]; onChange: (items: PoItemDraft[]) => void }) {
   const { t } = useTranslation()
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
@@ -20,14 +20,14 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
   // resolves back to a label, see productLabelFor below).
   const [productQueries, setProductQueries] = useState<Record<number, string>>({})
 
-  function update(i: number, patch: Partial<PoItemInput>) {
+  function update(i: number, patch: Partial<PoItemDraft>) {
     onChange(items.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
   }
   function remove(i: number) {
     onChange(items.filter((_, idx) => idx !== i))
   }
   function add() {
-    onChange([...items, { itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    onChange([...items, emptyPoItem()])
   }
 
   // Active-only for products, same as the sales cart's own picker
@@ -46,8 +46,12 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
           <select
             value={row.itemType}
             onChange={(e) => update(i, { itemType: e.target.value as "product" | "spare", itemId: "" })}
+            aria-label={t("suppliers.itemType")}
             className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           >
+            <option value="" disabled>
+              {t("common.selectPlaceholder")}
+            </option>
             <option value="spare">{t("masters.tabs.spares")}</option>
             <option value="product">{t("masters.tabs.products")}</option>
           </select>
@@ -74,7 +78,9 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
             <select
               value={row.itemId}
               onChange={(e) => update(i, { itemId: e.target.value })}
-              className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+              disabled={row.itemType === ""}
+              aria-label={t("purchase.items.selectItem")}
+              className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:opacity-50"
             >
               <option value="">{t("purchase.items.selectItem")}</option>
               {spareOptions.map((o) => (

@@ -64,6 +64,7 @@ export function LeadOutcomesTab() {
       key: "is_active",
       label: t("masters.leadOutcomes.status"),
       type: "select",
+      defaultValue: "true",
       options: [
         { value: "true", label: t("masters.leadSources.active") },
         { value: "false", label: t("masters.leadSources.inactive") },

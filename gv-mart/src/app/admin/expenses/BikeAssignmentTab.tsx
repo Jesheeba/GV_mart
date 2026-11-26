@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { useProfile } from "@/hooks/useProfile"
+import { focusChoice } from "@/lib/utils"
 import { useTechniciansList } from "@/hooks/useTechniciansAdmin"
 import {
   useCloseTechnicianVehicleRow,
@@ -57,7 +58,9 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
   const setVehicle = useSetTechnicianVehicle()
   const closeRow = useCloseTechnicianVehicleRow()
 
-  const [ownership, setOwnership] = useState<"own" | "company">("own")
+  // Unchosen until picked (choice-no-preselect).
+  const [ownership, setOwnership] = useState<"own" | "company" | "">("")
+  const [ownershipError, setOwnershipError] = useState(false)
   const [rate, setRate] = useState("0")
   const [effectiveFrom, setEffectiveFrom] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +69,11 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
 
   async function submit() {
     if (!orgId || !effectiveFrom) return
+    if (!ownership) {
+      setOwnershipError(true)
+      focusChoice(`ownership-${technicianId}`)
+      return
+    }
     setError(null)
     try {
       // End the currently-open row the day before the new one starts, so the
@@ -83,6 +91,7 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
         effective_from: effectiveFrom,
       })
       setEffectiveFrom("")
+      setOwnership("")
     } catch (e) {
       setError((e as Error).message)
     }
@@ -107,12 +116,25 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
           <select
             id={`ownership-${technicianId}`}
             value={ownership}
-            onChange={(e) => setOwnership(e.target.value as "own" | "company")}
+            onChange={(e) => {
+              setOwnership(e.target.value as "own" | "company")
+              setOwnershipError(false)
+            }}
+            aria-invalid={ownershipError || undefined}
+            aria-describedby={ownershipError ? `ownership-${technicianId}-error` : undefined}
             className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
+            <option value="" disabled>
+              {t("common.selectPlaceholder")}
+            </option>
             <option value="own">{t("expenses.bikeAssignment.ownershipValues.own")}</option>
             <option value="company">{t("expenses.bikeAssignment.ownershipValues.company")}</option>
           </select>
+          {ownershipError ? (
+            <p id={`ownership-${technicianId}-error`} role="alert" className="text-xs text-danger">
+              {t("common.chooseOption")}
+            </p>
+          ) : null}
         </div>
         <div className="space-y-1">
           <Label htmlFor={`rate-${technicianId}`}>{t("expenses.bikeAssignment.rate")}</Label>

@@ -44,7 +44,7 @@ import { computeJobOverrun } from "@/lib/job-overrun"
 import { formatDate, formatDateTime, formatShortDateTime, formatShortDateTimeRange, formatTime } from "@/lib/formatDate"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { resolveVisitDurationMinutes } from "@/lib/visit-duration"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
 import { ChannelBadge, PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
 import { InstallationChargeRow } from "./InstallationChargeRow"
@@ -142,7 +142,9 @@ export function TicketDetailPage() {
   // auto-assignment: log a phone-confirmed availability window (customer
   // follow-up/complaint, or the assigned technician can't make the day).
   const [loggingAvailability, setLoggingAvailability] = useState(false)
-  const [availReason, setAvailReason] = useState<ConfirmedAvailabilityReason>("customer_followup")
+  // Unchosen until staff pick one (choice-no-preselect).
+  const [availReason, setAvailReason] = useState<ConfirmedAvailabilityReason | null>(null)
+  const [availReasonError, setAvailReasonError] = useState(false)
   const [availDate, setAvailDate] = useState("")
   const [availFrom, setAvailFrom] = useState("")
   const [availTo, setAvailTo] = useState("")
@@ -849,12 +851,22 @@ export function TicketDetailPage() {
 
           {loggingAvailability ? (
             <div className="space-y-2.5 border-t border-border pt-3">
-              <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+              <div
+                id="avail-reason"
+                role="group"
+                aria-label={t("service.detail.confirmedAvailability.title")}
+                aria-describedby={availReasonError ? "avail-reason-error" : undefined}
+                className="flex gap-1 rounded-full bg-surface-alt p-1"
+              >
                 {(["customer_followup", "technician_unavailable"] as const).map((r) => (
                   <button
                     key={r}
                     type="button"
-                    onClick={() => setAvailReason(r)}
+                    aria-pressed={availReason === r}
+                    onClick={() => {
+                      setAvailReason(r)
+                      setAvailReasonError(false)
+                    }}
                     className={cn(
                       "flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                       availReason === r ? "bg-ink text-white" : "text-text-muted"
@@ -864,6 +876,11 @@ export function TicketDetailPage() {
                   </button>
                 ))}
               </div>
+              {availReasonError ? (
+                <p id="avail-reason-error" role="alert" className="text-xs text-danger">
+                  {t("service.detail.confirmedAvailability.reasonRequired")}
+                </p>
+              ) : null}
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <div className="space-y-1">
                   <Label htmlFor="avail-call-date">{t("service.detail.confirmedAvailability.date")}</Label>
@@ -896,7 +913,12 @@ export function TicketDetailPage() {
                 <Button
                   size="sm"
                   disabled={!availDate || !availFrom || !availTo || availFrom >= availTo || logAvailability.isPending}
-                  onClick={() =>
+                  onClick={() => {
+                    if (!availReason) {
+                      setAvailReasonError(true)
+                      focusChoice("avail-reason")
+                      return
+                    }
                     logAvailability.mutate(
                       { appointmentId: appointment.id, reason: availReason, confirmedDate: availDate, confirmedFrom: availFrom, confirmedTo: availTo, note: availNote },
                       {
@@ -906,12 +928,12 @@ export function TicketDetailPage() {
                           setAvailFrom("")
                           setAvailTo("")
                           setAvailNote("")
-                          setAvailReason("customer_followup")
+                          setAvailReason(null)
                         },
                         onError: () => toast.error(t("common.actionFailed")),
                       }
                     )
-                  }
+                  }}
                 >
                   {logAvailability.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
                 </Button>

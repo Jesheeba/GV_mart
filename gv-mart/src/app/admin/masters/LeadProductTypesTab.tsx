@@ -32,6 +32,7 @@ export function LeadProductTypesTab() {
       key: "is_active",
       label: t("masters.leadProductTypes.status"),
       type: "select",
+      defaultValue: "true",
       options: [
         { value: "true", label: t("masters.leadProductTypes.active") },
         { value: "false", label: t("masters.leadProductTypes.inactive") },

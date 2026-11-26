@@ -33,6 +33,7 @@ export function IncentiveRulesTab() {
       key: "is_active",
       label: t("masters.incentives.status"),
       type: "select",
+      defaultValue: "true",
       options: [
         { value: "true", label: t("masters.incentives.active") },
         { value: "false", label: t("masters.incentives.inactive") },

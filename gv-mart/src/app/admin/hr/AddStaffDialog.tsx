@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { useCreateStaff } from "@/hooks/useHr"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 import { FIELD_W } from "@/lib/fieldWidth"
+import { focusChoice } from "@/lib/utils"
 
 type StaffRole = "sales_admin" | "operation_admin"
 const ROLES: StaffRole[] = ["sales_admin", "operation_admin"]
@@ -31,7 +32,9 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [phone, setPhone] = useState("")
   const [designation, setDesignation] = useState("")
   const [address, setAddress] = useState("")
-  const [role, setRole] = useState<StaffRole>("sales_admin")
+  // Unchosen until the master picks one (choice-no-preselect); the password mode below keeps its default.
+  const [role, setRole] = useState<StaffRole | "">("")
+  const [roleError, setRoleError] = useState(false)
   const [mode, setMode] = useState<"generate" | "type">("generate")
   const [typed, setTyped] = useState("")
   const [reason, setReason] = useState("")
@@ -50,7 +53,8 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setPhone("")
     setDesignation("")
     setAddress("")
-    setRole("sales_admin")
+    setRole("")
+    setRoleError(false)
     setMode("generate")
     setTyped("")
     setReason("")
@@ -58,6 +62,11 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
   function submit() {
     if (!canSubmit) return
+    if (!role) {
+      setRoleError(true)
+      focusChoice("staff-role")
+      return
+    }
     const name = fullName.trim()
     create.mutate(
       {
@@ -118,13 +127,31 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 <Label htmlFor="staff-role" className="block text-xs font-medium text-text-muted">
                   {t("hr.staffSalary.role")}
                 </Label>
-                <select id="staff-role" value={role} onChange={(e) => setRole(e.target.value as StaffRole)} className={selectClass}>
+                <select
+                  id="staff-role"
+                  value={role}
+                  onChange={(e) => {
+                    setRole(e.target.value as StaffRole)
+                    setRoleError(false)
+                  }}
+                  aria-invalid={roleError || undefined}
+                  aria-describedby={roleError ? "staff-role-error" : undefined}
+                  className={selectClass}
+                >
+                  <option value="" disabled>
+                    {t("common.selectPlaceholder")}
+                  </option>
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
                       {t(`roles.${r}`)}
                     </option>
                   ))}
                 </select>
+                {roleError ? (
+                  <p id="staff-role-error" role="alert" className="text-xs text-danger">
+                    {t("common.chooseOption")}
+                  </p>
+                ) : null}
               </div>
             </div>
 
