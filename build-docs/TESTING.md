@@ -5,7 +5,7 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 ## pin-autocorrect
 - 2026-11-26. vitest: `arrivalMode` (8 cases: AC1/4/5 + boundary) and `pinStatus` (6 cases), outbox contract, i18n parity all pass. Full serial suite 1098 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).
 - `tsc`: clean apart from the pre-existing unused `fullAddress` in CustomerFormPage.tsx (from origin/main, untouched).
-- `supabase/tests/pin_autocorrect.test.sql` (AC1-7) written, NOT run: needs the migration applied first ("GO APPLY").
+- `supabase/tests/pin_autocorrect.test.sql` run LIVE once after apply, one DO block ending in RAISE: ALL PASSED (AC1 move+event+notification, no task; AC2 next arrival locks; AC3 locked untouched; AC4 inside/too far/120m/null accuracy no-op; AC5 no-pin set; AC6 other technician not_assigned, master rejected; AC7 anon no EXECUTE). Checked afterwards: 0 corrected events, 0 pin_autocorrected notifications, settings unchanged (2000/250).
 - NOT browser-verified: Chrome extension not connected and the `.env.test` master login was rejected on local dev.
 
 ## arrival-location-lock

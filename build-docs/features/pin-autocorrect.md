@@ -1,6 +1,6 @@
 # Feature: pin-autocorrect
 
-Status: BUILT, migration NOT applied (needs owner's "GO APPLY"), not pushed. Builds on `arrival-location-lock`.
+Status: BUILT, migration APPLIED LIVE 2026-11-26 (owner: "go apply"), SQL tests pass. App code not pushed/deployed yet. Builds on `arrival-location-lock`.
 
 ## Purpose
 Arrival is a hard block outside 250 m of the saved pin. When the pin is wrong or missing, the technician is stuck at the customer's door, and the office only hears about it 5 minutes later. Owner (2026-11-26): "automate and skip the manual work". So: no office approval anywhere.
