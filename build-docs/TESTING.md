@@ -81,3 +81,11 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - `src/lib/gstInclusive.test.ts`: 12/12 pass (AC numbers 11,800→1,800; 12,500→1,906.78; discount then GST; Extra unchanged; rate 0; 100% discount; payable follows the switch; redemption floor). Existing `sale-calc.test.ts` still green.
 - `supabase/tests/gst_inclusive_toggle.test.sql`: **19/19 PASS on live, 2026-11-26**, run alone after apply. Three earlier runs stopped on test-fixture mistakes (new-org 5% discount cap, products need brand+model, `rental_plans.monthly_rate` is generated); only the fixtures were fixed. Before/after row counts were identical on all 4 runs, so nothing persisted. It covers ACLs, one overload each, all 6 functions on `_gst_amount`, SQL math = JS math, create_sale included/extra/org-default/partial payment, create_quotation explicit/default/legacy NULL, and run_rental_billing on the org default.
 - Full suite 1114 pass / 2 fail (the same WhatsApp tests that were already failing on origin/main); tsc clean apart from the CustomerFormPage error that was already there.
+
+## Live UI check — 2026-11-26 (owner signed in; Playwright drove the rest; option B = no sale created)
+- Settings: "Prices include GST by default" shows, saves (DB true), and was switched back OFF afterwards (DB false).
+- New Sale: switch starts on the default. ROP 2090 BLUE Included = ₹12,500 (GST ₹1,906.78); Extra = ₹14,750 (GST ₹2,250). + spare ₹750 Included → GST ₹114.41, grand ₹13,250. "Amount collected" follows: 13,250 ⇄ 15,635. The draft restores the GST choice.
+- Search: "rop blue" finds ROP 2090 BLUE + ROP ROMA BLUE (space types normally, label once); "ros adapter 24v" finds exactly the 2 adapters with price/stock.
+- New Quotation: Included ₹12,500 (GST ₹1,906.78) / Extra ₹14,750. Not saved.
+- Found + fixed: the cart card subtitle still showed "RO (spreadsheet import) · 2090 BLUE" → now `productExtraParts` (tests 15/15), re-checked live.
+- Not checked: the printed invoice (needs a real sale; owner chose B). Its maths is covered by the SQL test 19/19.
