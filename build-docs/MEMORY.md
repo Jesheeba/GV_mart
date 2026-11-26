@@ -95,6 +95,7 @@
 - Owner: customer referrers get auto-credited points (amount + trigger still open, see PLAN.md Q1/Q2).
 - Supersedes 2026-11-11 "Referred-by fully source-driven": the Referral source now shows a referrer-type chooser.
 - Owner (approval, 2026-11-26): auto-credit is a master **toggle** in Settings + master-set amount; OFF by default. Credit on the referred customer's first invoice (my recommendation, owner did not object). Q3 (other-window ownership) treated as cleared by plan approval.
+- Owner (2026-11-26): "turn on the 50 points referal" -> live settings row for the real org (b6822905…, 15,849 customers) set to enabled=true, 50 points. Empty test org 7fde8bf5… left OFF/0. Changeable in Masters -> Settings.
 - 2026-11-26: owner sent "go apply" before R2 existed — not treated as approval of the unseen file; R2 built + rehearsed, waiting for "go apply" on 20261228100000 by name.
 - Billing RPCs wrapped (*_with_referrer), not edited — keeps the 18 KB create_sale untouched; same-transaction call keeps it atomic.
 

@@ -720,6 +720,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "customers_referred_by_customer_id_fkey"
+            columns: ["referred_by_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "customers_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -5649,6 +5656,13 @@ export type Database = {
           {
             foreignKeyName: "leads_customer_id_fkey"
             columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_referred_by_customer_id_fkey"
+            columns: ["referred_by_customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
