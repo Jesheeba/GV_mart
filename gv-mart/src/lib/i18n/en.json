@@ -3519,6 +3519,9 @@
         "txnId": "Transaction ID",
         "description": "Description",
         "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually.",
+        "methodRequired": "Choose how the customer is paying before creating the invoice.",
+        "methodLockedNote": "Set on the invoice. To change it, ask the office to correct the invoice.",
+        "upiAfterInvoiceNote": "Create the invoice first; the UPI payment is collected on the payment step.",
         "complete": "Verify & complete visit",
         "qr": {
           "title": "Show this QR to the customer",

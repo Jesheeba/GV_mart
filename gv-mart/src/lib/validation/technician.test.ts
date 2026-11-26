@@ -138,8 +138,22 @@ describe("servicePaymentSchema", () => {
   })
 
   it("rejects an invalid method value", () => {
-    const result = servicePaymentSchema.safeParse({ method: "upi" })
+    const result = servicePaymentSchema.safeParse({ method: "cheque" })
     expect(result.success).toBe(false)
+  })
+
+  it("AC-upi: accepts UPI (offered on-site when online payments are enabled)", () => {
+    expect(servicePaymentSchema.safeParse({ method: "upi" }).success).toBe(true)
+  })
+
+  it("AC-required: rejects a missing method (nothing pre-selected on the invoice step)", () => {
+    const result = servicePaymentSchema.safeParse({ method: null, txnId: "", description: "" })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error.issues[0]?.path[0]).toBe("method")
+  })
+
+  it("AC-transfer: transfer still needs a reference before the invoice is created", () => {
+    expect(servicePaymentSchema.safeParse({ method: "transfer", txnId: "", description: "" }).success).toBe(false)
   })
 })
 
