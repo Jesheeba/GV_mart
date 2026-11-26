@@ -1,5 +1,5 @@
--- Rolled-back DB tests for 20270101100100_rework_core.sql (feature doc build-docs/features/rework.md).
--- Preconditions: 20270101100000_rework_enums.sql COMMITTED. The runner concatenates the core migration in
+-- Rolled-back DB tests for 20270102100100_rework_core.sql (feature doc build-docs/features/rework.md).
+-- Preconditions: 20270102100000_rework_enums.sql COMMITTED. The runner concatenates the core migration in
 -- front of this file inside ONE transaction; this file ends in RAISE so everything rolls back.
 -- Throwaway __TEST_ org only. Test names map to the feature doc's acceptance criteria (AC1..AC10).
 create temp table res (n serial, line text);
@@ -261,8 +261,8 @@ begin
   perform pg_temp.chk('anon has no EXECUTE on request_rework_escalation', not has_function_privilege('anon', 'public.request_rework_escalation(uuid,text)', 'execute'));
   perform pg_temp.chk('anon has no EXECUTE on report_rework_summary', not has_function_privilege('anon', 'public.report_rework_summary(date,date)', 'execute'));
   perform pg_temp.chk('authenticated has no EXECUTE on technician_rework_count', not has_function_privilege('authenticated', 'public.technician_rework_count(uuid,uuid,date)', 'execute'));
-  perform pg_temp.chk('authenticated keeps EXECUTE on create_service_invoice', has_function_privilege('authenticated', 'public.create_service_invoice(uuid,uuid,numeric,numeric,jsonb,payment_method,text,text,boolean,numeric,jsonb,boolean)', 'execute'));
-  perform pg_temp.chk('anon has no EXECUTE on create_service_invoice', not has_function_privilege('anon', 'public.create_service_invoice(uuid,uuid,numeric,numeric,jsonb,payment_method,text,text,boolean,numeric,jsonb,boolean)', 'execute'));
+  perform pg_temp.chk('authenticated keeps EXECUTE on create_service_invoice', has_function_privilege('authenticated', 'public.create_service_invoice(uuid,uuid,numeric,numeric,jsonb,payment_method,text,text,boolean,numeric,jsonb,boolean,boolean)', 'execute'));
+  perform pg_temp.chk('anon has no EXECUTE on create_service_invoice', not has_function_privilege('anon', 'public.create_service_invoice(uuid,uuid,numeric,numeric,jsonb,payment_method,text,text,boolean,numeric,jsonb,boolean,boolean)', 'execute'));
 
   -- ── real data untouched ────────────────────────────────────────────────────────────────────
   select md5(coalesce(string_agg(id::text || status::text || coalesce(type::text, ''), ',' order by id), ''))

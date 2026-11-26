@@ -33,7 +33,7 @@ export function AdjustmentsTab() {
     enabled: !!profile?.org_id,
   })
   const addAdjustment = useAddMonthlyAdjustment()
-  // Rework (20270101100200): the master may also omit ("Exclude") or add to ("Top up") the late and rework
+  // Rework (20270102100200): the master may also omit ("Exclude") or add to ("Top up") the late and rework
   // salary deductions, and remove such a row to undo it. Those targets are master-only (RLS).
   const deleteAdjustment = useDeleteMonthlyAdjustment()
   const { toast } = useToast()

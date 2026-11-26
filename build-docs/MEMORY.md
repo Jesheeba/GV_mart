@@ -123,4 +123,4 @@
 - P1: rework-paid does NOT count toward X (owner kept it after the loophole warning). P2: each rework after the Xth in a salary month deducts ₹Y.
 - Owner: X is master-set (10 was an example); "every deduction can be added or omitted by master" -> monthly_adjustments targets late_deduction/rework_deduction (Exclude = omit, Top up = add, master-only, removable).
 - Build: outcome derived server-side from the bill (no client flag, no offline op); escalations reuse approvals (type 'rework'); pending escalations still count until approved; auto-pickers skip rework; guard triggers lock rework columns to the RPCs.
-- Apply order (Postgres enum rule): 20270101100000 enums COMMITTED first, then rehearse/apply 100100 core, then 100200 salary (incentive-stream APPROVED pipeline).
+- Apply order (Postgres enum rule): 20270102100000 enums COMMITTED first, then rehearse/apply 100100 core, then 100200 salary (incentive-stream APPROVED pipeline).

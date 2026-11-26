@@ -1,6 +1,6 @@
--- Rollback for 20270101100100_rework_core.sql. Restores the three re-issued functions to their
--- pre-rework bodies, then drops everything the migration added. The enum values from
--- 20270101100000_rework_enums.sql stay (Postgres cannot drop enum values; unused values are harmless).
+-- Rollback for 20270102100100_rework_core.sql. Restores the three re-issued functions to their LIVE pre-rework
+-- bodies (read 2026-11-26), then drops everything the migration added. The enum values from
+-- 20270102100000_rework_enums.sql stay (Postgres cannot drop enum values; unused values are harmless).
 -- Refuses to run while any rework ticket exists, so no rework data is silently orphaned.
 do $$ begin
   if exists (select 1 from public.service_tickets where type::text = 'rework' or rework_of_ticket_id is not null) then
@@ -8,7 +8,7 @@ do $$ begin
   end if;
 end $$;
 
-CREATE OR REPLACE FUNCTION public.create_service_invoice(p_org_id uuid, p_visit_id uuid, p_service_charge numeric, p_discount_percent numeric, p_spares jsonb, p_payment_method payment_method, p_txn_id text, p_payment_description text, p_is_chargeable boolean, p_amount_paid numeric DEFAULT NULL::numeric, p_installations jsonb DEFAULT '[]'::jsonb, p_gst_inclusive boolean DEFAULT NULL::boolean)
+CREATE OR REPLACE FUNCTION public.create_service_invoice(p_org_id uuid, p_visit_id uuid, p_service_charge numeric, p_discount_percent numeric, p_spares jsonb, p_payment_method payment_method, p_txn_id text, p_payment_description text, p_is_chargeable boolean, p_amount_paid numeric DEFAULT NULL::numeric, p_installations jsonb DEFAULT '[]'::jsonb, p_gst_inclusive boolean DEFAULT NULL::boolean, p_no_gst boolean DEFAULT NULL::boolean)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -123,7 +123,7 @@ begin
 
   v_discount := round(v_subtotal * p_discount_percent / 100, 2);
   v_gst_inclusive := coalesce(p_gst_inclusive, v_settings.prices_include_gst, false);
-  v_gst := public._gst_amount(v_subtotal - v_discount, v_settings.gst_rate, v_gst_inclusive);
+  v_gst := public._gst_amount(v_subtotal - v_discount, case when coalesce(p_no_gst, false) then 0 else v_settings.gst_rate end, v_gst_inclusive);
   v_total := v_subtotal - v_discount + case when v_gst_inclusive then 0 else v_gst end;
 
   v_amount_paid := coalesce(p_amount_paid, v_total);
@@ -330,7 +330,7 @@ begin
 end;
 $function$;
 
-create or replace function public._auto_assign_next_ticket_to_technician(p_org_id uuid, p_technician_id uuid)
+CREATE OR REPLACE FUNCTION public._auto_assign_next_ticket_to_technician(p_org_id uuid, p_technician_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -435,7 +435,7 @@ begin
 end;
 $function$;
 
-create or replace function public._next_ticket_available_for_technician(p_org_id uuid, p_technician_id uuid)
+CREATE OR REPLACE FUNCTION public._next_ticket_available_for_technician(p_org_id uuid, p_technician_id uuid)
  RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -464,7 +464,6 @@ AS $function$
       ), 0) + public._ticket_minutes(st.id) <= t.daily_capacity_minutes
   );
 $function$;
-
 drop trigger if exists service_tickets_rework_after on public.service_tickets;
 drop trigger if exists service_tickets_rework_guard on public.service_tickets;
 drop trigger if exists service_tickets_rework_insert_guard on public.service_tickets;

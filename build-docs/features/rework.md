@@ -4,7 +4,11 @@ Status: **BUILT end to end (2026-11-26), NOT applied to the DB, NOT pushed.** Wo
 branch `feat/rework`, rebased on origin/main 7c5bc56.
 
 ## As built (differences from the plan below, and why)
-- **Migrations renumbered** to `20270101100000_rework_enums` / `…100100_rework_core` / `…100200_rework_penalty_salary`:
+- **Renumbered again to `20270102…` and regenerated from LIVE bodies (2026-11-26, at "go apply" pre-check):** a parallel
+  session applied `20270101100000_no_gst_bill` live (branch feat/no-gst-bill, not yet on main), which also made
+  `create_service_invoice` 13-argument (`p_no_gst`). Core now copies the live bodies and refuses to run if their md5 moves.
+  **Merge order: feat/no-gst-bill before feat/rework** (core requires exactly the 13-argument function).
+- **Migrations renumbered** to `20270102100000_rework_enums` / `…100100_rework_core` / `…100200_rework_penalty_salary`:
   `20261229100000` collided with main's `address_choice_not_set`, and main's newer `20261230100000_gst_everywhere`
   redefines `create_service_invoice` (a lower number would have reverted it).
 - **Apply order is forced by Postgres:** a new enum value cannot be used in the transaction that adds it, so

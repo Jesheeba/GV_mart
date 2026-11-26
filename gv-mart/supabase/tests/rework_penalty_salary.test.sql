@@ -1,5 +1,5 @@
--- Rolled-back DB tests for 20270101100200_rework_penalty_salary.sql (feature doc build-docs/features/rework.md, AC5).
--- Preconditions: 20261229100000 committed and 20270101100100 applied (or concatenated ahead). The runner puts the
+-- Rolled-back DB tests for 20270102100200_rework_penalty_salary.sql (feature doc build-docs/features/rework.md, AC5).
+-- Preconditions: 20261229100000 committed and 20270102100100 applied (or concatenated ahead). The runner puts the
 -- penalty migration in front of this file in ONE transaction; this file ends in RAISE so everything rolls back.
 -- Synthetic __TEST_ org and LAST month only - never the real org, never the real current month.
 create temp table res (n serial, line text);

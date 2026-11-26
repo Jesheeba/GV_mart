@@ -129,7 +129,7 @@ export function SalaryTab() {
     { key: "base", header: t("hr.salary.base"), render: (r) => formatCurrency(r.base) },
     { key: "revenueComponent", header: t("hr.salary.revenueComponent"), render: (r) => formatCurrency(r.revenue_component) },
     { key: "lateDeduction", header: t("hr.salary.lateDeduction"), render: (r) => `-${formatCurrency(r.late_deduction)}` },
-    // Rework penalty (20270101100200): every counted rework after the master's free limit.
+    // Rework penalty (20270102100200): every counted rework after the master's free limit.
     {
       key: "reworkDeduction",
       header: t("hr.salary.reworkDeduction"),
