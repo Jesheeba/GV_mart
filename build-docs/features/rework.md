@@ -1,6 +1,6 @@
 # Rework (complaint redone for the same problem)
 
-Status: **BUILT end to end (2026-11-26), NOT applied to the DB, NOT pushed.** Worktree `_local_only/worktrees/rework`,
+Status: **BUILT; enums + core LIVE (2026-11-26); salary migration NOT applied; branch pushed, NOT merged.** Worktree `_local_only/worktrees/rework`,
 branch `feat/rework`, rebased on origin/main 7c5bc56.
 
 ## As built (differences from the plan below, and why)
