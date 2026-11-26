@@ -77,3 +77,4 @@ Someone else (name + phone). Customer referrers earn referral points automatical
 
 ## Status
 - R1 DONE: `lib/referrer.ts` (+14 tests), `ReferrerField`, `QuickAddCustomerDialog`, lead `ReferredBySection` wired (Referral source = full chooser; Customer app = customer search + quick-add). A customer referrer on leads still persists as name/phone until R2 adds `referred_by_customer_id`.
+- R2 BUILT, NOT APPLIED: `20261228100000_referral_sources.sql`. Changed from the plan: the 3 billing RPCs are **wrapped**, not edited (`*_with_referrer` call the unchanged originals in the same transaction); `create_customer_with_details` likewise wrapped by `create_customer_with_referrer`. Points credit on the first **paid** invoice. Only master/sales staff can create customers (RLS), so quick-add must be hidden for operation_admin on New Complaint (R3).

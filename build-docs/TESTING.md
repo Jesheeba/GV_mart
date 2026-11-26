@@ -2,6 +2,11 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## referral-sources R2 (migration, NOT applied) — 2026-11-26
+- `supabase/tests/referral_sources.test.sql` via rolled-back rehearsal (begin + migration + test, ends in RAISE): **40/40 pass** on the first run. Covers AC-1/5/6/7/8/9, guards, first-referrer-wins, history rule, atomic rollback of a failed sale, carry-over, points toggle/once/paid-later, delete of referrer, grants, billing RPC md5 unchanged.
+- Leak check afterwards (read-only): 0 new columns/functions, 0 test orgs/users, carry-over md5 still 9a4e65a1.
+- Rollback exercise (migration + rollback, ends in RAISE): 0 cols / 0 fns / 0 triggers left, carry-over md5 back to 9a4e65a1, no anon/authenticated EXECUTE.
+
 ## referral-sources R1 (picker + quick-add) — 2026-11-26
 - `src/lib/referrer.test.ts` 14/14: AC1/AC2 kinds (no walk-in/lead), kind switch clears fields, completeness, AC3 quick-add schema (name/mobile/optional area, invalid mobiles), AC4 existing-customer match, en/ta key parity.
 - Regression: `tsc -b` clean, oxlint clean, full vitest 1223 passed / 2 failed. The 2 failures (waOutboxSentGuard, wa-event-context) also fail on clean origin/main c83a0a3, so they were there before this change.
