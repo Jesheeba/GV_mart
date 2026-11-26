@@ -182,3 +182,6 @@
 
 ## 2026-11-26 fix(referral-sources): pin leads->customers embed to leads_customer_id_fkey
 - Leads list/detail broke after referred_by_customer_id added a 2nd FK; queries now name the FK. Regression test added.
+
+## 2026-11-26 fix(vendor-flow): approval before send, separate payment, safe receipts — LIVE
+- Migration 20261231100000 applied live; branch merged to main. Also fixes tsc on main (embed regression test) and a duplicate purchase.errors i18n block.

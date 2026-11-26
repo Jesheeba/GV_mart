@@ -4514,15 +4514,6 @@
     }
   },
   "purchase": {
-    "errors": {
-      "itemRequired": "Pick an item for every line.",
-      "qtyPositive": "Quantity must be at least 1.",
-      "pricePositive": "Every line needs a price above ₹0.",
-      "supplierRequired": "Pick a supplier.",
-      "itemsRequired": "Add at least one item.",
-      "gstNonNegative": "GST cannot be negative.",
-      "billDateRequired": "Pick the bill date."
-    },
     "quickAdd": {
       "supplierPlaceholder": "New supplier name",
       "supplierHint": "Add their WhatsApp number later in Suppliers."
@@ -4635,6 +4626,7 @@
       "itemsRequired": "Add at least one item",
       "itemRequired": "Select an item",
       "qtyPositive": "Quantity must be greater than zero",
+      "pricePositive": "Every line needs a price above ₹0.",
       "priceNonNegative": "Price can't be negative",
       "gstNonNegative": "GST can't be negative",
       "billDateRequired": "Bill date is required"

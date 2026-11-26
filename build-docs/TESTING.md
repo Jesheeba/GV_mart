@@ -203,3 +203,9 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Test: src/lib/leadCustomerEmbed.test.ts (2/2) — scans src + supabase/functions for un-hinted leads<->customers embeds; verified it FAILS on the old code. Live API with the hinted select: 200.
 - tsc clean. Full suite: only the dispatcher-mock `abortSignal` failures (pre-existing on main since 05707bd, unrelated files) + known wa-event-context.
 - Customer detail page ("Couldn't load customers") NOT reproduced: getCustomer works via API and under owner RLS simulation; awaiting browser error details.
+
+## fix(vendor-flow): live apply + merge (2026-11-26)
+- SQL: supabase/tests/vendor_flow_fixes.test.sql 43/43 PASS on live (own transaction, ends in RAISE, residue check 0).
+- Unit: purchase.test.ts + i18n keysComplete pass after fixing a duplicate purchase.errors block from the merge (main had added its own; pricePositive moved into it).
+- leadCustomerEmbed.test.ts rewritten to import.meta.glob (the node:fs version failed tsc -p tsconfig.app.json on main); still fails when the hint is removed.
+- tsc clean, vite build OK. Full suite: only pre-existing OTA + WA dispatcher-mock (abortSignal) + waOutboxSentGuard(20261204220000) + wa-event-context failures.

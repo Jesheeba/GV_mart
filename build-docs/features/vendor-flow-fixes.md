@@ -45,4 +45,4 @@ Review of supplier → quote → PO → receipt → bill → paid found 5 bugs a
 - Renumbered 20261213100000 -> 20261231100000: live already has 20261213100000 = login_activity.
 - Drift check: all 10 existing purchase functions on live are byte-identical to the 2026-11-25 rollback snapshot; the 7 new functions don't exist live.
 - Rehearsal (rolled back): all post-checks pass (7 new fns, 5 columns, no anon EXECUTE, bill bucket). Data: 1 PO, 2 bills, 2 suppliers.
-- Live apply: NOT done — blocked by the session permission check; waits for owner. Do NOT merge to main before apply (UI needs paid_at / unmark_po_paid / new columns).
+- Live apply: DONE 2026-11-26 (owner: "apply the vendor flow"). Registered 20261231100000; po_status has cancelled; 7 new fns; 0 anon EXECUTE; bucket purchase-bill-photos. SQL tests 43/43 PASS (self-rolled-back, no residue). Merged to main.
