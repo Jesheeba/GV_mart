@@ -107,6 +107,7 @@
   "common": {
     "chooseOption": "Choose an option",
     "selectPlaceholder": "Select…",
+    "notSet": "Not set",
     "quickAdd": "Add “{{text}}”",
     "appName": "GV Mart",
     "adminApp": "GV Mart Admin",

@@ -6,7 +6,7 @@ import { Loader2, Pencil, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { DatePicker } from "@/components/ui/date-picker"
 import { useCustomerWaterFollowup, useSaveWaterHousehold } from "@/hooks/useCustomers"
 import {
@@ -21,7 +21,8 @@ import { formatDate } from "@/lib/formatDate"
 import { getIstNow } from "@/lib/ist"
 import type { WaterProfilePatch } from "@/services/customers"
 import type { CustomerMeasuredWaterReading } from "@/services/waterQuality"
-import { FIELD_W } from "@/lib/fieldWidth"
+import { FIELD_W, NO_SPINNER } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 import { WaterHouseholdSummary, type WaterHouseholdValues } from "@/components/shared/WaterHouseholdSummary"
 
 export { waterValuesFromCustomer } from "@/components/shared/WaterHouseholdSummary"
@@ -99,23 +100,22 @@ export function WaterHouseholdFields({ form }: { form: UseFormReturn<WaterProfil
   const numberField = (name: "waterTdsPpm" | "waterPh" | "waterHardnessPpm", label: string, extra: { step: string; max?: number }) => (
     <div className="space-y-1.5">
       <Label htmlFor={name}>{label}</Label>
-      <Input id={name} type="number" min={0} inputMode="decimal" className={FIELD_W.reading} aria-invalid={!!errors[name]} {...extra} {...register(name, { valueAsNumber: true })} />
+      <Input id={name} type="number" min={0} inputMode="decimal" className={cn(FIELD_W.reading, NO_SPINNER)} aria-invalid={!!errors[name]} {...extra} {...register(name, { valueAsNumber: true })} />
       {errors[name] ? <p className="text-xs text-danger">{t(errors[name]!.message!)}</p> : null}
     </div>
   )
 
   return (
     <div className="space-y-3">
-      <div className="space-y-1.5">
-        <Label>{t("customers.detail.waterSource")}</Label>
-        <div className="flex flex-wrap gap-1 rounded-full bg-surface-alt p-1">
-          {WATER_SOURCES.map((s) => (
-            <SegButton key={s} active={watchedSource === s} onClick={() => setValue("waterSource", s, { shouldValidate: true, shouldDirty: true })}>
-              {t(`customers.detail.waterSourceOptions.${s}`)}
-            </SegButton>
-          ))}
-        </div>
-      </div>
+      <ChoiceSelect
+        id="waterSource"
+        className="sm:max-w-xs"
+        optional
+        label={t("customers.detail.waterSource")}
+        value={watchedSource}
+        options={WATER_SOURCES.map((s) => ({ value: s, label: t(`customers.detail.waterSourceOptions.${s}`) }))}
+        onChange={(v) => setValue("waterSource", v, { shouldValidate: true, shouldDirty: true })}
+      />
       {watchedSource === "other" ? (
         <div className="space-y-1.5">
           <Input

@@ -107,6 +107,7 @@
   "common": {
     "chooseOption": "ஒரு விருப்பத்தைத் தேர்ந்தெடுக்கவும்",
     "selectPlaceholder": "தேர்ந்தெடுக்கவும்…",
+    "notSet": "அமைக்கப்படவில்லை",
     "quickAdd": "“{{text}}” சேர்க்கவும்",
     "appName": "GV Mart",
     "adminApp": "ஜிவி மார்ட் நிர்வாகம்",

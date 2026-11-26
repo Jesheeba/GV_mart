@@ -1,5 +1,10 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## choice-dropdowns (2026-11-26)
+- Owner request: Address type, Ownership (admin customer form + customer app address form) and Water source are dropdowns instead of pill buttons. Shared `components/shared/ChoiceSelect.tsx`; nothing pre-selected (required: disabled "Select…"; water source: "Not set").
+- Water TDS / pH / hardness inputs no longer show the up/down stepper arrows (`NO_SPINNER` in `lib/fieldWidth.ts`).
+- New i18n key `common.notSet` (en/ta). No DB change.
+
 ## customer-data-sync (2026-11-26)
 - See features/customer-data-sync.md for the 7 sweep fixes: primary member sync, one email box, app address no longer overwritten, profession no longer reverted, moved-out members never counted, drafts keep complaint type and referrer, lead fields card never stale.
 - Migration `20261216120000_primary_member_sync.sql` + rollback. **APPLIED LIVE 2026-11-26.**

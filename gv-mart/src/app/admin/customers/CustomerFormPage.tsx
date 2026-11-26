@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
-import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { VerifiedLocationCard } from "./VerifiedLocationCard"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
@@ -474,9 +474,9 @@ export function CustomerFormPage() {
   // Type/ownership live on the address step: send staff back there and focus the first missing choice.
   function focusMissingAddressChoice() {
     const id = addressForm.getFieldState("addressType").error
-      ? "address-type-group"
+      ? "address-type"
       : addressForm.getFieldState("ownership").error
-        ? "address-ownership-group"
+        ? "address-ownership"
         : null
     if (!id) return false
     setStep(1)
@@ -959,45 +959,23 @@ export function CustomerFormPage() {
             )}
           </div>
 
-          <div className="flex flex-wrap gap-4 border-t border-border px-1 pt-3">
-            <div className="space-y-1.5">
-              <Label id="address-type-label">{t("customers.form.addressType")}</Label>
-              <div
-                id="address-type-group"
-                role="group"
-                aria-labelledby="address-type-label"
-                aria-describedby={addressForm.formState.errors.addressType ? "address-type-error" : undefined}
-                className="flex gap-1 rounded-full bg-surface-alt p-1"
-              >
-                {(["residential", "commercial"] as const).map((v) => (
-                  <SegButton key={v} active={addressForm.watch("addressType") === v} onClick={() => addressForm.setValue("addressType", v, { shouldValidate: true })}>
-                    {t(`customers.form.${v}`)}
-                  </SegButton>
-                ))}
-              </div>
-              {addressForm.formState.errors.addressType ? (
-                <p id="address-type-error" role="alert" className="text-xs text-danger">{t(addressForm.formState.errors.addressType.message!)}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1.5">
-              <Label id="address-ownership-label">{t("customers.form.ownership")}</Label>
-              <div
-                id="address-ownership-group"
-                role="group"
-                aria-labelledby="address-ownership-label"
-                aria-describedby={addressForm.formState.errors.ownership ? "address-ownership-error" : undefined}
-                className="flex gap-1 rounded-full bg-surface-alt p-1"
-              >
-                {(["own", "rental"] as const).map((v) => (
-                  <SegButton key={v} active={addressForm.watch("ownership") === v} onClick={() => addressForm.setValue("ownership", v, { shouldValidate: true })}>
-                    {t(`customers.form.${v}`)}
-                  </SegButton>
-                ))}
-              </div>
-              {addressForm.formState.errors.ownership ? (
-                <p id="address-ownership-error" role="alert" className="text-xs text-danger">{t(addressForm.formState.errors.ownership.message!)}</p>
-              ) : null}
-            </div>
+          <div className="grid grid-cols-2 gap-3 border-t border-border px-1 pt-3 sm:max-w-md">
+            <ChoiceSelect
+              id="address-type"
+              label={t("customers.form.addressType")}
+              value={addressForm.watch("addressType")}
+              options={(["residential", "commercial"] as const).map((v) => ({ value: v, label: t(`customers.form.${v}`) }))}
+              onChange={(v) => addressForm.setValue("addressType", v || undefined, { shouldValidate: true })}
+              error={addressForm.formState.errors.addressType ? t(addressForm.formState.errors.addressType.message!) : undefined}
+            />
+            <ChoiceSelect
+              id="address-ownership"
+              label={t("customers.form.ownership")}
+              value={addressForm.watch("ownership")}
+              options={(["own", "rental"] as const).map((v) => ({ value: v, label: t(`customers.form.${v}`) }))}
+              onChange={(v) => addressForm.setValue("ownership", v || undefined, { shouldValidate: true })}
+              error={addressForm.formState.errors.ownership ? t(addressForm.formState.errors.ownership.message!) : undefined}
+            />
           </div>
         </Card>
       ) : (

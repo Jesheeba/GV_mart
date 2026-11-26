@@ -14,3 +14,7 @@ export const FIELD_W = {
 } as const
 
 export type FieldWidthKey = keyof typeof FIELD_W
+
+/** Hides the up/down stepper arrows on a type="number" input (owner, 2026-11-26: readings are typed, not stepped). */
+export const NO_SPINNER =
+  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"

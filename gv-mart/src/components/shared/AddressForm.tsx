@@ -6,7 +6,7 @@ import { Loader2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress, useReverseGeocode } from "@/hooks/useMaps"
@@ -263,47 +263,26 @@ export function AddressForm({
         {lat == null || lng == null ? <p className="text-xs text-warning">{t("customerApp.profile.address.mapRequired")}</p> : null}
       </div>
 
-      {/* Same one-tap buttons as the admin customer form (CustomerFormPage), nothing selected on a new
-          address; min-h-10 keeps them thumb-sized in the customer app. */}
-      <div className="flex flex-wrap gap-4">
-        <div className="space-y-1">
-          <Label id={`${uid}-addressType-label`} className="text-xs text-text-muted">{t("customerApp.profile.address.type")}</Label>
-          <div
-            id={`${uid}-addressType`}
-            role="group"
-            aria-labelledby={`${uid}-addressType-label`}
-            aria-describedby={errors.addressType ? `${uid}-addressType-error` : undefined}
-            className="flex gap-1 rounded-full bg-surface-alt p-1"
-          >
-            {(["residential", "commercial"] as const).map((v) => (
-              <SegButton key={v} className="min-h-10" active={addressType === v} onClick={() => setValue("addressType", v, { shouldValidate: true })}>
-                {t(`customerApp.profile.address.${v}`)}
-              </SegButton>
-            ))}
-          </div>
-          {errors.addressType ? (
-            <p id={`${uid}-addressType-error`} role="alert" className="text-xs text-danger">{t(errors.addressType.message!)}</p>
-          ) : null}
-        </div>
-        <div className="space-y-1">
-          <Label id={`${uid}-ownership-label`} className="text-xs text-text-muted">{t("customerApp.profile.address.ownership")}</Label>
-          <div
-            id={`${uid}-ownership`}
-            role="group"
-            aria-labelledby={`${uid}-ownership-label`}
-            aria-describedby={errors.ownership ? `${uid}-ownership-error` : undefined}
-            className="flex gap-1 rounded-full bg-surface-alt p-1"
-          >
-            {(["own", "rental"] as const).map((v) => (
-              <SegButton key={v} className="min-h-10" active={ownership === v} onClick={() => setValue("ownership", v, { shouldValidate: true })}>
-                {t(`customerApp.profile.address.${v}`)}
-              </SegButton>
-            ))}
-          </div>
-          {errors.ownership ? (
-            <p id={`${uid}-ownership-error`} role="alert" className="text-xs text-danger">{t(errors.ownership.message!)}</p>
-          ) : null}
-        </div>
+      {/* Same dropdowns as the admin customer form (CustomerFormPage); nothing selected on a new address. */}
+      <div className="grid grid-cols-2 gap-3">
+        <ChoiceSelect
+          id={`${uid}-addressType`}
+          label={t("customerApp.profile.address.type")}
+          labelClassName="text-xs text-text-muted"
+          value={addressType}
+          options={(["residential", "commercial"] as const).map((v) => ({ value: v, label: t(`customerApp.profile.address.${v}`) }))}
+          onChange={(v) => v && setValue("addressType", v, { shouldValidate: true })}
+          error={errors.addressType ? t(errors.addressType.message!) : undefined}
+        />
+        <ChoiceSelect
+          id={`${uid}-ownership`}
+          label={t("customerApp.profile.address.ownership")}
+          labelClassName="text-xs text-text-muted"
+          value={ownership}
+          options={(["own", "rental"] as const).map((v) => ({ value: v, label: t(`customerApp.profile.address.${v}`) }))}
+          onChange={(v) => v && setValue("ownership", v, { shouldValidate: true })}
+          error={errors.ownership ? t(errors.ownership.message!) : undefined}
+        />
       </div>
       {error ? <p className="text-xs text-danger">{error}</p> : null}
       <div className="flex justify-end gap-2">

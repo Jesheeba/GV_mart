@@ -6,6 +6,7 @@ Status: BUILT on feat/choice-no-preselect (2026-11-26), not merged. No migration
 Owner feedback (2026-11-26): either/or fields open with an option already chosen (e.g. Residential, Own, Cash), so staff save without deciding. About 49 such controls exist (inventory 2026-11-26).
 
 ## Decision (owner approved my recommendation over "make them all dropdowns")
+- **Update 2026-11-26 (owner override):** customer Address type, Ownership and Water source are dropdowns (`ChoiceSelect`), still with nothing pre-selected. The rest below still applies to other fields.
 - The real bug is the **pre-selection**, not the control type.
 - **2–3 options:** keep one-tap buttons with **nothing selected**. Save is blocked with "Choose Residential or Commercial".
 - **4+ options:** dropdown starting at "Select…", required.

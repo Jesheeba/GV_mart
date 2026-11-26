@@ -2,6 +2,11 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## choice-dropdowns — 2026-11-26
+- `src/components/shared/ChoiceSelect.test.ts` (8): required placeholder disabled + nothing pre-selected; optional "Not set"; saved value selected on edit; null/undefined value; label/id link for focus; error alert + aria; NO_SPINNER classes. All pass.
+- Built CSS contains the spinner-hiding rules. tsc clean, vite build OK.
+- Full suite: 1193 pass. The 26 failures (ota, WhatsApp dispatcher, outbox guard, event context) are identical on plain main in the same worktree with this change stashed: environment issue, not this change.
+
 ## UX pass (choice-no-preselect, input-density, date-display) — 2026-11-26
 - Unit tests added: `choiceNoPreselect.test.ts`, `crudForm.test.ts` (AC1-6), `fieldWidth.test.ts` (AC1), `formatDate.test.ts` (AC2-4: year rule, IST midnight across 3 TZs, null, range, invoice date).
 - Integrated branch (all 3 merged + header fix): `tsc -b` clean, `vite build` OK, vitest serial 1145 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).

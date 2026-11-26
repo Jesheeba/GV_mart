@@ -77,6 +77,7 @@
 
 ## UX pass decisions (2026-11-26)
 - Owner asked for every either/or to be a dropdown with "Not set". Challenged: the bug is pre-selection, and dropdowns add taps. Owner approved: 2–3 options = buttons with nothing selected + required; 4+ = "Select…" dropdown; optional = "Not set". Existing data untouched.
+- 2026-11-26 (later): owner overrode the buttons rule for the customer form: Address type, Ownership (admin + customer app) and Water source are now dropdowns (shared `ChoiceSelect`; required = disabled "Select…", water source optional = "Not set"). Other 2–3 option button groups (payment method, follow-up type, etc.) stay buttons until the owner says otherwise. Water TDS/pH/hardness inputs have no up/down stepper (`NO_SPINNER`).
 - Input density: fix widths, not heights (40px touch targets kept).
 - Plan: PLAN.md "UX pass" section; docs features/choice-no-preselect.md, input-density.md, date-display.md.
 
