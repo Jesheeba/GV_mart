@@ -24,7 +24,7 @@
 - Migration `20261226110000_gst_inclusive_toggle.sql` was generated from the live function text (`_local_only/rehearsal-files/gen_gst_migration.py`). Diff vs live = GST lines only. Baseline md5s are in the header and must match at apply time.
 - Applied 2026-11-26 after md5 check (all 7 matched). ACLs identical to before. Existing data unchanged (1 invoice stays Extra, 4 quotations stay NULL, org default off).
 
-## gst-everywhere follow-up (2026-11-26, owner: "fix them all" + "Create GST invoice")
+## gst-everywhere follow-up (2026-11-26, owner: "fix them all" + "Create GST invoice") — LIVE, SQL 20/20
 - **Bug found:** the technician on-site screen showed and collected the total *without* GST, while `create_service_invoice` added 18%. The QR and cash amounts were short of the invoice. The same applied to the on-site "Sell AMC for ₹X" button. Both now use `billBreakdown`.
 - Per-bill GST switch added for technician on-site invoice + AMC, Rent Out (stored on `rental_contracts.gst_inclusive`, which the monthly cron uses) and admin Sell AMC. Shared `GstSummary` component.
 - Admin `sell_amc_plan` now bills an `amc` invoice and asks for the payment method (transfer needs a txn id and description). The referrer wrapper passes it through.

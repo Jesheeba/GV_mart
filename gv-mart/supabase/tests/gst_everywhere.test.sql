@@ -25,7 +25,7 @@ begin execute 'reset role'; perform set_config('request.jwt.claims', '', true); 
 
 do $t$
 declare
-  v_org uuid; v_master uuid; v_tp uuid; v_tech uuid; v_custu uuid;
+  v_org uuid; v_master uuid; v_tp uuid; v_tech uuid; v_tp2 uuid; v_tech2 uuid; v_custu uuid;
   v_c1 uuid; v_c2 uuid; v_c3 uuid; v_c4 uuid; v_c5 uuid; v_c6 uuid;
   v_brand uuid; v_model uuid; v_prod uuid; v_plan uuid; v_rplan uuid; v_addr uuid;
   v_t1 uuid; v_t2 uuid; v_vis1 uuid; v_vis2 uuid;
@@ -60,6 +60,9 @@ begin
   v_tp := pg_temp.mkuser('technician', v_org);
   v_custu := pg_temp.mkuser('customer', v_org);
   insert into technicians (org_id, profile_id, is_active) values (v_org, v_tp, true) returning id into v_tech;
+  -- one open untimed appointment per technician (appointments_one_open_untimed_per_technician_idx), so visit 2 gets its own
+  v_tp2 := pg_temp.mkuser('technician', v_org);
+  insert into technicians (org_id, profile_id, is_active) values (v_org, v_tp2, true) returning id into v_tech2;
   insert into customers (org_id, name, mobile) values (v_org, '__TEST_ gst c1', '5550200001') returning id into v_c1;
   insert into customers (org_id, name, mobile) values (v_org, '__TEST_ gst c2', '5550200002') returning id into v_c2;
   insert into customers (org_id, name, mobile, primary_profile_id) values (v_org, '__TEST_ gst self', '5550200003', v_custu) returning id into v_c3;
@@ -129,9 +132,9 @@ begin
   insert into service_tickets (org_id, customer_id, product_id, type, name_of_complaint) values (v_org, v_c1, v_prod, 'paid', '__TEST_ repair 1') returning id into v_t1;
   insert into service_tickets (org_id, customer_id, product_id, type, name_of_complaint) values (v_org, v_c2, v_prod, 'paid', '__TEST_ repair 2') returning id into v_t2;
   insert into service_visits (org_id, ticket_id, technician_id) values (v_org, v_t1, v_tech) returning id into v_vis1;
-  insert into service_visits (org_id, ticket_id, technician_id) values (v_org, v_t2, v_tech) returning id into v_vis2;
+  insert into service_visits (org_id, ticket_id, technician_id) values (v_org, v_t2, v_tech2) returning id into v_vis2;
   insert into appointments (org_id, ticket_id, mode, technician_id, status) values (v_org, v_t1, 'always', v_tech, 'in_progress');
-  insert into appointments (org_id, ticket_id, mode, technician_id, status) values (v_org, v_t2, 'always', v_tech, 'in_progress');
+  insert into appointments (org_id, ticket_id, mode, technician_id, status) values (v_org, v_t2, 'always', v_tech2, 'in_progress');
   perform pg_temp.as_user(v_tp);
   r := public.create_service_invoice(v_org, v_vis1, 1000, 0, '[]'::jsonb, 'cash', null, null, true, null, '[]'::jsonb, true);
   perform pg_temp.as_pg();
@@ -139,7 +142,7 @@ begin
   perform pg_temp.chk('create_service_invoice Included: 1000 -> gst 152.54, total 1000, paid 1000',
     inv.gst = 152.54 and inv.total = 1000 and inv.gst_inclusive and inv.amount_paid = 1000 and (r ->> 'total')::numeric = 1000,
     format('%s/%s paid %s', inv.gst, inv.total, inv.amount_paid));
-  perform pg_temp.as_user(v_tp);
+  perform pg_temp.as_user(v_tp2);
   r := public.create_service_invoice(v_org, v_vis2, 1000, 0, '[]'::jsonb, 'upi', null, null, true, 0, '[]'::jsonb);
   perform pg_temp.as_pg();
   select * into inv from invoices where id = (r ->> 'invoice_id')::uuid;
@@ -160,7 +163,8 @@ begin
   insert into rental_contracts (org_id, customer_id, product_id, plan_id, start_date, status, next_billing_date)
     values (v_org, v_c6, v_prod, v_rplan, current_date - 40, 'active', current_date - 1);
   n := public.run_rental_billing(v_org);
-  select * into inv from invoices where org_id = v_org and type = 'rent' and customer_id = v_c5 order by created_at desc, id limit 1;
+  -- the cron bill, not month 1: same created_at inside one transaction, and the cron leaves payment_method null
+  select * into inv from invoices where org_id = v_org and type = 'rent' and customer_id = v_c5 and payment_method is null;
   perform pg_temp.chk('run_rental_billing follows the contract (Included 1000) while org default is Extra',
     n = 2 and inv.total = 1000 and inv.gst_inclusive and inv.payment_status::text = 'due', format('n %s total %s', n, inv.total));
   select * into inv from invoices where org_id = v_org and type = 'rent' and customer_id = v_c6;

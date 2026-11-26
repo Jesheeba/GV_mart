@@ -3,7 +3,10 @@
 ## gst-everywhere (2026-11-26)
 - `src/lib/gstEverywhere.test.ts` (E1-E5): 10/10. Numbers match the SQL test so the screen total equals the server invoice.
 - `tsc -p tsconfig.app.json` clean. Full vitest: 1392 passed, 2 failed. Both failures (waOutboxSentGuard, wa-event-context) also fail on main.
-- `supabase/tests/gst_everywhere.test.sql`: written, **not run yet**. It needs the migration live first; the apply is waiting for the owner's go-ahead.
+- Migration APPLIED LIVE 2026-11-26 (owner "go apply") after the 8 baseline md5s matched. One overload each; ACLs as before (anon none).
+- `supabase/tests/gst_everywhere.test.sql`: **20/20**, run alone, rolled back, row counts identical before and after.
+  - Fixture fix 1: a technician can hold only one open untimed appointment, so visit 2 got a second technician.
+  - Fixture fix 2: month 1 and the cron bill share created_at in one transaction, so the test now selects the cron bill by payment_method null.
 
 ## missing-i18n-keys (2026-11-26)
 - `keysComplete.test.ts` (AC1, AC2): 6/6 pass. Against origin/main's JSON, 5/6 fail (missing en, missing ta, en dups, ta dups, budget key), so the guard catches the original bugs.
