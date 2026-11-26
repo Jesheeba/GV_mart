@@ -112,6 +112,10 @@ begin
   v_err := pg_temp.try_as(v_ops, format('select public.mark_ticket_rework(%L, %L, %L)', v_t5, 'came back again', v_today));
   perform pg_temp.chk('AC1 master-raised window (60 days) lets the same ticket through', v_err = '', v_err);
   update public.settings set rework_window_days = 30 where org_id = v_org;
+  -- Free technician 1 again: that rework took their 09:00 slot, and the next check expects them to be assignable.
+  perform pg_temp.as_user(v_ops);
+  perform public.cancel_service_ticket((select id from public.service_tickets where rework_of_ticket_id = v_t5 and status <> 'cancelled'), 'test cleanup');
+  perform pg_temp.as_pg();
 
   -- ── AC2: linked ticket, auto-assigned to the original technician ───────────────────────────
   perform pg_temp.as_user(v_ops);
