@@ -6265,5 +6265,28 @@
     "snoozeMustBeFuture": "Pick a date after today.",
     "createServiceRequest": "Create service request",
     "serviceRequestCreated": "Service ticket created ({{ticketId}})."
+  },
+  "referrer": {
+    "label": "Referred by",
+    "pickStaff": "Pick sales person / staff",
+    "addNewCustomer": "Add new customer",
+    "clearCustomer": "Remove referrer",
+    "kind": {
+      "none": "No one",
+      "technician": "Technician",
+      "staff": "Sales person / staff",
+      "customer": "Existing customer",
+      "other": "Someone else"
+    },
+    "quickAdd": {
+      "title": "Add new customer",
+      "subtitle": "Saved as a customer now. Fill in the full address later from the customer page.",
+      "name": "Name",
+      "mobile": "Mobile",
+      "area": "Area (optional)",
+      "save": "Add customer",
+      "existingFound": "{{name}} already uses this mobile number.",
+      "useExisting": "Use {{name}}"
+    }
   }
 }

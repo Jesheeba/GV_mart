@@ -1,5 +1,9 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## referral-sources R1 (2026-11-26)
+- New `ReferrerField` (Technician / Sales person-staff / Existing customer / Someone else) and `QuickAddCustomerDialog` (Name, Mobile, Area optional; offers the existing customer when the mobile matches).
+- Lead form: Referral source shows the full chooser; Customer app source gets quick-add. No DB change.
+
 ## customer-data-sync (2026-11-26)
 - See features/customer-data-sync.md for the 7 sweep fixes: primary member sync, one email box, app address no longer overwritten, profession no longer reverted, moved-out members never counted, drafts keep complaint type and referrer, lead fields card never stale.
 - Migration `20261216120000_primary_member_sync.sql` + rollback. **APPLIED LIVE 2026-11-26.**

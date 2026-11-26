@@ -1,3 +1,39 @@
+# PLAN — Batch 2026-11-26b: referral sources everywhere + customer quick-add
+
+Branch `feat/referral-sources` (worktree `_local_only/worktrees/referral-sources`, base origin/main c83a0a3). Feature doc: `features/referral-sources.md`.
+
+## 1. Goal and scope
+- Every "Referred by" spot (lead forms, New Customer, New Sale, New Complaint, Sell AMC) accepts Technician, Sales person/staff, Existing customer, Someone else.
+- "+ Add new customer" inside the customer referrer search: Name, Mobile, Area (optional) → real customer record.
+- Customer referrers earn referral points automatically (amount set by master; 0 = off).
+- Out of scope: Walk-in/Lead as referrers (they stay Sources — owner decision), customer-app self-referral, backfilling old free-text referrers, changing technician finder credit or staff bonus rates.
+
+## 2. Findings (verified in code, origin/main)
+- Sale/Complaint/AMC: technician-only `<select>`; RPC creates a `referral`/`won` lead with `owner_id` = technician → finder credit.
+- New Customer: `ReferrerPicker` (technicians + staff incl. sales persons via `list_active_referrers`); no customer option; stored as `customers.referred_by_user_id` (set-once guard).
+- Lead form: Source-driven (`ReferredBySection`); customer referrer only copied as free-text name/phone; no customer column exists anywhere.
+- `create_customer_with_details` already accepts a customer with no address → quick-add needs no new RPC.
+- Referral points: `referral_points` ledger + manual `award_referral_points` only.
+
+## 3. Project memory respected / changed
+- DB writes only on the owner's exact words; migration built + tested in a rolled-back transaction, applied on "go apply".
+- Changes the 2026-11-11 "Referred-by fully source-driven" decision: the Referral source now shows a referrer-type chooser.
+- 2026-11-02 incentive stream listed `create_customer_with_details`, `_lead_apply_status` and complaint functions as owned by another window → owner must confirm that's closed before R3.
+- Live function bodies md5-pinned before editing; DROP FUNCTION → re-grant (2026-11-11 lesson).
+
+## 4. Build order
+1. R1 `ReferrerField` + `QuickAddCustomerDialog` (frontend, no DB) — wired into lead forms and New Customer for the kinds that already persist.
+2. R2 DB migration: `referred_by_customer_id` columns + guards, RPC params, carry-over, `_record_transaction_referrer` — waits for "go apply".
+3. R3 Wire Sale / Complaint / AMC + customer-referrer display on detail pages.
+4. R4 Auto points: setting + invoices trigger + Masters setting UI — waits for "go apply" (can ship in the R2 migration if approved together).
+
+## 5. Open decisions (owner)
+- Q1 Points per referred customer (setting; starts at 0 = off until you set it).
+- Q2 When points are credited: on the referred customer's **first invoice** (recommended — fake customers earn nothing) vs as soon as the customer is created.
+- Q3 Confirm the 2026-11-02 "other window owns create_customer_with_details / complaint functions" rule is no longer active.
+
+---
+
 # PLAN — Batch 2026-11-26: picker search, GST incl/excl, quick-add
 
 Branch `fix/sales-search-gst-quickadd` (worktree `_local_only/worktrees/sales-search-gst-quickadd`, base origin/main feaaa84).

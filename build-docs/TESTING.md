@@ -2,6 +2,11 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## referral-sources R1 (picker + quick-add) — 2026-11-26
+- `src/lib/referrer.test.ts` 14/14: AC1/AC2 kinds (no walk-in/lead), kind switch clears fields, completeness, AC3 quick-add schema (name/mobile/optional area, invalid mobiles), AC4 existing-customer match, en/ta key parity.
+- Regression: `tsc -b` clean, oxlint clean, full vitest 1223 passed / 2 failed. The 2 failures (waOutboxSentGuard, wa-event-context) also fail on clean origin/main c83a0a3, so they were there before this change.
+- Not browser-checked: signing in uses the live auth host. Owner to check New Lead → Source Referral / Customer app → Add new customer.
+
 ## UX pass (choice-no-preselect, input-density, date-display) — 2026-11-26
 - Unit tests added: `choiceNoPreselect.test.ts`, `crudForm.test.ts` (AC1-6), `fieldWidth.test.ts` (AC1), `formatDate.test.ts` (AC2-4: year rule, IST midnight across 3 TZs, null, range, invoice date).
 - Integrated branch (all 3 merged + header fix): `tsc -b` clean, `vite build` OK, vitest serial 1145 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).
