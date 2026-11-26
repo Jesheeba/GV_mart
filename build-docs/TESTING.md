@@ -124,3 +124,7 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - New Quotation: Included ₹12,500 (GST ₹1,906.78) / Extra ₹14,750. Not saved.
 - Found + fixed: the cart card subtitle still showed "RO (spreadsheet import) · 2090 BLUE" → now `productExtraParts` (tests 15/15), re-checked live.
 - Not checked: the printed invoice (needs a real sale; owner chose B). Its maths is covered by the SQL test 19/19.
+
+## quick-add F3b — 2026-11-26
+- `src/lib/quickAdd.test.ts` (findByLabel added) + `src/lib/leadOptionKey.test.ts`: 13/13 pass. The key rule cases mirror the SQL test.
+- `supabase/tests/quick_add_lead_option.test.sql`: written, NOT RUN (migration not applied). It covers ACL, sales add, dedupe, kind/product_type tables, archived not re-enabled, cross-org, ops/tech refused, unknown list, blank/long/symbol-only label, RLS unchanged.

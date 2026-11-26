@@ -564,6 +564,13 @@ export async function listLeadSources(orgId: string) {
   if (error) throw error
   return data
 }
+export type LeadOptionList = "source" | "kind" | "product_type"
+/** Quick-add from the lead forms (master + sales_admin). Returns the option's key — existing one when the label/key already exists. See 20261226120000_quick_add_lead_option.sql. */
+export async function quickAddLeadOption(list: LeadOptionList, label: string) {
+  const { data, error } = await supabase.rpc("quick_add_lead_option", { p_list: list, p_label: label })
+  if (error) throw error
+  return data
+}
 export async function createLeadSource(row: TablesInsert<"lead_sources">) {
   const { data, error } = await supabase.from("lead_sources").insert(row).select().single()
   if (error) throw error

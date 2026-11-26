@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast-context"
+import { LeadOptionQuickAdd } from "./LeadOptionQuickAdd"
 import { useProfile } from "@/hooks/useProfile"
 import { useUpdateLeadDetails } from "@/hooks/useAutomation"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
@@ -191,6 +192,7 @@ export function EditLeadDialog({ lead, open, onOpenChange, onDone }: { lead: Edi
                 ))}
               </select>
             )}
+            {!isReferral ? <LeadOptionQuickAdd list="source" onAdded={setSource} /> : null}
             {errors.source ? <p className="text-xs text-danger">{errors.source}</p> : null}
           </div>
           <div className="space-y-1.5">
@@ -203,6 +205,7 @@ export function EditLeadDialog({ lead, open, onOpenChange, onDone }: { lead: Edi
                 </option>
               ))}
             </select>
+            <LeadOptionQuickAdd list="product_type" onAdded={setProductType} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="edit-lead-notes">{t("leads.new.notes")}</Label>

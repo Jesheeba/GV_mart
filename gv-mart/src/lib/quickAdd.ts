@@ -14,3 +14,9 @@ export function quickAddText(typed: string, existingLabels: string[], maxLength 
   const key = text.toLowerCase()
   return existingLabels.some((l) => normalizeLabel(l).toLowerCase() === key) ? null : text
 }
+
+/** First item whose label equals `text` ignoring case and extra spaces — lets a quick-add select an existing entry instead of creating a duplicate. */
+export function findByLabel<T>(items: T[], getLabel: (item: T) => string, text: string): T | undefined {
+  const key = normalizeLabel(text).toLowerCase()
+  return items.find((i) => normalizeLabel(getLabel(i)).toLowerCase() === key)
+}

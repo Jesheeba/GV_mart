@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
 import { ReferredBySection } from "./ReferredBySection"
 import { useToast } from "@/components/ui/toast-context"
+import { LeadOptionQuickAdd } from "./LeadOptionQuickAdd"
 import { useCreateLead } from "@/hooks/useAutomation"
 import { useDuplicateContactWarning } from "@/hooks/useCustomers"
 import { leadSchema, type LeadInput } from "@/lib/validation/automation"
@@ -146,13 +147,14 @@ export function NewLeadForm({
         ) : null}
         <div className="space-y-0.5">
           <Label htmlFor="lead-source">{t("leads.new.source")}</Label>
-          <select id="lead-source" {...form.register("source")} className={fieldClass}>
+          <select id="lead-source" {...form.register("source")} value={form.watch("source") ?? ""} className={fieldClass}>
             {activeSources.map((s) => (
               <option key={s.key} value={s.key}>
                 {sourceLabel(s.key)}
               </option>
             ))}
           </select>
+          <LeadOptionQuickAdd list="source" onAdded={(key) => form.setValue("source", key, { shouldDirty: true, shouldValidate: true })} />
         </div>
         {/* Sits next to Source in the grid: appears only when the chosen
             source has a referrer to capture, taking Source's row -- when it
@@ -170,7 +172,7 @@ export function NewLeadForm({
         />
         <div className="space-y-0.5">
           <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
-          <select id="lead-product-category" {...form.register("productCategory")} className={fieldClass}>
+          <select id="lead-product-category" {...form.register("productCategory")} value={form.watch("productCategory") ?? ""} className={fieldClass}>
             <option value="">{t("service.filters.all")}</option>
             {activeProductTypes.map((p) => (
               <option key={p.key} value={p.key}>
@@ -178,10 +180,11 @@ export function NewLeadForm({
               </option>
             ))}
           </select>
+          <LeadOptionQuickAdd list="product_type" onAdded={(key) => form.setValue("productCategory", key, { shouldDirty: true, shouldValidate: true })} />
         </div>
         <div className="space-y-0.5">
           <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
-          <select id="lead-kind" {...form.register("kind")} className={fieldClass}>
+          <select id="lead-kind" {...form.register("kind")} value={form.watch("kind") ?? ""} className={fieldClass}>
             <option value="">{t("service.filters.all")}</option>
             {activeKinds.map((k) => (
               <option key={k.key} value={k.key}>
@@ -189,6 +192,7 @@ export function NewLeadForm({
               </option>
             ))}
           </select>
+          <LeadOptionQuickAdd list="kind" onAdded={(key) => form.setValue("kind", key, { shouldDirty: true, shouldValidate: true })} />
         </div>
         <div className="space-y-0.5">
           <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
