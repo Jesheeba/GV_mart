@@ -166,3 +166,6 @@
 - Invoice print: taxable value = total − GST; "GST amount (included in price)" label for Included bills. The quotation print shows a GST line (new quotations only).
 - DB: `settings.prices_include_gst`, `invoices.gst_inclusive`, `quotations.gst_inclusive` (nullable), `_gst_amount()`; 6 billing RPCs + create_quotation updated.
 - 2026-11-26 follow-up: the same display rule (`productExtraParts`) is applied to AMC sell, customer detail, lead items, complaint/ticket equipment pickers, ticket detail and 4 customer-app pages. Masters tables still show the raw brand so it can be renamed there.
+
+## 2026-11-26 fix(referral-sources): pin leads->customers embed to leads_customer_id_fkey
+- Leads list/detail broke after referred_by_customer_id added a 2nd FK; queries now name the FK. Regression test added.

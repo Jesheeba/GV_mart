@@ -181,3 +181,10 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
   - Supplier on Create PO ("pvm" → PVM) and Bill Entry ("CHENNAI electro traders") selected the existing supplier, count unchanged.
   - Edit Lead entry point is hidden on main (1761eaa, update_lead_details not live), so its quick-add is dormant.
 - **Test-script mistake:** my automation clicked the Source link three times. That created 2 unused lead sources in the owner's org ("ro / WATER purifier" key ro_water_purifier, "service" key service; 0 leads use them). Left in place pending the owner's decision. This was a test-script error, not a code bug: the feature did what it was told.
+
+## fix(referral-sources): leads<->customers embed ambiguity (2026-11-26)
+- Bug: after 20261228100000, leads has 2 FKs to customers -> PostgREST PGRST201 on `leads?select=*,customers(...)` (leads list + lead detail broke in prod). Reproduced against live API (HTTP 300 PGRST201).
+- Fix: `customers!leads_customer_id_fkey(...)` in services/automation.ts listLeads/getLead; new FKs added to types/database.ts Relationships.
+- Test: src/lib/leadCustomerEmbed.test.ts (2/2) — scans src + supabase/functions for un-hinted leads<->customers embeds; verified it FAILS on the old code. Live API with the hinted select: 200.
+- tsc clean. Full suite: only the dispatcher-mock `abortSignal` failures (pre-existing on main since 05707bd, unrelated files) + known wa-event-context.
+- Customer detail page ("Couldn't load customers") NOT reproduced: getCustomer works via API and under owner RLS simulation; awaiting browser error details.
