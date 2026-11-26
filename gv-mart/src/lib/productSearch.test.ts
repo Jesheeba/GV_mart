@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { matchesAllWords, productMatchesQuery, productSearchLabel } from "./productSearch"
+import { matchesAllWords, productExtraParts, productMatchesQuery, productSearchLabel } from "./productSearch"
 
 // Real rows from the 2026-11-03 spreadsheet import (live DB, read 2026-11-26).
 const imported = (model: string, name: string) => ({ name, brands: { name: "RO (spreadsheet import)" }, models: { name: model } })
@@ -60,5 +60,15 @@ describe("picker-search A3/A4: product labels", () => {
   })
   it("no brand/model → just the name", () => {
     expect(productSearchLabel({ name: "Loose item" })).toBe("Loose item")
+  })
+})
+
+describe("picker-search A3: cart card subtitle (productExtraParts)", () => {
+  it("spreadsheet-import line shows no brand/model (only category is added by the card)", () => {
+    expect(productExtraParts("ROP 2090 BLUE", "RO (spreadsheet import)", "2090 BLUE")).toEqual([])
+  })
+  it("real brand/model kept; '—' fillers dropped", () => {
+    expect(productExtraParts("RO Purifier", "Kent", "Grand")).toEqual(["Kent", "Grand"])
+    expect(productExtraParts("Loose item", "—", "—")).toEqual([])
   })
 })

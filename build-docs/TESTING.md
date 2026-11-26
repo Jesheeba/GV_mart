@@ -1,5 +1,10 @@
 # TESTING — Leads Dashboard Enhancement
 
+## onsite-payment-method (2026-11-26)
+- `technician.test.ts`: UPI accepted, missing method rejected (path "method"), transfer without reference rejected. The old "rejects an invalid method value" test used "upi" as its invalid example, which was wrong because UPI is an offered method; it now uses "cheque".
+- `tsc -b` clean, `vite build` OK, vitest serial 1212 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context). i18n parity OK.
+- NOT browser-checked: reaching the on-site invoice step needs a technician arrival + open visit, which would write real data.
+
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
 ## choice-dropdowns-not-set — 2026-11-26
@@ -136,3 +141,11 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Manual only (no DOM test env): draft restore of complaint type/referrer, lead fields card Cancel/Edit.
 - **DB rehearsal run 2026-11-26 (rolled back): 90 pass / 0 fail.** Harness fixes on the way: (1) granted EXECUTE on the pg_temp helpers, since this project revokes default EXECUTE; (2) one test sent an email with spaces, which the existing customer_members_email_format check rejects (the app trims first); (3) the real-org check now names the changed columns. The only live non-water change is 1 blank profession filled (intended, from 20261216120000).
 - **Final rehearsal on merged/renumbered migrations: 90/0.** Apply-file dry run (rolled back) passed all checks. **Applied live 2026-11-26** in one DO block; post-check: 3 versions registered, 3 customers columns present, address water columns and health table gone, cron `water-followup-due` active, RPCs not executable by anon, 2 customers carry backfilled water/problems. 10 pre-existing primary member/customer name-or-mobile mismatches left as-is (see customer-data-sync.md).
+
+## Live UI check — 2026-11-26 (owner signed in; Playwright drove the rest; option B = no sale created)
+- Settings: "Prices include GST by default" shows, saves (DB true), and was switched back OFF afterwards (DB false).
+- New Sale: switch starts on the default. ROP 2090 BLUE Included = ₹12,500 (GST ₹1,906.78); Extra = ₹14,750 (GST ₹2,250). + spare ₹750 Included → GST ₹114.41, grand ₹13,250. "Amount collected" follows: 13,250 ⇄ 15,635. The draft restores the GST choice.
+- Search: "rop blue" finds ROP 2090 BLUE + ROP ROMA BLUE (space types normally, label once); "ros adapter 24v" finds exactly the 2 adapters with price/stock.
+- New Quotation: Included ₹12,500 (GST ₹1,906.78) / Extra ₹14,750. Not saved.
+- Found + fixed: the cart card subtitle still showed "RO (spreadsheet import) · 2090 BLUE" → now `productExtraParts` (tests 15/15), re-checked live.
+- Not checked: the printed invoice (needs a real sale; owner chose B). Its maths is covered by the SQL test 19/19.

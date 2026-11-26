@@ -22,6 +22,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 // CustomerAmcPage/AmcWarrantyListPage so every screen agrees (see the
 // single-source-of-truth note on this function's real definition).
 import { amcPlanSummary, pricePerYearOf } from "@/lib/amc-window"
+import { productExtraParts } from "@/lib/productSearch"
 
 /** Inline "Sell AMC" panel (ADM-12) — no modal primitive in this codebase
  * yet, so this follows the same inline-expand pattern EntityCrudTable uses
@@ -140,7 +141,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
             <option value="">{t("common.notSet")}</option>
             {(roProducts ?? []).map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} ({p.brands?.name})
+                {[p.name, ...productExtraParts(p.name, p.brands?.name)].join(" — ")}
               </option>
             ))}
           </select>

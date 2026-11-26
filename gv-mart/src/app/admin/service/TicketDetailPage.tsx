@@ -49,6 +49,7 @@ import { cn, focusChoice } from "@/lib/utils"
 import { ChannelBadge, PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
 import { InstallationChargeRow } from "./InstallationChargeRow"
+import { productExtraParts } from "@/lib/productSearch"
 
 function TicketPhotoThumb({ storagePath }: { storagePath: string }) {
   const { data: url } = useQuery({
@@ -474,7 +475,7 @@ export function TicketDetailPage() {
               ) : null}
             </div>
             <div className="text-text">
-              {[ticket.products?.name, ticket.brands?.name, ticket.models?.name].filter(Boolean).join(" · ") || ticket.unlisted_product_name || "—"}
+              {[ticket.products?.name, ...productExtraParts(ticket.products?.name ?? "", ticket.brands?.name, ticket.models?.name)].filter(Boolean).join(" · ") || ticket.unlisted_product_name || "—"}
             </div>
           </div>
           <Field label={t("service.newComplaint.nameOfComplaint")} value={ticket.name_of_complaint || "—"} />
@@ -568,7 +569,7 @@ export function TicketDetailPage() {
                       }`}
                     >
                       <span className="font-medium text-text">{o.productName}</span>{" "}
-                      <span className="text-text-muted">{[o.brandName, o.modelName].filter(Boolean).join(" · ")}</span>
+                      <span className="text-text-muted">{productExtraParts(o.productName ?? "", o.brandName, o.modelName).join(" · ")}</span>
                     </button>
                   ))}
                 </div>

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { complaintDetailsStepSchema, EMPTY_COMPLAINT_DETAILS } from "./service"
 import { ENQUIRY_TYPE_REQUIRED, enquiryLeadSchema, fromYesNo, roChecklistSchema, servicePaymentSchema, toYesNo } from "./technician"
-import { PAYMENT_METHOD_REQUIRED } from "./sale"
 
 /** choice-dropdowns-not-set (build-docs/features/choice-dropdowns-not-set.md): service, on-site visit and task choices. */
 
@@ -76,20 +75,18 @@ describe("On-site RO checklist Yes/No + water source (class A)", () => {
   })
 })
 
-describe("On-site payment method (class C)", () => {
-  it("AC2: Not set payment method blocks completing with Choose a payment method", () => {
-    expect(firstIssue(servicePaymentSchema.safeParse({ method: "" }))).toBe(`method:${PAYMENT_METHOD_REQUIRED}`)
-    expect(firstIssue(servicePaymentSchema.safeParse({}))).toBe(`method:${PAYMENT_METHOD_REQUIRED}`)
+describe("On-site payment method (class C; chosen on the invoice step since f8d0645)", () => {
+  // Not set (null/""/missing) fails on the method path; OnSiteVisitPage maps that to
+  // technician.onsite.payment.methodRequired and focuses the dropdown.
+  it("AC2: Not set payment method blocks creating the invoice", () => {
+    for (const method of [null, "", undefined]) {
+      expect(firstIssue(servicePaymentSchema.safeParse({ method }))).toMatch(/^method:/)
+    }
   })
 
-  it("AC2: a chosen method passes", () => {
-    expect(servicePaymentSchema.safeParse({ method: "cash" }).success).toBe(true)
-  })
-
-  it("known open bug unchanged: UPI is still rejected, but not with the Not-set message", () => {
-    const r = servicePaymentSchema.safeParse({ method: "upi" })
-    expect(r.success).toBe(false)
-    expect(r.error?.issues[0]?.message).not.toBe(PAYMENT_METHOD_REQUIRED)
+  it("AC2: each offered method passes, including UPI (open bug fixed on main)", () => {
+    for (const method of ["cash", "upi"]) expect(servicePaymentSchema.safeParse({ method }).success).toBe(true)
+    expect(servicePaymentSchema.safeParse({ method: "transfer", txnId: "T1", description: "paid" }).success).toBe(true)
   })
 })
 

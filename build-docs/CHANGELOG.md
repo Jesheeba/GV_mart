@@ -3,9 +3,10 @@
 ## choice-dropdowns-not-set (2026-11-26)
 - Every either/or data-entry field is a `ChoiceSelect` dropdown with "Not set" first and nothing pre-selected (about 45 screens: sales/payments, purchase, accounts, leads, service, on-site, tasks, HR, expenses, masters, automation, family relation). Plan: features/choice-dropdowns-not-set.md.
 - Optional fields save "Not set" as empty: on-site water source, tank cleaned, product explained; member relation; lead product category and kind; technician tier override (clears to base tier).
-- Address type and ownership save "Not set" as null via migration `20261229100000_address_choice_not_set` (rehearsal 12/0). **NOT applied.**
+- Address type and ownership save "Not set" as null via migration `20261229100000_address_choice_not_set` (rehearsal 12/0). **APPLIED LIVE 2026-11-26** (backup in `_local_only/backups/2026-11-26_address_choice_not_set`).
 - Required fields show "Not set" but block Save with an inline error and focus: payment methods, expense categories, lead source, follow-up type, channel, outcome, lost reason, complaint and task priority, enquiry fields, roles, statuses, item types, units, doc types, phrase category, segment rules.
-- Removed pre-selections: on-site payment "cash", enquiry type "online", complaint and task priority "normal", lead source "other", bill category "purchase", spare interval "months", bot phrase category, segment rule parts, ReorderableListCard first option.
+- On-site payment method: merged with main's fix f8d0645 (chosen on the invoice step, UPI accepted); that chooser is now the dropdown.
+- Removed pre-selections: enquiry type "online", complaint and task priority "normal", lead source "other", bill category "purchase", spare interval "months", bot phrase category, segment rule parts, ReorderableListCard first option.
 - EntityCrudTable and ReorderableListCard show "Not set". ReorderableListCard now validates before save, like EntityCrudTable.
 - i18n: added `common.notSet`, `service.errors.*` (missing before, so the complaint form showed raw keys) and `confirmedAvailability.reasonLabel`. Removed 4 unused keys.
 - GST Extra/Included keeps the org-setting default (owner).
@@ -14,6 +15,10 @@
 - Owner request: Address type, Ownership (admin customer form + customer app address form) and Water source are dropdowns instead of pill buttons. Shared `components/shared/ChoiceSelect.tsx`; nothing pre-selected (required: disabled "Select…"; water source: "Not set").
 - Water TDS / pH / hardness inputs no longer show the up/down stepper arrows (`NO_SPINNER` in `lib/fieldWidth.ts`).
 - New i18n key `common.notSet` (en/ta). No DB change.
+
+## onsite-payment-method (2026-11-26)
+- On-site payment method is chosen on the invoice step, unselected + required when the total is above 0, so the invoice records the real method and transfer reference (it always recorded "cash" before). Payment step shows it read-only.
+- `servicePaymentSchema` accepts `upi`, so UPI visits can complete. Doc: `features/onsite-payment-method.md`.
 
 ## customer-data-sync (2026-11-26)
 - See features/customer-data-sync.md for the 7 sweep fixes: primary member sync, one email box, app address no longer overwritten, profession no longer reverted, moved-out members never counted, drafts keep complaint type and referrer, lead fields card never stale.
@@ -143,3 +148,4 @@
 - New Sale + New Quotation: GST extra / GST included switch, starting at the default. The quotation's choice carries into the sale.
 - Invoice print: taxable value = total − GST; "GST amount (included in price)" label for Included bills. The quotation print shows a GST line (new quotations only).
 - DB: `settings.prices_include_gst`, `invoices.gst_inclusive`, `quotations.gst_inclusive` (nullable), `_gst_amount()`; 6 billing RPCs + create_quotation updated.
+- 2026-11-26 follow-up: the same display rule (`productExtraParts`) is applied to AMC sell, customer detail, lead items, complaint/ticket equipment pickers, ticket detail and 4 customer-app pages. Masters tables still show the raw brand so it can be renamed there.

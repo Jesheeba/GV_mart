@@ -71,8 +71,8 @@
 - Admin address type/ownership are required only when the address has details (text or pin), mirroring the RPC's has_address.
 - Two-option selects that were already selects (role, availability, bike ownership, adjustments) keep the select + "Select…" (not converted to buttons).
 - An outcome's configured default_followup_type still pre-fills the next follow-up type (it's master config, not a UI guess).
-- OPEN, owner decision: OnSiteVisitPage payment method is still pre-set to cash. The invoice is queued on the invoice step BEFORE the payment step shows the method, so every on-site invoice records cash (and no transfer txn id) whatever the technician picks later. Fix = move method + txn onto the invoice step, unchosen + required.
-- OPEN bug: `servicePaymentSchema` accepts only cash/transfer, but the on-site page offers UPI when payment_enabled, so a UPI visit can't be completed.
+- FIXED 2026-11-26 (owner: "fix both", fix/onsite-payment-method): method moved to the invoice step, unselected + required. Was: OnSiteVisitPage payment method is still pre-set to cash. The invoice is queued on the invoice step BEFORE the payment step shows the method, so every on-site invoice records cash (and no transfer txn id) whatever the technician picks later. Fix = move method + txn onto the invoice step, unchosen + required.
+- FIXED 2026-11-26: `servicePaymentSchema` now accepts upi. Was: accepts only cash/transfer, but the on-site page offers UPI when payment_enabled, so a UPI visit can't be completed.
 - Known, not from this pass: Leads page at 390px clips an inner container (document doesn't overflow).
 
 ## UX pass decisions (2026-11-26)

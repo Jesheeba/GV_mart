@@ -48,7 +48,6 @@ import {
 } from "@/hooks/useTechnician"
 import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema, fromYesNo, toYesNo, ENQUIRY_TYPE_REQUIRED, type YesNo } from "@/lib/validation/technician"
-import { PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
 import { formatCurrency } from "@/lib/sale-calc"
 import { db } from "@/lib/offline/db"
 import { startSyncEngine } from "@/lib/offline/sync"
@@ -134,7 +133,7 @@ type VisitDraftData = {
   extraReadings: { label: string; value: string }[]
   techSign: string | null
   customerSign: string | null
-  paymentMethod: Enums<"payment_method"> | ""
+  paymentMethod: Enums<"payment_method"> | null
   txnId: string
   paymentDescription: string
   enquiryGenerated: boolean | null
@@ -246,8 +245,8 @@ export function OnSiteVisitPage() {
   const [techSign, setTechSign] = useState<string | null>(null)
   const [customerSign, setCustomerSign] = useState<string | null>(null)
 
-  // No default (owner 2026-11-26): "Not set" until chosen; completing the visit is blocked until then.
-  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method"> | "">("")
+  // Chosen on the invoice step (the invoice records it), never pre-selected; null until picked.
+  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method"> | null>(null)
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -416,7 +415,8 @@ export function OnSiteVisitPage() {
       if (d.extraReadings?.length) setExtraReadings(d.extraReadings)
       if (d.techSign) setTechSign(d.techSign)
       if (d.customerSign) setCustomerSign(d.customerSign)
-      if (d.paymentMethod) setPaymentMethod(d.paymentMethod)
+      // Only once the invoice is queued: older drafts saved the old "cash" default before anyone chose.
+      if (d.paymentMethod && d.invoiceQueued) setPaymentMethod(d.paymentMethod)
       if (d.txnId) setTxnId(d.txnId)
       if (d.paymentDescription) setPaymentDescription(d.paymentDescription)
       if (d.enquiryGenerated !== undefined) setEnquiryGenerated(d.enquiryGenerated)
@@ -517,7 +517,7 @@ export function OnSiteVisitPage() {
     setRoClientName("")
     setTechSign(null)
     setCustomerSign(null)
-    setPaymentMethod("")
+    setPaymentMethod(null)
     setTxnId("")
     setPaymentDescription("")
     setEnquiryGenerated(null)
@@ -739,6 +739,9 @@ export function OnSiteVisitPage() {
       : Math.max(0, Number(discountInput) || 0)
   const discountAmount = (subtotal * discountPercent) / 100
   const invoiceTotal = Math.max(0, subtotal - discountAmount)
+  // Nothing to collect on a free / zero-total job, so no method is asked; the invoice records cash as before.
+  const collectsPayment = invoiceTotal > 0
+  const paymentMethods = paymentSettings.data?.payment_enabled ? (["cash", "transfer", "upi"] as const) : (["cash", "transfer"] as const)
   // Technician-side payment QR: shown for both "transfer" and "upi" so the
   // technician can present their own screen when the customer doesn't have
   // their booking page open (previously the QR only ever rendered on the
@@ -880,6 +883,17 @@ export function OnSiteVisitPage() {
 
   async function handleCreateInvoice() {
     if (!visitId || !profile) return
+    if (collectsPayment) {
+      const check = servicePaymentSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription })
+      if (!check.success) {
+        const field = check.error.issues[0]?.path[0]
+        setPaymentError(field === "method" ? "technician.onsite.payment.methodRequired" : (check.error.issues[0]?.message ?? "technician.errors.paymentInvalid"))
+        document.getElementById(field === "method" ? "invoice-payment-method" : field === "txnId" ? "txnId" : "paymentDescription")?.focus()
+        return
+      }
+    }
+    setPaymentError(null)
+    const method = collectsPayment && paymentMethod ? paymentMethod : "cash"
     await createInvoice.mutateAsync({
       orgId: profile.org_id,
       visitId,
@@ -887,13 +901,11 @@ export function OnSiteVisitPage() {
       discountPercent,
       spares: selectedSpares.map((s) => ({ spareId: s.spareId, qty: s.qty })),
       installations: selectedInstallations.map((s) => ({ productId: s.productId, qty: s.qty })),
-      // Known open bug (out of scope): the invoice is queued before the Payment step where the method is
-      // chosen. Until that is fixed it keeps the payload it always had ("cash" unless chosen), never "".
-      paymentMethod: paymentMethod || "cash",
-      txnId: paymentMethod === "transfer" ? txnId : undefined,
-      paymentDescription: paymentMethod === "transfer" ? paymentDescription : undefined,
+      paymentMethod: method,
+      txnId: method === "transfer" ? txnId : undefined,
+      paymentDescription: method === "transfer" ? paymentDescription : undefined,
       isChargeable: chargeable,
-      amountPaid: paymentMethod === "upi" ? 0 : undefined,
+      amountPaid: method === "upi" ? 0 : undefined,
     })
     setInvoiceQueued(true)
   }
@@ -934,7 +946,7 @@ export function OnSiteVisitPage() {
    * design decision #2 — never trust a client-supplied code).
    */
   async function handlePaymentSubmit() {
-    const result = servicePaymentSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription })
+    const result = servicePaymentSchema.safeParse({ method: paymentMethod ?? "cash", txnId, description: paymentDescription })
     if (!result.success) {
       setPaymentError(result.error.issues[0]?.message ?? "technician.errors.paymentInvalid")
       return
@@ -1592,6 +1604,50 @@ export function OnSiteVisitPage() {
             <div className="flex justify-between border-t border-border pt-1 font-semibold"><span className="text-text">{t("technician.onsite.charges.total")}</span><span className="text-text">{formatCurrency(invoiceTotal)}</span></div>
           </div>
 
+          {collectsPayment && !invoiceQueued ? (
+            <div className="space-y-2 border-t border-border px-1 pt-3">
+              <ChoiceSelect
+                id="invoice-payment-method"
+                label={t("technician.onsite.payment.method")}
+                value={paymentMethod}
+                options={paymentMethods.map((m) => ({ value: m, label: t(`technician.onsite.payment.${m}`) }))}
+                onChange={(v) => {
+                  setPaymentMethod(v || null)
+                  setPaymentError(null)
+                }}
+                error={paymentError ? t(paymentError) : undefined}
+              />
+              {paymentMethod === "transfer" ? (
+                <>
+                  {showPaymentQr ? (
+                    <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
+                      <p className="text-sm font-semibold text-text">{t("technician.onsite.payment.qr.title")}</p>
+                      <p className="text-xs text-text-muted">{t("technician.onsite.payment.qr.hint")}</p>
+                      <PaymentQRCode
+                        upiId={paymentSettings.data!.upi_id}
+                        merchantName={paymentSettings.data!.merchant_name}
+                        amount={invoiceTotal}
+                        invoiceNumber={visitId ?? ticket.id}
+                      />
+                    </div>
+                  ) : null}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="txnId">{t("technician.onsite.payment.txnId")}</Label>
+                      <Input id="txnId" value={txnId} onChange={(e) => setTxnId(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="paymentDescription">{t("technician.onsite.payment.description")}</Label>
+                      <Input id="paymentDescription" value={paymentDescription} onChange={(e) => setPaymentDescription(e.target.value)} />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+              {paymentMethod === "cash" ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p> : null}
+              {paymentMethod === "upi" ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.upiAfterInvoiceNote")}</p> : null}
+            </div>
+          ) : null}
+
           {invoiceQueued ? (
             <p className="flex items-center gap-1.5 rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success">
               <CheckCircle2 className="size-4" /> {t("technician.onsite.invoice.queued")}
@@ -1625,48 +1681,21 @@ export function OnSiteVisitPage() {
               <TriangleAlert className="size-4 shrink-0" /> {t("technician.onsite.otp.errors.offline")}
             </p>
           ) : null}
-          <ChoiceSelect
-            id="onsitePaymentMethod"
-            label={t("technician.onsite.payment.method")}
-            value={paymentMethod}
-            options={(paymentSettings.data?.payment_enabled ? (["cash", "transfer", "upi"] as const) : (["cash", "transfer"] as const)).map((m) => ({
-              value: m,
-              label: t(`technician.onsite.payment.${m}`),
-            }))}
-            onChange={(v) => {
-              setPaymentMethod(v)
-              setPaymentError(null)
-            }}
-            error={paymentError === PAYMENT_METHOD_REQUIRED ? t(paymentError) : undefined}
-          />
-          {paymentMethod === "transfer" ? (
-            <>
-              {showPaymentQr ? (
-                <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
-                  <p className="text-sm font-semibold text-text">{t("technician.onsite.payment.qr.title")}</p>
-                  <p className="text-xs text-text-muted">{t("technician.onsite.payment.qr.hint")}</p>
-                  <PaymentQRCode
-                    upiId={paymentSettings.data!.upi_id}
-                    merchantName={paymentSettings.data!.merchant_name}
-                    amount={invoiceTotal}
-                    invoiceNumber={visitId ?? ticket.id}
-                  />
-                </div>
+          {collectsPayment && paymentMethod ? (
+            <div className="space-y-1 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-2.5 text-sm">
+              <p>
+                <span className="text-text-muted">{t("technician.onsite.payment.method")}: </span>
+                <span className="font-semibold text-text">{t(`technician.onsite.payment.${paymentMethod}`)}</span>
+              </p>
+              {paymentMethod === "transfer" && txnId ? (
+                <p className="text-xs text-text-muted">
+                  {t("technician.onsite.payment.txnId")}: {txnId}
+                </p>
               ) : null}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="txnId">{t("technician.onsite.payment.txnId")}</Label>
-                  <Input id="txnId" value={txnId} onChange={(e) => setTxnId(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="paymentDescription">{t("technician.onsite.payment.description")}</Label>
-                  <Input id="paymentDescription" value={paymentDescription} onChange={(e) => setPaymentDescription(e.target.value)} />
-                </div>
-              </div>
-            </>
+              <p className="text-xs text-text-muted">{t("technician.onsite.payment.methodLockedNote")}</p>
+            </div>
           ) : null}
-          {paymentMethod === "cash" ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p> : null}
-          {paymentError && paymentError !== PAYMENT_METHOD_REQUIRED ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
+          {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
 
           {isUpi ? (
             isUpiPaid ? (

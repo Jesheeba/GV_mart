@@ -1,5 +1,4 @@
 import { z } from "zod"
-import { PAYMENT_METHOD_REQUIRED } from "./sale"
 
 // Indian mobile: 10 digits, starts 6-9 — same rule as lib/validation/customer.ts.
 const MOBILE_REGEX = /^[6-9]\d{9}$/
@@ -94,11 +93,8 @@ export const fromYesNo = (v: YesNo | ""): boolean | null => (v === "" ? null : v
 // staff billing).
 export const servicePaymentSchema = z
   .object({
-    // No default (owner 2026-11-26): "Not set" gets the method-required message. Any other value (UPI, a
-    // known open bug) keeps zod's own message, as before.
-    method: z.enum(["cash", "transfer"], {
-      error: (iss) => (iss.input === "" || iss.input == null ? PAYMENT_METHOD_REQUIRED : undefined),
-    }),
+    // "upi" is offered on-site when online payments are enabled; it is collected after the invoice (OnSiteVisitPage).
+    method: z.enum(["cash", "transfer", "upi"]),
     txnId: z.string().trim().max(120).optional().or(z.literal("")),
     description: z.string().trim().max(200).optional().or(z.literal("")),
   })

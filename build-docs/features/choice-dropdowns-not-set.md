@@ -1,9 +1,8 @@
 # Feature: choice-dropdowns-not-set (2026-11-26)
 
-Status: BUILT on fix/choice-dropdowns. Migration 20261229100000 NOT applied.
+Status: SHIPPED 2026-11-26. Migration 20261229100000 applied live.
 
 Open:
-- On-site invoice still queues "cash" when no method is chosen yet (known bug: the invoice is created before the payment step).
 - About 15 pre-existing missing i18n keys (automation/customerApp/leads errors, e.g. `leads.detail.notePlaceholder`).
 
 ## Purpose
