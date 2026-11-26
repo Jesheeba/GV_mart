@@ -676,6 +676,9 @@ export type CustomerAppSettings = Pick<
   | "work_end"
   | "narrow_window_threshold_minutes"
   | "default_duration_paid_minutes"
+  // gst-everywhere (20261230100000): the AMC renewal screen shows the GST-inclusive amount.
+  | "gst_rate"
+  | "prices_include_gst"
 >
 
 export async function getSettings(orgId: string) {

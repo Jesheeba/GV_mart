@@ -2421,6 +2421,8 @@
       "visitsCount_one": "{{count}} வருகை",
       "visitsCount_other": "{{count}} வருகைகள்",
       "totalPrice": "மொத்தம்: {{amount}}",
+      "planPrice": "திட்ட விலை: {{amount}}",
+      "payable": "செலுத்த வேண்டியது",
       "backdatedWarning": "இந்த தொடக்க தேதி {{days}} நாட்கள் கடந்தது (வரம்பு {{limit}} நாட்கள்). கடந்த வருகைகள் திட்டமிடப்படாது.",
       "backdatedConfirm": "இந்த பின்தேதியிட்ட விற்பனையை உறுதி செய்கிறேன்",
       "backdatedMasterOnly": "இவ்வளவு பழைய தொடக்க தேதியை மாஸ்டர் மட்டுமே உறுதி செய்ய முடியும்.",
@@ -2472,7 +2474,8 @@
       "product": "பொருள்",
       "plan": "வாடகை திட்டம்",
       "startDate": "தொடக்க தேதி",
-      "monthlyTotal": "மாதாந்திர கட்டணம்: {{amount}} (+ GST)",
+      "monthlyTotal": "மாதாந்திர கட்டணம்: {{amount}}",
+      "monthlyPayable": "மாதாந்திர செலுத்த வேண்டியது",
       "submit": "வாடகைக்கு விடு"
     },
     "errors": {
@@ -2829,6 +2832,8 @@
       },
       "years": "ஆண்டுகள்",
       "totalPrice": "மொத்தம்: {{amount}}",
+      "planPrice": "திட்ட விலை: {{amount}}",
+      "payable": "செலுத்த வேண்டிய தொகை",
       "startedOn": "{{date}} அன்று தொடங்கியது",
       "perYear": "/ஆண்டு",
       "referredBy": {

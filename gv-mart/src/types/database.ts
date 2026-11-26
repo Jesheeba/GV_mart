@@ -4946,6 +4946,7 @@ export type Database = {
           next_service_date: string | null
           returned_at: string | null
           invoice_id: string | null
+          gst_inclusive: boolean | null
           created_at: string
           updated_at: string
         }
@@ -4962,6 +4963,7 @@ export type Database = {
           next_service_date?: string | null
           returned_at?: string | null
           invoice_id?: string | null
+          gst_inclusive?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -4978,6 +4980,7 @@ export type Database = {
           next_service_date?: string | null
           returned_at?: string | null
           invoice_id?: string | null
+          gst_inclusive?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -8106,6 +8109,12 @@ export type Database = {
           // Rewards spec (2026-08-04) — optional finder-credit referral,
           // see 20260804150000_referral_capture_functions.sql.
           p_referred_by_technician_id?: string | null
+          p_confirm_backdated?: boolean
+          // gst-everywhere (20261230100000): admin AMC sale now bills an invoice; no method -> invoice left due.
+          p_payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          p_txn_id?: string | null
+          p_payment_description?: string | null
+          p_gst_inclusive?: boolean | null
         }
         Returns: Json
       }
@@ -8171,6 +8180,9 @@ export type Database = {
           // tracking_functions.sql; this file predates p_amount_paid too
           // (Docker-based `supabase gen types` isn't available here).
           p_installations?: Json
+          p_amount_paid?: number | null
+          // gst-everywhere (20261230100000): null -> org default (settings.prices_include_gst).
+          p_gst_inclusive?: boolean | null
         }
         Returns: Json
       }
@@ -8345,6 +8357,9 @@ export type Database = {
           p_payment_method: Database["public"]["Enums"]["payment_method"]
           p_txn_id?: string | null
           p_payment_description?: string | null
+          p_amount_paid?: number | null
+          // gst-everywhere (20261230100000): null -> org default (settings.prices_include_gst).
+          p_gst_inclusive?: boolean | null
         }
         Returns: Json
       }
@@ -8363,6 +8378,8 @@ export type Database = {
           p_payment_method?: Database["public"]["Enums"]["payment_method"]
           p_txn_id?: string | null
           p_payment_description?: string | null
+          // gst-everywhere (20261230100000): null -> org default (settings.prices_include_gst).
+          p_gst_inclusive?: boolean | null
         }
         Returns: Json
       }

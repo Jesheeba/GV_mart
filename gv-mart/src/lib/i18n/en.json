@@ -2421,6 +2421,8 @@
       "visitsCount_one": "{{count}} visit",
       "visitsCount_other": "{{count}} visits",
       "totalPrice": "Total: {{amount}}",
+      "planPrice": "Plan price: {{amount}}",
+      "payable": "Payable",
       "backdatedWarning": "This start date is {{days}} days in the past (limit {{limit}} days). Visits already past will not be scheduled.",
       "backdatedConfirm": "I confirm this back-dated sale",
       "backdatedMasterOnly": "Only a master can confirm a start date this far in the past.",
@@ -2472,7 +2474,8 @@
       "product": "Product",
       "plan": "Rental plan",
       "startDate": "Start date",
-      "monthlyTotal": "Monthly rate: {{amount}} (+ GST)",
+      "monthlyTotal": "Monthly rate: {{amount}}",
+      "monthlyPayable": "Monthly payable",
       "submit": "Rent out"
     },
     "errors": {
@@ -2829,6 +2832,8 @@
       },
       "years": "Years",
       "totalPrice": "Total: {{amount}}",
+      "planPrice": "Plan price: {{amount}}",
+      "payable": "Amount to pay",
       "startedOn": "Started on {{date}}",
       "perYear": "/yr",
       "referredBy": {

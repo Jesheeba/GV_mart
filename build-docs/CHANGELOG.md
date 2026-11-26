@@ -1,5 +1,11 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## gst-everywhere (2026-11-26)
+- Fix: the technician on-site invoice and AMC screens now show and collect the GST-inclusive total (it was 18% short of the invoice).
+- Per-bill GST Included/Extra switch on technician on-site invoice + AMC, Rent Out (kept per contract for monthly bills) and admin Sell AMC.
+- Admin Sell AMC and customer AMC renewal now create a GST invoice (renewal invoice = due, because the app payment is simulated).
+- Migration 20261230100000_gst_everywhere (+ rollback). Deleted the 2 test lead sources.
+
 ## missing-i18n-keys (2026-11-26)
 - Added 37 missing en/ta keys and 3 missing Tamil job-kind labels.
 - Removed duplicate JSON keys (leads.errors ×3, leads.edit ×2, auth.useDifferentAccount ×2) that had silently dropped `leads.errors.budgetNonNegative`.

@@ -1,5 +1,10 @@
 # TESTING — Leads Dashboard Enhancement
 
+## gst-everywhere (2026-11-26)
+- `src/lib/gstEverywhere.test.ts` (E1-E5): 10/10. Numbers match the SQL test so the screen total equals the server invoice.
+- `tsc -p tsconfig.app.json` clean. Full vitest: 1392 passed, 2 failed. Both failures (waOutboxSentGuard, wa-event-context) also fail on main.
+- `supabase/tests/gst_everywhere.test.sql`: written, **not run yet**. It needs the migration live first; the apply is waiting for the owner's go-ahead.
+
 ## missing-i18n-keys (2026-11-26)
 - `keysComplete.test.ts` (AC1, AC2): 6/6 pass. Against origin/main's JSON, 5/6 fail (missing en, missing ta, en dups, ta dups, budget key), so the guard catches the original bugs.
 - `parity.test.ts` (AC3): passes with the allowlist removed. All src/lib/i18n tests: 72/72.
