@@ -214,3 +214,14 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Unit: purchase.test.ts + i18n keysComplete pass after fixing a duplicate purchase.errors block from the merge (main had added its own; pricePositive moved into it).
 - leadCustomerEmbed.test.ts rewritten to import.meta.glob (the node:fs version failed tsc -p tsconfig.app.json on main); still fails when the hint is removed.
 - tsc clean, vite build OK. Full suite: only pre-existing OTA + WA dispatcher-mock (abortSignal) + waOutboxSentGuard(20261204220000) + wa-event-context failures.
+
+## feat(rework) (2026-11-26) — built, DB NOT applied
+- Unit: `src/lib/rework.test.ts` 13/13 — AC1 window (inside/edge/outside/master-raised/invalid), AC5 penalty P2 (unset, ≤X, X+1, X+3, X=0), AC4/AC5 on-site choice, UI completion time.
+- Guard: `testCustomerGuard.test.ts` failed until `report_rework_summary` + `technician_rework_count` were added to `must_exclude` (both exclude test customers) — guard working as designed.
+- i18n: 29 keys inserted as text into the LAST occurrence of each object in en+ta (files had duplicate keys; parse-and-rewrite would drop content). Diff is insert-only; keysComplete/parity tests pass.
+- tsc -b clean; oxlint 0 errors (no warnings in rework files).
+- Full suite: only the known pre-existing failures (waOutboxSentGuard, wa-event-context, plus order-dependent OTA + WA dispatcher-mock files that pass in isolation on this branch).
+- SQL (written, NOT run — no DB write without the owner naming it):
+  - `supabase/tests/rework_core.test.sql` — AC1–AC9: roles, reason, window + master-raised window, linked ticket, responsible tech, auto-assign, inactive tech → unassigned + notification, both auto-pickers skip rework, reassign keeps responsible, guard triggers, cancel clears needs_revisit + re-mark, free = ₹0 even if app claims chargeable, spare/charge ⇒ paid with stock deducted, escalation rules (responsible only, ≥10 chars, free only, once, RLS blocks pre-approved insert, ops cannot decide, master can, technician notified), counts, report, grants, real-data fingerprint.
+  - `supabase/tests/rework_penalty_salary.test.sql` — X/Y unset, X=2/3/4/0 with 4 reworks, paid + test-customer + other-month excluded, master omit/undo/add on rework and late deductions, ops blocked, recharge rules unchanged, floor + shortfall, grants, real salaries untouched. Synthetic org, LAST month only.
+- Generators: `_local_only/rehearsal-files/rework/gen_rework_core.py` takes the LATEST definition of each re-issued function (found the gst_everywhere body after rebase); `gen_rework_penalty.py` refuses if compute_salary was redefined after 20261118100000.

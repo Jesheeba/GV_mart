@@ -50,6 +50,7 @@ import {
 import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema, fromYesNo, toYesNo, ENQUIRY_TYPE_REQUIRED, type YesNo } from "@/lib/validation/technician"
 import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
+import { isReworkChargeable, type ReworkChoice } from "@/lib/rework"
 import { db } from "@/lib/offline/db"
 import { startSyncEngine } from "@/lib/offline/sync"
 import type { Enums } from "@/types/database"
@@ -116,6 +117,8 @@ type VisitDraftData = {
   evidenceImages: string[]
   selectedSpares: SelectedSpare[]
   selectedInstallations: SelectedInstallation[]
+  // Rework jobs only: the technician's Free rework / Paid choice (optional: older drafts lack it).
+  reworkChoice?: ReworkChoice | null
   discountEnabled: boolean
   discountInput: string
   discountMode: "percent" | "amount"
@@ -216,6 +219,7 @@ export function OnSiteVisitPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
 
   const [selectedSpares, setSelectedSpares] = useState<SelectedSpare[]>([])
+  const [reworkChoice, setReworkChoice] = useState<ReworkChoice | null>(null)
   // Installation Tracking + Incentive (2026-09-25) — separate from
   // selectedSpares: logs which products were newly installed, for incentive
   // counting, not parts consumed as a repair.
@@ -402,6 +406,7 @@ export function OnSiteVisitPage() {
       if (d.evidenceImages?.length) setEvidenceImages(d.evidenceImages)
       if (d.selectedSpares?.length) setSelectedSpares(d.selectedSpares)
       if (d.selectedInstallations?.length) setSelectedInstallations(d.selectedInstallations)
+      if (d.reworkChoice) setReworkChoice(d.reworkChoice)
       if (d.discountEnabled != null) setDiscountEnabled(d.discountEnabled)
       if (d.discountInput != null) setDiscountInput(d.discountInput)
       if (d.discountMode) setDiscountMode(d.discountMode)
@@ -458,6 +463,7 @@ export function OnSiteVisitPage() {
     evidenceImages,
     selectedSpares,
     selectedInstallations,
+    reworkChoice,
     discountEnabled,
     discountInput,
     discountMode,
@@ -512,6 +518,7 @@ export function OnSiteVisitPage() {
     setSelectedTemplateId("")
     setEvidenceImages([])
     setSelectedSpares([])
+    setReworkChoice(null)
     setDiscountEnabled(false)
     setDiscountInput("0")
     setDiscountMode("percent")
@@ -549,7 +556,10 @@ export function OnSiteVisitPage() {
   }
 
   const ticket = jobDetail.data
-  const chargeable = ticket ? isChargeableTicketType(ticket.type) : false
+  // Rework (owner Q1/Q2/Q6): the technician picks Free rework (no spares, no charge) or Paid (normal bill).
+  // The server re-derives this from the bill, so a tampered app cannot make a charged visit free or vice versa.
+  const isRework = ticket?.type === "rework"
+  const chargeable = ticket ? (isRework ? isReworkChargeable(reworkChoice) : isChargeableTicketType(ticket.type)) : false
   const isRo = ticket?.products?.category === "ro"
 
   // Whole-visit overrun — the AUTHORITATIVE "is the technician late" signal
@@ -832,7 +842,7 @@ export function OnSiteVisitPage() {
 
   function canAdvanceFrom(key: (typeof STEP_KEYS)[number]) {
     if (key === "sop") return sopAllDone
-    if (key === "spares") return !!beforeImage
+    if (key === "spares") return !!beforeImage && (!isRework || !!reworkChoice)
     if (key === "ro") return roValid
     if (key === "afterphoto") return !!afterImage && stickerStepDone
     if (key === "invoice") return invoiceQueued
@@ -1278,15 +1288,47 @@ export function OnSiteVisitPage() {
       {currentKey === "spares" ? (
         <div className="space-y-4">
           <PhotoCapture label={t("technician.onsite.beforeImage")} dataUrl={beforeImage} onCaptured={handleBeforeImage} />
+          {isRework ? (
+            <Card className="gap-2.5 border-danger/30 bg-danger/5" role="group" aria-labelledby="rework-choice-title">
+              <p id="rework-choice-title" className="px-1 text-sm font-semibold text-text">
+                {t("technician.onsite.rework.question")}
+              </p>
+              {ticket.rework_reason ? <p className="px-1 text-xs text-text-muted">{ticket.rework_reason}</p> : null}
+              <div className="flex flex-wrap gap-2 px-1">
+                <SegButton
+                  active={reworkChoice === "free"}
+                  onClick={() => {
+                    setReworkChoice("free")
+                    setSelectedSpares([])
+                  }}
+                >
+                  {t("technician.onsite.rework.free")}
+                </SegButton>
+                <SegButton active={reworkChoice === "paid"} onClick={() => setReworkChoice("paid")}>
+                  {t("technician.onsite.rework.paid")}
+                </SegButton>
+              </div>
+              <p className="px-1 text-xs text-text-muted">
+                {reworkChoice === "paid"
+                  ? t("technician.onsite.rework.paidHelp")
+                  : reworkChoice === "free"
+                    ? t("technician.onsite.rework.freeHelp")
+                    : t("technician.onsite.rework.chooseHelp")}
+              </p>
+            </Card>
+          ) : null}
           {/* Product Lifecycle & Automated Service Reminder System — customerId/visitId feed SpareSelectStep's due-parts warning list (see its own doc comment). */}
-          <SpareSelectStep
-            orgId={profile?.org_id}
-            complaintTypeId={ticket.complaint_type_id}
-            customerId={ticket.customer_id}
-            visitId={visitId}
-            selected={selectedSpares}
-            onChange={setSelectedSpares}
-          />
+          {/* Free rework = no spares (owner Q2: any spare makes it Paid). */}
+          {!isRework || reworkChoice === "paid" ? (
+            <SpareSelectStep
+              orgId={profile?.org_id}
+              complaintTypeId={ticket.complaint_type_id}
+              customerId={ticket.customer_id}
+              visitId={visitId}
+              selected={selectedSpares}
+              onChange={setSelectedSpares}
+            />
+          ) : null}
           {ticket.type === "installation" && (ticket.installation_charge_snapshot ?? 0) > 0 ? (
             <p className="rounded-xl bg-surface-alt px-3 py-2 text-sm text-text">
               {t("technician.onsite.installIncentive", { amount: `₹${ticket.installation_charge_snapshot!.toLocaleString("en-IN")}` })}

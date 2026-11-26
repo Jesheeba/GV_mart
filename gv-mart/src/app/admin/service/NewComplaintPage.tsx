@@ -46,6 +46,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { getConflictAppointmentInfo } from "@/services/service"
 import { TicketTypeBadge } from "./TicketBadges"
 import { productExtraParts } from "@/lib/productSearch"
+import { useReworkCandidate } from "@/hooks/useRework"
 
 function todayInput() {
   return getIstNow().date
@@ -236,6 +237,8 @@ export function NewComplaintPage() {
     defaultValues: { scheduledDate: "", unavailableWindows: [], autoAssign: true, technicianId: "" },
   })
   const { data: settings } = useSettings(orgId)
+  // Rework suggestion: same customer + product finished inside the rework window -> offer the rework path.
+  const reworkCandidate = useReworkCandidate(orgId, customerId || undefined, resolvedProductId || undefined, settings?.rework_window_days ?? 30)
   const exemptionWindows = useCustomerExemptionWindows(customerId || undefined)
   const workStart = (settings?.work_start ?? "09:00").slice(0, 5)
   const workEnd = (settings?.work_end ?? "19:30").slice(0, 5)
@@ -451,6 +454,24 @@ export function NewComplaintPage() {
       <Card className="px-5">
         <Stepper steps={steps} currentIndex={step} maxCompletedIndex={maxStepReached} onStepClick={setStep} />
       </Card>
+
+      {step >= 2 && reworkCandidate.data ? (
+        <Card className="gap-2 border-danger/30 bg-danger/5 px-5" role="status">
+          <p className="text-sm font-semibold text-danger">{t("service.rework.suggestTitle")}</p>
+          <p className="text-sm text-text">
+            {t("service.rework.suggestBody", {
+              id: reworkCandidate.data.id.slice(0, 8),
+              date: formatDateTime(reworkCandidate.data.completedAt),
+              technician: reworkCandidate.data.technicianName ?? "—",
+            })}
+          </p>
+          <div>
+            <Button type="button" size="sm" variant="outline" onClick={() => navigate(`/admin/service/${reworkCandidate.data!.id}?rework=1`)}>
+              {t("service.rework.suggestAction")}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       {step === 0 ? (
         <Card className="gap-3 px-5">

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { PostServiceCallsCard } from "./PostServiceCallsCard"
 import { useTranslation } from "react-i18next"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { CalendarClock, KeyRound, Loader2, Pencil, PhoneCall, ShieldOff, Trash2, TriangleAlert, UserCog, XCircle } from "lucide-react"
+import { CalendarClock, KeyRound, Loader2, Pencil, PhoneCall, RotateCcw, ShieldOff, Trash2, TriangleAlert, UserCog, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -49,6 +49,9 @@ import { cn, focusChoice } from "@/lib/utils"
 import { ChannelBadge, PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
 import { InstallationChargeRow } from "./InstallationChargeRow"
+import { MarkReworkCard, ReworkBanners } from "./ReworkPanel"
+import { useReworkChild } from "@/hooks/useRework"
+import { isWithinReworkWindow, ticketCompletedAt } from "@/lib/rework"
 import { productExtraParts } from "@/lib/productSearch"
 
 function TicketPhotoThumb({ storagePath }: { storagePath: string }) {
@@ -199,6 +202,11 @@ export function TicketDetailPage() {
   const cancelTicket = useCancelServiceTicket()
   const deleteTicket = useDeleteServiceTicket()
 
+  // Rework (build-docs/features/rework.md). ?rework=1 (from the New Complaint suggestion) opens the form.
+  const [searchParams] = useSearchParams()
+  const [markingRework, setMarkingRework] = useState(searchParams.get("rework") === "1")
+  const reworkChild = useReworkChild(id)
+
   // GV.md §2 — the one sanctioned OTP escape hatch. See design decision #5
   // in 20260725110000_otp_completion_confirmation.sql for why this exists
   // and stays deliberately minimal (no signature/photo fallback tiers).
@@ -233,6 +241,11 @@ export function TicketDetailPage() {
   const lateSopSteps = visit?.service_sop_steps?.filter((s) => (s.overdue_minutes ?? 0) > 0)
   const canManage = profile?.role === "master" || profile?.role === "operation_admin"
   const canCancelOrDelete = canManage && ticket.status !== "completed" && ticket.status !== "cancelled"
+  const reworkWindowDays = settings?.rework_window_days ?? 30
+  const canMarkRework =
+    canManage && ticket.status === "completed" && !reworkChild.data && isWithinReworkWindow(ticketCompletedAt(ticket), reworkWindowDays)
+  const lastVisitTechnicianId =
+    [...(ticket.service_visits ?? [])].sort((a, b) => (b.timer_end ?? "").localeCompare(a.timer_end ?? ""))[0]?.technician_id ?? null
   // GV.md 1.2: same allowed-time formula as the technician screens (see
   // src/lib/job-allowance.ts) — base estimate from the open visit's actual
   // items' standard times (falling back to the ticket's type default),
@@ -379,6 +392,12 @@ export function TicketDetailPage() {
           <p className="text-xs text-text-muted">{t("service.table.raised", { date: formatDate(ticket.created_at) })}</p>
         </div>
         <div className="flex items-center gap-2">
+          {canMarkRework ? (
+            <Button variant="outline" size="sm" onClick={() => setMarkingRework((v) => !v)}>
+              <RotateCcw className="size-3.5" />
+              {t("service.rework.mark")}
+            </Button>
+          ) : null}
           {canCancelOrDelete ? (
             <>
               <Button
@@ -434,6 +453,24 @@ export function TicketDetailPage() {
           </div>
         </Card>
       ) : null}
+
+      {markingRework && canMarkRework ? (
+        <MarkReworkCard
+          ticketId={ticket.id}
+          defaultTechnicianId={lastVisitTechnicianId}
+          technicians={technicians}
+          workStart={(settings?.work_start ?? "09:00").slice(0, 5)}
+          workEnd={(settings?.work_end ?? "19:30").slice(0, 5)}
+          narrowThreshold={settings?.narrow_window_threshold_minutes ?? 90}
+          estimatedMinutes={ticket.estimated_duration_minutes ?? settings?.default_duration_paid_minutes ?? 45}
+          exemptionBlocks={(exemptionWindows.data ?? [])
+            .filter((w) => w.is_active)
+            .map((w) => ({ start: w.start_time.slice(0, 5), end: w.end_time.slice(0, 5) }))}
+          onClose={() => setMarkingRework(false)}
+        />
+      ) : null}
+
+      <ReworkBanners ticket={ticket} technicians={technicians} />
 
       {ticket.status === "cancelled" && ticket.cancellation_reason ? (
         <Card className="gap-1.5 px-5">

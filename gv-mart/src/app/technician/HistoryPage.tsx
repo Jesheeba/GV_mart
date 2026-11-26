@@ -13,7 +13,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
 import type { Enums } from "@/types/database"
 
-const TYPE_FILTERS: (Enums<"ticket_type"> | "all")[] = ["all", "paid", "warranty", "amc", "installation"]
+const TYPE_FILTERS: (Enums<"ticket_type"> | "all")[] = ["all", "paid", "warranty", "amc", "installation", "rework"]
 
 export function HistoryPage() {
   const { t } = useTranslation()

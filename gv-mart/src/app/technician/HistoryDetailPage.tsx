@@ -12,6 +12,7 @@ import { WaterHouseholdSummary, waterValuesFromCustomer } from "@/components/sha
 import { formatCurrency } from "@/lib/sale-calc"
 import { minutesBetween } from "@/lib/visit-duration"
 import { addressLine } from "@/lib/address"
+import { useRequestReworkEscalation, useReworkEscalation } from "@/hooks/useRework"
 
 type ReviewMember = { id: string; name: string; is_primary: boolean; google_review_stars: number | null; google_review_photo_url: string | null }
 
@@ -91,6 +92,58 @@ function GoogleReviewLogCard({ orgId, visitId, members }: { orgId: string; visit
           <Button type="button" size="sm" disabled={!canSubmit || queueReview.isPending} onClick={onSubmit}>
             {queueReview.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("technician.history.googleReview.submit")}
           </Button>
+        </>
+      )}
+    </Card>
+  )
+}
+
+/**
+ * Rework escalation (owner Q6): after finishing a FREE rework, the technician held responsible can tell the
+ * master it was not their fault. One request per rework; only the master decides (Approvals).
+ */
+function ReworkEscalationCard({ ticketId }: { ticketId: string }) {
+  const { t } = useTranslation()
+  const escalation = useReworkEscalation(ticketId)
+  const request = useRequestReworkEscalation()
+  const [reason, setReason] = useState("")
+  const reasonOk = reason.trim().length >= 10
+
+  if (escalation.isLoading) return null
+
+  return (
+    <Card className="gap-3">
+      <p className="px-1 text-sm font-semibold text-text">{t("technician.history.rework.title")}</p>
+      {escalation.data ? (
+        <p className="px-1 text-sm text-text">{t(`technician.history.rework.status.${escalation.data.status}`)}</p>
+      ) : (
+        <>
+          <p className="px-1 text-xs text-text-muted">{t("technician.history.rework.help")}</p>
+          <label htmlFor="rework-escalation-reason" className="sr-only">
+            {t("technician.history.rework.reasonLabel")}
+          </label>
+          <textarea
+            id="rework-escalation-reason"
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={t("technician.history.rework.reasonLabel")}
+            aria-describedby="rework-escalation-hint"
+            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          />
+          <p id="rework-escalation-hint" className="px-1 text-xs text-text-muted">
+            {t("technician.history.rework.reasonHint")}
+          </p>
+          {request.isError ? <p className="px-1 text-xs text-danger">{(request.error as Error).message}</p> : null}
+          <Button
+            type="button"
+            size="sm"
+            disabled={!reasonOk || request.isPending || !navigator.onLine}
+            onClick={() => request.mutate({ ticketId, reason: reason.trim() })}
+          >
+            {request.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("technician.history.rework.submit")}
+          </Button>
+          {!navigator.onLine ? <p className="px-1 text-xs text-text-muted">{t("technician.history.rework.needsOnline")}</p> : null}
         </>
       )}
     </Card>
@@ -193,6 +246,14 @@ export function HistoryDetailPage() {
             ))}
           </div>
         </Card>
+      ) : null}
+
+      {ticket.type === "rework" &&
+      ticket.status === "completed" &&
+      ticket.rework_outcome === "free" &&
+      technician.data &&
+      ticket.rework_responsible_technician_id === technician.data.id ? (
+        <ReworkEscalationCard ticketId={ticket.id} />
       ) : null}
 
       {visit && technician.data ? (

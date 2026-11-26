@@ -23,7 +23,7 @@ function monthToPeriodDate(month: string) {
 }
 
 /**
- * ADM-24. `net = base + revenue_component - late_deduction + incentives`;
+ * ADM-24. `net = base + revenue_component - late_deduction - rework_deduction + incentives`;
  * `base` is the technician's tier monthly_salary (fixed, from Masters >
  * Technician Tiers) and `revenue_component` is their attributed service
  * revenue for the period; `late_deduction = late_hours x 2` — see
@@ -129,6 +129,12 @@ export function SalaryTab() {
     { key: "base", header: t("hr.salary.base"), render: (r) => formatCurrency(r.base) },
     { key: "revenueComponent", header: t("hr.salary.revenueComponent"), render: (r) => formatCurrency(r.revenue_component) },
     { key: "lateDeduction", header: t("hr.salary.lateDeduction"), render: (r) => `-${formatCurrency(r.late_deduction)}` },
+    // Rework penalty (20270101100200): every counted rework after the master's free limit.
+    {
+      key: "reworkDeduction",
+      header: t("hr.salary.reworkDeduction"),
+      render: (r) => `-${formatCurrency(r.rework_deduction ?? 0)}${r.rework_count ? ` (${r.rework_count})` : ""}`,
+    },
     { key: "incentives", header: t("hr.salary.incentives"), render: (r) => `+${formatCurrency(r.incentives)}` },
     {
       key: "net",
@@ -266,6 +272,10 @@ export function SalaryTab() {
               <div className="flex justify-between">
                 <span className="text-text-muted">{t("hr.salary.lateDeduction")}</span>
                 <span className="text-danger">-{formatCurrency(printing.late_deduction)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-muted">{t("hr.salary.reworkDeductionSlip", { count: printing.rework_count ?? 0 })}</span>
+                <span className="text-danger">-{formatCurrency(printing.rework_deduction ?? 0)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-muted">{t("hr.salary.incentives")}</span>

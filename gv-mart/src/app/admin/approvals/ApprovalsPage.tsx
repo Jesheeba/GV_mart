@@ -8,7 +8,7 @@ import { useApprovals, useApprovePurchaseOrder, useDecideApproval } from "@/hook
 import type { ApprovalListItem } from "@/services/systemPages"
 import { ApprovalRow } from "./ApprovalRow"
 
-const TYPE_OPTIONS = ["discount", "po", "price_override", "leave"] as const
+const TYPE_OPTIONS = ["discount", "po", "price_override", "leave", "rework"] as const
 const STATUS_OPTIONS = ["pending", "approved", "rejected"] as const
 
 export function ApprovalsPage() {

@@ -13,6 +13,8 @@ import { ColumnPicker } from "@/components/shared/ColumnPicker"
 import { useColumnPrefs } from "@/hooks/useColumnPrefs"
 import type { PerformanceRow } from "@/services/reports"
 import { PeriodFilter } from "./PeriodFilter"
+import { useReworkSummary } from "@/hooks/useRework"
+import type { DateRange } from "@/services/reports"
 
 // Scoreboard columns. Rank and Person are always shown; everything else is
 // a toggleable column from this fixed catalog (useColumnPrefs). The design's
@@ -230,6 +232,65 @@ export function PerformanceReportTab() {
           <LegendDot toneClass="text-danger" dotClass="bg-danger" label={t("reports.performance.legendCoach")} />
         </div>
       </div>
+
+      <ReworkReportCard range={range} jobsByTechnician={new Map((data ?? []).map((r) => [r.id, r.jobsDone]))} />
+    </div>
+  )
+}
+
+/**
+ * Rework (build-docs/features/rework.md AC9): per responsible technician, reworks finished in the period.
+ * Rate = reworks / jobs done in the scoreboard above. Free reworks are what the salary penalty counts.
+ */
+function ReworkReportCard({ range, jobsByTechnician }: { range: DateRange; jobsByTechnician: Map<string, number> }) {
+  const { t } = useTranslation()
+  const summary = useReworkSummary(range.from, range.to)
+  const rows = summary.data ?? []
+  const head = "text-[10px] font-semibold uppercase tracking-wide text-text-muted"
+  const grid = { gridTemplateColumns: "1.6fr repeat(5, 1fr)" }
+
+  return (
+    <div className="rounded-card border border-border bg-surface p-[22px]">
+      <h3 className="mb-1 text-[17px] font-bold tracking-tight text-text">{t("reports.rework.title")}</h3>
+      <p className="mb-4 text-xs text-text-muted">{t("reports.rework.caption")}</p>
+      {summary.isError ? (
+        <p className="text-sm text-text-muted">{t("reports.loadFailed")}</p>
+      ) : summary.isLoading ? (
+        <Skeleton className="h-16 w-full" />
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-text-muted">{t("reports.rework.empty")}</p>
+      ) : (
+        <div className="overflow-x-auto rounded-[10px] border border-border">
+          <div className="grid min-w-[560px] items-center bg-surface-alt px-3.5 py-2.5" style={grid}>
+            <span className={head}>{t("reports.performance.person")}</span>
+            <span className={head}>{t("reports.rework.free")}</span>
+            <span className={head}>{t("reports.rework.paid")}</span>
+            <span className={head}>{t("reports.rework.rate")}</span>
+            <span className={head}>{t("reports.rework.minutes")}</span>
+            <span className={head}>{t("reports.rework.escalations")}</span>
+          </div>
+          {rows.map((r) => {
+            const jobs = jobsByTechnician.get(r.technician_id) ?? 0
+            const total = r.free_reworks + r.paid_reworks
+            return (
+              <div key={r.technician_id} className="grid min-w-[560px] items-center border-t border-[#F1EDE6] px-3.5 py-3 text-xs font-semibold tabular-nums text-text" style={grid}>
+                <span>{r.technician_name}</span>
+                <span className="text-danger">{r.free_reworks}</span>
+                <span>{r.paid_reworks}</span>
+                <span>{jobs > 0 ? `${Math.round((total / jobs) * 100)}%` : "—"}</span>
+                <span>{formatCompletionMinutes(r.rework_minutes)}</span>
+                <span>
+                  {t("reports.rework.escalationCounts", {
+                    pending: r.escalations_pending,
+                    approved: r.escalations_approved,
+                    rejected: r.escalations_rejected,
+                  })}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

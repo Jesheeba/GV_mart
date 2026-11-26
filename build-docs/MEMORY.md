@@ -113,3 +113,14 @@
 - AMC: owner chose "Create GST invoice". Admin Sell AMC asks for the payment method; customer renewal invoice is DUE because the app payment is simulated (never record fake revenue).
 - Technician screen omitted GST from the total it collected (server added it). Fixed; any total shown before payment must come from `billBreakdown` with the bill's GST mode.
 - Test lead sources "ro / WATER purifier" + "service" deleted on owner's word (0 leads used them).
+## Rework decisions (2026-11-26, owner)
+- Linked rework ticket (`type='rework'`, `rework_of_ticket_id`); original stays completed. Reopening rejected: would rewrite invoice/AMC/warranty/incentive history.
+- Technician invoice on a rework → rework-paid, no approval/reason (owner override of the conflict-of-interest warning). Any spare ⇒ paid.
+- Window 30 days, master-only Settings. Penalty: after X reworks deduct ₹Y, X/Y master-set; unset ⇒ flag to master.
+- Responsible technician fixed at raise, survives reassign. Review incentive on rework visits unchanged.
+- "Not my fault" escalation only on free reworks, master-only decision.
+- Penalty needs a `compute_salary` change ⇒ separate migration under the incentive-stream APPROVED pipeline.
+- P1: rework-paid does NOT count toward X (owner kept it after the loophole warning). P2: each rework after the Xth in a salary month deducts ₹Y.
+- Owner: X is master-set (10 was an example); "every deduction can be added or omitted by master" -> monthly_adjustments targets late_deduction/rework_deduction (Exclude = omit, Top up = add, master-only, removable).
+- Build: outcome derived server-side from the bill (no client flag, no offline op); escalations reuse approvals (type 'rework'); pending escalations still count until approved; auto-pickers skip rework; guard triggers lock rework columns to the RPCs.
+- Apply order (Postgres enum rule): 20270101100000 enums COMMITTED first, then rehearse/apply 100100 core, then 100200 salary (incentive-stream APPROVED pipeline).

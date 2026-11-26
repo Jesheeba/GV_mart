@@ -114,6 +114,14 @@ export function JobDetailPage() {
         </p>
       ) : null}
 
+      {ticket.type === "rework" ? (
+        <Card className="gap-1 border-danger/40 bg-danger/5 px-4">
+          <p className="text-sm font-semibold text-danger">{t("technician.jobDetail.reworkTitle")}</p>
+          {ticket.rework_reason ? <p className="text-sm text-text">{ticket.rework_reason}</p> : null}
+          <p className="text-xs text-text-muted">{t("technician.jobDetail.reworkNote")}</p>
+        </Card>
+      ) : null}
+
       {overrun.isOverrun ? (
         <Card className="flex-row items-center gap-2 border-danger/40 bg-danger/5 px-4">
           <OverrunBadge overrunByMinutes={overrun.overrunByMinutes!} />

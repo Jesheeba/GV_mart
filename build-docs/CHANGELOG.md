@@ -188,3 +188,12 @@
 
 ## 2026-11-26 fix(vendor-flow): approval before send, separate payment, safe receipts — LIVE
 - Migration 20261231100000 applied live; branch merged to main. Also fixes tsc on main (embed regression test) and a duplicate purchase.errors i18n block.
+
+## 2026-11-26 feat(rework): rework of completed complaints — built, NOT applied, NOT pushed
+- Ops/master "Mark as rework" on a completed ticket (or from the New Complaint suggestion banner) creates a linked `type='rework'` ticket assigned to the original technician; the original stays completed.
+- On site the technician picks Free rework (no spares, ₹0) or Paid (normal bill); the server derives the outcome from the bill.
+- Technician "not my fault" escalation on a free rework → master decides in Approvals.
+- Master Settings: rework window (default 30 days), free reworks per month (X), deduction per rework after X (Y). Unset ⇒ master notified per finished rework.
+- Salary: rework deduction line; master can omit/add late and rework deductions per person per month (Adjustments).
+- Reports: Rework card in Performance (free/paid, rate, time, escalations). Service list "Rework" chip; badges everywhere.
+- Migrations 20270101100000 (enums), 20270101100100 (core), 20270101100200 (salary) + rollbacks + SQL tests.

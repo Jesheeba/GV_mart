@@ -9,11 +9,13 @@ const TYPE_VARIANT: Record<Enums<"ticket_type">, "default" | "secondary" | "outl
   amc: "outline",
   installation: "default",
   rental: "outline",
+  rework: "default",
 }
 
 export function JobTypeBadge({ type }: { type: Enums<"ticket_type"> | null }) {
   const { t } = useTranslation()
   if (!type) return null
+  if (type === "rework") return <Badge variant="danger">{t("technician.jobType.rework")}</Badge>
   return <Badge variant={TYPE_VARIANT[type]}>{t(`technician.jobType.${type}`)}</Badge>
 }
 

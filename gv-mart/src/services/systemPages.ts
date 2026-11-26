@@ -121,6 +121,17 @@ export async function resolveApprovalRef(type: Enums<"approval_type">, refId: st
     const row = data as unknown as { total: number; suppliers: { name: string } | null }
     return `${row.suppliers?.name ?? "—"} · ₹${row.total.toLocaleString("en-IN")}`
   }
+  if (type === "rework") {
+    // Rework escalation: ref_id = the rework ticket; the technician's reason lives on the ticket.
+    const { data, error } = await supabase
+      .from("service_tickets")
+      .select("id, rework_escalation_reason, customers(name)")
+      .eq("id", refId)
+      .maybeSingle()
+    if (error || !data) return refId
+    const row = data as unknown as { id: string; rework_escalation_reason: string | null; customers: { name: string } | null }
+    return `#${row.id.slice(0, 8)} · ${row.customers?.name ?? "—"} · ${row.rework_escalation_reason ?? ""}`
+  }
   return refId
 }
 

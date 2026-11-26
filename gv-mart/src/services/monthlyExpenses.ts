@@ -192,8 +192,18 @@ export async function closePersonAllowanceRow(id: string, effectiveTo: string): 
 
 // Owner revision: petrol/maintenance no longer use monthly_adjustments at
 // all — the verified claim amount is the payment, and verifying at 0 is
-// the refusal (Fix 4). Only recharge and bike_allowance use this mechanism.
-export type AdjustmentTarget = "recharge" | "bike_allowance"
+// the refusal (Fix 4). Recharge and bike_allowance use this mechanism, and
+// (rework, 20270101100200) the two salary deductions: owner rule "every
+// deduction can be added or omitted by master" — master-only by RLS.
+export type AdjustmentTarget = "recharge" | "bike_allowance" | "late_deduction" | "rework_deduction"
+export const DEDUCTION_TARGETS: readonly AdjustmentTarget[] = ["late_deduction", "rework_deduction"]
+
+/** Master only, deduction rows only (RLS): undoes an omit/add on a salary deduction. */
+export async function deleteMonthlyAdjustment(id: string): Promise<void> {
+  const { data, error } = await supabase.from("monthly_adjustments").delete().eq("id", id).select("id")
+  if (error) throw error
+  if (!data?.length) throw new Error("not_allowed")
+}
 
 export async function addMonthlyAdjustment(input: {
   orgId: string

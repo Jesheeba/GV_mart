@@ -51,6 +51,7 @@ export function TicketsListPage() {
   // in favor of this; Complaints itself is untouched here).
   const [missingProductOnly, setMissingProductOnly] = useState(false)
   const [repeatOnly, setRepeatOnly] = useState(false)
+  const [reworkOnly, setReworkOnly] = useState(false)
 
   const { data: rows, isLoading, isError, refetch } = useTicketsList(orgId, NO_SERVER_FILTERS)
   const { data: repeatCustomers } = useRepeatComplaintCustomers(orgId)
@@ -70,14 +71,18 @@ export function TicketsListPage() {
     () => filterTickets(allRows, primaryFilter, now, { missingProductOnly, windowDays: amcWindowDays }),
     [allRows, primaryFilter, missingProductOnly, now, amcWindowDays]
   )
-  const visibleRows = repeatOnly ? repeatFilteredRows.filter((r) => repeatCustomers?.has(r.customer_id)) : repeatFilteredRows
+  const visibleRows = repeatFilteredRows
+    .filter((r) => !repeatOnly || repeatCustomers?.has(r.customer_id))
+    .filter((r) => !reworkOnly || r.type === "rework")
+  const reworkCount = allRows.filter((r) => r.type === "rework").length
   const repeatCount = allRows.filter((r) => repeatCustomers?.has(r.customer_id)).length
 
-  const hasActiveFilters = primaryFilter !== "pending" || missingProductOnly || repeatOnly
+  const hasActiveFilters = primaryFilter !== "pending" || missingProductOnly || repeatOnly || reworkOnly
   function clearAllFilters() {
     setPrimaryFilter("pending")
     setMissingProductOnly(false)
     setRepeatOnly(false)
+    setReworkOnly(false)
   }
 
   return (
@@ -164,6 +169,10 @@ export function TicketsListPage() {
             <Repeat className="size-3" />
             {t("service.quickFilters.repeat")} · {repeatCount}
           </span>
+        </QuickFilterChip>
+
+        <QuickFilterChip active={reworkOnly} onClick={() => setReworkOnly((v) => !v)}>
+          {t("service.quickFilters.rework")} · {reworkCount}
         </QuickFilterChip>
 
         {hasActiveFilters ? (

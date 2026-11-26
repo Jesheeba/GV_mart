@@ -137,3 +137,9 @@ Each phase gets: tsc -b + vite build, vitest (validation schemas, formatDate hel
 ## Blocker for screenshot checks
 - The `.env.test` master login is rejected on local dev.
 - Needed: either reset the `master@gvmart.test` test password (then update `.env.test`), or reconnect the Chrome extension.
+
+---
+# Rework (2026-11-26) — PLAN v3, all questions answered, awaiting go-ahead for R1
+- Goal: a completed complaint with the same problem returning is redone free, by the same technician by default, tracked against them; technician can choose Paid (new problem) or dispute "not a rework"; master decides.
+- Out of scope: incentive deductions (`compute_salary` owned by the incentive stream), new WhatsApp templates, automatic refunds.
+- Design, impact map, edge cases, acceptance criteria, build order R1–R5, open Q1–Q6: [features/rework.md](features/rework.md).

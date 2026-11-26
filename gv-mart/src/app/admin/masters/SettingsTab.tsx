@@ -71,6 +71,9 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     job_overrun_buffer_minutes: settings.job_overrun_buffer_minutes,
     ops_resolution_sla_hours: settings.ops_resolution_sla_hours,
     narrow_window_threshold_minutes: settings.narrow_window_threshold_minutes,
+    rework_window_days: settings.rework_window_days ?? 30,
+    rework_penalty_free_count: settings.rework_penalty_free_count ?? "",
+    rework_penalty_amount: settings.rework_penalty_amount != null ? Number(settings.rework_penalty_amount) : "",
     po_approval_threshold: Number(settings.po_approval_threshold),
     po_requires_approval: settings.po_requires_approval,
     po_quote_timeout_hours: Number(settings.po_quote_timeout_hours),
@@ -116,6 +119,7 @@ const FIELD_GROUPS = {
     "ops_resolution_sla_hours",
   ],
   booking: ["narrow_window_threshold_minutes"],
+  rework: ["rework_window_days", "rework_penalty_free_count", "rework_penalty_amount"],
   amcReferral: [
     "amc_book_window_days",
     "referral_point_value",
@@ -347,6 +351,22 @@ export function SettingsTab() {
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.narrowWindowThresholdHint")}</p>
         <GroupSaveRow groupKey="booking" />
+      </Card>
+
+      <Card className="gap-4">
+        <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.rework")}</h3>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("rework_window_days", t("settings.reworkWindowDays"), "number", "1")}
+          {field("rework_penalty_free_count", t("settings.reworkPenaltyFreeCount"), "number", "1", t("settings.notSet"))}
+          {field("rework_penalty_amount", t("settings.reworkPenaltyAmount"), "number", "1", t("settings.notSet"))}
+        </div>
+        <p className="px-1 text-xs text-text-muted">{t("settings.reworkHint")}</p>
+        {settings?.rework_penalty_free_count == null || settings?.rework_penalty_amount == null ? (
+          <p role="status" className="rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning">
+            {t("settings.reworkPenaltyNotSet")}
+          </p>
+        ) : null}
+        <GroupSaveRow groupKey="rework" />
       </Card>
 
       {/* AutoAssignLeadsCard and AppointmentSlotsCard deliberately get no

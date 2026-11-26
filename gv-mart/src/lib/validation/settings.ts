@@ -54,6 +54,17 @@ export const settingsSchema = z
     default_duration_amc_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     default_duration_installation_minutes: z.coerce.number().int().positive("settings.errors.positive"),
     narrow_window_threshold_minutes: z.coerce.number().int().positive("settings.errors.positive"),
+    // Rework (20270101100100, master-only by settings RLS). Empty = not set: no penalty, and each
+    // finished rework is flagged to the master (owner Q4).
+    rework_window_days: z.coerce.number().int().min(1, "settings.errors.positive").max(3650, "settings.errors.reworkWindowRange"),
+    rework_penalty_free_count: z
+      .union([z.literal(""), z.coerce.number().int().min(0, "settings.errors.nonNegative")])
+      .transform((v) => (v === "" ? null : v))
+      .nullable(),
+    rework_penalty_amount: z
+      .union([z.literal(""), z.coerce.number().min(0, "settings.errors.nonNegative")])
+      .transform((v) => (v === "" ? null : v))
+      .nullable(),
     po_approval_threshold: z.coerce.number().min(0, "settings.errors.nonNegative"),
     po_requires_approval: z.boolean(),
     po_quote_timeout_hours: z.coerce.number().positive("settings.errors.positive"),

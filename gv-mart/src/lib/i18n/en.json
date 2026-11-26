@@ -1472,6 +1472,12 @@
     "receivesLeadsFailed": "Could not update this person."
   },
   "settings": {
+    "reworkPenaltyNotSet": "The rework penalty is not set, so no deduction applies. You get a notification for each finished rework until you set it.",
+    "reworkHint": "A finished job can be marked as rework within this many days. Each month, every free rework after the limit deducts the amount from the responsible technician's salary. Rework-paid jobs and approved escalations never count.",
+    "notSet": "Not set",
+    "reworkPenaltyAmount": "Deduction per rework after that (₹)",
+    "reworkPenaltyFreeCount": "Free reworks per month",
+    "reworkWindowDays": "Rework allowed within (days)",
     "orgProfile": {
       "title": "Business Details",
       "hint": "Printed on invoices and quotations. Address, phone, and hours are also what the WhatsApp bot shares when a customer asks — leave a field blank and the bot will offer to connect them with the team instead of guessing.",
@@ -1484,6 +1490,7 @@
       "saved": "Saved"
     },
     "groups": {
+      "rework": "Rework",
       "travel": "Travel & Geofence",
       "attendance": "Work Hours & Attendance",
       "discounts": "GST / Tax",
@@ -1599,6 +1606,7 @@
     "stayOnPage": "Stay on this page",
     "beforeUnloadWarning": "You have unsaved changes. If you leave this page, they'll be lost.",
     "errors": {
+      "reworkWindowRange": "Enter 1 to 3650 days",
       "wholeNumber": "Use a whole number",
       "customerReferralPointsMax": "At most 100000",
       "customerReferralPointsNeeded": "Set the points (more than 0) or switch customer referral points off",
@@ -2011,6 +2019,31 @@
     }
   },
   "service": {
+    "rework": {
+      "mark": "Mark as rework",
+      "markTitle": "Mark as rework",
+      "markHelp": "The customer says the same problem came back. A new rework job is created and linked to this one. This job stays completed.",
+      "reasonLabel": "What did the customer say?",
+      "reasonPlaceholder": "e.g. Water leaking again from the same joint",
+      "reasonHint": "At least 5 characters. The technician sees this.",
+      "originalTechnician": "Original technician (default)",
+      "original": "did the job",
+      "responsibleNote": "The rework always counts against the technician who did the original job, even if someone else goes.",
+      "confirm": "Create rework",
+      "created": "Rework created and assigned.",
+      "createdUnassigned": "Rework created but not assigned.",
+      "reworkOf": "Rework of",
+      "raised": "Rework raised:",
+      "responsible": "Counts against",
+      "escalationReason": "Technician says not their fault",
+      "outcome": {
+        "free": "Free rework",
+        "paid": "Rework-paid"
+      },
+      "suggestTitle": "This may be a rework",
+      "suggestBody": "Job #{{id}} for this customer and product was finished on {{date}} by {{technician}}. If the same problem came back, mark that job as rework instead of raising a new complaint.",
+      "suggestAction": "Open that job and mark rework"
+    },
     "errors": {
       "customerRequired": "Choose a customer",
       "nameOfComplaintRequired": "Enter the complaint",
@@ -2027,6 +2060,7 @@
       "kanban": "Kanban"
     },
     "quickFilters": {
+      "rework": "Rework",
       "allOpen": "All open",
       "pending": "Pending",
       "overdue": "Overdue",
@@ -2079,6 +2113,7 @@
       }
     },
     "type": {
+      "rework": "Rework",
       "paid": "Paid",
       "warranty": "Warranty",
       "amc": "AMC",
@@ -3215,6 +3250,7 @@
       }
     },
     "jobType": {
+      "rework": "Rework",
       "paid": "Paid service",
       "warranty": "Warranty",
       "amc": "AMC",
@@ -3389,6 +3425,8 @@
       "notPinned": "Exact location not pinned"
     },
     "jobDetail": {
+      "reworkNote": "Check the previous visit below. On site you will choose Free rework or Paid.",
+      "reworkTitle": "Rework: the earlier problem came back",
       "title": "Job Detail",
       "availabilityAlways": "Always available",
       "appointmentAt": "Appointment at {{time}}",
@@ -3437,6 +3475,14 @@
       "noDataBody": "Location tracking hasn't recorded any movement for this job yet."
     },
     "onsite": {
+      "rework": {
+        "question": "Is this the same problem as last time?",
+        "free": "Same problem: free rework",
+        "paid": "New problem or part: paid",
+        "chooseHelp": "Choose one to continue.",
+        "freeHelp": "No spares and no charge. The customer pays nothing.",
+        "paidHelp": "Add spares and the charge as on a normal paid job. Any spare or charge makes this rework-paid."
+      },
       "title": "On-Site Service",
       "jobClosedTitle": "This job is already completed",
       "jobClosedBody": "It's already been finished and rated — no need to start it again. Check History if you want to review it.",
@@ -3669,6 +3715,19 @@
       "submit": "Submit rating"
     },
     "history": {
+      "rework": {
+        "title": "Not your fault?",
+        "help": "If this rework was not caused by your earlier work, tell the master why. The master decides.",
+        "reasonLabel": "Why was this not your fault?",
+        "reasonHint": "At least 10 characters. You can send this once.",
+        "submit": "Send to master",
+        "needsOnline": "Connect to the internet to send this.",
+        "status": {
+          "pending": "Sent to the master. Waiting for a decision.",
+          "approved": "Master agreed: this rework does not count against you.",
+          "rejected": "Master kept this as your rework."
+        }
+      },
       "title": "History",
       "from": "From",
       "to": "To",
@@ -4967,12 +5026,17 @@
       "endNow": "End from today"
     },
     "adjustments": {
+      "remove": "Remove",
+      "omitDeduction": "Omit this deduction",
+      "addDeduction": "Add to deduction",
       "month": "Month",
       "addTitle": "Add a top-up or exclusion",
       "person": "Person",
       "selectPerson": "Select a person",
       "target": "Applies to",
       "targetValues": {
+        "rework_deduction": "Rework deduction",
+        "late_deduction": "Late deduction",
         "recharge": "Recharge allowance",
         "bike_allowance": "Own-bike allowance"
       },
@@ -5001,6 +5065,8 @@
       "rewards": "Rewards"
     },
     "salary": {
+      "reworkDeductionSlip": "Rework deduction ({{count}} reworks)",
+      "reworkDeduction": "Rework deduction",
       "month": "Month",
       "computeAll": "Compute All",
       "recompute": "Recompute",
@@ -5138,6 +5204,17 @@
     }
   },
   "reports": {
+    "rework": {
+      "title": "Rework",
+      "caption": "Reworks finished in this period, by the technician who did the original job.",
+      "empty": "No reworks in this period.",
+      "free": "Free",
+      "paid": "Paid",
+      "rate": "Rework rate",
+      "minutes": "Rework time",
+      "escalations": "Escalations",
+      "escalationCounts": "{{pending}} pending · {{approved}} approved · {{rejected}} rejected"
+    },
     "subtitle": "Sales, service and performance — all in one place.",
     "pnlMovedNote": "Looking for P&L? It now lives under",
     "empty": "No data for this range yet.",
@@ -5770,6 +5847,10 @@
       "type": "Type"
     },
     "types": {
+      "rework_penalty_not_set": "Rework penalty not set",
+      "rework_escalation_decided": "Rework escalation decided",
+      "rework_escalation": "Rework escalation",
+      "rework_unassigned": "Rework needs a technician",
       "tier_promotion_eligible": "Technician eligible for promotion",
       "confirmation_call_stub": "Confirmation call",
       "sla_breach": "SLA breach",
@@ -5806,6 +5887,7 @@
       "all": "All"
     },
     "type": {
+      "rework": "Rework escalation",
       "discount": "Discount",
       "po": "Purchase Order",
       "price_override": "Price Override",

@@ -3629,6 +3629,13 @@ export type Database = {
           required_skill: string | null
           estimated_duration_minutes: number | null
           lead_id: string | null
+          rework_of_ticket_id: string | null
+          rework_responsible_technician_id: string | null
+          rework_reason: string | null
+          rework_raised_by: string | null
+          rework_raised_at: string | null
+          rework_outcome: "free" | "paid" | null
+          rework_escalation_reason: string | null
           created_at: string
           updated_at: string
         }
@@ -3662,6 +3669,13 @@ export type Database = {
           required_skill?: string | null
           estimated_duration_minutes?: number | null
           lead_id?: string | null
+          rework_of_ticket_id?: string | null
+          rework_responsible_technician_id?: string | null
+          rework_reason?: string | null
+          rework_raised_by?: string | null
+          rework_raised_at?: string | null
+          rework_outcome?: "free" | "paid" | null
+          rework_escalation_reason?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3695,6 +3709,13 @@ export type Database = {
           required_skill?: string | null
           estimated_duration_minutes?: number | null
           lead_id?: string | null
+          rework_of_ticket_id?: string | null
+          rework_responsible_technician_id?: string | null
+          rework_reason?: string | null
+          rework_raised_by?: string | null
+          rework_raised_at?: string | null
+          rework_outcome?: "free" | "paid" | null
+          rework_escalation_reason?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6791,6 +6812,9 @@ export type Database = {
           prices_include_gst: boolean
           customer_referral_points: number
           customer_referral_points_enabled: boolean
+          rework_window_days: number
+          rework_penalty_free_count: number | null
+          rework_penalty_amount: number | null
           sla_hours_very_urgent: number
           sla_hours_urgent: number
           sla_hours_normal: number
@@ -6897,6 +6921,9 @@ export type Database = {
           prices_include_gst?: boolean
           customer_referral_points?: number
           customer_referral_points_enabled?: boolean
+          rework_window_days?: number
+          rework_penalty_free_count?: number | null
+          rework_penalty_amount?: number | null
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
           sla_hours_normal?: number
@@ -6984,6 +7011,9 @@ export type Database = {
           prices_include_gst?: boolean
           customer_referral_points?: number
           customer_referral_points_enabled?: boolean
+          rework_window_days?: number
+          rework_penalty_free_count?: number | null
+          rework_penalty_amount?: number | null
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
           sla_hours_normal?: number
@@ -8073,6 +8103,27 @@ export type Database = {
         Args: { p_appointment_id: string }
         Returns: undefined
       }
+      mark_ticket_rework: {
+        Args: { p_ticket_id: string; p_reason: string; p_scheduled_date: string; p_unavailable_windows?: Json; p_technician_id?: string | null }
+        Returns: Json
+      }
+      request_rework_escalation: {
+        Args: { p_ticket_id: string; p_reason: string }
+        Returns: string
+      }
+      report_rework_summary: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          technician_id: string
+          technician_name: string
+          free_reworks: number
+          paid_reworks: number
+          rework_minutes: number
+          escalations_pending: number
+          escalations_approved: number
+          escalations_rejected: number
+        }[]
+      }
       cancel_service_ticket: {
         Args: { p_ticket_id: string; p_reason: string }
         Returns: Json
@@ -8949,7 +9000,7 @@ export type Database = {
       water_source_type: "corporation" | "borewater" | "other"
       payment_method: "cash" | "transfer" | "upi"
       payment_status: "paid" | "partial" | "due"
-      ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"
+      ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental" | "rework"
       priority_level: "very_urgent" | "urgent" | "normal"
       ticket_status: "open" | "assigned" | "in_progress" | "completed" | "cancelled"
       ticket_channel: "call" | "whatsapp" | "walk_in" | "customer_app" | "field"
@@ -8985,7 +9036,7 @@ export type Database = {
         | "parking"
         | "ad_campaign"
         | "video_generation"
-      approval_type: "discount" | "po" | "price_override" | "leave"
+      approval_type: "discount" | "po" | "price_override" | "leave" | "rework"
       approval_status: "pending" | "approved" | "rejected"
       task_status: "open" | "done" | "rolled"
       // Phrase manager (2026-08-28) — see 20260828140000_wa_custom_trigger_phrases.sql.

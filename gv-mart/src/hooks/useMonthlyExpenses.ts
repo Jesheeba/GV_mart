@@ -146,6 +146,14 @@ export function useAddMonthlyAdjustment() {
   })
 }
 
+export function useDeleteMonthlyAdjustment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => monthlyExpenses.deleteMonthlyAdjustment(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["monthly_adjustments"] }),
+  })
+}
+
 export function useMonthlyAdjustments(orgId: string | undefined, period: string) {
   return useQuery({
     queryKey: ["monthly_adjustments", orgId, period],

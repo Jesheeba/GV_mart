@@ -40,6 +40,10 @@ export type SalaryRow = Tables<"salaries"> & {
   // is floored at zero; this is the amount the floor absorbed (0 when nothing
   // was floored). Shown on the HR Salary screen, never hidden.
   shortfall_amount: number
+  // Rework penalty (20270101100200): counted free reworks this month and the deduction.
+  // Optional until that migration is applied, so older rows/reads still type-check.
+  rework_count?: number
+  rework_deduction?: number
 }
 // Referral incentives, Stage 2 (addendum item 7) — `incentives_earned` gains
 // a nullable `referral_bonus_event_id` (5-way one-source constraint), same

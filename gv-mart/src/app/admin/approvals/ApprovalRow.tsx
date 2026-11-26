@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -32,7 +33,15 @@ export function ApprovalRow({
           <span className="rounded-full bg-surface-alt px-2 py-0.5 text-xs font-medium text-text">{t(`approvals.type.${approval.type}`)}</span>
           <StatusDot tone={STATUS_TONE[approval.status]} label={t(`approvals.status.${approval.status}`)} />
         </div>
-        <p className="mt-1 text-sm text-text">{ref.data ?? approval.ref_id}</p>
+        <p className="mt-1 text-sm text-text">
+          {approval.type === "rework" ? (
+            <Link to={`/admin/service/${approval.ref_id}`} className="underline">
+              {ref.data ?? approval.ref_id}
+            </Link>
+          ) : (
+            (ref.data ?? approval.ref_id)
+          )}
+        </p>
         <p className="text-xs text-text-muted">
           {t("approvals.requestedBy")}: {approval.requester?.full_name ?? "—"} · {formatDateTime(approval.created_at)}
           {approval.approver ? ` · ${t("approvals.decidedBy")}: ${approval.approver.full_name}` : ""}

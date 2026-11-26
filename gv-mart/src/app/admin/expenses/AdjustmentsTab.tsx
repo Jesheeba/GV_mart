@@ -8,8 +8,9 @@ import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useProfile } from "@/hooks/useProfile"
 import { supabase } from "@/lib/supabase"
 import { useQuery } from "@tanstack/react-query"
-import { useAddMonthlyAdjustment, useMonthlyAdjustments } from "@/hooks/useMonthlyExpenses"
-import type { AdjustmentTarget } from "@/services/monthlyExpenses"
+import { useAddMonthlyAdjustment, useDeleteMonthlyAdjustment, useMonthlyAdjustments } from "@/hooks/useMonthlyExpenses"
+import { DEDUCTION_TARGETS, type AdjustmentTarget } from "@/services/monthlyExpenses"
+import { useToast } from "@/components/ui/toast-context"
 import { FIELD_W } from "@/lib/fieldWidth"
 import { focusChoice } from "@/lib/utils"
 
@@ -32,10 +33,16 @@ export function AdjustmentsTab() {
     enabled: !!profile?.org_id,
   })
   const addAdjustment = useAddMonthlyAdjustment()
+  // Rework (20270101100200): the master may also omit ("Exclude") or add to ("Top up") the late and rework
+  // salary deductions, and remove such a row to undo it. Those targets are master-only (RLS).
+  const deleteAdjustment = useDeleteMonthlyAdjustment()
+  const { toast } = useToast()
+  const isMaster = profile?.role === "master"
 
   const [profileId, setProfileId] = useState("")
   // Both unchosen until picked (choice-no-preselect).
   const [target, setTarget] = useState<AdjustmentTarget | "">("")
+  const isDeduction = !!target && DEDUCTION_TARGETS.includes(target)
   const [type, setType] = useState<"top_up" | "exclude" | "">("")
   const [choiceError, setChoiceError] = useState<"target" | "type" | null>(null)
   const [amount, setAmount] = useState("")
@@ -90,7 +97,10 @@ export function AdjustmentsTab() {
             className="space-y-1"
             label={t("expenses.adjustments.target")}
             value={target}
-            options={(["recharge", "bike_allowance"] as const).map((v) => ({ value: v, label: t(`expenses.adjustments.targetValues.${v}`) }))}
+            options={([...(["recharge", "bike_allowance"] as const), ...(isMaster ? DEDUCTION_TARGETS : [])] as AdjustmentTarget[]).map((v) => ({
+              value: v,
+              label: t(`expenses.adjustments.targetValues.${v}`),
+            }))}
             onChange={(v) => {
               setTarget(v)
               if (choiceError === "target") setChoiceError(null)
@@ -103,8 +113,8 @@ export function AdjustmentsTab() {
             label={t("expenses.adjustments.type")}
             value={type}
             options={[
-              { value: "top_up", label: t("expenses.adjustments.topUp") },
-              { value: "exclude", label: t("expenses.adjustments.exclude") },
+              { value: "top_up", label: t(isDeduction ? "expenses.adjustments.addDeduction" : "expenses.adjustments.topUp") },
+              { value: "exclude", label: t(isDeduction ? "expenses.adjustments.omitDeduction" : "expenses.adjustments.exclude") },
             ]}
             onChange={(v) => {
               setType(v)
@@ -140,6 +150,19 @@ export function AdjustmentsTab() {
                 {adj.amount != null ? ` ₹${adj.amount}` : ""}
               </p>
               <p className="text-xs text-text-muted">{adj.reason}</p>
+              {isMaster && DEDUCTION_TARGETS.includes(adj.adjustment_target as AdjustmentTarget) ? (
+                <div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={deleteAdjustment.isPending}
+                    onClick={() => deleteAdjustment.mutate(adj.id, { onError: () => toast.error(t("common.actionFailed")) })}
+                  >
+                    {t("expenses.adjustments.remove")}
+                  </Button>
+                </div>
+              ) : null}
             </Card>
           ))
         )}
