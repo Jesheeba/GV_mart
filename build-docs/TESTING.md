@@ -128,3 +128,9 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 ## quick-add F3b — 2026-11-26
 - `src/lib/quickAdd.test.ts` (findByLabel added) + `src/lib/leadOptionKey.test.ts`: 13/13 pass. The key rule cases mirror the SQL test.
 - `supabase/tests/quick_add_lead_option.test.sql`: written, NOT RUN (migration not applied). It covers ACL, sales add, dedupe, kind/product_type tables, archived not re-enabled, cross-org, ops/tech refused, unknown list, blank/long/symbol-only label, RLS unchanged.
+- **Migration applied live 2026-11-26** ("go apply"). ACL: anon no, authenticated yes. SQL test **13/13 PASS**, run alone; before/after counts identical.
+- **Live UI check** (owner signed in, Playwright):
+  - New Lead shows 3 "Add new" links. Existing names typed in other case/spacing select the existing option with no insert: Source "whatsapp" → WhatsApp, Product type "ro / WATER purifier" → RO / Water Purifier, Kind " SERVICE " → Service.
+  - Supplier on Create PO ("pvm" → PVM) and Bill Entry ("CHENNAI electro traders") selected the existing supplier, count unchanged.
+  - Edit Lead entry point is hidden on main (1761eaa, update_lead_details not live), so its quick-add is dormant.
+- **Test-script mistake:** my automation clicked the Source link three times. That created 2 unused lead sources in the owner's org ("ro / WATER purifier" key ro_water_purifier, "service" key service; 0 leads use them). Left in place pending the owner's decision. This was a test-script error, not a code bug: the feature did what it was told.
