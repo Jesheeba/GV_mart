@@ -17,6 +17,7 @@ import { CTA_RENDERERS } from "./productEnquiry/moduleRegistry"
 import { ProductPhotoHero } from "./productEnquiry/ProductPhotoHero"
 import { EmiEstimateCard } from "./productEnquiry/EmiEstimateCard"
 import type { Json } from "@/types/database"
+import { productExtraParts } from "@/lib/productSearch"
 
 function toStringArray(json: Json | null | undefined): string[] {
   return Array.isArray(json) ? json.filter((x): x is string => typeof x === "string") : []
@@ -75,9 +76,9 @@ export function CustomerProductDetailPage() {
       <Card className="gap-3 lg:px-5">
         <div>
           <h1 className="text-xl font-bold text-text">{product.name}</h1>
-          <p className="text-sm text-text-muted">
-            {product.brands?.name ?? "—"} · {product.models?.name ?? "—"}
-          </p>
+          {productExtraParts(product.name, product.brands?.name, product.models?.name).length ? (
+            <p className="text-sm text-text-muted">{productExtraParts(product.name, product.brands?.name, product.models?.name).join(" · ")}</p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <p className="text-2xl font-extrabold tracking-tight text-text">₹{product.price.toLocaleString("en-IN")}</p>
@@ -89,7 +90,7 @@ export function CustomerProductDetailPage() {
               orgId,
               productId: product.id,
               cta,
-              product: { name: product.name, price: product.price, brandName: product.brands?.name ?? null },
+              product: { name: product.name, price: product.price, brandName: productExtraParts(product.name, product.brands?.name)[0] ?? null },
               emiPerMonth,
             })
           )}

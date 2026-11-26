@@ -10,7 +10,7 @@ import { SparePicker } from "@/components/shared/SparePicker"
 import { brandsHooks, modelsHooks, productsHooks, sparesHooks, amcPlansHooks } from "@/hooks/useMasters"
 import { useInventoryList } from "@/hooks/useInventory"
 import { formatCurrency } from "@/lib/sale-calc"
-import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
+import { productExtraParts, productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { CartAmc, CartProductLine, SaleCartState } from "./types"
 import { FIELD_W } from "@/lib/fieldWidth"
 import { cn } from "@/lib/utils"
@@ -226,7 +226,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
             <div>
               <p className="text-sm font-semibold text-text">{line.name}</p>
               <p className="text-xs text-text-muted">
-                {line.brandName} · {line.modelName} · {t(`masters.categories.${line.category}`)}
+                {[...productExtraParts(line.name, line.brandName, line.modelName), t(`masters.categories.${line.category}`)].join(" · ")}
               </p>
             </div>
             <Button type="button" size="icon-xs" variant="ghost" onClick={() => removeProductLine(i)}>
