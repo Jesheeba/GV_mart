@@ -1,6 +1,6 @@
 # Feature: missing-i18n-keys (2026-11-26)
 
-Status: BUILT on fix/missing-i18n-keys. No DB change.
+Status: SHIPPED 2026-11-26, merged to main c32083d. No DB change.
 
 ## Purpose
 - Screens showed raw key text (e.g. "leads.detail.addNote") where an English/Tamil string was missing.
