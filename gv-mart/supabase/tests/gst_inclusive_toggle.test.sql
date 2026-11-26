@@ -24,7 +24,7 @@ begin execute 'reset role'; perform set_config('request.jwt.claims', '', true); 
 do $t$
 declare
   v_org uuid; v_master uuid; v_cust uuid; v_spare uuid; r jsonb; inv invoices; q uuid; qrow quotations; n int;
-  v_prod uuid; v_plan uuid;
+  v_prod uuid; v_plan uuid; v_brand uuid; v_model uuid;
 begin
   -- ACL: unchanged from before the migration
   perform pg_temp.chk('_sale_create_line_invoice: only service_role (no authenticated/anon/PUBLIC)',
@@ -54,7 +54,8 @@ begin
   -- Fixtures
   insert into organizations (name) values ('__TEST_gst') returning id into v_org;
   insert into settings (org_id) values (v_org) on conflict (org_id) do nothing;
-  update settings set gst_rate = 18, prices_include_gst = false where org_id = v_org;
+  -- New orgs default to a 5% admin discount cap; the 10% case needs 10 (tech max 10 too, so no approval row is created).
+  update settings set gst_rate = 18, prices_include_gst = false, discount_admin_max = 10, discount_tech_max = 10 where org_id = v_org;
   v_master := pg_temp.mkuser('master', v_org);
   insert into customers (org_id, name, mobile) values (v_org, '__TEST_ gst customer', '9400009911') returning id into v_cust;
   insert into spares (org_id, name, price) values (v_org, '__TEST_ spare', 12500) returning id into v_spare;
@@ -115,8 +116,11 @@ begin
   perform pg_temp.chk('pre-existing quotations stay NULL (legacy, print unchanged)', n = (select count(*) from quotations where org_id <> v_org), n::text);
 
   -- run_rental_billing uses org default
-  insert into products (org_id, name, category, price) values (v_org, '__TEST_ rental RO', 'ro', 10000) returning id into v_prod;
-  insert into rental_plans (org_id, name, yearly_rate, monthly_rate) values (v_org, '__TEST_ plan', 12000, 1180) returning id into v_plan;
+  insert into brands (org_id, name, category) values (v_org, '__TEST_ brand', 'ro') returning id into v_brand;
+  insert into models (org_id, brand_id, name) values (v_org, v_brand, '__TEST_ model') returning id into v_model;
+  insert into products (org_id, brand_id, model_id, name, category, price) values (v_org, v_brand, v_model, '__TEST_ rental RO', 'ro', 10000) returning id into v_prod;
+  -- monthly_rate is generated: round(yearly_rate / 12, 2) -> 14160 / 12 = 1180.
+  insert into rental_plans (org_id, name, yearly_rate) values (v_org, '__TEST_ plan', 14160) returning id into v_plan;
   insert into rental_contracts (org_id, customer_id, product_id, plan_id, start_date, status, next_billing_date)
     values (v_org, v_cust, v_prod, v_plan, current_date - 40, 'active', current_date - 1);
   n := public.run_rental_billing(v_org);

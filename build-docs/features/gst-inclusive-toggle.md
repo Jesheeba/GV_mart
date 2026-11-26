@@ -1,4 +1,4 @@
-# gst-inclusive-toggle (F2) — BUILT, migration not applied
+# gst-inclusive-toggle (F2) — LIVE 2026-11-26
 
 **Purpose:** let staff bill a price as "GST included" (₹12,500 is the final price) or "GST extra" (₹12,500 + 18%).
 
@@ -22,4 +22,4 @@
 - `quotations.gst_inclusive` is **nullable**: NULL = quotation made before this feature, printed exactly as before (no GST lines). This avoids changing the totals on quotes already sent.
 - Admin `sell_amc_plan` and customer `renew_amc_plan` charge **no GST at all** (pre-existing, unlike `sell_amc_plan_onsite`). Out of scope, flagged.
 - Migration `20261226110000_gst_inclusive_toggle.sql` was generated from the live function text (`_local_only/rehearsal-files/gen_gst_migration.py`). Diff vs live = GST lines only. Baseline md5s are in the header and must match at apply time.
-- **Do not merge before apply**: `create_quotation` is called with the new `p_gst_inclusive` argument.
+- Applied 2026-11-26 after md5 check (all 7 matched). ACLs identical to before. Existing data unchanged (1 invoice stays Extra, 4 quotations stay NULL, org default off).

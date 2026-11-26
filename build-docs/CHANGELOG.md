@@ -91,7 +91,7 @@
 - Migration `20261226100000_quick_add_complaint_type.sql` (SECURITY DEFINER RPC, ops-only, dedupe + advisory lock, anon revoked): **applied live 2026-11-26**, version registered.
 - Data: archived duplicate product "ROP WALLMOUNT FILTER (WITHOUT RO)" (c95e5351, zero references, 0 stock) on owner request; "ROP WALLMOUNT FILTER WITHOUT RO" kept.
 
-## gst-inclusive-toggle — 2026-11-26 (migration NOT applied)
+## gst-inclusive-toggle — 2026-11-26 (migration APPLIED live, version 20261226110000 registered)
 - Masters → Settings: "Prices include GST by default".
 - New Sale + New Quotation: GST extra / GST included switch, starting at the default. The quotation's choice carries into the sale.
 - Invoice print: taxable value = total − GST; "GST amount (included in price)" label for Included bills. The quotation print shows a GST line (new quotations only).
