@@ -23,6 +23,10 @@ begin perform set_config('request.jwt.claims', json_build_object('sub', p_uid, '
 create function pg_temp.as_pg() returns void language plpgsql as $f$
 begin execute 'reset role'; perform set_config('request.jwt.claims', '', true); end $f$;
 
+-- This project revokes default EXECUTE on new functions, so the helpers must be granted explicitly; the test switches
+-- to the authenticated role and still calls them.
+grant execute on function pg_temp.chk(text, boolean, text), pg_temp.fx(text), pg_temp.mkuser(text, uuid), pg_temp.as_user(uuid), pg_temp.as_pg() to public;
+
 do $fx$
 declare
   v_org uuid; v_org2 uuid; v uuid;

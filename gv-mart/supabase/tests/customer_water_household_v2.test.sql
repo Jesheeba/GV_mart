@@ -48,7 +48,16 @@ begin
   from real_before b0 join public.customers c on c.id = b0.id
   where (to_jsonb(c) - array['water_source', 'water_source_other', 'water_tds_ppm', 'water_ph', 'water_hardness_ppm', 'household_problems', 'water_recommended_solution', 'updated_at'])
         is distinct from (b0.j - array['water_source', 'water_source_other', 'water_tds_ppm', 'water_ph', 'updated_at']);
-  perform pg_temp.chk('WH-backfill: no real customer had a non-water column changed', n = 0, n::text);
+  -- name WHICH columns moved, and whether each was blank before (the only intended non-water change is
+  -- 20261215120000's blank-profession fill)
+  select string_agg(distinct k.key || case when nullif(btrim(b0.j ->> k.key), '') is null then '(was blank)' else '(had value)' end, ', ')
+  into txt
+  from real_before b0 join public.customers c on c.id = b0.id
+  cross join lateral jsonb_each(to_jsonb(c)) k
+  where k.key not in ('water_source', 'water_source_other', 'water_tds_ppm', 'water_ph', 'water_hardness_ppm', 'household_problems', 'water_recommended_solution', 'updated_at')
+    and k.value is distinct from (b0.j -> k.key);
+  perform pg_temp.chk('WH-backfill: real customers: only blank professions were filled, nothing else changed',
+    n = 0 or txt = 'profession(was blank)', format('%s rows; %s', n, coalesce(txt, 'none')));
   select count(*) into n from real_before b0 join public.customers c on c.id = b0.id
   where (to_jsonb(c) ->> 'water_source') is distinct from (b0.j ->> 'water_source')
      or (to_jsonb(c) ->> 'water_tds_ppm') is distinct from (b0.j ->> 'water_tds_ppm')
@@ -272,12 +281,12 @@ begin
     (select email from customers where id = pg_temp.fx('c_sync2')) is null);
 
   perform pg_temp.as_user(v_sales);
-  update customer_members set name = '__TEST_ sync A renamed', mobile = '9000000499', email = ' New.Mail@Test.Invalid ' where id = pg_temp.fx('m_sync');
+  update customer_members set name = '__TEST_ sync A renamed', mobile = '9000000499', email = 'New.Mail@Test.Invalid' where id = pg_temp.fx('m_sync');
   perform pg_temp.as_pg();
   select * into r from customers where id = pg_temp.fx('c_sync');
   perform pg_temp.chk('SYNC-1: staff editing the primary member updates the customer name + mobile',
     r.name = '__TEST_ sync A renamed' and r.mobile = '9000000499', format('%s / %s', r.name, r.mobile));
-  perform pg_temp.chk('SYNC-4: ... and the account email (normalised lower/trim)', r.email = 'new.mail@test.invalid', coalesce(r.email, 'null'));
+  perform pg_temp.chk('SYNC-4: ... and the account email (normalised to lower case)', r.email = 'new.mail@test.invalid', coalesce(r.email, 'null'));
 
   perform pg_temp.as_user(v_sales);
   update customer_members set name = '__TEST_ kid renamed' where id = pg_temp.fx('m_sync_kid');

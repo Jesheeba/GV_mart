@@ -80,3 +80,4 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - DB: about 20 SYNC/ADDR checks were added to `customer_water_household_v2.test.sql` (90 checks total). **Not run yet.**
 - Full suite: 1118 pass, the same 2 pre-existing failures as main. `tsc` clean, `vite build` ok.
 - Manual only (no DOM test env): draft restore of complaint type/referrer, lead fields card Cancel/Edit.
+- **DB rehearsal run 2026-11-26 (rolled back): 90 pass / 0 fail.** Harness fixes on the way: (1) granted EXECUTE on the pg_temp helpers, since this project revokes default EXECUTE; (2) one test sent an email with spaces, which the existing customer_members_email_format check rejects (the app trims first); (3) the real-org check now names the changed columns. The only live non-water change is 1 blank profession filled (intended, from 20261215120000).
