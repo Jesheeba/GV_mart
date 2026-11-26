@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useCustomerApp"
 import type { AmcHistoryTicket } from "@/services/customerApp"
 import { formatDate } from "@/lib/formatDate"
+import { productExtraParts } from "@/lib/productSearch"
 
 function HistoryList({ tickets, t }: { tickets: AmcHistoryTicket[]; t: TFunction }) {
   if (tickets.length === 0) {
@@ -79,7 +80,7 @@ export function CustomerAmcProductDetailPage() {
   const isRo = product.category === "ro"
   const bookWindowDays = settings?.amc_book_window_days ?? 30
   const dueDateStr = amc?.expiry_date ?? warranty?.expiry_date ?? null
-  const brandModel = [product.brands?.name, product.models?.name].filter(Boolean).join(" · ")
+  const brandModel = productExtraParts(product.name, product.brands?.name, product.models?.name).join(" · ")
   const today = getIstNow().date
 
   const amcHistory = (history ?? []).filter((h) => h.type === "amc")

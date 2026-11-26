@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useInventoryList } from "@/hooks/useInventory"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { cn } from "@/lib/utils"
+import { productExtraParts } from "@/lib/productSearch"
 
 export type LeadItemSelection = Record<string, number>
 
@@ -43,11 +44,11 @@ export function LeadItemsPicker({
     const byId = new Map<string, PickerRow>()
     for (const c of catalogue.data ?? []) {
       const brand = "brands" in c ? ((c as { brands: { name: string } | null }).brands?.name ?? null) : null
-      byId.set(c.id, { id: c.id, name: c.name, brand, stock: stock.get(c.id) ?? 0 })
+      byId.set(c.id, { id: c.id, name: c.name, brand: productExtraParts(c.name, brand)[0] ?? null, stock: stock.get(c.id) ?? 0 })
     }
     // Inventory rows whose item is missing from the catalogue list (e.g. inactive) still show.
     for (const r of inventory.data ?? []) {
-      if (!byId.has(r.item_id)) byId.set(r.item_id, { id: r.item_id, name: r.itemName, brand: r.itemBrand, stock: stock.get(r.item_id) ?? 0 })
+      if (!byId.has(r.item_id)) byId.set(r.item_id, { id: r.item_id, name: r.itemName, brand: productExtraParts(r.itemName ?? "", r.itemBrand)[0] ?? null, stock: stock.get(r.item_id) ?? 0 })
     }
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
   }, [inventory.data, catalogue.data])

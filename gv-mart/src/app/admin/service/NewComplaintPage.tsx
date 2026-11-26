@@ -40,6 +40,7 @@ import { formatDateTime } from "@/lib/formatDate"
 import { useToast } from "@/components/ui/toast-context"
 import { getConflictAppointmentInfo } from "@/services/service"
 import { TicketTypeBadge } from "./TicketBadges"
+import { productExtraParts } from "@/lib/productSearch"
 
 function todayInput() {
   return getIstNow().date
@@ -515,7 +516,7 @@ export function NewComplaintPage() {
                     }`}
                   >
                     <span className="font-medium text-text">{o.productName}</span>{" "}
-                    <span className="text-text-muted">{[o.brandName, o.modelName].filter(Boolean).join(" · ")}</span>
+                    <span className="text-text-muted">{productExtraParts(o.productName ?? "", o.brandName, o.modelName).join(" · ")}</span>
                   </button>
                 ))}
               </div>

@@ -41,6 +41,7 @@ import { MergeAutoCustomerPanel } from "./MergeAutoCustomerPanel"
 import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
+import { productExtraParts } from "@/lib/productSearch"
 
 const AMC_STATUS_TONE: Record<string, StatusTone> = { active: "success", due_soon: "warning", expired: "danger" }
 
@@ -204,7 +205,9 @@ export function CustomerDetailPage() {
           (products.data ?? []).map((p) => {
             const style = p.category ? CATEGORY_STYLE[p.category] : null
             const Icon = style?.icon ?? Package
-            const title = [p.brandName, p.modelName].filter(Boolean).join(" · ") || p.productName
+            // Brand · Model as before; if either is a spreadsheet-import placeholder or repeats the name, fall back to the product name.
+            const extra = productExtraParts(p.productName ?? "", p.brandName, p.modelName)
+            const title = extra.length === 2 ? extra.join(" · ") : [p.productName, ...extra].filter(Boolean).join(" · ")
             const subtitle =
               [
                 p.boughtAt ? t("customers.detail.productCard.bought", { date: formatDate(p.boughtAt) }) : null,

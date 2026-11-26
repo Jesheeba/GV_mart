@@ -20,6 +20,7 @@ import { useLiveTracking } from "@/hooks/useLiveTracking"
 import { formatDate } from "@/lib/formatDate"
 import { addressLocalityText } from "@/lib/address"
 import type { RouteInfo } from "@/app/customer/components/tracking/TrackingMap"
+import { productExtraParts } from "@/lib/productSearch"
 
 const STATUS_TONE: Record<string, StatusTone> = {
   open: "warning",
@@ -156,7 +157,7 @@ export function CustomerBookingDetailPage() {
             <p className="text-base font-semibold text-text">
               {ticket.products?.name ?? ticket.unlisted_product_name ?? ticket.name_of_complaint ?? t("customerApp.bookings.generalService")}
             </p>
-            <p className="text-xs text-text-muted">{[ticket.brands?.name, ticket.models?.name].filter(Boolean).join(" · ")}</p>
+            <p className="text-xs text-text-muted">{productExtraParts(ticket.products?.name ?? ticket.unlisted_product_name ?? "", ticket.brands?.name, ticket.models?.name).join(" · ")}</p>
             <p className="text-xs text-text-muted">{t("customerApp.bookings.raised", { date: formatDate(ticket.created_at) })}</p>
           </div>
           <StatusDot tone={STATUS_TONE[ticket.status] ?? "neutral"} label={t(`customerApp.bookings.status.${ticket.status}`)} />

@@ -96,3 +96,4 @@
 - New Sale + New Quotation: GST extra / GST included switch, starting at the default. The quotation's choice carries into the sale.
 - Invoice print: taxable value = total − GST; "GST amount (included in price)" label for Included bills. The quotation print shows a GST line (new quotations only).
 - DB: `settings.prices_include_gst`, `invoices.gst_inclusive`, `quotations.gst_inclusive` (nullable), `_gst_amount()`; 6 billing RPCs + create_quotation updated.
+- 2026-11-26 follow-up: the same display rule (`productExtraParts`) is applied to AMC sell, customer detail, lead items, complaint/ticket equipment pickers, ticket detail and 4 customer-app pages. Masters tables still show the raw brand so it can be renamed there.
