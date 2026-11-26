@@ -1,5 +1,14 @@
 # Changelog
 
+## Customer header layout — 2026-11-26
+Owner feedback (screenshot): address too small, language picker in the way, data order wrong.
+- `CustomerDetailPage.tsx` header order now: name → customer since → full address (15px, own line,
+  wraps) → Residential · Rental chip → pinned / maps / family / referrer chips.
+- Message-language select moved to the header's top-right next to call/edit/delete.
+- `PreferredLanguageSelect`: new `compact` prop — hint moves into the select tooltip (used only here;
+  form/profile pages unchanged).
+- UI-only, no DB/API change.
+
 ## Arrival Location Mismatch Alerts — 2026-11-18
 Built, committed, NOT applied to live DB (owner must say "GO APPLY" per [[gv-mart-no-db-write-unless-named]]), NOT pushed.
 

@@ -1,5 +1,13 @@
 # Testing
 
+## Customer header layout
+
+| Area | Test | Result |
+|---|---|---|
+| Regression: full suite | `npx vitest run` | ✅ 1084/1086 (same 2 pre-existing failures: `waOutboxSentGuard`, `wa-event-context`) |
+| Types | `tsc -p tsconfig.app.json --noEmit` | ⚠️ 1 pre-existing error on origin/main: unused `fullAddress` in `CustomerFormPage.tsx:297` (file not touched) |
+| Visual check | headless login on local dev | ❌ not done — `MASTER_TEST_*` login rejected; needs owner eyeball |
+
 ## Arrival Location Mismatch Alerts
 
 | Area | Test | Result |
