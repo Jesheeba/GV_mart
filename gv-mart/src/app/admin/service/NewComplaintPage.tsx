@@ -19,7 +19,8 @@ import { addressLine } from "@/lib/address"
 import type { TimeWindow } from "@/lib/booking-window"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete, useCustomerExemptionWindows } from "@/hooks/useCustomers"
-import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks, useSettings } from "@/hooks/useMasters"
+import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks, useQuickAddComplaintType, useSettings } from "@/hooks/useMasters"
+import { quickAddText } from "@/lib/quickAdd"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
 import {
   useCreateComplaintTicket,
@@ -184,6 +185,29 @@ export function NewComplaintPage() {
       return true
     })
   }, [complaintTypes, resolvedProductId, resolvedProductCategory, nameOfComplaintValue])
+
+  // Quick-add (2026-11-26): save a typed complaint name to the master list
+  // for this product's category. Needs a resolved category (the master row
+  // is category-scoped) and no exact match already in the suggestions.
+  const quickAddComplaint = useQuickAddComplaintType()
+  const newComplaintName =
+    resolvedProductCategory && (profile?.role === "master" || profile?.role === "operation_admin")
+      ? quickAddText(nameOfComplaintValue ?? "", filteredComplaintTypes.map((ct) => ct.label))
+      : null
+  function addComplaintName() {
+    if (!newComplaintName || !resolvedProductCategory) return
+    quickAddComplaint.mutate(
+      { label: newComplaintName, category: resolvedProductCategory },
+      {
+        onSuccess: (ct) => {
+          detailsForm.setValue("nameOfComplaint", ct.label, { shouldValidate: true })
+          setComplaintTypeId(ct.id)
+          toast.success(t("service.newComplaint.complaintNameAdded"))
+        },
+        onError: () => toast.error(t("service.newComplaint.complaintNameAddFailed")),
+      }
+    )
+  }
 
   // Step 4: type auto-detect
   const detected = useDetectTicketType(orgId, customerId, resolvedProductId || null)
@@ -587,6 +611,9 @@ export function NewComplaintPage() {
                 setComplaintTypeId(ct.id)
               }}
               openOnFocus
+              onCreate={newComplaintName ? addComplaintName : undefined}
+              createLabel={t("common.quickAdd", { text: newComplaintName })}
+              creating={quickAddComplaint.isPending}
             />
             {detailsForm.formState.errors.nameOfComplaint ? (
               <p className="text-xs text-danger">{t(detailsForm.formState.errors.nameOfComplaint.message!)}</p>

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import type { Tables, TablesInsert, TablesUpdate } from "@/types/database"
+import type { Enums, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 
 // delete_product/delete_spare/delete_gift (20260923100000/100100) raise
 // "ITEM_IN_USE: <message>" when the item is referenced elsewhere — the real
@@ -498,6 +498,12 @@ export async function listComplaintTypes(orgId: string) {
 }
 export async function createComplaintType(row: TablesInsert<"complaint_types">) {
   const { data, error } = await supabase.from("complaint_types").insert(row).select().single()
+  if (error) throw error
+  return data
+}
+/** Quick-add from New Complaint (master + operation_admin) — RPC dedupes by label, see 20261226100000_quick_add_complaint_type.sql. */
+export async function quickAddComplaintType(label: string, category: Enums<"brand_category">) {
+  const { data, error } = await supabase.rpc("quick_add_complaint_type", { p_label: label, p_category: category })
   if (error) throw error
   return data
 }

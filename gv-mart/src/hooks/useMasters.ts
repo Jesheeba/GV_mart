@@ -252,6 +252,15 @@ export const complaintTypesHooks = entityHooks("complaint_types", {
   remove: masters.deleteComplaintType,
 })
 
+export function useQuickAddComplaintType() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ label, category }: { label: string; category: Parameters<typeof masters.quickAddComplaintType>[1] }) =>
+      masters.quickAddComplaintType(label, category),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["complaint_types", "list"] }),
+  })
+}
+
 export function useSettings(orgId: string | undefined) {
   return useQuery({
     queryKey: ["settings", orgId],

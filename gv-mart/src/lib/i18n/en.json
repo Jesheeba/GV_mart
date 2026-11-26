@@ -105,6 +105,7 @@
     "toggleGroup": "Show or hide {{group}}"
   },
   "common": {
+    "quickAdd": "Add “{{text}}”",
     "appName": "GV Mart",
     "adminApp": "GV Mart Admin",
     "tagline": "Sales | Service | Spares",
@@ -2110,6 +2111,8 @@
       },
       "nameOfComplaint": "Name of complaint",
       "nameOfComplaintPlaceholder": "e.g. Water flow stopped, Not cooling",
+      "complaintNameAdded": "Added to complaint names",
+      "complaintNameAddFailed": "Couldn't add the complaint name. It's kept as typed text.",
       "natureOfComplaint": "Complaint description (optional)",
       "natureOfComplaintPlaceholder": "e.g. Issue observed for past 2 days",
       "natureOfComplaintHint": "Additional details to help the technician.",

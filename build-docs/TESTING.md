@@ -70,3 +70,9 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Regression: full suite 1097 pass / 2 fail / 17 skipped. The 2 failures (`waOutboxSentGuard.test.ts`, `wa-event-context.test.ts`) are WhatsApp tests that import none of the changed files; they were already failing on origin/main feaaa84.
 - `tsc --noEmit`: only the pre-existing `CustomerFormPage.tsx` unused `fullAddress` error (already failing on origin/main, has its own fix branch).
 - Not browser-verified: signing in would send the test login to the live Supabase auth host. Owner to try New Sale → Spare tab.
+
+## quick-add F3a: complaint name — 2026-11-26
+- `src/lib/quickAdd.test.ts`: 6/6 pass (offer only new names, dedupe case/space-insensitive, blank, 120-char limit).
+- `supabase/tests/quick_add_complaint_type.test.sql`: written, NOT RUN (live DB write rule). It covers ACL (no anon/PUBLIC), ops add, dedupe, cross-org isolation, sales/tech rejected, blank/long/null-category, RLS unchanged. It ends in RAISE RESULTS, so it is safe to run as migration+test in one request after GO APPLY.
+- Regression: full suite 1103 pass / 2 fail. The failures are the same 2 WhatsApp tests that were already failing on origin/main.
+- Until the migration is applied, "+ Add" shows the error toast and keeps the typed text (graceful). Don't merge to main before applying.

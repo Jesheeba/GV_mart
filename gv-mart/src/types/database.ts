@@ -7725,6 +7725,10 @@ export type Database = {
       }
     }
     Functions: {
+      quick_add_complaint_type: {
+        Args: { p_label: string; p_category: Database["public"]["Enums"]["brand_category"] }
+        Returns: Database["public"]["Tables"]["complaint_types"]["Row"]
+      }
       audience_segment_match_count: {
         Args: { p_org_id: string; p_condition_tree: Json }
         Returns: number

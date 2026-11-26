@@ -84,3 +84,8 @@
 - Spare picker in New Sale, Quotation, PO/Bill entry is now a type-to-search box (`SparePicker`), replacing a native select whose Space key blocked typing.
 - Product/spare search matches every typed word in any order.
 - Product labels no longer repeat the model or show the `RO (spreadsheet import)` placeholder brand (display only, data unchanged).
+
+## quick-add F3a: complaint name — 2026-11-26
+- `Autocomplete` gains optional `onCreate`/`createLabel`/`creating` ("+ Add" last option, keyboard reachable).
+- New Complaint → Name of complaint: master/operation_admin can save a typed name to the product category's master list.
+- Migration `20261226100000_quick_add_complaint_type.sql` (SECURITY DEFINER RPC, ops-only, dedupe + advisory lock, anon revoked): **built, not applied**.

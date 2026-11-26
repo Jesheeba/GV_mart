@@ -105,6 +105,7 @@
     "toggleGroup": "{{group}} ஐக் காட்டு அல்லது மறை"
   },
   "common": {
+    "quickAdd": "“{{text}}” சேர்க்கவும்",
     "appName": "GV Mart",
     "adminApp": "ஜிவி மார்ட் நிர்வாகம்",
     "tagline": "விற்பனை | சேவை | உதிரிபாகங்கள்",
@@ -2110,6 +2111,8 @@
       },
       "nameOfComplaint": "புகாரின் பெயர்",
       "nameOfComplaintPlaceholder": "எ.கா. நீர் ஓட்டம் நின்றது, குளிர்ச்சி இல்லை",
+      "complaintNameAdded": "புகார் பெயர்களில் சேர்க்கப்பட்டது",
+      "complaintNameAddFailed": "புகார் பெயரைச் சேர்க்க முடியவில்லை. தட்டச்சு செய்த உரையாகவே வைக்கப்பட்டது.",
       "natureOfComplaint": "புகார் விவரம் (விருப்பம்)",
       "natureOfComplaintPlaceholder": "எ.கா. கடந்த 2 நாட்களாக பிரச்சனை கவனிக்கப்பட்டது",
       "natureOfComplaintHint": "தொழில்நுட்பருக்கு உதவும் கூடுதல் விவரங்கள்.",
