@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { SparePicker } from "@/components/shared/SparePicker"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
@@ -18,7 +19,6 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { Enums } from "@/types/database"
 
-const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
 
 type QuoteLine = { itemType: Enums<"item_type">; itemId: string; name: string; price: number; qty: number }
 
@@ -228,14 +228,15 @@ export function QuotationFormPage() {
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
-          <select aria-label={t("sales.items.selectSpare")} className={selectClass} value={spareId} onChange={(e) => setSpareId(e.target.value)}>
-            <option value="">{t("sales.items.selectSpare")}</option>
-            {activeSpares.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} — {formatCurrency(Number(s.price))}
-              </option>
-            ))}
-          </select>
+          <SparePicker
+            className="sm:col-span-2"
+            inputClassName="h-8"
+            spares={activeSpares}
+            value={spareId}
+            onChange={setSpareId}
+            placeholder={t("sales.items.selectSpare")}
+            renderMeta={(s) => formatCurrency(Number(s.price))}
+          />
           <Input type="number" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
           <Button type="button" size="sm" variant="outline" disabled={!spareId} onClick={addSpareLine}>
             <Plus className="size-3.5" />

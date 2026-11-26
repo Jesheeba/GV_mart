@@ -8,14 +8,27 @@ type ProductForSearch = {
   models?: { name: string } | null
 }
 
+// The 2026-11-03 spreadsheet import created a placeholder brand named
+// "RO (spreadsheet import)" and models that just repeat the product name
+// minus its "ROP " prefix — showing both made every label read twice
+// ("RO (spreadsheet import) 2090 BLUE — ROP 2090 BLUE"). Owner chose a
+// display-only fix (2026-11-26), so the data is left as imported.
+const IMPORT_PLACEHOLDER_BRAND = /\(spreadsheet import\)\s*$/i
+
 export function productSearchLabel(p: ProductForSearch): string {
-  const brandModel = [p.brands?.name, p.models?.name].filter(Boolean).join(" ")
-  return brandModel ? `${brandModel} — ${p.name}` : p.name
+  const name = p.name.toLowerCase()
+  const parts = [p.brands?.name, p.models?.name].filter(
+    (part): part is string => !!part && !IMPORT_PLACEHOLDER_BRAND.test(part) && !name.includes(part.toLowerCase())
+  )
+  return parts.length ? `${parts.join(" ")} — ${p.name}` : p.name
+}
+
+/** True when every whitespace-separated word of `query` appears somewhere in `haystack`, in any order (case-insensitive). */
+export function matchesAllWords(haystack: string, query: string): boolean {
+  const h = haystack.toLowerCase()
+  return query.toLowerCase().split(/\s+/).filter(Boolean).every((word) => h.includes(word))
 }
 
 export function productMatchesQuery(p: ProductForSearch, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  const haystack = `${p.brands?.name ?? ""} ${p.models?.name ?? ""} ${p.name}`.toLowerCase()
-  return haystack.includes(q)
+  return matchesAllWords(`${p.brands?.name ?? ""} ${p.models?.name ?? ""} ${p.name}`, query)
 }

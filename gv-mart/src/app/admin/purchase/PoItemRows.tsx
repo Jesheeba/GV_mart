@@ -4,6 +4,7 @@ import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { SparePicker } from "@/components/shared/SparePicker"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { PoItemInput } from "@/lib/validation/automation"
@@ -71,18 +72,13 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
               inputClassName="h-10"
             />
           ) : (
-            <select
+            <SparePicker
+              inputClassName="h-10"
+              spares={spareOptions}
               value={row.itemId}
-              onChange={(e) => update(i, { itemId: e.target.value })}
-              className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-            >
-              <option value="">{t("purchase.items.selectItem")}</option>
-              {spareOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
+              onChange={(itemId) => update(i, { itemId })}
+              placeholder={t("purchase.items.selectItem")}
+            />
           )}
           <Input
             type="number"

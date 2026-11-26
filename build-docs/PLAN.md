@@ -1,3 +1,38 @@
+# PLAN — Batch 2026-11-26: picker search, GST incl/excl, quick-add
+
+Branch `fix/sales-search-gst-quickadd` (worktree `_local_only/worktrees/sales-search-gst-quickadd`, base origin/main feaaa84).
+
+## 1. Goal and scope
+- F1 `picker-search`: staff can type to find spares/products in New Sale (and Quotation/PO, same pickers); multi-word search works; product labels stop repeating text.
+- F2 `gst-inclusive-toggle`: bills can treat entered prices as GST-inclusive or GST-exclusive. Never existed before (checked all branches/history) — this is new, not a regression.
+- F3 `quick-add`: "+ Add" inside pickers for master lists, starting with Name of complaint.
+- Out of scope: redesigning masters pages, changing price lists, bulk re-import of the spreadsheet.
+
+## 2. Root causes found (verified in code + live DB, read-only)
+- Spares picker on New Sale is a native `<select>` with 170 rows all starting "ROS …". Native type-ahead treats Space as "open/confirm", so typing "ROS AD…" stops at the space. No search box exists.
+- Product search (`productMatchesQuery`) is a single substring match on "brand model name" → word order / skipped words ("rop blue") return nothing.
+- "Double" product text: all 34 products came from a spreadsheet import with brand = `RO (spreadsheet import)` and model = product name minus "ROP ". Label `brand model — name` prints e.g. "RO (spreadsheet import) 2090 BLUE — ROP 2090 BLUE".
+- One real near-duplicate product: "ROP WALLMOUNT FILTER WITHOUT RO" vs "ROP WALLMOUNT FILTER (WITHOUT RO)". No duplicate spares.
+- GST today is always added on top (`gst = (subtotal-discount) × rate`), computed authoritatively in 6 live RPCs (create_sale→_sale_create_line_invoice, create_service_invoice, sell_amc_plan_onsite, create_rental, run_rental_billing).
+- Every master table (complaint_types, lead_sources/kinds/product_types, brands, models, products, spares) is write = master-only by RLS. New Complaint is open to master + operation_admin, so a plain client-side quick-add fails for operation_admin.
+
+## 3. Project memory respected
+- DB writes need the owner's exact authorization words ([[gv-mart-no-db-write-unless-named]]); F1 is code-only. F2/F3 migrations are built + tested, applied only on "GO APPLY".
+- Worktree-only git; commit per feature; never push to main.
+
+## 4. Build order
+1. F1 (no DB, unblocks billing today).
+2. F3 complaint quick-add (small RPC if non-master roles need it).
+3. F2 GST (largest; touches every billing RPC + invoice print).
+
+## 5. Open decisions (owner)
+- D1 Real brand name to replace `RO (spreadsheet import)`; archive which near-duplicate product.
+- D2 GST toggle granularity (org default + per-bill override recommended).
+- D3 Quick-add for operation_admin/sales_admin (RPC) or master-only.
+- D4 Which other pickers get quick-add.
+
+---
+
 # PLAN — Leads Dashboard Enhancement
 
 ## 1. Goal and scope

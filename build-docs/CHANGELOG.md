@@ -79,3 +79,8 @@
 
 ## sidebar-pinned-items (2026-11-25)
 - Admin sidebar: pin any item to a "Frequently used" section below Dashboard (per user, localStorage). en + ta labels.
+
+## picker-search — 2026-11-26
+- Spare picker in New Sale, Quotation, PO/Bill entry is now a type-to-search box (`SparePicker`), replacing a native select whose Space key blocked typing.
+- Product/spare search matches every typed word in any order.
+- Product labels no longer repeat the model or show the `RO (spreadsheet import)` placeholder brand (display only, data unchanged).
