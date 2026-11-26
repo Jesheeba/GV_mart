@@ -1,5 +1,10 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## missing-i18n-keys (2026-11-26)
+- Added 37 missing en/ta keys and 3 missing Tamil job-kind labels.
+- Removed duplicate JSON keys (leads.errors ×3, leads.edit ×2, auth.useDifferentAccount ×2) that had silently dropped `leads.errors.budgetNonNegative`.
+- New guard: `src/lib/i18n/keysComplete.test.ts`. parity.test.ts allowlist removed. See features/missing-i18n-keys.md.
+
 ## referral-sources R3+R4 (2026-11-26)
 - New Customer, New Sale, New Complaint, Sell AMC use `ReferrerField`; non-technician referrers go through the `*_with_referrer` RPCs, technician keeps the original finder-credit path. Old drafts with `referredByTechnicianId` restore as a technician referrer.
 - Leads save `referred_by_customer_id`; customer + lead detail show a customer referrer (click opens that customer).

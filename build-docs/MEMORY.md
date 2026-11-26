@@ -97,3 +97,7 @@
 - Owner (approval, 2026-11-26): auto-credit is a master **toggle** in Settings + master-set amount; OFF by default. Credit on the referred customer's first invoice (my recommendation, owner did not object). Q3 (other-window ownership) treated as cleared by plan approval.
 - 2026-11-26: owner sent "go apply" before R2 existed — not treated as approval of the unseen file; R2 built + rehearsed, waiting for "go apply" on 20261228100000 by name.
 - Billing RPCs wrapped (*_with_referrer), not edited — keeps the 18 KB create_sale untouched; same-transaction call keeps it atomic.
+
+## i18n JSON convention (2026-11-26)
+- en.json/ta.json must not contain duplicate keys. Merges had pasted whole blocks twice, and JSON.parse silently keeps only the last copy. Enforced by `src/lib/i18n/keysComplete.test.ts`.
+- zod messages in `src/lib/validation/*` are i18n keys, so any dotted string there must exist in en+ta (same test).

@@ -155,7 +155,8 @@
       "fieldMin": "{{field}} must be at least {{min}}",
       "fieldMax": "{{field}} must be at most {{max}}",
       "fieldInvalid": "{{field}} is invalid"
-    }
+    },
+    "confirm": "Confirm"
   },
   "roles": {
     "master": "Owner",
@@ -268,8 +269,7 @@
     "linkAccountAlreadyLinked": "This mobile number is already linked to another account.",
     "linkAccountGenericError": "Couldn't link your account. Please try again.",
     "linkAccountUnavailable": "Account linking is not available yet. Please contact the shop and they will help you.",
-    "staffAccountNotice": "This Google account belongs to a staff login. Please sign in with your email and password instead.",
-    "useDifferentAccount": "Sign out and use a different account"
+    "staffAccountNotice": "This Google account belongs to a staff login. Please sign in with your email and password instead."
   },
   "shell": {
     "searchPlaceholder": "Search customers, tickets, invoices…",
@@ -1965,7 +1965,8 @@
     "quotationNoLabel": "Quotation No",
     "origin": {
       "fromLead": "Lead: {{name}}",
-      "fromCustomer": "Customer: {{name}}"
+      "fromCustomer": "Customer: {{name}}",
+      "direct": "Direct"
     },
     "stats": {
       "open": "Open",
@@ -2593,7 +2594,9 @@
       "complaintRequired": "Describe the complaint (at least 3 characters)",
       "scheduledAtRequired": "Please pick a date and time",
       "descriptionRequired": "Enter a description (at least 3 characters)",
-      "productRequired": "Select a product"
+      "productRequired": "Select a product",
+      "callbackDateRequired": "Select a date",
+      "callbackSlotRequired": "Select a time slot"
     },
     "profile": {
       "locationVerified": "Location verified by our technician",
@@ -3286,8 +3289,11 @@
         "date": "Date travelled",
         "km": "Kilometres",
         "save": "Add entry",
-        "monthlySum": "This month so far: {{km}} km"
-      }
+        "monthlySum": "This month so far: {{km}} km",
+        "monthlySumFailed": "Couldn't load this month's total"
+      },
+      "notAvailableYet": "This feature isn't available yet. Please check back later.",
+      "valuesKept": "Your entered details are kept — you can try again."
     },
     "home": {
       "unknownCustomer": "Customer",
@@ -3866,9 +3872,6 @@
       "notApplicable": "Not applicable",
       "toBeConfirmed": "To be confirmed"
     },
-    "errors": {
-      "budgetNonNegative": "Budget must be zero or more"
-    },
     "lostReason": {
       "price_too_high": "Price too high",
       "chose_competitor": "Chose a competitor",
@@ -3925,7 +3928,9 @@
       "noteSaved": "Note added",
       "leadFields": "Lead details",
       "edit": "Edit",
-      "fieldsSaved": "Lead details saved"
+      "fieldsSaved": "Lead details saved",
+      "addNote": "Add note",
+      "notePlaceholder": "Note"
     },
     "document": {
       "none": "No document attached",
@@ -3939,29 +3944,11 @@
     },
     "errors": {
       "nameRequired": "Enter a name (at least 2 characters)",
-      "sourceRequired": "Select a source"
-    },
-    "edit": {
-      "title": "Edit lead",
-      "subtitle": "Update this lead's contact details and notes.",
-      "alternateMobile": "Alternate mobile",
-      "address": "Address",
-      "saved": "Lead updated",
-      "saveAnyway": "Save anyway",
-      "duplicateWarning": "Another record already uses this number:",
-      "duplicateKind": {
-        "lead": "Lead: {{name}}",
-        "customer": "Customer: {{name}}"
-      },
-      "referralLockedHint": "This lead's source is Referral and can't be changed here — it's set by the referral program and tied to a technician's incentive.",
-      "errors": {
-        "mobileInvalid": "Enter a valid 10-digit mobile number",
-        "referralLocked": "Source can't be changed to or from Referral here"
-      }
-    },
-    "errors": {
-      "nameRequired": "Enter a name (at least 2 characters)",
-      "sourceRequired": "Select a source"
+      "budgetNonNegative": "Budget must be zero or more",
+      "sourceRequired": "Select a source",
+      "activityTypeRequired": "Select an activity type",
+      "customerRequired": "Select a customer",
+      "pointsPositive": "Points must be greater than zero"
     },
     "edit": {
       "title": "Edit lead",
@@ -4503,6 +4490,14 @@
       "thresholdSaved": "Alert threshold saved.",
       "thresholdFailed": "Could not save the alert threshold.",
       "empty": "No failed sends — nothing stuck right now."
+    },
+    "errors": {
+      "triggerRequired": "Select a trigger",
+      "actionRequired": "Select an action",
+      "topicRequired": "Select a topic",
+      "urlRequired": "Enter the video link",
+      "mobileRequired": "Enter a mobile number",
+      "bodyRequired": "Enter a message"
     }
   },
   "purchase": {
@@ -4599,6 +4594,15 @@
       "qty": "Qty",
       "price": "Price",
       "addRow": "Add item"
+    },
+    "errors": {
+      "supplierRequired": "Select a supplier",
+      "itemsRequired": "Add at least one item",
+      "itemRequired": "Select an item",
+      "qtyPositive": "Quantity must be greater than zero",
+      "priceNonNegative": "Price can't be negative",
+      "gstNonNegative": "GST can't be negative",
+      "billDateRequired": "Bill date is required"
     }
   },
   "technicians": {
@@ -5297,7 +5301,10 @@
     "errors": {
       "expenseCategoryRequired": "Category is required",
       "expenseAmountPositive": "Amount must be greater than 0",
-      "expenseDateRequired": "Date is required"
+      "expenseDateRequired": "Date is required",
+      "fromRequired": "Start date is required",
+      "toRequired": "End date is required",
+      "rangeInvalid": "End date must be on or after the start date"
     },
     "columns": {
       "button": "Columns",
@@ -5408,7 +5415,8 @@
         "paid": "Paid",
         "voided": "Voided"
       }
-    }
+    },
+    "staff": "Staff"
   },
   "accounts": {
     "title": "Accounts",
@@ -5514,7 +5522,10 @@
     "rolledOverCount_one": "Rolled over {{count}} day",
     "rolledOverCount_other": "Rolled over {{count}} days",
     "daysOverdue_one": "{{count}} day overdue",
-    "daysOverdue_other": "{{count}} days overdue"
+    "daysOverdue_other": "{{count}} days overdue",
+    "errors": {
+      "titleRequired": "Enter a title (at least 3 characters)"
+    }
   },
   "huddle": {
     "raiseTitle": "Raise a problem",
@@ -5834,6 +5845,10 @@
     "actions": {
       "activate": "Activate",
       "complete": "Mark Completed"
+    },
+    "errors": {
+      "nameRequired": "Enter a name (at least 3 characters)",
+      "channelRequired": "Select a channel"
     }
   },
   "returns": {
@@ -5881,6 +5896,12 @@
       "reject": "Reject",
       "confirmCompleted": "Mark this return as completed? This can't be undone.",
       "confirmRejected": "Reject this return request? This can't be undone."
+    },
+    "errors": {
+      "invoiceRequired": "Select an invoice",
+      "itemTypeRequired": "Choose an option",
+      "itemRequired": "Select an item",
+      "qtyPositive": "Quantity must be greater than zero"
     }
   },
   "auditLog": {

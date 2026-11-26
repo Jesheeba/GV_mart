@@ -3,7 +3,7 @@
 Status: SHIPPED 2026-11-26. Migration 20261229100000 applied live.
 
 Open:
-- About 15 pre-existing missing i18n keys (automation/customerApp/leads errors, e.g. `leads.detail.notePlaceholder`).
+- None. The missing i18n keys were fixed in features/missing-i18n-keys.md.
 
 ## Purpose
 - Owner: every either/or data-entry choice in the app becomes a dropdown with a visible "Not set" option.

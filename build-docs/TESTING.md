@@ -1,5 +1,10 @@
 # TESTING — Leads Dashboard Enhancement
 
+## missing-i18n-keys (2026-11-26)
+- `keysComplete.test.ts` (AC1, AC2): 6/6 pass. Against origin/main's JSON, 5/6 fail (missing en, missing ta, en dups, ta dups, budget key), so the guard catches the original bugs.
+- `parity.test.ts` (AC3): passes with the allowlist removed. All src/lib/i18n tests: 72/72.
+- `tsc -p tsconfig.app.json` clean. Full vitest: 1383 passed, 2 failed. Both failures (waOutboxSentGuard, wa-event-context) also fail on main.
+
 ## onsite-payment-method (2026-11-26)
 - `technician.test.ts`: UPI accepted, missing method rejected (path "method"), transfer without reference rejected. The old "rejects an invalid method value" test used "upi" as its invalid example, which was wrong because UPI is an offered method; it now uses "cheque".
 - `tsc -b` clean, `vite build` OK, vitest serial 1212 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context). i18n parity OK.
