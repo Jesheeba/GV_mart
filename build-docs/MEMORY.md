@@ -47,6 +47,13 @@
 - Storage: localStorage `gv_mart_admin_sidebar_pins:<profile.id>` — user chose browser-only over a DB prefs table (no migration; pins don't sync across devices).
 - Pinned items stay in their original group too (user's choice) — nothing moves.
 
+## Customer water & household (2026-11-26, owner decisions)
+- Single store: the `customers` row. `addresses.water_*` and the health objects are dropped (owner chose "Drop from DB").
+- Problems faced are visible to all (plain column), unlike the old protected health table.
+- Follow-up date has no customer column: the open `customer_water_followup` task's `due_date` IS the date, so postponing on Tasks and the customer form can't disagree.
+- Recommended solution is free text. Postpone requires a reason and a later date.
+- Customer edit UI is master + sales_admin (route guard). The DB guard still also allows operation_admin.
+
 ## Pin auto-correct (2026-11-26, owner: "automate and skip the manual work")
 - REVERSES the 2026-09-15 "Reached is a hard block outside the radius" decision for the band radius..pin_autocorrect_max_m (2 km) and for no-pin addresses. Beyond it, or for a locked pin, the hard block stands.
 - No office approval: the pin moves automatically, the office gets an FYI only. Safety comes from not locking. Two visits must agree (the next in-radius arrival locks it).

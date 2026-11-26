@@ -602,15 +602,16 @@
       },
       "waterTds": "நீர் TDS (ppm)",
       "waterPh": "நீர் pH",
-      "healthCondition": "உடல்நலம்",
-      "healthConditionPlaceholder": "இன்னும் கேட்கப்படவில்லை",
-      "healthConditionLevels": {
-        "none": "இல்லை",
-        "normal": "சாதாரணம்",
-        "medium": "நடுத்தரம்",
-        "high": "அதிகம்"
-      },
-      "familyMembersCount": "குடும்ப உறுப்பினர்கள்",
+      "waterHardness": "மொத்த கடினத்தன்மை (ppm)",
+      "problemsFaced": "குடும்பத்தினர் எதிர்கொள்ளும் பிரச்சனைகள்",
+      "problemPlaceholder": "எ.கா. முடி உதிர்தல், குழாயில் வெள்ளைக் கறை",
+      "addProblem": "மற்றொரு பிரச்சனையைச் சேர்க்கவும்",
+      "removeProblem": "பிரச்சனையை நீக்கவும்",
+      "recommendedSolution": "பரிந்துரைக்கப்பட்ட தீர்வு",
+      "recommendedSolutionPlaceholder": "எ.கா. நீர் மென்மையாக்கி + மினரல் கார்ட்ரிட்ஜுடன் RO",
+      "followUpDate": "பின்தொடர்வு தேதி",
+      "followUpDateHint": "இந்தத் தேதியில் மாஸ்டருக்கு ஒரு பின்தொடர்வு பணி உருவாகும்.",
+      "clearFollowUpDate": "பின்தொடர்வு தேதியை நீக்கவும்",
       "latestReadingTitle": "சமீபத்திய பரிசோதனை ({{date}})",
       "rentals": {
         "startDate": "{{date}} அன்று தொடங்கியது",
@@ -760,18 +761,6 @@
         "tooManyRequests": "கோரிக்கைகள் அதிகமாக உள்ளன. சிறிது நேரம் காத்திருந்து மீண்டும் முயற்சிக்கவும், அல்லது முகவரியை நீங்களே தட்டச்சு செய்யவும்.",
         "useMyCurrentLocation": "என் தற்போதைய இருப்பிடத்தைப் பயன்படுத்து",
         "locating": "உங்கள் இருப்பிடத்தைக் கண்டறிகிறது…"
-      },
-      "water": {
-        "title": "நீர் & குடும்பம்",
-        "edit": "திருத்து",
-        "waterSource": "நீர் ஆதாரம்",
-        "waterSourcePlaceholder": "ஆதாரத்தை உள்ளிடவும்",
-        "waterTds": "நீர் TDS (ppm)",
-        "waterPh": "நீர் pH",
-        "healthCondition": "உடல்நலக் குறிப்பு",
-        "healthConditionPlaceholder": "விவரங்களை உள்ளிடவும்",
-        "valuePlaceholder": "மதிப்பு",
-        "familyMembers": "குடும்ப உறுப்பினர்கள்"
       }
     },
     "duplicateContactWarning": {
@@ -796,6 +785,12 @@
       "pincodeInvalid": "சரியான 6-இலக்க பின் கோடை உள்ளிடவும்",
       "waterPhInvalid": "pH 0 முதல் 14 வரை இருக்க வேண்டும்",
       "waterTdsInvalid": "TDS எதிர்மறையாக இருக்க முடியாது",
+      "waterHardnessInvalid": "கடினத்தன்மை எதிர்மறையாக இருக்க முடியாது",
+      "problemTooLong": "ஒவ்வொரு பிரச்சனையும் 100 எழுத்துகளுக்குள் இருக்கட்டும்",
+      "tooManyProblems": "அதிகபட்சம் 10 பிரச்சனைகள்",
+      "solutionTooLong": "தீர்வு 500 எழுத்துகளுக்குள் இருக்கட்டும்",
+      "followUpDateInvalid": "சரியான தேதியைத் தேர்ந்தெடுக்கவும்",
+      "followUpDatePast": "பின்தொடர்வு தேதி கடந்த தேதியாக இருக்கக்கூடாது",
       "waterSourceOtherRequiresOther": "மூலம் \"மற்றவை\" என இருக்கும்போது மட்டும் இதை அமைக்கவும்"
     }
   },
@@ -3368,8 +3363,8 @@
       "waterSource": "நீர் மூலம்",
       "waterTds": "நீர் TDS (ppm)",
       "waterPh": "நீர் pH",
-      "healthCondition": "உடல்நலம்",
-      "familyMembersCount": "குடும்ப உறுப்பினர்கள்",
+      "waterHardness": "மொத்த கடினத்தன்மை (ppm)",
+      "problemsFaced": "குடும்பத்தினர் எதிர்கொள்ளும் பிரச்சனைகள்",
       "complaintTitle": "புகார்",
       "raised": "பதிவு செய்யப்பட்டது {{date}}",
       "costingRuleTitle": "விலை நிர்ணய விதி",
@@ -5624,6 +5619,23 @@
     "needsReviewLinkTitle": "பொருந்தும் பதிவுகள்",
     "needsReviewLinkNoContact": "இந்த வாடிக்கையாளருக்கு இன்னும் மொபைல் அல்லது மின்னஞ்சல் பதிவு செய்யப்படவில்லை.",
     "needsReviewLinkViewCustomer": "வாடிக்கையாளரைக் காண்க",
+    "waterFollowup": {
+      "title": "நீர் தீர்வு பின்தொடர்வு",
+      "viewCustomer": "வாடிக்கையாளரைப் பார்க்கவும்",
+      "postpone": "தள்ளிவை",
+      "convertToLead": "லீடாக மாற்று",
+      "newDate": "புதிய தேதி",
+      "reason": "காரணம்",
+      "reasonPlaceholder": "ஏன் தள்ளிவைக்கப்படுகிறது?",
+      "confirmPostpone": "தள்ளிவை",
+      "postponed": "பின்தொடர்வு தள்ளிவைக்கப்பட்டது",
+      "convertedToLead": "லீட் உருவாக்கப்பட்டு பின்தொடர்வு பணி மூடப்பட்டது",
+      "closeFailed": "லீட் உருவாக்கப்பட்டது, ஆனால் பின்தொடர்வு பணியை மூட முடியவில்லை. பணிகள் பக்கத்தில் மூடவும்.",
+      "errors": {
+        "past": "தேதி கடந்ததாக இருக்கக்கூடாது",
+        "notLater": "தற்போதைய தேதியை விட பிந்தைய தேதியைத் தேர்ந்தெடுக்கவும்"
+      }
+    },
     "arrivalMismatchLinkTitle": "பின் செய்யப்பட்ட இடத்திற்கு வெளியே தொழில்நுட்ப நிபுணர் வந்தடைந்தார்",
     "arrivalMismatchLinkBody": "வரைபடப் பின் தவறாக அல்லது பழையதாக இருக்கலாம். வாடிக்கையாளரைத் திறந்து சரியான பின்னை இடவும்.",
     "arrivalMismatchLinkViewCustomer": "வாடிக்கையாளரைக் காண்க",
@@ -5704,7 +5716,8 @@
       "customer_needs_review": "வாடிக்கையாளர் கணக்கு மதிப்பாய்வு தேவை",
       "arrival_location_mismatch": "முகவரி மறுபரிசீலனை தேவைப்படலாம்",
       "pin_autocorrected": "வாடிக்கையாளர் பின் தொழில்நுட்பவியலாளரால் திருத்தப்பட்டது",
-      "arrival_location_mismatch_flood": "பல முகவரிகள் மறுபரிசீலனை தேவைப்படுகின்றன"
+      "arrival_location_mismatch_flood": "பல முகவரிகள் மறுபரிசீலனை தேவைப்படுகின்றன",
+      "water_followup_due": "நீர் பின்தொடர்வு இன்று"
     }
   },
   "approvals": {

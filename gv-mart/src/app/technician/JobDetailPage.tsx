@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { AddressPinPreview } from "@/components/shared/AddressPinDialog"
 import { JobTypeBadge, OverrunBadge, PriorityBadge } from "./components/JobBadges"
-import { useCustomerHealthCondition, useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
+import { useCustomerHistory, useJobDetail, useLogCall, useMyTechnician, useTechnicianSettings } from "@/hooks/useTechnician"
 import { filterDueOrOverdueParts, useDueParts } from "@/hooks/useDueParts"
 import { useProfile } from "@/hooks/useProfile"
 import { computeJobOverrun } from "@/lib/job-overrun"
-import { technicianCanSeeHealthCondition } from "@/lib/validation/customer"
+import { WaterHouseholdSummary, waterValuesFromCustomer } from "@/components/shared/WaterHouseholdSummary"
 import { cn } from "@/lib/utils"
 import { computeTicketAllowedDuration, findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
@@ -48,8 +48,6 @@ export function JobDetailPage() {
   // three surfaces always agree on which parts are due for this customer.
   const dueParts = useDueParts(jobDetail.data?.customer_id)
   const duePartsToShow = filterDueOrOverdueParts(dueParts.data)
-  const showHealthCondition = technicianCanSeeHealthCondition(settings.data?.show_health_condition_to_technicians)
-  const healthCondition = useCustomerHealthCondition(jobDetail.data?.customers?.id, showHealthCondition)
 
   const openVisit = jobDetail.data ? findOpenVisit(jobDetail.data.service_visits) : null
   const now = useNowTick(!!openVisit)
@@ -237,30 +235,7 @@ export function JobDetailPage() {
 
       <Card className="gap-2">
         <p className="px-1 text-sm font-semibold text-text">{t("technician.jobDetail.waterHouseholdTitle")}</p>
-        <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
-          <span className="text-text-muted">{t("technician.jobDetail.waterSource")}</span>
-          <span className="text-text">
-            {ticket.customers?.water_source
-              ? ticket.customers.water_source === "other" && ticket.customers.water_source_other
-                ? ticket.customers.water_source_other
-                : t(`customers.detail.waterSourceOptions.${ticket.customers.water_source}`)
-              : "—"}
-          </span>
-          <span className="text-text-muted">{t("technician.jobDetail.waterTds")}</span>
-          <span className="text-text">{ticket.customers?.water_tds_ppm ?? "—"}</span>
-          <span className="text-text-muted">{t("technician.jobDetail.waterPh")}</span>
-          <span className="text-text">{ticket.customers?.water_ph ?? "—"}</span>
-          <span className="text-text-muted">{t("technician.jobDetail.familyMembersCount")}</span>
-          <span className="text-text">{members.length}</span>
-          {showHealthCondition ? (
-            <>
-              <span className="text-text-muted">{t("technician.jobDetail.healthCondition")}</span>
-              <span className="text-text">
-                {healthCondition.data ? t(`customers.detail.healthConditionLevels.${healthCondition.data}`) : "—"}
-              </span>
-            </>
-          ) : null}
-        </div>
+        {ticket.customers ? <WaterHouseholdSummary values={waterValuesFromCustomer(ticket.customers)} /> : null}
       </Card>
 
       <Card className="gap-2">

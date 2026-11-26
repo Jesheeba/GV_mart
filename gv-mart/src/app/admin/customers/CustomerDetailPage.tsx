@@ -40,7 +40,7 @@ import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import { GoogleAccountLinkPanel } from "./GoogleAccountLinkPanel"
 import { MergeAutoCustomerPanel } from "./MergeAutoCustomerPanel"
-import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
+import { WaterHouseholdPanel, waterValuesFromCustomer } from "./WaterHouseholdPanel"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
 
@@ -601,13 +601,7 @@ export function CustomerDetailPage() {
           <Card size="default">
             <WaterHouseholdPanel
               customerId={customer.id}
-              orgId={orgId}
-              waterSource={customer.water_source}
-              waterSourceOther={customer.water_source_other}
-              waterTdsPpm={customer.water_tds_ppm}
-              waterPh={customer.water_ph}
-              healthCondition={customer.health_condition}
-              familyMemberCount={customer.customer_members.length}
+              values={waterValuesFromCustomer(customer)}
               measuredReading={measured}
               canEdit={canEditWaterHousehold(profile?.role)}
             />

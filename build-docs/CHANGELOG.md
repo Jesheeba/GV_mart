@@ -1,5 +1,20 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## customer-data-sync (2026-11-26)
+- See features/customer-data-sync.md for the 7 sweep fixes: primary member sync, one email box, app address no longer overwritten, profession no longer reverted, moved-out members never counted, drafts keep complaint type and referrer, lead fields card never stale.
+- Migration `20261216120000_primary_member_sync.sql` + rollback. **APPLIED LIVE 2026-11-26.**
+- Changed test: `address.test.ts` "treats a populated area alone as a structured field" was replaced. It asserted the behaviour that dropped customer-app addresses.
+
+## customer-water-household + water-solution-followup (2026-11-26)
+- Edit customer showed Water & household twice: step-1 panel (customers row) and step-3 form (addresses row). Now one step 3 in both modes, backed only by the customers row.
+- Create no longer writes `addresses.water_*`, which nothing displayed. Water values typed at create now show on the detail page, technician job/history and customer app.
+- Family count removed from every Water & household block. The customer app's members and count now exclude moved-out members.
+- Added Total hardness and "Problems faced" (list, + add another). Health condition removed from all screens and dropped from the DB.
+- Added Recommended solution and Follow-up date. The date creates one task for the master. Tasks gets Postpone (later date + reason) and Convert to lead (opens New Lead prefilled, closes the task when saved). Daily 09:00 IST due reminder.
+- Shared `WaterHouseholdFields` (edit) / `WaterHouseholdSummary` (read-only) replace four hand-copied blocks.
+- Migrations `20261216100000`, `20261216110000` + rollbacks + SQL tests. Rehearsal 90/90; **APPLIED LIVE 2026-11-26** (backup in `_local_only/backups/2026-11-26_customer_water_household_v2`).
+- Also removed a pre-existing unused `fullAddress` variable in CustomerFormPage (failed `tsc` on main).
+
 ## UX pass (2026-11-26): choice-no-preselect, input-density, date-display, header wrap fix
 - choice-no-preselect (ad28862): address type/ownership (admin + customer app, now the same buttons), payment method (New Sale, Record payment, Rent out, Sell AMC), follow-up type/channel, availability reason, HR/expenses selects, purchase/master item types start unchosen and are required. EntityCrudTable: "Select…" placeholder + required, `defaultValue` keeps Active/pending/No where the DB default matches. New `lib/crudForm.ts`.
 - input-density (bc58f8c): `lib/fieldWidth.ts` width map; about 70 short-number inputs fitted, numeric keypads, maxLength where a strict rule exists; form selects unified to h-10.
@@ -8,7 +23,7 @@
 
 ## pin-autocorrect (2026-11-26)
 - A technician at the customer but outside a wrong (up to 2 km) or missing pin can start the job. Their GPS becomes the pin automatically, with no office approval. The next in-radius arrival locks it.
-- Migration `20261215100000_pin_autocorrect.sql` APPLIED LIVE 2026-11-26 (owner: "go apply"), one transaction, version registered by hand; function md5 2bccb48abbcc71cb918e59bbdfdf32a2: `settings.pin_autocorrect_max_m`, event `corrected`, RPC `record_technician_pin_correction`, FYI notification `pin_autocorrected`. Rollback in `supabase/rollbacks/`.
+- Migration `20261216100000_pin_autocorrect.sql` APPLIED LIVE 2026-11-26 (owner: "go apply"), one transaction, version registered by hand; function md5 2bccb48abbcc71cb918e59bbdfdf32a2: `settings.pin_autocorrect_max_m`, event `corrected`, RPC `record_technician_pin_correction`, FYI notification `pin_autocorrected`. Rollback in `supabase/rollbacks/`.
 - App: MapPage "pin is wrong" / "start here" flow plus a reason when blocked; new outbox kind; customer header pin chip (verified / corrected / pinned / not pinned). en/ta strings.
 
 ## arrival-location-lock (2026-11-26)

@@ -52,6 +52,8 @@ type NewSaleDraftData = {
   amountPaidTouched: boolean
   /** Optional so drafts saved before the GST switch existed still restore. */
   gstInclusiveChoice?: boolean | null
+  // Optional: drafts saved before 2026-11-26 don't have it (the referrer was silently dropped on restore).
+  referredByTechnicianId?: string
 }
 
 /**
@@ -232,6 +234,7 @@ export function NewSalePage() {
     amountPaidInput,
     amountPaidTouched,
     gstInclusiveChoice,
+    referredByTechnicianId,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -257,6 +260,7 @@ export function NewSalePage() {
     if (restoredDraft.amountPaidInput != null) setAmountPaidInput(restoredDraft.amountPaidInput)
     if (restoredDraft.amountPaidTouched != null) setAmountPaidTouched(restoredDraft.amountPaidTouched)
     if (restoredDraft.gstInclusiveChoice !== undefined) setGstInclusiveChoice(restoredDraft.gstInclusiveChoice)
+    if (restoredDraft.referredByTechnicianId) setReferredByTechnicianId(restoredDraft.referredByTechnicianId)
   }, [restoredDraft])
 
   const techMax = settings ? Number(settings.discount_tech_max) : 5

@@ -79,6 +79,25 @@ export function composeFullAddress(fields: StructuredAddressFields): string {
 }
 
 /**
+ * The street-level structured parts, i.e. everything except Main Area. Area alone proves nothing: the customer app's
+ * single address box writes `area` + `full_address` too, so an area-only row is really a free-text address.
+ */
+export function hasStreetLevelFields(f: StructuredAddressFields): boolean {
+  return [f.doorNo, f.plotNo, f.buildingName, f.streetCross, f.subArea, f.landmark].some((v) => !!v?.trim())
+}
+
+/**
+ * The `full_address` to save from the admin address step. When any street-level part is filled it is composed from
+ * the structured fields (as before). Otherwise the free-text box wins (a pre-redesign or customer-app address), and
+ * only an empty box falls back to the area alone. Without this, an app-written address with just an area was
+ * silently replaced by the bare area on the next admin save.
+ */
+export function resolveFullAddress(f: StructuredAddressFields & { fullAddress?: string | null }): string {
+  if (hasStreetLevelFields(f)) return composeFullAddress(f)
+  return f.fullAddress?.trim() || composeFullAddress(f)
+}
+
+/**
  * Decides what the address step should show: structured fields loaded from
  * their own columns when any are present, or — for a customer saved before
  * this change, whose columns are all empty — the old free-text full_address
@@ -119,7 +138,10 @@ export function splitAddressForForm(
   // door_no + landmark saved (some columns populated, others still blank)
   // must show those two values, not silently swap in the old full_address
   // text and leave them unrecoverable once Save re-composes from the form.
-  const hasStructuredFields = [doorNo, plotNo, buildingName, streetCross, subArea, landmark, area].some(Boolean)
+  // Main Area is deliberately not part of this decision (see hasStreetLevelFields). An area-only row whose
+  // full_address says more (written by the customer app, or pre-redesign) shows that text in the fallback box.
+  const hasStructuredFields = [doorNo, plotNo, buildingName, streetCross, subArea, landmark].some(Boolean)
+  const fullText = row?.full_address?.trim() ?? ""
   return {
     doorNo,
     plotNo,
@@ -129,7 +151,8 @@ export function splitAddressForForm(
     landmark,
     area,
     hasStructuredFields,
-    legacyFullAddress: hasStructuredFields ? "" : (row?.full_address?.trim() ?? ""),
+    // An area-only row whose full_address is just that area was composed by this form: nothing extra to show.
+    legacyFullAddress: hasStructuredFields || fullText === area ? "" : fullText,
   }
 }
 

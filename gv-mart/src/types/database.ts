@@ -644,12 +644,14 @@ export type Database = {
           // list/search; the row and its audit_log trail are kept, never hard-deleted.
           archived_at: string | null
           archived_by: string | null
-          // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
-          // is NOT here — it lives in its own table, customer_health_profile, below.
+          // Customer water & household profile (20261108100000, 20261216100000, 20261216110000).
           water_source: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other: string | null
           water_tds_ppm: number | null
           water_ph: number | null
+          water_hardness_ppm: number | null
+          household_problems: string[]
+          water_recommended_solution: string | null
           created_at: string
           updated_at: string
         }
@@ -677,6 +679,9 @@ export type Database = {
           water_source_other?: string | null
           water_tds_ppm?: number | null
           water_ph?: number | null
+          water_hardness_ppm?: number | null
+          household_problems?: string[]
+          water_recommended_solution?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -704,6 +709,9 @@ export type Database = {
           water_source_other?: string | null
           water_tds_ppm?: number | null
           water_ph?: number | null
+          water_hardness_ppm?: number | null
+          household_problems?: string[]
+          water_recommended_solution?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -720,47 +728,6 @@ export type Database = {
             columns: ["primary_profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      // 20261108100000_customer_water_profile.sql — health_condition's own table (not a
-      // customers column). No column-level grant games on customers at all.
-      customer_health_profile: {
-        Row: {
-          customer_id: string
-          org_id: string
-          health_condition: Database["public"]["Enums"]["household_health_level"]
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          customer_id: string
-          org_id: string
-          health_condition: Database["public"]["Enums"]["household_health_level"]
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          customer_id?: string
-          org_id?: string
-          health_condition?: Database["public"]["Enums"]["household_health_level"]
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "customer_health_profile_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: true
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_health_profile_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -930,11 +897,6 @@ export type Database = {
           full_address: string | null
           /** Added 2026-12-04 — clean-address-form redesign, see migration 20261204170000. */
           sub_area: string | null
-          /** Added 2026-11-03 — Water & household step, see migration 20261103120000. */
-          water_source: string | null
-          water_tds: number | null
-          water_ph: number | null
-          health_condition: string | null
           created_at: string
           updated_at: string
         }
@@ -966,10 +928,6 @@ export type Database = {
           zone?: string | null
           full_address?: string | null
           sub_area?: string | null
-          water_source?: string | null
-          water_tds?: number | null
-          water_ph?: number | null
-          health_condition?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1001,10 +959,6 @@ export type Database = {
           zone?: string | null
           full_address?: string | null
           sub_area?: string | null
-          water_source?: string | null
-          water_tds?: number | null
-          water_ph?: number | null
-          health_condition?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6754,9 +6708,6 @@ export type Database = {
       settings: {
         Row: {
           review_incentives_enabled: boolean
-          // 20261108100000_customer_water_profile.sql — gates whether a technician's job/
-          // history detail shows the customer's health_condition level. Default false.
-          show_health_condition_to_technicians: boolean
           // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
           job_overrun_buffer_minutes: number
           ops_resolution_sla_hours: number
@@ -6864,7 +6815,6 @@ export type Database = {
         }
         Insert: {
           review_incentives_enabled?: boolean
-          show_health_condition_to_technicians?: boolean
           job_overrun_buffer_minutes?: number
           ops_resolution_sla_hours?: number
           id?: string
@@ -6950,7 +6900,6 @@ export type Database = {
         }
         Update: {
           review_incentives_enabled?: boolean
-          show_health_condition_to_technicians?: boolean
           job_overrun_buffer_minutes?: number
           ops_resolution_sla_hours?: number
           id?: string
@@ -7773,6 +7722,23 @@ export type Database = {
         Args: { p_label: string; p_category: Database["public"]["Enums"]["brand_category"] }
         Returns: Database["public"]["Tables"]["complaint_types"]["Row"]
       }
+      // Water solution follow-up (20261216110000).
+      set_customer_water_followup: {
+        Args: { p_customer_id: string; p_due_date: string | null }
+        Returns: string | null
+      }
+      get_customer_water_followup: {
+        Args: { p_customer_id: string }
+        Returns: { task_id: string; due_date: string | null }[]
+      }
+      postpone_water_followup: {
+        Args: { p_task_id: string; p_new_date: string; p_reason: string }
+        Returns: undefined
+      }
+      close_water_followup_as_lead: {
+        Args: { p_task_id: string; p_lead_id: string }
+        Returns: undefined
+      }
       audience_segment_match_count: {
         Args: { p_org_id: string; p_condition_tree: Json }
         Returns: number
@@ -7824,12 +7790,6 @@ export type Database = {
           p_org_id: string
         }
         Returns: Json
-      }
-      get_customer_health_condition: {
-        Args: {
-          p_customer_id: string
-        }
-        Returns: Database["public"]["Enums"]["household_health_level"] | null
       }
       link_customer_google_account: {
         Args: {
@@ -8901,7 +8861,6 @@ export type Database = {
       quotation_status: "open" | "converted" | "lost"
       invoice_type: "product" | "spare" | "amc" | "rent"
       water_source_type: "corporation" | "borewater" | "other"
-      household_health_level: "none" | "normal" | "medium" | "high"
       payment_method: "cash" | "transfer" | "upi"
       payment_status: "paid" | "partial" | "due"
       ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"

@@ -159,7 +159,7 @@ export function LeadDetailPage() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="min-w-0 space-y-4 lg:flex-1">
-          <LeadDetailFieldsCard lead={l} />
+          <LeadDetailFieldsCard key={l.id} lead={l} />
           <Card className="min-w-0 gap-3 px-5">
             <h2 className="text-sm font-semibold text-text">{t("leads.detail.history")}</h2>
             <LeadTimeline leadId={l.id} />

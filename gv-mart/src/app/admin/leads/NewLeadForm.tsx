@@ -24,9 +24,13 @@ export function NewLeadForm({
   onClose,
   onCreated,
   existingCustomer,
+  initialRequirement,
 }: {
   onClose: () => void
-  onCreated: () => void
+  /** Receives the new lead's id (null if the insert returned no row). */
+  onCreated: (leadId: string | null) => void
+  /** Prefills "customer requirement" (e.g. a water follow-up's problems + recommended solution). */
+  initialRequirement?: string
   /** Set when this form was opened from a customer's own page ("New lead" button)
    *  for a repeat enquiry — the created lead starts out attached to them instead of
    *  only linking up at conversion, and the duplicate-contact warning (which would
@@ -52,7 +56,7 @@ export function NewLeadForm({
       notes: "",
       kind: "",
       referredByUserId: "",
-      customerRequirement: "",
+      customerRequirement: initialRequirement ?? "",
       specialDescription: "",
       budget: "",
       whenNeeded: "",
@@ -103,7 +107,7 @@ export function NewLeadForm({
     if (referredByUserId && (created as { referred_by_user_id?: string | null } | null)?.referred_by_user_id == null) {
       toast.warning(t("common.referralNotRecorded"))
     }
-    onCreated()
+    onCreated((created as { id?: string } | null)?.id ?? null)
   }
 
   const fieldClass = "h-8 w-full rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none"

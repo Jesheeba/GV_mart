@@ -602,15 +602,16 @@
       },
       "waterTds": "Water TDS (ppm)",
       "waterPh": "Water pH",
-      "healthCondition": "Health condition",
-      "healthConditionPlaceholder": "Not asked yet",
-      "healthConditionLevels": {
-        "none": "No",
-        "normal": "Normal",
-        "medium": "Medium",
-        "high": "High"
-      },
-      "familyMembersCount": "Family members",
+      "waterHardness": "Total hardness (ppm)",
+      "problemsFaced": "Problems faced by the family",
+      "problemPlaceholder": "e.g. Hair fall, white stains on taps",
+      "addProblem": "Add another problem",
+      "removeProblem": "Remove problem",
+      "recommendedSolution": "Recommended solution",
+      "recommendedSolutionPlaceholder": "e.g. Water softener + RO with mineral cartridge",
+      "followUpDate": "Follow-up date",
+      "followUpDateHint": "Creates a follow-up task for the master on this date.",
+      "clearFollowUpDate": "Clear follow-up date",
       "latestReadingTitle": "Latest on-site reading ({{date}})",
       "rentals": {
         "startDate": "Started {{date}}",
@@ -760,18 +761,6 @@
         "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or type the address yourself.",
         "useMyCurrentLocation": "Use my current location",
         "locating": "Finding your location…"
-      },
-      "water": {
-        "title": "Water & household",
-        "edit": "Edit",
-        "waterSource": "Water source",
-        "waterSourcePlaceholder": "Enter source",
-        "waterTds": "Water TDS (ppm)",
-        "waterPh": "Water pH",
-        "healthCondition": "Health condition",
-        "healthConditionPlaceholder": "Enter details",
-        "valuePlaceholder": "Value",
-        "familyMembers": "Family members"
       }
     },
     "duplicateContactWarning": {
@@ -796,6 +785,12 @@
       "pincodeInvalid": "Enter a valid 6-digit PIN code",
       "waterPhInvalid": "pH must be between 0 and 14",
       "waterTdsInvalid": "TDS cannot be negative",
+      "waterHardnessInvalid": "Hardness cannot be negative",
+      "problemTooLong": "Keep each problem under 100 characters",
+      "tooManyProblems": "Up to 10 problems",
+      "solutionTooLong": "Keep the solution under 500 characters",
+      "followUpDateInvalid": "Pick a valid date",
+      "followUpDatePast": "The follow-up date cannot be in the past",
       "waterSourceOtherRequiresOther": "Only set this when the source is \"Other\""
     }
   },
@@ -3373,8 +3368,8 @@
       "waterSource": "Water source",
       "waterTds": "Water TDS (ppm)",
       "waterPh": "Water pH",
-      "healthCondition": "Health condition",
-      "familyMembersCount": "Family members",
+      "waterHardness": "Total hardness (ppm)",
+      "problemsFaced": "Problems faced by the family",
       "complaintTitle": "Complaint",
       "raised": "Raised {{date}}",
       "costingRuleTitle": "Costing rule",
@@ -5629,6 +5624,23 @@
     "needsReviewLinkTitle": "Matching records",
     "needsReviewLinkNoContact": "This customer has no mobile or email on file yet to check against.",
     "needsReviewLinkViewCustomer": "View customer",
+    "waterFollowup": {
+      "title": "Water solution follow-up",
+      "viewCustomer": "View customer",
+      "postpone": "Postpone",
+      "convertToLead": "Convert to lead",
+      "newDate": "New date",
+      "reason": "Reason",
+      "reasonPlaceholder": "Why is this being postponed?",
+      "confirmPostpone": "Postpone",
+      "postponed": "Follow-up postponed",
+      "convertedToLead": "Lead created and the follow-up task closed",
+      "closeFailed": "Lead created, but the follow-up task could not be closed. Close it from Tasks.",
+      "errors": {
+        "past": "The date cannot be in the past",
+        "notLater": "Pick a date later than the current one"
+      }
+    },
     "arrivalMismatchLinkTitle": "Technician arrived outside the pinned location",
     "arrivalMismatchLinkBody": "The map pin may be wrong or stale. Open the customer and drop a corrected pin.",
     "arrivalMismatchLinkViewCustomer": "View customer",
@@ -5709,7 +5721,8 @@
       "customer_needs_review": "Customer needs account review",
       "arrival_location_mismatch": "Address may need a recheck",
       "pin_autocorrected": "Customer pin corrected by technician",
-      "arrival_location_mismatch_flood": "Multiple addresses need a recheck"
+      "arrival_location_mismatch_flood": "Multiple addresses need a recheck",
+      "water_followup_due": "Water follow-up due"
     }
   },
   "approvals": {

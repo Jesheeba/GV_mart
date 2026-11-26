@@ -1,5 +1,4 @@
 import { supabase } from "@/lib/supabase"
-import { isUndefinedTableError } from "@/lib/supabaseErrors"
 import type { Enums, Tables } from "@/types/database"
 
 /**
@@ -28,33 +27,19 @@ export type SettingsRow = Tables<"settings">
 
 // ── Profile / customer record ─────────────────────────────────────────────
 
-// Reverted to the original select (reviewer feedback: no revoke/regrant of any kind on
-// customers; health_condition never lived there). Deploy-order safety for the 4 new water
-// columns comes for free with "*" — a column that doesn't exist yet simply isn't in the row.
+// "*" keeps deploy-order safety for the water columns — a column that doesn't exist yet simply isn't in the row.
 export async function getMyCustomerRecord(customerId: string) {
   const { data, error } = await supabase
     .from("customers")
     .select("*, addresses(*), customer_members(*)")
     .eq("id", customerId)
+    // Same rule as the admin getCustomer: a member moved out to their own record is not family any more.
+    .is("customer_members.moved_out_at", null)
     .order("is_primary", { referencedTable: "addresses", ascending: false })
     .order("is_primary", { referencedTable: "customer_members", ascending: false })
     .single()
   if (error) throw error
-  return { ...data, health_condition: await getMyHealthCondition(customerId) }
-}
-
-/**
- * health_condition lives in customer_health_profile (not a customers column). The customer
- * reads their own row directly, via that table's own RLS (customer_health_profile_select_own).
- * Deploy-order safety: the table may not exist yet (42P01) — degrade to null.
- */
-export async function getMyHealthCondition(customerId: string): Promise<Enums<"household_health_level"> | null> {
-  const { data, error } = await supabase.from("customer_health_profile").select("health_condition").eq("customer_id", customerId).maybeSingle()
-  if (error) {
-    if (isUndefinedTableError(error)) return null
-    throw error
-  }
-  return data?.health_condition ?? null
+  return data
 }
 
 export async function updateMyProfession(customerId: string, profession: string) {

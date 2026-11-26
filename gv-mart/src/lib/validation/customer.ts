@@ -46,11 +46,8 @@ export const peopleStepSchema = z.object({
   members: z.array(memberSchema).min(1, "customers.errors.memberRequired").max(5, "customers.errors.memberMax"),
   primaryIndex: z.number().int().min(0),
   profession: z.string().trim().max(80).optional().or(z.literal("")),
-  // The account holder's own email (customers.email) -- distinct from a family member's own
-  // optional email above. Matched against on Google auto-onboard
-  // (customer_auto_onboard, 20261130100001) -- normalized trim+lowercase on save, same as the
-  // RPC's own lower(trim(...)) comparison, so a staff-entered email always matches correctly.
-  email: z.string().trim().max(254).refine((v) => v === "" || EMAIL_REGEX.test(v), "customers.errors.emailInvalid").optional(),
+  // No separate account-email field: the primary member's own email IS the account email (customers.email),
+  // kept in step by the DB (20261216120000_primary_member_sync.sql).
   // WhatsApp message language (customers.preferred_language); "" = not set (English).
   preferredLanguage: z.union([z.enum(["en", "ta"]), z.literal("")]).optional(),
   // Referral incentives — capture-at-creation only (never shown/edited in edit mode, per
@@ -67,30 +64,16 @@ export type PeopleStepInput = z.input<typeof peopleStepSchema>
 export const WATER_SOURCES = ["corporation", "borewater", "other"] as const
 export type WaterSource = (typeof WATER_SOURCES)[number]
 
-// Mirrors the public.household_health_level Postgres enum
-// (20261108100000_customer_water_profile.sql).
-export const HEALTH_CONDITION_LEVELS = ["none", "normal", "medium", "high"] as const
-export type HealthConditionLevel = (typeof HEALTH_CONDITION_LEVELS)[number]
+/** Cap on the "problems faced" list (DB check: customers_household_problems_check). */
+export const MAX_HOUSEHOLD_PROBLEMS = 10
 
 /**
- * Who may edit the water/household profile fields (water source/TDS/pH + health_condition) —
- * master, operation_admin and sales_admin, per FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md.
- * Mirrors the DB's actual enforcement (guard_water_profile_edit_roles trigger for the water
- * columns; is_staff() RLS for customer_health_profile) — this is only the UI-level gate
- * (show/hide edit controls), the DB is still the real authority either way.
+ * Who may edit the water/household profile fields (source/TDS/pH/hardness/problems faced) —
+ * master, operation_admin and sales_admin. Mirrors the DB's guard_water_profile_edit_roles
+ * trigger — this is only the UI-level gate, the DB is still the real authority.
  */
 export function canEditWaterHousehold(role: string | null | undefined): boolean {
   return role === "master" || role === "operation_admin" || role === "sales_admin"
-}
-
-/**
- * Whether a technician's job/history detail should even query/render the health_condition
- * row — gated on the org's show_health_condition_to_technicians setting (default off/absent,
- * fails closed). This is only the UI-level gate; get_customer_health_condition additionally
- * checks the technician actually has an appointment with that customer, server-side.
- */
-export function technicianCanSeeHealthCondition(showHealthConditionSetting: boolean | null | undefined): boolean {
-  return showHealthConditionSetting === true
 }
 
 /**
@@ -110,16 +93,44 @@ export const waterProfileSchema = z
       .union([z.number().min(0, "customers.errors.waterPhInvalid").max(14, "customers.errors.waterPhInvalid"), z.nan()])
       .optional(),
     waterTdsPpm: z.union([z.number().min(0, "customers.errors.waterTdsInvalid"), z.nan()]).optional(),
-    healthCondition: z
-      .union([z.enum(HEALTH_CONDITION_LEVELS), z.literal("")])
-      .optional()
-      .transform((v) => (v === "" ? undefined : v)),
+    waterHardnessPpm: z.union([z.number().min(0, "customers.errors.waterHardnessInvalid"), z.nan()]).optional(),
+    // One row per "+ add another" click. Blank rows are dropped on save (cleanHouseholdProblems),
+    // so an empty trailing input never blocks the form.
+    householdProblems: z
+      .array(z.object({ value: z.string().trim().max(100, "customers.errors.problemTooLong") }))
+      .max(MAX_HOUSEHOLD_PROBLEMS, "customers.errors.tooManyProblems")
+      .optional(),
+    // Water solution follow-up (build-docs/features/water-solution-followup.md). Blank = none.
+    recommendedSolution: z.string().trim().max(500, "customers.errors.solutionTooLong").optional().or(z.literal("")),
+    followUpDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "customers.errors.followUpDateInvalid"), z.literal("")]).optional(),
   })
   .refine((v) => !v.waterSourceOther || v.waterSource === "other", {
     message: "customers.errors.waterSourceOtherRequiresOther",
     path: ["waterSourceOther"],
   })
 export type WaterProfileInput = z.input<typeof waterProfileSchema>
+
+/**
+ * A follow-up date may be blank, unchanged from the saved one (even if that is now overdue), or today or later in
+ * IST. Mirrors set_customer_water_followup. Returns the i18n error key, or null when allowed.
+ */
+export function followUpDateError(date: string | undefined, savedDate: string | null | undefined, todayIst: string): string | null {
+  if (!date || date === savedDate) return null
+  return date < todayIst ? "customers.errors.followUpDatePast" : null
+}
+
+/** Trimmed, non-blank, de-duplicated (case-insensitive) problems — what gets saved. */
+export function cleanHouseholdProblems(rows: { value: string }[] | undefined): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const { value } of rows ?? []) {
+    const v = value.trim()
+    if (!v || seen.has(v.toLowerCase())) continue
+    seen.add(v.toLowerCase())
+    out.push(v)
+  }
+  return out
+}
 
 export const addressStepSchema = z.object({
   // The whole address is optional — a contact can be saved without one and is
@@ -149,11 +160,6 @@ export const addressStepSchema = z.object({
   ownership: z.enum(["own", "rental"], { message: "customers.errors.ownershipRequired" }).optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
-  // Water & household step (2026-11-03) — all optional, never block Save.
-  waterSource: z.string().trim().optional().or(z.literal("")),
-  waterTds: z.number().optional(),
-  waterPh: z.number().optional(),
-  healthCondition: z.string().trim().optional().or(z.literal("")),
 }).superRefine((v, ctx) => {
   if (!hasAddressDetails(v)) return
   if (!v.addressType) ctx.addIssue({ code: "custom", path: ["addressType"], message: "customers.errors.addressTypeRequired" })
