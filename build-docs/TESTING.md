@@ -73,6 +73,6 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 
 ## quick-add F3a: complaint name — 2026-11-26
 - `src/lib/quickAdd.test.ts`: 6/6 pass (offer only new names, dedupe case/space-insensitive, blank, 120-char limit).
-- `supabase/tests/quick_add_complaint_type.test.sql`: written, NOT RUN (live DB write rule). It covers ACL (no anon/PUBLIC), ops add, dedupe, cross-org isolation, sales/tech rejected, blank/long/null-category, RLS unchanged. It ends in RAISE RESULTS, so it is safe to run as migration+test in one request after GO APPLY.
+- `supabase/tests/quick_add_complaint_type.test.sql`: **11/11 PASS on live, 2026-11-26**, run alone (not concatenated) after apply. Before/after counts identical (test orgs 0, complaint_types 71, test users 0, profiles 14), so nothing persisted. It covers ACL (no anon/PUBLIC), ops add, dedupe, cross-org isolation, sales/tech rejected, blank/long/null-category, RLS unchanged. It ends in RAISE RESULTS, so it is safe to run as migration+test in one request after GO APPLY.
 - Regression: full suite 1103 pass / 2 fail. The failures are the same 2 WhatsApp tests that were already failing on origin/main.
-- Until the migration is applied, "+ Add" shows the error toast and keeps the typed text (graceful). Don't merge to main before applying.
+- Migration applied live 2026-11-26 on owner's "go apply". ACL verified: anon no, authenticated yes, no PUBLIC grant.

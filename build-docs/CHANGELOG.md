@@ -88,4 +88,5 @@
 ## quick-add F3a: complaint name — 2026-11-26
 - `Autocomplete` gains optional `onCreate`/`createLabel`/`creating` ("+ Add" last option, keyboard reachable).
 - New Complaint → Name of complaint: master/operation_admin can save a typed name to the product category's master list.
-- Migration `20261226100000_quick_add_complaint_type.sql` (SECURITY DEFINER RPC, ops-only, dedupe + advisory lock, anon revoked): **built, not applied**.
+- Migration `20261226100000_quick_add_complaint_type.sql` (SECURITY DEFINER RPC, ops-only, dedupe + advisory lock, anon revoked): **applied live 2026-11-26**, version registered.
+- Data: archived duplicate product "ROP WALLMOUNT FILTER (WITHOUT RO)" (c95e5351, zero references, 0 stock) on owner request; "ROP WALLMOUNT FILTER WITHOUT RO" kept.
