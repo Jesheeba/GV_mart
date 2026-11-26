@@ -873,7 +873,7 @@ export type Database = {
           id: string
           org_id: string
           address_id: string
-          event: "verified" | "reset"
+          event: "verified" | "reset" | "corrected"
           technician_id: string | null
           actor_profile_id: string | null
           ticket_id: string | null
@@ -6761,6 +6761,7 @@ export type Database = {
           // Group C (technician arrival geofence, 2026-09-15) — see
           // 20260915170000_technician_arrival_geofence_and_blocks.sql.
           geofence_radius_job_m: number
+          pin_autocorrect_max_m: number
           office_lat: number
           office_lng: number
           work_start: string
@@ -6864,6 +6865,7 @@ export type Database = {
           per_km_minutes?: number
           geofence_radius_m?: number
           geofence_radius_job_m?: number
+          pin_autocorrect_max_m?: number
           office_lat?: number
           office_lng?: number
           work_start?: string
@@ -6948,6 +6950,7 @@ export type Database = {
           per_km_minutes?: number
           geofence_radius_m?: number
           geofence_radius_job_m?: number
+          pin_autocorrect_max_m?: number
           office_lat?: number
           office_lng?: number
           work_start?: string
@@ -8128,6 +8131,16 @@ export type Database = {
           p_accuracy_m?: number | null
         }
         Returns: undefined
+      }
+      record_technician_pin_correction: {
+        Args: {
+          p_org_id: string
+          p_ticket_id: string
+          p_lat: number
+          p_lng: number
+          p_accuracy_m: number
+        }
+        Returns: string
       }
       reset_address_location_verification: {
         Args: { p_address_id: string; p_reason: string }

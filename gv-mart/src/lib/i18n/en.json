@@ -735,6 +735,8 @@
         "autoLocating": "Locating from the address above…",
         "pinned": "Location pinned",
         "notPinned": "Exact location not pinned",
+        "verifiedChip": "Verified on site",
+        "correctedChip": "Corrected by technician — confirms next visit",
         "pinRequired": "This address has no confirmed pin yet — search or drag the pin below so the technician navigates to the right place.",
         "pinOptionalMasterNote": "No exact pin yet — you can save without one, but technicians won't get a map location for this address until it's pinned.",
         "searchPlaceholder": "Search for the address…",
@@ -3298,7 +3300,7 @@
       "noDestinationBody": "Open this from a job card to navigate to a customer.",
       "goToHome": "Go to today's jobs",
       "noPinTitle": "Exact location not pinned",
-      "noPinBody": "This customer's address has no confirmed map pin yet — ask the office to add one.",
+      "noPinBody": "This address has no map pin yet. Once you are at the customer, take a selfie and start — your location becomes the pin.",
       "jobClosedTitle": "This job is already completed",
       "jobClosedBody": "It's already been finished and rated — no need to navigate or start it again.",
       "distance": "Distance",
@@ -3317,6 +3319,13 @@
       "continueToService": "Continue to service",
       "arrivedButton": "I've arrived",
       "arrivedOutsideGeofence": "Move within {{radius}} m of the customer to mark arrival.",
+      "pinWrongButton": "I'm at the customer — pin is wrong",
+      "pinWrongNote": "The saved pin is {{km}} km away. Starting here moves the customer's pin to your location; the next visit confirms it.",
+      "pinMissingButton": "I'm at the customer — start here",
+      "pinMissingNote": "Your location becomes the customer's pin; the next visit confirms it.",
+      "pinTooFar": "You are too far from the saved pin to correct it automatically. The office is alerted after 5 minutes — call them if you are at the customer.",
+      "pinFixTooCoarse": "Waiting for a more accurate GPS fix (within 75 m). Step outside or tap Refresh.",
+      "pinLockedOutside": "This location was verified on an earlier visit. Move within {{radius}} m of it, or ask a master to reset it.",
       "arrivedNoLocation": "Waiting for your location — arrival can't be confirmed yet."
     },
     "search": {
@@ -5674,6 +5683,7 @@
       "wa_lead_captured": "New WhatsApp lead",
       "customer_needs_review": "Customer needs account review",
       "arrival_location_mismatch": "Address may need a recheck",
+      "pin_autocorrected": "Customer pin corrected by technician",
       "arrival_location_mismatch_flood": "Multiple addresses need a recheck"
     }
   },

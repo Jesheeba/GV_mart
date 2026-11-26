@@ -2,6 +2,12 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## pin-autocorrect
+- 2026-11-26. vitest: `arrivalMode` (8 cases: AC1/4/5 + boundary) and `pinStatus` (6 cases), outbox contract, i18n parity all pass. Full serial suite 1098 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).
+- `tsc`: clean apart from the pre-existing unused `fullAddress` in CustomerFormPage.tsx (from origin/main, untouched).
+- `supabase/tests/pin_autocorrect.test.sql` (AC1-7) written, NOT run: needs the migration applied first ("GO APPLY").
+- NOT browser-verified: Chrome extension not connected and the `.env.test` master login was rejected on local dev.
+
 ## arrival-location-lock
 - 2026-11-26. `supabase/tests/arrival_location_lock.test.sql` run LIVE after apply, inside one DO block ending in RAISE (fully rolled back; verified afterwards: 0 events, 0 locked, no test rows, fixture pin/ticket unchanged). Result: ALL PASSED - AC1 lock+event (distance 50-60m), AC2 no second move, AC3 secondary locked with is_primary untouched and no new rows, AC4 out-of-radius / 120m accuracy not locked, AC5 direct lat/lng and verified_at changes rejected (master and postgres), AC6 text edit keeps pin, AC7 opadmin + blank reason rejected / master reset keeps pin + logs reason, AC8 other technician no-op + non-technician rejected, insert can't be pre-verified.
 - AC9 (post-apply read): anon has no EXECUTE on arrival/reset RPCs; authenticated can't insert events or execute the guard fn.

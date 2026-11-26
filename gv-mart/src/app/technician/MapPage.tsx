@@ -9,8 +9,8 @@ import { useProfile } from "@/hooks/useProfile"
 import { useDirectionsDistance } from "@/hooks/useMaps"
 import { useJobDetail, useMyTechnician, useStartVisit, useTechnicianSettings, useTodaysJobs } from "@/hooks/useTechnician"
 import { useGeoPermissionRecheck } from "@/hooks/useGeoPermissionRecheck"
-import { classifyGeoError, distanceKm, expectedMinutes, getCurrentPosition, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
-import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, queueArrivalAddressConfirm, queueArrivalBlock, selectNextJob } from "@/services/technician"
+import { arrivalMode, classifyGeoError, distanceKm, expectedMinutes, getCurrentPosition, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
+import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, queueArrivalAddressConfirm, queueArrivalBlock, queuePinCorrection, selectNextJob } from "@/services/technician"
 import { cn } from "@/lib/utils"
 import { addressLine } from "@/lib/address"
 import { PhotoCapture } from "./components/PhotoCapture"
@@ -148,6 +148,12 @@ export function MapPage() {
   // effect below, just evaluated on every render for the button's
   // disabled/guard checks rather than the sustained-proximity state machine.
   const insideArrivalGeofence = position != null && dest != null && isInsideGeofence(position, dest, arrivalRadiusM)
+  // Pin auto-correct (20261215100000): at the customer but the pin is wrong (within
+  // pin_autocorrect_max_m) or missing -> the technician may start, and their GPS becomes the pin.
+  // A pin already verified on site is never auto-corrected, so the hard block stands there.
+  const pinLocked = !!destAddress?.location_verified_at
+  const mode = arrivalMode(position, dest, arrivalRadiusM, settings.data?.pin_autocorrect_max_m ?? 2000, MAX_USABLE_ACCURACY_M)
+  const canCorrectPin = !!destTicketId && !destClosed && !pinLocked && !insideArrivalGeofence && mode === "correctable"
 
   // Deliberately `position` (the raw GPS fix), not `origin` — `origin` falls
   // back to OFFICE_LOCATION so selectNextJob above always has *some* start
@@ -164,21 +170,23 @@ export function MapPage() {
   // technician.data had loaded, and silently no-op forever.
   const handleArrivedRef = useRef<() => void>(() => {})
 
-  async function handleArrived() {
+  async function handleArrived(correctPin = false) {
     // Defense in depth beyond the button's `disabled` guard below — an
     // in-flight tap racing a fresh out-of-range position update (or a
     // programmatic call via handleArrivedRef, i.e. the auto-detect timer)
     // must not slip through. Task 6: the selfie requirement is enforced
     // here too, not just on the manual button, so the auto-detect timer
     // can't confirm arrival without one either.
-    if (arrivedRef.current || !destTicketId || !profile || !technician.data || destClosed || !insideArrivalGeofence || !arrivalSelfie) return
+    if (arrivedRef.current || !destTicketId || !profile || !technician.data || destClosed || !arrivalSelfie) return
+    if (!(correctPin ? canCorrectPin : insideArrivalGeofence)) return
     arrivedRef.current = true
     setArrived(true)
     setArrivedAt(Date.now())
     // Group C: only reachable once insideArrivalGeofence is true above, i.e.
     // a genuine in-radius arrival — not a workaround for being out of range.
     // Fire-and-forget for the same reason as startVisit below.
-    if (position) void queueArrivalAddressConfirm(profile.org_id, destTicketId, position.lat, position.lng, position.accuracy)
+    if (correctPin && position?.accuracy != null) void queuePinCorrection(profile.org_id, destTicketId, position.lat, position.lng, position.accuracy)
+    else if (position) void queueArrivalAddressConfirm(profile.org_id, destTicketId, position.lat, position.lng, position.accuracy)
     const existing = ticket?.service_visits ? findOpenVisit(ticket.service_visits) : null
     if (existing) {
       setArrivedAt(new Date(existing.timer_start!).getTime())
@@ -399,6 +407,64 @@ export function MapPage() {
   const minutes = String(Math.floor(elapsedSec / 60)).padStart(2, "0")
   const seconds = String(elapsedSec % 60).padStart(2, "0")
 
+  // Shared by the pinned and the no-pin layouts below.
+  const arrivalCard = (
+    <Card className="gap-3">
+      {arrived ? (
+        <div className="items-center gap-2 text-center">
+          <CheckCircle2 className="mx-auto size-8 text-success" />
+          <p className="text-sm font-semibold text-text">{t("technician.map.arrivedTitle")}</p>
+          <p className="font-mono text-2xl font-bold text-text">
+            {minutes}:{seconds}
+          </p>
+          <p className="text-xs text-text-muted">{t("technician.map.productivityTimerNote")}</p>
+          {destTicketId ? (
+            <Button type="button" className="mt-2 w-full" onClick={() => navigate(`/technician/jobs/${destTicketId}/visit`)}>
+              {t("technician.map.continueToService")}
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          {confirming ? <p className="text-center text-xs text-warning">{t("technician.map.confirmingArrivalNote")}</p> : null}
+          {/* Task 6 — arrival location verification: required before either
+              the manual button or the auto-detect timer can confirm arrival. */}
+          <PhotoCapture label={t("technician.map.arrivalSelfieLabel")} dataUrl={arrivalSelfie} onCaptured={setArrivalSelfie} />
+          {canCorrectPin ? (
+            <>
+              <Button type="button" variant="outline" disabled={startVisit.isPending || !arrivalSelfie} onClick={() => void handleArrived(true)}>
+                {t(dest ? "technician.map.pinWrongButton" : "technician.map.pinMissingButton")}
+              </Button>
+              <p className="text-center text-xs text-text-muted">
+                {dest && position ? t("technician.map.pinWrongNote", { km: distanceKm(position, dest).toFixed(1) }) : t("technician.map.pinMissingNote")}
+              </p>
+            </>
+          ) : dest ? (
+            <Button type="button" disabled={startVisit.isPending || !insideArrivalGeofence || !arrivalSelfie} onClick={() => void handleArrived()}>
+              {startVisit.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.map.arrivedButton")}
+            </Button>
+          ) : null}
+          {(insideArrivalGeofence || canCorrectPin) && !arrivalSelfie ? (
+            <p className="text-center text-xs text-text-muted">{t("technician.map.arrivalSelfieRequired")}</p>
+          ) : null}
+          {!insideArrivalGeofence && !canCorrectPin ? (
+            <p className="text-center text-xs text-text-muted">
+              {!position
+                ? t("technician.map.arrivedNoLocation")
+                : mode === "noFix"
+                  ? t("technician.map.pinFixTooCoarse")
+                  : mode === "tooFar"
+                    ? t("technician.map.pinTooFar")
+                    : pinLocked
+                      ? t("technician.map.pinLockedOutside", { radius: arrivalRadiusM })
+                      : t("technician.map.arrivedOutsideGeofence", { radius: arrivalRadiusM })}
+            </p>
+          ) : null}
+        </>
+      )}
+    </Card>
+  )
+
   return (
     <div className="space-y-4 pt-2">
       <h1 className="text-xl font-bold text-text">{t("technician.map.title")}</h1>
@@ -410,6 +476,7 @@ export function MapPage() {
           <p className="text-xs text-text-muted">{t("technician.map.jobClosedBody")}</p>
         </Card>
       ) : !dest ? (
+        <>
         <Card className="items-center gap-2 py-8 text-center">
           <MapPin className="size-8 text-text-muted" />
           <p className="text-sm font-medium text-text">
@@ -422,6 +489,8 @@ export function MapPage() {
             </Button>
           ) : null}
         </Card>
+        {destTicketId ? arrivalCard : null}
+        </>
       ) : (
         <>
           <Card className="gap-3">
@@ -507,41 +576,7 @@ export function MapPage() {
             </a>
           </Card>
 
-          <Card className="gap-3">
-            {arrived ? (
-              <div className="items-center gap-2 text-center">
-                <CheckCircle2 className="mx-auto size-8 text-success" />
-                <p className="text-sm font-semibold text-text">{t("technician.map.arrivedTitle")}</p>
-                <p className="font-mono text-2xl font-bold text-text">
-                  {minutes}:{seconds}
-                </p>
-                <p className="text-xs text-text-muted">{t("technician.map.productivityTimerNote")}</p>
-                {destTicketId ? (
-                  <Button type="button" className="mt-2 w-full" onClick={() => navigate(`/technician/jobs/${destTicketId}/visit`)}>
-                    {t("technician.map.continueToService")}
-                  </Button>
-                ) : null}
-              </div>
-            ) : (
-              <>
-                {confirming ? <p className="text-center text-xs text-warning">{t("technician.map.confirmingArrivalNote")}</p> : null}
-                {/* Task 6 — arrival location verification: required before either
-                    the manual button or the auto-detect timer can confirm arrival. */}
-                <PhotoCapture label={t("technician.map.arrivalSelfieLabel")} dataUrl={arrivalSelfie} onCaptured={setArrivalSelfie} />
-                <Button type="button" disabled={startVisit.isPending || !insideArrivalGeofence || !arrivalSelfie} onClick={() => void handleArrived()}>
-                  {startVisit.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.map.arrivedButton")}
-                </Button>
-                {insideArrivalGeofence && !arrivalSelfie ? (
-                  <p className="text-center text-xs text-text-muted">{t("technician.map.arrivalSelfieRequired")}</p>
-                ) : null}
-                {!insideArrivalGeofence ? (
-                  <p className="text-center text-xs text-text-muted">
-                    {position ? t("technician.map.arrivedOutsideGeofence", { radius: arrivalRadiusM }) : t("technician.map.arrivedNoLocation")}
-                  </p>
-                ) : null}
-              </>
-            )}
-          </Card>
+          {arrivalCard}
         </>
       )}
     </div>

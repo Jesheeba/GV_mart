@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { BatteryCharging, ChevronLeft, Droplet, FlaskConical, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, Trash2, UserPlus, Users, Wind, Wrench, Zap } from "lucide-react"
@@ -27,7 +28,8 @@ import { useReferrersForCustomers } from "@/hooks/useReferrals"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
-import { addressLocalityText } from "@/lib/address"
+import { addressLocalityText, pinStatus } from "@/lib/address"
+import { getLatestAddressLocationEvent } from "@/services/customers"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
@@ -125,6 +127,12 @@ export function CustomerDetailPage() {
   const customerReferrers = useReferrersForCustomers(id ? [id] : [])
   const referrer = customerReferrers.data?.[0] ?? null
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
+  const primaryAddressId = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.id
+  const latestPinEvent = useQuery({
+    queryKey: ["address-location-event", primaryAddressId],
+    queryFn: () => getLatestAddressLocationEvent(primaryAddressId!),
+    enabled: !!primaryAddressId,
+  })
   const tdsSuggestion = useCustomerTdsSuggestion(orgId, primaryDistrict)
   const measuredWater = useCustomerMeasuredWaterReading(orgId, customer?.id)
 
@@ -355,11 +363,12 @@ export function CustomerDetailPage() {
                         {t(`customers.form.${primaryAddress.address_type}`)} · {t(`customers.form.${primaryAddress.ownership}`)}
                       </span>
                       <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold">
-                        {primaryAddress.lat != null && primaryAddress.lng != null ? (
-                          <StatusDot tone="success" label={t("customers.form.map.pinned")} />
-                        ) : (
-                          <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
-                        )}
+                        {(() => {
+                          const status = pinStatus(primaryAddress, latestPinEvent.data)
+                          const tone = status === "verified" || status === "pinned" ? "success" : "warning"
+                          const key = { verified: "verifiedChip", corrected: "correctedChip", pinned: "pinned", notPinned: "notPinned" }[status]
+                          return <StatusDot tone={tone} label={t(`customers.form.map.${key}`)} />
+                        })()}
                       </span>
                       {primaryAddress.lat != null && primaryAddress.lng != null ? (
                         <AddressPinPreview lat={primaryAddress.lat} lng={primaryAddress.lng} />

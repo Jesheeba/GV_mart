@@ -1434,6 +1434,19 @@ export async function getTechnicianName(technicianId: string): Promise<string | 
   return profile?.full_name ?? null
 }
 
+/** Latest pin event for an address (pin-autocorrect chip). Staff-only via RLS. */
+export async function getLatestAddressLocationEvent(addressId: string) {
+  const { data, error } = await supabase
+    .from("address_location_events")
+    .select("event, new_lat, new_lng")
+    .eq("address_id", addressId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
 /** Master-only (enforced server-side). Lifts the lock but keeps the pin; the next technician arrival re-verifies it. */
 export async function resetVerifiedLocation(addressId: string, reason: string) {
   const { error } = await supabase.rpc("reset_address_location_verification", { p_address_id: addressId, p_reason: reason })

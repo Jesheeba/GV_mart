@@ -132,3 +132,28 @@ export function splitAddressForForm(
     legacyFullAddress: hasStructuredFields ? "" : (row?.full_address?.trim() ?? ""),
   }
 }
+
+export type PinStatus = "verified" | "corrected" | "pinned" | "notPinned"
+
+/**
+ * Customer-page pin chip (build-docs/features/pin-autocorrect.md). A technician correction only
+ * counts while the pin is still where they put it; an office edit afterwards makes it a plain pin.
+ * Tolerance because addresses.lat/lng are rounded to 6 decimals and event coords are not.
+ */
+export function pinStatus(
+  addr: { lat: number | null; lng: number | null; location_verified_at?: string | null },
+  latestEvent: { event: string; new_lat: number | null; new_lng: number | null } | null | undefined
+): PinStatus {
+  if (addr.lat == null || addr.lng == null) return "notPinned"
+  if (addr.location_verified_at) return "verified"
+  if (
+    latestEvent?.event === "corrected" &&
+    latestEvent.new_lat != null &&
+    latestEvent.new_lng != null &&
+    Math.abs(latestEvent.new_lat - addr.lat) < 1e-5 &&
+    Math.abs(latestEvent.new_lng - addr.lng) < 1e-5
+  ) {
+    return "corrected"
+  }
+  return "pinned"
+}

@@ -38,6 +38,8 @@ export type OutboxKind =
   // best-effort visibility log, not a gate.
   | "location.arrival_address_confirm"
   | "location.arrival_block"
+  // Pin auto-correct (20261215100000): technician at the customer, outside a wrong pin's radius.
+  | "location.pin_correction"
   // Technician KPI section (2026-09-22) — see log_technician_google_review in
   // 20260922120000_technician_kpi_review_attribution.sql.
   | "customer_member.google_review"

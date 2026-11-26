@@ -1,5 +1,10 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## pin-autocorrect (2026-11-26)
+- A technician at the customer but outside a wrong (up to 2 km) or missing pin can start the job. Their GPS becomes the pin automatically, with no office approval. The next in-radius arrival locks it.
+- Migration `20261215100000_pin_autocorrect.sql` (NOT applied): `settings.pin_autocorrect_max_m`, event `corrected`, RPC `record_technician_pin_correction`, FYI notification `pin_autocorrected`. Rollback in `supabase/rollbacks/`.
+- App: MapPage "pin is wrong" / "start here" flow plus a reason when blocked; new outbox kind; customer header pin chip (verified / corrected / pinned / not pinned). en/ta strings.
+
 ## arrival-location-lock (2026-11-26)
 - Migration `20261214100000_arrival_location_lock.sql` APPLIED LIVE 2026-11-26 (owner: "go apply"), one transaction, version registered by hand. Rollback file alongside.
 - First in-radius technician arrival locks the address pin (addresses.location_verified_at/by) and logs old vs new pin + distance in new `address_location_events`.
