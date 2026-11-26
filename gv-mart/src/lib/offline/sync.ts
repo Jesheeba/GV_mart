@@ -237,6 +237,7 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_ticket_id: p.ticketId as string,
         p_lat: p.lat as number,
         p_lng: p.lng as number,
+        p_accuracy_m: (p.accuracyM as number | null | undefined) ?? null,
       })
       if (error) throw error
       return

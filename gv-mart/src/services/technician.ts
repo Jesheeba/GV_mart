@@ -615,8 +615,10 @@ export async function queueLocationPing(orgId: string, technicianId: string, lat
 // proven inside the job-visit radius. Not a workaround for being out of
 // range: that case can never reach this call at all, since handleArrived's
 // own guard (insideArrivalGeofence) blocks it first.
-export async function queueArrivalAddressConfirm(orgId: string, ticketId: string, lat: number, lng: number) {
-  await enqueue("location.arrival_address_confirm", { orgId, ticketId, lat, lng })
+// accuracyM (metres) lets the server refuse to lock the address on a poor fix (> 75m) — see
+// 20261214100000_arrival_location_lock.sql. Optional: items queued before this change omit it.
+export async function queueArrivalAddressConfirm(orgId: string, ticketId: string, lat: number, lng: number, accuracyM?: number) {
+  await enqueue("location.arrival_address_confirm", { orgId, ticketId, lat, lng, accuracyM: accuracyM ?? null })
 }
 
 /**

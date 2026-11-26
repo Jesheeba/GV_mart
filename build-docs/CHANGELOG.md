@@ -1,5 +1,11 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## arrival-location-lock (2026-11-26)
+- Migration `20261214100000_arrival_location_lock.sql` APPLIED LIVE 2026-11-26 (owner: "go apply"), one transaction, version registered by hand. Rollback file alongside.
+- First in-radius technician arrival locks the address pin (addresses.location_verified_at/by) and logs old vs new pin + distance in new `address_location_events`.
+- Arrival RPC re-checks geofence + accuracy (<= 75m) server-side; no longer swaps a secondary address to primary (removes the copy bug that dropped full_address/sub_area/zone/water_*).
+- `reset_address_location_verification` (master only, reason required). Guard trigger blocks every other change to a locked pin / verified_* columns.
+- App: MapPage sends GPS accuracy; office form shows `VerifiedLocationCard` (read-only, master reset) and never sends lat/lng for a locked address; customer app hides re-pin and shows "Location verified by our technician". en/ta strings.
 ## customer-form-map-search-prefill (2026-11-25)
 - Map search box on the customer Address step now mirrors the typed address fields (door/street/area/PIN/district/state) -- no retyping.
 - Mirrored text never auto-opens suggestions or spends a Places call; focusing the pre-filled box searches it once. User-typed text searches live as before.

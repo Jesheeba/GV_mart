@@ -46,3 +46,10 @@
 - Pins are manual (user-chosen), not auto-ranked by usage.
 - Storage: localStorage `gv_mart_admin_sidebar_pins:<profile.id>` — user chose browser-only over a DB prefs table (no migration; pins don't sync across devices).
 - Pinned items stay in their original group too (user's choice) — nothing moves.
+
+## Arrival location lock (2026-11-26, owner decisions)
+- First confirmed technician arrival locks an address's pin as final; later arrivals never move it. Doc: `features/arrival-location-lock.md`.
+- Only master can reset (reason required); next arrival re-locks.
+- Arrival at a secondary address no longer makes it primary (replaces swap+copy, which also dropped full_address/sub_area/zone/water_*).
+- Address text edits never clear a locked pin.
+- Arrival-mismatch alert migration 20261212120000 verified LIVE 2026-11-26 (function md5 matches file, trigger enabled, 0 block rows so far).

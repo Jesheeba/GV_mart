@@ -848,6 +848,8 @@ export async function upsertPrimaryAddress(
     ownership: Enums<"ownership_type">
     lat?: number
     lng?: number
+    /** True when the address's pin is technician-verified (locked): lat/lng are left out of the write entirely — the DB guard rejects any change to them. */
+    keepLocation?: boolean
     waterSource?: string
     waterTds?: number
     waterPh?: number
@@ -869,8 +871,7 @@ export async function upsertPrimaryAddress(
     zone: patch.zone || null,
     address_type: patch.addressType,
     ownership: patch.ownership,
-    lat: patch.lat ?? null,
-    lng: patch.lng ?? null,
+    ...(patch.keepLocation ? {} : { lat: patch.lat ?? null, lng: patch.lng ?? null }),
     water_source: patch.waterSource || null,
     water_tds: patch.waterTds ?? null,
     water_ph: patch.waterPh ?? null,
@@ -1421,5 +1422,20 @@ export async function setCustomerPreferredLanguage(customerId: string, language:
   // RPC, not a table UPDATE: the customers write policy covers master and sales_admin only, so an operations-only
   // user's direct UPDATE would silently change nothing.
   const { error } = await supabase.rpc("set_customer_preferred_language", { p_customer_id: customerId, p_language: language })
+  if (error) throw error
+}
+
+// ── Arrival location lock (20261214100000) ──────────────────────────────
+
+export async function getTechnicianName(technicianId: string): Promise<string | null> {
+  const { data, error } = await supabase.from("technicians").select("profiles(full_name)").eq("id", technicianId).maybeSingle()
+  if (error) throw error
+  const profile = (data as { profiles: { full_name: string | null } | null } | null)?.profiles
+  return profile?.full_name ?? null
+}
+
+/** Master-only (enforced server-side). Lifts the lock but keeps the pin; the next technician arrival re-verifies it. */
+export async function resetVerifiedLocation(addressId: string, reason: string) {
+  const { error } = await supabase.rpc("reset_address_location_verification", { p_address_id: addressId, p_reason: reason })
   if (error) throw error
 }

@@ -867,6 +867,29 @@ export type Database = {
           },
         ]
       }
+      // Added 20261214100000 (arrival location lock) -- post-dates the last database.ts regen.
+      address_location_events: {
+        Row: {
+          id: string
+          org_id: string
+          address_id: string
+          event: "verified" | "reset"
+          technician_id: string | null
+          actor_profile_id: string | null
+          ticket_id: string | null
+          prev_lat: number | null
+          prev_lng: number | null
+          new_lat: number | null
+          new_lng: number | null
+          distance_m: number | null
+          accuracy_m: number | null
+          reason: string | null
+          created_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       addresses: {
         Row: {
           id: string
@@ -896,6 +919,9 @@ export type Database = {
           // browser geolocation accuracy (metres) when it came from "use my current location".
           pinned_at: string | null
           location_accuracy_m: number | null
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at: string | null
+          location_verified_by: string | null
           address_type: Database["public"]["Enums"]["address_type"]
           ownership: Database["public"]["Enums"]["ownership_type"]
           is_primary: boolean
@@ -931,6 +957,9 @@ export type Database = {
           lng?: number | null
           pinned_at?: string | null
           location_accuracy_m?: number | null
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at?: string | null
+          location_verified_by?: string | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
@@ -963,6 +992,9 @@ export type Database = {
           lng?: number | null
           pinned_at?: string | null
           location_accuracy_m?: number | null
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at?: string | null
+          location_verified_by?: string | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
@@ -8093,7 +8125,12 @@ export type Database = {
           p_ticket_id: string
           p_lat: number
           p_lng: number
+          p_accuracy_m?: number | null
         }
+        Returns: undefined
+      }
+      reset_address_location_verification: {
+        Args: { p_address_id: string; p_reason: string }
         Returns: undefined
       }
       create_service_invoice: {

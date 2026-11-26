@@ -178,7 +178,7 @@ export function MapPage() {
     // Group C: only reachable once insideArrivalGeofence is true above, i.e.
     // a genuine in-radius arrival — not a workaround for being out of range.
     // Fire-and-forget for the same reason as startVisit below.
-    if (position) void queueArrivalAddressConfirm(profile.org_id, destTicketId, position.lat, position.lng)
+    if (position) void queueArrivalAddressConfirm(profile.org_id, destTicketId, position.lat, position.lng, position.accuracy)
     const existing = ticket?.service_visits ? findOpenVisit(ticket.service_visits) : null
     if (existing) {
       setArrivedAt(new Date(existing.timer_start!).getTime())

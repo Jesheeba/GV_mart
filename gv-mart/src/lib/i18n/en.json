@@ -723,6 +723,14 @@
       "back": "Back",
       "next": "Next",
       "map": {
+        "verifiedOnSite": "Verified on site by {{name}} on {{date}}",
+        "verifiedTechnicianFallback": "a technician",
+        "verifiedLockedNote": "This location is locked as final and can't be changed here.",
+        "verifiedOpenInMaps": "Open in Google Maps",
+        "resetVerified": "Reset verified location",
+        "resetReasonLabel": "Reason for reset",
+        "resetReasonPlaceholder": "e.g. Customer moved to a new house",
+        "resetConfirm": "Reset location",
         "title": "Pin location on map",
         "autoLocating": "Locating from the address above…",
         "pinned": "Location pinned",
@@ -2554,6 +2562,7 @@
       "productRequired": "Select a product"
     },
     "profile": {
+      "locationVerified": "Location verified by our technician",
       "title": "Profile",
       "edit": "Edit",
       "notSet": "Not set",
