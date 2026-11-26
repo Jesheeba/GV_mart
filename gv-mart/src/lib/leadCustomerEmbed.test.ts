@@ -7,28 +7,35 @@ import { describe, expect, it } from "vitest"
  * from customers) with PGRST201 "more than one relationship", which broke the
  * leads list in production. The generated types don't catch it, so this test does.
  */
+// Vite raw-text glob (typed by vite/client) instead of node:fs: src is not typed for Node builtins,
+// so node:fs broke `tsc -b` (npm run build). Same approach as waOutboxSentGuard.test.ts.
 const sources = {
   ...import.meta.glob(["../**/*.{ts,tsx}", "!../**/*.test.{ts,tsx}"], { query: "?raw", import: "default", eager: true }),
   ...import.meta.glob(["../../supabase/functions/**/*.ts", "!../../supabase/functions/**/*.test.ts"], { query: "?raw", import: "default", eager: true }),
 } as Record<string, string>
 
-function unhintedEmbeds(table: string, embedded: RegExp): string[] {
-  const bad: string[] = []
-  const from = new RegExp(`from\\(\\s*["']${table}["']\\s*\\)[\\s\\S]{0,400}?\\.select\\(\\s*(["'\`])([\\s\\S]*?)\\1`, "g")
-  for (const [file, text] of Object.entries(sources)) {
-    for (const m of text.matchAll(from)) if (embedded.test(m[2])) bad.push(`${file}: ${m[2].slice(0, 80)}`)
-  }
-  return bad
-}
-
 describe("leads <-> customers embeds name the foreign key", () => {
-  it("scans the app and edge-function sources", () => {
+  it("the glob actually found source files (guards against a silently empty scan)", () => {
     expect(Object.keys(sources).length).toBeGreaterThan(100)
   })
+
   it("every from('leads') select embedding customers uses customers!<fkey>(...)", () => {
-    expect(unhintedEmbeds("leads", /(^|[^!\w])customers(!inner)?\(/)).toEqual([])
+    const bad: string[] = []
+    for (const [f, text] of Object.entries(sources)) {
+      for (const m of text.matchAll(/from\(\s*["']leads["']\s*\)([\s\S]{0,400}?)\.select\(\s*(["'`])([\s\S]*?)\2/g)) {
+        if (/(^|[^!\w])customers(!inner)?\(/.test(m[3])) bad.push(`${f}: ${m[3].slice(0, 80)}`)
+      }
+    }
+    expect(bad).toEqual([])
   })
-  it("every from('customers') select embedding leads or customers uses !<fkey>", () => {
-    expect(unhintedEmbeds("customers", /(^|[^!\w])(leads|customers)(!inner)?\(/)).toEqual([])
+
+  it("every from('customers') select embedding leads uses leads!<fkey>(...)", () => {
+    const bad: string[] = []
+    for (const [f, text] of Object.entries(sources)) {
+      for (const m of text.matchAll(/from\(\s*["']customers["']\s*\)([\s\S]{0,400}?)\.select\(\s*(["'`])([\s\S]*?)\2/g)) {
+        if (/(^|[^!\w])(leads|customers)(!inner)?\(/.test(m[3])) bad.push(`${f}: ${m[3].slice(0, 80)}`)
+      }
+    }
+    expect(bad).toEqual([])
   })
 })

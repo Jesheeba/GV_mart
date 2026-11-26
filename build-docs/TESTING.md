@@ -1,5 +1,10 @@
 # TESTING — Leads Dashboard Enhancement
 
+## build fix: leadCustomerEmbed.test.ts (2026-11-26)
+- `tsc -b` (npm run build) failed on main: the test used node:fs/__dirname, and src is not typed for Node. Switched it to Vite `import.meta.glob(?raw)` like waOutboxSentGuard.test.ts.
+- Added a check that the glob finds more than 100 files. Mutation check: a planted un-hinted `customers(...)` embed failed the test; after removing it, 3/3 pass.
+- `npm run build` exit 0. Full vitest: 1395 passed, 2 failed. Both failures also fail on main.
+
 ## gst-everywhere (2026-11-26)
 - `src/lib/gstEverywhere.test.ts` (E1-E5): 10/10. Numbers match the SQL test so the screen total equals the server invoice.
 - `tsc -p tsconfig.app.json` clean. Full vitest: 1392 passed, 2 failed. Both failures (waOutboxSentGuard, wa-event-context) also fail on main.

@@ -1,5 +1,8 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## build fix (2026-11-26)
+- `npm run build` was broken on main by leadCustomerEmbed.test.ts (node:fs). Fixed with Vite raw glob; the guard behaves the same.
+
 ## gst-everywhere (2026-11-26)
 - Fix: the technician on-site invoice and AMC screens now show and collect the GST-inclusive total (it was 18% short of the invoice).
 - Per-bill GST Included/Extra switch on technician on-site invoice + AMC, Rent Out (kept per contract for monthly bills) and admin Sell AMC.
