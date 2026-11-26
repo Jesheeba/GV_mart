@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast-context"
+import { LeadOptionQuickAdd } from "./LeadOptionQuickAdd"
 import { useProfile } from "@/hooks/useProfile"
 import { useUpdateLeadDetails } from "@/hooks/useAutomation"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
@@ -187,22 +188,28 @@ export function EditLeadDialog({ lead, open, onOpenChange, onDone }: { lead: Edi
               {errors.source ? <p className="text-xs text-danger">{errors.source}</p> : null}
             </div>
           ) : (
-            <ChoiceSelect
-              id="edit-lead-source"
-              label={t("leads.new.source")}
-              value={source}
-              options={sourceOptions.map((s) => ({ value: s.key, label: sourceLabel(s.key) }))}
-              onChange={setSource}
-              error={errors.source}
-            />
+            <div className="space-y-1.5">
+              <ChoiceSelect
+                id="edit-lead-source"
+                label={t("leads.new.source")}
+                value={source}
+                options={sourceOptions.map((s) => ({ value: s.key, label: sourceLabel(s.key) }))}
+                onChange={setSource}
+                error={errors.source}
+              />
+              <LeadOptionQuickAdd list="source" onAdded={setSource} />
+            </div>
           )}
-          <ChoiceSelect
-            id="edit-lead-product-type"
-            label={t("leads.new.productCategory")}
-            value={productType}
-            options={activeProductTypes.map((p) => ({ value: p.key, label: productTypeLabel(p.key) }))}
-            onChange={setProductType}
-          />
+          <div className="space-y-1.5">
+            <ChoiceSelect
+              id="edit-lead-product-type"
+              label={t("leads.new.productCategory")}
+              value={productType}
+              options={activeProductTypes.map((p) => ({ value: p.key, label: productTypeLabel(p.key) }))}
+              onChange={setProductType}
+            />
+            <LeadOptionQuickAdd list="product_type" onAdded={setProductType} />
+          </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="edit-lead-notes">{t("leads.new.notes")}</Label>
             <textarea

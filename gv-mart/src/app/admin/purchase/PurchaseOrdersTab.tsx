@@ -10,6 +10,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
 import { useCreatePurchaseOrder, useMarkPoPaid, usePoItems, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
+import { SupplierQuickAdd } from "./SupplierQuickAdd"
 import { PoReceiptForm } from "./PoReceiptForm"
 import { emptyPoItem, isCompletePoItem, type PoItemDraft } from "@/lib/validation/automation"
 import type { PurchaseOrderListItem } from "@/services/automation"
@@ -130,6 +131,7 @@ export function PurchaseOrdersTab() {
                 </option>
               ))}
             </select>
+            <SupplierQuickAdd orgId={orgId} onAdded={setSupplierId} />
           </div>
           <PoItemRows orgId={orgId} items={items} onChange={setItems} />
           {createPo.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createPo.error as Error).message}</p> : null}

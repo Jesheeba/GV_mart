@@ -105,6 +105,8 @@
     "toggleGroup": "Show or hide {{group}}"
   },
   "common": {
+    "addNew": "Add new",
+    "quickAddFailed": "Couldn't add it. Try again.",
     "chooseOption": "Choose an option",
     "notSet": "Not set",
     "quickAdd": "Add “{{text}}”",
@@ -3738,6 +3740,13 @@
     }
   },
   "leads": {
+    "quickAdd": {
+      "sourcePlaceholder": "New source, e.g. Instagram",
+      "kindPlaceholder": "New lead category",
+      "productTypePlaceholder": "New product type",
+      "archived": "This option exists but is turned off. Ask the master to turn it on in Masters.",
+      "notAllowed": "Only master and sales admin can add options."
+    },
     "subtitle": "Track enquiries from field, WhatsApp, referrals and the customer app through to a won or lost sale.",
     "loadFailed": "Could not load leads.",
     "empty": "No leads yet.",
@@ -4491,6 +4500,10 @@
     }
   },
   "purchase": {
+    "quickAdd": {
+      "supplierPlaceholder": "New supplier name",
+      "supplierHint": "Add their WhatsApp number later in Suppliers."
+    },
     "subtitle": "Purchase orders auto-draft when stock runs low, or create one manually; record supplier bills here.",
     "loadFailed": "Could not load purchase data.",
     "tabs": {

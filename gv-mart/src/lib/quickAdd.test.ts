@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { normalizeLabel, quickAddText } from "./quickAdd"
+import { findByLabel, normalizeLabel, quickAddText } from "./quickAdd"
 
 describe("quick-add AC: offer '+ Add' only for a genuinely new name", () => {
   it("new name is offered, normalised like the RPC (trim + collapse spaces)", () => {
@@ -24,5 +24,15 @@ describe("quick-add edge cases", () => {
   })
   it("normalizeLabel collapses tabs/newlines", () => {
     expect(normalizeLabel("\tLeak\n at  tap ")).toBe("Leak at tap")
+  })
+})
+
+describe("quick-add F3b: findByLabel picks an existing entry instead of a duplicate", () => {
+  const suppliers = [{ id: "1", name: "Aqua Traders" }, { id: "2", name: "Kent Distributor" }]
+  it("matches ignoring case and extra spaces", () => {
+    expect(findByLabel(suppliers, (s) => s.name, "  aqua   TRADERS ")?.id).toBe("1")
+  })
+  it("no match → undefined (caller creates a new one)", () => {
+    expect(findByLabel(suppliers, (s) => s.name, "Aqua")).toBeUndefined()
   })
 })

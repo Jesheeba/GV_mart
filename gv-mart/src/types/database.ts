@@ -7718,6 +7718,10 @@ export type Database = {
       }
     }
     Functions: {
+      quick_add_lead_option: {
+        Args: { p_list: string; p_label: string }
+        Returns: string
+      }
       quick_add_complaint_type: {
         Args: { p_label: string; p_category: Database["public"]["Enums"]["brand_category"] }
         Returns: Database["public"]["Tables"]["complaint_types"]["Row"]

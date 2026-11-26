@@ -252,6 +252,15 @@ export const complaintTypesHooks = entityHooks("complaint_types", {
   remove: masters.deleteComplaintType,
 })
 
+const LEAD_OPTION_QUERY_KEY = { source: "lead_sources", kind: "lead_kinds", product_type: "lead_product_types" } as const
+export function useQuickAddLeadOption(list: masters.LeadOptionList) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (label: string) => masters.quickAddLeadOption(list, label),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [LEAD_OPTION_QUERY_KEY[list], "list"] }),
+  })
+}
+
 export function useQuickAddComplaintType() {
   const qc = useQueryClient()
   return useMutation({

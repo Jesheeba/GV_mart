@@ -12,6 +12,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
 import { useCreateBillEntry, useLastBillEntry, usePurchaseBills, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
+import { SupplierQuickAdd } from "./SupplierQuickAdd"
 import { emptyPoItem, isCompletePoItem, type PoItemDraft } from "@/lib/validation/automation"
 import { billCategorySchema, expenseCategories } from "@/lib/validation/reports"
 import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
@@ -120,6 +121,7 @@ export function BillEntryTab() {
                 </option>
               ))}
             </select>
+            <SupplierQuickAdd orgId={orgId} onAdded={setSupplierId} />
           </div>
           <div className="space-y-1.5">
             <Label>{t("purchase.bill.linkedPo")}</Label>

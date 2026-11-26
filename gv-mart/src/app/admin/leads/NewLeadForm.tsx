@@ -11,6 +11,7 @@ import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
 import { ReferredBySection } from "./ReferredBySection"
 import { useToast } from "@/components/ui/toast-context"
+import { LeadOptionQuickAdd } from "./LeadOptionQuickAdd"
 import { useCreateLead } from "@/hooks/useAutomation"
 import { useDuplicateContactWarning } from "@/hooks/useCustomers"
 import { leadSchema, type LeadInput } from "@/lib/validation/automation"
@@ -146,15 +147,18 @@ export function NewLeadForm({
             />
           </div>
         ) : null}
-        <ChoiceSelect
-          id="lead-source"
-          className="space-y-0.5"
-          label={t("leads.new.source")}
-          value={source}
-          options={activeSources.map((s) => ({ value: s.key, label: sourceLabel(s.key) }))}
-          onChange={(v) => form.setValue("source", v, { shouldValidate: true })}
-          error={form.formState.errors.source ? t(form.formState.errors.source.message!) : undefined}
-        />
+        <div className="space-y-0.5">
+          <ChoiceSelect
+            id="lead-source"
+            className="space-y-0.5"
+            label={t("leads.new.source")}
+            value={source}
+            options={activeSources.map((s) => ({ value: s.key, label: sourceLabel(s.key) }))}
+            onChange={(v) => form.setValue("source", v, { shouldValidate: true })}
+            error={form.formState.errors.source ? t(form.formState.errors.source.message!) : undefined}
+          />
+          <LeadOptionQuickAdd list="source" onAdded={(key) => form.setValue("source", key, { shouldDirty: true, shouldValidate: true })} />
+        </div>
         {/* Sits next to Source in the grid: appears only when the chosen
             source has a referrer to capture, taking Source's row -- when it
             renders nothing (most sources), the field after this one simply
@@ -169,22 +173,28 @@ export function NewLeadForm({
           referredByPhone={form.watch("referredByPhone") ?? ""}
           onReferredByPhoneChange={(next) => form.setValue("referredByPhone", next)}
         />
-        <ChoiceSelect
-          id="lead-product-category"
-          className="space-y-0.5"
-          label={t("leads.new.productCategory")}
-          value={form.watch("productCategory")}
-          options={activeProductTypes.map((p) => ({ value: p.key, label: productTypeLabel(p.key) }))}
-          onChange={(v) => form.setValue("productCategory", v)}
-        />
-        <ChoiceSelect
-          id="lead-kind"
-          className="space-y-0.5"
-          label={t("leads.new.kind")}
-          value={form.watch("kind")}
-          options={activeKinds.map((k) => ({ value: k.key, label: kindLabel(k.key) }))}
-          onChange={(v) => form.setValue("kind", v)}
-        />
+        <div className="space-y-0.5">
+          <ChoiceSelect
+            id="lead-product-category"
+            className="space-y-0.5"
+            label={t("leads.new.productCategory")}
+            value={form.watch("productCategory")}
+            options={activeProductTypes.map((p) => ({ value: p.key, label: productTypeLabel(p.key) }))}
+            onChange={(v) => form.setValue("productCategory", v)}
+          />
+          <LeadOptionQuickAdd list="product_type" onAdded={(key) => form.setValue("productCategory", key, { shouldDirty: true, shouldValidate: true })} />
+        </div>
+        <div className="space-y-0.5">
+          <ChoiceSelect
+            id="lead-kind"
+            className="space-y-0.5"
+            label={t("leads.new.kind")}
+            value={form.watch("kind")}
+            options={activeKinds.map((k) => ({ value: k.key, label: kindLabel(k.key) }))}
+            onChange={(v) => form.setValue("kind", v)}
+          />
+          <LeadOptionQuickAdd list="kind" onAdded={(key) => form.setValue("kind", key, { shouldDirty: true, shouldValidate: true })} />
+        </div>
         <div className="space-y-0.5">
           <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
           <Input id="lead-budget" type="number" inputMode="decimal" min={0} className={cn("h-8 px-2.5", FIELD_W.amount)} {...form.register("budget")} />
