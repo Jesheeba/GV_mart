@@ -60,6 +60,14 @@
 - Address text edits never clear a locked pin.
 - Arrival-mismatch alert migration 20261212120000 verified LIVE 2026-11-26 (function md5 matches file, trigger enabled, 0 block rows so far).
 
+## UX pass build decisions + open bugs (2026-11-26)
+- Admin address type/ownership are required only when the address has details (text or pin), mirroring the RPC's has_address.
+- Two-option selects that were already selects (role, availability, bike ownership, adjustments) keep the select + "Select…" (not converted to buttons).
+- An outcome's configured default_followup_type still pre-fills the next follow-up type (it's master config, not a UI guess).
+- OPEN, owner decision: OnSiteVisitPage payment method is still pre-set to cash. The invoice is queued on the invoice step BEFORE the payment step shows the method, so every on-site invoice records cash (and no transfer txn id) whatever the technician picks later. Fix = move method + txn onto the invoice step, unchosen + required.
+- OPEN bug: `servicePaymentSchema` accepts only cash/transfer, but the on-site page offers UPI when payment_enabled, so a UPI visit can't be completed.
+- Known, not from this pass: Leads page at 390px clips an inner container (document doesn't overflow).
+
 ## UX pass decisions (2026-11-26)
 - Owner asked for every either/or to be a dropdown with "Not set". Challenged: the bug is pre-selection, and dropdowns add taps. Owner approved: 2–3 options = buttons with nothing selected + required; 4+ = "Select…" dropdown; optional = "Not set". Existing data untouched.
 - Input density: fix widths, not heights (40px touch targets kept).

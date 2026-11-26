@@ -1,5 +1,11 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## UX pass (2026-11-26): choice-no-preselect, input-density, date-display, header wrap fix
+- choice-no-preselect (ad28862): address type/ownership (admin + customer app, now the same buttons), payment method (New Sale, Record payment, Rent out, Sell AMC), follow-up type/channel, availability reason, HR/expenses selects, purchase/master item types start unchosen and are required. EntityCrudTable: "Select…" placeholder + required, `defaultValue` keeps Active/pending/No where the DB default matches. New `lib/crudForm.ts`.
+- input-density (bc58f8c): `lib/fieldWidth.ts` width map; about 70 short-number inputs fitted, numeric keypads, maxLength where a strict rule exists; form selects unified to h-10.
+- date-display (f312368): `formatShortDate/DateTime/DateTimeRange` (IST, year only if not current); dates nowrap; split date/time rows merged; device-TZ formatting replaced; 16 date pickers `w-44`; invoice print date now IST (DD/MM/YYYY).
+- Customer header (c7b0851): language picker stays top-right under the action icons instead of wrapping below.
+
 ## pin-autocorrect (2026-11-26)
 - A technician at the customer but outside a wrong (up to 2 km) or missing pin can start the job. Their GPS becomes the pin automatically, with no office approval. The next in-radius arrival locks it.
 - Migration `20261215100000_pin_autocorrect.sql` APPLIED LIVE 2026-11-26 (owner: "go apply"), one transaction, version registered by hand; function md5 2bccb48abbcc71cb918e59bbdfdf32a2: `settings.pin_autocorrect_max_m`, event `corrected`, RPC `record_technician_pin_correction`, FYI notification `pin_autocorrected`. Rollback in `supabase/rollbacks/`.
