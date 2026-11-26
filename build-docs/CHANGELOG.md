@@ -1,6 +1,6 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
-## referral-sources R2 (2026-11-26) — migration built, NOT applied
+## referral-sources R2 (2026-11-26) — migration APPLIED LIVE 2026-11-26 (owner "go apply")
 - `20261228100000_referral_sources.sql` (+ `.rollback.sql`): `referred_by_customer_id` on customers + leads with guards; points toggle (`settings.customer_referral_points_enabled` / `customer_referral_points`, OFF / 0); once-per-customer award on first paid invoice; carry-over also carries a customer referrer; wrappers `create_customer_with_referrer`, `create_sale_with_referrer`, `create_complaint_ticket_with_referrer`, `sell_amc_plan_with_referrer`. create_sale / create_complaint_ticket / sell_amc_plan / create_customer_with_details bodies untouched.
 
 ## referral-sources R1 (2026-11-26)
