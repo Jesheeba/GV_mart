@@ -124,6 +124,7 @@
 - Owner: X is master-set (10 was an example); "every deduction can be added or omitted by master" -> monthly_adjustments targets late_deduction/rework_deduction (Exclude = omit, Top up = add, master-only, removable).
 - Build: outcome derived server-side from the bill (no client flag, no offline op); escalations reuse approvals (type 'rework'); pending escalations still count until approved; auto-pickers skip rework; guard triggers lock rework columns to the RPCs.
 - Apply order (Postgres enum rule): 20270102100000 enums COMMITTED first, then rehearse/apply 100100 core, then 100200 salary (incentive-stream APPROVED pipeline).
+- Owner 2026-11-26: low-rating "Mark as rework" shortcut not needed (dropped).
 
 ## No-GST bill (2026-11-26, owner decisions)
 - Owner chose a real no-GST bill (GST 0 on the invoice) on every staff GST switch, after being told that a GST-registered shop may only do this for exempt goods (audit risk accepted by the owner).

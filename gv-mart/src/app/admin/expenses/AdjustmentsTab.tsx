@@ -15,10 +15,10 @@ import { useReworkPenaltyLive } from "@/hooks/useRework"
 import { FIELD_W } from "@/lib/fieldWidth"
 import { focusChoice } from "@/lib/utils"
 
-/** Monthly Expenses spec Unit 4/§1.7 — top-ups and exclusions, scoped (per
- *  the owner's revision) to `recharge` and `bike_allowance` only. Petrol and
- *  maintenance don't use this: verifying the claim amount is how an admin
- *  changes what's paid, and verifying at zero is how they refuse it. */
+/** Monthly Expenses spec Unit 4/§1.7 — top-ups and exclusions for `recharge` and `bike_allowance`. Petrol and
+ *  maintenance don't use this: verifying the claim amount is how an admin changes what's paid, and verifying at
+ *  zero is how they refuse it. Rework (20270102100200): the master can also add to or omit the late and rework
+ *  salary deductions, and remove such a row to undo it (master-only by RLS, shown only once that migration is live). */
 export function AdjustmentsTab() {
   const { t } = useTranslation()
   const { data: profile } = useProfile()
@@ -149,7 +149,9 @@ export function AdjustmentsTab() {
             <Card key={adj.id} className="gap-1 py-2.5">
               <p className="text-sm text-text">
                 {adj.profiles?.full_name ?? "—"} · {t(`expenses.adjustments.targetValues.${adj.adjustment_target}` as "expenses.adjustments.targetValues.recharge")} ·{" "}
-                {t(`expenses.adjustments.${adj.adjustment_type === "top_up" ? "topUp" : "exclude"}`)}
+                {DEDUCTION_TARGETS.includes(adj.adjustment_target as AdjustmentTarget)
+                  ? t(adj.adjustment_type === "top_up" ? "expenses.adjustments.addDeduction" : "expenses.adjustments.omitDeduction")
+                  : t(`expenses.adjustments.${adj.adjustment_type === "top_up" ? "topUp" : "exclude"}`)}
                 {adj.amount != null ? ` ₹${adj.amount}` : ""}
               </p>
               <p className="text-xs text-text-muted">{adj.reason}</p>

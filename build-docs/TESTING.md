@@ -238,3 +238,8 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Core rehearsal 1 (begin; migration + test; RAISE): 57/58 — FAIL "AC2 assigned to the original technician" = test fixture (window check's rework held tech1's 09:00 slot → technicianBusy, correct behaviour). Fixed in 156e0d5. Residue check: nothing persisted.
 - Core rehearsal 2: 58/58 PASS. `20270102100100_rework_core` APPLIED live (owner: "re-test, apply if all pass"); in-request checks + independent read-only post-check clean (1 invoice overload, no anon EXECUTE, 0 test residue, compute_salary md5 unchanged).
 - `20270102100200_rework_penalty_salary` NOT applied (payroll: needs typed APPROVED after its own rehearsal).
+- Salary migration 20270102100200 pipeline (owner "approved" = run the pipeline; final typed APPROVED still pending):
+  - Rehearsal (migration + rework_penalty_salary.test.sql): 18/18 PASS (before and after review fixes).
+  - Exercised rollback (snapshot → migration → anon diff → rollback → exact-restore check): 11/11, then 14/14 after review fixes. Anon surface unchanged; compute_salary md5, check constraint, policies, delete grant, columns, real data restored exactly.
+  - Independent string-literal review: no blocking findings. Independent security review: F1 (latent UPDATE), F5 (rollback md5 guard), F6 (lock during swap), F7 (rollback must not drop live deduction data) FIXED; F2 (ops/sales can edit a completed rework ticket/invoice out of the count), F4 (technician can edit own visit times on a finished job → shifts responsibility) = owner follow-ups; F3 = owner-accepted rework-paid loophole.
+  - Residue checks after every rehearsal: clean.

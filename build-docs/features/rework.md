@@ -27,7 +27,7 @@ branch `feat/rework`, rebased on origin/main 7c5bc56.
 - **"Every deduction can be added or omitted by master"** (owner, 2026-11-26): `monthly_adjustments` gains targets
   `late_deduction` and `rework_deduction`; Exclude = omit, Top up = add; master-only insert + delete (undo) by RLS.
 - **Unassigned rework → notification** to operation_admin (not a task). **Rework priority = urgent.**
-- **Not built:** "Mark as rework" shortcut on the low-rating task (the New Complaint banner + ticket button cover it).
+- **Not built, by owner decision (2026-11-26: "low rating shortcuts no needed"):** "Mark as rework" shortcut on the low-rating task.
 - Precondition guard: `rework_core` refuses to run unless the 12-argument (gst_everywhere) `create_service_invoice` exists.
 
 ## Purpose

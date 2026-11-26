@@ -1,6 +1,16 @@
 -- Rollback for 20270102100200_rework_penalty_salary.sql: restores the LIVE pre-rework compute_salary (md5 7db70a3f640b46ec0befa95df7513d57).
--- Refuses while deduction adjustment rows exist (they would violate the restored check).
+-- Refuses while deduction adjustment rows exist (they would violate the restored check), while any salary row
+-- carries a rework deduction (net would stop reconciling from its parts - review F7), or if compute_salary is no
+-- longer this migration's version (a later session changed it - review F5: never clobber that silently).
+lock table public.monthly_adjustments in share row exclusive mode;
+lock table public.salaries in share row exclusive mode;
 do $$ begin
+  if md5(pg_get_functiondef('public.compute_salary(uuid,uuid,date)'::regprocedure)) <> '41b72a649254fc29fad434db08c68fd7' then
+    raise exception 'rollback refused: compute_salary is not the 20270102100200 version - another change landed after it';
+  end if;
+  if exists (select 1 from public.salaries where rework_deduction > 0) then
+    raise exception 'rollback refused: salaries already carry a rework deduction - archive them first';
+  end if;
   if exists (select 1 from public.monthly_adjustments where adjustment_target in ('late_deduction', 'rework_deduction')) then
     raise exception 'rollback refused: late/rework deduction adjustments exist - remove them first';
   end if;
@@ -161,6 +171,7 @@ revoke execute on function public.compute_salary(uuid, uuid, date) from public, 
 grant execute on function public.compute_salary(uuid, uuid, date) to authenticated;
 
 revoke delete on table public.monthly_adjustments from authenticated;
+drop policy if exists monthly_adjustments_no_update on public.monthly_adjustments;
 drop policy if exists monthly_adjustments_deductions_master_delete on public.monthly_adjustments;
 drop policy if exists monthly_adjustments_deductions_master_insert on public.monthly_adjustments;
 alter table public.monthly_adjustments drop constraint if exists monthly_adjustments_adjustment_target_check;

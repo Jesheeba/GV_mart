@@ -17,6 +17,9 @@ do $$ begin
   end if;
 end $$;
 
+-- Security review F6: no adjustment row can slip in while the target check / policies are swapped.
+lock table public.monthly_adjustments in share row exclusive mode;
+
 alter table public.salaries
   add column if not exists rework_count integer not null default 0 check (rework_count >= 0),
   add column if not exists rework_deduction numeric(12, 2) not null default 0 check (rework_deduction >= 0);
@@ -42,6 +45,11 @@ drop policy if exists monthly_adjustments_deductions_master_delete on public.mon
 create policy monthly_adjustments_deductions_master_delete on public.monthly_adjustments as restrictive for delete
   using (adjustment_target in ('late_deduction', 'rework_deduction') and public.is_master());
 grant delete on table public.monthly_adjustments to authenticated;
+-- Security review F1: nobody edits an adjustment (none of today's flows do; authenticated has no UPDATE grant).
+-- Deny-all restrictive policy so a future blanket UPDATE grant cannot let ops retarget rows into deductions.
+drop policy if exists monthly_adjustments_no_update on public.monthly_adjustments;
+create policy monthly_adjustments_no_update on public.monthly_adjustments as restrictive for update
+  using (false) with check (false);
 
 CREATE OR REPLACE FUNCTION public.compute_salary(p_org_id uuid, p_technician_id uuid, p_period date)
  RETURNS salaries
