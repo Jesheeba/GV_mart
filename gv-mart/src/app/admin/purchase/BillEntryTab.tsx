@@ -126,7 +126,7 @@ export function BillEntryTab() {
           </div>
           <div className="space-y-1.5">
             <Label>{t("purchase.bill.date")}</Label>
-            <DatePicker value={billDate} onChange={setBillDate} />
+            <DatePicker value={billDate} onChange={setBillDate} className="w-44" />
           </div>
         </div>
 

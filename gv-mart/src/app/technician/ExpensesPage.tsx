@@ -165,7 +165,7 @@ function KmLogForm({ orgId, technicianId }: { orgId: string | undefined; technic
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{t("technician.expenses.kmLog.date")}</Label>
-          <DatePicker value={entryDate} onChange={setEntryDate} />
+          <DatePicker value={entryDate} onChange={setEntryDate} className="w-44" />
         </div>
         <div className="space-y-1">
           <Label htmlFor="tech-km">{t("technician.expenses.kmLog.km")}</Label>

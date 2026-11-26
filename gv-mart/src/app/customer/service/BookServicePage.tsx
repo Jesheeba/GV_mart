@@ -630,6 +630,7 @@ export function BookServicePage() {
               <Label htmlFor="pickedDate">{t("customerApp.bookService.pickDate")}</Label>
               <DatePicker
                 id="pickedDate"
+                className="w-44"
                 min={todayInput()}
                 value={pickedDate}
                 onChange={setPickedDate}

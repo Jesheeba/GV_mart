@@ -1,6 +1,6 @@
 # Feature: date-display
 
-Status: PLANNED, awaiting owner approval. No migration.
+Status: BUILT on feat/date-display (unpushed). Display-only, no migration. Helpers are English-only like the existing formatDate.ts helpers; the lead follow-up chip keeps its Tamil-aware formatIstDateTime.
 
 ## Purpose
 Owner feedback (2026-11-26): dates should read continuously on one line instead of taking extra space. The inventory found about 20 spots:

@@ -69,7 +69,7 @@ export function CustomerRequestCallbackPage() {
       <Card className="gap-3 lg:px-5">
         <div className="space-y-1">
           <Label>{t("customerApp.productEnquiry.callback.dateLabel")}</Label>
-          <DatePicker value={scheduledDate} onChange={setScheduledDate} min={todayStr} />
+          <DatePicker value={scheduledDate} onChange={setScheduledDate} min={todayStr} className="w-44" />
         </div>
 
         <div className="space-y-1">

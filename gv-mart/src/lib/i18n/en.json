@@ -2210,6 +2210,7 @@
       "jobReport": "Job report",
       "startTime": "Start time",
       "closeTime": "Close time",
+      "startClose": "Start – close time",
       "totalTime": "Total time",
       "minutes_one": "{{count}} minute",
       "minutes_other": "{{count}} minutes",
@@ -2220,6 +2221,7 @@
         "title": "Payment proof",
         "date": "Payment date",
         "time": "Payment time",
+        "dateTime": "Payment date & time",
         "method": "Payment method",
         "txnRef": "Transaction reference",
         "technician": "Technician"

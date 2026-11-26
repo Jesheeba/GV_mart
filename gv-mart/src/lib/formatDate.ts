@@ -34,3 +34,42 @@ export function formatTime(value: string | number | Date | null | undefined): st
   if (Number.isNaN(date.getTime())) return ""
   return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: IST_TIME_ZONE }).toLowerCase()
 }
+
+function istYear(date: Date): string {
+  return date.toLocaleDateString("en-GB", { year: "numeric", timeZone: IST_TIME_ZONE })
+}
+
+/**
+ * Compact IST date for lists — "6 Oct", or "6 Oct 2025" when it isn't the
+ * current IST year. English month names, like the other helpers here.
+ * Invoices/print keep the full DD/MM/YYYY formatDate.
+ */
+export function formatShortDate(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—"
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return "—"
+  const withYear = istYear(date) !== istYear(new Date())
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}), timeZone: IST_TIME_ZONE })
+}
+
+/** Compact IST date-time for lists — "6 Oct, 10:00 am" (year only when not the current IST year). */
+export function formatShortDateTime(value: string | number | Date | null | undefined): string {
+  const datePart = formatShortDate(value)
+  return datePart === "—" ? datePart : `${datePart}, ${formatTime(value)}`
+}
+
+/**
+ * Compact IST start–end on one line: "6 Oct, 10:00 am – 11:30 am" on the same
+ * IST day, otherwise both ends in full ("6 Oct, 10:00 pm – 7 Oct, 1:00 am").
+ * A missing end shows "…" (still running); a missing start shows "—".
+ */
+export function formatShortDateTimeRange(
+  start: string | number | Date | null | undefined,
+  end: string | number | Date | null | undefined
+): string {
+  const startText = formatShortDateTime(start)
+  if (startText === "—") return startText
+  const endText = formatShortDateTime(end)
+  if (endText === "—") return `${startText} – …`
+  return formatShortDate(start) === formatShortDate(end) ? `${startText} – ${formatTime(end)}` : `${startText} – ${endText}`
+}

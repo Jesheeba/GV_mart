@@ -695,6 +695,7 @@ export function NewComplaintPage() {
                 render={({ field }) => (
                   <DatePicker
                     id="scheduledDate"
+                    className="w-44"
                     min={todayInput()}
                     value={field.value ?? ""}
                     onChange={field.onChange}
