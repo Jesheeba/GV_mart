@@ -1,5 +1,13 @@
 # TESTING — Leads Dashboard Enhancement
 
+## no-gst-bill (2026-11-26)
+- SQL rehearsal (migration + `supabase/tests/no_gst_bill.test.sql`, rolled back): 21/21. Covers AC1 every RPC with GST 0, AC2 old call shapes unchanged, AC3 monthly rent bill, AC4 quotation flag, AC5 ACLs/defaults/columns/existing rows. A no-trace check afterwards: nothing left behind.
+- Rollback rehearsal: all 8 functions return to their live md5 + ACL.
+- `src/lib/noGstBill.test.ts` 15/15: totals, default never none, old-draft restore, 3-option toggle, "GST not charged" summary, and the no-GST flag sent on every path (sale, quotation, AMC, rental, both offline jobs).
+- `tsc -b` clean.
+- Full vitest: 1405 passed, 26 failed. The same 5 files (OTA, WA dispatch, waOutboxSentGuard) fail identically on unchanged main in this worktree, so the failures are environmental.
+- Not browser-checked.
+
 ## build fix: leadCustomerEmbed.test.ts (2026-11-26)
 - `tsc -b` (npm run build) failed on main: the test used node:fs/__dirname, and src is not typed for Node. Switched it to Vite `import.meta.glob(?raw)` like waOutboxSentGuard.test.ts.
 - Added a check that the glob finds more than 100 files. Mutation check: a planted un-hinted `customers(...)` embed failed the test; after removing it, 3/3 pass.

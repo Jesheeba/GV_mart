@@ -1130,6 +1130,8 @@ export type CreateServiceInvoiceInput = {
   installations?: { productId: string; qty: number }[]
   /** Per-bill GST switch (gst-everywhere): true = prices include GST. Omitted -> org default. */
   gstInclusive?: boolean
+  /** No GST on this bill (no-gst-bill): rate 0. Optional in the outbox payload. */
+  noGst?: boolean
 }
 
 export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput) {
@@ -1146,6 +1148,7 @@ export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput
     amountPaid: input.amountPaid,
     installations: (input.installations ?? []).map((i) => ({ product_id: i.productId, qty: i.qty })),
     gstInclusive: input.gstInclusive,
+    noGst: input.noGst,
   })
 }
 
@@ -1253,6 +1256,8 @@ export async function queueSellAmcOnsite(input: {
   paymentDescription?: string
   /** Per-bill GST switch (gst-everywhere). Omitted -> org default. */
   gstInclusive?: boolean
+  /** No GST on this bill (no-gst-bill). */
+  noGst?: boolean
 }) {
   await enqueue("amc.sell_onsite", {
     orgId: input.orgId,
@@ -1263,6 +1268,7 @@ export async function queueSellAmcOnsite(input: {
     txnId: input.txnId,
     paymentDescription: input.paymentDescription,
     gstInclusive: input.gstInclusive,
+    noGst: input.noGst,
   })
 }
 

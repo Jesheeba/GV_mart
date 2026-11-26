@@ -191,6 +191,8 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_installations: (p.installations as Json | undefined) ?? [],
         // Jobs queued before gst-everywhere have no gstInclusive -> null -> org default, as before.
         p_gst_inclusive: (p.gstInclusive as boolean | null | undefined) ?? null,
+        // Jobs queued before no-gst-bill have no noGst -> null -> GST charged, as before.
+        p_no_gst: (p.noGst as boolean | null | undefined) ?? null,
       })
       if (error) throw error
       triggerWaDispatchNow()
@@ -282,6 +284,8 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_txn_id: (p.txnId as string) ?? null,
         p_payment_description: (p.paymentDescription as string) ?? null,
         p_gst_inclusive: (p.gstInclusive as boolean | null | undefined) ?? null,
+        // Jobs queued before no-gst-bill have no noGst -> null -> GST charged, as before.
+        p_no_gst: (p.noGst as boolean | null | undefined) ?? null,
       })
       if (error) throw error
       triggerWaDispatchNow()

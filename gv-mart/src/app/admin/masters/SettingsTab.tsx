@@ -12,6 +12,7 @@ import { UnsavedChangesGuard } from "@/components/shared/UnsavedChangesGuard"
 import { giftsHooks, useSettings, useUpdateSettings } from "@/hooks/useMasters"
 import type { GiftRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
+import { useReworkPenaltyLive } from "@/hooks/useRework"
 import { useOrganization, useUpdateOrganization } from "@/hooks/useSales"
 import { settingsSchema, type SettingsFormInput, type SettingsOutput } from "@/lib/validation/settings"
 import { cn } from "@/lib/utils"
@@ -142,6 +143,8 @@ export function SettingsTab() {
   const { data: profile } = useProfile()
   const orgId = profile?.org_id
   const { data: settings, isLoading, isError, refetch } = useSettings(orgId)
+  // Rework salary deduction is only real once 20270102100200_rework_penalty_salary is live.
+  const penaltyLive = useReworkPenaltyLive()
   const updateMut = useUpdateSettings(orgId)
   const [savingGroup, setSavingGroup] = useState<GroupKey | null>(null)
   const [justSavedGroup, setJustSavedGroup] = useState<GroupKey | null>(null)
@@ -361,6 +364,11 @@ export function SettingsTab() {
           {field("rework_penalty_amount", t("settings.reworkPenaltyAmount"), "number", "1", t("settings.notSet"))}
         </div>
         <p className="px-1 text-xs text-text-muted">{t("settings.reworkHint")}</p>
+        {penaltyLive.data === false ? (
+          <p role="status" className="rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning">
+            {t("settings.reworkPenaltyNotLive")}
+          </p>
+        ) : null}
         {settings?.rework_penalty_free_count == null || settings?.rework_penalty_amount == null ? (
           <p role="status" className="rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning">
             {t("settings.reworkPenaltyNotSet")}

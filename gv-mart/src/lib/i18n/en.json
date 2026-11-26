@@ -1472,6 +1472,7 @@
     "receivesLeadsFailed": "Could not update this person."
   },
   "settings": {
+    "reworkPenaltyNotLive": "The salary side of the rework penalty is not switched on yet, so no deduction is taken even when X and Y are set. Reworks are still counted and reported.",
     "reworkPenaltyNotSet": "The rework penalty is not set, so no deduction applies. You get a notification for each finished rework until you set it.",
     "reworkHint": "A finished job can be marked as rework within this many days. Each month, every free rework after the limit deducts the amount from the responsible technician's salary. Rework-paid jobs and approved escalations never count.",
     "notSet": "Not set",
@@ -1823,7 +1824,9 @@
       "extra": "GST extra",
       "included": "GST included",
       "includedLine": "Incl. GST {{rate}}%",
-      "includedAmount": "GST amount (included in price)"
+      "includedAmount": "GST amount (included in price)",
+      "none": "No GST",
+      "notCharged": "GST not charged"
     },
     "summary": {
       "title": "Summary",

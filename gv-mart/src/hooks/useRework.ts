@@ -47,6 +47,10 @@ export function useRequestReworkEscalation() {
   })
 }
 
+export function useReworkPenaltyLive() {
+  return useQuery({ queryKey: ["rework", "penaltyLive"], queryFn: rework.isReworkPenaltyLive, staleTime: 5 * 60_000 })
+}
+
 export function useReworkSummary(from: string, to: string) {
   return useQuery({
     queryKey: ["rework", "summary", from, to],

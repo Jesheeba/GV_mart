@@ -2,6 +2,7 @@
 // service_tickets_rework_guard trigger refuses direct edits of the rework columns.
 import { supabase } from "@/lib/supabase"
 import { isWithinReworkWindow } from "@/lib/rework"
+import { isUndefinedColumnError } from "@/lib/supabaseErrors"
 import type { Database, Enums } from "@/types/database"
 
 export type MarkReworkInput = {
@@ -111,6 +112,18 @@ export async function getReworkEscalation(ticketId: string): Promise<{ id: strin
     .maybeSingle()
   if (error) throw error
   return data
+}
+
+/**
+ * True once 20270102100200_rework_penalty_salary is live (it adds salaries.rework_deduction). Until then the
+ * UI must not offer the late/rework deduction adjustments (the DB check constraint still rejects them) nor
+ * promise a salary deduction. Any other error is re-thrown so it isn't mistaken for "not live".
+ */
+export async function isReworkPenaltyLive(): Promise<boolean> {
+  const { error } = await supabase.from("salaries").select("rework_deduction" as "id").limit(1)
+  if (!error) return true
+  if (isUndefinedColumnError(error)) return false
+  throw error
 }
 
 export type ReworkSummaryRow = Database["public"]["Functions"]["report_rework_summary"]["Returns"][number]

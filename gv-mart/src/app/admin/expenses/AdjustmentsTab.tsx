@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useAddMonthlyAdjustment, useDeleteMonthlyAdjustment, useMonthlyAdjustments } from "@/hooks/useMonthlyExpenses"
 import { DEDUCTION_TARGETS, type AdjustmentTarget } from "@/services/monthlyExpenses"
 import { useToast } from "@/components/ui/toast-context"
+import { useReworkPenaltyLive } from "@/hooks/useRework"
 import { FIELD_W } from "@/lib/fieldWidth"
 import { focusChoice } from "@/lib/utils"
 
@@ -37,7 +38,9 @@ export function AdjustmentsTab() {
   // salary deductions, and remove such a row to undo it. Those targets are master-only (RLS).
   const deleteAdjustment = useDeleteMonthlyAdjustment()
   const { toast } = useToast()
-  const isMaster = profile?.role === "master"
+  // Deduction targets exist in the DB only once the rework salary migration is live.
+  const penaltyLive = useReworkPenaltyLive().data === true
+  const isMaster = profile?.role === "master" && penaltyLive
 
   const [profileId, setProfileId] = useState("")
   // Both unchosen until picked (choice-no-preselect).

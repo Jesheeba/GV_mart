@@ -3,7 +3,7 @@ import { GstModeToggle } from "@/components/shared/GstModeToggle"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSettings } from "@/hooks/useMasters"
-import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
+import { billBreakdown, formatCurrency, gstModeParts, type GstMode } from "@/lib/sale-calc"
 import { amcSubtotal, payableTotal, productSubtotal, spareSubtotal, type SaleCartState } from "./types"
 
 export function SaleSummaryPanel({
@@ -12,8 +12,8 @@ export function SaleSummaryPanel({
   discountPercent,
   giftName,
   redeemAmount,
-  gstInclusive,
-  onGstInclusiveChange,
+  gstMode,
+  onGstModeChange,
 }: {
   orgId: string
   cart: SaleCartState
@@ -21,20 +21,21 @@ export function SaleSummaryPanel({
   giftName?: string | null
   /** ₹ value of the referral points about to be redeemed (points * referral_point_value), for a live preview only — create_sale applies this against one designated invoice server-side, so this floor-at-zero preview can undercount by a rounding cent or two, never overcount. */
   redeemAmount?: number
-  /** GST Included/Extra for this bill — owned by NewSalePage so it's sent with the sale and saved in the draft. */
-  gstInclusive: boolean
-  onGstInclusiveChange: (inclusive: boolean) => void
+  /** GST extra / included / none for this bill — owned by NewSalePage so it's sent with the sale and saved in the draft. */
+  gstMode: GstMode
+  onGstModeChange: (mode: GstMode) => void
 }) {
   const { t } = useTranslation()
   const { data: settings, isLoading: settingsLoading, isError: settingsError } = useSettings(orgId)
   const gstRate = settings ? Number(settings.gst_rate) : 0
+  const { gstInclusive, noGst, rate } = gstModeParts(gstMode, gstRate)
 
-  const spareBill = spareSubtotal(cart) > 0 ? billBreakdown(spareSubtotal(cart), discountPercent, gstRate, gstInclusive) : null
-  const productBill = productSubtotal(cart) > 0 ? billBreakdown(productSubtotal(cart), discountPercent, gstRate, gstInclusive) : null
-  const amcBill = amcSubtotal(cart) > 0 ? billBreakdown(amcSubtotal(cart), discountPercent, gstRate, gstInclusive) : null
+  const spareBill = spareSubtotal(cart) > 0 ? billBreakdown(spareSubtotal(cart), discountPercent, rate, gstInclusive) : null
+  const productBill = productSubtotal(cart) > 0 ? billBreakdown(productSubtotal(cart), discountPercent, rate, gstInclusive) : null
+  const amcBill = amcSubtotal(cart) > 0 ? billBreakdown(amcSubtotal(cart), discountPercent, rate, gstInclusive) : null
   const grandTotal = (spareBill?.total ?? 0) + (productBill?.total ?? 0) + (amcBill?.total ?? 0)
   const redeemDiscount = Math.min(redeemAmount ?? 0, grandTotal)
-  const payable = payableTotal(cart, discountPercent, gstRate, redeemAmount ?? 0, gstInclusive)
+  const payable = payableTotal(cart, discountPercent, rate, redeemAmount ?? 0, gstInclusive)
 
   const bills = [
     { key: "product", label: t("sales.summary.productBill"), bill: productBill },
@@ -46,7 +47,7 @@ export function SaleSummaryPanel({
     <Card className="sticky top-4 gap-3 px-5">
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <p className="text-sm font-semibold text-text">{t("sales.summary.title")}</p>
-        <GstModeToggle value={gstInclusive} onChange={onGstInclusiveChange} />
+        <GstModeToggle value={gstMode} onChange={onGstModeChange} />
       </div>
       {settingsLoading ? (
         <div className="space-y-2 px-1 py-1">
@@ -74,7 +75,7 @@ export function SaleSummaryPanel({
                 </div>
               ) : null}
               <div className="flex justify-between text-sm text-text-muted">
-                <span>{t(gstInclusive ? "sales.gst.includedLine" : "sales.summary.gst", { rate: gstRate })}</span>
+                <span>{noGst ? t("sales.gst.notCharged") : t(gstInclusive ? "sales.gst.includedLine" : "sales.summary.gst", { rate: gstRate })}</span>
                 <span>{formatCurrency(bill!.gst)}</span>
               </div>
               <div className="flex justify-between text-sm font-semibold text-text">

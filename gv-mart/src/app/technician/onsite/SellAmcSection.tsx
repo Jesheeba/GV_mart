@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { GstSummary } from "@/components/shared/GstSummary"
 import { useAmcPlansForTechnician, useSellAmcOnsite, useTechnicianSettings } from "@/hooks/useTechnician"
-import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
+import { billBreakdown, defaultGstMode, formatCurrency, gstModeParts, type GstMode } from "@/lib/sale-calc"
 import type { Enums } from "@/types/database"
 import { focusChoice } from "@/lib/utils"
 import { PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
@@ -48,13 +48,14 @@ export function SellAmcSection({
   const sellAmc = useSellAmcOnsite()
   const settings = useTechnicianSettings(orgId)
   // null = follow the org default (Masters -> Settings) until the technician flips the switch
-  const [gstChoice, setGstChoice] = useState<boolean | null>(null)
-  const gstInclusive = gstChoice ?? !!settings.data?.prices_include_gst
+  const [gstChoice, setGstChoice] = useState<GstMode | null>(null)
+  const gstMode = gstChoice ?? defaultGstMode(settings.data?.prices_include_gst)
   const gstRate = Number(settings.data?.gst_rate ?? 0)
+  const { gstInclusive, noGst, rate: billGstRate } = gstModeParts(gstMode, gstRate)
 
   const selectedPlan = (plans.data ?? []).find((p) => p.id === planId)
   const planPrice = selectedPlan ? (selectedPlan.price_per_year != null ? selectedPlan.price_per_year * selectedPlan.years : selectedPlan.price) : 0
-  const payable = billBreakdown(planPrice, 0, gstRate, gstInclusive).total
+  const payable = billBreakdown(planPrice, 0, billGstRate, gstInclusive).total
   // A missing method doesn't disable the button: tapping it shows why (inline error) instead.
   const canSubmit = !!planId && (paymentMethod !== "transfer" || (txnId.trim() && paymentDescription.trim()))
 
@@ -74,6 +75,7 @@ export function SellAmcSection({
       txnId: paymentMethod === "transfer" ? txnId : undefined,
       paymentDescription: paymentMethod === "transfer" ? paymentDescription : undefined,
       gstInclusive,
+      noGst,
     })
     setQueued(true)
   }
@@ -123,7 +125,7 @@ export function SellAmcSection({
 
             {selectedPlan ? (
               <>
-                <GstSummary net={planPrice} rate={gstRate} inclusive={gstInclusive} onInclusiveChange={setGstChoice} />
+                <GstSummary net={planPrice} rate={gstRate} mode={gstMode} onModeChange={setGstChoice} />
                 <ChoiceSelect
                   id="amc-payment-method"
                   label={t("technician.onsite.payment.method")}

@@ -39,7 +39,8 @@ export function InvoicePage() {
 
   // total - gst is the taxable value in both GST modes (in "Included" mode subtotal - discount still contains the GST).
   const withoutGst = invoice.total - invoice.gst
-  const gstLabel = t(invoice.gst_inclusive ? "sales.gst.includedAmount" : "sales.invoice.gstAmount")
+  // gst 0 = a No GST bill (no-gst-bill) or an org rate of 0: either way no GST was charged.
+  const gstLabel = t(invoice.gst === 0 ? "sales.gst.notCharged" : invoice.gst_inclusive ? "sales.gst.includedAmount" : "sales.invoice.gstAmount")
   const paymentTone = PAYMENT_STATUS_TONE[invoice.payment_status] ?? "neutral"
   const balanceDue = Math.max(0, invoice.total - invoice.amount_paid)
 
@@ -189,14 +190,12 @@ export function InvoicePage() {
                 <td className={`${CELL} text-right`}>−{invoice.discount.toFixed(2)}</td>
               </tr>
             ) : null}
-            {invoice.gst > 0 ? (
-              <tr>
-                <td colSpan={4} className={`${CELL} text-right`}>
-                  {gstLabel}
-                </td>
-                <td className={`${CELL} text-right`}>{invoice.gst.toFixed(2)}</td>
-              </tr>
-            ) : null}
+            <tr>
+              <td colSpan={4} className={`${CELL} text-right`}>
+                {gstLabel}
+              </td>
+              <td className={`${CELL} text-right`}>{invoice.gst.toFixed(2)}</td>
+            </tr>
             <tr>
               <td colSpan={4} className={`${CELL} text-right`}>
                 <b>{t("sales.invoice.netAmount")}</b>
@@ -286,7 +285,7 @@ export function InvoicePage() {
             <span>{formatCurrency(invoice.gst)}</span>
           </div>
           <div className="flex justify-between border-t border-border pt-1 text-base font-bold text-text">
-            <span>{t("sales.invoice.totalWithGst")}</span>
+            <span>{t(invoice.gst === 0 ? "sales.summary.total" : "sales.invoice.totalWithGst")}</span>
             <span>{formatCurrency(invoice.total)}</span>
           </div>
           <div className="flex justify-between text-sm text-text-muted">

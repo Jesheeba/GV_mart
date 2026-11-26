@@ -68,6 +68,8 @@ export type SellAmcInput = {
   paymentDescription?: string | null
   /** Per-bill GST switch. Omitted -> org default. */
   gstInclusive?: boolean
+  /** No GST on this bill (no-gst-bill): rate 0. */
+  noGst?: boolean
 }
 
 export type SellAmcResult = {
@@ -97,6 +99,7 @@ export async function sellAmcPlan(input: SellAmcInput) {
     p_txn_id: input.txnId || null,
     p_payment_description: input.paymentDescription || null,
     p_gst_inclusive: input.gstInclusive ?? null,
+    p_no_gst: input.noGst ?? null,
   }
   const extra = nonTechnicianReferrerArgs(input.referrer)
   const { data, error } = extra ? await supabase.rpc("sell_amc_plan_with_referrer", { ...args, ...extra }) : await supabase.rpc("sell_amc_plan", args)

@@ -4,6 +4,23 @@ export function round2(n: number) {
 }
 
 /**
+ * Per-bill GST choice (no-gst-bill, 2026-11-26): "none" bills GST 0, the same as the server, which uses rate 0
+ * (20270101100000_no_gst_bill.sql). Never the default: the org setting picks extra or included.
+ */
+export type GstMode = "extra" | "included" | "none"
+export const defaultGstMode = (pricesIncludeGst: boolean | null | undefined): GstMode => (pricesIncludeGst ? "included" : "extra")
+/** What the RPCs take, plus the rate to preview with. */
+export function gstModeParts(mode: GstMode, rate: number) {
+  return { gstInclusive: mode === "included", noGst: mode === "none", rate: mode === "none" ? 0 : rate }
+}
+/** Restores a saved choice: drafts made before no-gst-bill stored a boolean (true = included). */
+export function toGstMode(saved: unknown): GstMode | null {
+  if (saved === "extra" || saved === "included" || saved === "none") return saved
+  if (typeof saved === "boolean") return saved ? "included" : "extra"
+  return null
+}
+
+/**
  * `gstInclusive` (2026-11-26): prices already include GST, so GST is the
  * share inside the discounted amount and the total doesn't grow. Mirrors
  * public._gst_amount in 20261226110000_gst_inclusive_toggle.sql.

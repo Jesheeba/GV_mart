@@ -43,6 +43,8 @@ export type CreateRentalInput = {
   paymentDescription?: string | null
   /** Per-contract GST switch (gst-everywhere), stored on the contract so monthly bills follow it. Omitted -> org default. */
   gstInclusive?: boolean
+  /** No GST (no-gst-bill): stored on the contract, so the monthly bills are GST 0 too. */
+  noGst?: boolean
 }
 
 export async function createRental(input: CreateRentalInput) {
@@ -57,6 +59,7 @@ export async function createRental(input: CreateRentalInput) {
     p_txn_id: input.txnId ?? null,
     p_payment_description: input.paymentDescription ?? null,
     p_gst_inclusive: input.gstInclusive ?? null,
+    p_no_gst: input.noGst ?? null,
   })
   if (error) throw error
   return data as { contract_id: string; invoice_id: string; install_ticket_id: string; visit_ticket_id: string }
