@@ -11,6 +11,7 @@ import { useUpdateCustomerWaterProfile, useUpsertCustomerHealthCondition } from 
 import { HEALTH_CONDITION_LEVELS, WATER_SOURCES, waterProfileSchema, type WaterProfileInput } from "@/lib/validation/customer"
 import { formatDate } from "@/lib/formatDate"
 import type { CustomerMeasuredWaterReading } from "@/services/waterQuality"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 type WaterHouseholdPanelProps = {
   customerId: string
@@ -116,7 +117,7 @@ export function WaterHouseholdPanel({
             <Label htmlFor="waterTdsPpm">{t("customers.detail.waterTds")}</Label>
             {canEdit ? (
               <>
-                <Input id="waterTdsPpm" type="number" step="1" min={0} aria-invalid={!!errors.waterTdsPpm} {...register("waterTdsPpm", { valueAsNumber: true })} />
+                <Input id="waterTdsPpm" type="number" inputMode="numeric" step="1" min={0} className={FIELD_W.reading} aria-invalid={!!errors.waterTdsPpm} {...register("waterTdsPpm", { valueAsNumber: true })} />
                 {errors.waterTdsPpm ? <p className="text-xs text-danger">{t(errors.waterTdsPpm.message!)}</p> : null}
               </>
             ) : (
@@ -127,7 +128,7 @@ export function WaterHouseholdPanel({
             <Label htmlFor="waterPh">{t("customers.detail.waterPh")}</Label>
             {canEdit ? (
               <>
-                <Input id="waterPh" type="number" step="0.1" min={0} max={14} aria-invalid={!!errors.waterPh} {...register("waterPh", { valueAsNumber: true })} />
+                <Input id="waterPh" type="number" inputMode="decimal" step="0.1" min={0} max={14} className={FIELD_W.reading} aria-invalid={!!errors.waterPh} {...register("waterPh", { valueAsNumber: true })} />
                 {errors.waterPh ? <p className="text-xs text-danger">{t(errors.waterPh.message!)}</p> : null}
               </>
             ) : (
@@ -141,7 +142,7 @@ export function WaterHouseholdPanel({
             <select
               id="healthCondition"
               defaultValue={healthCondition ?? ""}
-              className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
               {...register("healthCondition")}
             >
               <option value="">{t("customers.detail.healthConditionPlaceholder")}</option>

@@ -34,6 +34,8 @@ import {
 import { customerMemberSchema, type CustomerMemberInput } from "@/lib/validation/customerApp"
 import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 const MAX_MEMBERS = 5
 
@@ -310,9 +312,9 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
               <Input id="member-name" placeholder={t("customerApp.profile.memberName")} aria-invalid={!!errors.name} {...register("name")} />
               {errors.name ? <p className="text-xs text-danger">{t(errors.name.message!)}</p> : null}
             </div>
-            <div className="flex-1 space-y-1">
+            <div className={cn(FIELD_W.mobile, "shrink-0 space-y-1")}>
               <Label htmlFor="member-mobile">{t("customerApp.profile.memberMobile")}</Label>
-              <Input id="member-mobile" placeholder={t("customerApp.profile.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
+              <Input id="member-mobile" inputMode="numeric" maxLength={10} placeholder={t("customerApp.profile.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>

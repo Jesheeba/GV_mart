@@ -14,6 +14,7 @@ import { geocodeResultToAddressFields, mergeAddressFieldsPreservingTyped } from 
 import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validation/customerApp"
 import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Shared add/edit address form — used by the Profile page's address list and
@@ -190,7 +191,7 @@ export function AddressForm({
       <div className="grid grid-cols-2 gap-2.5">
         <div className="space-y-1">
           <Label htmlFor={`${uid}-pincode`} className="sr-only">{t("customerApp.profile.address.pincode")}</Label>
-          <Input id={`${uid}-pincode`} placeholder={t("customerApp.profile.address.pincode")} aria-invalid={!!errors.pincode} {...register("pincode")} />
+          <Input id={`${uid}-pincode`} inputMode="numeric" maxLength={6} className={FIELD_W.pincode} placeholder={t("customerApp.profile.address.pincode")} aria-invalid={!!errors.pincode} {...register("pincode")} />
           {errors.pincode ? <p className="text-xs text-danger">{t(errors.pincode.message!)}</p> : null}
         </div>
         <Input placeholder={t("customerApp.profile.address.district")} {...register("district")} />

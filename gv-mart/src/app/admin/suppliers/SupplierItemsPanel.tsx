@@ -15,6 +15,7 @@ import {
   useUpdateSupplierItem,
 } from "@/hooks/useSuppliers"
 import type { ItemType, SupplierRow } from "@/services/suppliers"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 type LinkedRow = {
   id: string
@@ -167,11 +168,11 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
           </div>
           <div className="space-y-1">
             <Label>{t("suppliers.price")}</Label>
-            <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+            <Input type="number" inputMode="decimal" min={0} step="0.01" className={FIELD_W.amount} value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label>{t("suppliers.leadTime")}</Label>
-            <Input type="number" min={0} step="1" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
+            <Input type="number" inputMode="numeric" min={0} step="1" className={FIELD_W.qty} value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
           </div>
           <div className="col-span-full flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>

@@ -59,6 +59,8 @@ import {
 import { canSubmitWithWarning, duplicateWarningKey } from "@/lib/duplicateContactWarning"
 import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
 import { guardReentry } from "@/lib/async-guard"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 /** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
 function hasAddressText(a: AddressStepInput) {
@@ -107,9 +109,11 @@ function MemberFieldRow({
           <Input placeholder={t("customers.form.memberName")} aria-invalid={!!errors.members?.[index]?.name} {...register(`members.${index}.name`)} />
           {errors.members?.[index]?.name ? <p className="text-xs text-danger">{t(errors.members[index]!.name!.message!)}</p> : null}
         </div>
-        <div className="flex-1 space-y-1">
+        <div className={cn(FIELD_W.mobile, "shrink-0 space-y-1")}>
           <Input
             placeholder={t("customers.form.memberMobile")}
+            inputMode="numeric"
+            maxLength={10}
             aria-invalid={!!errors.members?.[index]?.mobile}
             {...register(`members.${index}.mobile`)}
           />
@@ -139,7 +143,7 @@ function MemberFieldRow({
           <select
             aria-label={t("customers.form.memberRelation")}
             defaultValue=""
-            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
             {...register(`members.${index}.relation`)}
           >
             <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
@@ -849,6 +853,8 @@ export function CustomerFormPage() {
                 openOnFocus
                 onFocus={() => touch("pincode")}
                 maxLength={6}
+                inputMode="numeric"
+                inputClassName={FIELD_W.pincode}
                 ariaInvalid={!!addressForm.formState.errors.pincode}
               />
               {addressForm.formState.errors.pincode ? (
@@ -997,6 +1003,8 @@ export function CustomerFormPage() {
                   <Input
                     id="waterTds"
                     type="number"
+                    inputMode="numeric"
+                    className={FIELD_W.reading}
                     placeholder={t("customers.form.water.valuePlaceholder")}
                     {...addressForm.register("waterTds", { setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)) })}
                   />
@@ -1007,6 +1015,8 @@ export function CustomerFormPage() {
                     id="waterPh"
                     type="number"
                     step="0.1"
+                    inputMode="decimal"
+                    className={FIELD_W.reading}
                     placeholder={t("customers.form.water.valuePlaceholder")}
                     {...addressForm.register("waterPh", { setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)) })}
                   />

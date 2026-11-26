@@ -15,6 +15,7 @@ import { postServiceOutcomeInUse, type PostServiceOutcomeRow } from "@/services/
 import { POST_SERVICE_TICKET_TYPES } from "@/services/postServiceFollowups"
 import { leadSourceKeyFromLabel } from "@/lib/lead-sources"
 import type { UserRole } from "@/lib/roles"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Masters > Post-service calls (batch-17 item 13): the master's switch, delay, recipient and ticket types for the
@@ -94,7 +95,7 @@ function SettingsCard() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="ps-days">{t("masters.postService.days")}</Label>
-          <Input id="ps-days" type="number" min={0} max={60} value={days} onChange={(e) => setDays(e.target.value)} />
+          <Input id="ps-days" type="number" inputMode="numeric" min={0} max={60} className={FIELD_W.qty} value={days} onChange={(e) => setDays(e.target.value)} />
           <p className="text-xs text-text-muted">{t("masters.postService.daysHint")}</p>
         </div>
         <div className="space-y-1.5">
@@ -116,7 +117,7 @@ function SettingsCard() {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="ps-dedupe">{t("masters.postService.dedupe")}</Label>
-          <Input id="ps-dedupe" type="number" min={0} max={60} value={dedupe} onChange={(e) => setDedupe(e.target.value)} />
+          <Input id="ps-dedupe" type="number" inputMode="numeric" min={0} max={60} className={FIELD_W.qty} value={dedupe} onChange={(e) => setDedupe(e.target.value)} />
           <p className="text-xs text-text-muted">{t("masters.postService.dedupeHint")}</p>
         </div>
       </div>

@@ -8,13 +8,14 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast-context"
 import { useCreateStaff } from "@/hooks/useHr"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 type StaffRole = "sales_admin" | "operation_admin"
 const ROLES: StaffRole[] = ["sales_admin", "operation_admin"]
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const selectClass =
-  "h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+  "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
 
 /**
  * Master-only "Add staff": creates an operation_admin / sales_admin login through the admin-create-staff
@@ -111,7 +112,7 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 <Label htmlFor="staff-phone" className="block text-xs font-medium text-text-muted">
                   {t("hr.staffSalary.phone")}
                 </Label>
-                <Input id="staff-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" required />
+                <Input id="staff-phone" type="tel" inputMode="tel" className={FIELD_W.mobile} value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" required />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="staff-role" className="block text-xs font-medium text-text-muted">

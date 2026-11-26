@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { PeriodFilter } from "../reports/PeriodFilter"
 import { PnlReportTab } from "../reports/PnlReportTab"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /** Accounts / Expenses (money-out) dashboard — 2026-09-24 change request
  * against the v2.2 scope guard's "bank-payment-tracking screen" item (see
@@ -484,7 +485,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="accounts-expense-amount">{t("reports.pnl.amount")}</Label>
-          <Input id="accounts-expense-amount" type="number" min={0} step="0.01" {...form.register("amount")} />
+          <Input id="accounts-expense-amount" type="number" inputMode="decimal" min={0} step="0.01" className={FIELD_W.amount} {...form.register("amount")} />
           {form.formState.errors.amount ? <p className="text-xs text-danger">{t(form.formState.errors.amount.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
