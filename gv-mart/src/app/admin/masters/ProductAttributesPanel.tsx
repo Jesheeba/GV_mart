@@ -4,6 +4,7 @@ import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { productAttributeKeysHooks, useSetProductCustomAttribute } from "@/hooks/useMasters"
 import type { Json } from "@/types/database"
 import { focusChoice } from "@/lib/utils"
@@ -154,11 +155,18 @@ export function ProductAttributesPanel({
                 ))}
               </select>
               {pickedKey?.data_type === "boolean" ? (
-                <select value={valueInput} onChange={(e) => setValueInput(e.target.value)} className="h-9 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-                  <option value="">{t("masters.productAttributes.valuePlaceholder")}</option>
-                  <option value="true">{t("common.yes")}</option>
-                  <option value="false">{t("common.no")}</option>
-                </select>
+                <ChoiceSelect
+                  id="attr-boolean-value"
+                  className="flex-1 space-y-0"
+                  label={pickedKey.label}
+                  labelClassName="sr-only"
+                  value={valueInput as "true" | "false" | ""}
+                  options={[
+                    { value: "true", label: t("common.yes") },
+                    { value: "false", label: t("common.no") },
+                  ]}
+                  onChange={setValueInput}
+                />
               ) : (
                 <input
                   type={pickedKey?.data_type === "number" ? "number" : "text"}
@@ -190,30 +198,17 @@ export function ProductAttributesPanel({
                   placeholder={t("masters.productAttributes.newKeyNamePlaceholder")}
                   className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 />
-                <select
+                <ChoiceSelect
                   id="new-key-data-type"
+                  label={t("masters.productEnquiryConfig.dataType")}
                   value={newKeyDataType}
-                  onChange={(e) => {
-                    setNewKeyDataType(e.target.value as "text" | "number" | "boolean")
+                  options={(["text", "number", "boolean"] as const).map((v) => ({ value: v, label: t(`masters.productAttributes.dataType.${v}`) }))}
+                  onChange={(v) => {
+                    setNewKeyDataType(v)
                     setDataTypeError(false)
                   }}
-                  aria-label={t("masters.productEnquiryConfig.dataType")}
-                  aria-invalid={dataTypeError || undefined}
-                  aria-describedby={dataTypeError ? "new-key-data-type-error" : undefined}
-                  className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-                >
-                  <option value="" disabled>
-                    {t("common.selectPlaceholder")}
-                  </option>
-                  <option value="text">{t("masters.productAttributes.dataType.text")}</option>
-                  <option value="number">{t("masters.productAttributes.dataType.number")}</option>
-                  <option value="boolean">{t("masters.productAttributes.dataType.boolean")}</option>
-                </select>
-                {dataTypeError ? (
-                  <p id="new-key-data-type-error" role="alert" className="text-xs text-danger">
-                    {t("common.chooseOption")}
-                  </p>
-                ) : null}
+                  error={dataTypeError ? t("common.chooseOption") : undefined}
+                />
                 <div className="flex justify-end gap-1.5">
                   <Button size="sm" variant="ghost" onClick={() => setShowAddKey(false)}>
                     {t("common.cancel")}

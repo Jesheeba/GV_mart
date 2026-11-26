@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useProfile } from "@/hooks/useProfile"
 import { focusChoice } from "@/lib/utils"
 import { useTechniciansList } from "@/hooks/useTechniciansAdmin"
@@ -111,31 +112,18 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="space-y-1">
-          <Label htmlFor={`ownership-${technicianId}`}>{t("expenses.bikeAssignment.ownership")}</Label>
-          <select
-            id={`ownership-${technicianId}`}
-            value={ownership}
-            onChange={(e) => {
-              setOwnership(e.target.value as "own" | "company")
-              setOwnershipError(false)
-            }}
-            aria-invalid={ownershipError || undefined}
-            aria-describedby={ownershipError ? `ownership-${technicianId}-error` : undefined}
-            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          >
-            <option value="" disabled>
-              {t("common.selectPlaceholder")}
-            </option>
-            <option value="own">{t("expenses.bikeAssignment.ownershipValues.own")}</option>
-            <option value="company">{t("expenses.bikeAssignment.ownershipValues.company")}</option>
-          </select>
-          {ownershipError ? (
-            <p id={`ownership-${technicianId}-error`} role="alert" className="text-xs text-danger">
-              {t("common.chooseOption")}
-            </p>
-          ) : null}
-        </div>
+        <ChoiceSelect
+          id={`ownership-${technicianId}`}
+          className="space-y-1"
+          label={t("expenses.bikeAssignment.ownership")}
+          value={ownership}
+          options={(["own", "company"] as const).map((o) => ({ value: o, label: t(`expenses.bikeAssignment.ownershipValues.${o}`) }))}
+          onChange={(v) => {
+            setOwnership(v)
+            setOwnershipError(false)
+          }}
+          error={ownershipError ? t("common.chooseOption") : undefined}
+        />
         <div className="space-y-1">
           <Label htmlFor={`rate-${technicianId}`}>{t("expenses.bikeAssignment.rate")}</Label>
           <Input id={`rate-${technicianId}`} type="number" inputMode="decimal" min={0} step="0.5" className={FIELD_W.amount} value={rate} onChange={(e) => setRate(e.target.value)} />

@@ -15,7 +15,16 @@ import {
   useSendSegmentNow,
   useSetSegmentStanding,
 } from "@/hooks/useAudienceSegments"
-import { SEGMENT_FIELDS, SEGMENT_TEXT_OPERATORS, type SegmentConditionLeaf, type SegmentConditionTree } from "@/services/audienceSegments"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
+import {
+  completeSegmentTree,
+  emptySegmentDraft,
+  emptySegmentLeaf,
+  SEGMENT_FIELDS,
+  SEGMENT_TEXT_OPERATORS,
+  type SegmentDraftLeaf,
+  type SegmentDraftTree,
+} from "@/services/audienceSegments"
 import { cn } from "@/lib/utils"
 import { formatShortDateTime } from "@/lib/formatDate"
 
@@ -23,9 +32,6 @@ import { formatShortDateTime } from "@/lib/formatDate"
  * attributes, save it, pick an approved template, and send once or make it standing (auto-fires on
  * every future matching purchase). See build-docs/features/segment-builder.md. Separate from, and
  * additive to, EventTemplatesTab's fixed 12-template wiring above. */
-function emptyTree(): SegmentConditionTree {
-  return { op: "and", conditions: [{ field: SEGMENT_FIELDS[0].field, operator: "=", value: "" }] }
-}
 
 /** One leaf's value box — a native text input with a <datalist> of real existing values for the
  * chosen field, so the admin can pick from what's actually in the data instead of typing blind
@@ -53,68 +59,73 @@ function ConditionValueInput({ orgId, field, value, onChange }: { orgId: string;
   )
 }
 
-function ConditionBuilder({ orgId, tree, onChange }: { orgId: string; tree: SegmentConditionTree; onChange: (t: SegmentConditionTree) => void }) {
+/** Every select starts "Not set"; the parent only counts/previews/saves once completeSegmentTree() accepts the draft. */
+function ConditionBuilder({ orgId, tree, onChange }: { orgId: string; tree: SegmentDraftTree; onChange: (t: SegmentDraftTree) => void }) {
   const { t } = useTranslation()
-  const leaves = tree.conditions as SegmentConditionLeaf[]
+  const leaves = tree.conditions
 
-  const updateLeaf = (i: number, patch: Partial<SegmentConditionLeaf>) => {
+  const updateLeaf = (i: number, patch: Partial<SegmentDraftLeaf>) => {
     const next = leaves.map((l, idx) => (idx === i ? { ...l, ...patch } : l))
     onChange({ ...tree, conditions: next })
   }
-  const addLeaf = () => onChange({ ...tree, conditions: [...leaves, { field: SEGMENT_FIELDS[0].field, operator: "=", value: "" }] })
+  const addLeaf = () => onChange({ ...tree, conditions: [...leaves, emptySegmentLeaf()] })
   const removeLeaf = (i: number) => onChange({ ...tree, conditions: leaves.filter((_, idx) => idx !== i) })
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs text-text-muted">
         <span>{t("automation.segments.matchAll")}</span>
-        <select
-          className="rounded border border-border bg-surface px-2 py-1 text-xs"
+        <ChoiceSelect
+          id="segment-op"
+          label={`${t("automation.segments.matchAll")} … ${t("automation.segments.ofTheseConditions")}`}
+          labelClassName="sr-only"
           value={tree.op}
-          onChange={(e) => onChange({ ...tree, op: e.target.value as "and" | "or" })}
-        >
-          <option value="and">{t("automation.segments.opAnd")}</option>
-          <option value="or">{t("automation.segments.opOr")}</option>
-        </select>
+          options={[
+            { value: "and", label: t("automation.segments.opAnd") },
+            { value: "or", label: t("automation.segments.opOr") },
+          ]}
+          onChange={(op) => onChange({ ...tree, op })}
+        />
         <span>{t("automation.segments.ofTheseConditions")}</span>
       </div>
       {leaves.map((leaf, i) => {
-        const fieldDef = SEGMENT_FIELDS.find((f) => f.field === leaf.field) ?? SEGMENT_FIELDS[0]
+        const isBoolean = SEGMENT_FIELDS.find((f) => f.field === leaf.field)?.kind === "boolean"
         return (
           <div key={i} className="flex flex-wrap items-center gap-2">
-            <select
-              className="rounded border border-border bg-surface px-2 py-1 text-xs"
+            <ChoiceSelect
+              id={`segment-field-${i}`}
+              label={`${t("masters.productEnquiryConfig.field")} ${i + 1}`}
+              labelClassName="sr-only"
               value={leaf.field}
-              onChange={(e) => updateLeaf(i, { field: e.target.value, operator: "=", value: fieldDef.kind === "boolean" ? true : "" })}
-            >
-              {SEGMENT_FIELDS.map((f) => (
-                <option key={f.field} value={f.field}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-            {fieldDef.kind === "boolean" ? (
-              <select
-                className="rounded border border-border bg-surface px-2 py-1 text-xs"
-                value={String(leaf.value)}
-                onChange={(e) => updateLeaf(i, { value: e.target.value === "true" })}
-              >
-                <option value="true">{t("automation.segments.yes")}</option>
-                <option value="false">{t("automation.segments.no")}</option>
-              </select>
+              options={SEGMENT_FIELDS.map((f) => ({ value: f.field, label: f.label }))}
+              // A new field resets its operator and value to "Not set".
+              onChange={(field) => updateLeaf(i, { field, operator: "", value: "" })}
+            />
+            {isBoolean ? (
+              <ChoiceSelect
+                id={`segment-value-${i}`}
+                label={t("automation.segments.valuePlaceholder")}
+                labelClassName="sr-only"
+                value={leaf.value === "" ? "" : String(leaf.value) as "true" | "false"}
+                options={[
+                  { value: "true", label: t("automation.segments.yes") },
+                  { value: "false", label: t("automation.segments.no") },
+                ]}
+                onChange={(v) => updateLeaf(i, { value: v === "" ? "" : v === "true" })}
+              />
             ) : (
               <>
-                <select
-                  className="rounded border border-border bg-surface px-2 py-1 text-xs"
-                  value={leaf.operator}
-                  onChange={(e) => updateLeaf(i, { operator: e.target.value })}
-                >
-                  {SEGMENT_TEXT_OPERATORS.map((o) => (
-                    <option key={o.operator} value={o.operator}>
-                      {t(`automation.segments.operator.${o.operator === "=" ? "equals" : "contains"}`)}
-                    </option>
-                  ))}
-                </select>
+                <ChoiceSelect
+                  id={`segment-operator-${i}`}
+                  label={`${t("automation.segments.operator.equals")} / ${t("automation.segments.operator.contains")}`}
+                  labelClassName="sr-only"
+                  value={leaf.operator as (typeof SEGMENT_TEXT_OPERATORS)[number]["operator"] | ""}
+                  options={SEGMENT_TEXT_OPERATORS.map((o) => ({
+                    value: o.operator,
+                    label: t(`automation.segments.operator.${o.operator === "=" ? "equals" : "contains"}`),
+                  }))}
+                  onChange={(operator) => updateLeaf(i, { operator })}
+                />
                 <ConditionValueInput
                   orgId={orgId}
                   field={leaf.field}
@@ -140,11 +151,13 @@ function NewSegmentPanel({ orgId }: { orgId: string }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
-  const [tree, setTree] = useState<SegmentConditionTree>(emptyTree())
+  const [tree, setTree] = useState<SegmentDraftTree>(emptySegmentDraft)
   const [templateName, setTemplateName] = useState("")
+  // null while any rule part is "Not set" — the count, preview and save all wait for a complete rule.
+  const complete = completeSegmentTree(tree)
 
   const { data: templates } = useApprovedTemplateNames()
-  const { data: count, isFetching: countLoading } = useSegmentMatchCount(orgId, tree)
+  const { data: count, isFetching: countLoading } = useSegmentMatchCount(orgId, complete ?? undefined)
   const previewMut = useSegmentMatchPreview()
   const saveMut = useSaveAudienceSegment()
 
@@ -155,8 +168,6 @@ function NewSegmentPanel({ orgId }: { orgId: string }) {
       </Button>
     )
   }
-
-  const validLeaves = (tree.conditions as SegmentConditionLeaf[]).every((l) => (typeof l.value === "boolean" ? true : String(l.value).trim().length > 0))
 
   return (
     <div className="space-y-3 rounded-lg border border-border p-3">
@@ -170,12 +181,12 @@ function NewSegmentPanel({ orgId }: { orgId: string }) {
 
       <div className="flex items-center gap-2">
         <span className="text-xs text-text-muted">{t("automation.segments.matchingNow")}:</span>
-        {countLoading ? <Loader2 className="size-3.5 animate-spin" /> : <span className="font-bold">{count ?? 0}</span>}
+        {!complete ? <span className="font-bold">—</span> : countLoading ? <Loader2 className="size-3.5 animate-spin" /> : <span className="font-bold">{count ?? 0}</span>}
         <Button
           size="sm"
           variant="outline"
-          onClick={() => previewMut.mutate({ orgId, conditionTree: tree })}
-          disabled={!validLeaves || previewMut.isPending}
+          onClick={() => complete && previewMut.mutate({ orgId, conditionTree: complete })}
+          disabled={!complete || previewMut.isPending}
         >
           {t("automation.segments.preview")}
         </Button>
@@ -207,12 +218,13 @@ function NewSegmentPanel({ orgId }: { orgId: string }) {
       <div className="flex gap-2">
         <Button
           size="sm"
-          disabled={!name.trim() || !validLeaves || saveMut.isPending}
+          disabled={!name.trim() || !complete || saveMut.isPending}
           onClick={async () => {
-            await saveMut.mutateAsync({ orgId, name: name.trim(), conditionTree: tree, wasiTemplateName: templateName || null })
+            if (!complete) return
+            await saveMut.mutateAsync({ orgId, name: name.trim(), conditionTree: complete, wasiTemplateName: templateName || null })
             setOpen(false)
             setName("")
-            setTree(emptyTree())
+            setTree(emptySegmentDraft())
             setTemplateName("")
           }}
         >

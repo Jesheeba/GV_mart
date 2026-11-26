@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useLeadSchedule, useSetFollowupsBulk } from "@/hooks/useLeadFollowups"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { NextFollowupPicker } from "./NextFollowupPicker"
 import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 import { FOLLOWUP_NOTE_MAX, FOLLOWUP_TYPES, addDays, cleanFollowupNote, getIstNow, isNextFollowupValid, nextWorkingDay, toIso, type NextFollowupValue, type SetFollowupType } from "@/lib/lead-followups"
 import { BULK_DEFAULT_PER_DAY, BULK_MAX_LEADS, isValidPerDay, spreadPlan, summariseSkipped } from "@/lib/lead-spread"
-import { cn, focusChoice } from "@/lib/utils"
+import { focusChoice } from "@/lib/utils"
 
 /**
  * Master bulk action on the "No follow-up" tab: schedule every selected lead in one go, either all at the same time or
@@ -49,7 +50,7 @@ function Body({ leadIds, onClose, onDone }: { leadIds: string[]; onClose: () => 
   const { data: profile } = useProfile()
   const schedule = useLeadSchedule(profile?.org_id).data ?? DEFAULT_LEAD_SCHEDULE
   const bulk = useSetFollowupsBulk()
-  // Unchosen until staff pick one (choice-no-preselect); the spread/same mode below keeps its default.
+  // Unchosen until staff pick one (choice-dropdowns-not-set: "Not set" blocks Save); the spread/same mode below keeps its default.
   const [type, setType] = useState<SetFollowupType | null>(null)
   const [typeError, setTypeError] = useState(false)
   const [note, setNote] = useState("")
@@ -94,36 +95,17 @@ function Body({ leadIds, onClose, onDone }: { leadIds: string[]; onClose: () => 
 
   return (
     <div className="space-y-4">
-      <section className="space-y-2">
-        <Label id="bulk-followup-type-label">{t("leads.followup.setType")}</Label>
-        <div
-          id="bulk-followup-type"
-          role="group"
-          aria-labelledby="bulk-followup-type-label"
-          aria-describedby={typeError ? "bulk-followup-type-error" : undefined}
-          className="flex flex-wrap gap-1.5"
-        >
-          {FOLLOWUP_TYPES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              aria-pressed={type === c}
-              onClick={() => {
-                setType(c)
-                setTypeError(false)
-              }}
-              className={cn("rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors", type === c ? "border-ink bg-ink text-white" : "border-border bg-surface text-text hover:bg-surface-alt")}
-            >
-              {t(`leads.followup.type.${c}`)}
-            </button>
-          ))}
-        </div>
-        {typeError ? (
-          <p id="bulk-followup-type-error" role="alert" className="text-xs text-danger">
-            {t("leads.followup.typeRequired")}
-          </p>
-        ) : null}
-      </section>
+      <ChoiceSelect
+        id="bulk-followup-type"
+        label={t("leads.followup.setType")}
+        value={type}
+        options={FOLLOWUP_TYPES.map((c) => ({ value: c, label: t(`leads.followup.type.${c}`) }))}
+        onChange={(v) => {
+          setType(v || null)
+          setTypeError(false)
+        }}
+        error={typeError ? t("leads.followup.typeRequired") : undefined}
+      />
 
       <fieldset className="space-y-2">
         <legend className="text-xs font-medium text-text-muted">{t("leads.followup.setWhen")}</legend>

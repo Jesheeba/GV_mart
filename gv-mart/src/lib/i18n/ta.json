@@ -106,7 +106,6 @@
   },
   "common": {
     "chooseOption": "ஒரு விருப்பத்தைத் தேர்ந்தெடுக்கவும்",
-    "selectPlaceholder": "தேர்ந்தெடுக்கவும்…",
     "notSet": "அமைக்கப்படவில்லை",
     "quickAdd": "“{{text}}” சேர்க்கவும்",
     "appName": "GV Mart",
@@ -683,7 +682,6 @@
       "memberName": "முழு பெயர்",
       "memberMobile": "மொபைல் எண்",
       "memberRelation": "உறவு முறை",
-      "memberRelationPlaceholder": "முதன்மை தொடர்புக்கான உறவு முறை",
       "memberProfession": "தொழில் (எ.கா. ஆசிரியர், கடை உரிமையாளர்)",
       "memberEmail": "மின்னஞ்சல் (விருப்பம்)",
       "email": "வாடிக்கையாளர் மின்னஞ்சல் (விருப்பம்)",
@@ -1996,6 +1994,13 @@
     }
   },
   "service": {
+    "errors": {
+      "customerRequired": "வாடிக்கையாளரைத் தேர்ந்தெடுக்கவும்",
+      "nameOfComplaintRequired": "புகாரை உள்ளிடவும்",
+      "productRequired": "பொருளைத் தேர்ந்தெடுக்கவும்",
+      "scheduledAtRequired": "தேதி மற்றும் நேரத்தைத் தேர்ந்தெடுக்கவும்",
+      "priorityRequired": "முன்னுரிமையைத் தேர்ந்தெடுக்கவும்"
+    },
     "subtitle": "சேவை டிக்கெட்டுகள் மற்றும் பணி ஒதுக்கீடுகள்.",
     "stats": "{{open}} திறந்தவை · {{overdue}} தாமதமானவை",
     "loadFailed": "டிக்கெட்டுகளை ஏற்ற முடியவில்லை. இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.",
@@ -2204,6 +2209,7 @@
       "attachedPhotos": "வாடிக்கையாளர் இணைத்த புகைப்படங்கள்",
       "confirmedAvailability": {
         "reasonRequired": "ஒரு காரணத்தைத் தேர்ந்தெடுக்கவும்",
+        "reasonLabel": "காரணம்",
         "title": "உறுதிப்படுத்தப்பட்ட கிடைக்கும் நேரம்",
         "logButton": "அழைப்பைப் பதிவு செய்",
         "empty": "இதுவரை உறுதிப்படுத்தப்பட்ட அழைப்புகள் எதுவும் பதிவு செய்யப்படவில்லை.",
@@ -3877,7 +3883,6 @@
       "referrerSearchPlaceholder": "பெயர் அல்லது மொபைல் மூலம் வாடிக்கையாளரைத் தேடவும்…",
       "pointsLabel": "புள்ளிகள்",
       "lostReasonLabel": "காரணம்",
-      "lostReasonPlaceholder": "ஒரு காரணத்தைத் தேர்ந்தெடுக்கவும்…",
       "lostReasonOtherPlaceholder": "காரணத்தை விவரிக்கவும்",
       "confirmLost": "இழப்பை உறுதிசெய்",
       "addedByMistake": "தவறுதலாகச் சேர்க்கப்பட்டதா?",
@@ -5404,7 +5409,6 @@
     "noTaskLink": "பணி இல்லை — தனித்த செலவு",
     "underCategory": "துணை வகை",
     "noCategory": "வகை இல்லை",
-    "chooseCategory": "ஒரு வகையைத் தேர்ந்தெடுக்கவும்",
     "allCategories": "அனைத்து வகைகளும்",
     "uncategorised": "வகைப்படுத்தப்படாதது",
     "createNewCategory": "+ புதிய வகையை உருவாக்கு",

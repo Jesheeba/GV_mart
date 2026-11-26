@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { NotInInventoryProductDialog } from "@/components/shared/NotInInventoryProductDialog"
 import { useToast } from "@/components/ui/toast-context"
 import { addressLine } from "@/lib/address"
@@ -585,7 +586,7 @@ export function TicketDetailPage() {
                     }}
                     className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                   >
-                    <option value="">{t("service.filters.all")}</option>
+                    <option value="">{t("common.notSet")}</option>
                     {(brands ?? []).map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name}
@@ -603,7 +604,7 @@ export function TicketDetailPage() {
                     }}
                     className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                   >
-                    <option value="">{t("service.filters.all")}</option>
+                    <option value="">{t("common.notSet")}</option>
                     {filteredModels.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name}
@@ -618,7 +619,7 @@ export function TicketDetailPage() {
                     onChange={(e) => setProductCatalogId(e.target.value)}
                     className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                   >
-                    <option value="">{t("service.filters.all")}</option>
+                    <option value="">{t("common.notSet")}</option>
                     {filteredProducts.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -851,36 +852,20 @@ export function TicketDetailPage() {
 
           {loggingAvailability ? (
             <div className="space-y-2.5 border-t border-border pt-3">
-              <div
+              <ChoiceSelect
                 id="avail-reason"
-                role="group"
-                aria-label={t("service.detail.confirmedAvailability.title")}
-                aria-describedby={availReasonError ? "avail-reason-error" : undefined}
-                className="flex gap-1 rounded-full bg-surface-alt p-1"
-              >
-                {(["customer_followup", "technician_unavailable"] as const).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    aria-pressed={availReason === r}
-                    onClick={() => {
-                      setAvailReason(r)
-                      setAvailReasonError(false)
-                    }}
-                    className={cn(
-                      "flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                      availReason === r ? "bg-ink text-white" : "text-text-muted"
-                    )}
-                  >
-                    {t(`service.detail.confirmedAvailability.reason.${r}`)}
-                  </button>
-                ))}
-              </div>
-              {availReasonError ? (
-                <p id="avail-reason-error" role="alert" className="text-xs text-danger">
-                  {t("service.detail.confirmedAvailability.reasonRequired")}
-                </p>
-              ) : null}
+                label={t("service.detail.confirmedAvailability.reasonLabel")}
+                value={availReason}
+                options={(["customer_followup", "technician_unavailable"] as const).map((r) => ({
+                  value: r,
+                  label: t(`service.detail.confirmedAvailability.reason.${r}`),
+                }))}
+                onChange={(v) => {
+                  setAvailReason(v || null)
+                  setAvailReasonError(false)
+                }}
+                error={availReasonError ? t("service.detail.confirmedAvailability.reasonRequired") : undefined}
+              />
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <div className="space-y-1">
                   <Label htmlFor="avail-call-date">{t("service.detail.confirmedAvailability.date")}</Label>

@@ -28,6 +28,33 @@ export const SEGMENT_FIELDS = [
   { field: "warranty.active", label: "Has active warranty", kind: "boolean" },
 ] as const
 
+/** Rule-builder draft: every part (and/or, field, operator, yes/no) starts "Not set" ("") — owner rule 2026-11-26. */
+export type SegmentDraftLeaf = { field: string; operator: string; value: string | boolean }
+export type SegmentDraftTree = { op: SegmentConditionTree["op"] | ""; conditions: SegmentDraftLeaf[] }
+
+export const emptySegmentLeaf = (): SegmentDraftLeaf => ({ field: "", operator: "", value: "" })
+export const emptySegmentDraft = (): SegmentDraftTree => ({ op: "", conditions: [emptySegmentLeaf()] })
+
+/** The stored/RPC tree (same jsonb shape as before), or null while any part is still "Not set" or a text value is
+ * blank — an incomplete rule is never counted, previewed or saved. Boolean leaves keep operator "=". */
+export function completeSegmentTree(draft: SegmentDraftTree): SegmentConditionTree | null {
+  if (!draft.op || draft.conditions.length === 0) return null
+  const conditions: SegmentConditionLeaf[] = []
+  for (const leaf of draft.conditions) {
+    const def = SEGMENT_FIELDS.find((f) => f.field === leaf.field)
+    if (!def) return null
+    if (def.kind === "boolean") {
+      if (typeof leaf.value !== "boolean") return null
+      conditions.push({ field: leaf.field, operator: "=", value: leaf.value })
+    } else {
+      if (!SEGMENT_TEXT_OPERATORS.some((o) => o.operator === leaf.operator)) return null
+      if (typeof leaf.value !== "string" || !leaf.value.trim()) return null
+      conditions.push({ field: leaf.field, operator: leaf.operator, value: leaf.value })
+    }
+  }
+  return { op: draft.op, conditions }
+}
+
 export async function listAudienceSegments(orgId: string): Promise<AudienceSegmentRow[]> {
   const { data, error } = await supabase.from("audience_segments").select("*").eq("org_id", orgId).order("created_at", { ascending: false })
   if (error) throw error

@@ -3,9 +3,10 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 
 /**
- * Labelled dropdown for a fixed list of choices (owner, 2026-11-26: either/or fields are dropdowns).
- * Nothing is pre-selected: a required field starts on a disabled "Select…", an optional one on
- * "Not set", which saves as "". The error text is shown under it and linked for screen readers.
+ * Labelled dropdown for a fixed list of choices — the one control for every either/or data-entry field
+ * (owner, 2026-11-26; build-docs/features/choice-dropdowns-not-set.md). The first option is always "Not set"
+ * (value ""), and nothing is pre-selected. Whether "Not set" may be saved is the form's validation, not this
+ * component's: an optional field saves it as empty, a required one shows `error` and blocks Save.
  */
 export function ChoiceSelect<T extends string>({
   id,
@@ -14,9 +15,10 @@ export function ChoiceSelect<T extends string>({
   options,
   onChange,
   error,
-  optional = false,
+  disabled,
   className,
   labelClassName,
+  emptyLabel,
 }: {
   id: string
   label: string
@@ -25,9 +27,11 @@ export function ChoiceSelect<T extends string>({
   onChange: (value: T | "") => void
   /** Already-translated message. */
   error?: string
-  optional?: boolean
+  disabled?: boolean
   className?: string
   labelClassName?: string
+  /** Override "Not set" only where empty has a real meaning ("Any", "Every day"). */
+  emptyLabel?: string
 }) {
   const { t } = useTranslation()
   return (
@@ -38,14 +42,13 @@ export function ChoiceSelect<T extends string>({
       <select
         id={id}
         value={value ?? ""}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value as T | "")}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
-        className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+        className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:opacity-60"
       >
-        <option value="" disabled={!optional}>
-          {t(optional ? "common.notSet" : "common.selectPlaceholder")}
-        </option>
+        <option value="">{emptyLabel ?? t("common.notSet")}</option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}

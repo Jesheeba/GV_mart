@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useAmcPlansForTechnician, useSellAmcOnsite } from "@/hooks/useTechnician"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { Enums } from "@/types/database"
@@ -113,34 +114,17 @@ export function SellAmcSection({
 
             {selectedPlan ? (
               <>
-                <div className="space-y-1.5">
-                  <Label id="amc-payment-method-label">{t("technician.onsite.payment.method")}</Label>
-                  <div
-                    id="amc-payment-method"
-                    role="group"
-                    aria-labelledby="amc-payment-method-label"
-                    aria-describedby={methodError ? "amc-payment-method-error" : undefined}
-                    className="flex w-fit gap-1 rounded-full bg-surface-alt p-1"
-                  >
-                    {(["cash", "transfer"] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        aria-pressed={paymentMethod === m}
-                        onClick={() => {
-                          setPaymentMethod(m)
-                          setMethodError(false)
-                        }}
-                        className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${paymentMethod === m ? "bg-ink text-white" : "text-text-muted"}`}
-                      >
-                        {t(`technician.onsite.payment.${m}`)}
-                      </button>
-                    ))}
-                  </div>
-                  {methodError ? (
-                    <p id="amc-payment-method-error" role="alert" className="text-xs text-danger">{t(PAYMENT_METHOD_REQUIRED)}</p>
-                  ) : null}
-                </div>
+                <ChoiceSelect
+                  id="amc-payment-method"
+                  label={t("technician.onsite.payment.method")}
+                  value={paymentMethod}
+                  options={(["cash", "transfer"] as const).map((m) => ({ value: m, label: t(`technician.onsite.payment.${m}`) }))}
+                  onChange={(v) => {
+                    setPaymentMethod(v || null)
+                    setMethodError(false)
+                  }}
+                  error={methodError ? t(PAYMENT_METHOD_REQUIRED) : undefined}
+                />
 
                 {paymentMethod === "transfer" ? (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -38,7 +38,7 @@ const name: CrudFieldDef = { key: "name", label: "Name", type: "text", required:
 const fields = [name, category, isActive, anyProduct]
 
 describe("initialFormValues", () => {
-  it("AC1/AC5: a select starts empty (the Select… placeholder), never at its first option", () => {
+  it("AC1/AC5: a select starts empty (the 'Not set' option), never at its first option", () => {
     expect(initialFormValues(fields).category).toBe("")
   })
 

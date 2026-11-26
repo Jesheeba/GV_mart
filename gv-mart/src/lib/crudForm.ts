@@ -9,14 +9,14 @@ export function resolveOptions(field: CrudFieldDef, values: Record<string, strin
 
 /**
  * A select whose own options include "" (e.g. "Any product", "—") treats empty as a real choice. Every
- * other select shows a disabled "Select…" placeholder and must be picked before saving (choice-no-preselect).
+ * other select shows "Not set" first and must be picked before saving (choice-dropdowns-not-set, 2026-11-26).
  */
 export function selectNeedsChoice(field: CrudFieldDef, values: Record<string, string>): boolean {
   return field.type === "select" && !resolveOptions(field, values).some((o) => o.value === "")
 }
 
 /**
- * Values a brand-new row starts with: empty ("Select…" for a select) unless the field sets `defaultValue`,
+ * Values a brand-new row starts with: empty ("Not set" for a select) unless the field sets `defaultValue`,
  * which is reserved for status-like fields whose DB default matches (e.g. is_active "true"). Replaces the
  * old "select starts at its first option" rule, which pre-chose real data for staff.
  */

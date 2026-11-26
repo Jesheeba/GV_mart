@@ -14,6 +14,8 @@ import { findDuplicateLeadOrCustomerByMobile, type LeadDuplicateMatch } from "@/
 import { normalizeOptionalIndianMobile } from "@/lib/mobile"
 import { isLeadSourceEditAllowed } from "@/lib/lead-edit"
 import { FIELD_W } from "@/lib/fieldWidth"
+import { focusChoice } from "@/lib/utils"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 
 export type EditableLead = {
   id: string
@@ -25,9 +27,6 @@ export type EditableLead = {
   product_type_key: string | null
   notes: string | null
 }
-
-const selectClass =
-  "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:opacity-60"
 
 /**
  * Edit Lead (#3, 2026-11-02). master, sales_admin and operation_admin only
@@ -95,12 +94,17 @@ export function EditLeadDialog({ lead, open, onOpenChange, onDone }: { lead: Edi
     const altResult = normalizeOptionalIndianMobile(altMobile)
     if (!altResult.ok) nextErrors.alternateMobile = t("leads.edit.errors.mobileInvalid")
 
-    if (!isLeadSourceEditAllowed(lead.source, source)) {
+    // Class C (owner, 2026-11-26): "Not set" is shown but a lead can't be saved without a source.
+    if (!source) nextErrors.source = t("leads.errors.sourceRequired")
+    else if (!isLeadSourceEditAllowed(lead.source, source)) {
       nextErrors.source = t("leads.edit.errors.referralLocked")
     }
 
     setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) return
+    if (Object.keys(nextErrors).length > 0) {
+      if (nextErrors.source && !isReferral) focusChoice("edit-lead-source")
+      return
+    }
 
     const normalizedMobile = mobileResult.ok ? mobileResult.value : null
     const normalizedAlt = altResult.ok ? altResult.value : null
@@ -175,35 +179,30 @@ export function EditLeadDialog({ lead, open, onOpenChange, onDone }: { lead: Edi
               className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-lead-source">{t("leads.new.source")}</Label>
-            {isReferral ? (
-              <>
-                <Input id="edit-lead-source" value={sourceLabel("referral")} disabled />
-                <p className="text-xs text-text-muted">{t("leads.edit.referralLockedHint")}</p>
-              </>
-            ) : (
-              <select id="edit-lead-source" value={source} onChange={(e) => setSource(e.target.value)} className={selectClass}>
-                {sourceOptions.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {sourceLabel(s.key)}
-                  </option>
-                ))}
-              </select>
-            )}
-            {errors.source ? <p className="text-xs text-danger">{errors.source}</p> : null}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-lead-product-type">{t("leads.new.productCategory")}</Label>
-            <select id="edit-lead-product-type" value={productType} onChange={(e) => setProductType(e.target.value)} className={selectClass}>
-              <option value="">{t("service.filters.all")}</option>
-              {activeProductTypes.map((p) => (
-                <option key={p.key} value={p.key}>
-                  {productTypeLabel(p.key)}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isReferral ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-lead-source">{t("leads.new.source")}</Label>
+              <Input id="edit-lead-source" value={sourceLabel("referral")} disabled />
+              <p className="text-xs text-text-muted">{t("leads.edit.referralLockedHint")}</p>
+              {errors.source ? <p className="text-xs text-danger">{errors.source}</p> : null}
+            </div>
+          ) : (
+            <ChoiceSelect
+              id="edit-lead-source"
+              label={t("leads.new.source")}
+              value={source}
+              options={sourceOptions.map((s) => ({ value: s.key, label: sourceLabel(s.key) }))}
+              onChange={setSource}
+              error={errors.source}
+            />
+          )}
+          <ChoiceSelect
+            id="edit-lead-product-type"
+            label={t("leads.new.productCategory")}
+            value={productType}
+            options={activeProductTypes.map((p) => ({ value: p.key, label: productTypeLabel(p.key) }))}
+            onChange={setProductType}
+          />
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="edit-lead-notes">{t("leads.new.notes")}</Label>
             <textarea

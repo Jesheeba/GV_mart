@@ -106,7 +106,6 @@
   },
   "common": {
     "chooseOption": "Choose an option",
-    "selectPlaceholder": "Select…",
     "notSet": "Not set",
     "quickAdd": "Add “{{text}}”",
     "appName": "GV Mart",
@@ -683,7 +682,6 @@
       "memberName": "Full name",
       "memberMobile": "Mobile number",
       "memberRelation": "Relation",
-      "memberRelationPlaceholder": "Relation to primary contact",
       "memberProfession": "Profession (e.g. Teacher, Shop Owner)",
       "memberEmail": "Email (optional)",
       "email": "Customer email (optional)",
@@ -1996,6 +1994,13 @@
     }
   },
   "service": {
+    "errors": {
+      "customerRequired": "Choose a customer",
+      "nameOfComplaintRequired": "Enter the complaint",
+      "productRequired": "Choose a product",
+      "scheduledAtRequired": "Choose a date and time",
+      "priorityRequired": "Choose a priority"
+    },
     "subtitle": "Service tickets and job assignments.",
     "stats": "{{open}} open · {{overdue}} overdue",
     "loadFailed": "Couldn't load tickets. Check your connection and try again.",
@@ -2204,6 +2209,7 @@
       "attachedPhotos": "Customer-attached photos",
       "confirmedAvailability": {
         "reasonRequired": "Choose a reason",
+        "reasonLabel": "Reason",
         "title": "Confirmed availability",
         "logButton": "Log a call",
         "empty": "No confirmed-availability calls logged yet.",
@@ -3882,7 +3888,6 @@
       "referrerSearchPlaceholder": "Search customer by name or mobile…",
       "pointsLabel": "Points",
       "lostReasonLabel": "Reason",
-      "lostReasonPlaceholder": "Select a reason…",
       "lostReasonOtherPlaceholder": "Describe the reason",
       "confirmLost": "Confirm lost",
       "addedByMistake": "Added by mistake?",
@@ -5409,7 +5414,6 @@
     "noTaskLink": "No task — standalone expense",
     "underCategory": "Under Category",
     "noCategory": "No category",
-    "chooseCategory": "Choose a category",
     "allCategories": "All categories",
     "uncategorised": "Uncategorised",
     "createNewCategory": "+ Create new category",

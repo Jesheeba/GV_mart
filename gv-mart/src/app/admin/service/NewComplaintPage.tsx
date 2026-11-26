@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { DraftBanner } from "@/components/shared/DraftBanner"
 import { NotInInventoryProductDialog } from "@/components/shared/NotInInventoryProductDialog"
@@ -32,7 +33,9 @@ import {
 import {
   complaintAppointmentStepSchema,
   complaintDetailsStepSchema,
+  EMPTY_COMPLAINT_DETAILS,
   type ComplaintAppointmentStepInput,
+  type ComplaintDetailsForm,
   type ComplaintDetailsStepInput,
 } from "@/lib/validation/service"
 import { getIstNow } from "@/lib/ist"
@@ -65,7 +68,8 @@ type NewComplaintDraftData = {
   newModelId: string
   newProductId: string
   unlistedProductName: string
-  details: ComplaintDetailsStepInput
+  // Drafts saved before 2026-11-26 carry the old "normal" default; restored as saved.
+  details: ComplaintDetailsForm
   appointment: ComplaintAppointmentStepInput
   // Optional: drafts saved before 2026-11-26 don't have them. Without complaintTypeId a restored draft kept the
   // complaint text but lost its link to the complaint type (spare suggestions, standard minutes).
@@ -159,10 +163,10 @@ export function NewComplaintPage() {
   // only tracks nameOfComplaint's text) since it needs to reset to null
   // whenever that text is edited away from the selected suggestion.
   const [complaintTypeId, setComplaintTypeId] = useState<string | null>(null)
-  const detailsForm = useForm<ComplaintDetailsStepInput>({
-    resolver: zodResolver(complaintDetailsStepSchema),
+  const detailsForm = useForm<ComplaintDetailsForm, unknown, ComplaintDetailsStepInput>({
+    resolver: zodResolver<ComplaintDetailsForm, unknown, ComplaintDetailsStepInput>(complaintDetailsStepSchema),
     mode: "onChange",
-    defaultValues: { nameOfComplaint: "", natureOfComplaint: "", priority: "normal" },
+    defaultValues: EMPTY_COMPLAINT_DETAILS,
   })
 
   // Meeting spec E1: complaint-name master, filtered auto-suggest by the
@@ -300,7 +304,7 @@ export function NewComplaintPage() {
     setNewModelId("")
     setNewProductId("")
     setUnlistedProductName("")
-    detailsForm.reset({ nameOfComplaint: "", natureOfComplaint: "", priority: "normal" })
+    detailsForm.reset(EMPTY_COMPLAINT_DETAILS)
     appointmentForm.reset({ scheduledDate: "", unavailableWindows: [], autoAssign: true, technicianId: "" })
   }
 
@@ -329,6 +333,11 @@ export function NewComplaintPage() {
   }
 
   async function handleSubmit() {
+    // The stepper can jump back past a step: a priority set back to Not set (or an emptied name) must not slip through.
+    if (!(await detailsForm.trigger())) {
+      setStep(detailsForm.getFieldState("priority").invalid ? 4 : 2)
+      return
+    }
     const appointmentValid = await appointmentForm.trigger()
     if (!appointmentValid) return
     const appt = appointmentForm.getValues()
@@ -345,7 +354,7 @@ export function NewComplaintPage() {
       nameOfComplaint: details.nameOfComplaint,
       natureOfComplaint: details.natureOfComplaint || null,
       complaintTypeId,
-      priority: details.priority,
+      priority: details.priority as ComplaintDetailsStepInput["priority"], // validated above
       channel: "call",
       // "always"/anytime mode was dropped from this form — every admin-
       // created ticket now gets a real date + slot, same as the customer app.
@@ -411,7 +420,8 @@ export function NewComplaintPage() {
     (step === 1 && (!!resolvedProductId || (equipmentMode === "notInInventory" && !!unlistedProductName.trim()))) ||
     step === 2 ||
     step === 3 ||
-    (step === 4 && !!detailsForm.watch("priority")) ||
+    // Next stays enabled so goNext can show "Choose an option" under Not set.
+    step === 4 ||
     false
 
   return (
@@ -541,7 +551,7 @@ export function NewComplaintPage() {
                   }}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 >
-                  <option value="">{t("service.filters.all")}</option>
+                  <option value="">{t("common.notSet")}</option>
                   {(brands ?? []).map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
@@ -559,7 +569,7 @@ export function NewComplaintPage() {
                   }}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 >
-                  <option value="">{t("service.filters.all")}</option>
+                  <option value="">{t("common.notSet")}</option>
                   {filteredModels.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.name}
@@ -574,7 +584,7 @@ export function NewComplaintPage() {
                   onChange={(e) => setNewProductId(e.target.value)}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 >
-                  <option value="">{t("service.filters.all")}</option>
+                  <option value="">{t("common.notSet")}</option>
                   {filteredProducts.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -683,21 +693,14 @@ export function NewComplaintPage() {
 
       {step === 4 ? (
         <Card className="gap-3 px-5">
-          <Label>{t("service.newComplaint.priority")}</Label>
-          <div className="flex gap-2">
-            {PRIORITIES.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => detailsForm.setValue("priority", p, { shouldValidate: true })}
-                className={`flex-1 rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-colors ${
-                  detailsForm.watch("priority") === p ? "border-accent bg-accent-soft text-accent" : "border-border text-text-muted"
-                }`}
-              >
-                {t(`service.priority.${p}`)}
-              </button>
-            ))}
-          </div>
+          <ChoiceSelect
+            id="complaintPriority"
+            label={t("service.newComplaint.priority")}
+            value={detailsForm.watch("priority")}
+            options={PRIORITIES.map((p) => ({ value: p, label: t(`service.priority.${p}`) }))}
+            onChange={(v) => detailsForm.setValue("priority", v, { shouldValidate: true })}
+            error={detailsForm.formState.errors.priority ? t(detailsForm.formState.errors.priority.message!) : undefined}
+          />
         </Card>
       ) : null}
 

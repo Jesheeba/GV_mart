@@ -1,18 +1,19 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, MessageCircle, Phone, Footprints } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useAddLeadNote, useLeadOutcomes, useLeadSchedule, useLogLeadOutcome, useReopenLead, useRescheduleFollowup } from "@/hooks/useLeadFollowups"
 import { NextFollowupPicker } from "./NextFollowupPicker"
 import { DEFAULT_LEAD_SCHEDULE, type FollowupType, type LeadOutcomeRow } from "@/services/leadFollowups"
 import { addDays, defaultNextFor, formatIstDateTime, getIstNow, isNextFollowupValid, nextWorkingDay, toIso, type NextFollowupValue } from "@/lib/lead-followups"
-import { LOST_REASON_PRESETS, isLostReasonPreset, type LostReasonPreset } from "@/lib/lead-lost-reasons"
-import { askFollowupQuestion, canSaveOutcome, defaultFollowupNeeded, scheduleNext } from "@/lib/lead-outcome-followup"
+import { LOST_REASON_PRESETS, type LostReasonPreset } from "@/lib/lead-lost-reasons"
+import { askFollowupQuestion, canSaveOutcome, missingOutcomeChoice, outcomePrefill, scheduleNext, type OutcomeChoice } from "@/lib/lead-outcome-followup"
 import { cn, focusChoice } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 
@@ -31,8 +32,16 @@ type Mode = "outcome" | "reschedule" | "note"
 
 const PHRASES = ["sendWhatsapp", "wantsDiscount", "comparing", "withFamily", "outOfStation", "budget"] as const
 const FOLLOWUP_TYPES: FollowupType[] = ["call", "whatsapp", "visit", "send_quote"]
-const CHANNEL_ICON = { call: Phone, whatsapp: MessageCircle, visit: Footprints } as const
+const CHANNELS: Channel[] = ["call", "whatsapp", "visit"]
 const RESCHEDULE_REASONS = ["customerAsked", "unreachable", "busy", "waitingStock"] as const
+/** Inline message per required dropdown left on "Not set" (class C). */
+const CHOICE_ERROR: Record<OutcomeChoice, string> = {
+  outcome: "common.chooseOption",
+  channel: "leads.outcomeSheet.channelRequired",
+  lostReason: "common.chooseOption",
+  followupNeeded: "common.chooseOption",
+  nextType: "leads.outcomeSheet.nextTypeRequired",
+}
 
 const chipBase = "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
 const chipOn = "border-ink bg-ink text-white"
@@ -105,8 +114,8 @@ function SheetBody({
   const [note, setNote] = useState("")
   const [reopenReason, setReopenReason] = useState("")
   const [channel, setChannel] = useState<Channel | null>(defaultChannel ?? null)
-  // Which unchosen button group blocked the last save (choice-no-preselect).
-  const [choiceError, setChoiceError] = useState<"channel" | "nextType" | null>(null)
+  // Which dropdown left on "Not set" blocked the last save (choice-dropdowns-not-set).
+  const [choiceError, setChoiceError] = useState<OutcomeChoice | null>(null)
 
   // Mode "outcome"
   const [outcomeId, setOutcomeId] = useState<string | null>(null)
@@ -120,7 +129,8 @@ function SheetBody({
   const [followupType, setFollowupType] = useState<FollowupType | null>(null)
   const [lostPreset, setLostPreset] = useState<LostReasonPreset | "">("")
   const [lostOther, setLostOther] = useState("")
-  const [needsFollowup, setNeedsFollowup] = useState(false)
+  // Unset (not "No") until an outcome pre-fills it or staff answer.
+  const [needsFollowup, setNeedsFollowup] = useState<boolean | null>(null)
 
   // Mode "reschedule"
   const [rescheduleReason, setRescheduleReason] = useState("")
@@ -136,20 +146,28 @@ function SheetBody({
   const outcomeLabel = (o: LeadOutcomeRow) => (lang.startsWith("ta") && o.label_ta ? o.label_ta : o.label_en)
   const busy = logOutcome.isPending || reopenLead.isPending || reschedule.isPending || addNote.isPending
 
-  function chooseOutcome(o: LeadOutcomeRow) {
-    setOutcomeId(o.id)
-    setNeedsFollowup(defaultFollowupNeeded(o))
-    setFollowupType(o.default_followup_type)
+  function chooseOutcome(id: string) {
+    const o = active.find((x) => x.id === id)
     setChoiceError(null)
+    if (!o) return setOutcomeId(null)
+    setOutcomeId(o.id)
+    const prefill = outcomePrefill(o)
+    setNeedsFollowup(prefill.needsFollowup)
+    setFollowupType(prefill.followupType)
     const d = defaultNextFor(o, getIstNow(), schedule.lead_work_days, schedule.lead_work_end)
     setNext({ date: d.date, time: d.time, exact: d.exact })
     setKeepNonWorking(null)
-    const hint = o.lost_reason_hint
-    setLostPreset(o.stage_effect === "lost" && hint && isLostReasonPreset(hint) ? hint : "")
+    setLostPreset(prefill.lostPreset)
     setLostOther("")
   }
 
-  function chooseFollowup(yes: boolean) {
+  /** Clears that field's "choose an option" error once it is changed. */
+  function clearChoiceError(which: OutcomeChoice) {
+    if (choiceError === which) setChoiceError(null)
+  }
+
+  function chooseFollowup(yes: boolean | null) {
+    clearChoiceError("followupNeeded")
     setNeedsFollowup(yes)
     if (yes && !next.date) {
       const n = defaultNextFor({ followup_mode: "offset", default_offset_days: 1 }, getIstNow(), schedule.lead_work_days, schedule.lead_work_end)
@@ -159,13 +177,14 @@ function SheetBody({
   }
 
   const lostReasonValue = lostPreset === "other" ? lostOther.trim() : lostPreset
+  const missingChoice = missingOutcomeChoice({ selected, channel, lostPreset, needsFollowup, followupType })
   const nextValid = isNextFollowupValid(next)
   const rescheduleNextValid = isNextFollowupValid(rescheduleNext)
 
   const canSave = reopen
     ? nextValid && reopenReason.trim().length >= 3
     : mode === "outcome"
-      ? canSaveOutcome({ selected, needsLostReason, lostReasonValue, needsFollowup, nextValid })
+      ? missingChoice !== null || canSaveOutcome({ selected, needsLostReason, lostReasonValue, needsFollowup, nextValid })
       : mode === "reschedule"
         ? rescheduleReason.trim() !== "" && rescheduleNextValid
         : note.trim().length > 0
@@ -175,10 +194,11 @@ function SheetBody({
   // warning is shown there rather than guessing and risking a wrong one.
   const willStuck = !reopen && mode === "reschedule" && lead.postponeCount != null && lead.postponeCount + 1 >= schedule.lead_stuck_postpones
 
-  function blockOnChoice(which: "channel" | "nextType") {
+  function blockOnChoice(which: OutcomeChoice) {
     setChoiceError(which)
-    focusChoice(which === "channel" ? "interaction-channel" : "interaction-next-type")
+    focusChoice(`interaction-${which}`)
   }
+  const choiceErrorFor = (which: OutcomeChoice) => (choiceError === which ? t(CHOICE_ERROR[which]) : undefined)
 
   async function save() {
     try {
@@ -193,10 +213,9 @@ function SheetBody({
           isExact: next.exact,
         })
         toast.success(t("leads.outcomeSheet.reopened", { when: formatIstDateTime(res.next_due_at, lang) }))
-      } else if (mode === "outcome" && selected) {
+      } else if (mode === "outcome") {
+        if (missingChoice || !selected || !channel) return blockOnChoice(missingChoice ?? "outcome")
         const withNext = scheduleNext(selected, needsFollowup)
-        if (!channel) return blockOnChoice("channel")
-        if (withNext && !followupType) return blockOnChoice("nextType")
         const res = await logOutcome.mutateAsync({
           leadId: lead.id,
           outcomeId: selected.id,
@@ -269,24 +288,16 @@ function SheetBody({
 
       {!reopen && mode === "outcome" ? (
         <section className="space-y-2">
-          <Label>{t("leads.outcomeSheet.step1")}</Label>
-          {outcomes.isLoading ? (
-            <p className="text-xs text-text-muted">{t("common.loading")}</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {active.map((o) => (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => chooseOutcome(o)}
-                  aria-pressed={outcomeId === o.id}
-                  className={cn(chipBase, outcomeId === o.id ? chipOn : chipOff, o.stage_effect === "lost" && outcomeId !== o.id && "border-danger/30")}
-                >
-                  {outcomeLabel(o)}
-                </button>
-              ))}
-            </div>
-          )}
+          <ChoiceSelect
+            id="interaction-outcome"
+            label={t("leads.outcomeSheet.step1")}
+            value={outcomeId}
+            options={active.map((o) => ({ value: o.id, label: outcomeLabel(o) }))}
+            onChange={chooseOutcome}
+            disabled={outcomes.isLoading}
+            error={choiceErrorFor("outcome")}
+          />
+          {outcomes.isLoading ? <p className="text-xs text-text-muted">{t("common.loading")}</p> : null}
         </section>
       ) : null}
 
@@ -321,43 +332,20 @@ function SheetBody({
 
       {selected || reopen || mode === "note" || mode === "reschedule" ? (
         <section className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="interaction-note">{mode === "note" ? t("leads.detail.notePlaceholder") : t("leads.outcomeSheet.step2")}</Label>
-            {!reopen && mode === "outcome" ? (
-              <div
-                id="interaction-channel"
-                className="flex gap-1"
-                role="group"
-                aria-label={t("leads.outcomeSheet.how")}
-                aria-describedby={choiceError === "channel" ? "interaction-channel-error" : undefined}
-              >
-                {(["call", "whatsapp", "visit"] as const).map((c) => {
-                  const Icon = CHANNEL_ICON[c]
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => {
-                        setChannel(c)
-                        if (choiceError === "channel") setChoiceError(null)
-                      }}
-                      aria-pressed={channel === c}
-                      title={t(`leads.followup.type.${c}`)}
-                      className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold", channel === c ? chipOn : chipOff)}
-                    >
-                      <Icon className="size-3" />
-                      {t(`leads.followup.type.${c}`)}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : null}
-          </div>
-          {!reopen && mode === "outcome" && choiceError === "channel" ? (
-            <p id="interaction-channel-error" role="alert" className="text-right text-xs text-danger">
-              {t("leads.outcomeSheet.channelRequired")}
-            </p>
+          {!reopen && mode === "outcome" ? (
+            <ChoiceSelect
+              id="interaction-channel"
+              label={t("leads.outcomeSheet.how")}
+              value={channel}
+              options={CHANNELS.map((c) => ({ value: c, label: t(`leads.followup.type.${c}`) }))}
+              onChange={(v) => {
+                setChannel(v || null)
+                clearChoiceError("channel")
+              }}
+              error={choiceErrorFor("channel")}
+            />
           ) : null}
+          <Label htmlFor="interaction-note">{mode === "note" ? t("leads.detail.notePlaceholder") : t("leads.outcomeSheet.step2")}</Label>
           <textarea
             id="interaction-note"
             rows={4}
@@ -386,14 +374,17 @@ function SheetBody({
 
       {needsLostReason && mode === "outcome" ? (
         <section className="space-y-2">
-          <Label>{t("leads.detail.lostReasonLabel")}</Label>
-          <div className="flex flex-wrap gap-1.5">
-            {LOST_REASON_PRESETS.map((r) => (
-              <button key={r} type="button" onClick={() => setLostPreset(r)} aria-pressed={lostPreset === r} className={cn(chipBase, lostPreset === r ? chipOn : chipOff)}>
-                {t(`leads.lostReason.${r}`)}
-              </button>
-            ))}
-          </div>
+          <ChoiceSelect
+            id="interaction-lostReason"
+            label={t("leads.detail.lostReasonLabel")}
+            value={lostPreset}
+            options={LOST_REASON_PRESETS.map((r) => ({ value: r, label: t(`leads.lostReason.${r}`) }))}
+            onChange={(v) => {
+              setLostPreset(v)
+              clearChoiceError("lostReason")
+            }}
+            error={choiceErrorFor("lostReason")}
+          />
           {lostPreset === "other" ? <Input autoFocus placeholder={t("leads.detail.lostReasonOtherPlaceholder")} value={lostOther} onChange={(e) => setLostOther(e.target.value)} /> : null}
         </section>
       ) : null}
@@ -402,57 +393,35 @@ function SheetBody({
 
       {!reopen && mode === "outcome" && askFollowupQuestion(selected) ? (
         <section className="space-y-2">
-          <Label id="followup-needed-label">{t("leads.outcomeSheet.followupNeeded")}</Label>
-          <div className="flex gap-1.5" role="radiogroup" aria-labelledby="followup-needed-label">
-            {([true, false] as const).map((yes) => (
-              <button
-                key={String(yes)}
-                type="button"
-                role="radio"
-                aria-checked={needsFollowup === yes}
-                onClick={() => chooseFollowup(yes)}
-                className={cn(chipBase, needsFollowup === yes ? chipOn : chipOff)}
-              >
-                {t(yes ? "leads.outcomeSheet.yes" : "leads.outcomeSheet.no")}
-              </button>
-            ))}
-          </div>
-          {!needsFollowup ? <p className="text-xs text-text-muted">{t("leads.outcomeSheet.noFollowupHint")}</p> : null}
+          <ChoiceSelect
+            id="interaction-followupNeeded"
+            label={t("leads.outcomeSheet.followupNeeded")}
+            value={needsFollowup === null ? "" : needsFollowup ? "yes" : "no"}
+            options={[
+              { value: "yes", label: t("leads.outcomeSheet.yes") },
+              { value: "no", label: t("leads.outcomeSheet.no") },
+            ]}
+            onChange={(v) => chooseFollowup(v === "" ? null : v === "yes")}
+            error={choiceErrorFor("followupNeeded")}
+          />
+          {needsFollowup === false ? <p className="text-xs text-text-muted">{t("leads.outcomeSheet.noFollowupHint")}</p> : null}
         </section>
       ) : null}
 
       {(reopen || (mode === "outcome" && askFollowupQuestion(selected) && needsFollowup)) && (
         <section className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label>{t("leads.outcomeSheet.step3")}</Label>
-            <div
-              id="interaction-next-type"
-              className="flex gap-1"
-              role="group"
-              aria-label={t("leads.outcomeSheet.nextType")}
-              aria-describedby={choiceError === "nextType" ? "interaction-next-type-error" : undefined}
-            >
-              {FOLLOWUP_TYPES.map((ty) => (
-                <button
-                  key={ty}
-                  type="button"
-                  onClick={() => {
-                    setFollowupType(ty)
-                    if (choiceError === "nextType") setChoiceError(null)
-                  }}
-                  aria-pressed={followupType === ty}
-                  className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold", followupType === ty ? chipOn : chipOff)}
-                >
-                  {t(`leads.followup.type.${ty}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-          {choiceError === "nextType" ? (
-            <p id="interaction-next-type-error" role="alert" className="text-right text-xs text-danger">
-              {t("leads.outcomeSheet.nextTypeRequired")}
-            </p>
-          ) : null}
+          <Label>{t("leads.outcomeSheet.step3")}</Label>
+          <ChoiceSelect
+            id="interaction-nextType"
+            label={t("leads.outcomeSheet.nextType")}
+            value={followupType}
+            options={FOLLOWUP_TYPES.map((ty) => ({ value: ty, label: t(`leads.followup.type.${ty}`) }))}
+            onChange={(v) => {
+              setFollowupType(v || null)
+              clearChoiceError("nextType")
+            }}
+            error={choiceErrorFor("nextType")}
+          />
           <NextFollowupPicker
             value={next}
             onChange={setNext}

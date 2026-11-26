@@ -453,8 +453,11 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
               control={form.control}
               name="categoryId"
               render={({ field }) => (
+                // Native select, not ChoiceSelect: it also hosts the "Create new" action. "Not set" fails the
+                // schema's categoryId rule (choice-dropdowns-not-set, class C); the ref lets Save focus it.
                 <select
                   id="accounts-expense-under-category"
+                  ref={field.ref}
                   value={field.value}
                   onChange={(e) => {
                     if (e.target.value === "__create__") {
@@ -463,11 +466,10 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
                       field.onChange(e.target.value)
                     }
                   }}
+                  aria-invalid={form.formState.errors.categoryId ? true : undefined}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 >
-                  <option value="" disabled>
-                    {t("accounts.chooseCategory")}
-                  </option>
+                  <option value="">{t("common.notSet")}</option>
                   {(expenseCategoryOptions ?? [])
                     .filter((c) => c.is_active)
                     .map((c) => (

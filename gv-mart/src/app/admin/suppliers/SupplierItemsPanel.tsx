@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useProfile } from "@/hooks/useProfile"
 import {
   useCatalogForLinking,
@@ -138,22 +139,14 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
 
       {showForm ? (
         <div className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3.5 sm:grid-cols-4">
-          <div className="space-y-1">
-            <Label id="supplier-item-type-label">{t("suppliers.itemType")}</Label>
-            <div role="group" aria-labelledby="supplier-item-type-label" className="flex gap-1 rounded-full bg-surface-alt p-1">
-              {(["product", "spare", "gift"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={itemType === v}
-                  onClick={() => { setItemType(v); setItemId("") }}
-                  className={`flex-1 rounded-full px-2 py-1.5 text-xs font-medium ${itemType === v ? "bg-ink text-white" : "text-text-muted"}`}
-                >
-                  {t(`masters.tabs.${v === "gift" ? "gifts" : v + "s"}`)}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ChoiceSelect
+            id="supplier-item-type"
+            label={t("suppliers.itemType")}
+            className="space-y-1"
+            value={itemType}
+            options={(["product", "spare", "gift"] as const).map((v) => ({ value: v, label: t(`masters.tabs.${v === "gift" ? "gifts" : v + "s"}`) }))}
+            onChange={(v) => { setItemType(v || null); setItemId("") }}
+          />
           <div className="space-y-1">
             <Label>{t("suppliers.item")}</Label>
             <select

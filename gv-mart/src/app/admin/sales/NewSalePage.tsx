@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Stepper } from "@/components/shared/Stepper"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { DraftBanner } from "@/components/shared/DraftBanner"
@@ -484,32 +485,18 @@ export function NewSalePage() {
 
           {step === 3 ? (
             <Card className="gap-3 px-5">
-              <Label id="sale-payment-method-label">{t("sales.payment.method")}</Label>
-              <div
+              <ChoiceSelect
                 id="sale-payment-method"
-                role="group"
-                aria-labelledby="sale-payment-method-label"
-                aria-describedby={paymentError === PAYMENT_METHOD_REQUIRED ? "sale-payment-method-error" : undefined}
-                className="flex w-fit gap-1 rounded-full bg-surface-alt p-1"
-              >
-                {(["cash", "transfer"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    aria-pressed={paymentMethod === m}
-                    onClick={() => {
-                      setPaymentMethod(m)
-                      if (paymentError === PAYMENT_METHOD_REQUIRED) setPaymentError(null)
-                    }}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${paymentMethod === m ? "bg-ink text-white" : "text-text-muted"}`}
-                  >
-                    {t(`sales.payment.${m}`)}
-                  </button>
-                ))}
-              </div>
-              {paymentError === PAYMENT_METHOD_REQUIRED ? (
-                <p id="sale-payment-method-error" role="alert" className="text-xs text-danger">{t(PAYMENT_METHOD_REQUIRED)}</p>
-              ) : null}
+                label={t("sales.payment.method")}
+                value={paymentMethod}
+                options={(["cash", "transfer"] as const).map((m) => ({ value: m, label: t(`sales.payment.${m}`) }))}
+                onChange={(v) => {
+                  setPaymentMethod(v || null)
+                  if (paymentError === PAYMENT_METHOD_REQUIRED) setPaymentError(null)
+                }}
+                error={paymentError === PAYMENT_METHOD_REQUIRED ? t(PAYMENT_METHOD_REQUIRED) : undefined}
+                className="sm:max-w-xs"
+              />
               {paymentMethod === "transfer" ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">

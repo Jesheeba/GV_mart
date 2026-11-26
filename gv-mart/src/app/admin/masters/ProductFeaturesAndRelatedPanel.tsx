@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { ArrowDown, ArrowUp, Link2, Loader2, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { productsHooks, useAddProductRelated, useProductRelated, useRemoveProductRelated, useSetProductFeatureBullets } from "@/hooks/useMasters"
 import type { Tables, TablesInsert } from "@/types/database"
 import { focusChoice } from "@/lib/utils"
@@ -15,7 +16,7 @@ function extractErrorMessage(e: unknown): string {
   return String(e)
 }
 
-const RELATION_TYPES: TablesInsert<"product_related">["relation_type"][] = ["related", "accessory", "frequently_bought_with"]
+const RELATION_TYPES: NonNullable<TablesInsert<"product_related">["relation_type"]>[] = ["related", "accessory", "frequently_bought_with"]
 
 /**
  * Product Enquiry rebuild (2026-08-04), Phase 1 — feature bullets (a plain
@@ -172,7 +173,7 @@ export function ProductFeaturesAndRelatedPanel({
               ))}
             </ul>
           )}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-start gap-1.5">
             <select
               value={pickerProductId}
               onChange={(e) => setPickerProductId(e.target.value)}
@@ -186,37 +187,24 @@ export function ProductFeaturesAndRelatedPanel({
                 </option>
               ))}
             </select>
-            <select
+            <ChoiceSelect
               id="related-relation-type"
+              className="w-40 space-y-1"
+              label={t("masters.productFeatures.relationTypeLabel")}
+              labelClassName="sr-only"
               value={relationType}
-              onChange={(e) => {
-                setRelationType(e.target.value as TablesInsert<"product_related">["relation_type"])
+              options={RELATION_TYPES.map((rt) => ({ value: rt, label: t(`masters.productFeatures.relationType.${rt}`) }))}
+              onChange={(v) => {
+                setRelationType(v)
                 setRelationTypeError(false)
               }}
-              aria-label={t("masters.productFeatures.relationTypeLabel")}
-              aria-invalid={relationTypeError || undefined}
-              aria-describedby={relationTypeError ? "related-relation-type-error" : undefined}
-              className="h-9 w-40 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            >
-              <option value="" disabled>
-                {t("common.selectPlaceholder")}
-              </option>
-              {RELATION_TYPES.map((rt) => (
-                <option key={rt} value={rt}>
-                  {t(`masters.productFeatures.relationType.${rt}`)}
-                </option>
-              ))}
-            </select>
+              error={relationTypeError ? t("common.chooseOption") : undefined}
+            />
             <Button size="sm" className="gap-1" disabled={!pickerProductId || addRelatedMut.isPending} onClick={handleAddRelated}>
               {addRelatedMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
               {t("masters.productFeatures.add")}
             </Button>
           </div>
-          {relationTypeError ? (
-            <p id="related-relation-type-error" role="alert" className="text-xs text-danger">
-              {t("common.chooseOption")}
-            </p>
-          ) : null}
         </div>
         {error ? <p className="text-xs text-danger">{error}</p> : null}
       </DialogContent>

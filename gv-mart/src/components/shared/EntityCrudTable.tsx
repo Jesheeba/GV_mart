@@ -454,9 +454,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
                   >
                     {selectNeedsChoice(f, values) ? (
-                      <option value="" disabled>
-                        {t("common.selectPlaceholder")}
-                      </option>
+                      <option value="">{t("common.notSet")}</option>
                     ) : null}
                     {resolveOptions(f, values).map((o) => (
                       <option key={o.value} value={o.value}>

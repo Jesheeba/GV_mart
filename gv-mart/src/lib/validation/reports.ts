@@ -26,6 +26,9 @@ export const expenseCategories = [
   "other",
 ] as const
 
+/** Bill entry's category: no default since 2026-11-26 (choice-dropdowns-not-set) — "Not set" ("") blocks Save. */
+export const billCategorySchema = z.enum(expenseCategories, { message: "reports.errors.expenseCategoryRequired" })
+
 /** Accounts follow-up, "Under Category" is now the ONE category field the user
  * sees on Log Expense (reminder-management batch, item 3) -- the legacy fixed
  * `category` enum column still exists and is still written on every insert

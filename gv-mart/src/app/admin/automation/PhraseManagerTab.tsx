@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import {
   useCreateWaCustomTriggerPhrase,
   useDeleteWaCustomTriggerPhrase,
@@ -10,6 +11,7 @@ import {
 } from "@/hooks/useAutomation"
 import { useProfile } from "@/hooks/useProfile"
 import type { WaTriggerCategory } from "@/services/automation"
+import { focusChoice } from "@/lib/utils"
 
 // 2026-08-28 (spec section 5.2) — the one manual dependency of a zero-AI
 // bot: new phrasings need explicit addition. This screen lets staff add
@@ -45,12 +47,19 @@ export function PhraseManagerTab() {
   const updateMut = useUpdateWaCustomTriggerPhrase(orgId)
   const deleteMut = useDeleteWaCustomTriggerPhrase(orgId)
 
-  const [category, setCategory] = useState<WaTriggerCategory>("service_ticket")
+  // Unchosen until picked (owner rule 2026-11-26: "Not set" first, Save blocked until chosen).
+  const [category, setCategory] = useState<WaTriggerCategory | "">("")
+  const [categoryError, setCategoryError] = useState(false)
   const [phrase, setPhrase] = useState("")
   const [error, setError] = useState<string | null>(null)
 
   async function handleAdd() {
     if (!orgId || !phrase.trim()) return
+    if (!category) {
+      setCategoryError(true)
+      focusChoice("phrase-category")
+      return
+    }
     setError(null)
     try {
       await createMut.mutateAsync({ org_id: orgId, category, phrase: phrase.trim().toLowerCase(), created_by: profile?.id ?? null })
@@ -66,18 +75,20 @@ export function PhraseManagerTab() {
     <div className="space-y-3">
       <p className="text-xs text-text-muted">{t("automation.phraseManager.hint")}</p>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <select
+      <div className="flex flex-wrap items-start gap-1.5">
+        <ChoiceSelect
+          id="phrase-category"
+          className="space-y-1"
+          label={t("automation.templates.category")}
+          labelClassName="sr-only"
           value={category}
-          onChange={(e) => setCategory(e.target.value as WaTriggerCategory)}
-          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {t(`automation.phraseManager.category.${c}`)}
-            </option>
-          ))}
-        </select>
+          options={CATEGORIES.map((c) => ({ value: c, label: t(`automation.phraseManager.category.${c}`) }))}
+          onChange={(v) => {
+            setCategory(v)
+            setCategoryError(false)
+          }}
+          error={categoryError ? t("common.chooseOption") : undefined}
+        />
         <input
           value={phrase}
           onChange={(e) => setPhrase(e.target.value)}

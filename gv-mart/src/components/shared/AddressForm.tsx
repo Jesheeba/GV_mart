@@ -261,7 +261,6 @@ export function AddressForm({
       <div className="grid grid-cols-2 gap-3">
         <ChoiceSelect
           id={`${uid}-addressType`}
-          optional
           label={t("customerApp.profile.address.type")}
           labelClassName="text-xs text-text-muted"
           value={addressType}
@@ -271,7 +270,6 @@ export function AddressForm({
         />
         <ChoiceSelect
           id={`${uid}-ownership`}
-          optional
           label={t("customerApp.profile.address.ownership")}
           labelClassName="text-xs text-text-muted"
           value={ownership}

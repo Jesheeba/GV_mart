@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useProfile } from "@/hooks/useProfile"
 import { supabase } from "@/lib/supabase"
 import { useQuery } from "@tanstack/react-query"
@@ -84,56 +85,33 @@ export function AdjustmentsTab() {
               ))}
             </select>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="adj-target">{t("expenses.adjustments.target")}</Label>
-            <select
-              id="adj-target"
-              value={target}
-              onChange={(e) => {
-                setTarget(e.target.value as AdjustmentTarget)
-                if (choiceError === "target") setChoiceError(null)
-              }}
-              aria-invalid={choiceError === "target" || undefined}
-              aria-describedby={choiceError === "target" ? "adj-target-error" : undefined}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            >
-              <option value="" disabled>
-                {t("common.selectPlaceholder")}
-              </option>
-              <option value="recharge">{t("expenses.adjustments.targetValues.recharge")}</option>
-              <option value="bike_allowance">{t("expenses.adjustments.targetValues.bike_allowance")}</option>
-            </select>
-            {choiceError === "target" ? (
-              <p id="adj-target-error" role="alert" className="text-xs text-danger">
-                {t("common.chooseOption")}
-              </p>
-            ) : null}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="adj-type">{t("expenses.adjustments.type")}</Label>
-            <select
-              id="adj-type"
-              value={type}
-              onChange={(e) => {
-                setType(e.target.value as "top_up" | "exclude")
-                if (choiceError === "type") setChoiceError(null)
-              }}
-              aria-invalid={choiceError === "type" || undefined}
-              aria-describedby={choiceError === "type" ? "adj-type-error" : undefined}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            >
-              <option value="" disabled>
-                {t("common.selectPlaceholder")}
-              </option>
-              <option value="top_up">{t("expenses.adjustments.topUp")}</option>
-              <option value="exclude">{t("expenses.adjustments.exclude")}</option>
-            </select>
-            {choiceError === "type" ? (
-              <p id="adj-type-error" role="alert" className="text-xs text-danger">
-                {t("common.chooseOption")}
-              </p>
-            ) : null}
-          </div>
+          <ChoiceSelect
+            id="adj-target"
+            className="space-y-1"
+            label={t("expenses.adjustments.target")}
+            value={target}
+            options={(["recharge", "bike_allowance"] as const).map((v) => ({ value: v, label: t(`expenses.adjustments.targetValues.${v}`) }))}
+            onChange={(v) => {
+              setTarget(v)
+              if (choiceError === "target") setChoiceError(null)
+            }}
+            error={choiceError === "target" ? t("common.chooseOption") : undefined}
+          />
+          <ChoiceSelect
+            id="adj-type"
+            className="space-y-1"
+            label={t("expenses.adjustments.type")}
+            value={type}
+            options={[
+              { value: "top_up", label: t("expenses.adjustments.topUp") },
+              { value: "exclude", label: t("expenses.adjustments.exclude") },
+            ]}
+            onChange={(v) => {
+              setType(v)
+              if (choiceError === "type") setChoiceError(null)
+            }}
+            error={choiceError === "type" ? t("common.chooseOption") : undefined}
+          />
           {type === "top_up" ? (
             <div className="space-y-1">
               <Label htmlFor="adj-amount">{t("expenses.adjustments.amount")}</Label>

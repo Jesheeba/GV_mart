@@ -137,7 +137,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
             {...form.register("productId")}
             className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
-            <option value="">{t("service.filters.all")}</option>
+            <option value="">{t("common.notSet")}</option>
             {(roProducts ?? []).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.brands?.name})
@@ -153,7 +153,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
             {...form.register("planId")}
             className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
-            <option value="">{t("service.filters.all")}</option>
+            <option value="">{t("common.notSet")}</option>
             {(plans ?? []).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} · {p.years}y · ₹{p.price.toLocaleString("en-IN")}

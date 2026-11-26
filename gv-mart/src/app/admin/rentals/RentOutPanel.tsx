@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { productsHooks, rentalPlansHooks } from "@/hooks/useMasters"
@@ -125,7 +126,7 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
         <div className="space-y-1.5">
           <Label>{t("rentals.rentOut.address")}</Label>
           <select {...form.register("addressId")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-            <option value="">{t("service.filters.all")}</option>
+            <option value="">{t("common.notSet")}</option>
             {addresses.map((a) => (
               <option key={a.id} value={a.id}>
                 {addressLine(a)}
@@ -140,7 +141,7 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
         <div className="space-y-1.5">
           <Label>{t("rentals.rentOut.product")}</Label>
           <select {...form.register("productId")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-            <option value="">{t("service.filters.all")}</option>
+            <option value="">{t("common.notSet")}</option>
             {(products ?? [])
               .filter((p) => p.is_active)
               .map((p) => (
@@ -154,7 +155,7 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
         <div className="space-y-1.5">
           <Label>{t("rentals.rentOut.plan")}</Label>
           <select {...form.register("planId")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-            <option value="">{t("service.filters.all")}</option>
+            <option value="">{t("common.notSet")}</option>
             {(plans ?? []).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} · ₹{p.monthly_rate}/mo
@@ -176,31 +177,16 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
       ) : null}
 
       <div className="space-y-1.5">
-        <Label id="rent-payment-method-label">{t("sales.payment.method")}</Label>
-        <div
+        <ChoiceSelect
           id="rent-payment-method"
-          role="group"
-          aria-labelledby="rent-payment-method-label"
-          aria-describedby={form.formState.errors.paymentMethod ? "rent-payment-method-error" : undefined}
-          className="flex gap-2"
-        >
-          {PAYMENT_METHODS.map((m) => (
-            <button
-              key={m}
-              type="button"
-              aria-pressed={paymentMethod === m}
-              onClick={() => form.setValue("paymentMethod", m, { shouldValidate: true })}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                paymentMethod === m ? "bg-ink text-white" : "bg-surface-alt text-text-muted"
-              }`}
-            >
-              {t(`sales.payment.${m}`)}
-            </button>
-          ))}
-        </div>
-        {form.formState.errors.paymentMethod ? (
-          <p id="rent-payment-method-error" role="alert" className="text-xs text-danger">{t(form.formState.errors.paymentMethod.message!)}</p>
-        ) : null}
+          label={t("sales.payment.method")}
+          value={paymentMethod}
+          options={PAYMENT_METHODS.map((m) => ({ value: m, label: t(`sales.payment.${m}`) }))}
+          // "" (Not set) is kept as-is so the schema rejects it with the method-required message.
+          onChange={(v) => form.setValue("paymentMethod", v as RentOutInput["paymentMethod"], { shouldValidate: true })}
+          error={form.formState.errors.paymentMethod ? t(form.formState.errors.paymentMethod.message!) : undefined}
+          className="sm:max-w-xs"
+        />
         {paymentMethod === "transfer" ? (
           <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -220,7 +206,7 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
       <div className="flex justify-end">
         <Button
           onClick={form.handleSubmit(onSubmit, (errs) => {
-            // The method buttons aren't registered inputs, so react-hook-form can't focus them itself.
+            // The method select isn't a registered input, so react-hook-form can't focus it itself.
             if (errs.paymentMethod && Object.keys(errs).length === 1) focusChoice("rent-payment-method")
           })}
           disabled={createRental.isPending}>

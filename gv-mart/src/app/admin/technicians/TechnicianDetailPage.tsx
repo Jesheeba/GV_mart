@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { DOT_TONE_CLASS, StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
@@ -38,6 +39,7 @@ import { useLeads } from "@/hooks/useAutomation"
 import type { LeadListItem } from "@/services/automation"
 import { PriorityBadge, TicketTypeBadge } from "@/app/admin/service/TicketBadges"
 import { pickHistoryVisit, TECHNICIAN_SKILL_OPTIONS } from "@/services/techniciansAdmin"
+import { tierOverridePatch } from "@/lib/validation/techniciansAdmin"
 import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianKpiSummary, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
 import { formatDurationMinutes, minutesBetween, resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn, focusChoice } from "@/lib/utils"
@@ -181,7 +183,7 @@ export function TechnicianDetailPage() {
         id: technician!.id,
         patch: {
           zone: editZone || null,
-          ...(isMaster && editTierId && editTierId !== technician!.tier_id ? { tier_id: editTierId } : {}),
+          ...(isMaster ? tierOverridePatch(editTierId, technician!.tier_id) : {}),
           skills: editSkills,
           daily_capacity_minutes: Number(editCapacity),
           address: editAddress || null,
@@ -410,21 +412,14 @@ export function TechnicianDetailPage() {
                 />
               </div>
               {isMaster && (tiers ?? []).length > 0 ? (
-                <div className="space-y-1">
-                  <Label htmlFor="tech-tier">{t("technicians.detail.tier.override")}</Label>
-                  <select
-                    id="tech-tier"
-                    className="h-10 w-full rounded-md border border-border bg-surface px-2 text-sm text-text"
-                    value={editTierId}
-                    onChange={(e) => setEditTierId(e.target.value)}
-                  >
-                    {(tiers ?? []).map((tr) => (
-                      <option key={tr.id} value={tr.id}>
-                        #{tr.rank} {tr.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <ChoiceSelect
+                  id="tech-tier"
+                  className="space-y-1"
+                  label={t("technicians.detail.tier.override")}
+                  value={editTierId}
+                  options={(tiers ?? []).map((tr) => ({ value: tr.id, label: `#${tr.rank} ${tr.name}` }))}
+                  onChange={setEditTierId}
+                />
               ) : null}
               <div className="space-y-1 sm:col-span-3">
                 <Label htmlFor="tech-address">{t("technicians.detail.fields.address")}</Label>
@@ -1094,34 +1089,18 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
           <Label htmlFor="avail-date">{t("technicians.detail.availability.date")}</Label>
           <DatePicker id="avail-date" value={date} onChange={setDate} />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="avail-status">{t("technicians.detail.availability.status")}</Label>
-          <select
-            id="avail-status"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as (typeof AVAILABILITY_STATUS_OPTIONS)[number])
-              setStatusError(false)
-            }}
-            aria-invalid={statusError || undefined}
-            aria-describedby={statusError ? "avail-status-error" : undefined}
-            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          >
-            <option value="" disabled>
-              {t("common.selectPlaceholder")}
-            </option>
-            {AVAILABILITY_STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {t(`technicians.detail.availability.statusOptions.${s}`)}
-              </option>
-            ))}
-          </select>
-          {statusError ? (
-            <p id="avail-status-error" role="alert" className="text-xs text-danger">
-              {t("common.chooseOption")}
-            </p>
-          ) : null}
-        </div>
+        <ChoiceSelect
+          id="avail-status"
+          className="space-y-1"
+          label={t("technicians.detail.availability.status")}
+          value={status}
+          options={AVAILABILITY_STATUS_OPTIONS.map((s) => ({ value: s, label: t(`technicians.detail.availability.statusOptions.${s}`) }))}
+          onChange={(v) => {
+            setStatus(v)
+            setStatusError(false)
+          }}
+          error={statusError ? t("common.chooseOption") : undefined}
+        />
         <div className="space-y-1">
           <Label htmlFor="avail-shift-start">{t("technicians.detail.availability.shiftStart")}</Label>
           <Input id="avail-shift-start" type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />

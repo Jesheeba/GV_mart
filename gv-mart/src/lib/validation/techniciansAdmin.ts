@@ -21,3 +21,12 @@ export const spareHandoverFormSchema = z.object({
   items: z.array(spareHandoverItemSchema).min(1, "technicians.spares.errors.itemsRequired"),
 })
 export type SpareHandoverFormInput = z.infer<typeof spareHandoverFormSchema>
+
+/**
+ * Tier override (master only) → patch fragment. "Not set" ("") saves tier_id null: a null tier is the normal state of
+ * a new technician and compute_salary, technician_tier_progress and the promotion detector all treat it as rank 1.
+ * Unchanged → no tier_id key, so the tier guard/stamp triggers don't fire.
+ */
+export function tierOverridePatch(edited: string, saved: string | null | undefined): { tier_id?: string | null } {
+  return edited === (saved ?? "") ? {} : { tier_id: edited || null }
+}

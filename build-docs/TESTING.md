@@ -2,7 +2,22 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
-## choice-dropdowns — 2026-11-26
+## choice-dropdowns-not-set — 2026-11-26
+- New test files (all pass):
+  - `choiceNotSet.{money,service,leads,admin}.test.ts`: 13 / 17 / 18 / 18 tests.
+  - `services/addressChoiceNotSet.test.ts`: 5.
+  - `i18n/choiceNotSetKeys.test.ts`: 58 keys in en+ta.
+  - `ChoiceSelect.test.ts`: 8.
+- Each test is named for its acceptance criterion: nothing pre-selected; Not set blocks required fields; Not set saves empty for optional ones; edit keeps the saved value; outcome pre-fill kept; segment rule incomplete until every part is set; tier Not set → `tier_id` null.
+- Changed tests:
+  - `choiceNoPreselect.test.ts`: the 3 address "must choose" tests were rewritten for the owner's reversed rule.
+  - `crudForm.test.ts`: test name only.
+  - Owner-reversed rules only; none were weakened.
+- DB rehearsal `address_choice_not_set` (rolled back): 12/0.
+- Full suite: 1320 pass. tsc clean. Build OK.
+  - The same 26 environment failures as plain main in this worktree (ota, WA dispatcher, outbox guard, event context).
+- Not automated (no DOM test env): start values that are component state only (task priority, staff role, availability, bike, adjustments, attribute/relation/doc type, phrase category). Covered by code review.
+
 - `src/components/shared/ChoiceSelect.test.ts` (8): required placeholder disabled + nothing pre-selected; optional "Not set"; saved value selected on edit; null/undefined value; label/id link for focus; error alert + aria; NO_SPINNER classes. All pass.
 - Built CSS contains the spinner-hiding rules. tsc clean, vite build OK.
 - Full suite: 1193 pass. The 26 failures (ota, WhatsApp dispatcher, outbox guard, event context) are identical on plain main in the same worktree with this change stashed: environment issue, not this change.

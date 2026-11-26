@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { Loader2, Pencil, Plus, Star, Trash2, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { memberSchema, FAMILY_RELATIONS, type MemberInput } from "@/lib/validation/customer"
 import { useAddMember, useLogMemberGoogleReview, useMoveMemberOut, useRemoveMember, useSetPrimaryMember, useUpdateMember } from "@/hooks/useCustomers"
 import type { MemberRow } from "@/services/customers"
@@ -23,6 +24,7 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
   const updateMember = useUpdateMember(member.customer_id)
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<MemberInput>({
@@ -77,19 +79,20 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
         </div>
       </div>
       {!member.is_primary ? (
-        <select
-          aria-label={t("customers.form.memberRelation")}
-          defaultValue={member.relation ?? ""}
-          className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          {...register("relation")}
-        >
-          <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
-          {FAMILY_RELATIONS.map((r) => (
-            <option key={r} value={r}>
-              {t(`customers.form.relation.${r}`)}
-            </option>
-          ))}
-        </select>
+        <Controller
+          control={control}
+          name="relation"
+          render={({ field }) => (
+            <ChoiceSelect
+              id={`member-relation-${member.id}`}
+              label={t("customers.form.memberRelation")}
+              labelClassName="text-xs text-text-muted"
+              value={field.value}
+              options={FAMILY_RELATIONS.map((r) => ({ value: r, label: t(`customers.form.relation.${r}`) }))}
+              onChange={field.onChange}
+            />
+          )}
+        />
       ) : null}
       {updateMember.isError ? <p className="text-xs text-danger">{(updateMember.error as Error).message}</p> : null}
       <div className="flex justify-end gap-2">
@@ -148,6 +151,7 @@ export function FamilyMembersPanel({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -367,19 +371,20 @@ export function FamilyMembersPanel({
               {errors.email ? <p className="text-xs text-danger">{t(errors.email.message!)}</p> : null}
             </div>
           </div>
-          <select
-            aria-label={t("customers.form.memberRelation")}
-            defaultValue=""
-            className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            {...register("relation")}
-          >
-            <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
-            {FAMILY_RELATIONS.map((r) => (
-              <option key={r} value={r}>
-                {t(`customers.form.relation.${r}`)}
-              </option>
-            ))}
-          </select>
+          <Controller
+            control={control}
+            name="relation"
+            render={({ field }) => (
+              <ChoiceSelect
+                id="member-relation-new"
+                label={t("customers.form.memberRelation")}
+                labelClassName="text-xs text-text-muted"
+                value={field.value}
+                options={FAMILY_RELATIONS.map((r) => ({ value: r, label: t(`customers.form.relation.${r}`) }))}
+                onChange={field.onChange}
+              />
+            )}
+          />
           {addMember.isError ? <p className="text-xs text-danger">{(addMember.error as Error).message}</p> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>

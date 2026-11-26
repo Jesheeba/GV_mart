@@ -14,7 +14,8 @@ import { useCustomer, useDuplicateContactWarning } from "@/hooks/useCustomers"
 import { useProfile } from "@/hooks/useProfile"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { OrgTask, PriorityLevel } from "@/services/tasks"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { canCompleteTask, completeBlockReason } from "@/lib/task-rules"
 import { hasLookupableContact, isCustomerNeedsReviewTask } from "@/lib/customerNeedsReviewTask"
 import { TaskWorkLog } from "@/app/admin/tasks/TaskWorkLog"
@@ -83,7 +84,8 @@ export function TaskDetailDialog({
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description ?? "")
   const [assigneeId, setAssigneeId] = useState(task.assignee_id ?? "")
-  const [priority, setPriority] = useState<PriorityLevel>(task.priority)
+  const [priority, setPriority] = useState<PriorityLevel | "">(task.priority)
+  const [priorityError, setPriorityError] = useState(false)
   const [dueDate, setDueDate] = useState(task.due_at ? toDateOnly(task.due_at) : (task.due_date ?? ""))
   const [dueTime, setDueTime] = useState(task.due_at ? toTimeOnly(task.due_at) : "")
   const [isRecurring, setIsRecurring] = useState(task.is_recurring)
@@ -98,6 +100,11 @@ export function TaskDetailDialog({
 
   function handleSave() {
     if (!canSubmit) return
+    if (!priority) {
+      setPriorityError(true)
+      focusChoice("detailPriority")
+      return
+    }
     const dueAt = dueDate && dueTime ? new Date(`${dueDate}T${dueTime}`).toISOString() : null
     updateTask.mutate(
       {
@@ -250,21 +257,18 @@ export function TaskDetailDialog({
 
         {isWaterFollowup ? <WaterFollowupTaskPanel task={task} canAct={canEdit} onDone={onClose} /> : null}
 
-        <div className="space-y-1.5">
-          <Label>{t("tasks.assignDialog.priority")}</Label>
-          <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
-            {PRIORITIES.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPriority(p)}
-                className={cn("rounded-full px-4 py-1.5 text-sm font-medium transition-colors", priority === p ? "bg-ink text-white" : "text-text-muted")}
-              >
-                {t(`service.priority.${p}`)}
-              </button>
-            ))}
-          </div>
-        </div>
+        <ChoiceSelect
+          id="detailPriority"
+          label={t("tasks.assignDialog.priority")}
+          value={priority}
+          options={PRIORITIES.map((p) => ({ value: p, label: t(`service.priority.${p}`) }))}
+          onChange={(v) => {
+            setPriority(v)
+            setPriorityError(false)
+          }}
+          error={priorityError ? t("common.chooseOption") : undefined}
+          className="w-56"
+        />
 
         {isWaterFollowup ? null : (
         <>

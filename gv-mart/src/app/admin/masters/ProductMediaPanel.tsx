@@ -19,6 +19,7 @@ import {
   useUploadProductDocument,
   useUploadProductImage,
 } from "@/hooks/useMasters"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { VideoLanguageSelect } from "@/components/shared/VideoLanguageSelect"
 import type { VideoLanguage } from "@/lib/videoLanguage"
 import { productDocumentPublicUrl, productImagePublicUrl } from "@/services/productMedia"
@@ -36,7 +37,7 @@ function extractErrorMessage(e: unknown): string {
   return String(e)
 }
 
-const DOC_TYPES: TablesInsert<"product_documents">["doc_type"][] = ["brochure", "manual", "warranty_card", "other"]
+const DOC_TYPES: NonNullable<TablesInsert<"product_documents">["doc_type"]>[] = ["brochure", "manual", "warranty_card", "other"]
 const MAX_FILE_BYTES = 5 * 1024 * 1024
 
 /**
@@ -248,32 +249,18 @@ function DocumentsTab({ orgId, productId }: { orgId: string | undefined; product
           placeholder={t("masters.productMedia.docLabelPlaceholder")}
           className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
         />
-        <select
+        <ChoiceSelect
           id="doc-type"
+          label={t("masters.productMedia.docTypeLabel")}
+          labelClassName="sr-only"
           value={docType}
-          onChange={(e) => {
-            setDocType(e.target.value as TablesInsert<"product_documents">["doc_type"])
+          options={DOC_TYPES.map((dt) => ({ value: dt, label: t(`masters.productMedia.docType.${dt}`) }))}
+          onChange={(v) => {
+            setDocType(v)
             setDocTypeError(false)
           }}
-          aria-label={t("masters.productMedia.docTypeLabel")}
-          aria-invalid={docTypeError || undefined}
-          aria-describedby={docTypeError ? "doc-type-error" : undefined}
-          className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-        >
-          <option value="" disabled>
-            {t("common.selectPlaceholder")}
-          </option>
-          {DOC_TYPES.map((dt) => (
-            <option key={dt} value={dt}>
-              {t(`masters.productMedia.docType.${dt}`)}
-            </option>
-          ))}
-        </select>
-        {docTypeError ? (
-          <p id="doc-type-error" role="alert" className="text-xs text-danger">
-            {t("common.chooseOption")}
-          </p>
-        ) : null}
+          error={docTypeError ? t("common.chooseOption") : undefined}
+        />
         <input type="file" accept="application/pdf" onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)} className="text-xs text-text-muted" />
         <Button size="sm" className="w-full gap-1" disabled={!pendingFile || !label.trim() || uploadMut.isPending} onClick={handleUpload}>
           {uploadMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}

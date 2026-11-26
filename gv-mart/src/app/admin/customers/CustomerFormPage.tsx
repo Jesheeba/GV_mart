@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
-import { useFieldArray, useForm, type Control, type FieldErrors, type UseFormRegister, type UseFormWatch } from "react-hook-form"
+import { Controller, useFieldArray, useForm, type Control, type FieldErrors, type UseFormRegister, type UseFormWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2, Plus, Star, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -100,7 +100,6 @@ function MemberFieldRow({
   const mobile = watch(`members.${index}.mobile`)
   const dup = useMobileDuplicateCheck(orgId, mobile)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
-  void control
 
   return (
     <div className="rounded-xl border border-border p-3.5">
@@ -140,19 +139,20 @@ function MemberFieldRow({
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         {/* Primary member IS the customer — relation-to-household doesn't apply to them. */}
         {!isPrimary ? (
-          <select
-            aria-label={t("customers.form.memberRelation")}
-            defaultValue=""
-            className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            {...register(`members.${index}.relation`)}
-          >
-            <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
-            {FAMILY_RELATIONS.map((r) => (
-              <option key={r} value={r}>
-                {t(`customers.form.relation.${r}`)}
-              </option>
-            ))}
-          </select>
+          <Controller
+            control={control}
+            name={`members.${index}.relation`}
+            render={({ field }) => (
+              <ChoiceSelect
+                id={`member-relation-${index}`}
+                label={t("customers.form.memberRelation")}
+                labelClassName="text-xs text-text-muted"
+                value={field.value}
+                options={FAMILY_RELATIONS.map((r) => ({ value: r, label: t(`customers.form.relation.${r}`) }))}
+                onChange={field.onChange}
+              />
+            )}
+          />
         ) : (
           <span className="flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold text-accent">
             <Star className="size-2.5 fill-current" />
@@ -945,7 +945,6 @@ export function CustomerFormPage() {
           <div className="grid grid-cols-2 gap-3 border-t border-border px-1 pt-3 sm:max-w-md">
             <ChoiceSelect
               id="address-type"
-              optional
               label={t("customers.form.addressType")}
               value={addressForm.watch("addressType")}
               options={(["residential", "commercial"] as const).map((v) => ({ value: v, label: t(`customers.form.${v}`) }))}
@@ -954,7 +953,6 @@ export function CustomerFormPage() {
             />
             <ChoiceSelect
               id="address-ownership"
-              optional
               label={t("customers.form.ownership")}
               value={addressForm.watch("ownership")}
               options={(["own", "rental"] as const).map((v) => ({ value: v, label: t(`customers.form.${v}`) }))}

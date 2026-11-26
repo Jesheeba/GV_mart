@@ -110,7 +110,6 @@ export function WaterHouseholdFields({ form }: { form: UseFormReturn<WaterProfil
       <ChoiceSelect
         id="waterSource"
         className="sm:max-w-xs"
-        optional
         label={t("customers.detail.waterSource")}
         value={watchedSource}
         options={WATER_SOURCES.map((s) => ({ value: s, label: t(`customers.detail.waterSourceOptions.${s}`) }))}

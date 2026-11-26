@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { SparePicker } from "@/components/shared/SparePicker"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
@@ -20,6 +21,7 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
   // needed until a product is picked (after that the row's own itemId
   // resolves back to a label, see productLabelFor below).
   const [productQueries, setProductQueries] = useState<Record<number, string>>({})
+  const rowIdPrefix = useId()
 
   function update(i: number, patch: Partial<PoItemDraft>) {
     onChange(items.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
@@ -44,18 +46,19 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
     <div className="space-y-2">
       {items.map((row, i) => (
         <div key={i} className="grid grid-cols-1 gap-2 rounded-xl border border-border p-2.5 sm:grid-cols-[auto_1fr_auto_auto_auto]">
-          <select
+          <ChoiceSelect
+            id={`${rowIdPrefix}-${i}-type`}
+            label={t("suppliers.itemType")}
+            labelClassName="sr-only"
+            className="space-y-0"
             value={row.itemType}
-            onChange={(e) => update(i, { itemType: e.target.value as "product" | "spare", itemId: "" })}
-            aria-label={t("suppliers.itemType")}
-            className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-          >
-            <option value="" disabled>
-              {t("common.selectPlaceholder")}
-            </option>
-            <option value="spare">{t("masters.tabs.spares")}</option>
-            <option value="product">{t("masters.tabs.products")}</option>
-          </select>
+            options={[
+              { value: "spare", label: t("masters.tabs.spares") },
+              { value: "product", label: t("masters.tabs.products") },
+            ]}
+            // A line left at "Not set" has no item, so isCompletePoItem drops it on save.
+            onChange={(itemType) => update(i, { itemType, itemId: "" })}
+          />
           {row.itemType === "product" ? (
             <Autocomplete
               value={row.itemId ? productSearchLabel(activeProducts.find((p) => p.id === row.itemId) ?? { name: "" }) : (productQueries[i] ?? "")}

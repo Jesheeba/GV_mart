@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
 import { ReferredBySection } from "./ReferredBySection"
 import { useToast } from "@/components/ui/toast-context"
@@ -18,7 +19,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLists"
 import { FIELD_W } from "@/lib/fieldWidth"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
 
 export function NewLeadForm({
   onClose,
@@ -51,7 +52,8 @@ export function NewLeadForm({
     defaultValues: {
       name: existingCustomer?.name ?? "",
       mobile: existingCustomer?.mobile ?? "",
-      source: "other",
+      // Not pre-selected (owner, 2026-11-26): "Not set" until chosen; leadSchema blocks Save without one.
+      source: "",
       productCategory: "",
       notes: "",
       kind: "",
@@ -71,6 +73,7 @@ export function NewLeadForm({
   // has the full rationale). Leads have no email field, so this is mobile-only.
   // Skipped entirely for an existingCustomer lead — the "duplicate" would always
   // just be this same customer, which isn't a warning, it's the point.
+  const source = form.watch("source")
   const leadMobile = form.watch("mobile") ?? ""
   const dupWarning = useDuplicateContactWarning(profile?.org_id, existingCustomer ? "" : leadMobile)
   const dupWarningKey = duplicateWarningKey(leadMobile, "")
@@ -110,7 +113,6 @@ export function NewLeadForm({
     onCreated((created as { id?: string } | null)?.id ?? null)
   }
 
-  const fieldClass = "h-8 w-full rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none"
   const textareaClass = "w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-sm text-text outline-none"
 
   return (
@@ -144,23 +146,22 @@ export function NewLeadForm({
             />
           </div>
         ) : null}
-        <div className="space-y-0.5">
-          <Label htmlFor="lead-source">{t("leads.new.source")}</Label>
-          <select id="lead-source" {...form.register("source")} className={fieldClass}>
-            {activeSources.map((s) => (
-              <option key={s.key} value={s.key}>
-                {sourceLabel(s.key)}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ChoiceSelect
+          id="lead-source"
+          className="space-y-0.5"
+          label={t("leads.new.source")}
+          value={source}
+          options={activeSources.map((s) => ({ value: s.key, label: sourceLabel(s.key) }))}
+          onChange={(v) => form.setValue("source", v, { shouldValidate: true })}
+          error={form.formState.errors.source ? t(form.formState.errors.source.message!) : undefined}
+        />
         {/* Sits next to Source in the grid: appears only when the chosen
             source has a referrer to capture, taking Source's row -- when it
             renders nothing (most sources), the field after this one simply
             flows into this slot instead. */}
         <ReferredBySection
           orgId={profile?.org_id}
-          source={form.watch("source")}
+          source={source}
           referredByUserId={form.watch("referredByUserId") ?? ""}
           onReferredByUserIdChange={(next) => form.setValue("referredByUserId", next)}
           referredByName={form.watch("referredByName") ?? ""}
@@ -168,28 +169,22 @@ export function NewLeadForm({
           referredByPhone={form.watch("referredByPhone") ?? ""}
           onReferredByPhoneChange={(next) => form.setValue("referredByPhone", next)}
         />
-        <div className="space-y-0.5">
-          <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
-          <select id="lead-product-category" {...form.register("productCategory")} className={fieldClass}>
-            <option value="">{t("service.filters.all")}</option>
-            {activeProductTypes.map((p) => (
-              <option key={p.key} value={p.key}>
-                {productTypeLabel(p.key)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-0.5">
-          <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
-          <select id="lead-kind" {...form.register("kind")} className={fieldClass}>
-            <option value="">{t("service.filters.all")}</option>
-            {activeKinds.map((k) => (
-              <option key={k.key} value={k.key}>
-                {kindLabel(k.key)}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ChoiceSelect
+          id="lead-product-category"
+          className="space-y-0.5"
+          label={t("leads.new.productCategory")}
+          value={form.watch("productCategory")}
+          options={activeProductTypes.map((p) => ({ value: p.key, label: productTypeLabel(p.key) }))}
+          onChange={(v) => form.setValue("productCategory", v)}
+        />
+        <ChoiceSelect
+          id="lead-kind"
+          className="space-y-0.5"
+          label={t("leads.new.kind")}
+          value={form.watch("kind")}
+          options={activeKinds.map((k) => ({ value: k.key, label: kindLabel(k.key) }))}
+          onChange={(v) => form.setValue("kind", v)}
+        />
         <div className="space-y-0.5">
           <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
           <Input id="lead-budget" type="number" inputMode="decimal" min={0} className={cn("h-8 px-2.5", FIELD_W.amount)} {...form.register("budget")} />
@@ -219,7 +214,7 @@ export function NewLeadForm({
       {createLead.error ? <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{(createLead.error as Error).message}</p> : null}
       <div className="flex justify-end">
         <Button
-          onClick={form.handleSubmit(onSubmit)}
+          onClick={form.handleSubmit(onSubmit, (errors) => errors.source && focusChoice("lead-source"))}
           disabled={createLead.isPending || !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed)}
         >
           {createLead.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}

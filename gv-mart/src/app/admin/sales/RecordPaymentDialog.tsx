@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useRecordAdditionalPayment } from "@/hooks/useSales"
 import { paymentDetailsSchema, isAmountPaidBlocked, PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -81,34 +82,18 @@ export function RecordPaymentDialog({
           />
         </div>
 
-        <div className="space-y-1.5">
-          <Label id="record-payment-method-label">{t("sales.payment.method")}</Label>
-          <div
-            id="record-payment-method"
-            role="group"
-            aria-labelledby="record-payment-method-label"
-            aria-describedby={error === PAYMENT_METHOD_REQUIRED ? "record-payment-method-error" : undefined}
-            className="flex w-fit gap-1 rounded-full bg-surface-alt p-1"
-          >
-            {(["cash", "transfer"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={method === m}
-                onClick={() => {
-                  setMethod(m)
-                  if (error === PAYMENT_METHOD_REQUIRED) setError(null)
-                }}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${method === m ? "bg-ink text-white" : "text-text-muted"}`}
-              >
-                {t(`sales.payment.${m}`)}
-              </button>
-            ))}
-          </div>
-          {error === PAYMENT_METHOD_REQUIRED ? (
-            <p id="record-payment-method-error" role="alert" className="text-xs text-danger">{t(error)}</p>
-          ) : null}
-        </div>
+        <ChoiceSelect
+          id="record-payment-method"
+          label={t("sales.payment.method")}
+          value={method}
+          options={(["cash", "transfer"] as const).map((m) => ({ value: m, label: t(`sales.payment.${m}`) }))}
+          onChange={(v) => {
+            setMethod(v || null)
+            if (error === PAYMENT_METHOD_REQUIRED) setError(null)
+          }}
+          error={error === PAYMENT_METHOD_REQUIRED ? t(error) : undefined}
+          className="sm:max-w-xs"
+        />
 
         {method === "transfer" ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

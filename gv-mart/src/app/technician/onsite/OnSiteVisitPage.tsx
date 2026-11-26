@@ -10,6 +10,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { cn } from "@/lib/utils"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { PhotoCapture } from "../components/PhotoCapture"
@@ -46,7 +47,8 @@ import {
   useVisitPaymentState,
 } from "@/hooks/useTechnician"
 import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
-import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema } from "@/lib/validation/technician"
+import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema, fromYesNo, toYesNo, ENQUIRY_TYPE_REQUIRED, type YesNo } from "@/lib/validation/technician"
+import { PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
 import { formatCurrency } from "@/lib/sale-calc"
 import { db } from "@/lib/offline/db"
 import { startSyncEngine } from "@/lib/offline/sync"
@@ -132,7 +134,7 @@ type VisitDraftData = {
   extraReadings: { label: string; value: string }[]
   techSign: string | null
   customerSign: string | null
-  paymentMethod: Enums<"payment_method">
+  paymentMethod: Enums<"payment_method"> | ""
   txnId: string
   paymentDescription: string
   enquiryGenerated: boolean | null
@@ -142,7 +144,7 @@ type VisitDraftData = {
   showEnquiry: boolean
   enquiryName: string
   enquiryMobile: string
-  enquiryType: Enums<"enquiry_type">
+  enquiryType: Enums<"enquiry_type"> | ""
   enquiryNote: string
 }
 
@@ -158,6 +160,10 @@ function useVisitTimer(startedAt: number | null) {
 
 export function OnSiteVisitPage() {
   const { t } = useTranslation()
+  const yesNoOptions: { value: YesNo; label: string }[] = [
+    { value: "yes", label: t("common.yes") },
+    { value: "no", label: t("common.no") },
+  ]
   const { toast } = useToast()
   const navigate = useNavigate()
   const { ticketId } = useParams<{ ticketId: string }>()
@@ -240,7 +246,8 @@ export function OnSiteVisitPage() {
   const [techSign, setTechSign] = useState<string | null>(null)
   const [customerSign, setCustomerSign] = useState<string | null>(null)
 
-  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method">>("cash")
+  // No default (owner 2026-11-26): "Not set" until chosen; completing the visit is blocked until then.
+  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method"> | "">("")
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -276,7 +283,7 @@ export function OnSiteVisitPage() {
   const [showEnquiry, setShowEnquiry] = useState(false)
   const [enquiryName, setEnquiryName] = useState("")
   const [enquiryMobile, setEnquiryMobile] = useState("")
-  const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type">>("online")
+  const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
   const [enquiryNote, setEnquiryNote] = useState("")
   const [enquirySent, setEnquirySent] = useState(false)
   const [enquiryError, setEnquiryError] = useState<string | null>(null)
@@ -510,7 +517,7 @@ export function OnSiteVisitPage() {
     setRoClientName("")
     setTechSign(null)
     setCustomerSign(null)
-    setPaymentMethod("cash")
+    setPaymentMethod("")
     setTxnId("")
     setPaymentDescription("")
     setEnquiryGenerated(null)
@@ -526,7 +533,7 @@ export function OnSiteVisitPage() {
     setShowEnquiry(false)
     setEnquiryName("")
     setEnquiryMobile("")
-    setEnquiryType("online")
+    setEnquiryType("")
     setEnquiryNote("")
     setEnquirySent(false)
     setEnquiryError(null)
@@ -880,7 +887,9 @@ export function OnSiteVisitPage() {
       discountPercent,
       spares: selectedSpares.map((s) => ({ spareId: s.spareId, qty: s.qty })),
       installations: selectedInstallations.map((s) => ({ productId: s.productId, qty: s.qty })),
-      paymentMethod,
+      // Known open bug (out of scope): the invoice is queued before the Payment step where the method is
+      // chosen. Until that is fixed it keeps the payload it always had ("cash" unless chosen), never "".
+      paymentMethod: paymentMethod || "cash",
       txnId: paymentMethod === "transfer" ? txnId : undefined,
       paymentDescription: paymentMethod === "transfer" ? paymentDescription : undefined,
       isChargeable: chargeable,
@@ -1289,26 +1298,22 @@ export function OnSiteVisitPage() {
               <Input id="tdsAfter" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={tdsAfter} onChange={(e) => setTdsAfter(e.target.value)} />
             </div>
           </div>
-          <div className="space-y-1.5 px-1">
-            <Label>{t("technician.onsite.ro.tankCleaned")}</Label>
-            <div className="flex gap-2">
-              {[true, false].map((v) => (
-                <Button key={String(v)} type="button" size="sm" variant={tankCleaned === v ? "default" : "outline"} onClick={() => setTankCleaned(v)}>
-                  {v ? t("common.yes") : t("common.no")}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5 px-1">
-            <Label>{t("technician.onsite.ro.productExplained")}</Label>
-            <div className="flex gap-2">
-              {[true, false].map((v) => (
-                <Button key={String(v)} type="button" size="sm" variant={productExplained === v ? "default" : "outline"} onClick={() => setProductExplained(v)}>
-                  {v ? t("common.yes") : t("common.no")}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <ChoiceSelect
+            id="tankCleaned"
+            className="px-1"
+            label={t("technician.onsite.ro.tankCleaned")}
+            value={toYesNo(tankCleaned)}
+            options={yesNoOptions}
+            onChange={(v) => setTankCleaned(fromYesNo(v))}
+          />
+          <ChoiceSelect
+            id="productExplained"
+            className="px-1"
+            label={t("technician.onsite.ro.productExplained")}
+            value={toYesNo(productExplained)}
+            options={yesNoOptions}
+            onChange={(v) => setProductExplained(fromYesNo(v))}
+          />
           <div className="space-y-1.5 px-1">
             <Label htmlFor="roClientName">{t("technician.onsite.ro.clientName")}</Label>
             <Input id="roClientName" value={roClientName} onChange={(e) => setRoClientName(e.target.value)} />
@@ -1333,14 +1338,13 @@ export function OnSiteVisitPage() {
           </div>
 
           <div className="space-y-1.5 px-1">
-            <Label>{t("technician.onsite.ro.waterSource")}</Label>
-            <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-              {(["corporation", "borewater", "other"] as const).map((opt) => (
-                <SegButton key={opt} active={waterSource === opt} onClick={() => setWaterSource(opt)}>
-                  {t(`technician.onsite.ro.sourceOptions.${opt}`)}
-                </SegButton>
-              ))}
-            </div>
+            <ChoiceSelect
+              id="waterSource"
+              label={t("technician.onsite.ro.waterSource")}
+              value={waterSource}
+              options={(["corporation", "borewater", "other"] as const).map((opt) => ({ value: opt, label: t(`technician.onsite.ro.sourceOptions.${opt}`) }))}
+              onChange={(v) => setWaterSource(v || null)}
+            />
             {waterSource === "other" ? (
               <Input
                 placeholder={t("technician.onsite.ro.sourceOtherPlaceholder")}
@@ -1621,14 +1625,20 @@ export function OnSiteVisitPage() {
               <TriangleAlert className="size-4 shrink-0" /> {t("technician.onsite.otp.errors.offline")}
             </p>
           ) : null}
-          <Label>{t("technician.onsite.payment.method")}</Label>
-          <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-            {(paymentSettings.data?.payment_enabled ? (["cash", "transfer", "upi"] as const) : (["cash", "transfer"] as const)).map((m) => (
-              <SegButton key={m} active={paymentMethod === m} onClick={() => setPaymentMethod(m)}>
-                {t(`technician.onsite.payment.${m}`)}
-              </SegButton>
-            ))}
-          </div>
+          <ChoiceSelect
+            id="onsitePaymentMethod"
+            label={t("technician.onsite.payment.method")}
+            value={paymentMethod}
+            options={(paymentSettings.data?.payment_enabled ? (["cash", "transfer", "upi"] as const) : (["cash", "transfer"] as const)).map((m) => ({
+              value: m,
+              label: t(`technician.onsite.payment.${m}`),
+            }))}
+            onChange={(v) => {
+              setPaymentMethod(v)
+              setPaymentError(null)
+            }}
+            error={paymentError === PAYMENT_METHOD_REQUIRED ? t(paymentError) : undefined}
+          />
           {paymentMethod === "transfer" ? (
             <>
               {showPaymentQr ? (
@@ -1656,7 +1666,7 @@ export function OnSiteVisitPage() {
             </>
           ) : null}
           {paymentMethod === "cash" ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p> : null}
-          {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
+          {paymentError && paymentError !== PAYMENT_METHOD_REQUIRED ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
 
           {isUpi ? (
             isUpiPaid ? (
@@ -1727,24 +1737,18 @@ export function OnSiteVisitPage() {
           {!isUpi || isUpiPaid ? (
             <>
               <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
-                <p className="text-sm font-semibold text-text">{t("technician.onsite.enquiryConfirm.title")}</p>
-                <div className="flex gap-2">
-                  {[true, false].map((v) => (
-                    <Button
-                      key={String(v)}
-                      type="button"
-                      size="sm"
-                      variant={enquiryGenerated === v ? "default" : "outline"}
-                      onClick={() => {
-                        setEnquiryGenerated(v)
-                        setEnquiryConfirmError(null)
-                      }}
-                    >
-                      {v ? t("common.yes") : t("common.no")}
-                    </Button>
-                  ))}
-                </div>
-                {enquiryConfirmError ? <p className="text-xs text-danger">{t(enquiryConfirmError)}</p> : null}
+                <ChoiceSelect
+                  id="enquiryGenerated"
+                  label={t("technician.onsite.enquiryConfirm.title")}
+                  labelClassName="text-sm font-semibold text-text"
+                  value={toYesNo(enquiryGenerated)}
+                  options={yesNoOptions}
+                  onChange={(v) => {
+                    setEnquiryGenerated(fromYesNo(v))
+                    setEnquiryConfirmError(null)
+                  }}
+                  error={enquiryConfirmError ? t(enquiryConfirmError) : undefined}
+                />
               </div>
 
               <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
@@ -1813,24 +1817,25 @@ export function OnSiteVisitPage() {
                   placeholder={t("technician.onsite.enquiry.mobilePlaceholder")}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="enquiryType">{t("leads.new.enquiryType")}</Label>
-                <select
-                  id="enquiryType"
-                  value={enquiryType}
-                  onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type">)}
-                  className="h-10 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
-                >
-                  {(["online", "price", "quality", "customization", "water_premium", "budget"] as const).map((et) => (
-                    <option key={et} value={et}>{t(`technician.onsite.enquiry.type.${et}`)}</option>
-                  ))}
-                </select>
-              </div>
+              <ChoiceSelect
+                id="enquiryType"
+                label={t("leads.new.enquiryType")}
+                value={enquiryType}
+                options={(["online", "price", "quality", "customization", "water_premium", "budget"] as const).map((et) => ({
+                  value: et,
+                  label: t(`technician.onsite.enquiry.type.${et}`),
+                }))}
+                onChange={(v) => {
+                  setEnquiryType(v)
+                  if (enquiryError === ENQUIRY_TYPE_REQUIRED) setEnquiryError(null)
+                }}
+                error={enquiryError === ENQUIRY_TYPE_REQUIRED ? t(enquiryError) : undefined}
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="enquiryNote">{t("technician.onsite.enquiry.notePlaceholder")}</Label>
                 <Input id="enquiryNote" value={enquiryNote} onChange={(e) => setEnquiryNote(e.target.value)} placeholder={t("technician.onsite.enquiry.notePlaceholder")} />
               </div>
-              {enquiryError ? <p className="text-xs text-danger">{t(enquiryError)}</p> : null}
+              {enquiryError && enquiryError !== ENQUIRY_TYPE_REQUIRED ? <p className="text-xs text-danger">{t(enquiryError)}</p> : null}
               <Button type="button" variant="outline" onClick={handleSendEnquiry} disabled={generateEnquiry.isPending || !enquiryName.trim()}>
                 {generateEnquiry.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.enquiry.send")}
               </Button>

@@ -13,7 +13,9 @@ import { useSuppliersList } from "@/hooks/useSuppliers"
 import { useCreateBillEntry, useLastBillEntry, usePurchaseBills, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
 import { emptyPoItem, isCompletePoItem, type PoItemDraft } from "@/lib/validation/automation"
-import { expenseCategories } from "@/lib/validation/reports"
+import { billCategorySchema, expenseCategories } from "@/lib/validation/reports"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
+import { focusChoice } from "@/lib/utils"
 import type { PurchaseBillRow } from "@/services/automation"
 import type { Enums } from "@/types/database"
 import { formatDate } from "@/lib/formatDate"
@@ -34,11 +36,11 @@ export function BillEntryTab() {
   const [items, setItems] = useState<PoItemDraft[]>([emptyPoItem()])
   const [gst, setGst] = useState("0")
   const [billDate, setBillDate] = useState(getIstNow().date)
-  // Build Order Step 1.3: was hardcoded to 'purchase' server-side regardless
-  // of what was actually bought — defaults to 'purchase' (the common case
-  // for a supplier bill) but staff can now pick any real category so the
-  // P&L breakdown reflects it, same enum/i18n as the manual Log Expense panel.
-  const [category, setCategory] = useState<Enums<"expense_category">>("purchase")
+  // Build Order Step 1.3: staff pick the real category so the P&L breakdown
+  // reflects it (same enum/i18n as the manual Log Expense panel). No default
+  // since 2026-11-26 (choice-dropdowns-not-set): "Not set" blocks Save.
+  const [category, setCategory] = useState<Enums<"expense_category"> | "">("")
+  const [categoryError, setCategoryError] = useState<string | null>(null)
   const [isPrefilled, setIsPrefilled] = useState(false)
 
   // Prefill once, from the org's last bill, the first time this form is
@@ -61,6 +63,12 @@ export function BillEntryTab() {
   }
 
   async function submit() {
+    const parsedCategory = billCategorySchema.safeParse(category)
+    if (!parsedCategory.success) {
+      setCategoryError(parsedCategory.error.issues[0]?.message ?? "common.chooseOption")
+      focusChoice("bill-category")
+      return
+    }
     await createBill.mutateAsync({
       orgId: orgId!,
       supplierId,
@@ -69,13 +77,13 @@ export function BillEntryTab() {
       gst: Number(gst) || 0,
       billDate,
       billImageUrl: null,
-      category,
+      category: parsedCategory.data,
     })
     setSupplierId("")
     setPoId("")
     setItems([emptyPoItem()])
     setGst("0")
-    setCategory("purchase")
+    setCategory("")
     setIsPrefilled(false)
   }
 
@@ -137,20 +145,18 @@ export function BillEntryTab() {
             <Label>{t("purchase.bill.gst")}</Label>
             <Input type="number" min={0} step="0.01" value={gst} onChange={(e) => setGst(e.target.value)} />
           </div>
-          <div className="w-48 space-y-1.5">
-            <Label>{t("reports.pnl.category")}</Label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as Enums<"expense_category">)}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            >
-              {expenseCategories.map((c) => (
-                <option key={c} value={c}>
-                  {t(`reports.pnl.expenseCategory.${c}`)}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ChoiceSelect
+            id="bill-category"
+            label={t("reports.pnl.category")}
+            value={category}
+            options={expenseCategories.map((c) => ({ value: c, label: t(`reports.pnl.expenseCategory.${c}`) }))}
+            onChange={(v) => {
+              setCategory(v)
+              setCategoryError(null)
+            }}
+            error={categoryError ? t(categoryError) : undefined}
+            className="w-48"
+          />
         </div>
 
         {createBill.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createBill.error as Error).message}</p> : null}

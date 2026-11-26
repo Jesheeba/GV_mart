@@ -18,6 +18,8 @@ import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
 import { LOST_REASON_PRESETS, lostReasonLabel, type LostReasonPreset } from "@/lib/lead-lost-reasons"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
+import { focusChoice } from "@/lib/utils"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
 import { FIELD_W } from "@/lib/fieldWidth"
 
@@ -77,6 +79,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
   const [showLostForm, setShowLostForm] = useState(false)
   const [lostPreset, setLostPreset] = useState<LostReasonPreset | "">("")
   const [lostOther, setLostOther] = useState("")
+  const [lostReasonError, setLostReasonError] = useState(false)
   const lostReasonValue = lostPreset === "other" ? lostOther.trim() : lostPreset
 
   const [showReferral, setShowReferral] = useState(false)
@@ -193,19 +196,17 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
 
       {showLostForm && !closed ? (
         <div className="space-y-2 rounded-xl border border-border p-3">
-          <Label>{t("leads.detail.lostReasonLabel")}</Label>
-          <select
+          <ChoiceSelect
+            id="lead-lost-reason"
+            label={t("leads.detail.lostReasonLabel")}
             value={lostPreset}
-            onChange={(e) => setLostPreset(e.target.value as LostReasonPreset | "")}
-            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-          >
-            <option value="">{t("leads.detail.lostReasonPlaceholder")}</option>
-            {LOST_REASON_PRESETS.map((r) => (
-              <option key={r} value={r}>
-                {t(`leads.lostReason.${r}`)}
-              </option>
-            ))}
-          </select>
+            options={LOST_REASON_PRESETS.map((r) => ({ value: r, label: t(`leads.lostReason.${r}`) }))}
+            onChange={(v) => {
+              setLostPreset(v)
+              setLostReasonError(false)
+            }}
+            error={lostReasonError ? t("common.chooseOption") : undefined}
+          />
           {lostPreset === "other" ? <Input placeholder={t("leads.detail.lostReasonOtherPlaceholder")} value={lostOther} onChange={(e) => setLostOther(e.target.value)} /> : null}
           <div className="flex justify-end gap-1.5">
             <Button size="sm" variant="ghost" onClick={() => setShowLostForm(false)}>
@@ -214,8 +215,14 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
             <Button
               size="sm"
               variant="destructive"
-              disabled={!lostReasonValue || updateStatus.isPending}
-              onClick={() =>
+              // Tappable while the reason is "Not set" so it can say what's missing; "Other" still needs its text.
+              disabled={(lostPreset !== "" && !lostReasonValue) || updateStatus.isPending}
+              onClick={() => {
+                if (!lostPreset) {
+                  setLostReasonError(true)
+                  focusChoice("lead-lost-reason")
+                  return
+                }
                 void guardReentry(stageGuardRef, async () => {
                   try {
                     await updateStatus.mutateAsync({ leadId: lead.id, status: "lost", reason: lostReasonValue })
@@ -226,7 +233,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
                     failed(err)
                   }
                 })
-              }
+              }}
             >
               {updateStatus.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("leads.detail.confirmLost")}
             </Button>

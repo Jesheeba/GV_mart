@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useToast } from "@/components/ui/toast-context"
 import { useCreateStaff } from "@/hooks/useHr"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
@@ -14,9 +15,6 @@ import { focusChoice } from "@/lib/utils"
 type StaffRole = "sales_admin" | "operation_admin"
 const ROLES: StaffRole[] = ["sales_admin", "operation_admin"]
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const selectClass =
-  "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
 
 /**
  * Master-only "Add staff": creates an operation_admin / sales_admin login through the admin-create-staff
@@ -123,36 +121,18 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 </Label>
                 <Input id="staff-phone" type="tel" inputMode="tel" className={FIELD_W.mobile} value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" required />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="staff-role" className="block text-xs font-medium text-text-muted">
-                  {t("hr.staffSalary.role")}
-                </Label>
-                <select
-                  id="staff-role"
-                  value={role}
-                  onChange={(e) => {
-                    setRole(e.target.value as StaffRole)
-                    setRoleError(false)
-                  }}
-                  aria-invalid={roleError || undefined}
-                  aria-describedby={roleError ? "staff-role-error" : undefined}
-                  className={selectClass}
-                >
-                  <option value="" disabled>
-                    {t("common.selectPlaceholder")}
-                  </option>
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {t(`roles.${r}`)}
-                    </option>
-                  ))}
-                </select>
-                {roleError ? (
-                  <p id="staff-role-error" role="alert" className="text-xs text-danger">
-                    {t("common.chooseOption")}
-                  </p>
-                ) : null}
-              </div>
+              <ChoiceSelect
+                id="staff-role"
+                label={t("hr.staffSalary.role")}
+                labelClassName="block text-xs font-medium text-text-muted"
+                value={role}
+                options={ROLES.map((r) => ({ value: r, label: t(`roles.${r}`) }))}
+                onChange={(v) => {
+                  setRole(v)
+                  setRoleError(false)
+                }}
+                error={roleError ? t("common.chooseOption") : undefined}
+              />
             </div>
 
             <div className="space-y-1">

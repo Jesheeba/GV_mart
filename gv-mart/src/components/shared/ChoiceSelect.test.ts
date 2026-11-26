@@ -17,17 +17,17 @@ const html = (props: Partial<Parameters<typeof ChoiceSelect>[0]> = {}) =>
   )
 
 describe("ChoiceSelect (either/or fields as dropdowns, 2026-11-26)", () => {
-  it("required field: renders a <select> starting on a disabled 'Select…', nothing pre-selected", () => {
+  it("first option is always an enabled 'Not set', nothing pre-selected on a new record", () => {
     const out = html()
     expect(out).toContain("<select")
-    expect(out).toMatch(/<option value="" disabled="" selected="">common\.selectPlaceholder<\/option>/)
+    expect(out).toMatch(/<option value="" selected="">common\.notSet<\/option>/)
     expect(out).not.toMatch(/value="own" selected/)
     expect(out).not.toMatch(/value="rental" selected/)
+    expect(out).not.toContain("selectPlaceholder")
   })
 
-  it("optional field (water source): first option is an enabled 'Not set'", () => {
-    const out = html({ optional: true })
-    expect(out).toMatch(/<option value="" selected="">common\.notSet<\/option>/)
+  it("emptyLabel overrides 'Not set' where empty has a real meaning (e.g. 'Any')", () => {
+    expect(html({ emptyLabel: "Any" })).toMatch(/<option value="" selected="">Any<\/option>/)
   })
 
   it("edit: shows the saved value as selected", () => {
@@ -35,8 +35,8 @@ describe("ChoiceSelect (either/or fields as dropdowns, 2026-11-26)", () => {
   })
 
   it("null/undefined saved value falls back to the placeholder instead of crashing", () => {
-    expect(html({ value: null })).toMatch(/<option value="" disabled="" selected="">/)
-    expect(html({ value: undefined })).toMatch(/<option value="" disabled="" selected="">/)
+    expect(html({ value: null })).toMatch(/<option value="" selected="">/)
+    expect(html({ value: undefined })).toMatch(/<option value="" selected="">/)
   })
 
   it("label is tied to the select, so focusChoice(id) and screen readers find it", () => {

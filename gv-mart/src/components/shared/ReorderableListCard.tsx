@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { type CrudFieldDef } from "@/components/shared/EntityCrudTable"
+import { initialFormValues, resolveOptions, selectNeedsChoice, validateFields } from "@/lib/crudForm"
+import { focusChoice } from "@/lib/utils"
 
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message
@@ -12,11 +14,6 @@ function extractErrorMessage(e: unknown): string {
     return (e as { message: string }).message
   }
   return String(e)
-}
-
-function resolveOptions(field: CrudFieldDef, values: Record<string, string>) {
-  if (!field.options) return []
-  return typeof field.options === "function" ? field.options(values) : field.options
 }
 
 /**
@@ -88,7 +85,8 @@ export function ReorderableListCard<T extends Record<string, unknown>>({
 
   function openAddForm() {
     setEditingId(null)
-    setValues(Object.fromEntries(fields.map((f) => [f.key, f.type === "select" ? (resolveOptions(f, {})[0]?.value ?? "") : ""])))
+    // Same rule as EntityCrudTable: selects start on "Not set", never on their first option.
+    setValues(initialFormValues(fields))
     setFormError(null)
     setFormOpen(true)
   }
@@ -105,6 +103,12 @@ export function ReorderableListCard<T extends Record<string, unknown>>({
   }
   async function submit() {
     setFormError(null)
+    const invalid = validateFields(fields, values, t)
+    if (invalid) {
+      setFormError(invalid.message)
+      focusChoice(`f-${invalid.key}`)
+      return
+    }
     try {
       if (editingId) await onUpdate(editingId, values)
       else await onCreate(values)
@@ -248,6 +252,7 @@ export function ReorderableListCard<T extends Record<string, unknown>>({
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
                     className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                   >
+                    {selectNeedsChoice(f, values) ? <option value="">{t("common.notSet")}</option> : null}
                     {resolveOptions(f, values).map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
