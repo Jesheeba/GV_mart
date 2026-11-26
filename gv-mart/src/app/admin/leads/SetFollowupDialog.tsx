@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useLeadSchedule, useSetLeadFollowup } from "@/hooks/useLeadFollowups"
 import { useCreateTask } from "@/hooks/useWorkspace"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { NextFollowupPicker } from "./NextFollowupPicker"
 import { REMINDER_OFFSETS, reminderDueAt, type ReminderOffset } from "./followupReminder"
 import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
@@ -22,12 +23,13 @@ import {
   formatIstDateTime,
   getIstNow,
   isFollowupAlreadySetError,
+  isNextFollowupValid,
   nextWorkingDay,
   toIso,
   type NextFollowupValue,
   type SetFollowupType,
 } from "@/lib/lead-followups"
-import { cn } from "@/lib/utils"
+import { focusChoice } from "@/lib/utils"
 
 /**
  * Schedule the first follow-up for an open lead that has none, without logging
@@ -67,7 +69,9 @@ function Body({ leadId, leadName, onClose, onDone }: { leadId: string; leadName:
   const setFollowup = useSetLeadFollowup()
   const createTask = useCreateTask()
   const qc = useQueryClient()
-  const [type, setType] = useState<SetFollowupType>("call")
+  // Unchosen until staff pick one (choice-dropdowns-not-set: "Not set" blocks Save).
+  const [type, setType] = useState<SetFollowupType | null>(null)
+  const [typeError, setTypeError] = useState(false)
   const [note, setNote] = useState("")
   const [reminder, setReminder] = useState<ReminderOffset>("")
   const [next, setNext] = useState<NextFollowupValue>(() => {
@@ -76,9 +80,15 @@ function Body({ leadId, leadName, onClose, onDone }: { leadId: string; leadName:
   })
   const [keepNonWorking, setKeepNonWorking] = useState<string | null>(null)
 
-  const canSave = canSetFollowup({ type, next })
+  // Without a type the button stays enabled so tapping it can say what's missing (inline error below the types).
+  const canSave = type ? canSetFollowup({ type, next }) : isNextFollowupValid(next)
 
   async function save() {
+    if (!type) {
+      setTypeError(true)
+      focusChoice("set-followup-type")
+      return
+    }
     try {
       const dueAt = toIso(next.date!, next.time!)
       await setFollowup.mutateAsync({ leadId, dueAt, type, note: cleanFollowupNote(note), isExact: next.exact })
@@ -114,25 +124,17 @@ function Body({ leadId, leadName, onClose, onDone }: { leadId: string; leadName:
 
   return (
     <div className="space-y-4">
-      <section className="space-y-2">
-        <Label>{t("leads.followup.setType")}</Label>
-        <div className="flex flex-wrap gap-1.5">
-          {FOLLOWUP_TYPES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              aria-pressed={type === c}
-              onClick={() => setType(c)}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                type === c ? "border-ink bg-ink text-white" : "border-border bg-surface text-text hover:bg-surface-alt"
-              )}
-            >
-              {t(`leads.followup.type.${c}`)}
-            </button>
-          ))}
-        </div>
-      </section>
+      <ChoiceSelect
+        id="set-followup-type"
+        label={t("leads.followup.setType")}
+        value={type}
+        options={FOLLOWUP_TYPES.map((c) => ({ value: c, label: t(`leads.followup.type.${c}`) }))}
+        onChange={(v) => {
+          setType(v || null)
+          setTypeError(false)
+        }}
+        error={typeError ? t("leads.followup.typeRequired") : undefined}
+      />
       <section className="space-y-2">
         <Label>{t("leads.followup.setWhen")}</Label>
         <NextFollowupPicker

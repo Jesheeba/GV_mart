@@ -237,6 +237,19 @@ async function runJob(job: OutboxJob): Promise<void> {
         p_ticket_id: p.ticketId as string,
         p_lat: p.lat as number,
         p_lng: p.lng as number,
+        p_accuracy_m: (p.accuracyM as number | null | undefined) ?? null,
+      })
+      if (error) throw error
+      return
+    }
+    case "location.pin_correction": {
+      // Outcome ("corrected" | "locked" | "too_far" | ...) is informational; the visit already started.
+      const { error } = await supabase.rpc("record_technician_pin_correction", {
+        p_org_id: p.orgId as string,
+        p_ticket_id: p.ticketId as string,
+        p_lat: p.lat as number,
+        p_lng: p.lng as number,
+        p_accuracy_m: p.accuracyM as number,
       })
       if (error) throw error
       return

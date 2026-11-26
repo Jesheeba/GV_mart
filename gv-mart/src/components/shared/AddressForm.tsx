@@ -6,6 +6,7 @@ import { Loader2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress, useReverseGeocode } from "@/hooks/useMaps"
@@ -14,6 +15,7 @@ import { geocodeResultToAddressFields, mergeAddressFieldsPreservingTyped } from 
 import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validation/customerApp"
 import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Shared add/edit address form — used by the Profile page's address list and
@@ -63,14 +65,16 @@ export function AddressForm({
       pincode: initial?.pincode ?? "",
       district: initial?.district ?? "",
       state: initial?.state ?? "",
-      addressType: initial?.address_type ?? "residential",
-      ownership: initial?.ownership ?? "own",
+      // A new address starts unchosen (choice-no-preselect); editing shows the saved values.
+      addressType: initial?.address_type ?? undefined,
+      ownership: initial?.ownership ?? undefined,
       lat: initial?.lat ?? undefined,
       lng: initial?.lng ?? undefined,
     },
   })
   const lat = watch("lat")
   const lng = watch("lng")
+  const [addressType, ownership] = watch(["addressType", "ownership"])
   const [fullAddress, area, pincode, district, state] = watch(["fullAddress", "area", "pincode", "district", "state"])
   const locationText = [fullAddress, area, pincode, district, state].join("|")
   // Bug fix: editing an existing address's text (e.g. correcting the door
@@ -169,7 +173,9 @@ export function AddressForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5 border-t border-border pt-3">
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-2.5 border-t border-border pt-3">
       <div className="space-y-1">
         <Label htmlFor={`${uid}-fullAddress`} className="sr-only">{t("customerApp.profile.address.fullAddress")}</Label>
         <textarea
@@ -190,7 +196,7 @@ export function AddressForm({
       <div className="grid grid-cols-2 gap-2.5">
         <div className="space-y-1">
           <Label htmlFor={`${uid}-pincode`} className="sr-only">{t("customerApp.profile.address.pincode")}</Label>
-          <Input id={`${uid}-pincode`} placeholder={t("customerApp.profile.address.pincode")} aria-invalid={!!errors.pincode} {...register("pincode")} />
+          <Input id={`${uid}-pincode`} inputMode="numeric" maxLength={6} className={FIELD_W.pincode} placeholder={t("customerApp.profile.address.pincode")} aria-invalid={!!errors.pincode} {...register("pincode")} />
           {errors.pincode ? <p className="text-xs text-danger">{t(errors.pincode.message!)}</p> : null}
         </div>
         <Input placeholder={t("customerApp.profile.address.district")} {...register("district")} />
@@ -251,21 +257,26 @@ export function AddressForm({
         {lat == null || lng == null ? <p className="text-xs text-warning">{t("customerApp.profile.address.mapRequired")}</p> : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="space-y-1">
-          <Label htmlFor={`${uid}-addressType`} className="text-xs text-text-muted">{t("customerApp.profile.address.type")}</Label>
-          <select id={`${uid}-addressType`} className="h-10 w-full rounded-xl border border-input bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30" {...register("addressType")}>
-            <option value="residential">{t("customerApp.profile.address.residential")}</option>
-            <option value="commercial">{t("customerApp.profile.address.commercial")}</option>
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`${uid}-ownership`} className="text-xs text-text-muted">{t("customerApp.profile.address.ownership")}</Label>
-          <select id={`${uid}-ownership`} className="h-10 w-full rounded-xl border border-input bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30" {...register("ownership")}>
-            <option value="own">{t("customerApp.profile.address.own")}</option>
-            <option value="rental">{t("customerApp.profile.address.rental")}</option>
-          </select>
-        </div>
+      {/* Same dropdowns as the admin customer form (CustomerFormPage); nothing selected on a new address. */}
+      <div className="grid grid-cols-2 gap-3">
+        <ChoiceSelect
+          id={`${uid}-addressType`}
+          label={t("customerApp.profile.address.type")}
+          labelClassName="text-xs text-text-muted"
+          value={addressType}
+          options={(["residential", "commercial"] as const).map((v) => ({ value: v, label: t(`customerApp.profile.address.${v}`) }))}
+          onChange={(v) => setValue("addressType", v || undefined, { shouldValidate: true })}
+          error={errors.addressType ? t(errors.addressType.message!) : undefined}
+        />
+        <ChoiceSelect
+          id={`${uid}-ownership`}
+          label={t("customerApp.profile.address.ownership")}
+          labelClassName="text-xs text-text-muted"
+          value={ownership}
+          options={(["own", "rental"] as const).map((v) => ({ value: v, label: t(`customerApp.profile.address.${v}`) }))}
+          onChange={(v) => setValue("ownership", v || undefined, { shouldValidate: true })}
+          error={errors.ownership ? t(errors.ownership.message!) : undefined}
+        />
       </div>
       {error ? <p className="text-xs text-danger">{error}</p> : null}
       <div className="flex justify-end gap-2">

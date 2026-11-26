@@ -83,12 +83,18 @@ export const roChecklistSchema = z
   })
 export type RoChecklistInput = z.infer<typeof roChecklistSchema>
 
+/** Yes/No dropdown <-> nullable boolean column: "Not set" ("") is null. */
+export type YesNo = "yes" | "no"
+export const toYesNo = (v: boolean | null): YesNo | "" => (v === null ? "" : v ? "yes" : "no")
+export const fromYesNo = (v: YesNo | ""): boolean | null => (v === "" ? null : v === "yes")
+
 // TECH-07 step 10 — Payment. Same transfer-requires-txn+description rule as
 // lib/validation/sale.ts's paymentDetailsSchema (v2.2 §6.1, "NO gateway" in
 // staff billing).
 export const servicePaymentSchema = z
   .object({
-    method: z.enum(["cash", "transfer"]),
+    // "upi" is offered on-site when online payments are enabled; it is collected after the invoice (OnSiteVisitPage).
+    method: z.enum(["cash", "transfer", "upi"]),
     txnId: z.string().trim().max(120).optional().or(z.literal("")),
     description: z.string().trim().max(200).optional().or(z.literal("")),
   })
@@ -103,10 +109,13 @@ export const servicePaymentSchema = z
 export type ServicePaymentInput = z.infer<typeof servicePaymentSchema>
 
 // TECH-07 "Generate Enquiry"
+/** i18n key for "no enquiry type picked" — the page shows it under the dropdown. */
+export const ENQUIRY_TYPE_REQUIRED = "common.chooseOption"
 export const enquiryLeadSchema = z.object({
   name: z.string().trim().min(2, "technician.errors.nameRequired"),
   mobile: z.string().regex(MOBILE_REGEX, "technician.errors.mobileInvalid").optional().or(z.literal("")),
-  enquiryType: z.enum(["online", "price", "quality", "customization", "water_premium", "budget"]),
+  // No default (was "online"): Send is blocked until a type is chosen.
+  enquiryType: z.enum(["online", "price", "quality", "customization", "water_premium", "budget"], { message: ENQUIRY_TYPE_REQUIRED }),
   note: z.string().trim().max(500).optional().or(z.literal("")),
 })
 export type EnquiryLeadInput = z.infer<typeof enquiryLeadSchema>

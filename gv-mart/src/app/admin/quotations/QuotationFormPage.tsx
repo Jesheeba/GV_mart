@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { GstModeToggle } from "@/components/shared/GstModeToggle"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Loader2, Plus, Search, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,17 +9,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { SparePicker } from "@/components/shared/SparePicker"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
-import { productsHooks, sparesHooks } from "@/hooks/useMasters"
+import { productsHooks, sparesHooks, useSettings } from "@/hooks/useMasters"
 import { useCreateQuotation } from "@/hooks/useQuotations"
-import { formatCurrency } from "@/lib/sale-calc"
+import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { Enums } from "@/types/database"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
-const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
 
 type QuoteLine = { itemType: Enums<"item_type">; itemId: string; name: string; price: number; qty: number }
 
@@ -85,6 +88,11 @@ export function QuotationFormPage() {
   const updateLeadStatus = useUpdateLeadStatus()
 
   const total = useMemo(() => lines.reduce((sum, l) => sum + l.price * l.qty, 0), [lines])
+  const { data: settings } = useSettings(orgId)
+  const gstRate = settings ? Number(settings.gst_rate) : 0
+  const [gstInclusiveChoice, setGstInclusiveChoice] = useState<boolean | null>(null)
+  const gstInclusive = gstInclusiveChoice ?? settings?.prices_include_gst ?? false
+  const gstBill = billBreakdown(total, 0, gstRate, gstInclusive)
 
   // Seed the cart once from the lead's structured items (one entry per
   // product/spare the enquiry asked for), as soon as the products/spares
@@ -141,6 +149,7 @@ export function QuotationFormPage() {
       leadId,
       validUntil: validUntil || null,
       items: lines.map((l) => ({ itemType: l.itemType, itemId: l.itemId, qty: l.qty })),
+      gstInclusive,
     })
     if (leadId) {
       // Best-effort: the quotation is already created at this point, so a
@@ -221,22 +230,23 @@ export function QuotationFormPage() {
             )}
             inputClassName="h-8"
           />
-          <Input type="number" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+          <Input type="number" inputMode="numeric" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
           <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={addProductLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
-          <select aria-label={t("sales.items.selectSpare")} className={selectClass} value={spareId} onChange={(e) => setSpareId(e.target.value)}>
-            <option value="">{t("sales.items.selectSpare")}</option>
-            {activeSpares.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} — {formatCurrency(Number(s.price))}
-              </option>
-            ))}
-          </select>
-          <Input type="number" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+          <SparePicker
+            className="sm:col-span-2"
+            inputClassName="h-8"
+            spares={activeSpares}
+            value={spareId}
+            onChange={setSpareId}
+            placeholder={t("sales.items.selectSpare")}
+            renderMeta={(s) => formatCurrency(Number(s.price))}
+          />
+          <Input type="number" inputMode="numeric" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
           <Button type="button" size="sm" variant="outline" disabled={!spareId} onClick={addSpareLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}
@@ -260,9 +270,15 @@ export function QuotationFormPage() {
                 </Button>
               </div>
             ))}
-            <div className="flex justify-between border-t border-border px-1 pt-2 text-sm font-bold text-text">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-1 pt-2">
+              <GstModeToggle value={gstInclusive} onChange={setGstInclusiveChoice} />
+              <span className="text-sm text-text-muted">
+                {t(gstInclusive ? "sales.gst.includedLine" : "sales.summary.gst", { rate: gstRate })}: {formatCurrency(gstBill.gst)}
+              </span>
+            </div>
+            <div className="flex justify-between px-1 text-sm font-bold text-text">
               <span>{t("sales.summary.total")}</span>
-              <span>{formatCurrency(total)}</span>
+              <span>{formatCurrency(gstBill.total)}</span>
             </div>
           </div>
         )}

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import type { Tables, TablesInsert, TablesUpdate } from "@/types/database"
+import type { Enums, Tables, TablesInsert, TablesUpdate } from "@/types/database"
 
 // delete_product/delete_spare/delete_gift (20260923100000/100100) raise
 // "ITEM_IN_USE: <message>" when the item is referenced elsewhere — the real
@@ -501,6 +501,12 @@ export async function createComplaintType(row: TablesInsert<"complaint_types">) 
   if (error) throw error
   return data
 }
+/** Quick-add from New Complaint (master + operation_admin) — RPC dedupes by label, see 20261226100000_quick_add_complaint_type.sql. */
+export async function quickAddComplaintType(label: string, category: Enums<"brand_category">) {
+  const { data, error } = await supabase.rpc("quick_add_complaint_type", { p_label: label, p_category: category })
+  if (error) throw error
+  return data
+}
 export async function updateComplaintType(id: string, patch: TablesUpdate<"complaint_types">) {
   const { data, error } = await supabase.from("complaint_types").update(patch).eq("id", id).select().single()
   if (error) throw error
@@ -555,6 +561,13 @@ export type AppointmentSlotRow = Tables<"appointment_slots">
 // is_system rows are the six built-ins the code keys off — never deleted.
 export async function listLeadSources(orgId: string) {
   const { data, error } = await supabase.from("lead_sources").select("*").eq("org_id", orgId).order("created_at")
+  if (error) throw error
+  return data
+}
+export type LeadOptionList = "source" | "kind" | "product_type"
+/** Quick-add from the lead forms (master + sales_admin). Returns the option's key — existing one when the label/key already exists. See 20261226120000_quick_add_lead_option.sql. */
+export async function quickAddLeadOption(list: LeadOptionList, label: string) {
+  const { data, error } = await supabase.rpc("quick_add_lead_option", { p_list: list, p_label: label })
   if (error) throw error
   return data
 }

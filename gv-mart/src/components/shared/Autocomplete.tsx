@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type HTMLAttributes, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { Loader2 } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
@@ -24,8 +24,12 @@ export function Autocomplete<T>({
   inputClassName,
   openOnFocus,
   maxLength,
+  inputMode,
   ariaInvalid,
   onFocus,
+  onCreate,
+  createLabel,
+  creating,
 }: {
   id?: string
   value: string
@@ -43,6 +47,8 @@ export function Autocomplete<T>({
   inputClassName?: string
   /** Forwarded to the underlying input, e.g. a 6-digit Pincode field. */
   maxLength?: number
+  /** Forwarded to the underlying input, e.g. "numeric" for a Pincode field so phones open the number keypad. */
+  inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"]
   /** Forwarded to the underlying input's aria-invalid, for callers with their own validation error state. */
   ariaInvalid?: boolean
   /**
@@ -56,12 +62,24 @@ export function Autocomplete<T>({
   openOnFocus?: boolean
   /** Fires once per focus — callers use this to lazily enable a recent-values query only once the field is actually opened, instead of on every page load. */
   onFocus?: () => void
+  /**
+   * Quick-add: when set (and something is typed), a last "+ Add" option
+   * calls this. Callers pass it only when the typed text has no exact match
+   * and the user is allowed to create — Autocomplete doesn't decide either.
+   */
+  onCreate?: () => void
+  /** Text of the quick-add option, e.g. Add "Low flow". */
+  createLabel?: ReactNode
+  /** Quick-add in flight — option disabled to prevent double inserts. */
+  creating?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const listboxId = useId()
   const showList = open && (openOnFocus || value.trim().length > 0)
-  const activeOptionId = activeIndex >= 0 && activeIndex < suggestions.length ? `${listboxId}-option-${activeIndex}` : undefined
+  const showCreate = !!onCreate && value.trim().length > 0
+  const optionCount = suggestions.length + (showCreate ? 1 : 0)
+  const activeOptionId = activeIndex >= 0 && activeIndex < optionCount ? `${listboxId}-option-${activeIndex}` : undefined
 
   // Dropdown is portalled to <body> instead of absolutely positioned inside
   // the wrapper — several callers render this inside a Card, and Card
@@ -92,6 +110,12 @@ export function Autocomplete<T>({
     setOpen(false)
     setActiveIndex(-1)
   }
+  const create = () => {
+    if (creating || !onCreate) return
+    onCreate()
+    setOpen(false)
+    setActiveIndex(-1)
+  }
 
   return (
     <div ref={wrapperRef} className={cn("relative", className)}>
@@ -110,17 +134,20 @@ export function Autocomplete<T>({
         }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => {
-          if (!showList || suggestions.length === 0) return
+          if (!showList || optionCount === 0) return
           if (e.key === "ArrowDown") {
             e.preventDefault()
-            setActiveIndex((i) => (i + 1) % suggestions.length)
+            setActiveIndex((i) => (i + 1) % optionCount)
           } else if (e.key === "ArrowUp") {
             e.preventDefault()
-            setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
+            setActiveIndex((i) => (i <= 0 ? optionCount - 1 : i - 1))
           } else if (e.key === "Enter") {
             if (activeIndex >= 0 && activeIndex < suggestions.length) {
               e.preventDefault()
               selectItem(suggestions[activeIndex])
+            } else if (showCreate && activeIndex === suggestions.length) {
+              e.preventDefault()
+              create()
             }
           } else if (e.key === "Escape") {
             setOpen(false)
@@ -131,6 +158,7 @@ export function Autocomplete<T>({
         className={cn(icon && "pl-10", inputClassName)}
         autoComplete="off"
         maxLength={maxLength}
+        inputMode={inputMode}
         role="combobox"
         aria-expanded={showList}
         aria-controls={listboxId}
@@ -150,10 +178,10 @@ export function Autocomplete<T>({
                 <div className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-text-muted">
                   <Loader2 className="size-3.5 animate-spin" /> …
                 </div>
-              ) : suggestions.length === 0 ? (
-                <div className="px-3.5 py-2.5 text-sm text-text-muted">{emptyMessage}</div>
               ) : (
-                suggestions.map((item, index) => (
+                <>
+                {suggestions.length === 0 && !showCreate ? <div className="px-3.5 py-2.5 text-sm text-text-muted">{emptyMessage}</div> : null}
+                {suggestions.map((item, index) => (
                   <button
                     key={getKey(item)}
                     id={`${listboxId}-option-${index}`}
@@ -170,7 +198,28 @@ export function Autocomplete<T>({
                   >
                     {getLabel(item)}
                   </button>
-                ))
+                ))}
+                {showCreate ? (
+                  <button
+                    id={`${listboxId}-option-${suggestions.length}`}
+                    role="option"
+                    aria-selected={activeIndex === suggestions.length}
+                    aria-disabled={creating}
+                    type="button"
+                    disabled={creating}
+                    className={cn(
+                      "flex w-full items-center gap-2 border-t border-border px-3.5 py-2.5 text-left text-sm font-medium text-accent hover:bg-surface-alt disabled:opacity-50",
+                      activeIndex === suggestions.length && "bg-surface-alt"
+                    )}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setActiveIndex(suggestions.length)}
+                    onClick={create}
+                  >
+                    {creating ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                    {createLabel}
+                  </button>
+                ) : null}
+                </>
               )}
             </div>,
             document.body

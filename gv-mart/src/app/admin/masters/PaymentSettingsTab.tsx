@@ -12,6 +12,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { usePaymentSettings, useUpdatePaymentSettings } from "@/hooks/usePaymentSettings"
 import { paymentSettingsSchema, type PaymentSettingsInput } from "@/lib/validation/paymentSettings"
 import { PaymentQRCode } from "@/app/customer/components/PaymentQRCode"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 const PREVIEW_AMOUNT = 100
 
@@ -74,7 +75,7 @@ export function PaymentSettingsTab() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="phone_number">{t("paymentSettings.phoneNumber")}</Label>
-            <Input id="phone_number" {...register("phone_number")} />
+            <Input id="phone_number" type="tel" inputMode="tel" className={FIELD_W.mobile} {...register("phone_number")} />
           </div>
         </div>
         <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">

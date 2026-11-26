@@ -18,7 +18,10 @@ import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
 import { LOST_REASON_PRESETS, lostReasonLabel, type LostReasonPreset } from "@/lib/lead-lost-reasons"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
+import { focusChoice } from "@/lib/utils"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 const QUOTATION_STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
 
@@ -76,6 +79,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
   const [showLostForm, setShowLostForm] = useState(false)
   const [lostPreset, setLostPreset] = useState<LostReasonPreset | "">("")
   const [lostOther, setLostOther] = useState("")
+  const [lostReasonError, setLostReasonError] = useState(false)
   const lostReasonValue = lostPreset === "other" ? lostOther.trim() : lostPreset
 
   const [showReferral, setShowReferral] = useState(false)
@@ -100,6 +104,15 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
           <UserCheck className="size-3.5" />
           {t("leads.detail.referredBy", { name: leadReferrer.referrer_name })}
         </p>
+      ) : lead.referred_by_customer_id ? (
+        <button
+          type="button"
+          onClick={() => navigate(`/admin/customers/${lead.referred_by_customer_id}`)}
+          className="flex items-center gap-1 text-left text-xs text-text-muted hover:underline"
+        >
+          <UserCheck className="size-3.5" />
+          {t("leads.detail.referredBy", { name: `${lead.referred_by_name ?? ""} (${t("referrer.kind.customer")})` })}
+        </button>
       ) : null}
 
       {(lead.lead_items ?? []).length > 0 ? (
@@ -192,19 +205,17 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
 
       {showLostForm && !closed ? (
         <div className="space-y-2 rounded-xl border border-border p-3">
-          <Label>{t("leads.detail.lostReasonLabel")}</Label>
-          <select
+          <ChoiceSelect
+            id="lead-lost-reason"
+            label={t("leads.detail.lostReasonLabel")}
             value={lostPreset}
-            onChange={(e) => setLostPreset(e.target.value as LostReasonPreset | "")}
-            className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-          >
-            <option value="">{t("leads.detail.lostReasonPlaceholder")}</option>
-            {LOST_REASON_PRESETS.map((r) => (
-              <option key={r} value={r}>
-                {t(`leads.lostReason.${r}`)}
-              </option>
-            ))}
-          </select>
+            options={LOST_REASON_PRESETS.map((r) => ({ value: r, label: t(`leads.lostReason.${r}`) }))}
+            onChange={(v) => {
+              setLostPreset(v)
+              setLostReasonError(false)
+            }}
+            error={lostReasonError ? t("common.chooseOption") : undefined}
+          />
           {lostPreset === "other" ? <Input placeholder={t("leads.detail.lostReasonOtherPlaceholder")} value={lostOther} onChange={(e) => setLostOther(e.target.value)} /> : null}
           <div className="flex justify-end gap-1.5">
             <Button size="sm" variant="ghost" onClick={() => setShowLostForm(false)}>
@@ -213,8 +224,14 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
             <Button
               size="sm"
               variant="destructive"
-              disabled={!lostReasonValue || updateStatus.isPending}
-              onClick={() =>
+              // Tappable while the reason is "Not set" so it can say what's missing; "Other" still needs its text.
+              disabled={(lostPreset !== "" && !lostReasonValue) || updateStatus.isPending}
+              onClick={() => {
+                if (!lostPreset) {
+                  setLostReasonError(true)
+                  focusChoice("lead-lost-reason")
+                  return
+                }
                 void guardReentry(stageGuardRef, async () => {
                   try {
                     await updateStatus.mutateAsync({ leadId: lead.id, status: "lost", reason: lostReasonValue })
@@ -225,7 +242,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
                     failed(err)
                   }
                 })
-              }
+              }}
             >
               {updateStatus.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("leads.detail.confirmLost")}
             </Button>
@@ -271,7 +288,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="referral-points">{t("leads.detail.pointsLabel")}</Label>
-                <Input id="referral-points" type="number" min={1} step="1" value={points} onChange={(e) => setPoints(e.target.value)} />
+                <Input id="referral-points" type="number" inputMode="numeric" min={1} step="1" className={FIELD_W.qty} value={points} onChange={(e) => setPoints(e.target.value)} />
               </div>
               <div className="flex justify-end">
                 <Button

@@ -10,13 +10,14 @@ import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
 import { useCreatePurchaseOrder, useMarkPoPaid, usePoItems, usePurchaseOrders, useUnmarkPoPaid } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
+import { SupplierQuickAdd } from "./SupplierQuickAdd"
 import { PoReceiptForm } from "./PoReceiptForm"
-import { createPurchaseOrderSchema, type PoItemInput } from "@/lib/validation/automation"
+import { createPurchaseOrderSchema, emptyPoItem, isCompletePoItem, type PoItemDraft } from "@/lib/validation/automation"
 import { lineShortfall, poPaymentActions } from "@/lib/purchase"
 import type { PurchaseOrderListItem } from "@/services/automation"
 import { formatDate } from "@/lib/formatDate"
 
-// Status is delivery only; payment is paid_at (20261213100000_vendor_flow_fixes.sql). Legacy
+// Status is delivery only; payment is paid_at (20261231100000_vendor_flow_fixes.sql). Legacy
 // "paid" rows were backfilled to sent/received + paid_at, the key stays for safety.
 const STATUS_TONE: Record<string, StatusTone> = { draft: "neutral", sent: "warning", received: "success", paid: "success", cancelled: "danger" }
 
@@ -37,7 +38,7 @@ export function PurchaseOrdersTab() {
 
   const [showNew, setShowNew] = useState(false)
   const [supplierId, setSupplierId] = useState("")
-  const [items, setItems] = useState<PoItemInput[]>([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+  const [items, setItems] = useState<PoItemDraft[]>([emptyPoItem()])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const poItems = usePoItems(expandedId ?? undefined)
   const [receiptPo, setReceiptPo] = useState<PurchaseOrderListItem | null>(null)
@@ -49,7 +50,7 @@ export function PurchaseOrdersTab() {
   )
 
   async function submit() {
-    const parsed = createPurchaseOrderSchema.safeParse({ supplierId, items: items.filter((i) => i.itemId) })
+    const parsed = createPurchaseOrderSchema.safeParse({ supplierId, items: items.filter(isCompletePoItem) })
     if (!parsed.success) {
       setFormError(t(parsed.error.issues[0].message))
       return
@@ -58,7 +59,7 @@ export function PurchaseOrdersTab() {
     await createPo.mutateAsync({ orgId: orgId!, supplierId, items: parsed.data.items })
     setShowNew(false)
     setSupplierId("")
-    setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    setItems([emptyPoItem()])
   }
 
   const columns: DataTableColumn<PurchaseOrderListItem>[] = [
@@ -180,6 +181,7 @@ export function PurchaseOrdersTab() {
                 </option>
               ))}
             </select>
+            <SupplierQuickAdd orgId={orgId} onAdded={setSupplierId} />
           </div>
           <PoItemRows orgId={orgId} items={items} onChange={setItems} />
           {formError ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{formError}</p> : null}

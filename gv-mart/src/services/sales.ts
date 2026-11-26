@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { nonTechnicianReferrerArgs, type ReferrerValue } from "@/lib/referrer"
 import type { Enums, Tables } from "@/types/database"
 
 export type InvoiceRow = Tables<"invoices">
@@ -23,6 +24,8 @@ export type SaleCart = {
   paymentDescription: string | null
   /** Referral points to redeem as a flat ₹ discount (settings.referral_point_value per point). create_sale re-validates this against the customer's actual ledger balance server-side — never trust this number, it's only ever a UX convenience here. */
   redeemPoints: number
+  /** GST Included/Extra for this bill (2026-11-26). create_sale falls back to settings.prices_include_gst when absent. */
+  gstInclusive: boolean
 }
 
 export type SaleResult = {
@@ -44,9 +47,11 @@ export async function createSale(
   /** Rewards spec (2026-08-04) — optional finder-credit referral for a walk-in sale with no pre-existing lead/quotation. Ignored server-side if the id doesn't resolve to a technician in this org. */
   referredByTechnicianId?: string | null,
   /** Whole-cart amount actually collected — create_sale allocates it across however many of {spare,product,amc} invoices the cart produces and derives each one's payment_status from it. Omitted/undefined defaults server-side to "fully paid" (create_sale's p_amount_paid default). */
-  amountPaid?: number | null
+  amountPaid?: number | null,
+  /** Referral sources (20261228100000): a non-technician referrer routes through create_sale_with_referrer (same transaction). */
+  referrer?: ReferrerValue | null
 ): Promise<SaleResult> {
-  const { data, error } = await supabase.rpc("create_sale", {
+  const args = {
     p_org_id: orgId,
     p_customer_id: customerId,
     p_cart: {
@@ -64,12 +69,15 @@ export async function createSale(
       payment_method: cart.paymentMethod,
       txn_id: cart.txnId,
       payment_description: cart.paymentDescription,
+      gst_inclusive: cart.gstInclusive,
     },
     p_quotation_id: quotationId ?? null,
     p_redeem_points: cart.redeemPoints ?? 0,
     p_referred_by_technician_id: referredByTechnicianId ?? null,
     p_amount_paid: amountPaid ?? null,
-  })
+  }
+  const extra = nonTechnicianReferrerArgs(referrer)
+  const { data, error } = extra ? await supabase.rpc("create_sale_with_referrer", { ...args, ...extra }) : await supabase.rpc("create_sale", args)
   if (error) throw error
   return data as SaleResult
 }

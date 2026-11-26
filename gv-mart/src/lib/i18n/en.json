@@ -105,6 +105,11 @@
     "toggleGroup": "Show or hide {{group}}"
   },
   "common": {
+    "addNew": "Add new",
+    "quickAddFailed": "Couldn't add it. Try again.",
+    "chooseOption": "Choose an option",
+    "notSet": "Not set",
+    "quickAdd": "Add “{{text}}”",
     "appName": "GV Mart",
     "adminApp": "GV Mart Admin",
     "tagline": "Sales | Service | Spares",
@@ -150,7 +155,8 @@
       "fieldMin": "{{field}} must be at least {{min}}",
       "fieldMax": "{{field}} must be at most {{max}}",
       "fieldInvalid": "{{field}} is invalid"
-    }
+    },
+    "confirm": "Confirm"
   },
   "roles": {
     "master": "Owner",
@@ -263,8 +269,7 @@
     "linkAccountAlreadyLinked": "This mobile number is already linked to another account.",
     "linkAccountGenericError": "Couldn't link your account. Please try again.",
     "linkAccountUnavailable": "Account linking is not available yet. Please contact the shop and they will help you.",
-    "staffAccountNotice": "This Google account belongs to a staff login. Please sign in with your email and password instead.",
-    "useDifferentAccount": "Sign out and use a different account"
+    "staffAccountNotice": "This Google account belongs to a staff login. Please sign in with your email and password instead."
   },
   "shell": {
     "searchPlaceholder": "Search customers, tickets, invoices…",
@@ -599,15 +604,16 @@
       },
       "waterTds": "Water TDS (ppm)",
       "waterPh": "Water pH",
-      "healthCondition": "Health condition",
-      "healthConditionPlaceholder": "Not asked yet",
-      "healthConditionLevels": {
-        "none": "No",
-        "normal": "Normal",
-        "medium": "Medium",
-        "high": "High"
-      },
-      "familyMembersCount": "Family members",
+      "waterHardness": "Total hardness (ppm)",
+      "problemsFaced": "Problems faced by the family",
+      "problemPlaceholder": "e.g. Hair fall, white stains on taps",
+      "addProblem": "Add another problem",
+      "removeProblem": "Remove problem",
+      "recommendedSolution": "Recommended solution",
+      "recommendedSolutionPlaceholder": "e.g. Water softener + RO with mineral cartridge",
+      "followUpDate": "Follow-up date",
+      "followUpDateHint": "Creates a follow-up task for the master on this date.",
+      "clearFollowUpDate": "Clear follow-up date",
       "latestReadingTitle": "Latest on-site reading ({{date}})",
       "rentals": {
         "startDate": "Started {{date}}",
@@ -678,7 +684,6 @@
       "memberName": "Full name",
       "memberMobile": "Mobile number",
       "memberRelation": "Relation",
-      "memberRelationPlaceholder": "Relation to primary contact",
       "memberProfession": "Profession (e.g. Teacher, Shop Owner)",
       "memberEmail": "Email (optional)",
       "email": "Customer email (optional)",
@@ -723,10 +728,20 @@
       "back": "Back",
       "next": "Next",
       "map": {
+        "verifiedOnSite": "Verified on site by {{name}} on {{date}}",
+        "verifiedTechnicianFallback": "a technician",
+        "verifiedLockedNote": "This location is locked as final and can't be changed here.",
+        "verifiedOpenInMaps": "Open in Google Maps",
+        "resetVerified": "Reset verified location",
+        "resetReasonLabel": "Reason for reset",
+        "resetReasonPlaceholder": "e.g. Customer moved to a new house",
+        "resetConfirm": "Reset location",
         "title": "Pin location on map",
         "autoLocating": "Locating from the address above…",
         "pinned": "Location pinned",
         "notPinned": "Exact location not pinned",
+        "verifiedChip": "Verified on site",
+        "correctedChip": "Corrected by technician — confirms next visit",
         "pinRequired": "This address has no confirmed pin yet — search or drag the pin below so the technician navigates to the right place.",
         "pinOptionalMasterNote": "No exact pin yet — you can save without one, but technicians won't get a map location for this address until it's pinned.",
         "searchPlaceholder": "Search for the address…",
@@ -747,18 +762,6 @@
         "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or type the address yourself.",
         "useMyCurrentLocation": "Use my current location",
         "locating": "Finding your location…"
-      },
-      "water": {
-        "title": "Water & household",
-        "edit": "Edit",
-        "waterSource": "Water source",
-        "waterSourcePlaceholder": "Enter source",
-        "waterTds": "Water TDS (ppm)",
-        "waterPh": "Water pH",
-        "healthCondition": "Health condition",
-        "healthConditionPlaceholder": "Enter details",
-        "valuePlaceholder": "Value",
-        "familyMembers": "Family members"
       }
     },
     "duplicateContactWarning": {
@@ -771,6 +774,8 @@
       "createAnyway": "I've checked — create a new record anyway"
     },
     "errors": {
+      "ownershipRequired": "Choose Own or Rental",
+      "addressTypeRequired": "Choose Residential or Commercial",
       "nameRequired": "Enter a name (at least 2 characters)",
       "mobileInvalid": "Enter a valid 10-digit mobile number",
       "emailInvalid": "Enter a valid email address",
@@ -781,6 +786,12 @@
       "pincodeInvalid": "Enter a valid 6-digit PIN code",
       "waterPhInvalid": "pH must be between 0 and 14",
       "waterTdsInvalid": "TDS cannot be negative",
+      "waterHardnessInvalid": "Hardness cannot be negative",
+      "problemTooLong": "Keep each problem under 100 characters",
+      "tooManyProblems": "Up to 10 problems",
+      "solutionTooLong": "Keep the solution under 500 characters",
+      "followUpDateInvalid": "Pick a valid date",
+      "followUpDatePast": "The follow-up date cannot be in the past",
       "waterSourceOtherRequiresOther": "Only set this when the source is \"Other\""
     }
   },
@@ -1237,6 +1248,7 @@
       "add": "Add"
     },
     "productMedia": {
+      "docTypeLabel": "Document type",
       "manage": "Manage media",
       "title": "Media",
       "imagesTab": "Images",
@@ -1296,6 +1308,7 @@
       }
     },
     "productFeatures": {
+      "relationTypeLabel": "Relation type",
       "manage": "Manage features & related products",
       "title": "Features & Related Products",
       "bulletsTitle": "Feature bullets",
@@ -1514,12 +1527,17 @@
     "discountTechMax": "Technician discount cap (%)",
     "discountAdminMax": "Admin discount cap (%)",
     "gstRate": "GST rate (%)",
+    "pricesIncludeGst": "Prices include GST by default",
+    "pricesIncludeGstHint": "New bills start with GST Included: the price is the final amount and GST is taken out of it. Staff can still switch a single bill to GST Extra.",
     "discountAbsoluteNote": "Anything above the admin cap is never allowed, for any role.",
     "amcBookWindow": "AMC self-booking window (days before renewal)",
     "referralPointValue": "Referral point value (₹, minimum 50)",
     "reviewLinkMinStars": "Low-rating alert below (stars)",
     "reviewIncentivesEnabled": "Review incentives (OFF by default)",
     "reviewIncentivesEnabledHint": "Off: the review incentive rule pays nothing, no review-time allowance, no review claim-rate flags. Review counts stay as information. Google's policy forbids rewarding reviews, so leave this OFF.",
+    "customerReferralPointsEnabled": "Customer referral points (OFF by default)",
+    "customerReferralPointsEnabledHint": "On: when a customer referred by another customer pays their first invoice, the referring customer gets the points below, once. Off: nothing is credited.",
+    "customerReferralPoints": "Points per referred customer",
     "googleReviewUrl": "Google review link",
     "googleReviewUrlPlaceholder": "https://g.page/r/.../review",
     "googleReviewUrlHint": "Shown to the customer as a \"Leave a Google review\" button once they rate at or above the threshold above. Leave blank to keep the button disabled.",
@@ -1581,6 +1599,9 @@
     "stayOnPage": "Stay on this page",
     "beforeUnloadWarning": "You have unsaved changes. If you leave this page, they'll be lost.",
     "errors": {
+      "wholeNumber": "Use a whole number",
+      "customerReferralPointsMax": "At most 100000",
+      "customerReferralPointsNeeded": "Set the points (more than 0) or switch customer referral points off",
       "required": "This field is required",
       "positive": "Must be greater than zero",
       "nonNegative": "Cannot be negative",
@@ -1779,6 +1800,7 @@
       "redeemPoints": "Referral points redeemed: {{points}} ({{amount}})"
     },
     "errors": {
+      "paymentMethodRequired": "Choose a payment method",
       "txnIdRequired": "Enter the transaction ID for a bank transfer",
       "paymentDescriptionRequired": "Enter a short description for the bank transfer",
       "paymentInvalid": "Check the payment details and try again",
@@ -1787,6 +1809,13 @@
       "recordPaymentInvalid": "Enter an amount greater than 0 and no more than the balance due",
       "noStockRecord": "No stock record for \"{{name}}\" — add stock before selling",
       "insufficientStock": "Only {{available}} of \"{{name}}\" in stock — reduce the quantity"
+    },
+    "gst": {
+      "label": "GST",
+      "extra": "GST extra",
+      "included": "GST included",
+      "includedLine": "Incl. GST {{rate}}%",
+      "includedAmount": "GST amount (included in price)"
     },
     "summary": {
       "title": "Summary",
@@ -1944,7 +1973,8 @@
     "quotationNoLabel": "Quotation No",
     "origin": {
       "fromLead": "Lead: {{name}}",
-      "fromCustomer": "Customer: {{name}}"
+      "fromCustomer": "Customer: {{name}}",
+      "direct": "Direct"
     },
     "stats": {
       "open": "Open",
@@ -1981,6 +2011,13 @@
     }
   },
   "service": {
+    "errors": {
+      "customerRequired": "Choose a customer",
+      "nameOfComplaintRequired": "Enter the complaint",
+      "productRequired": "Choose a product",
+      "scheduledAtRequired": "Choose a date and time",
+      "priorityRequired": "Choose a priority"
+    },
     "subtitle": "Service tickets and job assignments.",
     "stats": "{{open}} open · {{overdue}} overdue",
     "loadFailed": "Couldn't load tickets. Check your connection and try again.",
@@ -2118,6 +2155,8 @@
       },
       "nameOfComplaint": "Name of complaint",
       "nameOfComplaintPlaceholder": "e.g. Water flow stopped, Not cooling",
+      "complaintNameAdded": "Added to complaint names",
+      "complaintNameAddFailed": "Couldn't add the complaint name. It's kept as typed text.",
       "natureOfComplaint": "Complaint description (optional)",
       "natureOfComplaintPlaceholder": "e.g. Issue observed for past 2 days",
       "natureOfComplaintHint": "Additional details to help the technician.",
@@ -2186,6 +2225,8 @@
       },
       "attachedPhotos": "Customer-attached photos",
       "confirmedAvailability": {
+        "reasonRequired": "Choose a reason",
+        "reasonLabel": "Reason",
         "title": "Confirmed availability",
         "logButton": "Log a call",
         "empty": "No confirmed-availability calls logged yet.",
@@ -2208,6 +2249,7 @@
       "jobReport": "Job report",
       "startTime": "Start time",
       "closeTime": "Close time",
+      "startClose": "Start – close time",
       "totalTime": "Total time",
       "minutes_one": "{{count}} minute",
       "minutes_other": "{{count}} minutes",
@@ -2218,6 +2260,7 @@
         "title": "Payment proof",
         "date": "Payment date",
         "time": "Payment time",
+        "dateTime": "Payment date & time",
         "method": "Payment method",
         "txnRef": "Transaction reference",
         "technician": "Technician"
@@ -2559,9 +2602,12 @@
       "complaintRequired": "Describe the complaint (at least 3 characters)",
       "scheduledAtRequired": "Please pick a date and time",
       "descriptionRequired": "Enter a description (at least 3 characters)",
-      "productRequired": "Select a product"
+      "productRequired": "Select a product",
+      "callbackDateRequired": "Select a date",
+      "callbackSlotRequired": "Select a time slot"
     },
     "profile": {
+      "locationVerified": "Location verified by our technician",
       "title": "Profile",
       "edit": "Edit",
       "notSet": "Not set",
@@ -3251,8 +3297,11 @@
         "date": "Date travelled",
         "km": "Kilometres",
         "save": "Add entry",
-        "monthlySum": "This month so far: {{km}} km"
-      }
+        "monthlySum": "This month so far: {{km}} km",
+        "monthlySumFailed": "Couldn't load this month's total"
+      },
+      "notAvailableYet": "This feature isn't available yet. Please check back later.",
+      "valuesKept": "Your entered details are kept — you can try again."
     },
     "home": {
       "unknownCustomer": "Customer",
@@ -3297,7 +3346,7 @@
       "noDestinationBody": "Open this from a job card to navigate to a customer.",
       "goToHome": "Go to today's jobs",
       "noPinTitle": "Exact location not pinned",
-      "noPinBody": "This customer's address has no confirmed map pin yet — ask the office to add one.",
+      "noPinBody": "This address has no map pin yet. Once you are at the customer, take a selfie and start — your location becomes the pin.",
       "jobClosedTitle": "This job is already completed",
       "jobClosedBody": "It's already been finished and rated — no need to navigate or start it again.",
       "distance": "Distance",
@@ -3316,6 +3365,13 @@
       "continueToService": "Continue to service",
       "arrivedButton": "I've arrived",
       "arrivedOutsideGeofence": "Move within {{radius}} m of the customer to mark arrival.",
+      "pinWrongButton": "I'm at the customer — pin is wrong",
+      "pinWrongNote": "The saved pin is {{km}} km away. Starting here moves the customer's pin to your location; the next visit confirms it.",
+      "pinMissingButton": "I'm at the customer — start here",
+      "pinMissingNote": "Your location becomes the customer's pin; the next visit confirms it.",
+      "pinTooFar": "You are too far from the saved pin to correct it automatically. The office is alerted after 5 minutes — call them if you are at the customer.",
+      "pinFixTooCoarse": "Waiting for a more accurate GPS fix (within 75 m). Step outside or tap Refresh.",
+      "pinLockedOutside": "This location was verified on an earlier visit. Move within {{radius}} m of it, or ask a master to reset it.",
       "arrivedNoLocation": "Waiting for your location — arrival can't be confirmed yet."
     },
     "search": {
@@ -3341,8 +3397,8 @@
       "waterSource": "Water source",
       "waterTds": "Water TDS (ppm)",
       "waterPh": "Water pH",
-      "healthCondition": "Health condition",
-      "familyMembersCount": "Family members",
+      "waterHardness": "Total hardness (ppm)",
+      "problemsFaced": "Problems faced by the family",
       "complaintTitle": "Complaint",
       "raised": "Raised {{date}}",
       "costingRuleTitle": "Costing rule",
@@ -3492,6 +3548,9 @@
         "txnId": "Transaction ID",
         "description": "Description",
         "noGatewayNote": "No payment gateway — cash or bank transfer only, recorded manually.",
+        "methodRequired": "Choose how the customer is paying before creating the invoice.",
+        "methodLockedNote": "Set on the invoice. To change it, ask the office to correct the invoice.",
+        "upiAfterInvoiceNote": "Create the invoice first; the UPI payment is collected on the payment step.",
         "complete": "Verify & complete visit",
         "qr": {
           "title": "Show this QR to the customer",
@@ -3701,6 +3760,13 @@
     }
   },
   "leads": {
+    "quickAdd": {
+      "sourcePlaceholder": "New source, e.g. Instagram",
+      "kindPlaceholder": "New lead category",
+      "productTypePlaceholder": "New product type",
+      "archived": "This option exists but is turned off. Ask the master to turn it on in Masters.",
+      "notAllowed": "Only master and sales admin can add options."
+    },
     "subtitle": "Track enquiries from field, WhatsApp, referrals and the customer app through to a won or lost sale.",
     "loadFailed": "Could not load leads.",
     "empty": "No leads yet.",
@@ -3814,9 +3880,6 @@
       "notApplicable": "Not applicable",
       "toBeConfirmed": "To be confirmed"
     },
-    "errors": {
-      "budgetNonNegative": "Budget must be zero or more"
-    },
     "lostReason": {
       "price_too_high": "Price too high",
       "chose_competitor": "Chose a competitor",
@@ -3854,7 +3917,6 @@
       "referrerSearchPlaceholder": "Search customer by name or mobile…",
       "pointsLabel": "Points",
       "lostReasonLabel": "Reason",
-      "lostReasonPlaceholder": "Select a reason…",
       "lostReasonOtherPlaceholder": "Describe the reason",
       "confirmLost": "Confirm lost",
       "addedByMistake": "Added by mistake?",
@@ -3874,7 +3936,9 @@
       "noteSaved": "Note added",
       "leadFields": "Lead details",
       "edit": "Edit",
-      "fieldsSaved": "Lead details saved"
+      "fieldsSaved": "Lead details saved",
+      "addNote": "Add note",
+      "notePlaceholder": "Note"
     },
     "document": {
       "none": "No document attached",
@@ -3888,29 +3952,11 @@
     },
     "errors": {
       "nameRequired": "Enter a name (at least 2 characters)",
-      "sourceRequired": "Select a source"
-    },
-    "edit": {
-      "title": "Edit lead",
-      "subtitle": "Update this lead's contact details and notes.",
-      "alternateMobile": "Alternate mobile",
-      "address": "Address",
-      "saved": "Lead updated",
-      "saveAnyway": "Save anyway",
-      "duplicateWarning": "Another record already uses this number:",
-      "duplicateKind": {
-        "lead": "Lead: {{name}}",
-        "customer": "Customer: {{name}}"
-      },
-      "referralLockedHint": "This lead's source is Referral and can't be changed here — it's set by the referral program and tied to a technician's incentive.",
-      "errors": {
-        "mobileInvalid": "Enter a valid 10-digit mobile number",
-        "referralLocked": "Source can't be changed to or from Referral here"
-      }
-    },
-    "errors": {
-      "nameRequired": "Enter a name (at least 2 characters)",
-      "sourceRequired": "Select a source"
+      "budgetNonNegative": "Budget must be zero or more",
+      "sourceRequired": "Select a source",
+      "activityTypeRequired": "Select an activity type",
+      "customerRequired": "Select a customer",
+      "pointsPositive": "Points must be greater than zero"
     },
     "edit": {
       "title": "Edit lead",
@@ -4022,6 +4068,7 @@
       "badgeTitle": "Daily Follow Up: {{overdue}} overdue, {{today}} due today"
     },
     "followup": {
+      "typeRequired": "Choose a follow-up type",
       "none": "No follow-up",
       "overdue": "Overdue",
       "postponed": "Postponed ×{{count}}",
@@ -4112,6 +4159,8 @@
       "savedAlert": "Call logged. Master and operations have been notified."
     },
     "outcomeSheet": {
+      "nextTypeRequired": "Choose the next follow-up type",
+      "channelRequired": "Choose how you contacted them",
       "title": "Log outcome",
       "reopenTitle": "Reopen lead",
       "step1": "What happened?",
@@ -4449,6 +4498,14 @@
       "thresholdSaved": "Alert threshold saved.",
       "thresholdFailed": "Could not save the alert threshold.",
       "empty": "No failed sends — nothing stuck right now."
+    },
+    "errors": {
+      "triggerRequired": "Select a trigger",
+      "actionRequired": "Select an action",
+      "topicRequired": "Select a topic",
+      "urlRequired": "Enter the video link",
+      "mobileRequired": "Enter a mobile number",
+      "bodyRequired": "Enter a message"
     }
   },
   "purchase": {
@@ -4460,6 +4517,10 @@
       "itemsRequired": "Add at least one item.",
       "gstNonNegative": "GST cannot be negative.",
       "billDateRequired": "Pick the bill date."
+    },
+    "quickAdd": {
+      "supplierPlaceholder": "New supplier name",
+      "supplierHint": "Add their WhatsApp number later in Suppliers."
     },
     "subtitle": "Purchase orders auto-draft when stock runs low, or create one manually; record supplier bills here.",
     "loadFailed": "Could not load purchase data.",
@@ -4563,6 +4624,15 @@
       "qty": "Qty",
       "price": "Price",
       "addRow": "Add item"
+    },
+    "errors": {
+      "supplierRequired": "Select a supplier",
+      "itemsRequired": "Add at least one item",
+      "itemRequired": "Select an item",
+      "qtyPositive": "Quantity must be greater than zero",
+      "priceNonNegative": "Price can't be negative",
+      "gstNonNegative": "GST can't be negative",
+      "billDateRequired": "Bill date is required"
     }
   },
   "technicians": {
@@ -5261,7 +5331,10 @@
     "errors": {
       "expenseCategoryRequired": "Category is required",
       "expenseAmountPositive": "Amount must be greater than 0",
-      "expenseDateRequired": "Date is required"
+      "expenseDateRequired": "Date is required",
+      "fromRequired": "Start date is required",
+      "toRequired": "End date is required",
+      "rangeInvalid": "End date must be on or after the start date"
     },
     "columns": {
       "button": "Columns",
@@ -5372,7 +5445,8 @@
         "paid": "Paid",
         "voided": "Voided"
       }
-    }
+    },
+    "staff": "Staff"
   },
   "accounts": {
     "title": "Accounts",
@@ -5400,7 +5474,6 @@
     "noTaskLink": "No task — standalone expense",
     "underCategory": "Under Category",
     "noCategory": "No category",
-    "chooseCategory": "Choose a category",
     "allCategories": "All categories",
     "uncategorised": "Uncategorised",
     "createNewCategory": "+ Create new category",
@@ -5479,7 +5552,10 @@
     "rolledOverCount_one": "Rolled over {{count}} day",
     "rolledOverCount_other": "Rolled over {{count}} days",
     "daysOverdue_one": "{{count}} day overdue",
-    "daysOverdue_other": "{{count}} days overdue"
+    "daysOverdue_other": "{{count}} days overdue",
+    "errors": {
+      "titleRequired": "Enter a title (at least 3 characters)"
+    }
   },
   "huddle": {
     "raiseTitle": "Raise a problem",
@@ -5616,6 +5692,23 @@
     "needsReviewLinkTitle": "Matching records",
     "needsReviewLinkNoContact": "This customer has no mobile or email on file yet to check against.",
     "needsReviewLinkViewCustomer": "View customer",
+    "waterFollowup": {
+      "title": "Water solution follow-up",
+      "viewCustomer": "View customer",
+      "postpone": "Postpone",
+      "convertToLead": "Convert to lead",
+      "newDate": "New date",
+      "reason": "Reason",
+      "reasonPlaceholder": "Why is this being postponed?",
+      "confirmPostpone": "Postpone",
+      "postponed": "Follow-up postponed",
+      "convertedToLead": "Lead created and the follow-up task closed",
+      "closeFailed": "Lead created, but the follow-up task could not be closed. Close it from Tasks.",
+      "errors": {
+        "past": "The date cannot be in the past",
+        "notLater": "Pick a date later than the current one"
+      }
+    },
     "arrivalMismatchLinkTitle": "Technician arrived outside the pinned location",
     "arrivalMismatchLinkBody": "The map pin may be wrong or stale. Open the customer and drop a corrected pin.",
     "arrivalMismatchLinkViewCustomer": "View customer",
@@ -5695,7 +5788,9 @@
       "wa_lead_captured": "New WhatsApp lead",
       "customer_needs_review": "Customer needs account review",
       "arrival_location_mismatch": "Address may need a recheck",
-      "arrival_location_mismatch_flood": "Multiple addresses need a recheck"
+      "pin_autocorrected": "Customer pin corrected by technician",
+      "arrival_location_mismatch_flood": "Multiple addresses need a recheck",
+      "water_followup_due": "Water follow-up due"
     }
   },
   "approvals": {
@@ -5780,6 +5875,10 @@
     "actions": {
       "activate": "Activate",
       "complete": "Mark Completed"
+    },
+    "errors": {
+      "nameRequired": "Enter a name (at least 3 characters)",
+      "channelRequired": "Select a channel"
     }
   },
   "returns": {
@@ -5827,6 +5926,12 @@
       "reject": "Reject",
       "confirmCompleted": "Mark this return as completed? This can't be undone.",
       "confirmRejected": "Reject this return request? This can't be undone."
+    },
+    "errors": {
+      "invoiceRequired": "Select an invoice",
+      "itemTypeRequired": "Choose an option",
+      "itemRequired": "Select an item",
+      "qtyPositive": "Quantity must be greater than zero"
     }
   },
   "auditLog": {
@@ -6098,11 +6203,12 @@
       "title": "Product lifetime",
       "hint": "How long this product is expected to last before it needs replacing.",
       "valueLabel": "Lifetime value",
+      "unitLabel": "Unit",
       "unit": { "months": "Months", "years": "Years" },
       "save": "Save lifetime",
       "saved": "Lifetime saved",
       "saveFailed": "Could not save the lifetime.",
-      "errors": { "valueInvalid": "Enter a whole number greater than 0." }
+      "errors": { "valueInvalid": "Enter a whole number greater than 0.", "unitRequired": "Choose months or years" }
     },
     "spares": {
       "title": "Spare part replacement schedule",
@@ -6237,5 +6343,28 @@
     "snoozeMustBeFuture": "Pick a date after today.",
     "createServiceRequest": "Create service request",
     "serviceRequestCreated": "Service ticket created ({{ticketId}})."
+  },
+  "referrer": {
+    "label": "Referred by",
+    "pickStaff": "Pick sales person / staff",
+    "addNewCustomer": "Add new customer",
+    "clearCustomer": "Remove referrer",
+    "kind": {
+      "none": "No one",
+      "technician": "Technician",
+      "staff": "Sales person / staff",
+      "customer": "Existing customer",
+      "other": "Someone else"
+    },
+    "quickAdd": {
+      "title": "Add new customer",
+      "subtitle": "Saved as a customer now. Fill in the full address later from the customer page.",
+      "name": "Name",
+      "mobile": "Mobile",
+      "area": "Area (optional)",
+      "save": "Add customer",
+      "existingFound": "{{name}} already uses this mobile number.",
+      "useExisting": "Use {{name}}"
+    }
   }
 }

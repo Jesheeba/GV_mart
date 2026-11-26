@@ -102,6 +102,10 @@ export function AddressMapPicker({
     else setInternalQuery(next)
   }
   const debouncedQuery = useDebouncedValue(query, 300)
+  // Only text the user typed here triggers live suggestions. A caller-driven
+  // `query` (e.g. mirrored from typed address fields) or a picked result's
+  // text must not pop the dropdown open or spend a Places autocomplete call.
+  const userTypedRef = useRef(false)
   const [predictions, setPredictions] = useState<AutocompletePrediction[]>([])
   const [fallbackResults, setFallbackResults] = useState<GeocodeResult[]>([])
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -166,14 +170,7 @@ export function AddressMapPicker({
   // that every keystroke in one search reuses it, so it's created once above
   // and only rotated once a search actually concludes (see selectPrediction/
   // selectFallbackResult below), not on every render.
-  useEffect(() => {
-    const q = debouncedQuery.trim()
-    if (q.length < 3) {
-      setPredictions([])
-      setFallbackResults([])
-      setSearchedEmpty(false)
-      return
-    }
+  function runSearch(q: string) {
     setFallbackResults([])
     setSearchedEmpty(false)
     autocomplete.mutate(
@@ -186,8 +183,26 @@ export function AddressMapPicker({
         },
       }
     )
+  }
+
+  useEffect(() => {
+    const q = debouncedQuery.trim()
+    if (q.length < 3) {
+      setPredictions([])
+      setFallbackResults([])
+      setSearchedEmpty(false)
+      return
+    }
+    if (userTypedRef.current) runSearch(q)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery])
+
+  // Focusing a pre-filled box searches its text once, so staff can pick a
+  // suggestion without retyping the address they already entered above.
+  function handleFocus() {
+    if (dropdownRows.length > 0) setDropdownOpen(true)
+    else if (!userTypedRef.current && query.trim().length >= 3) runSearch(query.trim())
+  }
 
   function applyResult(result: GeocodeResult) {
     const coords = { lat: result.lat, lng: result.lon }
@@ -199,6 +214,7 @@ export function AddressMapPicker({
     setFallbackResults([])
     setDropdownOpen(false)
     setSearchedEmpty(false)
+    userTypedRef.current = false
     setQuery(result.formatted)
     sessionTokenRef.current = newSessionToken() // session closed — next search starts fresh
     skipNextPropSync.current = true
@@ -267,8 +283,11 @@ export function AddressMapPicker({
       <div className="relative">
         <Input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => dropdownRows.length > 0 && setDropdownOpen(true)}
+          onChange={(e) => {
+            userTypedRef.current = true
+            setQuery(e.target.value)
+          }}
+          onFocus={handleFocus}
           onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
           placeholder={t("customers.form.map.searchPlaceholder")}
           autoComplete="off"

@@ -6,6 +6,11 @@ import { z } from "zod"
  * the request ever reaches Postgres. Messages are i18n keys — see
  * lib/validation/customer.ts for why.
  */
+/** Switched on with 0 points would silently credit nothing — require an amount whenever the toggle is on. */
+export function customerReferralPointsValid(enabled: boolean, points: number): boolean {
+  return !enabled || points > 0
+}
+
 export const settingsSchema = z
   .object({
     per_km_minutes: z.coerce.number().positive("settings.errors.positive"),
@@ -40,6 +45,7 @@ export const settingsSchema = z
     review_flag_min_visits: z.coerce.number().int().positive("settings.errors.positive"),
     default_min_stock: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     gst_rate: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
+    prices_include_gst: z.boolean(),
     sla_hours_very_urgent: z.coerce.number().positive("settings.errors.positive"),
     sla_hours_urgent: z.coerce.number().positive("settings.errors.positive"),
     sla_hours_normal: z.coerce.number().positive("settings.errors.positive"),
@@ -72,6 +78,9 @@ export const settingsSchema = z
     // the jsonb column on submit.
     emi_enabled: z.boolean(),
     review_incentives_enabled: z.boolean(),
+    // Referral sources (20261228100000): points a customer earns when someone they referred pays their first invoice.
+    customer_referral_points_enabled: z.boolean(),
+    customer_referral_points: z.coerce.number().int("settings.errors.wholeNumber").min(0, "settings.errors.nonNegative").max(100000, "settings.errors.customerReferralPointsMax"),
     emi_tenure_months: z
       .string()
       .transform((s) =>
@@ -89,6 +98,10 @@ export const settingsSchema = z
   .refine((v) => v.late_cutoff >= v.work_start, {
     message: "settings.errors.lateCutoffBeforeWorkStart",
     path: ["late_cutoff"],
+  })
+  .refine((v) => customerReferralPointsValid(v.customer_referral_points_enabled, v.customer_referral_points), {
+    message: "settings.errors.customerReferralPointsNeeded",
+    path: ["customer_referral_points"],
   })
   .refine((v) => v.discount_admin_max >= v.discount_tech_max, {
     message: "settings.errors.adminMaxAboveTech",

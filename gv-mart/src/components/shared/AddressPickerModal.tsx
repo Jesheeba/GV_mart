@@ -116,7 +116,7 @@ export function AddressPickerModal({
                               {t("customerApp.profile.primary")}
                             </span>
                           ) : null}
-                          <span className="text-xs text-text-muted">{t(`customerApp.profile.address.${a.address_type}`)}</span>
+                          {a.address_type ? <span className="text-xs text-text-muted">{t(`customerApp.profile.address.${a.address_type}`)}</span> : null}
                         </div>
                         <p className="text-sm text-text">{[addressLocalityText(a), a.area, a.pincode].filter(Boolean).join(", ")}</p>
                       </button>

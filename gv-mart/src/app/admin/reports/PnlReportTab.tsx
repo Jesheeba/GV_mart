@@ -11,7 +11,7 @@ import { defaultPeriodValue, downloadCsv, periodToRange, toCsv, type PeriodValue
 import { createExpenseSchema, expenseCategories, type CreateExpenseFormInput, type CreateExpenseOutput } from "@/lib/validation/reports"
 import { resolveLegacyExpenseCategoryEnum } from "@/services/reportMappers"
 import { formatCurrency } from "@/lib/sale-calc"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
@@ -20,10 +20,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { ColumnPicker } from "@/components/shared/ColumnPicker"
 import { useColumnPrefs } from "@/hooks/useColumnPrefs"
 import { KpiTileStrip } from "../kpi/KpiTileStrip"
 import { PeriodFilter } from "./PeriodFilter"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 // Optional P&L summary rows (revenue / COGS / OpEx / Net Profit always show)
 // and optional expense-breakdown columns — fixed catalogs, toggled per admin.
@@ -390,29 +392,23 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="pnl-expense-under-category">{t("accounts.underCategory")}</Label>
-          <select
-            id="pnl-expense-under-category"
-            {...form.register("categoryId")}
-            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          >
-            <option value="" disabled>
-              {t("accounts.chooseCategory")}
-            </option>
-            {(expenseCategoryOptions ?? [])
-              .filter((c) => c.is_active)
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-          </select>
-          {form.formState.errors.categoryId ? <p className="text-xs text-danger">{t(form.formState.errors.categoryId.message!)}</p> : null}
-        </div>
+        <Controller
+          control={form.control}
+          name="categoryId"
+          render={({ field, fieldState }) => (
+            <ChoiceSelect
+              id="pnl-expense-under-category"
+              label={t("accounts.underCategory")}
+              value={field.value}
+              options={(expenseCategoryOptions ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.name }))}
+              onChange={field.onChange}
+              error={fieldState.error?.message ? t(fieldState.error.message) : undefined}
+            />
+          )}
+        />
         <div className="space-y-1.5">
           <Label htmlFor="pnl-expense-amount">{t("reports.pnl.amount")}</Label>
-          <Input id="pnl-expense-amount" type="number" min={0} step="0.01" {...form.register("amount")} />
+          <Input id="pnl-expense-amount" type="number" inputMode="decimal" min={0} step="0.01" className={FIELD_W.amount} {...form.register("amount")} />
           {form.formState.errors.amount ? <p className="text-xs text-danger">{t(form.formState.errors.amount.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
@@ -420,7 +416,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
           <Controller
             control={form.control}
             name="date"
-            render={({ field }) => <DatePicker id="pnl-expense-date" value={field.value ?? ""} onChange={field.onChange} />}
+            render={({ field }) => <DatePicker id="pnl-expense-date" value={field.value ?? ""} onChange={field.onChange} className="w-44" />}
           />
           {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
         </div>
@@ -429,7 +425,11 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
       {createExpense.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createExpense.error as Error).message}</p> : null}
 
       <div className="flex justify-end">
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={createExpense.isPending || !orgId}>
+        <Button
+          // The category is a Controller field with no ref, so react-hook-form can't focus it itself; it is the first field.
+          onClick={form.handleSubmit(onSubmit, (errs) => errs.categoryId && focusChoice("pnl-expense-under-category"))}
+          disabled={createExpense.isPending || !orgId}
+        >
           {createExpense.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
         </Button>
       </div>

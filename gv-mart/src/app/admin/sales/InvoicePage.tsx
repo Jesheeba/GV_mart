@@ -19,11 +19,6 @@ import type { StatusTone } from "@/components/shared/StatusDot"
 const PAYMENT_STATUS_TONE: Record<string, StatusTone> = { paid: "success", partial: "warning", due: "danger" }
 const CELL = "border border-[#444] p-2 align-top"
 
-function ddmmyyyy(iso: string) {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
-}
 
 export function InvoicePage() {
   const { t } = useTranslation()
@@ -42,7 +37,9 @@ export function InvoicePage() {
     return <FullPageError message={t("sales.invoice.loadFailed")} onRetry={() => refetch()} retryLabel={t("common.retry")} />
   }
 
-  const withoutGst = invoice.subtotal - invoice.discount
+  // total - gst is the taxable value in both GST modes (in "Included" mode subtotal - discount still contains the GST).
+  const withoutGst = invoice.total - invoice.gst
+  const gstLabel = t(invoice.gst_inclusive ? "sales.gst.includedAmount" : "sales.invoice.gstAmount")
   const paymentTone = PAYMENT_STATUS_TONE[invoice.payment_status] ?? "neutral"
   const balanceDue = Math.max(0, invoice.total - invoice.amount_paid)
 
@@ -147,7 +144,7 @@ export function InvoicePage() {
                     </tr>
                     <tr>
                       <td className={CELL}>{t("sales.invoice.dateLabel")}</td>
-                      <td className={CELL}>{ddmmyyyy(invoice.created_at)}</td>
+                      <td className={`${CELL} whitespace-nowrap`}>{formatDate(invoice.created_at)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -195,7 +192,7 @@ export function InvoicePage() {
             {invoice.gst > 0 ? (
               <tr>
                 <td colSpan={4} className={`${CELL} text-right`}>
-                  {t("sales.invoice.gstAmount")}
+                  {gstLabel}
                 </td>
                 <td className={`${CELL} text-right`}>{invoice.gst.toFixed(2)}</td>
               </tr>
@@ -285,7 +282,7 @@ export function InvoicePage() {
             <span>{formatCurrency(withoutGst)}</span>
           </div>
           <div className="flex justify-between text-sm text-text-muted">
-            <span>{t("sales.invoice.gstAmount")}</span>
+            <span>{gstLabel}</span>
             <span>{formatCurrency(invoice.gst)}</span>
           </div>
           <div className="flex justify-between border-t border-border pt-1 text-base font-bold text-text">

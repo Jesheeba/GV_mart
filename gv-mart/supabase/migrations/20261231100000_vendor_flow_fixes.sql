@@ -14,7 +14,7 @@
 --    normalised 10-digit number or an admin alert, and the org's WhatsApp test mode is respected.
 -- 6. Private storage bucket purchase-bill-photos for bill photos/PDFs (ops staff, own org folder).
 --
--- Rollback: 20261213100000_vendor_flow_fixes.rollback.sql (the enum value cannot be removed).
+-- Rollback: 20261231100000_vendor_flow_fixes.rollback.sql (the enum value cannot be removed).
 
 -- ── Schema ────────────────────────────────────────────────────────────────
 alter type public.po_status add value if not exists 'cancelled';

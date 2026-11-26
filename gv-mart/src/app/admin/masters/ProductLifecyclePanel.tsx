@@ -4,6 +4,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useToast } from "@/components/ui/toast-context"
 import {
   useApplyUpdatedSchedule,
@@ -18,8 +19,9 @@ import {
 import { sparesHooks } from "@/hooks/useMasters"
 import { useProfile } from "@/hooks/useProfile"
 import type { ProductSpareScheduleRow } from "@/services/productLifecycle"
-import type { LifetimeUnit } from "@/types/productLifecycle"
+import type { LifetimeUnit, SpareScheduleRowErrors } from "@/types/productLifecycle"
 import { validateLifetime, validateSpareSchedules } from "@/types/productLifecycle"
+import { focusChoice } from "@/lib/utils"
 
 // Same "Supabase/PostgREST rejections aren't `instanceof Error`" helper as
 // ProductSparesPanel.tsx / ProductComplaintsPanel.tsx / EntityCrudTable —
@@ -32,32 +34,16 @@ function extractErrorMessage(e: unknown): string {
   return String(e)
 }
 
-type UnitSelectProps = { value: LifetimeUnit; onChange: (unit: LifetimeUnit) => void; disabled?: boolean }
-
-function UnitSelect({ value, onChange, disabled }: UnitSelectProps) {
-  const { t } = useTranslation()
-  return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value as LifetimeUnit)}
-      className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none disabled:opacity-50"
-    >
-      <option value="months">{t("productLifecycle.lifetime.unit.months")}</option>
-      <option value="years">{t("productLifecycle.lifetime.unit.years")}</option>
-    </select>
-  )
-}
-
 /**
  * New spare-schedule rows start here before they exist server-side — same
  * "local draft, explicit per-row Save" shape as the persisted rows below,
  * just without an `id` yet.
  */
-type DraftRow = { key: string; spareId: string | null; label: string; intervalValue: string; intervalUnit: LifetimeUnit }
+type DraftRow = { key: string; spareId: string | null; label: string; intervalValue: string; intervalUnit: LifetimeUnit | "" }
 
+/** The interval unit starts "Not set" (owner rule 2026-11-26) and must be chosen before Save. */
 function emptyDraftRow(): DraftRow {
-  return { key: `draft-${Math.random().toString(36).slice(2)}`, spareId: null, label: "", intervalValue: "", intervalUnit: "months" }
+  return { key: `draft-${Math.random().toString(36).slice(2)}`, spareId: null, label: "", intervalValue: "", intervalUnit: "" }
 }
 
 /**
@@ -98,7 +84,8 @@ export function ProductLifecyclePanel({
 
   // ── Lifetime ────────────────────────────────────────────────────────────
   const [lifetimeValue, setLifetimeValue] = useState("")
-  const [lifetimeUnit, setLifetimeUnit] = useState<LifetimeUnit>("months")
+  // Unchosen until picked (or loaded from the saved config below).
+  const [lifetimeUnit, setLifetimeUnit] = useState<LifetimeUnit | "">("")
   const [lifetimeError, setLifetimeError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -111,6 +98,11 @@ export function ProductLifecyclePanel({
   async function handleSaveLifetime() {
     if (!orgId) return
     setLifetimeError(null)
+    if (!lifetimeUnit) {
+      setLifetimeError(t("productLifecycle.lifetime.errors.unitRequired"))
+      focusChoice("lifetime-unit")
+      return
+    }
     const parsed = Number(lifetimeValue)
     const result = validateLifetime({ lifetimeValue: parsed, lifetimeUnit })
     if (!result.valid) {
@@ -127,11 +119,11 @@ export function ProductLifecyclePanel({
 
   // ── Spare schedule rows ───────────────────────────────────────────────
   // Edit state for already-persisted rows, keyed by row id.
-  const [rowEdits, setRowEdits] = useState<Record<string, { spareId: string | null; label: string; intervalValue: string; intervalUnit: LifetimeUnit }>>({})
-  const [rowErrors, setRowErrors] = useState<Record<string, { label?: string; intervalValue?: string }>>({})
+  const [rowEdits, setRowEdits] = useState<Record<string, { spareId: string | null; label: string; intervalValue: string; intervalUnit: LifetimeUnit | "" }>>({})
+  const [rowErrors, setRowErrors] = useState<Record<string, SpareScheduleRowErrors>>({})
   const [confirmingRemoveId, setConfirmingRemoveId] = useState<string | null>(null)
   const [draftRows, setDraftRows] = useState<DraftRow[]>([])
-  const [draftErrors, setDraftErrors] = useState<Record<string, { label?: string; intervalValue?: string }>>({})
+  const [draftErrors, setDraftErrors] = useState<Record<string, SpareScheduleRowErrors>>({})
 
   function editsFor(row: ProductSpareScheduleRow) {
     return (
@@ -144,7 +136,7 @@ export function ProductLifecyclePanel({
     )
   }
 
-  function patchRowEdit(row: ProductSpareScheduleRow, patch: Partial<{ spareId: string | null; label: string; intervalValue: string; intervalUnit: LifetimeUnit }>) {
+  function patchRowEdit(row: ProductSpareScheduleRow, patch: Partial<{ spareId: string | null; label: string; intervalValue: string; intervalUnit: LifetimeUnit | "" }>) {
     setRowEdits((prev) => ({ ...prev, [row.id]: { ...editsFor(row), ...patch } }))
   }
 
@@ -153,7 +145,8 @@ export function ProductLifecyclePanel({
     const parsedInterval = Number(edits.intervalValue)
     const check = validateSpareSchedules([{ spareId: edits.spareId, label: edits.label, intervalValue: parsedInterval, intervalUnit: edits.intervalUnit }])
     setRowErrors((prev) => ({ ...prev, [row.id]: check.rowErrors[0] }))
-    if (!check.valid) return
+    if (check.rowErrors[0].intervalUnit) focusChoice(`unit-${row.id}`)
+    if (!check.valid || !edits.intervalUnit) return
     try {
       await updateRowMut.mutateAsync({
         id: row.id,
@@ -201,7 +194,8 @@ export function ProductLifecyclePanel({
     const parsedInterval = Number(draft.intervalValue)
     const check = validateSpareSchedules([{ spareId: draft.spareId, label: draft.label, intervalValue: parsedInterval, intervalUnit: draft.intervalUnit }])
     setDraftErrors((prev) => ({ ...prev, [draft.key]: check.rowErrors[0] }))
-    if (!check.valid) return
+    if (check.rowErrors[0].intervalUnit) focusChoice(`unit-${draft.key}`)
+    if (!check.valid || !draft.intervalUnit) return
     try {
       await createRowMut.mutateAsync({
         org_id: orgId,
@@ -246,6 +240,8 @@ export function ProductLifecyclePanel({
     }
   }
 
+  const unitOptions = (["months", "years"] as const).map((u) => ({ value: u, label: t(`productLifecycle.lifetime.unit.${u}`) }))
+  const unitRequiredMsg = t("productLifecycle.lifetime.errors.unitRequired")
   const loading = configLoading || rowsLoading
   const hasError = configError || rowsError
   const spareOptions = allSpares ?? []
@@ -284,7 +280,7 @@ export function ProductLifecyclePanel({
             <section className="space-y-2 rounded-xl border border-border p-3">
               <h3 className="text-sm font-semibold text-text">{t("productLifecycle.lifetime.title")}</h3>
               <p className="text-xs text-text-muted">{t("productLifecycle.lifetime.hint")}</p>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-start gap-1.5">
                 <Input
                   type="number"
                   min={1}
@@ -293,14 +289,28 @@ export function ProductLifecyclePanel({
                   onChange={(e) => setLifetimeValue(e.target.value)}
                   placeholder={t("productLifecycle.lifetime.valueLabel")}
                   aria-label={t("productLifecycle.lifetime.valueLabel")}
-                  className="flex-1"
+                  inputMode="numeric"
+                  className="max-w-40 flex-1"
                 />
-                <UnitSelect value={lifetimeUnit} onChange={setLifetimeUnit} />
+                <ChoiceSelect
+                  id="lifetime-unit"
+                  className="space-y-1"
+                  label={t("productLifecycle.lifetime.unitLabel")}
+                  labelClassName="sr-only"
+                  value={lifetimeUnit}
+                  options={unitOptions}
+                  onChange={setLifetimeUnit}
+                  error={lifetimeError === unitRequiredMsg ? lifetimeError : undefined}
+                />
                 <Button size="sm" disabled={upsertConfigMut.isPending} onClick={handleSaveLifetime}>
                   {upsertConfigMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("productLifecycle.lifetime.save")}
                 </Button>
               </div>
-              {lifetimeError ? <p className="text-xs text-danger">{lifetimeError}</p> : null}
+              {lifetimeError && lifetimeError !== unitRequiredMsg ? (
+                <p id="lifetime-error" role="alert" className="text-xs text-danger">
+                  {lifetimeError}
+                </p>
+              ) : null}
             </section>
 
             {/* Spare schedule repeater */}
@@ -327,7 +337,7 @@ export function ProductLifecyclePanel({
                             const picked = spareOptions.find((s) => s.id === spareId)
                             patchRowEdit(row, { spareId, label: !edits.label && picked ? picked.name : edits.label })
                           }}
-                          className="h-9 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                          className="h-10 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                         >
                           <option value="">{t("productLifecycle.spares.noSparePicked")}</option>
                           {spareOptions.map((s) => (
@@ -364,7 +374,7 @@ export function ProductLifecyclePanel({
                         aria-label={t("productLifecycle.spares.labelLabel")}
                       />
                       {errors.label ? <p className="text-xs text-danger">{t(`productLifecycle.spares.errors.${errors.label}`)}</p> : null}
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-start gap-1.5">
                         <Input
                           type="number"
                           min={1}
@@ -373,9 +383,19 @@ export function ProductLifecyclePanel({
                           onChange={(e) => patchRowEdit(row, { intervalValue: e.target.value })}
                           placeholder={t("productLifecycle.spares.intervalLabel")}
                           aria-label={t("productLifecycle.spares.intervalLabel")}
-                          className="flex-1"
+                          inputMode="numeric"
+                          className="max-w-40 flex-1"
                         />
-                        <UnitSelect value={edits.intervalUnit} onChange={(unit) => patchRowEdit(row, { intervalUnit: unit })} />
+                        <ChoiceSelect
+                          id={`unit-${row.id}`}
+                          className="space-y-1"
+                          label={t("productLifecycle.lifetime.unitLabel")}
+                          labelClassName="sr-only"
+                          value={edits.intervalUnit}
+                          options={unitOptions}
+                          onChange={(unit) => patchRowEdit(row, { intervalUnit: unit })}
+                          error={errors.intervalUnit ? unitRequiredMsg : undefined}
+                        />
                         <Button size="icon-xs" disabled={updateRowMut.isPending} onClick={() => handleSaveRow(row)} title={t("productLifecycle.spares.save")}>
                           {updateRowMut.isPending ? <Loader2 className="size-3 animate-spin" /> : t("productLifecycle.spares.save")}
                         </Button>
@@ -397,7 +417,7 @@ export function ProductLifecyclePanel({
                             const picked = spareOptions.find((s) => s.id === spareId)
                             patchDraftRow(draft.key, { spareId, label: !draft.label && picked ? picked.name : draft.label })
                           }}
-                          className="h-9 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                          className="h-10 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                         >
                           <option value="">{t("productLifecycle.spares.noSparePicked")}</option>
                           {spareOptions.map((s) => (
@@ -418,7 +438,7 @@ export function ProductLifecyclePanel({
                         aria-label={t("productLifecycle.spares.labelLabel")}
                       />
                       {errors.label ? <p className="text-xs text-danger">{t(`productLifecycle.spares.errors.${errors.label}`)}</p> : null}
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-start gap-1.5">
                         <Input
                           type="number"
                           min={1}
@@ -427,9 +447,19 @@ export function ProductLifecyclePanel({
                           onChange={(e) => patchDraftRow(draft.key, { intervalValue: e.target.value })}
                           placeholder={t("productLifecycle.spares.intervalLabel")}
                           aria-label={t("productLifecycle.spares.intervalLabel")}
-                          className="flex-1"
+                          inputMode="numeric"
+                          className="max-w-40 flex-1"
                         />
-                        <UnitSelect value={draft.intervalUnit} onChange={(unit) => patchDraftRow(draft.key, { intervalUnit: unit })} />
+                        <ChoiceSelect
+                          id={`unit-${draft.key}`}
+                          className="space-y-1"
+                          label={t("productLifecycle.lifetime.unitLabel")}
+                          labelClassName="sr-only"
+                          value={draft.intervalUnit}
+                          options={unitOptions}
+                          onChange={(unit) => patchDraftRow(draft.key, { intervalUnit: unit })}
+                          error={errors.intervalUnit ? unitRequiredMsg : undefined}
+                        />
                         <Button size="icon-xs" disabled={createRowMut.isPending} onClick={() => handleSaveDraftRow(draft)} title={t("productLifecycle.spares.save")}>
                           {createRowMut.isPending ? <Loader2 className="size-3 animate-spin" /> : t("productLifecycle.spares.save")}
                         </Button>

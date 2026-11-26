@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { ReferrerField } from "@/components/shared/ReferrerField"
+import { EMPTY_REFERRER, type ReferrerValue } from "@/lib/referrer"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -11,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { DraftBanner } from "@/components/shared/DraftBanner"
 import { NotInInventoryProductDialog } from "@/components/shared/NotInInventoryProductDialog"
@@ -19,7 +22,8 @@ import { addressLine } from "@/lib/address"
 import type { TimeWindow } from "@/lib/booking-window"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete, useCustomerExemptionWindows } from "@/hooks/useCustomers"
-import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks, useSettings } from "@/hooks/useMasters"
+import { brandsHooks, complaintTypesHooks, modelsHooks, productsHooks, useQuickAddComplaintType, useSettings } from "@/hooks/useMasters"
+import { quickAddText } from "@/lib/quickAdd"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
 import {
   useCreateComplaintTicket,
@@ -31,7 +35,9 @@ import {
 import {
   complaintAppointmentStepSchema,
   complaintDetailsStepSchema,
+  EMPTY_COMPLAINT_DETAILS,
   type ComplaintAppointmentStepInput,
+  type ComplaintDetailsForm,
   type ComplaintDetailsStepInput,
 } from "@/lib/validation/service"
 import { getIstNow } from "@/lib/ist"
@@ -39,6 +45,7 @@ import { formatDateTime } from "@/lib/formatDate"
 import { useToast } from "@/components/ui/toast-context"
 import { getConflictAppointmentInfo } from "@/services/service"
 import { TicketTypeBadge } from "./TicketBadges"
+import { productExtraParts } from "@/lib/productSearch"
 
 function todayInput() {
   return getIstNow().date
@@ -64,8 +71,15 @@ type NewComplaintDraftData = {
   newModelId: string
   newProductId: string
   unlistedProductName: string
-  details: ComplaintDetailsStepInput
+  // Drafts saved before 2026-11-26 carry the old "normal" default; restored as saved.
+  details: ComplaintDetailsForm
   appointment: ComplaintAppointmentStepInput
+  // Optional: drafts saved before 2026-11-26 don't have them. Without complaintTypeId a restored draft kept the
+  // complaint text but lost its link to the complaint type (spare suggestions, standard minutes).
+  complaintTypeId?: string | null
+  /** Pre-2026-11-26 drafts only; restored as a technician referrer. */
+  referredByTechnicianId?: string
+  referrer?: ReferrerValue
 }
 
 export function NewComplaintPage() {
@@ -154,10 +168,10 @@ export function NewComplaintPage() {
   // only tracks nameOfComplaint's text) since it needs to reset to null
   // whenever that text is edited away from the selected suggestion.
   const [complaintTypeId, setComplaintTypeId] = useState<string | null>(null)
-  const detailsForm = useForm<ComplaintDetailsStepInput>({
-    resolver: zodResolver(complaintDetailsStepSchema),
+  const detailsForm = useForm<ComplaintDetailsForm, unknown, ComplaintDetailsStepInput>({
+    resolver: zodResolver<ComplaintDetailsForm, unknown, ComplaintDetailsStepInput>(complaintDetailsStepSchema),
     mode: "onChange",
-    defaultValues: { nameOfComplaint: "", natureOfComplaint: "", priority: "normal" },
+    defaultValues: EMPTY_COMPLAINT_DETAILS,
   })
 
   // Meeting spec E1: complaint-name master, filtered auto-suggest by the
@@ -185,6 +199,29 @@ export function NewComplaintPage() {
     })
   }, [complaintTypes, resolvedProductId, resolvedProductCategory, nameOfComplaintValue])
 
+  // Quick-add (2026-11-26): save a typed complaint name to the master list
+  // for this product's category. Needs a resolved category (the master row
+  // is category-scoped) and no exact match already in the suggestions.
+  const quickAddComplaint = useQuickAddComplaintType()
+  const newComplaintName =
+    resolvedProductCategory && (profile?.role === "master" || profile?.role === "operation_admin")
+      ? quickAddText(nameOfComplaintValue ?? "", filteredComplaintTypes.map((ct) => ct.label))
+      : null
+  function addComplaintName() {
+    if (!newComplaintName || !resolvedProductCategory) return
+    quickAddComplaint.mutate(
+      { label: newComplaintName, category: resolvedProductCategory },
+      {
+        onSuccess: (ct) => {
+          detailsForm.setValue("nameOfComplaint", ct.label, { shouldValidate: true })
+          setComplaintTypeId(ct.id)
+          toast.success(t("service.newComplaint.complaintNameAdded"))
+        },
+        onError: () => toast.error(t("service.newComplaint.complaintNameAddFailed")),
+      }
+    )
+  }
+
   // Step 4: type auto-detect
   const detected = useDetectTicketType(orgId, customerId, resolvedProductId || null)
 
@@ -210,7 +247,7 @@ export function NewComplaintPage() {
 
   const createTicket = useCreateComplaintTicket()
   const { data: technicians } = useTechnicians(orgId)
-  const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
+  const [referrer, setReferrer] = useState<ReferrerValue>(EMPTY_REFERRER)
 
   // Local draft persistence — see useLocalDraft's doc comment. Disabled for
   // the prefilled-customer entry point (see NewComplaintDraftData).
@@ -229,6 +266,8 @@ export function NewComplaintPage() {
     unlistedProductName,
     details: detailsForm.watch(),
     appointment: appointmentForm.watch(),
+    complaintTypeId,
+    referrer,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewComplaintDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -251,6 +290,9 @@ export function NewComplaintPage() {
     if (restoredDraft.unlistedProductName) setUnlistedProductName(restoredDraft.unlistedProductName)
     if (restoredDraft.details) detailsForm.reset(restoredDraft.details)
     if (restoredDraft.appointment) appointmentForm.reset(restoredDraft.appointment)
+    if (restoredDraft.complaintTypeId) setComplaintTypeId(restoredDraft.complaintTypeId)
+    if (restoredDraft.referrer) setReferrer(restoredDraft.referrer)
+    else if (restoredDraft.referredByTechnicianId) setReferrer({ ...EMPTY_REFERRER, kind: "technician", userId: restoredDraft.referredByTechnicianId })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restoredDraft])
 
@@ -268,7 +310,7 @@ export function NewComplaintPage() {
     setNewModelId("")
     setNewProductId("")
     setUnlistedProductName("")
-    detailsForm.reset({ nameOfComplaint: "", natureOfComplaint: "", priority: "normal" })
+    detailsForm.reset(EMPTY_COMPLAINT_DETAILS)
     appointmentForm.reset({ scheduledDate: "", unavailableWindows: [], autoAssign: true, technicianId: "" })
   }
 
@@ -297,6 +339,11 @@ export function NewComplaintPage() {
   }
 
   async function handleSubmit() {
+    // The stepper can jump back past a step: a priority set back to Not set (or an emptied name) must not slip through.
+    if (!(await detailsForm.trigger())) {
+      setStep(detailsForm.getFieldState("priority").invalid ? 4 : 2)
+      return
+    }
     const appointmentValid = await appointmentForm.trigger()
     if (!appointmentValid) return
     const appt = appointmentForm.getValues()
@@ -313,7 +360,7 @@ export function NewComplaintPage() {
       nameOfComplaint: details.nameOfComplaint,
       natureOfComplaint: details.natureOfComplaint || null,
       complaintTypeId,
-      priority: details.priority,
+      priority: details.priority as ComplaintDetailsStepInput["priority"], // validated above
       channel: "call",
       // "always"/anytime mode was dropped from this form — every admin-
       // created ticket now gets a real date + slot, same as the customer app.
@@ -325,7 +372,8 @@ export function NewComplaintPage() {
       // UTC-midnight anchoring is needed here.
       scheduledDate: appt.scheduledDate || null,
       unavailableWindows: appt.unavailableWindows ?? [],
-      referredByTechnicianId: referredByTechnicianId || null,
+      referredByTechnicianId: referrer.kind === "technician" ? referrer.userId || null : null,
+      referrer,
       // Urgent item 1 fix (2026-11-02): the master's explicit "Assign to"
       // pick, if any — "" (nothing picked) must become null, never a
       // fallback technician. The RPC gives this priority over autoAssign.
@@ -379,7 +427,8 @@ export function NewComplaintPage() {
     (step === 1 && (!!resolvedProductId || (equipmentMode === "notInInventory" && !!unlistedProductName.trim()))) ||
     step === 2 ||
     step === 3 ||
-    (step === 4 && !!detailsForm.watch("priority")) ||
+    // Next stays enabled so goNext can show "Choose an option" under Not set.
+    step === 4 ||
     false
 
   return (
@@ -491,7 +540,7 @@ export function NewComplaintPage() {
                     }`}
                   >
                     <span className="font-medium text-text">{o.productName}</span>{" "}
-                    <span className="text-text-muted">{[o.brandName, o.modelName].filter(Boolean).join(" · ")}</span>
+                    <span className="text-text-muted">{productExtraParts(o.productName ?? "", o.brandName, o.modelName).join(" · ")}</span>
                   </button>
                 ))}
               </div>
@@ -509,7 +558,7 @@ export function NewComplaintPage() {
                   }}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 >
-                  <option value="">{t("service.filters.all")}</option>
+                  <option value="">{t("common.notSet")}</option>
                   {(brands ?? []).map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
@@ -527,7 +576,7 @@ export function NewComplaintPage() {
                   }}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 >
-                  <option value="">{t("service.filters.all")}</option>
+                  <option value="">{t("common.notSet")}</option>
                   {filteredModels.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.name}
@@ -542,7 +591,7 @@ export function NewComplaintPage() {
                   onChange={(e) => setNewProductId(e.target.value)}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 >
-                  <option value="">{t("service.filters.all")}</option>
+                  <option value="">{t("common.notSet")}</option>
                   {filteredProducts.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -587,6 +636,9 @@ export function NewComplaintPage() {
                 setComplaintTypeId(ct.id)
               }}
               openOnFocus
+              onCreate={newComplaintName ? addComplaintName : undefined}
+              createLabel={t("common.quickAdd", { text: newComplaintName })}
+              creating={quickAddComplaint.isPending}
             />
             {detailsForm.formState.errors.nameOfComplaint ? (
               <p className="text-xs text-danger">{t(detailsForm.formState.errors.nameOfComplaint.message!)}</p>
@@ -648,21 +700,14 @@ export function NewComplaintPage() {
 
       {step === 4 ? (
         <Card className="gap-3 px-5">
-          <Label>{t("service.newComplaint.priority")}</Label>
-          <div className="flex gap-2">
-            {PRIORITIES.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => detailsForm.setValue("priority", p, { shouldValidate: true })}
-                className={`flex-1 rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-colors ${
-                  detailsForm.watch("priority") === p ? "border-accent bg-accent-soft text-accent" : "border-border text-text-muted"
-                }`}
-              >
-                {t(`service.priority.${p}`)}
-              </button>
-            ))}
-          </div>
+          <ChoiceSelect
+            id="complaintPriority"
+            label={t("service.newComplaint.priority")}
+            value={detailsForm.watch("priority")}
+            options={PRIORITIES.map((p) => ({ value: p, label: t(`service.priority.${p}`) }))}
+            onChange={(v) => detailsForm.setValue("priority", v, { shouldValidate: true })}
+            error={detailsForm.formState.errors.priority ? t(detailsForm.formState.errors.priority.message!) : undefined}
+          />
         </Card>
       ) : null}
 
@@ -695,6 +740,7 @@ export function NewComplaintPage() {
                 render={({ field }) => (
                   <DatePicker
                     id="scheduledDate"
+                    className="w-44"
                     min={todayInput()}
                     value={field.value ?? ""}
                     onChange={field.onChange}
@@ -780,19 +826,15 @@ export function NewComplaintPage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>{t("common.referredByTechnician")}</Label>
-            <select
-              value={referredByTechnicianId}
-              onChange={(e) => setReferredByTechnicianId(e.target.value)}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
-            >
-              <option value="">{t("common.none")}</option>
-              {(technicians ?? []).map((tech) => (
-                <option key={tech.id} value={tech.id}>
-                  {tech.full_name}
-                </option>
-              ))}
-            </select>
+            <ReferrerField
+              idPrefix="new-complaint-referrer"
+              orgId={orgId}
+              value={referrer}
+              onChange={setReferrer}
+              technicians={technicians ?? []}
+              excludeCustomerId={customerId || null}
+              allowQuickAdd={profile?.role === "master" || profile?.role === "sales_admin"}
+            />
           </div>
 
           {createTicket.error ? (

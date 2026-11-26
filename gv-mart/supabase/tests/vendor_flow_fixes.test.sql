@@ -1,4 +1,4 @@
--- Tests for 20261213100000_vendor_flow_fixes.sql (build-docs/features/vendor-flow-fixes.md).
+-- Tests for 20261231100000_vendor_flow_fixes.sql (build-docs/features/vendor-flow-fixes.md).
 -- Run ONLY after that migration has been applied and committed (the 'cancelled' enum value
 -- cannot be used in the transaction that adds it). Never concatenate with the migration.
 -- Throwaway __TEST_ org only; the final RAISE rolls everything back, nothing persists.

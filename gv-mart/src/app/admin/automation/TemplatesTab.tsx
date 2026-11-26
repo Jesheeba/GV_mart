@@ -39,7 +39,7 @@ export function TemplatesTab() {
   const fields: CrudFieldDef[] = [
     { key: "name", label: t("automation.templates.name"), type: "text", required: true, placeholder: t("automation.templates.namePlaceholder") },
     { key: "category", label: t("automation.templates.category"), type: "select", options: CATEGORIES.map((v) => ({ value: v, label: t(`automation.templates.categories.${v}`) })) },
-    { key: "approval_status", label: t("automation.templates.approvalStatus"), type: "select", options: APPROVAL_STATUSES.map((v) => ({ value: v, label: t(`automation.templates.approvalStatuses.${v}`) })) },
+    { key: "approval_status", label: t("automation.templates.approvalStatus"), type: "select", defaultValue: "pending", options: APPROVAL_STATUSES.map((v) => ({ value: v, label: t(`automation.templates.approvalStatuses.${v}`) })) },
     { key: "body", label: t("automation.templates.body"), type: "textarea", required: true, placeholder: t("automation.templates.bodyPlaceholder") },
     { key: "variable_map", label: t("automation.templates.variableMap"), type: "textarea", placeholder: t("automation.templates.variableMapPlaceholder") },
   ]

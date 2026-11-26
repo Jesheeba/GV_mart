@@ -4,7 +4,7 @@
 Review of supplier → quote → PO → receipt → bill → paid found 5 bugs and 7 gaps. Owner: "fix them all". Payment option chosen: separate payment field (recommended option (a)).
 
 ## Architecture
-- Migration `supabase/migrations/20261213100000_vendor_flow_fixes.sql`; rollback `supabase/rollbacks/20261213100000_vendor_flow_fixes.rollback.sql` (bodies = live definitions read 2026-11-25).
+- Migration `supabase/migrations/20261231100000_vendor_flow_fixes.sql`; rollback `supabase/rollbacks/20261231100000_vendor_flow_fixes.rollback.sql` (bodies = live definitions read 2026-11-25).
 - Schema: `po_status` + `cancelled`; `purchase_orders.paid_at/paid_by`; `po_items.received_qty`; `purchase_bills.bill_date` (backfilled from expenses); `suppliers.is_active`; unique `supplier_products(supplier_id, item_type, item_id)`; private bucket `purchase-bill-photos` (ops staff, `<org_id>/` folder).
 - New helpers (service_role only): `_normalize_in_mobile`, `_queue_supplier_whatsapp` (normalised number, WA test mode, `pending` if v2 dispatch on else `sent`), `_notify_po_not_messaged`, `_send_po_to_supplier`, `_validate_purchase_line`. New RPC `unmark_po_paid` (master). New trigger `approvals_reject_cancels_po`.
 - Re-issued: `create_purchase_order`, `approve_purchase_order`, `update_po_items_and_approve`, `_create_po_from_winning_quote`, `_resolve_purchase_quote_requests_core`, `_auto_draft_purchase_order`, `open_monthly_quote_requests`, `create_bill_entry` (now SECURITY DEFINER, explicit org + ops checks), `mark_po_paid`, `_po_task_completed_marks_paid`.
@@ -39,3 +39,10 @@ Review of supplier → quote → PO → receipt → bill → paid found 5 bugs a
 - AC10 No valid WhatsApp → no outbox row + admin alert; test mode respected for supplier messages.
 - AC11 Duplicate supplier-item link refused with a clear message; deleting a supplier with history explains "set Inactive".
 - AC12 Bill date stored and shown; bill photo upload + view.
+
+## Status 2026-11-26
+- Merged origin/main in (conflicts: purchase forms now use main's PoItemDraft/"Not set" item type + category check AND this branch's schema validation + bill photo; i18n kept both blocks).
+- Renumbered 20261213100000 -> 20261231100000: live already has 20261213100000 = login_activity.
+- Drift check: all 10 existing purchase functions on live are byte-identical to the 2026-11-25 rollback snapshot; the 7 new functions don't exist live.
+- Rehearsal (rolled back): all post-checks pass (7 new fns, 5 columns, no anon EXECUTE, bill bucket). Data: 1 PO, 2 bills, 2 suppliers.
+- Live apply: NOT done — blocked by the session permission check; waits for owner. Do NOT merge to main before apply (UI needs paid_at / unmark_po_paid / new columns).

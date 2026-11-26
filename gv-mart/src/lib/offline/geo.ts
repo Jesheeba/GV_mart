@@ -215,6 +215,23 @@ export function isInsideGeofence(point: GeoPoint, center: GeoPoint, radiusM: num
   return distanceKm(point, center) * 1000 <= radiusM
 }
 
+/**
+ * Pin auto-correct (build-docs/features/pin-autocorrect.md): which arrival path a fix allows.
+ * Mirrors record_technician_pin_correction's server checks (20261215100000) so the app only
+ * offers "pin is wrong" when the server will accept it.
+ * - inside: normal arrival.
+ * - correctable: outside the radius but within maxCorrectM, or the address has no pin.
+ * - tooFar: beyond maxCorrectM, so the old hard block stands.
+ * - noFix: no position, or the fix is too coarse to move a pin with.
+ */
+export function arrivalMode(position: GeoPoint | null, pin: GeoPoint | null, radiusM: number, maxCorrectM: number, maxAccuracyM: number) {
+  if (!position || position.accuracy == null || position.accuracy > maxAccuracyM) return "noFix" as const
+  if (!pin) return "correctable" as const
+  const d = distanceKm(position, pin) * 1000
+  if (d <= radiusM) return "inside" as const
+  return d <= maxCorrectM ? ("correctable" as const) : ("tooFar" as const)
+}
+
 /** Expected travel minutes at the admin-set per-km rate (v2.2 "1 km = 5 min"). */
 export function expectedMinutes(km: number, perKmMinutes: number) {
   return km * perKmMinutes

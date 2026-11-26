@@ -19,10 +19,12 @@ import {
   useUploadProductDocument,
   useUploadProductImage,
 } from "@/hooks/useMasters"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { VideoLanguageSelect } from "@/components/shared/VideoLanguageSelect"
 import type { VideoLanguage } from "@/lib/videoLanguage"
 import { productDocumentPublicUrl, productImagePublicUrl } from "@/services/productMedia"
 import type { Tables, TablesInsert } from "@/types/database"
+import { focusChoice } from "@/lib/utils"
 
 // Supabase/PostgREST rejections aren't `instanceof Error` — same helper as
 // EntityCrudTable/ProductSparesPanel, duplicated for the same reason (small,
@@ -35,7 +37,7 @@ function extractErrorMessage(e: unknown): string {
   return String(e)
 }
 
-const DOC_TYPES: TablesInsert<"product_documents">["doc_type"][] = ["brochure", "manual", "warranty_card", "other"]
+const DOC_TYPES: NonNullable<TablesInsert<"product_documents">["doc_type"]>[] = ["brochure", "manual", "warranty_card", "other"]
 const MAX_FILE_BYTES = 5 * 1024 * 1024
 
 /**
@@ -192,16 +194,24 @@ function DocumentsTab({ orgId, productId }: { orgId: string | undefined; product
   const uploadMut = useUploadProductDocument(productId)
   const deleteMut = useDeleteProductDocument(productId)
   const [label, setLabel] = useState("")
-  const [docType, setDocType] = useState<TablesInsert<"product_documents">["doc_type"]>("brochure")
+  // Unchosen until picked (choice-no-preselect) — the old "brochure" default also disagreed with the DB default "other".
+  const [docType, setDocType] = useState<TablesInsert<"product_documents">["doc_type"] | "">("")
+  const [docTypeError, setDocTypeError] = useState(false)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleUpload() {
     if (!pendingFile || !orgId || !label.trim()) return
+    if (!docType) {
+      setDocTypeError(true)
+      focusChoice("doc-type")
+      return
+    }
     setError(null)
     try {
       await uploadMut.mutateAsync({ orgId, file: pendingFile, label: label.trim(), docType })
       setLabel("")
+      setDocType("")
       setPendingFile(null)
     } catch (e) {
       setError(extractErrorMessage(e))
@@ -239,17 +249,18 @@ function DocumentsTab({ orgId, productId }: { orgId: string | undefined; product
           placeholder={t("masters.productMedia.docLabelPlaceholder")}
           className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
         />
-        <select
+        <ChoiceSelect
+          id="doc-type"
+          label={t("masters.productMedia.docTypeLabel")}
+          labelClassName="sr-only"
           value={docType}
-          onChange={(e) => setDocType(e.target.value as TablesInsert<"product_documents">["doc_type"])}
-          className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-        >
-          {DOC_TYPES.map((dt) => (
-            <option key={dt} value={dt}>
-              {t(`masters.productMedia.docType.${dt}`)}
-            </option>
-          ))}
-        </select>
+          options={DOC_TYPES.map((dt) => ({ value: dt, label: t(`masters.productMedia.docType.${dt}`) }))}
+          onChange={(v) => {
+            setDocType(v)
+            setDocTypeError(false)
+          }}
+          error={docTypeError ? t("common.chooseOption") : undefined}
+        />
         <input type="file" accept="application/pdf" onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)} className="text-xs text-text-muted" />
         <Button size="sm" className="w-full gap-1" disabled={!pendingFile || !label.trim() || uploadMut.isPending} onClick={handleUpload}>
           {uploadMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}

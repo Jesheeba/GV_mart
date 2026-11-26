@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { AppointmentSlotsCard } from "./AppointmentSlotsCard"
 import { AutoAssignLeadsCard } from "./AutoAssignLeadsCard"
 import { AccountsOutstandingSettingsCard } from "./AccountsOutstandingSettingsCard"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 function hhmm(value: string) {
   return value.slice(0, 5)
@@ -59,6 +60,7 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     review_flag_min_visits: settings.review_flag_min_visits,
     default_min_stock: settings.default_min_stock,
     gst_rate: Number(settings.gst_rate),
+    prices_include_gst: settings.prices_include_gst ?? false,
     sla_hours_very_urgent: Number(settings.sla_hours_very_urgent),
     sla_hours_urgent: Number(settings.sla_hours_urgent),
     sla_hours_normal: Number(settings.sla_hours_normal),
@@ -77,6 +79,8 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
     emi_enabled: settings.emi_enabled,
     review_incentives_enabled: settings.review_incentives_enabled,
+    customer_referral_points_enabled: settings.customer_referral_points_enabled ?? false,
+    customer_referral_points: settings.customer_referral_points ?? 0,
     emi_tenure_months: (Array.isArray(settings.emi_tenure_months) ? settings.emi_tenure_months : []).join(","),
     emi_disclaimer: settings.emi_disclaimer ?? "",
   }
@@ -99,7 +103,7 @@ const FIELD_GROUPS = {
     "lunch_minutes_red_threshold",
     "leave_notice_days",
   ],
-  gst: ["gst_rate"],
+  gst: ["gst_rate", "prices_include_gst"],
   sla: ["sla_hours_very_urgent", "sla_hours_urgent", "sla_hours_normal"],
   jobDuration: [
     "default_duration_paid_minutes",
@@ -120,6 +124,8 @@ const FIELD_GROUPS = {
     "review_flag_threshold_percent",
     "review_flag_min_visits",
     "review_incentives_enabled",
+    "customer_referral_points_enabled",
+    "customer_referral_points",
   ],
   inventory: ["default_min_stock", "po_approval_threshold", "po_quote_timeout_hours", "po_quote_day_of_month", "po_requires_approval"],
   productEnquiry: ["emi_tenure_months", "emi_disclaimer", "emi_enabled"],
@@ -288,6 +294,13 @@ export function SettingsTab() {
       <Card className="gap-4">
         <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.discounts")}</h3>
         <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">{field("gst_rate", t("settings.gstRate"), "number", "0.5")}</div>
+        <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
+          <input type="checkbox" className="size-4 accent-accent" {...register("prices_include_gst", { onChange: () => setJustSavedGroup(null) })} />
+          <span>
+            <span className="block font-medium">{t("settings.pricesIncludeGst")}</span>
+            <span className="block text-xs text-text-muted">{t("settings.pricesIncludeGstHint")}</span>
+          </span>
+        </label>
         <GroupSaveRow groupKey="gst" />
       </Card>
 
@@ -370,6 +383,16 @@ export function SettingsTab() {
             <span className="block text-xs text-text-muted">{t("settings.reviewIncentivesEnabledHint")}</span>
           </span>
         </label>
+        <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
+          <input type="checkbox" className="size-4 accent-accent" {...register("customer_referral_points_enabled", { onChange: () => setJustSavedGroup(null) })} />
+          <span>
+            <span className="block font-medium">{t("settings.customerReferralPointsEnabled")}</span>
+            <span className="block text-xs text-text-muted">{t("settings.customerReferralPointsEnabledHint")}</span>
+          </span>
+        </label>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("customer_referral_points", t("settings.customerReferralPoints"), "number", "1")}
+        </div>
         <GroupSaveRow groupKey="amcReferral" />
       </Card>
 
@@ -489,7 +512,7 @@ function OrgProfileCard({ orgId, onDirtyChange }: { orgId: string | undefined; o
         </div>
         <div className="space-y-1">
           <Label htmlFor="org-phone">{t("settings.orgProfile.phone")}</Label>
-          <Input id="org-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Input id="org-phone" type="tel" inputMode="tel" className={FIELD_W.mobile} value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="space-y-1 sm:col-span-1">
           <Label htmlFor="org-address">{t("settings.orgProfile.address")}</Label>

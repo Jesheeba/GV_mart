@@ -620,6 +620,7 @@ export type Database = {
           mobile: string | null
           profession: string | null
           preferred_language: string | null
+          referred_by_customer_id: string | null
           source: string | null
           tags: string[]
           notes: string | null
@@ -644,12 +645,14 @@ export type Database = {
           // list/search; the row and its audit_log trail are kept, never hard-deleted.
           archived_at: string | null
           archived_by: string | null
-          // Customer water profile (20261108100000_customer_water_profile.sql). health_condition
-          // is NOT here — it lives in its own table, customer_health_profile, below.
+          // Customer water & household profile (20261108100000, 20261216100000, 20261216110000).
           water_source: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other: string | null
           water_tds_ppm: number | null
           water_ph: number | null
+          water_hardness_ppm: number | null
+          household_problems: string[]
+          water_recommended_solution: string | null
           created_at: string
           updated_at: string
         }
@@ -662,6 +665,7 @@ export type Database = {
           mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
+          referred_by_customer_id?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
@@ -677,6 +681,9 @@ export type Database = {
           water_source_other?: string | null
           water_tds_ppm?: number | null
           water_ph?: number | null
+          water_hardness_ppm?: number | null
+          household_problems?: string[]
+          water_recommended_solution?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -689,6 +696,7 @@ export type Database = {
           mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
+          referred_by_customer_id?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
@@ -704,6 +712,9 @@ export type Database = {
           water_source_other?: string | null
           water_tds_ppm?: number | null
           water_ph?: number | null
+          water_hardness_ppm?: number | null
+          household_problems?: string[]
+          water_recommended_solution?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -720,47 +731,6 @@ export type Database = {
             columns: ["primary_profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      // 20261108100000_customer_water_profile.sql — health_condition's own table (not a
-      // customers column). No column-level grant games on customers at all.
-      customer_health_profile: {
-        Row: {
-          customer_id: string
-          org_id: string
-          health_condition: Database["public"]["Enums"]["household_health_level"]
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          customer_id: string
-          org_id: string
-          health_condition: Database["public"]["Enums"]["household_health_level"]
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          customer_id?: string
-          org_id?: string
-          health_condition?: Database["public"]["Enums"]["household_health_level"]
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "customer_health_profile_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: true
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_health_profile_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -867,6 +837,29 @@ export type Database = {
           },
         ]
       }
+      // Added 20261214100000 (arrival location lock) -- post-dates the last database.ts regen.
+      address_location_events: {
+        Row: {
+          id: string
+          org_id: string
+          address_id: string
+          event: "verified" | "reset" | "corrected"
+          technician_id: string | null
+          actor_profile_id: string | null
+          ticket_id: string | null
+          prev_lat: number | null
+          prev_lng: number | null
+          new_lat: number | null
+          new_lng: number | null
+          distance_m: number | null
+          accuracy_m: number | null
+          reason: string | null
+          created_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       addresses: {
         Row: {
           id: string
@@ -896,19 +889,17 @@ export type Database = {
           // browser geolocation accuracy (metres) when it came from "use my current location".
           pinned_at: string | null
           location_accuracy_m: number | null
-          address_type: Database["public"]["Enums"]["address_type"]
-          ownership: Database["public"]["Enums"]["ownership_type"]
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at: string | null
+          location_verified_by: string | null
+          address_type: Database["public"]["Enums"]["address_type"] | null
+          ownership: Database["public"]["Enums"]["ownership_type"] | null
           is_primary: boolean
           zone: string | null
           /** Single free-text address box — see migration 20261103090000. */
           full_address: string | null
           /** Added 2026-12-04 — clean-address-form redesign, see migration 20261204170000. */
           sub_area: string | null
-          /** Added 2026-11-03 — Water & household step, see migration 20261103120000. */
-          water_source: string | null
-          water_tds: number | null
-          water_ph: number | null
-          health_condition: string | null
           created_at: string
           updated_at: string
         }
@@ -931,16 +922,15 @@ export type Database = {
           lng?: number | null
           pinned_at?: string | null
           location_accuracy_m?: number | null
-          address_type?: Database["public"]["Enums"]["address_type"]
-          ownership?: Database["public"]["Enums"]["ownership_type"]
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at?: string | null
+          location_verified_by?: string | null
+          address_type?: Database["public"]["Enums"]["address_type"] | null
+          ownership?: Database["public"]["Enums"]["ownership_type"] | null
           is_primary?: boolean
           zone?: string | null
           full_address?: string | null
           sub_area?: string | null
-          water_source?: string | null
-          water_tds?: number | null
-          water_ph?: number | null
-          health_condition?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -963,16 +953,15 @@ export type Database = {
           lng?: number | null
           pinned_at?: string | null
           location_accuracy_m?: number | null
-          address_type?: Database["public"]["Enums"]["address_type"]
-          ownership?: Database["public"]["Enums"]["ownership_type"]
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at?: string | null
+          location_verified_by?: string | null
+          address_type?: Database["public"]["Enums"]["address_type"] | null
+          ownership?: Database["public"]["Enums"]["ownership_type"] | null
           is_primary?: boolean
           zone?: string | null
           full_address?: string | null
           sub_area?: string | null
-          water_source?: string | null
-          water_tds?: number | null
-          water_ph?: number | null
-          health_condition?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3153,6 +3142,7 @@ export type Database = {
           status: Database["public"]["Enums"]["quotation_status"]
           valid_until: string | null
           total: number
+          gst_inclusive: boolean | null
           lost_reason: string | null
           lead_id: string | null
           created_at: string
@@ -3165,6 +3155,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["quotation_status"]
           valid_until?: string | null
           total?: number
+          gst_inclusive?: boolean | null
           lost_reason?: string | null
           lead_id?: string | null
           created_at?: string
@@ -3177,6 +3168,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["quotation_status"]
           valid_until?: string | null
           total?: number
+          gst_inclusive?: boolean | null
           lost_reason?: string | null
           lead_id?: string | null
           created_at?: string
@@ -3402,6 +3394,7 @@ export type Database = {
           subtotal: number
           discount: number
           gst: number
+          gst_inclusive: boolean
           total: number
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           txn_id: string | null
@@ -3421,6 +3414,7 @@ export type Database = {
           subtotal?: number
           discount?: number
           gst?: number
+          gst_inclusive?: boolean
           total?: number
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           txn_id?: string | null
@@ -3440,6 +3434,7 @@ export type Database = {
           subtotal?: number
           discount?: number
           gst?: number
+          gst_inclusive?: boolean
           total?: number
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           txn_id?: string | null
@@ -5565,6 +5560,7 @@ export type Database = {
           // coexists with referred_by_user_id above — see MEMORY.md.
           referred_by_name: string | null
           referred_by_phone: string | null
+          referred_by_customer_id: string | null
         }
         Insert: {
           is_test?: boolean
@@ -5608,6 +5604,7 @@ export type Database = {
           report_storage_path?: string | null
           referred_by_name?: string | null
           referred_by_phone?: string | null
+          referred_by_customer_id?: string | null
         }
         Update: {
           is_test?: boolean
@@ -5651,6 +5648,7 @@ export type Database = {
           report_storage_path?: string | null
           referred_by_name?: string | null
           referred_by_phone?: string | null
+          referred_by_customer_id?: string | null
         }
         Relationships: [
           {
@@ -6207,6 +6205,7 @@ export type Database = {
           points: number
           reason: string | null
           ref_id: string | null
+          source: string | null
           created_at: string
           updated_at: string
         }
@@ -6217,6 +6216,7 @@ export type Database = {
           points: number
           reason?: string | null
           ref_id?: string | null
+          source?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6227,6 +6227,7 @@ export type Database = {
           points?: number
           reason?: string | null
           ref_id?: string | null
+          source?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6731,9 +6732,6 @@ export type Database = {
       settings: {
         Row: {
           review_incentives_enabled: boolean
-          // 20261108100000_customer_water_profile.sql — gates whether a technician's job/
-          // history detail shows the customer's health_condition level. Default false.
-          show_health_condition_to_technicians: boolean
           // Hand-patched, see 20261108110000_standard_minutes_and_efficiency.sql
           job_overrun_buffer_minutes: number
           ops_resolution_sla_hours: number
@@ -6744,6 +6742,7 @@ export type Database = {
           // Group C (technician arrival geofence, 2026-09-15) — see
           // 20260915170000_technician_arrival_geofence_and_blocks.sql.
           geofence_radius_job_m: number
+          pin_autocorrect_max_m: number
           office_lat: number
           office_lng: number
           work_start: string
@@ -6772,6 +6771,9 @@ export type Database = {
           google_review_url: string | null
           default_min_stock: number
           gst_rate: number
+          prices_include_gst: boolean
+          customer_referral_points: number
+          customer_referral_points_enabled: boolean
           sla_hours_very_urgent: number
           sla_hours_urgent: number
           sla_hours_normal: number
@@ -6839,7 +6841,6 @@ export type Database = {
         }
         Insert: {
           review_incentives_enabled?: boolean
-          show_health_condition_to_technicians?: boolean
           job_overrun_buffer_minutes?: number
           ops_resolution_sla_hours?: number
           id?: string
@@ -6847,6 +6848,7 @@ export type Database = {
           per_km_minutes?: number
           geofence_radius_m?: number
           geofence_radius_job_m?: number
+          pin_autocorrect_max_m?: number
           office_lat?: number
           office_lng?: number
           work_start?: string
@@ -6875,6 +6877,9 @@ export type Database = {
           google_review_url?: string | null
           default_min_stock?: number
           gst_rate?: number
+          prices_include_gst?: boolean
+          customer_referral_points?: number
+          customer_referral_points_enabled?: boolean
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
           sla_hours_normal?: number
@@ -6923,7 +6928,6 @@ export type Database = {
         }
         Update: {
           review_incentives_enabled?: boolean
-          show_health_condition_to_technicians?: boolean
           job_overrun_buffer_minutes?: number
           ops_resolution_sla_hours?: number
           id?: string
@@ -6931,6 +6935,7 @@ export type Database = {
           per_km_minutes?: number
           geofence_radius_m?: number
           geofence_radius_job_m?: number
+          pin_autocorrect_max_m?: number
           office_lat?: number
           office_lng?: number
           work_start?: string
@@ -6959,6 +6964,9 @@ export type Database = {
           google_review_url?: string | null
           default_min_stock?: number
           gst_rate?: number
+          prices_include_gst?: boolean
+          customer_referral_points?: number
+          customer_referral_points_enabled?: boolean
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
           sla_hours_normal?: number
@@ -7740,6 +7748,31 @@ export type Database = {
       }
     }
     Functions: {
+      quick_add_lead_option: {
+        Args: { p_list: string; p_label: string }
+        Returns: string
+      }
+      quick_add_complaint_type: {
+        Args: { p_label: string; p_category: Database["public"]["Enums"]["brand_category"] }
+        Returns: Database["public"]["Tables"]["complaint_types"]["Row"]
+      }
+      // Water solution follow-up (20261216110000).
+      set_customer_water_followup: {
+        Args: { p_customer_id: string; p_due_date: string | null }
+        Returns: string | null
+      }
+      get_customer_water_followup: {
+        Args: { p_customer_id: string }
+        Returns: { task_id: string; due_date: string | null }[]
+      }
+      postpone_water_followup: {
+        Args: { p_task_id: string; p_new_date: string; p_reason: string }
+        Returns: undefined
+      }
+      close_water_followup_as_lead: {
+        Args: { p_task_id: string; p_lead_id: string }
+        Returns: undefined
+      }
       audience_segment_match_count: {
         Args: { p_org_id: string; p_condition_tree: Json }
         Returns: number
@@ -7791,12 +7824,6 @@ export type Database = {
           p_org_id: string
         }
         Returns: Json
-      }
-      get_customer_health_condition: {
-        Args: {
-          p_customer_id: string
-        }
-        Returns: Database["public"]["Enums"]["household_health_level"] | null
       }
       link_customer_google_account: {
         Args: {
@@ -7913,6 +7940,7 @@ export type Database = {
           p_valid_until: string | null
           p_items: Json
           p_lead_id?: string | null
+          p_gst_inclusive?: boolean | null
         }
         Returns: string
       }
@@ -8096,6 +8124,23 @@ export type Database = {
         }
         Returns: Json
       }
+      // Referral sources (20261228100000) — wrappers: the base RPC's args + one non-technician referrer.
+      create_sale_with_referrer: {
+        Args: Database["public"]["Functions"]["create_sale"]["Args"] & { p_referred_by_user_id?: string | null; p_referred_by_customer_id?: string | null; p_referred_by_name?: string | null; p_referred_by_phone?: string | null }
+        Returns: Json
+      }
+      create_complaint_ticket_with_referrer: {
+        Args: Database["public"]["Functions"]["create_complaint_ticket"]["Args"] & { p_referred_by_user_id?: string | null; p_referred_by_customer_id?: string | null; p_referred_by_name?: string | null; p_referred_by_phone?: string | null }
+        Returns: Json
+      }
+      sell_amc_plan_with_referrer: {
+        Args: Database["public"]["Functions"]["sell_amc_plan"]["Args"] & { p_confirm_backdated?: boolean; p_referred_by_user_id?: string | null; p_referred_by_customer_id?: string | null; p_referred_by_name?: string | null; p_referred_by_phone?: string | null }
+        Returns: Json
+      }
+      create_customer_with_referrer: {
+        Args: Database["public"]["Functions"]["create_customer_with_details"]["Args"] & { p_referred_by_customer_id?: string | null }
+        Returns: string
+      }
       refresh_amc_statuses: {
         Args: { p_org_id: string }
         Returns: undefined
@@ -8108,7 +8153,22 @@ export type Database = {
           p_ticket_id: string
           p_lat: number
           p_lng: number
+          p_accuracy_m?: number | null
         }
+        Returns: undefined
+      }
+      record_technician_pin_correction: {
+        Args: {
+          p_org_id: string
+          p_ticket_id: string
+          p_lat: number
+          p_lng: number
+          p_accuracy_m: number
+        }
+        Returns: string
+      }
+      reset_address_location_verification: {
+        Args: { p_address_id: string; p_reason: string }
         Returns: undefined
       }
       create_service_invoice: {
@@ -8856,7 +8916,6 @@ export type Database = {
       quotation_status: "open" | "converted" | "lost"
       invoice_type: "product" | "spare" | "amc" | "rent"
       water_source_type: "corporation" | "borewater" | "other"
-      household_health_level: "none" | "normal" | "medium" | "high"
       payment_method: "cash" | "transfer" | "upi"
       payment_status: "paid" | "partial" | "due"
       ticket_type: "paid" | "warranty" | "amc" | "installation" | "rental"

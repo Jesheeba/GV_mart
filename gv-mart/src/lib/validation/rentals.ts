@@ -8,7 +8,7 @@ export const rentOutSchema = z.object({
   planId: z.string().uuid("rentals.errors.planRequired"),
   addressId: z.string().uuid("rentals.errors.addressRequired"),
   startDate: z.string().min(1, "rentals.errors.startDateRequired"),
-  paymentMethod: z.enum(["cash", "transfer", "upi"]),
+  paymentMethod: z.enum(["cash", "transfer", "upi"], { message: "sales.errors.paymentMethodRequired" }),
   txnId: z.string().optional().or(z.literal("")),
   paymentDescription: z.string().optional().or(z.literal("")),
 })

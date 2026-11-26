@@ -19,6 +19,7 @@ import {
 import { classifyReminderBucket, countNeedingFollowUp, type ReminderBucket } from "@/services/reportMappers"
 import { formatCurrency } from "@/lib/sale-calc"
 import { toLocalDateString } from "@/lib/local-date"
+import { formatShortDate } from "@/lib/formatDate"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -149,10 +150,10 @@ function OutstandingListTab({
                   <tr key={r.customer_id} className="border-b border-[#F1EDE6]">
                     <td className="py-2 pr-3 font-medium text-text">{r.customer_name}</td>
                     <td className="py-2 pr-3 text-right font-bold tabular-nums text-text">{formatCurrency(r.outstanding_amount)}</td>
-                    <td className="py-2 pr-3 text-text-muted">{r.oldest_invoice_date ?? "—"}</td>
+                    <td className="whitespace-nowrap py-2 pr-3 text-text-muted">{formatShortDate(r.oldest_invoice_date)}</td>
                     <td className="py-2 pr-3 text-text-muted">
                       {r.open_reminder_count > 0
-                        ? t("accounts.outstanding.remindersCount", { count: r.open_reminder_count, date: r.next_reminder_at ? toLocalDateString(new Date(r.next_reminder_at)) : "—" })
+                        ? t("accounts.outstanding.remindersCount", { count: r.open_reminder_count, date: formatShortDate(r.next_reminder_at) })
                         : "—"}
                     </td>
                     <td className="py-2 pr-3 text-text-muted">
@@ -240,7 +241,7 @@ function CreateFollowUpDialog({
 
         <div className="space-y-1.5">
           <Label htmlFor="followup-due-date">{t("accounts.outstanding.dueDate")}</Label>
-          <DatePicker id="followup-due-date" value={dueDate} onChange={setDueDate} />
+          <DatePicker id="followup-due-date" value={dueDate} onChange={setDueDate} className="w-44" />
         </div>
 
         {mode === "reminder" ? (
@@ -377,8 +378,8 @@ function ReminderRow({ reminder, onOpenCustomer }: { reminder: ReturnType<typeof
           {reminder.customer_name}
         </button>
       </td>
-      <td className="py-2 pr-3 text-text-muted">
-        {editing ? <DatePicker id={`reminder-due-${reminder.id}`} value={dueDate} onChange={setDueDate} /> : toLocalDateString(new Date(reminder.due_at))}
+      <td className="whitespace-nowrap py-2 pr-3 text-text-muted">
+        {editing ? <DatePicker id={`reminder-due-${reminder.id}`} value={dueDate} onChange={setDueDate} className="w-44" /> : formatShortDate(reminder.due_at)}
       </td>
       <td className="py-2 pr-3 text-text-muted">
         {editing ? <Input value={note} onChange={(e) => setNote(e.target.value)} /> : reminder.note ?? "—"}

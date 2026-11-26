@@ -14,6 +14,7 @@ import { LOST_REASON_PRESETS } from "@/lib/lead-lost-reasons"
 import type { LeadOutcomeRow } from "@/services/leadFollowups"
 import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 import type { Enums } from "@/types/database"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 const MODES = ["offset", "ask_date", "exact_time", "none"] as const
 const STAGES = ["", "contacted", "quoted", "won", "lost"] as const
@@ -63,6 +64,7 @@ export function LeadOutcomesTab() {
       key: "is_active",
       label: t("masters.leadOutcomes.status"),
       type: "select",
+      defaultValue: "true",
       options: [
         { value: "true", label: t("masters.leadSources.active") },
         { value: "false", label: t("masters.leadSources.inactive") },
@@ -223,11 +225,11 @@ function ScheduleCard({ orgId }: { orgId: string | undefined }) {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="lead-stuck">{t("masters.leadOutcomes.schedule.stuck")}</Label>
-          <Input id="lead-stuck" type="number" min={1} step={1} value={stuck} onChange={(e) => setStuck(e.target.value)} />
+          <Input id="lead-stuck" type="number" inputMode="numeric" min={1} step={1} className={FIELD_W.qty} value={stuck} onChange={(e) => setStuck(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="lead-reminder">{t("masters.leadOutcomes.schedule.reminder")}</Label>
-          <Input id="lead-reminder" type="number" min={1} step={1} value={reminder} onChange={(e) => setReminder(e.target.value)} />
+          <Input id="lead-reminder" type="number" inputMode="numeric" min={1} step={1} className={FIELD_W.qty} value={reminder} onChange={(e) => setReminder(e.target.value)} />
         </div>
       </div>
       <div className="flex justify-end">

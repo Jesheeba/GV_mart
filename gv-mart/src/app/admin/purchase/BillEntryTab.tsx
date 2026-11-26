@@ -12,10 +12,13 @@ import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
 import { useCreateBillEntry, useLastBillEntry, usePoItems, usePurchaseBills, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
-import { billEntrySchema, type PoItemInput } from "@/lib/validation/automation"
+import { SupplierQuickAdd } from "./SupplierQuickAdd"
+import { billEntrySchema, emptyPoItem, isCompletePoItem, type PoItemDraft } from "@/lib/validation/automation"
 import { receivablePurchaseOrders } from "@/lib/purchase"
 import { purchaseBillPhotoSignedUrl, uploadPurchaseBillPhoto } from "@/services/automation"
-import { expenseCategories } from "@/lib/validation/reports"
+import { billCategorySchema, expenseCategories } from "@/lib/validation/reports"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
+import { focusChoice } from "@/lib/utils"
 import type { PurchaseBillRow } from "@/services/automation"
 import type { Enums } from "@/types/database"
 import { formatDate } from "@/lib/formatDate"
@@ -33,14 +36,14 @@ export function BillEntryTab() {
 
   const [supplierId, setSupplierId] = useState("")
   const [poId, setPoId] = useState("")
-  const [items, setItems] = useState<PoItemInput[]>([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+  const [items, setItems] = useState<PoItemDraft[]>([emptyPoItem()])
   const [gst, setGst] = useState("0")
   const [billDate, setBillDate] = useState(getIstNow().date)
-  // Build Order Step 1.3: was hardcoded to 'purchase' server-side regardless
-  // of what was actually bought — defaults to 'purchase' (the common case
-  // for a supplier bill) but staff can now pick any real category so the
-  // P&L breakdown reflects it, same enum/i18n as the manual Log Expense panel.
-  const [category, setCategory] = useState<Enums<"expense_category">>("purchase")
+  // Build Order Step 1.3: staff pick the real category so the P&L breakdown
+  // reflects it (same enum/i18n as the manual Log Expense panel). No default
+  // since 2026-11-26 (choice-dropdowns-not-set): "Not set" blocks Save.
+  const [category, setCategory] = useState<Enums<"expense_category"> | "">("")
+  const [categoryError, setCategoryError] = useState<string | null>(null)
   const [isPrefilled, setIsPrefilled] = useState(false)
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoInputKey, setPhotoInputKey] = useState(0)
@@ -81,12 +84,19 @@ export function BillEntryTab() {
   function clearPrefill() {
     setSupplierId("")
     setPoId("")
-    setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    setItems([emptyPoItem()])
     setIsPrefilled(false)
   }
 
   async function submit() {
-    const parsed = billEntrySchema.safeParse({ supplierId, poId, items: items.filter((i) => i.itemId), gst: gst === "" ? 0 : gst, billDate })
+    const parsedCategory = billCategorySchema.safeParse(category)
+    if (!parsedCategory.success) {
+      setCategoryError(parsedCategory.error.issues[0]?.message ?? "common.chooseOption")
+      focusChoice("bill-category")
+      return
+    }
+    // Only fully-chosen lines are submitted (choice-no-preselect); the schema then checks qty/price/GST/date.
+    const parsed = billEntrySchema.safeParse({ supplierId, poId, items: items.filter(isCompletePoItem), gst: gst === "" ? 0 : gst, billDate })
     if (!parsed.success) {
       setFormError(t(parsed.error.issues[0].message))
       return
@@ -113,16 +123,16 @@ export function BillEntryTab() {
       gst: parsed.data.gst,
       billDate,
       billImageUrl,
-      category,
+      category: parsedCategory.data,
     })
     setPhoto(null)
     setPhotoInputKey((k) => k + 1)
     appliedPoRef.current = null
     setSupplierId("")
     setPoId("")
-    setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    setItems([emptyPoItem()])
     setGst("0")
-    setCategory("purchase")
+    setCategory("")
     setIsPrefilled(false)
   }
 
@@ -190,6 +200,7 @@ export function BillEntryTab() {
                 </option>
               ))}
             </select>
+            <SupplierQuickAdd orgId={orgId} onAdded={setSupplierId} />
           </div>
           <div className="space-y-1.5">
             <Label>{t("purchase.bill.linkedPo")}</Label>
@@ -209,7 +220,7 @@ export function BillEntryTab() {
           </div>
           <div className="space-y-1.5">
             <Label>{t("purchase.bill.date")}</Label>
-            <DatePicker value={billDate} onChange={setBillDate} />
+            <DatePicker value={billDate} onChange={setBillDate} className="w-44" />
           </div>
         </div>
 
@@ -220,20 +231,18 @@ export function BillEntryTab() {
             <Label>{t("purchase.bill.gst")}</Label>
             <Input type="number" min={0} step="0.01" value={gst} onChange={(e) => setGst(e.target.value)} />
           </div>
-          <div className="w-48 space-y-1.5">
-            <Label>{t("reports.pnl.category")}</Label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as Enums<"expense_category">)}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            >
-              {expenseCategories.map((c) => (
-                <option key={c} value={c}>
-                  {t(`reports.pnl.expenseCategory.${c}`)}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ChoiceSelect
+            id="bill-category"
+            label={t("reports.pnl.category")}
+            value={category}
+            options={expenseCategories.map((c) => ({ value: c, label: t(`reports.pnl.expenseCategory.${c}`) }))}
+            onChange={(v) => {
+              setCategory(v)
+              setCategoryError(null)
+            }}
+            error={categoryError ? t(categoryError) : undefined}
+            className="w-48"
+          />
         </div>
 
         <div className="space-y-1.5">

@@ -52,3 +52,58 @@
 - Quote-request resolution already runs every 5 min via GH Actions `wa-scheduled-tasks` → `wa_resolve_purchase_quote_requests`; no pg_cron added (earlier review claim was wrong).
 - Supplier WhatsApp queue writes `pending` when `wa_dispatch_v2_enabled`, else `sent` (legacy dispatcher needs it). Migration added to `waOutboxSentGuard` frozen list — OPEN: owner to confirm or choose "pending only" (would stop supplier quote messages while v2 is off).
 - Known, not fixed here: `purchase_order` outbox rows are never dispatched (not in `MILESTONE_REF_TYPES`); PO WhatsApp to suppliers does not actually go out.
+## Customer water & household (2026-11-26, owner decisions)
+- Single store: the `customers` row. `addresses.water_*` and the health objects are dropped (owner chose "Drop from DB").
+- Problems faced are visible to all (plain column), unlike the old protected health table.
+- Follow-up date has no customer column: the open `customer_water_followup` task's `due_date` IS the date, so postponing on Tasks and the customer form can't disagree.
+- Recommended solution is free text. Postpone requires a reason and a later date.
+- Customer edit UI is master + sales_admin (route guard). The DB guard still also allows operation_admin.
+
+## Pin auto-correct (2026-11-26, owner: "automate and skip the manual work")
+- REVERSES the 2026-09-15 "Reached is a hard block outside the radius" decision for the band radius..pin_autocorrect_max_m (2 km) and for no-pin addresses. Beyond it, or for a locked pin, the hard block stands.
+- No office approval: the pin moves automatically, the office gets an FYI only. Safety comes from not locking. Two visits must agree (the next in-radius arrival locks it).
+- WhatsApp "share your location" to customers is deferred (phase 2; Wasi inbound location is unverified).
+- Doc: `features/pin-autocorrect.md`.
+
+## Arrival location lock (2026-11-26, owner decisions)
+- First confirmed technician arrival locks an address's pin as final; later arrivals never move it. Doc: `features/arrival-location-lock.md`.
+- Only master can reset (reason required); next arrival re-locks.
+- Arrival at a secondary address no longer makes it primary (replaces swap+copy, which also dropped full_address/sub_area/zone/water_*).
+- Address text edits never clear a locked pin.
+- Arrival-mismatch alert migration 20261212120000 verified LIVE 2026-11-26 (function md5 matches file, trigger enabled, 0 block rows so far).
+
+## UX pass build decisions + open bugs (2026-11-26)
+- Admin address type/ownership are required only when the address has details (text or pin), mirroring the RPC's has_address.
+- Two-option selects that were already selects (role, availability, bike ownership, adjustments) keep the select + "Select…" (not converted to buttons).
+- An outcome's configured default_followup_type still pre-fills the next follow-up type (it's master config, not a UI guess).
+- FIXED 2026-11-26 (owner: "fix both", fix/onsite-payment-method): method moved to the invoice step, unselected + required. Was: OnSiteVisitPage payment method is still pre-set to cash. The invoice is queued on the invoice step BEFORE the payment step shows the method, so every on-site invoice records cash (and no transfer txn id) whatever the technician picks later. Fix = move method + txn onto the invoice step, unchosen + required.
+- FIXED 2026-11-26: `servicePaymentSchema` now accepts upi. Was: accepts only cash/transfer, but the on-site page offers UPI when payment_enabled, so a UPI visit can't be completed.
+- Known, not from this pass: Leads page at 390px clips an inner container (document doesn't overflow).
+
+## UX pass decisions (2026-11-26)
+- Owner asked for every either/or to be a dropdown with "Not set". Challenged: the bug is pre-selection, and dropdowns add taps. Owner approved: 2–3 options = buttons with nothing selected + required; 4+ = "Select…" dropdown; optional = "Not set". Existing data untouched.
+- 2026-11-26 (later): owner overrode the buttons rule for the customer form: Address type, Ownership (admin + customer app) and Water source are now dropdowns (shared `ChoiceSelect`; required = disabled "Select…", water source optional = "Not set"). Other 2–3 option button groups (payment method, follow-up type, etc.) stay buttons until the owner says otherwise. Water TDS/pH/hardness inputs have no up/down stepper (`NO_SPINNER`).
+- 2026-11-26 (later still): owner asked for EVERY either/or data-entry choice to be a dropdown with a visible "Not set" (plan: features/choice-dropdowns-not-set.md). Decisions: (1) address type/ownership save "Not set" as null (migration 20261229100000). (2) lead source, follow-up type, complaint/task priority and every other field the record needs: "Not set" is shown but Save is blocked ("must show as not saved"), with no DB change. (3) GST Extra/Included keeps the org-setting default. Out of scope: filters/tabs/view modes, Campaigns.
+- Input density: fix widths, not heights (40px touch targets kept).
+- Plan: PLAN.md "UX pass" section; docs features/choice-no-preselect.md, input-density.md, date-display.md.
+
+## Batch 2026-11-26 decisions (owner)
+- D1 Spreadsheet brand: **code fix only** — labels hide `RO (spreadsheet import)` and repeated model text; no DB rename/archive.
+- D2 GST: **org default in Settings + per-bill Included/Extra switch** on sale, service invoice, AMC, quotation. Old invoices stay exclusive (column default false).
+- D3 Complaint quick-add: **master + operation_admin**, via a narrow SECURITY DEFINER RPC (needs GO APPLY). No broadening of master-table RLS.
+- D4 Quick-add scope: **"wherever possible"** — every picker of a master list whose user could reasonably need a new value; non-master roles go through narrow RPCs, never RLS widening.
+- GST incl/excl never existed in any branch (checked `git log --all -S`); it is new work, not a regression.
+
+## Referral sources batch (2026-11-26)
+- Owner: Walk-in/Lead stay Sources, not referrers (would count walk-ins as referrals).
+- Owner: referrer options on all 6 screens (leads, New Customer, Sale, Complaint, AMC); customer referrer linked by id (`referred_by_customer_id`), not free text.
+- Owner: customer referrers get auto-credited points (amount + trigger still open, see PLAN.md Q1/Q2).
+- Supersedes 2026-11-11 "Referred-by fully source-driven": the Referral source now shows a referrer-type chooser.
+- Owner (approval, 2026-11-26): auto-credit is a master **toggle** in Settings + master-set amount; OFF by default. Credit on the referred customer's first invoice (my recommendation, owner did not object). Q3 (other-window ownership) treated as cleared by plan approval.
+- Owner (2026-11-26): "turn on the 50 points referal" -> live settings row for the real org (b6822905…, 15,849 customers) set to enabled=true, 50 points. Empty test org 7fde8bf5… left OFF/0. Changeable in Masters -> Settings.
+- 2026-11-26: owner sent "go apply" before R2 existed — not treated as approval of the unseen file; R2 built + rehearsed, waiting for "go apply" on 20261228100000 by name.
+- Billing RPCs wrapped (*_with_referrer), not edited — keeps the 18 KB create_sale untouched; same-transaction call keeps it atomic.
+
+## i18n JSON convention (2026-11-26)
+- en.json/ta.json must not contain duplicate keys. Merges had pasted whole blocks twice, and JSON.parse silently keeps only the last copy. Enforced by `src/lib/i18n/keysComplete.test.ts`.
+- zod messages in `src/lib/validation/*` are i18n keys, so any dotted string there must exist in en+ta (same test).

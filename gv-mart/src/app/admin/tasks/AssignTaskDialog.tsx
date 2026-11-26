@@ -8,7 +8,8 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { useToast } from "@/components/ui/toast-context"
 import { useAssignableProfiles, useAssignTask } from "@/hooks/useTasks"
 import type { PriorityLevel } from "@/services/tasks"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 
 const PRIORITIES: PriorityLevel[] = ["normal", "urgent", "very_urgent"]
 
@@ -43,7 +44,9 @@ export function AssignTaskDialog({
   const [title, setTitle] = useState(initialTitle)
   const [description, setDescription] = useState(initialDescription)
   const [assigneeId, setAssigneeId] = useState("")
-  const [priority, setPriority] = useState<PriorityLevel>("normal")
+  // No default (owner 2026-11-26): "Not set" until chosen, and Save is blocked until then.
+  const [priority, setPriority] = useState<PriorityLevel | "">("")
+  const [priorityError, setPriorityError] = useState(false)
   const [dueDate, setDueDate] = useState("")
   const [dueTime, setDueTime] = useState("")
   const [isRecurring, setIsRecurring] = useState(false)
@@ -52,6 +55,11 @@ export function AssignTaskDialog({
 
   function handleSubmit() {
     if (!canSubmit) return
+    if (!priority) {
+      setPriorityError(true)
+      focusChoice("taskPriority")
+      return
+    }
     const dueAt = dueDate && dueTime ? new Date(`${dueDate}T${dueTime}`).toISOString() : null
     assignTask.mutate(
       {
@@ -113,27 +121,25 @@ export function AssignTaskDialog({
           </select>
         </div>
 
-        <div className="space-y-1.5">
-          <Label>{t("tasks.assignDialog.priority")}</Label>
-          <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
-            {PRIORITIES.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPriority(p)}
-                className={cn("rounded-full px-4 py-1.5 text-sm font-medium transition-colors", priority === p ? "bg-ink text-white" : "text-text-muted")}
-              >
-                {t(`service.priority.${p}`)}
-              </button>
-            ))}
-          </div>
-        </div>
+        <ChoiceSelect
+          id="taskPriority"
+          label={t("tasks.assignDialog.priority")}
+          value={priority}
+          options={PRIORITIES.map((p) => ({ value: p, label: t(`service.priority.${p}`) }))}
+          onChange={(v) => {
+            setPriority(v)
+            setPriorityError(false)
+          }}
+          error={priorityError ? t("common.chooseOption") : undefined}
+          className="w-56"
+        />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="taskDueDate">{t("tasks.assignDialog.dueDate")}</Label>
             <DatePicker
               id="taskDueDate"
+              className="w-44"
               value={dueDate}
               onChange={(value) => {
                 setDueDate(value)

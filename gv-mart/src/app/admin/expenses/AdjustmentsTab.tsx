@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useProfile } from "@/hooks/useProfile"
 import { supabase } from "@/lib/supabase"
 import { useQuery } from "@tanstack/react-query"
 import { useAddMonthlyAdjustment, useMonthlyAdjustments } from "@/hooks/useMonthlyExpenses"
 import type { AdjustmentTarget } from "@/services/monthlyExpenses"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { focusChoice } from "@/lib/utils"
 
 /** Monthly Expenses spec Unit 4/§1.7 — top-ups and exclusions, scoped (per
  *  the owner's revision) to `recharge` and `bike_allowance` only. Petrol and
@@ -31,13 +34,21 @@ export function AdjustmentsTab() {
   const addAdjustment = useAddMonthlyAdjustment()
 
   const [profileId, setProfileId] = useState("")
-  const [target, setTarget] = useState<AdjustmentTarget>("recharge")
-  const [type, setType] = useState<"top_up" | "exclude">("top_up")
+  // Both unchosen until picked (choice-no-preselect).
+  const [target, setTarget] = useState<AdjustmentTarget | "">("")
+  const [type, setType] = useState<"top_up" | "exclude" | "">("")
+  const [choiceError, setChoiceError] = useState<"target" | "type" | null>(null)
   const [amount, setAmount] = useState("")
   const [reason, setReason] = useState("")
 
   async function submit() {
     if (!profile?.org_id || !profileId || !reason.trim()) return
+    if (!target || !type) {
+      const missing = !target ? "target" : "type"
+      setChoiceError(missing)
+      focusChoice(`adj-${missing}`)
+      return
+    }
     await addAdjustment.mutateAsync({
       orgId: profile.org_id,
       profileId,
@@ -49,6 +60,8 @@ export function AdjustmentsTab() {
     })
     setAmount("")
     setReason("")
+    setTarget("")
+    setType("")
   }
 
   return (
@@ -63,7 +76,7 @@ export function AdjustmentsTab() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="space-y-1">
             <Label htmlFor="adj-person">{t("expenses.adjustments.person")}</Label>
-            <select id="adj-person" value={profileId} onChange={(e) => setProfileId(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+            <select id="adj-person" value={profileId} onChange={(e) => setProfileId(e.target.value)} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
               <option value="">{t("expenses.adjustments.selectPerson")}</option>
               {(people.data ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
@@ -72,24 +85,37 @@ export function AdjustmentsTab() {
               ))}
             </select>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="adj-target">{t("expenses.adjustments.target")}</Label>
-            <select id="adj-target" value={target} onChange={(e) => setTarget(e.target.value as AdjustmentTarget)} className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-              <option value="recharge">{t("expenses.adjustments.targetValues.recharge")}</option>
-              <option value="bike_allowance">{t("expenses.adjustments.targetValues.bike_allowance")}</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="adj-type">{t("expenses.adjustments.type")}</Label>
-            <select id="adj-type" value={type} onChange={(e) => setType(e.target.value as "top_up" | "exclude")} className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
-              <option value="top_up">{t("expenses.adjustments.topUp")}</option>
-              <option value="exclude">{t("expenses.adjustments.exclude")}</option>
-            </select>
-          </div>
+          <ChoiceSelect
+            id="adj-target"
+            className="space-y-1"
+            label={t("expenses.adjustments.target")}
+            value={target}
+            options={(["recharge", "bike_allowance"] as const).map((v) => ({ value: v, label: t(`expenses.adjustments.targetValues.${v}`) }))}
+            onChange={(v) => {
+              setTarget(v)
+              if (choiceError === "target") setChoiceError(null)
+            }}
+            error={choiceError === "target" ? t("common.chooseOption") : undefined}
+          />
+          <ChoiceSelect
+            id="adj-type"
+            className="space-y-1"
+            label={t("expenses.adjustments.type")}
+            value={type}
+            options={[
+              { value: "top_up", label: t("expenses.adjustments.topUp") },
+              { value: "exclude", label: t("expenses.adjustments.exclude") },
+            ]}
+            onChange={(v) => {
+              setType(v)
+              if (choiceError === "type") setChoiceError(null)
+            }}
+            error={choiceError === "type" ? t("common.chooseOption") : undefined}
+          />
           {type === "top_up" ? (
             <div className="space-y-1">
               <Label htmlFor="adj-amount">{t("expenses.adjustments.amount")}</Label>
-              <Input id="adj-amount" type="number" min={0} step="10" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input id="adj-amount" type="number" inputMode="numeric" min={0} step="10" className={FIELD_W.amount} value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
           ) : null}
         </div>

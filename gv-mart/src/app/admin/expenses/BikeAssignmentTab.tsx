@@ -6,13 +6,16 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useProfile } from "@/hooks/useProfile"
+import { focusChoice } from "@/lib/utils"
 import { useTechniciansList } from "@/hooks/useTechniciansAdmin"
 import {
   useCloseTechnicianVehicleRow,
   useSetTechnicianVehicle,
   useTechnicianVehicleHistory,
 } from "@/hooks/useMonthlyExpenses"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Monthly Expenses spec Unit 1 — bike ownership + petrol rate, effective-
@@ -56,7 +59,9 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
   const setVehicle = useSetTechnicianVehicle()
   const closeRow = useCloseTechnicianVehicleRow()
 
-  const [ownership, setOwnership] = useState<"own" | "company">("own")
+  // Unchosen until picked (choice-no-preselect).
+  const [ownership, setOwnership] = useState<"own" | "company" | "">("")
+  const [ownershipError, setOwnershipError] = useState(false)
   const [rate, setRate] = useState("0")
   const [effectiveFrom, setEffectiveFrom] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -65,6 +70,11 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
 
   async function submit() {
     if (!orgId || !effectiveFrom) return
+    if (!ownership) {
+      setOwnershipError(true)
+      focusChoice(`ownership-${technicianId}`)
+      return
+    }
     setError(null)
     try {
       // End the currently-open row the day before the new one starts, so the
@@ -82,6 +92,7 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
         effective_from: effectiveFrom,
       })
       setEffectiveFrom("")
+      setOwnership("")
     } catch (e) {
       setError((e as Error).message)
     }
@@ -101,21 +112,21 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="space-y-1">
-          <Label htmlFor={`ownership-${technicianId}`}>{t("expenses.bikeAssignment.ownership")}</Label>
-          <select
-            id={`ownership-${technicianId}`}
-            value={ownership}
-            onChange={(e) => setOwnership(e.target.value as "own" | "company")}
-            className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          >
-            <option value="own">{t("expenses.bikeAssignment.ownershipValues.own")}</option>
-            <option value="company">{t("expenses.bikeAssignment.ownershipValues.company")}</option>
-          </select>
-        </div>
+        <ChoiceSelect
+          id={`ownership-${technicianId}`}
+          className="space-y-1"
+          label={t("expenses.bikeAssignment.ownership")}
+          value={ownership}
+          options={(["own", "company"] as const).map((o) => ({ value: o, label: t(`expenses.bikeAssignment.ownershipValues.${o}`) }))}
+          onChange={(v) => {
+            setOwnership(v)
+            setOwnershipError(false)
+          }}
+          error={ownershipError ? t("common.chooseOption") : undefined}
+        />
         <div className="space-y-1">
           <Label htmlFor={`rate-${technicianId}`}>{t("expenses.bikeAssignment.rate")}</Label>
-          <Input id={`rate-${technicianId}`} type="number" min={0} step="0.5" value={rate} onChange={(e) => setRate(e.target.value)} />
+          <Input id={`rate-${technicianId}`} type="number" inputMode="decimal" min={0} step="0.5" className={FIELD_W.amount} value={rate} onChange={(e) => setRate(e.target.value)} />
         </div>
         <div className="space-y-1">
           <Label>{t("expenses.bikeAssignment.effectiveFrom")}</Label>

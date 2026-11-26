@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { CheckCircle2, KeyRound } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
+import { formatTime } from "@/lib/formatDate"
 
 export type VisitOtpInfo = {
   code: string | null
@@ -87,7 +88,7 @@ export function CompletionOtpCard({ visitId, initialOtp }: { visitId: string; in
             </p>
             <p className="px-1 text-xs text-text-muted">{t("customerApp.bookingDetail.otpHint")}</p>
             <p className="px-1 text-xs text-text-muted">
-              {t("customerApp.bookingDetail.otpExpiresAt", { time: new Date(otp.expires_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) })}
+              {t("customerApp.bookingDetail.otpExpiresAt", { time: formatTime(otp.expires_at) })}
             </p>
           </>
         )}

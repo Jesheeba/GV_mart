@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast-context"
 import { incentiveRulesHooks } from "@/hooks/useMasters"
 import type { IncentiveRuleWithActive } from "@/services/masters"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /** Master control for the flat 'installation' incentive rule (incentive_rules,
  * type='installation'): amount, monthly threshold and an on/off switch. Paid once
@@ -68,11 +69,11 @@ export function FlatInstallationBonusCard({ orgId }: { orgId: string | undefined
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="flat-bonus-amount">{t("masters.installationRates.flat.amount")}</Label>
-          <Input id="flat-bonus-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={isLoading} />
+          <Input id="flat-bonus-amount" type="number" inputMode="decimal" min={0} step="0.01" className={FIELD_W.amount} value={amount} onChange={(e) => setAmount(e.target.value)} disabled={isLoading} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="flat-bonus-threshold">{t("masters.installationRates.flat.threshold")}</Label>
-          <Input id="flat-bonus-threshold" type="number" min={1} step="1" value={threshold} onChange={(e) => setThreshold(e.target.value)} disabled={isLoading} />
+          <Input id="flat-bonus-threshold" type="number" inputMode="numeric" min={1} step="1" className={FIELD_W.qty} value={threshold} onChange={(e) => setThreshold(e.target.value)} disabled={isLoading} />
         </div>
         <div className="flex items-end">
           <Button onClick={save} disabled={!orgId || isLoading || busy}>

@@ -6,11 +6,14 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { SparePicker } from "@/components/shared/SparePicker"
 import { brandsHooks, modelsHooks, productsHooks, sparesHooks, amcPlansHooks } from "@/hooks/useMasters"
 import { useInventoryList } from "@/hooks/useInventory"
 import { formatCurrency } from "@/lib/sale-calc"
-import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
+import { productExtraParts, productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { CartAmc, CartProductLine, SaleCartState } from "./types"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none disabled:opacity-50"
 
@@ -175,7 +178,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                 )}
                 inputClassName="h-8"
               />
-              <Input type="number" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+              <Input type="number" inputMode="numeric" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
             </div>
             <div className="flex items-center justify-between px-1 pt-2">
               <p className="text-xs text-text-muted">
@@ -192,15 +195,16 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
 
           <TabsContent value="spare">
             <div className="grid grid-cols-2 gap-2 px-1 pt-3 sm:grid-cols-3">
-              <select className={`${selectClass} sm:col-span-2`} value={spareId} onChange={(e) => setSpareId(e.target.value)}>
-                <option value="">{t("sales.items.selectSpare")}</option>
-                {activeSpares.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} — {formatCurrency(Number(s.price))} ({t("sales.items.stockShort", { count: stockFor(s.id, spareStock) ?? 0 })})
-                  </option>
-                ))}
-              </select>
-              <Input type="number" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+              <SparePicker
+                className="sm:col-span-2"
+                inputClassName="h-8"
+                spares={activeSpares}
+                value={spareId}
+                onChange={setSpareId}
+                placeholder={t("sales.items.selectSpare")}
+                renderMeta={(s) => `${formatCurrency(Number(s.price))} (${t("sales.items.stockShort", { count: stockFor(s.id, spareStock) ?? 0 })})`}
+              />
+              <Input type="number" inputMode="numeric" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
             </div>
             <div className="flex justify-end px-1 pt-2">
               <Button ref={spareAddBtnRef} type="button" size="sm" disabled={!selectedSpare} onClick={addSpare}>
@@ -222,7 +226,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
             <div>
               <p className="text-sm font-semibold text-text">{line.name}</p>
               <p className="text-xs text-text-muted">
-                {line.brandName} · {line.modelName} · {t(`masters.categories.${line.category}`)}
+                {[...productExtraParts(line.name, line.brandName, line.modelName), t(`masters.categories.${line.category}`)].join(" · ")}
               </p>
             </div>
             <Button type="button" size="icon-xs" variant="ghost" onClick={() => removeProductLine(i)}>

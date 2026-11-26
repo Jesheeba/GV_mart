@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { Loader2, Pencil, Plus, Star, Trash2, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { memberSchema, FAMILY_RELATIONS, type MemberInput } from "@/lib/validation/customer"
 import { useAddMember, useLogMemberGoogleReview, useMoveMemberOut, useRemoveMember, useSetPrimaryMember, useUpdateMember } from "@/hooks/useCustomers"
 import type { MemberRow } from "@/services/customers"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 /** Inline edit form for ONE existing member — own useForm instance seeded
  * from that member's current values, mounted only while editing them.
@@ -21,6 +24,7 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
   const updateMember = useUpdateMember(member.customer_id)
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<MemberInput>({
@@ -30,8 +34,9 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
       name: member.name,
       mobile: member.mobile,
       relation: member.relation ?? undefined,
-      // the primary member IS the customer: fall back to the customer-level profession older records kept
-      profession: member.profession ?? (member.is_primary ? customerProfession ?? "" : ""),
+      // The primary member IS the customer. The customer row's profession is the one the customer app edits, so it
+      // wins for the primary; saving an older member copy would revert it. The DB keeps both in step from 20261216120000.
+      profession: (member.is_primary ? (customerProfession || member.profession) : member.profession) ?? "",
       email: member.email ?? "",
     },
   })
@@ -47,7 +52,6 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
           profession: values.profession || null,
           email: values.email || null,
         },
-        syncCustomer: member.is_primary ? { customerId: member.customer_id } : undefined,
       },
       { onSuccess: onDone }
     )
@@ -60,8 +64,8 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
           <Input placeholder={t("customers.form.memberName")} aria-invalid={!!errors.name} {...register("name")} />
           {errors.name ? <p className="text-xs text-danger">{t(errors.name.message!)}</p> : null}
         </div>
-        <div className="flex-1 space-y-1">
-          <Input placeholder={t("customers.form.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
+        <div className={cn(FIELD_W.mobile, "shrink-0 space-y-1")}>
+          <Input placeholder={t("customers.form.memberMobile")} inputMode="numeric" maxLength={10} aria-invalid={!!errors.mobile} {...register("mobile")} />
           {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
         </div>
       </div>
@@ -75,19 +79,20 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
         </div>
       </div>
       {!member.is_primary ? (
-        <select
-          aria-label={t("customers.form.memberRelation")}
-          defaultValue={member.relation ?? ""}
-          className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-          {...register("relation")}
-        >
-          <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
-          {FAMILY_RELATIONS.map((r) => (
-            <option key={r} value={r}>
-              {t(`customers.form.relation.${r}`)}
-            </option>
-          ))}
-        </select>
+        <Controller
+          control={control}
+          name="relation"
+          render={({ field }) => (
+            <ChoiceSelect
+              id={`member-relation-${member.id}`}
+              label={t("customers.form.memberRelation")}
+              labelClassName="text-xs text-text-muted"
+              value={field.value}
+              options={FAMILY_RELATIONS.map((r) => ({ value: r, label: t(`customers.form.relation.${r}`) }))}
+              onChange={field.onChange}
+            />
+          )}
+        />
       ) : null}
       {updateMember.isError ? <p className="text-xs text-danger">{(updateMember.error as Error).message}</p> : null}
       <div className="flex justify-end gap-2">
@@ -146,6 +151,7 @@ export function FamilyMembersPanel({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -351,8 +357,8 @@ export function FamilyMembersPanel({
               <Input placeholder={t("customers.form.memberName")} aria-invalid={!!errors.name} {...register("name")} />
               {errors.name ? <p className="text-xs text-danger">{t(errors.name.message!)}</p> : null}
             </div>
-            <div className="flex-1 space-y-1">
-              <Input placeholder={t("customers.form.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
+            <div className={cn(FIELD_W.mobile, "shrink-0 space-y-1")}>
+              <Input placeholder={t("customers.form.memberMobile")} inputMode="numeric" maxLength={10} aria-invalid={!!errors.mobile} {...register("mobile")} />
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>
@@ -365,19 +371,20 @@ export function FamilyMembersPanel({
               {errors.email ? <p className="text-xs text-danger">{t(errors.email.message!)}</p> : null}
             </div>
           </div>
-          <select
-            aria-label={t("customers.form.memberRelation")}
-            defaultValue=""
-            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            {...register("relation")}
-          >
-            <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
-            {FAMILY_RELATIONS.map((r) => (
-              <option key={r} value={r}>
-                {t(`customers.form.relation.${r}`)}
-              </option>
-            ))}
-          </select>
+          <Controller
+            control={control}
+            name="relation"
+            render={({ field }) => (
+              <ChoiceSelect
+                id="member-relation-new"
+                label={t("customers.form.memberRelation")}
+                labelClassName="text-xs text-text-muted"
+                value={field.value}
+                options={FAMILY_RELATIONS.map((r) => ({ value: r, label: t(`customers.form.relation.${r}`) }))}
+                onChange={field.onChange}
+              />
+            )}
+          />
           {addMember.isError ? <p className="text-xs text-danger">{(addMember.error as Error).message}</p> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>

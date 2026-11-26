@@ -1,6 +1,79 @@
 # TESTING — Leads Dashboard Enhancement
 
+## missing-i18n-keys (2026-11-26)
+- `keysComplete.test.ts` (AC1, AC2): 6/6 pass. Against origin/main's JSON, 5/6 fail (missing en, missing ta, en dups, ta dups, budget key), so the guard catches the original bugs.
+- `parity.test.ts` (AC3): passes with the allowlist removed. All src/lib/i18n tests: 72/72.
+- `tsc -p tsconfig.app.json` clean. Full vitest: 1383 passed, 2 failed. Both failures (waOutboxSentGuard, wa-event-context) also fail on main.
+
+## onsite-payment-method (2026-11-26)
+- `technician.test.ts`: UPI accepted, missing method rejected (path "method"), transfer without reference rejected. The old "rejects an invalid method value" test used "upi" as its invalid example, which was wrong because UPI is an offered method; it now uses "cheque".
+- `tsc -b` clean, `vite build` OK, vitest serial 1212 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context). i18n parity OK.
+- NOT browser-checked: reaching the on-site invoice step needs a technician arrival + open visit, which would write real data.
+
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
+
+## referral-sources R3+R4 (screens + points switch) — 2026-11-26
+- `src/lib/referrer.test.ts` 22/22 (+8): wrapper args per kind (technician keeps plain RPC = AC5), incomplete referrer sends nothing, points toggle needs amount > 0, amount 0..100000 whole number, en/ta strings.
+- `tsc -b` clean, oxlint clean (no new warnings), `vite build` OK.
+- Full vitest in a clean worktree with the R3 diff applied: 1231 passed / 2 failed (pre-existing waOutboxSentGuard, wa-event-context; same 2 on origin/main).
+- Found: inside the feature worktree (dev server running there) the full run also fails 24 OTA tests; they pass alone, with `--no-cache` for subsets, and in any clean worktree with identical code. Environment-only, not caused by this change; not chased further.
+- Not browser-checked by me: signing in uses the live auth host. Owner checks in the local tab.
+- Merge into main (2026-11-26): full vitest with `--no-cache` twice = 1377 passed / 2 failed (same pre-existing pair as main). Root cause of the extra OTA / wa-milestone failures seen earlier: worktrees share one node_modules via junction, so vitest's transform cache served another branch's compiled code (a test failed on `abortSignal`, which isn't in this tree). Use `--no-cache` in junctioned worktrees.
+
+## referral-sources R2 (migration, NOT applied) — 2026-11-26
+- `supabase/tests/referral_sources.test.sql` via rolled-back rehearsal (begin + migration + test, ends in RAISE): **40/40 pass** on the first run. Covers AC-1/5/6/7/8/9, guards, first-referrer-wins, history rule, atomic rollback of a failed sale, carry-over, points toggle/once/paid-later, delete of referrer, grants, billing RPC md5 unchanged.
+- Leak check afterwards (read-only): 0 new columns/functions, 0 test orgs/users, carry-over md5 still 9a4e65a1.
+- Rollback exercise (migration + rollback, ends in RAISE): 0 cols / 0 fns / 0 triggers left, carry-over md5 back to 9a4e65a1, no anon/authenticated EXECUTE.
+
+## referral-sources R1 (picker + quick-add) — 2026-11-26
+- `src/lib/referrer.test.ts` 14/14: AC1/AC2 kinds (no walk-in/lead), kind switch clears fields, completeness, AC3 quick-add schema (name/mobile/optional area, invalid mobiles), AC4 existing-customer match, en/ta key parity.
+- Regression: `tsc -b` clean, oxlint clean, full vitest 1223 passed / 2 failed. The 2 failures (waOutboxSentGuard, wa-event-context) also fail on clean origin/main c83a0a3, so they were there before this change.
+- Not browser-checked: signing in uses the live auth host. Owner to check New Lead → Source Referral / Customer app → Add new customer.
+## choice-dropdowns-not-set — 2026-11-26
+- New test files (all pass):
+  - `choiceNotSet.{money,service,leads,admin}.test.ts`: 13 / 17 / 18 / 18 tests.
+  - `services/addressChoiceNotSet.test.ts`: 5.
+  - `i18n/choiceNotSetKeys.test.ts`: 58 keys in en+ta.
+  - `ChoiceSelect.test.ts`: 8.
+- Each test is named for its acceptance criterion: nothing pre-selected; Not set blocks required fields; Not set saves empty for optional ones; edit keeps the saved value; outcome pre-fill kept; segment rule incomplete until every part is set; tier Not set → `tier_id` null.
+- Changed tests:
+  - `choiceNoPreselect.test.ts`: the 3 address "must choose" tests were rewritten for the owner's reversed rule.
+  - `crudForm.test.ts`: test name only.
+  - Owner-reversed rules only; none were weakened.
+- DB rehearsal `address_choice_not_set` (rolled back): 12/0.
+- Full suite: 1320 pass. tsc clean. Build OK.
+  - The same 26 environment failures as plain main in this worktree (ota, WA dispatcher, outbox guard, event context).
+- Not automated (no DOM test env): start values that are component state only (task priority, staff role, availability, bike, adjustments, attribute/relation/doc type, phrase category). Covered by code review.
+
+- `src/components/shared/ChoiceSelect.test.ts` (8): required placeholder disabled + nothing pre-selected; optional "Not set"; saved value selected on edit; null/undefined value; label/id link for focus; error alert + aria; NO_SPINNER classes. All pass.
+- Built CSS contains the spinner-hiding rules. tsc clean, vite build OK.
+- Full suite: 1193 pass. The 26 failures (ota, WhatsApp dispatcher, outbox guard, event context) are identical on plain main in the same worktree with this change stashed: environment issue, not this change.
+
+## UX pass (choice-no-preselect, input-density, date-display) — 2026-11-26
+- Unit tests added: `choiceNoPreselect.test.ts`, `crudForm.test.ts` (AC1-6), `fieldWidth.test.ts` (AC1), `formatDate.test.ts` (AC2-4: year rule, IST midnight across 3 TZs, null, range, invoice date).
+- Integrated branch (all 3 merged + header fix): `tsc -b` clean, `vite build` OK, vitest serial 1145 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).
+- Browser (local dev, view only, nothing saved): per-feature checks by each builder (screens in scratchpad choice/, density/, dates/; about 750 date strings measured, 0 wrapped; overflow check passed on every density page at 390 and 1280). Integrated smoke: 16 admin pages at 1280, 8 at 390, 5 technician pages at 390 — 0 crashes, 0 console errors, 0 horizontal overflow.
+- Not browser-checked: customer-app screens (no customer test login), on-site visit payment (needs an open job), New Sale payment step / Record payment (would need real data).
+
+## pin-autocorrect
+- 2026-11-26. vitest: `arrivalMode` (8 cases: AC1/4/5 + boundary) and `pinStatus` (6 cases), outbox contract, i18n parity all pass. Full serial suite 1098 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).
+- `tsc`: clean apart from the pre-existing unused `fullAddress` in CustomerFormPage.tsx (from origin/main, untouched).
+- `supabase/tests/pin_autocorrect.test.sql` run LIVE once after apply, one DO block ending in RAISE: ALL PASSED (AC1 move+event+notification, no task; AC2 next arrival locks; AC3 locked untouched; AC4 inside/too far/120m/null accuracy no-op; AC5 no-pin set; AC6 other technician not_assigned, master rejected; AC7 anon no EXECUTE). Checked afterwards: 0 corrected events, 0 pin_autocorrected notifications, settings unchanged (2000/250).
+- NOT browser-verified: Chrome extension not connected and the `.env.test` master login was rejected on local dev.
+
+## arrival-location-lock
+- 2026-11-26. `supabase/tests/arrival_location_lock.test.sql` run LIVE after apply, inside one DO block ending in RAISE (fully rolled back; verified afterwards: 0 events, 0 locked, no test rows, fixture pin/ticket unchanged). Result: ALL PASSED - AC1 lock+event (distance 50-60m), AC2 no second move, AC3 secondary locked with is_primary untouched and no new rows, AC4 out-of-radius / 120m accuracy not locked, AC5 direct lat/lng and verified_at changes rejected (master and postgres), AC6 text edit keeps pin, AC7 opadmin + blank reason rejected / master reset keeps pin + logs reason, AC8 other technician no-op + non-technician rejected, insert can't be pre-verified.
+- AC9 (post-apply read): anon has no EXECUTE on arrival/reset RPCs; authenticated can't insert events or execute the guard fn.
+- `tsc` clean. vitest serial run (`--no-file-parallelism`): 2 failed / 1084 passed = identical to main baseline (pre-existing: waOutboxSentGuard, wa-event-context). Parallel full run in this worktree shows 24 extra mock failures in otaManager + customer-link-otp tests that pass in isolation and in serial - environment flake, not this change.
+- NOT browser-verified: no address is locked live yet, and creating one would be a real DB write.
+## customer-form-map-search-prefill
+- 2026-11-25. `tsc --noEmit` clean. No automated test: vitest runs in plain Node with no DOM/RTL harness.
+- Manual browser check on local dev server (master test account, nothing saved), all pass:
+  - Typing Door/Street/PIN fills the map search box ("3/353, 10th Street, 620019, Trichy, Tamil Nadu"); no dropdown pops up on its own.
+  - Focusing the pre-filled box shows matching Google suggestions.
+  - Picking a suggestion fills blank Main Area/Zone AND stays "Location pinned / Location confirmed" (failed before the fix: showed "Exact location not pinned").
+  - Editing Landmark after pinning clears the pin and updates the box text (existing stale-pin safety kept).
+- Not checked: edit-mode customer with an existing pin; AddressForm/AddressPinDialog callers (logic change there is only "no re-search after selecting").
 
 ## lead-category-chips
 - DONE 2026-11-10. Chip order/active-filter logic extracted to a pure function (`leadCategoryChips.ts`) and unit-tested (`leadCategoryChips.test.ts`, 4 tests, all pass): fixed Service→Product→Spare→AMC order regardless of input order, drops inactive categories, empty-list case, ignores unknown keys. `tsc --noEmit` clean. No RTL component tests — this codebase has no `@testing-library/react` dependency; pure-logic extraction follows the existing `kpiTilesView.ts` convention instead.
@@ -63,3 +136,55 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Migration, rollback, test SQL: parsed with libpg-query (Postgres 17 parser): all statements OK; 13/13 non-trigger PL/pgSQL bodies OK; 3 trigger bodies hit a parser-library JSON bug that live, known-valid trigger functions hit identically.
 - Bug found while testing: first draft of `_queue_supplier_whatsapp` always wrote `'sent'` (guard test caught it); now `pending` under v2 dispatch, `sent` only when v2 is off (live: off).
 - Not covered automatically (no DOM test env): the UI flows — manual check needed after apply.
+## picker-search (F1) — 2026-11-26
+- `src/lib/productSearch.test.ts`: 13/13 pass (A1 multi-word spare search, A2 multi-word product search, A3/A4 labels, A5 spaces/case edge cases).
+- Regression: full suite 1097 pass / 2 fail / 17 skipped. The 2 failures (`waOutboxSentGuard.test.ts`, `wa-event-context.test.ts`) are WhatsApp tests that import none of the changed files; they were already failing on origin/main feaaa84.
+- `tsc --noEmit`: only the pre-existing `CustomerFormPage.tsx` unused `fullAddress` error (already failing on origin/main, has its own fix branch).
+- Not browser-verified: signing in would send the test login to the live Supabase auth host. Owner to try New Sale → Spare tab.
+
+## quick-add F3a: complaint name — 2026-11-26
+- `src/lib/quickAdd.test.ts`: 6/6 pass (offer only new names, dedupe case/space-insensitive, blank, 120-char limit).
+- `supabase/tests/quick_add_complaint_type.test.sql`: **11/11 PASS on live, 2026-11-26**, run alone (not concatenated) after apply. Before/after counts identical (test orgs 0, complaint_types 71, test users 0, profiles 14), so nothing persisted. It covers ACL (no anon/PUBLIC), ops add, dedupe, cross-org isolation, sales/tech rejected, blank/long/null-category, RLS unchanged. It ends in RAISE RESULTS, so it is safe to run as migration+test in one request after GO APPLY.
+- Regression: full suite 1103 pass / 2 fail. The failures are the same 2 WhatsApp tests that were already failing on origin/main.
+- Migration applied live 2026-11-26 on owner's "go apply". ACL verified: anon no, authenticated yes, no PUBLIC grant.
+
+## gst-inclusive-toggle F2 — 2026-11-26
+- `src/lib/gstInclusive.test.ts`: 12/12 pass (AC numbers 11,800→1,800; 12,500→1,906.78; discount then GST; Extra unchanged; rate 0; 100% discount; payable follows the switch; redemption floor). Existing `sale-calc.test.ts` still green.
+- `supabase/tests/gst_inclusive_toggle.test.sql`: **19/19 PASS on live, 2026-11-26**, run alone after apply. Three earlier runs stopped on test-fixture mistakes (new-org 5% discount cap, products need brand+model, `rental_plans.monthly_rate` is generated); only the fixtures were fixed. Before/after row counts were identical on all 4 runs, so nothing persisted. It covers ACLs, one overload each, all 6 functions on `_gst_amount`, SQL math = JS math, create_sale included/extra/org-default/partial payment, create_quotation explicit/default/legacy NULL, and run_rental_billing on the org default.
+- Full suite 1114 pass / 2 fail (the same WhatsApp tests that were already failing on origin/main); tsc clean apart from the CustomerFormPage error that was already there.
+
+## customer-water-household + water-solution-followup (2026-11-26)
+- `src/lib/validation/customer.test.ts`: 18 pass (hardness, problems cap/length, health removed, cleanHouseholdProblems).
+- `src/app/admin/customers/waterHouseholdForm.test.ts`: WH-1 prefill round-trip, patch mapping, empty-patch detection, dirty rule, FU date rules (follow-up + postpone), schema limits. All pass.
+- `src/services/customerWaterHousehold.test.ts`: exact writes and order (profile before RPC), no address/health writes, when the RPC is or isn't called, error surfacing, moved-out filter (admin + customer app). All pass.
+- Subtotal for those 3 files: 42/42 pass. Full suite: 1110 pass, 2 fail. The 2 failures (`waOutboxSentGuard`, `wa-event-context`) also fail on clean origin/main (verified in a temp worktree), so they are unrelated. `tsc` clean, `vite build` ok.
+- DB: `supabase/tests/customer_water_household_v2.{fixtures,test}.sql`, about 70 checks (backfill mapping, real-org untouched, checks, guard, RPC security incl. cross-org/anon, unique index, postpone/convert/clear, reminder idempotency, cron). Rehearsal file is `_local_only/rehearsal-files/2026-11-26_customer_water_household_v2.rehearsal.sql` and passes the guard check. Run 2026-11-26, see below.
+- Live read-only precheck (2026-11-26): every object to drop exists, nothing else depends on them; 2 address rows hold water data, 1 health row, tech flag off in all orgs.
+
+## customer-data-sync (2026-11-26)
+- `address.test.ts`: 20 pass. The old "area alone is structured / full_address is stale" test was replaced (it encoded the bug), and resolveFullAddress plus round-trip tests were added.
+- `customerWaterHousehold.test.ts`: added the single-write updateMember test. Moved-out filter is covered for admin + customer app.
+- PostgREST filter paths (`member_count.moved_out_at`, `customers.customer_members.moved_out_at`) were checked against live with the anon key. They parse (reach RLS), and a bogus path is rejected with PGRST108.
+- DB: about 20 SYNC/ADDR checks were added to `customer_water_household_v2.test.sql` (90 checks total). **Not run yet.**
+- Full suite: 1118 pass, the same 2 pre-existing failures as main. `tsc` clean, `vite build` ok.
+- Manual only (no DOM test env): draft restore of complaint type/referrer, lead fields card Cancel/Edit.
+- **DB rehearsal run 2026-11-26 (rolled back): 90 pass / 0 fail.** Harness fixes on the way: (1) granted EXECUTE on the pg_temp helpers, since this project revokes default EXECUTE; (2) one test sent an email with spaces, which the existing customer_members_email_format check rejects (the app trims first); (3) the real-org check now names the changed columns. The only live non-water change is 1 blank profession filled (intended, from 20261216120000).
+- **Final rehearsal on merged/renumbered migrations: 90/0.** Apply-file dry run (rolled back) passed all checks. **Applied live 2026-11-26** in one DO block; post-check: 3 versions registered, 3 customers columns present, address water columns and health table gone, cron `water-followup-due` active, RPCs not executable by anon, 2 customers carry backfilled water/problems. 10 pre-existing primary member/customer name-or-mobile mismatches left as-is (see customer-data-sync.md).
+
+## Live UI check — 2026-11-26 (owner signed in; Playwright drove the rest; option B = no sale created)
+- Settings: "Prices include GST by default" shows, saves (DB true), and was switched back OFF afterwards (DB false).
+- New Sale: switch starts on the default. ROP 2090 BLUE Included = ₹12,500 (GST ₹1,906.78); Extra = ₹14,750 (GST ₹2,250). + spare ₹750 Included → GST ₹114.41, grand ₹13,250. "Amount collected" follows: 13,250 ⇄ 15,635. The draft restores the GST choice.
+- Search: "rop blue" finds ROP 2090 BLUE + ROP ROMA BLUE (space types normally, label once); "ros adapter 24v" finds exactly the 2 adapters with price/stock.
+- New Quotation: Included ₹12,500 (GST ₹1,906.78) / Extra ₹14,750. Not saved.
+- Found + fixed: the cart card subtitle still showed "RO (spreadsheet import) · 2090 BLUE" → now `productExtraParts` (tests 15/15), re-checked live.
+- Not checked: the printed invoice (needs a real sale; owner chose B). Its maths is covered by the SQL test 19/19.
+
+## quick-add F3b — 2026-11-26
+- `src/lib/quickAdd.test.ts` (findByLabel added) + `src/lib/leadOptionKey.test.ts`: 13/13 pass. The key rule cases mirror the SQL test.
+- `supabase/tests/quick_add_lead_option.test.sql`: written, NOT RUN (migration not applied). It covers ACL, sales add, dedupe, kind/product_type tables, archived not re-enabled, cross-org, ops/tech refused, unknown list, blank/long/symbol-only label, RLS unchanged.
+- **Migration applied live 2026-11-26** ("go apply"). ACL: anon no, authenticated yes. SQL test **13/13 PASS**, run alone; before/after counts identical.
+- **Live UI check** (owner signed in, Playwright):
+  - New Lead shows 3 "Add new" links. Existing names typed in other case/spacing select the existing option with no insert: Source "whatsapp" → WhatsApp, Product type "ro / WATER purifier" → RO / Water Purifier, Kind " SERVICE " → Service.
+  - Supplier on Create PO ("pvm" → PVM) and Bill Entry ("CHENNAI electro traders") selected the existing supplier, count unchanged.
+  - Edit Lead entry point is hidden on main (1761eaa, update_lead_details not live), so its quick-add is dormant.
+- **Test-script mistake:** my automation clicked the Source link three times. That created 2 unused lead sources in the owner's org ("ro / WATER purifier" key ro_water_purifier, "service" key service; 0 leads use them). Left in place pending the owner's decision. This was a test-script error, not a code bug: the feature did what it was told.

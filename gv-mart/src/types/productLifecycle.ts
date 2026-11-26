@@ -61,12 +61,14 @@ export interface SpareScheduleFormRow {
   spareId: string | null
   label: string
   intervalValue: number
-  intervalUnit: LifetimeUnit
+  /** "" = "Not set" (a new row starts unchosen) and blocks save. */
+  intervalUnit: LifetimeUnit | ""
 }
 
 export interface SpareScheduleRowErrors {
   label?: string
   intervalValue?: string
+  intervalUnit?: string
 }
 
 export interface SpareScheduleValidationResult {
@@ -76,7 +78,7 @@ export interface SpareScheduleValidationResult {
 
 /**
  * Validates every spare-schedule repeater row: label required (non-empty
- * after trim) and intervalValue a positive integer. Duplicate labels across
+ * after trim), intervalValue a positive integer and intervalUnit chosen. Duplicate labels across
  * rows on the same product are deliberately allowed (not deduped) per spec.
  */
 export function validateSpareSchedules(rows: SpareScheduleFormRow[]): SpareScheduleValidationResult {
@@ -87,6 +89,9 @@ export function validateSpareSchedules(rows: SpareScheduleFormRow[]): SpareSched
     }
     if (!isPositiveInteger(row.intervalValue)) {
       errors.intervalValue = "intervalValueInvalid"
+    }
+    if (!row.intervalUnit) {
+      errors.intervalUnit = "unitRequired"
     }
     return errors
   })

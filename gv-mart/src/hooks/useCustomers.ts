@@ -62,30 +62,50 @@ export function useCustomer(id: string | undefined) {
   })
 }
 
-/** Water columns only (customers table) — see WaterHouseholdPanel. health_condition is
- *  written separately via useUpsertCustomerHealthCondition below (its own table now). */
-export function useUpdateCustomerWaterProfile(customerId: string) {
+/** Water & household profile + follow-up task in one save — see saveWaterHousehold. */
+export function useSaveWaterHousehold() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (patch: Parameters<typeof customers.updateCustomerWaterProfile>[1]) => customers.updateCustomerWaterProfile(customerId, patch),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
+    mutationFn: customers.saveWaterHousehold,
+    onSettled: (_data, _error, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["customers", "detail", vars.customerId] })
       queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
+      queryClient.invalidateQueries({ queryKey: ["customers", "waterFollowup", vars.customerId] })
+      queryClient.invalidateQueries({ queryKey: ["tasks"] })
     },
   })
 }
 
-/** customer_health_profile — master/operation_admin/sales_admin (is_staff()) only, per its
- *  own RLS, not a customers column. */
-export function useUpsertCustomerHealthCondition(customerId: string) {
+export function useCustomerWaterFollowup(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ["customers", "waterFollowup", customerId],
+    queryFn: () => customers.getCustomerWaterFollowup(customerId!),
+    enabled: !!customerId,
+  })
+}
+
+/** Anything that moves/closes a follow-up task refreshes both the customer side and every task list. */
+export function useInvalidateWaterFollowup() {
   const queryClient = useQueryClient()
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ["customers", "waterFollowup"] })
+    queryClient.invalidateQueries({ queryKey: ["tasks"] })
+  }
+}
+
+export function usePostponeWaterFollowup() {
+  const invalidate = useInvalidateWaterFollowup()
   return useMutation({
-    mutationFn: ({ orgId, healthCondition }: { orgId: string; healthCondition: Parameters<typeof customers.upsertCustomerHealthCondition>[2] }) =>
-      customers.upsertCustomerHealthCondition(customerId, orgId, healthCondition),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
-      queryClient.invalidateQueries({ queryKey: ["customers", "list"] })
-    },
+    mutationFn: ({ taskId, newDate, reason }: { taskId: string; newDate: string; reason: string }) => customers.postponeWaterFollowup(taskId, newDate, reason),
+    onSuccess: invalidate,
+  })
+}
+
+export function useCloseWaterFollowupAsLead() {
+  const invalidate = useInvalidateWaterFollowup()
+  return useMutation({
+    mutationFn: ({ taskId, leadId }: { taskId: string; leadId: string }) => customers.closeWaterFollowupAsLead(taskId, leadId),
+    onSettled: invalidate,
   })
 }
 
@@ -335,8 +355,7 @@ export function useAddMember(orgId: string | undefined, customerId: string) {
 export function useUpdateMember(customerId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ memberId, member, syncCustomer }: { memberId: string; member: Parameters<typeof customers.updateMember>[1]; syncCustomer?: { customerId: string } }) =>
-      customers.updateMember(memberId, member, syncCustomer),
+    mutationFn: ({ memberId, member }: { memberId: string; member: Parameters<typeof customers.updateMember>[1] }) => customers.updateMember(memberId, member),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers", "detail", customerId] })
       queryClient.invalidateQueries({ queryKey: ["customers", "list"] })

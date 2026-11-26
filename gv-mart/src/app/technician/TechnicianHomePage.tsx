@@ -16,12 +16,9 @@ import { computeJobOverrun } from "@/lib/job-overrun"
 import { computeTicketAllowedDuration, findOpenVisit, isOverdueJob, type JobCard } from "@/services/technician"
 import type { Tables } from "@/types/database"
 import { cn } from "@/lib/utils"
+import { formatTime } from "@/lib/formatDate"
 import { addressLine as buildAddressLine } from "@/lib/address"
 
-function formatTime(iso: string | null) {
-  if (!iso) return null
-  return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
-}
 
 /** Build Order A4: ticks every 30s so an overrunning job's red styling appears
  *  on the home list without a manual refresh, mirroring JobDetailPage's own tick.
@@ -167,7 +164,7 @@ function JobListItem({
           <DuePartsChip customerId={ticket.customer_id} />
         </div>
         <div className="flex flex-wrap items-center gap-3 px-1 text-xs text-text-muted">
-          {time ? <span>{time}</span> : <span>{t("service.appointment.always")}</span>}
+          {time ? <span className="whitespace-nowrap">{time}</span> : <span>{t("service.appointment.always")}</span>}
           {addressLine ? (
             <span className="flex min-w-0 items-center gap-1">
               <MapPin className="size-3 shrink-0" /> <span className="truncate">{addressLine}</span>

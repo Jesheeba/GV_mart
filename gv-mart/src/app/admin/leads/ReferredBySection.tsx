@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Search } from "lucide-react"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Autocomplete } from "@/components/shared/Autocomplete"
 import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
-import { useCustomerAutocomplete } from "@/hooks/useCustomers"
+import { ReferrerField } from "@/components/shared/ReferrerField"
+import type { ReferrerKind } from "@/lib/referrer"
 
 type Mode = "none" | "technician" | "staff" | "customer" | "other"
 
@@ -23,8 +21,10 @@ const MODE_BY_SOURCE: Record<string, Mode> = {
  * appears, pick a different one and it's gone.
  * - field ("Technician"): technician-only picker (referredByUserId).
  * - reporting_staff ("Reporting staff"): staff-only picker, same picker UI.
- * - referral: free-text name/phone (not in the system yet).
- * - customer_app: existing-customer search (prefills name/phone, no new column —
+ * - referral: full referrer chooser (ReferrerField) — technician, sales
+ *   person/staff, existing customer (with quick-add) or someone else.
+ *   Referral sources batch 2026-11-26 (owner): supersedes the free-text-only box.
+ * - customer_app: existing-customer search + quick-add (prefills name/phone —
  *   an app lead is by construction from an existing customer).
  * - every other source: nothing shown.
  */
@@ -37,6 +37,8 @@ export function ReferredBySection({
   onReferredByNameChange,
   referredByPhone,
   onReferredByPhoneChange,
+  referredByCustomerId,
+  onReferredByCustomerIdChange,
   // Technician/staff attribution (referredByUserId) is a bonus-eligible,
   // set-once-at-creation field (see referral_bonus_rates/_carry_over_lead_referral)
   // — LeadDetailFieldsCard's edit form doesn't touch it, so it hides that
@@ -51,26 +53,31 @@ export function ReferredBySection({
   onReferredByNameChange: (next: string) => void
   referredByPhone: string
   onReferredByPhoneChange: (next: string) => void
+  referredByCustomerId: string
+  onReferredByCustomerIdChange: (next: string) => void
   allowTechnicianOrStaff?: boolean
 }) {
   const { t } = useTranslation()
   const rawMode = MODE_BY_SOURCE[source] ?? "none"
   const mode = (rawMode === "technician" || rawMode === "staff") && !allowTechnicianOrStaff ? "none" : rawMode
 
-  const [customerSearch, setCustomerSearch] = useState("")
-  const customerAutocomplete = useCustomerAutocomplete(orgId, customerSearch)
+  // Which referrer kinds the Referral / Customer app sources offer. Technician/staff
+  // stay out of the edit card (allowTechnicianOrStaff=false) — set-once at creation.
+  const kinds: ReferrerKind[] =
+    mode === "customer" ? ["customer"] : allowTechnicianOrStaff ? ["other", "technician", "staff", "customer"] : ["other", "customer"]
+  // A customer referrer is saved as referred_by_customer_id (+ a name/phone copy for display).
+  const [kind, setKind] = useState<ReferrerKind>(referredByCustomerId ? "customer" : kinds[0])
 
   // Switching Source away from a mode clears that mode's own fields, so
   // stale data from a source the user backed out of never gets submitted.
   const prevMode = useRef(mode)
   useEffect(() => {
     if (prevMode.current !== mode) {
-      if (prevMode.current === "technician" || prevMode.current === "staff") onReferredByUserIdChange("")
-      if (prevMode.current === "other" || prevMode.current === "customer") {
-        onReferredByNameChange("")
-        onReferredByPhoneChange("")
-      }
-      setCustomerSearch("")
+      if (referredByUserId) onReferredByUserIdChange("")
+      if (referredByName) onReferredByNameChange("")
+      if (referredByPhone) onReferredByPhoneChange("")
+      if (referredByCustomerId) onReferredByCustomerIdChange("")
+      setKind(kinds[0])
       prevMode.current = mode
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,52 +97,20 @@ export function ReferredBySection({
         <ReferrerPicker id="lead-referred-by-staff" orgId={orgId} kindFilter="staff" label={t("leads.referredBy.pickStaff")} value={referredByUserId} onChange={onReferredByUserIdChange} />
       ) : null}
 
-      {mode === "customer" ? (
-        <Autocomplete
-          id="lead-referred-by-customer"
-          value={referredByName && !customerSearch ? (referredByPhone ? `${referredByName} · ${referredByPhone}` : referredByName) : customerSearch}
-          onChange={(v) => {
-            setCustomerSearch(v)
-            onReferredByNameChange("")
-            onReferredByPhoneChange("")
-          }}
-          suggestions={customerAutocomplete.data ?? []}
-          loading={customerAutocomplete.isFetching}
-          placeholder={t("leads.referredBy.searchCustomerPlaceholder")}
-          icon={<Search className="size-4" />}
-          emptyMessage={t("common.noData")}
-          getKey={(c) => c.id}
-          getLabel={(c) => (
-            <span>
-              <span className="font-medium">{c.name}</span> <span className="text-text-muted">{c.mobile}</span>
-            </span>
-          )}
-          onSelect={(c) => {
-            onReferredByNameChange(c.name)
-            onReferredByPhoneChange(c.mobile ?? "")
-            setCustomerSearch("")
+      {mode === "other" || mode === "customer" ? (
+        <ReferrerField
+          idPrefix="lead-referred-by"
+          orgId={orgId}
+          kinds={kinds}
+          value={{ kind, userId: referredByUserId, customerId: referredByCustomerId, name: referredByName, phone: referredByPhone }}
+          onChange={(next) => {
+            setKind(next.kind)
+            if (next.customerId !== referredByCustomerId) onReferredByCustomerIdChange(next.customerId)
+            if (next.userId !== referredByUserId) onReferredByUserIdChange(next.userId)
+            if (next.name !== referredByName) onReferredByNameChange(next.name)
+            if (next.phone !== referredByPhone) onReferredByPhoneChange(next.phone)
           }}
         />
-      ) : null}
-
-      {mode === "other" ? (
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            aria-label={t("leads.new.referredByName")}
-            placeholder={t("leads.new.referredByName")}
-            className="h-8 px-2.5"
-            value={referredByName}
-            onChange={(e) => onReferredByNameChange(e.target.value)}
-          />
-          <Input
-            aria-label={t("leads.new.referredByPhone")}
-            type="tel"
-            placeholder={t("leads.new.referredByPhone")}
-            className="h-8 px-2.5"
-            value={referredByPhone}
-            onChange={(e) => onReferredByPhoneChange(e.target.value)}
-          />
-        </div>
       ) : null}
     </div>
   )

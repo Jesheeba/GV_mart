@@ -1,14 +1,17 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { Loader2, Plus, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { memberSchema, FAMILY_RELATIONS, type MemberInput } from "@/lib/validation/customer"
 import { useAddMember, useCustomer, useLogMemberGoogleReview } from "@/hooks/useCustomers"
 import { avatarPalette, initials } from "@/lib/avatar"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 /**
  * Read-only-ish sibling of FamilyMembersPanel, embedded in New Sale step 0.
@@ -28,6 +31,7 @@ export function SaleFamilyReviewSection({ orgId, customerId }: { orgId: string |
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -135,8 +139,8 @@ export function SaleFamilyReviewSection({ orgId, customerId }: { orgId: string |
               <Input placeholder={t("customers.form.memberName")} aria-invalid={!!errors.name} {...register("name")} />
               {errors.name ? <p className="text-xs text-danger">{t(errors.name.message!)}</p> : null}
             </div>
-            <div className="flex-1 space-y-1">
-              <Input placeholder={t("customers.form.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
+            <div className={cn(FIELD_W.mobile, "shrink-0 space-y-1")}>
+              <Input placeholder={t("customers.form.memberMobile")} inputMode="numeric" maxLength={10} aria-invalid={!!errors.mobile} {...register("mobile")} />
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>
@@ -149,19 +153,20 @@ export function SaleFamilyReviewSection({ orgId, customerId }: { orgId: string |
               {errors.email ? <p className="text-xs text-danger">{t(errors.email.message!)}</p> : null}
             </div>
           </div>
-          <select
-            aria-label={t("customers.form.memberRelation")}
-            defaultValue=""
-            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-            {...register("relation")}
-          >
-            <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
-            {FAMILY_RELATIONS.map((r) => (
-              <option key={r} value={r}>
-                {t(`customers.form.relation.${r}`)}
-              </option>
-            ))}
-          </select>
+          <Controller
+            control={control}
+            name="relation"
+            render={({ field }) => (
+              <ChoiceSelect
+                id="sale-member-relation"
+                label={t("customers.form.memberRelation")}
+                labelClassName="text-xs text-text-muted"
+                value={field.value}
+                options={FAMILY_RELATIONS.map((r) => ({ value: r, label: t(`customers.form.relation.${r}`) }))}
+                onChange={field.onChange}
+              />
+            )}
+          />
           {addMember.isError ? <p className="text-xs text-danger">{(addMember.error as Error).message}</p> : null}
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>

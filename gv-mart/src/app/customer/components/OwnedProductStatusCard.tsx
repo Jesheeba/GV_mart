@@ -8,6 +8,7 @@ import { PartDueBadge } from "@/app/customer/components/PartDueBadge"
 import { isLifetimeExpiryNear, type CustomerPartSchedule } from "@/hooks/useCustomerLifecycle"
 import type { MyOwnedProduct } from "@/hooks/useCustomerApp"
 import type { MyAmcContractRow, MyWarrantyRow } from "@/services/customerApp"
+import { productExtraParts } from "@/lib/productSearch"
 
 /**
  * One card per owned product, unioning warranty + AMC status — the shared
@@ -46,7 +47,7 @@ export function OwnedProductStatusCard({
 }) {
   const { t } = useTranslation()
   const today = getIstNow().date
-  const brandModel = [product.brands?.name, product.models?.name].filter(Boolean).join(" · ")
+  const brandModel = productExtraParts(product.name, product.brands?.name, product.models?.name).join(" · ")
   const lifetimeNear = isLifetimeExpiryNear(lifetimeExpiryDate, today)
 
   const header = (

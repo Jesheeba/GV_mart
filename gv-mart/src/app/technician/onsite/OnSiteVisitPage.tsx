@@ -10,6 +10,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { cn } from "@/lib/utils"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { PhotoCapture } from "../components/PhotoCapture"
@@ -46,11 +47,12 @@ import {
   useVisitPaymentState,
 } from "@/hooks/useTechnician"
 import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
-import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema } from "@/lib/validation/technician"
+import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema, fromYesNo, toYesNo, ENQUIRY_TYPE_REQUIRED, type YesNo } from "@/lib/validation/technician"
 import { formatCurrency } from "@/lib/sale-calc"
 import { db } from "@/lib/offline/db"
 import { startSyncEngine } from "@/lib/offline/sync"
 import type { Enums } from "@/types/database"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 // GV.md 1.1/D4: the SOP checklist is now populated from the job's actual
 // inventory items (each carrying its admin-set standard time), not free
@@ -131,7 +133,7 @@ type VisitDraftData = {
   extraReadings: { label: string; value: string }[]
   techSign: string | null
   customerSign: string | null
-  paymentMethod: Enums<"payment_method">
+  paymentMethod: Enums<"payment_method"> | null
   txnId: string
   paymentDescription: string
   enquiryGenerated: boolean | null
@@ -141,7 +143,7 @@ type VisitDraftData = {
   showEnquiry: boolean
   enquiryName: string
   enquiryMobile: string
-  enquiryType: Enums<"enquiry_type">
+  enquiryType: Enums<"enquiry_type"> | ""
   enquiryNote: string
 }
 
@@ -157,6 +159,10 @@ function useVisitTimer(startedAt: number | null) {
 
 export function OnSiteVisitPage() {
   const { t } = useTranslation()
+  const yesNoOptions: { value: YesNo; label: string }[] = [
+    { value: "yes", label: t("common.yes") },
+    { value: "no", label: t("common.no") },
+  ]
   const { toast } = useToast()
   const navigate = useNavigate()
   const { ticketId } = useParams<{ ticketId: string }>()
@@ -239,7 +245,8 @@ export function OnSiteVisitPage() {
   const [techSign, setTechSign] = useState<string | null>(null)
   const [customerSign, setCustomerSign] = useState<string | null>(null)
 
-  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method">>("cash")
+  // Chosen on the invoice step (the invoice records it), never pre-selected; null until picked.
+  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method"> | null>(null)
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -275,7 +282,7 @@ export function OnSiteVisitPage() {
   const [showEnquiry, setShowEnquiry] = useState(false)
   const [enquiryName, setEnquiryName] = useState("")
   const [enquiryMobile, setEnquiryMobile] = useState("")
-  const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type">>("online")
+  const [enquiryType, setEnquiryType] = useState<Enums<"enquiry_type"> | "">("")
   const [enquiryNote, setEnquiryNote] = useState("")
   const [enquirySent, setEnquirySent] = useState(false)
   const [enquiryError, setEnquiryError] = useState<string | null>(null)
@@ -408,7 +415,8 @@ export function OnSiteVisitPage() {
       if (d.extraReadings?.length) setExtraReadings(d.extraReadings)
       if (d.techSign) setTechSign(d.techSign)
       if (d.customerSign) setCustomerSign(d.customerSign)
-      if (d.paymentMethod) setPaymentMethod(d.paymentMethod)
+      // Only once the invoice is queued: older drafts saved the old "cash" default before anyone chose.
+      if (d.paymentMethod && d.invoiceQueued) setPaymentMethod(d.paymentMethod)
       if (d.txnId) setTxnId(d.txnId)
       if (d.paymentDescription) setPaymentDescription(d.paymentDescription)
       if (d.enquiryGenerated !== undefined) setEnquiryGenerated(d.enquiryGenerated)
@@ -509,7 +517,7 @@ export function OnSiteVisitPage() {
     setRoClientName("")
     setTechSign(null)
     setCustomerSign(null)
-    setPaymentMethod("cash")
+    setPaymentMethod(null)
     setTxnId("")
     setPaymentDescription("")
     setEnquiryGenerated(null)
@@ -525,7 +533,7 @@ export function OnSiteVisitPage() {
     setShowEnquiry(false)
     setEnquiryName("")
     setEnquiryMobile("")
-    setEnquiryType("online")
+    setEnquiryType("")
     setEnquiryNote("")
     setEnquirySent(false)
     setEnquiryError(null)
@@ -731,6 +739,9 @@ export function OnSiteVisitPage() {
       : Math.max(0, Number(discountInput) || 0)
   const discountAmount = (subtotal * discountPercent) / 100
   const invoiceTotal = Math.max(0, subtotal - discountAmount)
+  // Nothing to collect on a free / zero-total job, so no method is asked; the invoice records cash as before.
+  const collectsPayment = invoiceTotal > 0
+  const paymentMethods = paymentSettings.data?.payment_enabled ? (["cash", "transfer", "upi"] as const) : (["cash", "transfer"] as const)
   // Technician-side payment QR: shown for both "transfer" and "upi" so the
   // technician can present their own screen when the customer doesn't have
   // their booking page open (previously the QR only ever rendered on the
@@ -872,6 +883,17 @@ export function OnSiteVisitPage() {
 
   async function handleCreateInvoice() {
     if (!visitId || !profile) return
+    if (collectsPayment) {
+      const check = servicePaymentSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription })
+      if (!check.success) {
+        const field = check.error.issues[0]?.path[0]
+        setPaymentError(field === "method" ? "technician.onsite.payment.methodRequired" : (check.error.issues[0]?.message ?? "technician.errors.paymentInvalid"))
+        document.getElementById(field === "method" ? "invoice-payment-method" : field === "txnId" ? "txnId" : "paymentDescription")?.focus()
+        return
+      }
+    }
+    setPaymentError(null)
+    const method = collectsPayment && paymentMethod ? paymentMethod : "cash"
     await createInvoice.mutateAsync({
       orgId: profile.org_id,
       visitId,
@@ -879,11 +901,11 @@ export function OnSiteVisitPage() {
       discountPercent,
       spares: selectedSpares.map((s) => ({ spareId: s.spareId, qty: s.qty })),
       installations: selectedInstallations.map((s) => ({ productId: s.productId, qty: s.qty })),
-      paymentMethod,
-      txnId: paymentMethod === "transfer" ? txnId : undefined,
-      paymentDescription: paymentMethod === "transfer" ? paymentDescription : undefined,
+      paymentMethod: method,
+      txnId: method === "transfer" ? txnId : undefined,
+      paymentDescription: method === "transfer" ? paymentDescription : undefined,
       isChargeable: chargeable,
-      amountPaid: paymentMethod === "upi" ? 0 : undefined,
+      amountPaid: method === "upi" ? 0 : undefined,
     })
     setInvoiceQueued(true)
   }
@@ -924,7 +946,7 @@ export function OnSiteVisitPage() {
    * design decision #2 — never trust a client-supplied code).
    */
   async function handlePaymentSubmit() {
-    const result = servicePaymentSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription })
+    const result = servicePaymentSchema.safeParse({ method: paymentMethod ?? "cash", txnId, description: paymentDescription })
     if (!result.success) {
       setPaymentError(result.error.issues[0]?.message ?? "technician.errors.paymentInvalid")
       return
@@ -1265,7 +1287,7 @@ export function OnSiteVisitPage() {
         <Card className="gap-3">
           <div className="space-y-1.5 px-1">
             <Label htmlFor="serviceCharge">{t("technician.onsite.charges.serviceCharge")}</Label>
-            <Input id="serviceCharge" type="number" min={0} value={serviceChargeInput} onChange={(e) => setServiceChargeInput(e.target.value)} disabled={!chargeable} />
+            <Input id="serviceCharge" type="number" inputMode="decimal" min={0} className={FIELD_W.amount} value={serviceChargeInput} onChange={(e) => setServiceChargeInput(e.target.value)} disabled={!chargeable} />
             {!chargeable ? <p className="text-xs text-text-muted">{t("technician.onsite.charges.notChargeableNote", { type: t(`service.type.${ticket.type ?? "warranty"}`) })}</p> : null}
           </div>
 
@@ -1281,33 +1303,29 @@ export function OnSiteVisitPage() {
           <div className="grid grid-cols-2 gap-3 px-1">
             <div className="space-y-1.5">
               <Label htmlFor="tdsBefore">{t("technician.onsite.ro.tdsBefore")}</Label>
-              <Input id="tdsBefore" type="number" min={0} value={tdsBefore} onChange={(e) => setTdsBefore(e.target.value)} />
+              <Input id="tdsBefore" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={tdsBefore} onChange={(e) => setTdsBefore(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tdsAfter">{t("technician.onsite.ro.tdsAfter")}</Label>
-              <Input id="tdsAfter" type="number" min={0} value={tdsAfter} onChange={(e) => setTdsAfter(e.target.value)} />
+              <Input id="tdsAfter" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={tdsAfter} onChange={(e) => setTdsAfter(e.target.value)} />
             </div>
           </div>
-          <div className="space-y-1.5 px-1">
-            <Label>{t("technician.onsite.ro.tankCleaned")}</Label>
-            <div className="flex gap-2">
-              {[true, false].map((v) => (
-                <Button key={String(v)} type="button" size="sm" variant={tankCleaned === v ? "default" : "outline"} onClick={() => setTankCleaned(v)}>
-                  {v ? t("common.yes") : t("common.no")}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5 px-1">
-            <Label>{t("technician.onsite.ro.productExplained")}</Label>
-            <div className="flex gap-2">
-              {[true, false].map((v) => (
-                <Button key={String(v)} type="button" size="sm" variant={productExplained === v ? "default" : "outline"} onClick={() => setProductExplained(v)}>
-                  {v ? t("common.yes") : t("common.no")}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <ChoiceSelect
+            id="tankCleaned"
+            className="px-1"
+            label={t("technician.onsite.ro.tankCleaned")}
+            value={toYesNo(tankCleaned)}
+            options={yesNoOptions}
+            onChange={(v) => setTankCleaned(fromYesNo(v))}
+          />
+          <ChoiceSelect
+            id="productExplained"
+            className="px-1"
+            label={t("technician.onsite.ro.productExplained")}
+            value={toYesNo(productExplained)}
+            options={yesNoOptions}
+            onChange={(v) => setProductExplained(fromYesNo(v))}
+          />
           <div className="space-y-1.5 px-1">
             <Label htmlFor="roClientName">{t("technician.onsite.ro.clientName")}</Label>
             <Input id="roClientName" value={roClientName} onChange={(e) => setRoClientName(e.target.value)} />
@@ -1319,27 +1337,26 @@ export function OnSiteVisitPage() {
           <div className="grid grid-cols-3 gap-3 px-1">
             <div className="space-y-1.5">
               <Label htmlFor="waterTds">{t("technician.onsite.ro.waterTds")}</Label>
-              <Input id="waterTds" type="number" min={0} value={waterTds} onChange={(e) => setWaterTds(e.target.value)} />
+              <Input id="waterTds" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={waterTds} onChange={(e) => setWaterTds(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="waterPh">{t("technician.onsite.ro.waterPh")}</Label>
-              <Input id="waterPh" type="number" min={0} max={14} value={waterPh} onChange={(e) => setWaterPh(e.target.value)} />
+              <Input id="waterPh" type="number" inputMode="decimal" min={0} max={14} className={FIELD_W.reading} value={waterPh} onChange={(e) => setWaterPh(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="waterHardness">{t("technician.onsite.ro.waterHardness")}</Label>
-              <Input id="waterHardness" type="number" min={0} value={waterHardness} onChange={(e) => setWaterHardness(e.target.value)} />
+              <Input id="waterHardness" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={waterHardness} onChange={(e) => setWaterHardness(e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-1.5 px-1">
-            <Label>{t("technician.onsite.ro.waterSource")}</Label>
-            <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-              {(["corporation", "borewater", "other"] as const).map((opt) => (
-                <SegButton key={opt} active={waterSource === opt} onClick={() => setWaterSource(opt)}>
-                  {t(`technician.onsite.ro.sourceOptions.${opt}`)}
-                </SegButton>
-              ))}
-            </div>
+            <ChoiceSelect
+              id="waterSource"
+              label={t("technician.onsite.ro.waterSource")}
+              value={waterSource}
+              options={(["corporation", "borewater", "other"] as const).map((opt) => ({ value: opt, label: t(`technician.onsite.ro.sourceOptions.${opt}`) }))}
+              onChange={(v) => setWaterSource(v || null)}
+            />
             {waterSource === "other" ? (
               <Input
                 placeholder={t("technician.onsite.ro.sourceOtherPlaceholder")}
@@ -1363,7 +1380,7 @@ export function OnSiteVisitPage() {
                   placeholder={t("technician.onsite.ro.extraFieldValuePlaceholder")}
                   value={reading.value}
                   onChange={(e) => updateExtraReading(i, "value", e.target.value)}
-                  className="flex-1"
+                  className={FIELD_W.reading}
                 />
                 <Button type="button" variant="ghost" size="icon" title={t("technician.onsite.ro.removeExtraField")} onClick={() => removeExtraReading(i)}>
                   <Trash2 className="size-4" />
@@ -1554,6 +1571,7 @@ export function OnSiteVisitPage() {
                         type="number"
                         min={0}
                         step="1"
+                        inputMode="numeric"
                         value={discountAmountInput}
                         onChange={(e) => setDiscountAmountInput(e.target.value)}
                         className="w-32"
@@ -1563,7 +1581,7 @@ export function OnSiteVisitPage() {
                       </p>
                     </>
                   ) : (
-                    <Input id="discount" type="number" min={0} max={adminMax} step="0.5" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-32" />
+                    <Input id="discount" type="number" inputMode="decimal" min={0} max={adminMax} step="0.5" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-32" />
                   )}
                   <p className="text-xs text-text-muted">{t("technician.onsite.charges.freeUpTo", { max: techMax })}</p>
                   <p className="text-xs text-warning">{t("technician.onsite.charges.approvalBand", { min: techMax, max: adminMax })}</p>
@@ -1585,6 +1603,50 @@ export function OnSiteVisitPage() {
             ) : null}
             <div className="flex justify-between border-t border-border pt-1 font-semibold"><span className="text-text">{t("technician.onsite.charges.total")}</span><span className="text-text">{formatCurrency(invoiceTotal)}</span></div>
           </div>
+
+          {collectsPayment && !invoiceQueued ? (
+            <div className="space-y-2 border-t border-border px-1 pt-3">
+              <ChoiceSelect
+                id="invoice-payment-method"
+                label={t("technician.onsite.payment.method")}
+                value={paymentMethod}
+                options={paymentMethods.map((m) => ({ value: m, label: t(`technician.onsite.payment.${m}`) }))}
+                onChange={(v) => {
+                  setPaymentMethod(v || null)
+                  setPaymentError(null)
+                }}
+                error={paymentError ? t(paymentError) : undefined}
+              />
+              {paymentMethod === "transfer" ? (
+                <>
+                  {showPaymentQr ? (
+                    <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
+                      <p className="text-sm font-semibold text-text">{t("technician.onsite.payment.qr.title")}</p>
+                      <p className="text-xs text-text-muted">{t("technician.onsite.payment.qr.hint")}</p>
+                      <PaymentQRCode
+                        upiId={paymentSettings.data!.upi_id}
+                        merchantName={paymentSettings.data!.merchant_name}
+                        amount={invoiceTotal}
+                        invoiceNumber={visitId ?? ticket.id}
+                      />
+                    </div>
+                  ) : null}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="txnId">{t("technician.onsite.payment.txnId")}</Label>
+                      <Input id="txnId" value={txnId} onChange={(e) => setTxnId(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="paymentDescription">{t("technician.onsite.payment.description")}</Label>
+                      <Input id="paymentDescription" value={paymentDescription} onChange={(e) => setPaymentDescription(e.target.value)} />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+              {paymentMethod === "cash" ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p> : null}
+              {paymentMethod === "upi" ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.upiAfterInvoiceNote")}</p> : null}
+            </div>
+          ) : null}
 
           {invoiceQueued ? (
             <p className="flex items-center gap-1.5 rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success">
@@ -1619,41 +1681,20 @@ export function OnSiteVisitPage() {
               <TriangleAlert className="size-4 shrink-0" /> {t("technician.onsite.otp.errors.offline")}
             </p>
           ) : null}
-          <Label>{t("technician.onsite.payment.method")}</Label>
-          <div className="flex w-fit gap-[3px] rounded-full border border-border bg-surface-alt p-1">
-            {(paymentSettings.data?.payment_enabled ? (["cash", "transfer", "upi"] as const) : (["cash", "transfer"] as const)).map((m) => (
-              <SegButton key={m} active={paymentMethod === m} onClick={() => setPaymentMethod(m)}>
-                {t(`technician.onsite.payment.${m}`)}
-              </SegButton>
-            ))}
-          </div>
-          {paymentMethod === "transfer" ? (
-            <>
-              {showPaymentQr ? (
-                <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
-                  <p className="text-sm font-semibold text-text">{t("technician.onsite.payment.qr.title")}</p>
-                  <p className="text-xs text-text-muted">{t("technician.onsite.payment.qr.hint")}</p>
-                  <PaymentQRCode
-                    upiId={paymentSettings.data!.upi_id}
-                    merchantName={paymentSettings.data!.merchant_name}
-                    amount={invoiceTotal}
-                    invoiceNumber={visitId ?? ticket.id}
-                  />
-                </div>
+          {collectsPayment && paymentMethod ? (
+            <div className="space-y-1 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-2.5 text-sm">
+              <p>
+                <span className="text-text-muted">{t("technician.onsite.payment.method")}: </span>
+                <span className="font-semibold text-text">{t(`technician.onsite.payment.${paymentMethod}`)}</span>
+              </p>
+              {paymentMethod === "transfer" && txnId ? (
+                <p className="text-xs text-text-muted">
+                  {t("technician.onsite.payment.txnId")}: {txnId}
+                </p>
               ) : null}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="txnId">{t("technician.onsite.payment.txnId")}</Label>
-                  <Input id="txnId" value={txnId} onChange={(e) => setTxnId(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="paymentDescription">{t("technician.onsite.payment.description")}</Label>
-                  <Input id="paymentDescription" value={paymentDescription} onChange={(e) => setPaymentDescription(e.target.value)} />
-                </div>
-              </div>
-            </>
+              <p className="text-xs text-text-muted">{t("technician.onsite.payment.methodLockedNote")}</p>
+            </div>
           ) : null}
-          {paymentMethod === "cash" ? <p className="text-xs text-text-muted">{t("technician.onsite.payment.noGatewayNote")}</p> : null}
           {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
 
           {isUpi ? (
@@ -1725,31 +1766,25 @@ export function OnSiteVisitPage() {
           {!isUpi || isUpiPaid ? (
             <>
               <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
-                <p className="text-sm font-semibold text-text">{t("technician.onsite.enquiryConfirm.title")}</p>
-                <div className="flex gap-2">
-                  {[true, false].map((v) => (
-                    <Button
-                      key={String(v)}
-                      type="button"
-                      size="sm"
-                      variant={enquiryGenerated === v ? "default" : "outline"}
-                      onClick={() => {
-                        setEnquiryGenerated(v)
-                        setEnquiryConfirmError(null)
-                      }}
-                    >
-                      {v ? t("common.yes") : t("common.no")}
-                    </Button>
-                  ))}
-                </div>
-                {enquiryConfirmError ? <p className="text-xs text-danger">{t(enquiryConfirmError)}</p> : null}
+                <ChoiceSelect
+                  id="enquiryGenerated"
+                  label={t("technician.onsite.enquiryConfirm.title")}
+                  labelClassName="text-sm font-semibold text-text"
+                  value={toYesNo(enquiryGenerated)}
+                  options={yesNoOptions}
+                  onChange={(v) => {
+                    setEnquiryGenerated(fromYesNo(v))
+                    setEnquiryConfirmError(null)
+                  }}
+                  error={enquiryConfirmError ? t(enquiryConfirmError) : undefined}
+                />
               </div>
 
               <div className="space-y-2 rounded-xl border border-border bg-surface-alt/40 px-3.5 py-3">
                 <p className="text-sm font-semibold text-text">{t("technician.onsite.otp.title")}</p>
                 <p className="text-xs text-text-muted">{t("technician.onsite.otp.hint")}</p>
                 <div className="flex items-end gap-2">
-                  <div className="flex-1 space-y-1">
+                  <div className="space-y-1">
                     <Label htmlFor="otpCode">{t("technician.onsite.otp.codeLabel")}</Label>
                     <Input
                       id="otpCode"
@@ -1758,7 +1793,7 @@ export function OnSiteVisitPage() {
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
                       placeholder="••••"
-                      className="text-center text-lg tracking-[0.5em]"
+                      className={cn(FIELD_W.otp, "text-center text-lg tracking-[0.5em]")}
                     />
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={handleResendOtp} disabled={otpGenerating || !visitId}>
@@ -1803,29 +1838,33 @@ export function OnSiteVisitPage() {
                 <Input
                   id="enquiryMobile"
                   type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className={FIELD_W.mobile}
                   value={enquiryMobile}
                   onChange={(e) => setEnquiryMobile(e.target.value)}
                   placeholder={t("technician.onsite.enquiry.mobilePlaceholder")}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="enquiryType">{t("leads.new.enquiryType")}</Label>
-                <select
-                  id="enquiryType"
-                  value={enquiryType}
-                  onChange={(e) => setEnquiryType(e.target.value as Enums<"enquiry_type">)}
-                  className="h-10 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
-                >
-                  {(["online", "price", "quality", "customization", "water_premium", "budget"] as const).map((et) => (
-                    <option key={et} value={et}>{t(`technician.onsite.enquiry.type.${et}`)}</option>
-                  ))}
-                </select>
-              </div>
+              <ChoiceSelect
+                id="enquiryType"
+                label={t("leads.new.enquiryType")}
+                value={enquiryType}
+                options={(["online", "price", "quality", "customization", "water_premium", "budget"] as const).map((et) => ({
+                  value: et,
+                  label: t(`technician.onsite.enquiry.type.${et}`),
+                }))}
+                onChange={(v) => {
+                  setEnquiryType(v)
+                  if (enquiryError === ENQUIRY_TYPE_REQUIRED) setEnquiryError(null)
+                }}
+                error={enquiryError === ENQUIRY_TYPE_REQUIRED ? t(enquiryError) : undefined}
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="enquiryNote">{t("technician.onsite.enquiry.notePlaceholder")}</Label>
                 <Input id="enquiryNote" value={enquiryNote} onChange={(e) => setEnquiryNote(e.target.value)} placeholder={t("technician.onsite.enquiry.notePlaceholder")} />
               </div>
-              {enquiryError ? <p className="text-xs text-danger">{t(enquiryError)}</p> : null}
+              {enquiryError && enquiryError !== ENQUIRY_TYPE_REQUIRED ? <p className="text-xs text-danger">{t(enquiryError)}</p> : null}
               <Button type="button" variant="outline" onClick={handleSendEnquiry} disabled={generateEnquiry.isPending || !enquiryName.trim()}>
                 {generateEnquiry.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.enquiry.send")}
               </Button>

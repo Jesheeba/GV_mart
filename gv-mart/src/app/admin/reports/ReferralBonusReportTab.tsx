@@ -13,6 +13,7 @@ import { useReferralBonusReport } from "@/hooks/useReferrals"
 import { downloadCsv, toCsv } from "@/services/reports"
 import type { ReferralBonusReportRow, ReferralBonusStatus } from "@/services/referrals"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatShortDate } from "@/lib/formatDate"
 
 function currentMonthIso() {
   return getIstNow().date.slice(0, 7)
@@ -66,7 +67,7 @@ export function ReferralBonusReportTab() {
     { key: "referrer", header: t("reports.referralBonus.referrer"), render: (r) => `${r.referrer_name} (${kindLabel(r.referrer_kind)})` },
     { key: "customer", header: t("reports.referralBonus.customer"), render: (r) => r.customer_name },
     { key: "source", header: t("reports.referralBonus.source.label"), render: (r) => sourceLabel(r.source) },
-    { key: "qualifiedAt", header: t("reports.referralBonus.qualifiedAt"), render: (r) => new Date(r.qualified_at).toLocaleDateString("en-IN") },
+    { key: "qualifiedAt", header: t("reports.referralBonus.qualifiedAt"), render: (r) => <span className="whitespace-nowrap">{formatShortDate(r.qualified_at)}</span> },
     { key: "amount", header: t("reports.referralBonus.amount"), render: (r) => formatCurrency(r.rate_amount) },
     {
       key: "status",

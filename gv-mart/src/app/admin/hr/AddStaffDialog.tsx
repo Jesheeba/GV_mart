@@ -5,16 +5,16 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useToast } from "@/components/ui/toast-context"
 import { useCreateStaff } from "@/hooks/useHr"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { focusChoice } from "@/lib/utils"
 
 type StaffRole = "sales_admin" | "operation_admin"
 const ROLES: StaffRole[] = ["sales_admin", "operation_admin"]
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const selectClass =
-  "h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
 
 /**
  * Master-only "Add staff": creates an operation_admin / sales_admin login through the admin-create-staff
@@ -30,7 +30,9 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [phone, setPhone] = useState("")
   const [designation, setDesignation] = useState("")
   const [address, setAddress] = useState("")
-  const [role, setRole] = useState<StaffRole>("sales_admin")
+  // Unchosen until the master picks one (choice-no-preselect); the password mode below keeps its default.
+  const [role, setRole] = useState<StaffRole | "">("")
+  const [roleError, setRoleError] = useState(false)
   const [mode, setMode] = useState<"generate" | "type">("generate")
   const [typed, setTyped] = useState("")
   const [reason, setReason] = useState("")
@@ -49,7 +51,8 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setPhone("")
     setDesignation("")
     setAddress("")
-    setRole("sales_admin")
+    setRole("")
+    setRoleError(false)
     setMode("generate")
     setTyped("")
     setReason("")
@@ -57,6 +60,11 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
   function submit() {
     if (!canSubmit) return
+    if (!role) {
+      setRoleError(true)
+      focusChoice("staff-role")
+      return
+    }
     const name = fullName.trim()
     create.mutate(
       {
@@ -111,20 +119,20 @@ export function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 <Label htmlFor="staff-phone" className="block text-xs font-medium text-text-muted">
                   {t("hr.staffSalary.phone")}
                 </Label>
-                <Input id="staff-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" required />
+                <Input id="staff-phone" type="tel" inputMode="tel" className={FIELD_W.mobile} value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" required />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="staff-role" className="block text-xs font-medium text-text-muted">
-                  {t("hr.staffSalary.role")}
-                </Label>
-                <select id="staff-role" value={role} onChange={(e) => setRole(e.target.value as StaffRole)} className={selectClass}>
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {t(`roles.${r}`)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <ChoiceSelect
+                id="staff-role"
+                label={t("hr.staffSalary.role")}
+                labelClassName="block text-xs font-medium text-text-muted"
+                value={role}
+                options={ROLES.map((r) => ({ value: r, label: t(`roles.${r}`) }))}
+                onChange={(v) => {
+                  setRole(v)
+                  setRoleError(false)
+                }}
+                error={roleError ? t("common.chooseOption") : undefined}
+              />
             </div>
 
             <div className="space-y-1">

@@ -1,4 +1,4 @@
--- Rollback for 20261213100000_vendor_flow_fixes.sql. Function bodies below are the live
+-- Rollback for 20261231100000_vendor_flow_fixes.sql. Function bodies below are the live
 -- definitions read on 2026-11-25 before the migration. The po_status value cancelled cannot be
 -- dropped (Postgres has no DROP VALUE); any PO set to cancelled is put back to draft first.
 -- Run in ONE transaction.

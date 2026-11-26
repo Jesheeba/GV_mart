@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useAmcPlansForTechnician, useSellAmcOnsite } from "@/hooks/useTechnician"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { Enums } from "@/types/database"
+import { focusChoice } from "@/lib/utils"
+import { PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
 
 /**
  * Build Order A2 — "a technician visiting a customer on-site can sell them
@@ -33,7 +36,9 @@ export function SellAmcSection({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [planId, setPlanId] = useState("")
-  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method">>("cash")
+  // Unchosen until the technician picks one (choice-no-preselect).
+  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method"> | null>(null)
+  const [methodError, setMethodError] = useState(false)
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [queued, setQueued] = useState(false)
@@ -42,10 +47,16 @@ export function SellAmcSection({
   const sellAmc = useSellAmcOnsite()
 
   const selectedPlan = (plans.data ?? []).find((p) => p.id === planId)
-  const canSubmit = !!planId && (paymentMethod === "cash" || (txnId.trim() && paymentDescription.trim()))
+  // A missing method doesn't disable the button: tapping it shows why (inline error) instead.
+  const canSubmit = !!planId && (paymentMethod !== "transfer" || (txnId.trim() && paymentDescription.trim()))
 
   async function handleSell() {
     if (!orgId || !planId) return
+    if (!paymentMethod) {
+      setMethodError(true)
+      focusChoice("amc-payment-method")
+      return
+    }
     await sellAmc.mutateAsync({
       orgId,
       customerId,
@@ -103,21 +114,17 @@ export function SellAmcSection({
 
             {selectedPlan ? (
               <>
-                <div className="space-y-1.5">
-                  <Label>{t("technician.onsite.payment.method")}</Label>
-                  <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
-                    {(["cash", "transfer"] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setPaymentMethod(m)}
-                        className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${paymentMethod === m ? "bg-ink text-white" : "text-text-muted"}`}
-                      >
-                        {t(`technician.onsite.payment.${m}`)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <ChoiceSelect
+                  id="amc-payment-method"
+                  label={t("technician.onsite.payment.method")}
+                  value={paymentMethod}
+                  options={(["cash", "transfer"] as const).map((m) => ({ value: m, label: t(`technician.onsite.payment.${m}`) }))}
+                  onChange={(v) => {
+                    setPaymentMethod(v || null)
+                    setMethodError(false)
+                  }}
+                  error={methodError ? t(PAYMENT_METHOD_REQUIRED) : undefined}
+                />
 
                 {paymentMethod === "transfer" ? (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { useAddTaskLog, useTaskLogs } from "@/hooks/useTaskLogs"
 import type { TaskLog } from "@/services/taskLogs"
+import { formatShortDateTime } from "@/lib/formatDate"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 function describeEntry(log: TaskLog, t: TFunction): string {
   const who = log.actor_name ?? t("tasks.log.system")
@@ -93,7 +95,7 @@ export function TaskWorkLog({ orgId, taskId }: { orgId: string; taskId: string }
               ) : (
                 <p className="text-text-muted">{describeEntry(log, t)}</p>
               )}
-              <p className="mt-0.5 text-[10px] text-text-muted">{new Date(log.created_at).toLocaleString()}</p>
+              <p className="mt-0.5 whitespace-nowrap text-[10px] text-text-muted">{formatShortDateTime(log.created_at)}</p>
             </li>
           ))}
         </ul>
@@ -104,7 +106,7 @@ export function TaskWorkLog({ orgId, taskId }: { orgId: string; taskId: string }
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <div className="space-y-1">
             <Label htmlFor={`logMinutes-${taskId}`} className="text-xs">{t("tasks.log.minutesSpent")}</Label>
-            <Input id={`logMinutes-${taskId}`} inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/[^0-9]/g, ""))} />
+            <Input id={`logMinutes-${taskId}`} inputMode="numeric" className={FIELD_W.qty} value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/[^0-9]/g, ""))} />
           </div>
           <div className="space-y-1">
             <Label htmlFor={`logNextDate-${taskId}`} className="text-xs">{t("tasks.log.nextDate")}</Label>

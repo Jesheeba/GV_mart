@@ -36,6 +36,8 @@ export const leadSchema = z.object({
   // customer/profile — coexists with referredByUserId above, doesn't replace it.
   referredByName: z.string().trim().max(120).optional().or(z.literal("")),
   referredByPhone: z.string().trim().max(20).optional().or(z.literal("")),
+  // Referral sources (20261228100000): linked existing-customer referrer.
+  referredByCustomerId: z.string().uuid().optional().or(z.literal("")),
 })
 export type LeadInput = z.infer<typeof leadSchema>
 
@@ -84,6 +86,16 @@ export const poItemSchema = z.object({
   price: z.coerce.number().positive("purchase.errors.pricePositive"),
 })
 export type PoItemInput = z.infer<typeof poItemSchema>
+
+/** A PO/bill line while it's being filled in: the item type starts unchosen ("") so staff pick Spare or
+ * Product themselves (choice-no-preselect). Only complete lines are submitted — see isCompletePoItem. */
+export type PoItemDraft = Omit<PoItemInput, "itemType"> & { itemType: PoItemInput["itemType"] | "" }
+export function emptyPoItem(): PoItemDraft {
+  return { itemType: "", itemId: "", qty: 1, price: 0 }
+}
+export function isCompletePoItem(i: PoItemDraft): i is PoItemInput {
+  return i.itemType !== "" && !!i.itemId && i.qty > 0
+}
 
 export const createPurchaseOrderSchema = z.object({
   supplierId: z.string().uuid("purchase.errors.supplierRequired"),

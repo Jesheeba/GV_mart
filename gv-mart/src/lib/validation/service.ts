@@ -20,9 +20,13 @@ export type ComplaintEquipmentStepInput = z.infer<typeof complaintEquipmentStepS
 export const complaintDetailsStepSchema = z.object({
   nameOfComplaint: z.string().trim().min(3, "service.errors.nameOfComplaintRequired").max(200),
   natureOfComplaint: z.string().trim().max(500).optional().or(z.literal("")),
+  // No default (owner 2026-11-26): starts "Not set" and blocks Next until chosen.
   priority: z.enum(["very_urgent", "urgent", "normal"], { message: "service.errors.priorityRequired" }),
 })
 export type ComplaintDetailsStepInput = z.infer<typeof complaintDetailsStepSchema>
+/** Form state for the details step: priority is "" while Not set. */
+export type ComplaintDetailsForm = Omit<ComplaintDetailsStepInput, "priority"> & { priority: ComplaintDetailsStepInput["priority"] | "" }
+export const EMPTY_COMPLAINT_DETAILS: ComplaintDetailsForm = { nameOfComplaint: "", natureOfComplaint: "", priority: "" }
 
 // Admin/customer booking-format parity (2026-10-24): the appointment step
 // now mirrors the customer app's own free-form unavailable-time-range

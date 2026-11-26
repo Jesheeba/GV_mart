@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { useToast } from "@/components/ui/toast-context"
 import { useProfile } from "@/hooks/useProfile"
 import { useLeadSchedule } from "@/hooks/useLeadFollowups"
@@ -14,11 +15,7 @@ import { DEFAULT_LEAD_SCHEDULE } from "@/services/leadFollowups"
 import type { PostServiceFollowupItem } from "@/services/postServiceFollowups"
 import type { PostServiceOutcomeRow } from "@/services/masters"
 import { defaultNextFor, formatIstDateTime, getIstNow, isNextFollowupValid, toIso, type NextFollowupValue } from "@/lib/lead-followups"
-import { cn } from "@/lib/utils"
-
-const chipBase = "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
-const chipOn = "border-ink bg-ink text-white"
-const chipOff = "border-border bg-surface text-text hover:bg-surface-alt"
+import { focusChoice } from "@/lib/utils"
 
 /** Log the result of a post-service call: pick an outcome, write what was said; a "call later" outcome asks for the next date. */
 export function PostServiceCallSheet({ item, open, onOpenChange }: { item: PostServiceFollowupItem | null; open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -50,6 +47,7 @@ function Body({ item, onClose }: { item: PostServiceFollowupItem; onClose: () =>
   const logCall = useLogPostServiceCall()
 
   const [outcomeId, setOutcomeId] = useState<string | null>(null)
+  const [outcomeError, setOutcomeError] = useState(false)
   const [note, setNote] = useState("")
   const [next, setNext] = useState<NextFollowupValue>(() => {
     const n = defaultNextFor({ followup_mode: "offset", default_offset_days: 1 }, getIstNow(), schedule.lead_work_days, schedule.lead_work_end)
@@ -60,10 +58,15 @@ function Body({ item, onClose }: { item: PostServiceFollowupItem; onClose: () =>
   const active = useMemo(() => (outcomes.data ?? []).filter((o) => o.is_active), [outcomes.data])
   const selected = active.find((o) => o.id === outcomeId) ?? null
   const label = (o: PostServiceOutcomeRow) => (lang.startsWith("ta") && o.label_ta ? o.label_ta : o.label_en)
-  const canSave = !!selected && (!selected.retry || isNextFollowupValid(next))
+  // Tappable while the outcome is "Not set" so it can show the inline error (class C).
+  const canSave = !selected || !selected.retry || isNextFollowupValid(next)
 
   async function save() {
-    if (!selected) return
+    if (!selected) {
+      setOutcomeError(true)
+      focusChoice("ps-outcome")
+      return
+    }
     try {
       const res = await logCall.mutateAsync({
         followupId: item.followup_id,
@@ -82,24 +85,19 @@ function Body({ item, onClose }: { item: PostServiceFollowupItem; onClose: () =>
   return (
     <div className="space-y-4">
       <section className="space-y-2">
-        <Label>{t("leads.postService.whatHappened")}</Label>
-        {outcomes.isLoading ? (
-          <p className="text-xs text-text-muted">{t("common.loading")}</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {active.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setOutcomeId(o.id)}
-                aria-pressed={outcomeId === o.id}
-                className={cn(chipBase, outcomeId === o.id ? chipOn : chipOff, o.alert && outcomeId !== o.id && "border-danger/30")}
-              >
-                {label(o)}
-              </button>
-            ))}
-          </div>
-        )}
+        <ChoiceSelect
+          id="ps-outcome"
+          label={t("leads.postService.whatHappened")}
+          value={outcomeId}
+          options={active.map((o) => ({ value: o.id, label: label(o) }))}
+          onChange={(v) => {
+            setOutcomeId(v || null)
+            setOutcomeError(false)
+          }}
+          disabled={outcomes.isLoading}
+          error={outcomeError ? t("common.chooseOption") : undefined}
+        />
+        {outcomes.isLoading ? <p className="text-xs text-text-muted">{t("common.loading")}</p> : null}
       </section>
 
       {selected ? (

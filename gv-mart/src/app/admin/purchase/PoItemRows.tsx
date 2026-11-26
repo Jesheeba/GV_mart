@@ -1,17 +1,19 @@
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
+import { SparePicker } from "@/components/shared/SparePicker"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
-import type { PoItemInput } from "@/lib/validation/automation"
+import { emptyPoItem, type PoItemDraft } from "@/lib/validation/automation"
 
 /** Shared "line items" editor for both Purchase Order creation and Bill
  * Entry — same shape (item type/id/qty/price), matching how the sales cart
  * (src/app/admin/sales/ItemsStep.tsx) builds product/spare rows. */
-export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefined; items: PoItemInput[]; onChange: (items: PoItemInput[]) => void }) {
+export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefined; items: PoItemDraft[]; onChange: (items: PoItemDraft[]) => void }) {
   const { t } = useTranslation()
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
@@ -19,15 +21,16 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
   // needed until a product is picked (after that the row's own itemId
   // resolves back to a label, see productLabelFor below).
   const [productQueries, setProductQueries] = useState<Record<number, string>>({})
+  const rowIdPrefix = useId()
 
-  function update(i: number, patch: Partial<PoItemInput>) {
+  function update(i: number, patch: Partial<PoItemDraft>) {
     onChange(items.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
   }
   function remove(i: number) {
     onChange(items.filter((_, idx) => idx !== i))
   }
   function add() {
-    onChange([...items, { itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    onChange([...items, emptyPoItem()])
   }
 
   // Active-only for products, same as the sales cart's own picker
@@ -43,14 +46,19 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
     <div className="space-y-2">
       {items.map((row, i) => (
         <div key={i} className="grid grid-cols-1 gap-2 rounded-xl border border-border p-2.5 sm:grid-cols-[auto_1fr_auto_auto_auto]">
-          <select
+          <ChoiceSelect
+            id={`${rowIdPrefix}-${i}-type`}
+            label={t("suppliers.itemType")}
+            labelClassName="sr-only"
+            className="space-y-0"
             value={row.itemType}
-            onChange={(e) => update(i, { itemType: e.target.value as "product" | "spare", itemId: "" })}
-            className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-          >
-            <option value="spare">{t("masters.tabs.spares")}</option>
-            <option value="product">{t("masters.tabs.products")}</option>
-          </select>
+            options={[
+              { value: "spare", label: t("masters.tabs.spares") },
+              { value: "product", label: t("masters.tabs.products") },
+            ]}
+            // A line left at "Not set" has no item, so isCompletePoItem drops it on save.
+            onChange={(itemType) => update(i, { itemType, itemId: "" })}
+          />
           {row.itemType === "product" ? (
             <Autocomplete
               value={row.itemId ? productSearchLabel(activeProducts.find((p) => p.id === row.itemId) ?? { name: "" }) : (productQueries[i] ?? "")}
@@ -71,18 +79,16 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
               inputClassName="h-10"
             />
           ) : (
-            <select
-              value={row.itemId}
-              onChange={(e) => update(i, { itemId: e.target.value })}
-              className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-            >
-              <option value="">{t("purchase.items.selectItem")}</option>
-              {spareOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
+            // Disabled until an item type is chosen (choice-no-preselect); a fieldset disables its inputs natively.
+            <fieldset disabled={row.itemType === ""} className="contents">
+              <SparePicker
+                inputClassName="h-10"
+                spares={spareOptions}
+                value={row.itemId}
+                onChange={(itemId) => update(i, { itemId })}
+                placeholder={t("purchase.items.selectItem")}
+              />
+            </fieldset>
           )}
           <Input
             type="number"

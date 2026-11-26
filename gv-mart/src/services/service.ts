@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { nonTechnicianReferrerArgs, type ReferrerValue } from "@/lib/referrer"
 import { getIstNow, istDateOf } from "@/lib/ist"
 import type { Enums, Tables } from "@/types/database"
 import type { TimeWindow } from "@/lib/booking-window"
@@ -296,10 +297,12 @@ export type CreateComplaintInput = {
    * null/undefined for "no explicit pick" — never pass a fallback id here;
    * the ticket must end up genuinely unassigned, not defaulted to anyone. */
   technicianId?: string | null
+  /** Referral sources (20261228100000): a non-technician referrer routes through create_complaint_ticket_with_referrer. */
+  referrer?: ReferrerValue | null
 }
 
 export async function createComplaintTicket(input: CreateComplaintInput) {
-  const { data, error } = await supabase.rpc("create_complaint_ticket", {
+  const args = {
     p_org_id: input.orgId,
     p_customer_id: input.customerId,
     p_address_id: input.addressId,
@@ -322,7 +325,11 @@ export async function createComplaintTicket(input: CreateComplaintInput) {
     // (20261202120000_complaint_daybump_fix_and_technician_pick_merged.sql)
     // is live -- create_complaint_ticket now has p_technician_id.
     p_technician_id: input.technicianId ?? null,
-  })
+  }
+  const extra = nonTechnicianReferrerArgs(input.referrer)
+  const { data, error } = extra
+    ? await supabase.rpc("create_complaint_ticket_with_referrer", { ...args, ...extra })
+    : await supabase.rpc("create_complaint_ticket", args)
   if (error) throw error
   return data as {
     ticket_id: string

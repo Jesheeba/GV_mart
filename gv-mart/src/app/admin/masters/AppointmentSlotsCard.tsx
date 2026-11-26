@@ -155,6 +155,9 @@ export function AppointmentSlotsCard() {
               type="number"
               min={1}
               step="1"
+              inputMode="numeric"
+              // Wider than FIELD_W.qty so the "No limit" placeholder stays readable.
+              className="w-32"
               value={form.maxBookingsPerSlot}
               onChange={(e) => setForm((f) => ({ ...f, maxBookingsPerSlot: e.target.value }))}
               placeholder={t("settings.appointmentSlots.maxBookingsPlaceholder")}

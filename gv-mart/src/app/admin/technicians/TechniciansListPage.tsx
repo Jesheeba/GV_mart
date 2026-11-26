@@ -21,6 +21,7 @@ import { fileToDataUrl } from "@/lib/offline/capture"
 import { PeriodFilter } from "@/app/admin/reports/PeriodFilter"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocumentUpload"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 // Matches the design's 6-column table grid (design-template-decoded.html
 // line 1139): Technician / Phone / Status / Jobs / Revenue / Rating. The
@@ -322,6 +323,9 @@ function AddTechnicianPanel({
           <Input
             id="new-tech-phone"
             type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            className={FIELD_W.mobile}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             aria-invalid={!!phone && !phoneValid}
@@ -385,7 +389,7 @@ function AddTechnicianPanel({
         </div>
         <div className="space-y-1">
           <Label htmlFor="new-tech-pincode">{t("technicians.detail.fields.pincode")}</Label>
-          <Input id="new-tech-pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} />
+          <Input id="new-tech-pincode" inputMode="numeric" className={FIELD_W.pincode} value={pincode} onChange={(e) => setPincode(e.target.value)} />
         </div>
         <div className="space-y-1">
           <Label htmlFor="new-tech-zone">{t("technicians.list.zone")}</Label>
@@ -396,6 +400,8 @@ function AddTechnicianPanel({
           <Input
             id="new-tech-capacity"
             type="number"
+            inputMode="numeric"
+            className={FIELD_W.qty}
             min={1}
             step={1}
             value={dailyCapacity}

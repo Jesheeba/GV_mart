@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react"
+import { ReferrerField } from "@/components/shared/ReferrerField"
+import { EMPTY_REFERRER, type ReferrerValue } from "@/lib/referrer"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { Loader2, Search } from "lucide-react"
@@ -7,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Stepper } from "@/components/shared/Stepper"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { DraftBanner } from "@/components/shared/DraftBanner"
@@ -18,7 +21,8 @@ import { useCreateSale, useCustomerReferralBalance } from "@/hooks/useSales"
 import { useQuotation } from "@/hooks/useQuotations"
 import { useTechnicians } from "@/hooks/useService"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
+import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema, PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
+import { focusChoice } from "@/lib/utils"
 import { formatCurrency, findStockGap } from "@/lib/sale-calc"
 import { ItemsStep } from "./ItemsStep"
 import { SaleFamilyReviewSection } from "./SaleFamilyReviewSection"
@@ -43,12 +47,18 @@ type NewSaleDraftData = {
   discountInput: string
   discountAmountInput: string
   giftId: string | null
-  paymentMethod: Enums<"payment_method">
+  paymentMethod: Enums<"payment_method"> | null
   txnId: string
   paymentDescription: string
   redeemPointsInput: string
   amountPaidInput: string
   amountPaidTouched: boolean
+  /** Optional so drafts saved before the GST switch existed still restore. */
+  gstInclusiveChoice?: boolean | null
+  // Optional: drafts saved before 2026-11-26 don't have it (the referrer was silently dropped on restore).
+  /** Pre-2026-11-26 drafts only; restored as a technician referrer. */
+  referredByTechnicianId?: string
+  referrer?: ReferrerValue
 }
 
 /**
@@ -87,7 +97,8 @@ export function NewSalePage() {
   const [discountAmountInput, setDiscountAmountInput] = useState("0")
   const discountPercent = discountEnabled ? Math.max(0, Number(discountInput) || 0) : 0
   const [giftId, setGiftId] = useState<string | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method">>("cash")
+  // Unchosen until staff pick one (choice-no-preselect).
+  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method"> | null>(null)
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -98,7 +109,8 @@ export function NewSalePage() {
   // sale requires typing a smaller number.
   const [amountPaidInput, setAmountPaidInput] = useState("")
   const [amountPaidTouched, setAmountPaidTouched] = useState(false)
-  const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
+  const [gstInclusiveChoice, setGstInclusiveChoice] = useState<boolean | null>(null)
+  const [referrer, setReferrer] = useState<ReferrerValue>(EMPTY_REFERRER)
 
   const { data: settings } = useSettings(orgId)
   const { data: technicians } = useTechnicians(orgId)
@@ -156,6 +168,8 @@ export function NewSalePage() {
   useEffect(() => {
     if (prefilledRef.current || !quotationData.data || !allProducts || !allSpares) return
     prefilledRef.current = true
+    // Carry the quotation's GST choice into the bill so the customer pays what was quoted.
+    if (quotationData.data.gst_inclusive !== null) setGstInclusiveChoice(quotationData.data.gst_inclusive)
     const productLines: CartProductLine[] = []
     const spareLines: CartSpareLine[] = []
     for (const item of quotationData.data.quotation_items) {
@@ -224,6 +238,8 @@ export function NewSalePage() {
     redeemPointsInput,
     amountPaidInput,
     amountPaidTouched,
+    gstInclusiveChoice,
+    referrer,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -248,6 +264,9 @@ export function NewSalePage() {
     if (restoredDraft.redeemPointsInput != null) setRedeemPointsInput(restoredDraft.redeemPointsInput)
     if (restoredDraft.amountPaidInput != null) setAmountPaidInput(restoredDraft.amountPaidInput)
     if (restoredDraft.amountPaidTouched != null) setAmountPaidTouched(restoredDraft.amountPaidTouched)
+    if (restoredDraft.gstInclusiveChoice !== undefined) setGstInclusiveChoice(restoredDraft.gstInclusiveChoice)
+    if (restoredDraft.referrer) setReferrer(restoredDraft.referrer)
+    else if (restoredDraft.referredByTechnicianId) setReferrer({ ...EMPTY_REFERRER, kind: "technician", userId: restoredDraft.referredByTechnicianId })
   }, [restoredDraft])
 
   const techMax = settings ? Number(settings.discount_tech_max) : 5
@@ -259,7 +278,9 @@ export function NewSalePage() {
   const giftStockById = new Map((giftInventory ?? []).map((r) => [r.item_id, r.stock_qty]))
 
   const gstRate = settings ? Number(settings.gst_rate) : 0
-  const computedPayable = payableTotal(cart, discountPercent, gstRate, redeemAmount)
+  // null = follow the org default (Masters -> Settings) until the cashier flips the switch.
+  const gstInclusive = gstInclusiveChoice ?? settings?.prices_include_gst ?? false
+  const computedPayable = payableTotal(cart, discountPercent, gstRate, redeemAmount, gstInclusive)
   useEffect(() => {
     if (!amountPaidTouched) setAmountPaidInput(computedPayable.toFixed(2))
   }, [computedPayable, amountPaidTouched])
@@ -277,7 +298,9 @@ export function NewSalePage() {
   function handlePaymentContinue() {
     const result = paymentDetailsSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription, amountPaid })
     if (!result.success) {
-      setPaymentError(result.error.issues[0]?.message ?? "sales.errors.paymentInvalid")
+      const message = result.error.issues[0]?.message ?? "sales.errors.paymentInvalid"
+      setPaymentError(message)
+      if (message === PAYMENT_METHOD_REQUIRED) focusChoice("sale-payment-method")
       return
     }
     if (isAmountPaidBlocked(amountPaid, computedPayable)) {
@@ -301,6 +324,12 @@ export function NewSalePage() {
 
   async function handleGenerate() {
     if (!orgId || !customerId) return
+    // Only reachable through the payment step, which already requires a method; a restored draft can't skip it.
+    if (!paymentMethod) {
+      setStep(3)
+      setPaymentError(PAYMENT_METHOD_REQUIRED)
+      return
+    }
     const gap = stockGapMessage()
     if (gap) {
       setStockError(gap)
@@ -326,9 +355,11 @@ export function NewSalePage() {
         txnId: paymentMethod === "transfer" ? txnId : null,
         paymentDescription: paymentMethod === "transfer" ? paymentDescription : null,
         redeemPoints,
+        gstInclusive,
       },
       quotationId,
-      referredByTechnicianId: referredByTechnicianId || null,
+      referredByTechnicianId: referrer.kind === "technician" ? referrer.userId || null : null,
+      referrer,
       amountPaid,
     })
     clearDraft()
@@ -363,13 +394,13 @@ export function NewSalePage() {
             setDiscountInput("0")
             setDiscountAmountInput("0")
             setGiftId(null)
-            setPaymentMethod("cash")
+            setPaymentMethod(null)
             setTxnId("")
             setPaymentDescription("")
             setRedeemPointsInput("0")
             setAmountPaidInput("")
             setAmountPaidTouched(false)
-            setReferredByTechnicianId("")
+            setReferrer(EMPTY_REFERRER)
           }}
         />
       ) : null}
@@ -460,19 +491,18 @@ export function NewSalePage() {
 
           {step === 3 ? (
             <Card className="gap-3 px-5">
-              <Label>{t("sales.payment.method")}</Label>
-              <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
-                {(["cash", "transfer"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setPaymentMethod(m)}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${paymentMethod === m ? "bg-ink text-white" : "text-text-muted"}`}
-                  >
-                    {t(`sales.payment.${m}`)}
-                  </button>
-                ))}
-              </div>
+              <ChoiceSelect
+                id="sale-payment-method"
+                label={t("sales.payment.method")}
+                value={paymentMethod}
+                options={(["cash", "transfer"] as const).map((m) => ({ value: m, label: t(`sales.payment.${m}`) }))}
+                onChange={(v) => {
+                  setPaymentMethod(v || null)
+                  if (paymentError === PAYMENT_METHOD_REQUIRED) setPaymentError(null)
+                }}
+                error={paymentError === PAYMENT_METHOD_REQUIRED ? t(PAYMENT_METHOD_REQUIRED) : undefined}
+                className="sm:max-w-xs"
+              />
               {paymentMethod === "transfer" ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -534,7 +564,7 @@ export function NewSalePage() {
                 ) : null}
               </div>
 
-              {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
+              {paymentError && paymentError !== PAYMENT_METHOD_REQUIRED ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
             </Card>
           ) : null}
 
@@ -629,19 +659,15 @@ export function NewSalePage() {
               </div>
 
               <div className="space-y-1.5 border-t border-border pt-3">
-                <Label>{t("common.referredByTechnician")}</Label>
-                <select
-                  value={referredByTechnicianId}
-                  onChange={(e) => setReferredByTechnicianId(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
-                >
-                  <option value="">{t("common.none")}</option>
-                  {(technicians ?? []).map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.full_name}
-                    </option>
-                  ))}
-                </select>
+                <ReferrerField
+                  idPrefix="new-sale-referrer"
+                  orgId={orgId}
+                  value={referrer}
+                  onChange={setReferrer}
+                  technicians={technicians ?? []}
+                  excludeCustomerId={customerId || null}
+                  allowQuickAdd={true}
+                />
               </div>
 
               {stockError ? (
@@ -653,7 +679,15 @@ export function NewSalePage() {
           ) : null}
         </div>
 
-        <SaleSummaryPanel orgId={orgId} cart={cart} discountPercent={discountPercent} giftName={selectedGift?.name} redeemAmount={redeemAmount} />
+        <SaleSummaryPanel
+          orgId={orgId}
+          cart={cart}
+          discountPercent={discountPercent}
+          giftName={selectedGift?.name}
+          redeemAmount={redeemAmount}
+          gstInclusive={gstInclusive}
+          onGstInclusiveChange={setGstInclusiveChoice}
+        />
       </div>
 
       <div className="flex justify-between">

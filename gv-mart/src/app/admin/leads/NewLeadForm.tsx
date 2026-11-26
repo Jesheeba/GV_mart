@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
 import { ReferredBySection } from "./ReferredBySection"
 import { useToast } from "@/components/ui/toast-context"
+import { LeadOptionQuickAdd } from "./LeadOptionQuickAdd"
 import { useCreateLead } from "@/hooks/useAutomation"
 import { useDuplicateContactWarning } from "@/hooks/useCustomers"
 import { leadSchema, type LeadInput } from "@/lib/validation/automation"
@@ -17,14 +19,20 @@ import { canSubmitWithWarning, duplicateWarningKey } from "@/lib/duplicateContac
 import { useProfile } from "@/hooks/useProfile"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLists"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn, focusChoice } from "@/lib/utils"
 
 export function NewLeadForm({
   onClose,
   onCreated,
   existingCustomer,
+  initialRequirement,
 }: {
   onClose: () => void
-  onCreated: () => void
+  /** Receives the new lead's id (null if the insert returned no row). */
+  onCreated: (leadId: string | null) => void
+  /** Prefills "customer requirement" (e.g. a water follow-up's problems + recommended solution). */
+  initialRequirement?: string
   /** Set when this form was opened from a customer's own page ("New lead" button)
    *  for a repeat enquiry — the created lead starts out attached to them instead of
    *  only linking up at conversion, and the duplicate-contact warning (which would
@@ -45,18 +53,20 @@ export function NewLeadForm({
     defaultValues: {
       name: existingCustomer?.name ?? "",
       mobile: existingCustomer?.mobile ?? "",
-      source: "other",
+      // Not pre-selected (owner, 2026-11-26): "Not set" until chosen; leadSchema blocks Save without one.
+      source: "",
       productCategory: "",
       notes: "",
       kind: "",
       referredByUserId: "",
-      customerRequirement: "",
+      customerRequirement: initialRequirement ?? "",
       specialDescription: "",
       budget: "",
       whenNeeded: "",
       tdsStatus: "",
       referredByName: "",
       referredByPhone: "",
+      referredByCustomerId: "",
     },
   })
 
@@ -65,6 +75,7 @@ export function NewLeadForm({
   // has the full rationale). Leads have no email field, so this is mobile-only.
   // Skipped entirely for an existingCustomer lead — the "duplicate" would always
   // just be this same customer, which isn't a warning, it's the point.
+  const source = form.watch("source")
   const leadMobile = form.watch("mobile") ?? ""
   const dupWarning = useDuplicateContactWarning(profile?.org_id, existingCustomer ? "" : leadMobile)
   const dupWarningKey = duplicateWarningKey(leadMobile, "")
@@ -89,6 +100,7 @@ export function NewLeadForm({
       tds_status: values.tdsStatus || null,
       referred_by_name: values.referredByName || null,
       referred_by_phone: values.referredByPhone || null,
+      referred_by_customer_id: values.referredByCustomerId || null,
       customer_id: existingCustomer?.id ?? null,
     })
     // Self-referral / anti-abuse guard (stage2_corrections_addendum.md item 9) —
@@ -101,10 +113,9 @@ export function NewLeadForm({
     if (referredByUserId && (created as { referred_by_user_id?: string | null } | null)?.referred_by_user_id == null) {
       toast.warning(t("common.referralNotRecorded"))
     }
-    onCreated()
+    onCreated((created as { id?: string } | null)?.id ?? null)
   }
 
-  const fieldClass = "h-8 w-full rounded-lg border border-border bg-surface px-2.5 text-sm text-text outline-none"
   const textareaClass = "w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-sm text-text outline-none"
 
   return (
@@ -126,7 +137,7 @@ export function NewLeadForm({
         </div>
         <div className="space-y-0.5">
           <Label htmlFor="lead-mobile">{t("leads.new.mobile")}</Label>
-          <Input id="lead-mobile" className="h-8 px-2.5" {...form.register("mobile")} />
+          <Input id="lead-mobile" type="tel" inputMode="tel" className={cn("h-8 px-2.5", FIELD_W.mobile)} {...form.register("mobile")} />
         </div>
         {!existingCustomer ? (
           <div className="sm:col-span-2">
@@ -139,14 +150,16 @@ export function NewLeadForm({
           </div>
         ) : null}
         <div className="space-y-0.5">
-          <Label htmlFor="lead-source">{t("leads.new.source")}</Label>
-          <select id="lead-source" {...form.register("source")} className={fieldClass}>
-            {activeSources.map((s) => (
-              <option key={s.key} value={s.key}>
-                {sourceLabel(s.key)}
-              </option>
-            ))}
-          </select>
+          <ChoiceSelect
+            id="lead-source"
+            className="space-y-0.5"
+            label={t("leads.new.source")}
+            value={source}
+            options={activeSources.map((s) => ({ value: s.key, label: sourceLabel(s.key) }))}
+            onChange={(v) => form.setValue("source", v, { shouldValidate: true })}
+            error={form.formState.errors.source ? t(form.formState.errors.source.message!) : undefined}
+          />
+          <LeadOptionQuickAdd list="source" onAdded={(key) => form.setValue("source", key, { shouldDirty: true, shouldValidate: true })} />
         </div>
         {/* Sits next to Source in the grid: appears only when the chosen
             source has a referrer to capture, taking Source's row -- when it
@@ -154,39 +167,41 @@ export function NewLeadForm({
             flows into this slot instead. */}
         <ReferredBySection
           orgId={profile?.org_id}
-          source={form.watch("source")}
+          source={source}
           referredByUserId={form.watch("referredByUserId") ?? ""}
           onReferredByUserIdChange={(next) => form.setValue("referredByUserId", next)}
           referredByName={form.watch("referredByName") ?? ""}
           onReferredByNameChange={(next) => form.setValue("referredByName", next)}
           referredByPhone={form.watch("referredByPhone") ?? ""}
           onReferredByPhoneChange={(next) => form.setValue("referredByPhone", next)}
+          referredByCustomerId={form.watch("referredByCustomerId") ?? ""}
+          onReferredByCustomerIdChange={(next) => form.setValue("referredByCustomerId", next)}
         />
         <div className="space-y-0.5">
-          <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>
-          <select id="lead-product-category" {...form.register("productCategory")} className={fieldClass}>
-            <option value="">{t("service.filters.all")}</option>
-            {activeProductTypes.map((p) => (
-              <option key={p.key} value={p.key}>
-                {productTypeLabel(p.key)}
-              </option>
-            ))}
-          </select>
+          <ChoiceSelect
+            id="lead-product-category"
+            className="space-y-0.5"
+            label={t("leads.new.productCategory")}
+            value={form.watch("productCategory")}
+            options={activeProductTypes.map((p) => ({ value: p.key, label: productTypeLabel(p.key) }))}
+            onChange={(v) => form.setValue("productCategory", v)}
+          />
+          <LeadOptionQuickAdd list="product_type" onAdded={(key) => form.setValue("productCategory", key, { shouldDirty: true, shouldValidate: true })} />
         </div>
         <div className="space-y-0.5">
-          <Label htmlFor="lead-kind">{t("leads.new.kind")}</Label>
-          <select id="lead-kind" {...form.register("kind")} className={fieldClass}>
-            <option value="">{t("service.filters.all")}</option>
-            {activeKinds.map((k) => (
-              <option key={k.key} value={k.key}>
-                {kindLabel(k.key)}
-              </option>
-            ))}
-          </select>
+          <ChoiceSelect
+            id="lead-kind"
+            className="space-y-0.5"
+            label={t("leads.new.kind")}
+            value={form.watch("kind")}
+            options={activeKinds.map((k) => ({ value: k.key, label: kindLabel(k.key) }))}
+            onChange={(v) => form.setValue("kind", v)}
+          />
+          <LeadOptionQuickAdd list="kind" onAdded={(key) => form.setValue("kind", key, { shouldDirty: true, shouldValidate: true })} />
         </div>
         <div className="space-y-0.5">
           <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
-          <Input id="lead-budget" type="number" min={0} className="h-8 px-2.5" {...form.register("budget")} />
+          <Input id="lead-budget" type="number" inputMode="decimal" min={0} className={cn("h-8 px-2.5", FIELD_W.amount)} {...form.register("budget")} />
           {form.formState.errors.budget ? <p className="text-xs text-danger">{t(form.formState.errors.budget.message!)}</p> : null}
         </div>
         <div className="space-y-0.5">
@@ -213,7 +228,7 @@ export function NewLeadForm({
       {createLead.error ? <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{(createLead.error as Error).message}</p> : null}
       <div className="flex justify-end">
         <Button
-          onClick={form.handleSubmit(onSubmit)}
+          onClick={form.handleSubmit(onSubmit, (errors) => errors.source && focusChoice("lead-source"))}
           disabled={createLead.isPending || !canSubmitWithWarning(dupWarning.data, dupWarningConfirmed)}
         >
           {createLead.isPending ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
