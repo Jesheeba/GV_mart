@@ -29,7 +29,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
 import { addressLocalityText, pinStatus } from "@/lib/address"
-import { getLatestAddressLocationEvent } from "@/services/customers"
+import { getCustomerName, getLatestAddressLocationEvent } from "@/services/customers"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
@@ -127,6 +127,13 @@ export function CustomerDetailPage() {
   // direct referred_by_user_id field at all.
   const customerReferrers = useReferrersForCustomers(id ? [id] : [])
   const referrer = customerReferrers.data?.[0] ?? null
+  // Referral sources (20261228100000): an existing customer as referrer (mutually exclusive with the user referrer above).
+  const referrerCustomerId = customer?.referred_by_customer_id ?? null
+  const referrerCustomerName = useQuery({
+    queryKey: ["customers", "name", referrerCustomerId],
+    queryFn: () => getCustomerName(referrerCustomerId!),
+    enabled: !!referrerCustomerId,
+  })
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
   const primaryAddressId = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.id
   const latestPinEvent = useQuery({
@@ -402,6 +409,15 @@ export function CustomerDetailPage() {
                         source: referrer.source_label === "direct" ? t("customers.detail.referrerSourceDirect") : t("customers.detail.referrerSourceLegacy"),
                       })}
                     </span>
+                  ) : referrerCustomerId && referrerCustomerName.data ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/admin/customers/${referrerCustomerId}`)}
+                      className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text hover:underline"
+                    >
+                      <UserPlus className="size-3" />
+                      {t("customers.detail.referredBy", { name: referrerCustomerName.data, source: t("referrer.kind.customer") })}
+                    </button>
                   ) : null}
                   {customer.customer_members.length > 0 ? (
                     <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">

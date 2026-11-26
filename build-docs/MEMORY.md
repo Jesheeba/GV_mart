@@ -88,3 +88,12 @@
 - D3 Complaint quick-add: **master + operation_admin**, via a narrow SECURITY DEFINER RPC (needs GO APPLY). No broadening of master-table RLS.
 - D4 Quick-add scope: **"wherever possible"** — every picker of a master list whose user could reasonably need a new value; non-master roles go through narrow RPCs, never RLS widening.
 - GST incl/excl never existed in any branch (checked `git log --all -S`); it is new work, not a regression.
+
+## Referral sources batch (2026-11-26)
+- Owner: Walk-in/Lead stay Sources, not referrers (would count walk-ins as referrals).
+- Owner: referrer options on all 6 screens (leads, New Customer, Sale, Complaint, AMC); customer referrer linked by id (`referred_by_customer_id`), not free text.
+- Owner: customer referrers get auto-credited points (amount + trigger still open, see PLAN.md Q1/Q2).
+- Supersedes 2026-11-11 "Referred-by fully source-driven": the Referral source now shows a referrer-type chooser.
+- Owner (approval, 2026-11-26): auto-credit is a master **toggle** in Settings + master-set amount; OFF by default. Credit on the referred customer's first invoice (my recommendation, owner did not object). Q3 (other-window ownership) treated as cleared by plan approval.
+- 2026-11-26: owner sent "go apply" before R2 existed — not treated as approval of the unseen file; R2 built + rehearsed, waiting for "go apply" on 20261228100000 by name.
+- Billing RPCs wrapped (*_with_referrer), not edited — keeps the 18 KB create_sale untouched; same-transaction call keeps it atomic.

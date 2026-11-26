@@ -29,6 +29,7 @@ export function fieldsFromLead(lead: LeadListItem) {
     tds_status: lead.tds_status ?? "",
     referred_by_name: lead.referred_by_name ?? "",
     referred_by_phone: lead.referred_by_phone ?? "",
+    referred_by_customer_id: lead.referred_by_customer_id ?? "",
   }
 }
 
@@ -56,6 +57,7 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
           tds_status: form.tds_status || null,
           referred_by_name: form.referred_by_name.trim() || null,
           referred_by_phone: form.referred_by_phone.trim() || null,
+          referred_by_customer_id: form.referred_by_customer_id || null,
         },
       })
       setEditing(false)
@@ -159,6 +161,8 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
             onReferredByNameChange={(next) => setForm((f) => ({ ...f, referred_by_name: next }))}
             referredByPhone={form.referred_by_phone}
             onReferredByPhoneChange={(next) => setForm((f) => ({ ...f, referred_by_phone: next }))}
+            referredByCustomerId={form.referred_by_customer_id}
+            onReferredByCustomerIdChange={(next) => setForm((f) => ({ ...f, referred_by_customer_id: next }))}
           />
         </div>
       ) : (

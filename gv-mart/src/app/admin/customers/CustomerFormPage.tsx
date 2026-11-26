@@ -13,7 +13,8 @@ import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { VerifiedLocationCard } from "./VerifiedLocationCard"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
-import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
+import { ReferrerField } from "@/components/shared/ReferrerField"
+import { EMPTY_REFERRER, type ReferrerValue } from "@/lib/referrer"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
@@ -437,6 +438,7 @@ export function CustomerFormPage() {
   }, [mode, existing.data, followup.data, followup.isFetched])
 
   const createCustomer = useCreateCustomer()
+  const [referrer, setReferrer] = useState<ReferrerValue>(EMPTY_REFERRER)
   const upsertAddress = useUpsertPrimaryAddress(orgId, id ?? "")
   // Urgent item (2026-11-02): root-cause investigation into "error popup yet
   // one entry still gets created" found this Save button had no re-entrancy
@@ -505,6 +507,7 @@ export function CustomerFormPage() {
         // The primary member's own profession becomes the customer's (the RPC also falls back to it).
         profession: peopleValues.members[peopleValues.primaryIndex]?.profession?.trim() || undefined,
         referredByUserId,
+        referredByCustomerId: referrer.kind === "customer" ? referrer.customerId || undefined : undefined,
         members: peopleValues.members.map((m, i) => ({
           name: m.name,
           mobile: m.mobile,
@@ -701,12 +704,17 @@ export function CustomerFormPage() {
                 onChange={(next) => peopleForm.setValue("preferredLanguage", next ?? "")}
               />
               {/* Referral incentives — capture-at-creation only, never shown in edit mode. */}
-              <ReferrerPicker
-                id="new-customer-referred-by"
+              <ReferrerField
+                idPrefix="new-customer-referred-by"
                 orgId={orgId}
                 label={t("customers.form.referredBy")}
-                value={peopleForm.watch("referredByUserId") ?? ""}
-                onChange={(next) => peopleForm.setValue("referredByUserId", next)}
+                // No "someone else": a customer record only links a technician/staff profile or another customer.
+                kinds={["none", "technician", "staff", "customer"]}
+                value={referrer}
+                onChange={(next) => {
+                  setReferrer(next)
+                  peopleForm.setValue("referredByUserId", next.kind === "technician" || next.kind === "staff" ? next.userId : "")
+                }}
               />
             </div>
           ) : (

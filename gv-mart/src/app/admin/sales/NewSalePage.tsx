@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react"
+import { ReferrerField } from "@/components/shared/ReferrerField"
+import { EMPTY_REFERRER, type ReferrerValue } from "@/lib/referrer"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { Loader2, Search } from "lucide-react"
@@ -54,7 +56,9 @@ type NewSaleDraftData = {
   /** Optional so drafts saved before the GST switch existed still restore. */
   gstInclusiveChoice?: boolean | null
   // Optional: drafts saved before 2026-11-26 don't have it (the referrer was silently dropped on restore).
+  /** Pre-2026-11-26 drafts only; restored as a technician referrer. */
   referredByTechnicianId?: string
+  referrer?: ReferrerValue
 }
 
 /**
@@ -106,7 +110,7 @@ export function NewSalePage() {
   const [amountPaidInput, setAmountPaidInput] = useState("")
   const [amountPaidTouched, setAmountPaidTouched] = useState(false)
   const [gstInclusiveChoice, setGstInclusiveChoice] = useState<boolean | null>(null)
-  const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
+  const [referrer, setReferrer] = useState<ReferrerValue>(EMPTY_REFERRER)
 
   const { data: settings } = useSettings(orgId)
   const { data: technicians } = useTechnicians(orgId)
@@ -235,7 +239,7 @@ export function NewSalePage() {
     amountPaidInput,
     amountPaidTouched,
     gstInclusiveChoice,
-    referredByTechnicianId,
+    referrer,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -261,7 +265,8 @@ export function NewSalePage() {
     if (restoredDraft.amountPaidInput != null) setAmountPaidInput(restoredDraft.amountPaidInput)
     if (restoredDraft.amountPaidTouched != null) setAmountPaidTouched(restoredDraft.amountPaidTouched)
     if (restoredDraft.gstInclusiveChoice !== undefined) setGstInclusiveChoice(restoredDraft.gstInclusiveChoice)
-    if (restoredDraft.referredByTechnicianId) setReferredByTechnicianId(restoredDraft.referredByTechnicianId)
+    if (restoredDraft.referrer) setReferrer(restoredDraft.referrer)
+    else if (restoredDraft.referredByTechnicianId) setReferrer({ ...EMPTY_REFERRER, kind: "technician", userId: restoredDraft.referredByTechnicianId })
   }, [restoredDraft])
 
   const techMax = settings ? Number(settings.discount_tech_max) : 5
@@ -353,7 +358,8 @@ export function NewSalePage() {
         gstInclusive,
       },
       quotationId,
-      referredByTechnicianId: referredByTechnicianId || null,
+      referredByTechnicianId: referrer.kind === "technician" ? referrer.userId || null : null,
+      referrer,
       amountPaid,
     })
     clearDraft()
@@ -394,7 +400,7 @@ export function NewSalePage() {
             setRedeemPointsInput("0")
             setAmountPaidInput("")
             setAmountPaidTouched(false)
-            setReferredByTechnicianId("")
+            setReferrer(EMPTY_REFERRER)
           }}
         />
       ) : null}
@@ -653,19 +659,15 @@ export function NewSalePage() {
               </div>
 
               <div className="space-y-1.5 border-t border-border pt-3">
-                <Label>{t("common.referredByTechnician")}</Label>
-                <select
-                  value={referredByTechnicianId}
-                  onChange={(e) => setReferredByTechnicianId(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
-                >
-                  <option value="">{t("common.none")}</option>
-                  {(technicians ?? []).map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.full_name}
-                    </option>
-                  ))}
-                </select>
+                <ReferrerField
+                  idPrefix="new-sale-referrer"
+                  orgId={orgId}
+                  value={referrer}
+                  onChange={setReferrer}
+                  technicians={technicians ?? []}
+                  excludeCustomerId={customerId || null}
+                  allowQuickAdd={true}
+                />
               </div>
 
               {stockError ? (

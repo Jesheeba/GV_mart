@@ -620,6 +620,7 @@ export type Database = {
           mobile: string | null
           profession: string | null
           preferred_language: string | null
+          referred_by_customer_id: string | null
           source: string | null
           tags: string[]
           notes: string | null
@@ -664,6 +665,7 @@ export type Database = {
           mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
+          referred_by_customer_id?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
@@ -694,6 +696,7 @@ export type Database = {
           mobile?: string | null
           profession?: string | null
           preferred_language?: string | null
+          referred_by_customer_id?: string | null
           source?: string | null
           tags?: string[]
           notes?: string | null
@@ -5542,6 +5545,7 @@ export type Database = {
           // coexists with referred_by_user_id above — see MEMORY.md.
           referred_by_name: string | null
           referred_by_phone: string | null
+          referred_by_customer_id: string | null
         }
         Insert: {
           is_test?: boolean
@@ -5585,6 +5589,7 @@ export type Database = {
           report_storage_path?: string | null
           referred_by_name?: string | null
           referred_by_phone?: string | null
+          referred_by_customer_id?: string | null
         }
         Update: {
           is_test?: boolean
@@ -5628,6 +5633,7 @@ export type Database = {
           report_storage_path?: string | null
           referred_by_name?: string | null
           referred_by_phone?: string | null
+          referred_by_customer_id?: string | null
         }
         Relationships: [
           {
@@ -6184,6 +6190,7 @@ export type Database = {
           points: number
           reason: string | null
           ref_id: string | null
+          source: string | null
           created_at: string
           updated_at: string
         }
@@ -6194,6 +6201,7 @@ export type Database = {
           points: number
           reason?: string | null
           ref_id?: string | null
+          source?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6204,6 +6212,7 @@ export type Database = {
           points?: number
           reason?: string | null
           ref_id?: string | null
+          source?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -6748,6 +6757,8 @@ export type Database = {
           default_min_stock: number
           gst_rate: number
           prices_include_gst: boolean
+          customer_referral_points: number
+          customer_referral_points_enabled: boolean
           sla_hours_very_urgent: number
           sla_hours_urgent: number
           sla_hours_normal: number
@@ -6852,6 +6863,8 @@ export type Database = {
           default_min_stock?: number
           gst_rate?: number
           prices_include_gst?: boolean
+          customer_referral_points?: number
+          customer_referral_points_enabled?: boolean
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
           sla_hours_normal?: number
@@ -6937,6 +6950,8 @@ export type Database = {
           default_min_stock?: number
           gst_rate?: number
           prices_include_gst?: boolean
+          customer_referral_points?: number
+          customer_referral_points_enabled?: boolean
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
           sla_hours_normal?: number
@@ -8093,6 +8108,23 @@ export type Database = {
           p_referred_by_technician_id?: string | null
         }
         Returns: Json
+      }
+      // Referral sources (20261228100000) — wrappers: the base RPC's args + one non-technician referrer.
+      create_sale_with_referrer: {
+        Args: Database["public"]["Functions"]["create_sale"]["Args"] & { p_referred_by_user_id?: string | null; p_referred_by_customer_id?: string | null; p_referred_by_name?: string | null; p_referred_by_phone?: string | null }
+        Returns: Json
+      }
+      create_complaint_ticket_with_referrer: {
+        Args: Database["public"]["Functions"]["create_complaint_ticket"]["Args"] & { p_referred_by_user_id?: string | null; p_referred_by_customer_id?: string | null; p_referred_by_name?: string | null; p_referred_by_phone?: string | null }
+        Returns: Json
+      }
+      sell_amc_plan_with_referrer: {
+        Args: Database["public"]["Functions"]["sell_amc_plan"]["Args"] & { p_confirm_backdated?: boolean; p_referred_by_user_id?: string | null; p_referred_by_customer_id?: string | null; p_referred_by_name?: string | null; p_referred_by_phone?: string | null }
+        Returns: Json
+      }
+      create_customer_with_referrer: {
+        Args: Database["public"]["Functions"]["create_customer_with_details"]["Args"] & { p_referred_by_customer_id?: string | null }
+        Returns: string
       }
       refresh_amc_statuses: {
         Args: { p_org_id: string }

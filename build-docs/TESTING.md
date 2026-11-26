@@ -7,6 +7,23 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## referral-sources R3+R4 (screens + points switch) — 2026-11-26
+- `src/lib/referrer.test.ts` 22/22 (+8): wrapper args per kind (technician keeps plain RPC = AC5), incomplete referrer sends nothing, points toggle needs amount > 0, amount 0..100000 whole number, en/ta strings.
+- `tsc -b` clean, oxlint clean (no new warnings), `vite build` OK.
+- Full vitest in a clean worktree with the R3 diff applied: 1231 passed / 2 failed (pre-existing waOutboxSentGuard, wa-event-context; same 2 on origin/main).
+- Found: inside the feature worktree (dev server running there) the full run also fails 24 OTA tests; they pass alone, with `--no-cache` for subsets, and in any clean worktree with identical code. Environment-only, not caused by this change; not chased further.
+- Not browser-checked by me: signing in uses the live auth host. Owner checks in the local tab.
+- Merge into main (2026-11-26): full vitest with `--no-cache` twice = 1377 passed / 2 failed (same pre-existing pair as main). Root cause of the extra OTA / wa-milestone failures seen earlier: worktrees share one node_modules via junction, so vitest's transform cache served another branch's compiled code (a test failed on `abortSignal`, which isn't in this tree). Use `--no-cache` in junctioned worktrees.
+
+## referral-sources R2 (migration, NOT applied) — 2026-11-26
+- `supabase/tests/referral_sources.test.sql` via rolled-back rehearsal (begin + migration + test, ends in RAISE): **40/40 pass** on the first run. Covers AC-1/5/6/7/8/9, guards, first-referrer-wins, history rule, atomic rollback of a failed sale, carry-over, points toggle/once/paid-later, delete of referrer, grants, billing RPC md5 unchanged.
+- Leak check afterwards (read-only): 0 new columns/functions, 0 test orgs/users, carry-over md5 still 9a4e65a1.
+- Rollback exercise (migration + rollback, ends in RAISE): 0 cols / 0 fns / 0 triggers left, carry-over md5 back to 9a4e65a1, no anon/authenticated EXECUTE.
+
+## referral-sources R1 (picker + quick-add) — 2026-11-26
+- `src/lib/referrer.test.ts` 14/14: AC1/AC2 kinds (no walk-in/lead), kind switch clears fields, completeness, AC3 quick-add schema (name/mobile/optional area, invalid mobiles), AC4 existing-customer match, en/ta key parity.
+- Regression: `tsc -b` clean, oxlint clean, full vitest 1223 passed / 2 failed. The 2 failures (waOutboxSentGuard, wa-event-context) also fail on clean origin/main c83a0a3, so they were there before this change.
+- Not browser-checked: signing in uses the live auth host. Owner to check New Lead → Source Referral / Customer app → Add new customer.
 ## choice-dropdowns-not-set — 2026-11-26
 - New test files (all pass):
   - `choiceNotSet.{money,service,leads,admin}.test.ts`: 13 / 17 / 18 / 18 tests.

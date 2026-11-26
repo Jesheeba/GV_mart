@@ -1535,6 +1535,9 @@
     "reviewLinkMinStars": "Low-rating alert below (stars)",
     "reviewIncentivesEnabled": "Review incentives (OFF by default)",
     "reviewIncentivesEnabledHint": "Off: the review incentive rule pays nothing, no review-time allowance, no review claim-rate flags. Review counts stay as information. Google's policy forbids rewarding reviews, so leave this OFF.",
+    "customerReferralPointsEnabled": "Customer referral points (OFF by default)",
+    "customerReferralPointsEnabledHint": "On: when a customer referred by another customer pays their first invoice, the referring customer gets the points below, once. Off: nothing is credited.",
+    "customerReferralPoints": "Points per referred customer",
     "googleReviewUrl": "Google review link",
     "googleReviewUrlPlaceholder": "https://g.page/r/.../review",
     "googleReviewUrlHint": "Shown to the customer as a \"Leave a Google review\" button once they rate at or above the threshold above. Leave blank to keep the button disabled.",
@@ -1596,6 +1599,9 @@
     "stayOnPage": "Stay on this page",
     "beforeUnloadWarning": "You have unsaved changes. If you leave this page, they'll be lost.",
     "errors": {
+      "wholeNumber": "Use a whole number",
+      "customerReferralPointsMax": "At most 100000",
+      "customerReferralPointsNeeded": "Set the points (more than 0) or switch customer referral points off",
       "required": "This field is required",
       "positive": "Must be greater than zero",
       "nonNegative": "Cannot be negative",
@@ -6286,5 +6292,28 @@
     "snoozeMustBeFuture": "Pick a date after today.",
     "createServiceRequest": "Create service request",
     "serviceRequestCreated": "Service ticket created ({{ticketId}})."
+  },
+  "referrer": {
+    "label": "Referred by",
+    "pickStaff": "Pick sales person / staff",
+    "addNewCustomer": "Add new customer",
+    "clearCustomer": "Remove referrer",
+    "kind": {
+      "none": "No one",
+      "technician": "Technician",
+      "staff": "Sales person / staff",
+      "customer": "Existing customer",
+      "other": "Someone else"
+    },
+    "quickAdd": {
+      "title": "Add new customer",
+      "subtitle": "Saved as a customer now. Fill in the full address later from the customer page.",
+      "name": "Name",
+      "mobile": "Mobile",
+      "area": "Area (optional)",
+      "save": "Add customer",
+      "existingFound": "{{name}} already uses this mobile number.",
+      "useExisting": "Use {{name}}"
+    }
   }
 }

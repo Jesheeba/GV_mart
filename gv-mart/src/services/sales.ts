@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { nonTechnicianReferrerArgs, type ReferrerValue } from "@/lib/referrer"
 import type { Enums, Tables } from "@/types/database"
 
 export type InvoiceRow = Tables<"invoices">
@@ -46,9 +47,11 @@ export async function createSale(
   /** Rewards spec (2026-08-04) — optional finder-credit referral for a walk-in sale with no pre-existing lead/quotation. Ignored server-side if the id doesn't resolve to a technician in this org. */
   referredByTechnicianId?: string | null,
   /** Whole-cart amount actually collected — create_sale allocates it across however many of {spare,product,amc} invoices the cart produces and derives each one's payment_status from it. Omitted/undefined defaults server-side to "fully paid" (create_sale's p_amount_paid default). */
-  amountPaid?: number | null
+  amountPaid?: number | null,
+  /** Referral sources (20261228100000): a non-technician referrer routes through create_sale_with_referrer (same transaction). */
+  referrer?: ReferrerValue | null
 ): Promise<SaleResult> {
-  const { data, error } = await supabase.rpc("create_sale", {
+  const args = {
     p_org_id: orgId,
     p_customer_id: customerId,
     p_cart: {
@@ -72,7 +75,9 @@ export async function createSale(
     p_redeem_points: cart.redeemPoints ?? 0,
     p_referred_by_technician_id: referredByTechnicianId ?? null,
     p_amount_paid: amountPaid ?? null,
-  })
+  }
+  const extra = nonTechnicianReferrerArgs(referrer)
+  const { data, error } = extra ? await supabase.rpc("create_sale_with_referrer", { ...args, ...extra }) : await supabase.rpc("create_sale", args)
   if (error) throw error
   return data as SaleResult
 }

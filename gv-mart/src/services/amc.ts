@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { nonTechnicianReferrerArgs, type ReferrerValue } from "@/lib/referrer"
 import type { Enums, Tables } from "@/types/database"
 
 export type AmcContractRow = Tables<"amc_contracts">
@@ -59,6 +60,8 @@ export type SellAmcInput = {
   referredByTechnicianId?: string | null
   /** Only a master's confirmation is honoured server-side; a start date beyond amc_backdate_max_days is refused without it. */
   confirmBackdated?: boolean
+  /** Referral sources (20261228100000): a non-technician referrer routes through sell_amc_plan_with_referrer. */
+  referrer?: ReferrerValue | null
 }
 
 export type SellAmcResult = {
@@ -73,7 +76,7 @@ export type SellAmcResult = {
 }
 
 export async function sellAmcPlan(input: SellAmcInput) {
-  const { data, error } = await supabase.rpc("sell_amc_plan", {
+  const args = {
     p_org_id: input.orgId,
     p_customer_id: input.customerId,
     p_product_id: input.productId,
@@ -82,7 +85,9 @@ export async function sellAmcPlan(input: SellAmcInput) {
     p_years: input.years ?? null,
     p_referred_by_technician_id: input.referredByTechnicianId ?? null,
     p_confirm_backdated: input.confirmBackdated ?? false,
-  })
+  }
+  const extra = nonTechnicianReferrerArgs(input.referrer)
+  const { data, error } = extra ? await supabase.rpc("sell_amc_plan_with_referrer", { ...args, ...extra }) : await supabase.rpc("sell_amc_plan", args)
   if (error) throw error
   return data as unknown as SellAmcResult
 }

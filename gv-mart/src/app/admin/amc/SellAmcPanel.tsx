@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { ReferrerField } from "@/components/shared/ReferrerField"
+import { EMPTY_REFERRER, type ReferrerValue } from "@/lib/referrer"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useRoProducts, useSellAmcPlan } from "@/hooks/useAmc"
@@ -38,7 +40,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   const { data: roProducts } = useRoProducts(orgId)
   const { data: plans } = amcPlansHooks.useList(orgId)
   const { data: technicians } = useTechnicians(orgId)
-  const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
+  const [referrer, setReferrer] = useState<ReferrerValue>(EMPTY_REFERRER)
   const sellAmc = useSellAmcPlan()
   const { data: orgSettings } = useSettings(orgId)
   // a start date more than this many days in the past needs a master's explicit confirmation (server enforces it too)
@@ -68,7 +70,8 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
       planId: values.planId,
       startDate: values.startDate,
       // no years: the server uses the plan's own duration
-      referredByTechnicianId: referredByTechnicianId || null,
+      referredByTechnicianId: referrer.kind === "technician" ? referrer.userId || null : null,
+      referrer,
       confirmBackdated: needsBackdateConfirm && isMaster && confirmBackdated,
     })
     // visits that were not created are shown, never dropped silently: the user acknowledges them before the panel closes
@@ -182,21 +185,15 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
         </div>
       ) : null}
 
-      <div className="space-y-1.5">
-        <Label>{t("common.referredByTechnician")}</Label>
-        <select
-          value={referredByTechnicianId}
-          onChange={(e) => setReferredByTechnicianId(e.target.value)}
-          className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
-        >
-          <option value="">{t("common.none")}</option>
-          {(technicians ?? []).map((tech) => (
-            <option key={tech.id} value={tech.id}>
-              {tech.full_name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <ReferrerField
+        idPrefix="sell-amc-referrer"
+        orgId={orgId}
+        value={referrer}
+        onChange={setReferrer}
+        technicians={technicians ?? []}
+        excludeCustomerId={form.watch("customerId") || null}
+        allowQuickAdd={profile?.role === "master" || profile?.role === "sales_admin"}
+      />
 
       {needsBackdateConfirm ? (
         <div className="space-y-1.5 rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5">
