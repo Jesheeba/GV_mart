@@ -107,6 +107,7 @@
   "common": {
     "chooseOption": "Choose an option",
     "selectPlaceholder": "Select…",
+    "quickAdd": "Add “{{text}}”",
     "appName": "GV Mart",
     "adminApp": "GV Mart Admin",
     "tagline": "Sales | Service | Spares",
@@ -1530,6 +1531,8 @@
     "discountTechMax": "Technician discount cap (%)",
     "discountAdminMax": "Admin discount cap (%)",
     "gstRate": "GST rate (%)",
+    "pricesIncludeGst": "Prices include GST by default",
+    "pricesIncludeGstHint": "New bills start with GST Included: the price is the final amount and GST is taken out of it. Staff can still switch a single bill to GST Extra.",
     "discountAbsoluteNote": "Anything above the admin cap is never allowed, for any role.",
     "amcBookWindow": "AMC self-booking window (days before renewal)",
     "referralPointValue": "Referral point value (₹, minimum 50)",
@@ -1796,6 +1799,13 @@
       "recordPaymentInvalid": "Enter an amount greater than 0 and no more than the balance due",
       "noStockRecord": "No stock record for \"{{name}}\" — add stock before selling",
       "insufficientStock": "Only {{available}} of \"{{name}}\" in stock — reduce the quantity"
+    },
+    "gst": {
+      "label": "GST",
+      "extra": "GST extra",
+      "included": "GST included",
+      "includedLine": "Incl. GST {{rate}}%",
+      "includedAmount": "GST amount (included in price)"
     },
     "summary": {
       "title": "Summary",
@@ -2127,6 +2137,8 @@
       },
       "nameOfComplaint": "Name of complaint",
       "nameOfComplaintPlaceholder": "e.g. Water flow stopped, Not cooling",
+      "complaintNameAdded": "Added to complaint names",
+      "complaintNameAddFailed": "Couldn't add the complaint name. It's kept as typed text.",
       "natureOfComplaint": "Complaint description (optional)",
       "natureOfComplaintPlaceholder": "e.g. Issue observed for past 2 days",
       "natureOfComplaintHint": "Additional details to help the technician.",

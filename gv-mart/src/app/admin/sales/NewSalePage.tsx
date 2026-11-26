@@ -50,6 +50,8 @@ type NewSaleDraftData = {
   redeemPointsInput: string
   amountPaidInput: string
   amountPaidTouched: boolean
+  /** Optional so drafts saved before the GST switch existed still restore. */
+  gstInclusiveChoice?: boolean | null
 }
 
 /**
@@ -100,6 +102,7 @@ export function NewSalePage() {
   // sale requires typing a smaller number.
   const [amountPaidInput, setAmountPaidInput] = useState("")
   const [amountPaidTouched, setAmountPaidTouched] = useState(false)
+  const [gstInclusiveChoice, setGstInclusiveChoice] = useState<boolean | null>(null)
   const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
 
   const { data: settings } = useSettings(orgId)
@@ -158,6 +161,8 @@ export function NewSalePage() {
   useEffect(() => {
     if (prefilledRef.current || !quotationData.data || !allProducts || !allSpares) return
     prefilledRef.current = true
+    // Carry the quotation's GST choice into the bill so the customer pays what was quoted.
+    if (quotationData.data.gst_inclusive !== null) setGstInclusiveChoice(quotationData.data.gst_inclusive)
     const productLines: CartProductLine[] = []
     const spareLines: CartSpareLine[] = []
     for (const item of quotationData.data.quotation_items) {
@@ -226,6 +231,7 @@ export function NewSalePage() {
     redeemPointsInput,
     amountPaidInput,
     amountPaidTouched,
+    gstInclusiveChoice,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -250,6 +256,7 @@ export function NewSalePage() {
     if (restoredDraft.redeemPointsInput != null) setRedeemPointsInput(restoredDraft.redeemPointsInput)
     if (restoredDraft.amountPaidInput != null) setAmountPaidInput(restoredDraft.amountPaidInput)
     if (restoredDraft.amountPaidTouched != null) setAmountPaidTouched(restoredDraft.amountPaidTouched)
+    if (restoredDraft.gstInclusiveChoice !== undefined) setGstInclusiveChoice(restoredDraft.gstInclusiveChoice)
   }, [restoredDraft])
 
   const techMax = settings ? Number(settings.discount_tech_max) : 5
@@ -261,7 +268,9 @@ export function NewSalePage() {
   const giftStockById = new Map((giftInventory ?? []).map((r) => [r.item_id, r.stock_qty]))
 
   const gstRate = settings ? Number(settings.gst_rate) : 0
-  const computedPayable = payableTotal(cart, discountPercent, gstRate, redeemAmount)
+  // null = follow the org default (Masters -> Settings) until the cashier flips the switch.
+  const gstInclusive = gstInclusiveChoice ?? settings?.prices_include_gst ?? false
+  const computedPayable = payableTotal(cart, discountPercent, gstRate, redeemAmount, gstInclusive)
   useEffect(() => {
     if (!amountPaidTouched) setAmountPaidInput(computedPayable.toFixed(2))
   }, [computedPayable, amountPaidTouched])
@@ -336,6 +345,7 @@ export function NewSalePage() {
         txnId: paymentMethod === "transfer" ? txnId : null,
         paymentDescription: paymentMethod === "transfer" ? paymentDescription : null,
         redeemPoints,
+        gstInclusive,
       },
       quotationId,
       referredByTechnicianId: referredByTechnicianId || null,
@@ -676,7 +686,15 @@ export function NewSalePage() {
           ) : null}
         </div>
 
-        <SaleSummaryPanel orgId={orgId} cart={cart} discountPercent={discountPercent} giftName={selectedGift?.name} redeemAmount={redeemAmount} />
+        <SaleSummaryPanel
+          orgId={orgId}
+          cart={cart}
+          discountPercent={discountPercent}
+          giftName={selectedGift?.name}
+          redeemAmount={redeemAmount}
+          gstInclusive={gstInclusive}
+          onGstInclusiveChange={setGstInclusiveChoice}
+        />
       </div>
 
       <div className="flex justify-between">

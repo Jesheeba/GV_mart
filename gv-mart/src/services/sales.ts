@@ -23,6 +23,8 @@ export type SaleCart = {
   paymentDescription: string | null
   /** Referral points to redeem as a flat ₹ discount (settings.referral_point_value per point). create_sale re-validates this against the customer's actual ledger balance server-side — never trust this number, it's only ever a UX convenience here. */
   redeemPoints: number
+  /** GST Included/Extra for this bill (2026-11-26). create_sale falls back to settings.prices_include_gst when absent. */
+  gstInclusive: boolean
 }
 
 export type SaleResult = {
@@ -64,6 +66,7 @@ export async function createSale(
       payment_method: cart.paymentMethod,
       txn_id: cart.txnId,
       payment_description: cart.paymentDescription,
+      gst_inclusive: cart.gstInclusive,
     },
     p_quotation_id: quotationId ?? null,
     p_redeem_points: cart.redeemPoints ?? 0,

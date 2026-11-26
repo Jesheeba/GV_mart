@@ -81,3 +81,20 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - `src/app/admin/nav.test.ts` › "sidebar-pinned-items": 6 tests (per-user key, corrupt storage, dedupe/order, pin order, unknown+Dashboard dropped, role-hidden key hidden) — PASS.
 - `tsc -b` clean. Full suite: 1084 pass, 2 fail — `waOutboxSentGuard.test.ts`, `wa-event-context.test.ts`: pre-existing on main, unrelated (don't import changed files).
 - Not covered by automated tests (no DOM test env): pin button render/hover, collapsed view — manual check needed.
+
+## picker-search (F1) — 2026-11-26
+- `src/lib/productSearch.test.ts`: 13/13 pass (A1 multi-word spare search, A2 multi-word product search, A3/A4 labels, A5 spaces/case edge cases).
+- Regression: full suite 1097 pass / 2 fail / 17 skipped. The 2 failures (`waOutboxSentGuard.test.ts`, `wa-event-context.test.ts`) are WhatsApp tests that import none of the changed files; they were already failing on origin/main feaaa84.
+- `tsc --noEmit`: only the pre-existing `CustomerFormPage.tsx` unused `fullAddress` error (already failing on origin/main, has its own fix branch).
+- Not browser-verified: signing in would send the test login to the live Supabase auth host. Owner to try New Sale → Spare tab.
+
+## quick-add F3a: complaint name — 2026-11-26
+- `src/lib/quickAdd.test.ts`: 6/6 pass (offer only new names, dedupe case/space-insensitive, blank, 120-char limit).
+- `supabase/tests/quick_add_complaint_type.test.sql`: **11/11 PASS on live, 2026-11-26**, run alone (not concatenated) after apply. Before/after counts identical (test orgs 0, complaint_types 71, test users 0, profiles 14), so nothing persisted. It covers ACL (no anon/PUBLIC), ops add, dedupe, cross-org isolation, sales/tech rejected, blank/long/null-category, RLS unchanged. It ends in RAISE RESULTS, so it is safe to run as migration+test in one request after GO APPLY.
+- Regression: full suite 1103 pass / 2 fail. The failures are the same 2 WhatsApp tests that were already failing on origin/main.
+- Migration applied live 2026-11-26 on owner's "go apply". ACL verified: anon no, authenticated yes, no PUBLIC grant.
+
+## gst-inclusive-toggle F2 — 2026-11-26
+- `src/lib/gstInclusive.test.ts`: 12/12 pass (AC numbers 11,800→1,800; 12,500→1,906.78; discount then GST; Extra unchanged; rate 0; 100% discount; payable follows the switch; redemption floor). Existing `sale-calc.test.ts` still green.
+- `supabase/tests/gst_inclusive_toggle.test.sql`: **19/19 PASS on live, 2026-11-26**, run alone after apply. Three earlier runs stopped on test-fixture mistakes (new-org 5% discount cap, products need brand+model, `rental_plans.monthly_rate` is generated); only the fixtures were fixed. Before/after row counts were identical on all 4 runs, so nothing persisted. It covers ACLs, one overload each, all 6 functions on `_gst_amount`, SQL math = JS math, create_sale included/extra/org-default/partial payment, create_quotation explicit/default/legacy NULL, and run_rental_billing on the org default.
+- Full suite 1114 pass / 2 fail (the same WhatsApp tests that were already failing on origin/main); tsc clean apart from the CustomerFormPage error that was already there.

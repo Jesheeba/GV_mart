@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { SparePicker } from "@/components/shared/SparePicker"
 import { brandsHooks, modelsHooks, productsHooks, sparesHooks, amcPlansHooks } from "@/hooks/useMasters"
 import { useInventoryList } from "@/hooks/useInventory"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -194,14 +195,15 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
 
           <TabsContent value="spare">
             <div className="grid grid-cols-2 gap-2 px-1 pt-3 sm:grid-cols-3">
-              <select className={`${selectClass} sm:col-span-2`} value={spareId} onChange={(e) => setSpareId(e.target.value)}>
-                <option value="">{t("sales.items.selectSpare")}</option>
-                {activeSpares.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} — {formatCurrency(Number(s.price))} ({t("sales.items.stockShort", { count: stockFor(s.id, spareStock) ?? 0 })})
-                  </option>
-                ))}
-              </select>
+              <SparePicker
+                className="sm:col-span-2"
+                inputClassName="h-8"
+                spares={activeSpares}
+                value={spareId}
+                onChange={setSpareId}
+                placeholder={t("sales.items.selectSpare")}
+                renderMeta={(s) => `${formatCurrency(Number(s.price))} (${t("sales.items.stockShort", { count: stockFor(s.id, spareStock) ?? 0 })})`}
+              />
               <Input type="number" inputMode="numeric" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
             </div>
             <div className="flex justify-end px-1 pt-2">

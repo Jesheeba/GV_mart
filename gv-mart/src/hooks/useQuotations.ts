@@ -27,7 +27,8 @@ export function useCreateQuotation() {
       leadId?: string | null
       validUntil: string | null
       items: quotations.QuotationCartItem[]
-    }) => quotations.createQuotation(input.orgId, input.customerId, input.validUntil, input.items, input.leadId ?? null),
+      gstInclusive?: boolean | null
+    }) => quotations.createQuotation(input.orgId, input.customerId, input.validUntil, input.items, input.leadId ?? null, input.gstInclusive ?? null),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quotations"] }),
   })
 }

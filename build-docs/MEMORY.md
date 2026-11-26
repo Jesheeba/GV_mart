@@ -72,3 +72,10 @@
 - Owner asked for every either/or to be a dropdown with "Not set". Challenged: the bug is pre-selection, and dropdowns add taps. Owner approved: 2–3 options = buttons with nothing selected + required; 4+ = "Select…" dropdown; optional = "Not set". Existing data untouched.
 - Input density: fix widths, not heights (40px touch targets kept).
 - Plan: PLAN.md "UX pass" section; docs features/choice-no-preselect.md, input-density.md, date-display.md.
+
+## Batch 2026-11-26 decisions (owner)
+- D1 Spreadsheet brand: **code fix only** — labels hide `RO (spreadsheet import)` and repeated model text; no DB rename/archive.
+- D2 GST: **org default in Settings + per-bill Included/Extra switch** on sale, service invoice, AMC, quotation. Old invoices stay exclusive (column default false).
+- D3 Complaint quick-add: **master + operation_admin**, via a narrow SECURITY DEFINER RPC (needs GO APPLY). No broadening of master-table RLS.
+- D4 Quick-add scope: **"wherever possible"** — every picker of a master list whose user could reasonably need a new value; non-master roles go through narrow RPCs, never RLS widening.
+- GST incl/excl never existed in any branch (checked `git log --all -S`); it is new work, not a regression.
