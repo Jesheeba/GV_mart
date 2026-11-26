@@ -291,11 +291,6 @@ export function CustomerFormPage() {
   const state = addressForm.watch("state")
   const lat = addressForm.watch("lat")
   const lng = addressForm.watch("lng")
-  // The canonical composed text geocoding/compare/save all use — structured
-  // fields take over the moment any of them has text; otherwise this falls
-  // back to the old free-text full_address so a pre-redesign customer's
-  // address isn't silently dropped. See src/lib/address.ts.
-  const fullAddress = composeFullAddress({ doorNo, plotNo, buildingName, streetCross, subArea, area, landmark }) || legacyFullAddress
   // Each "recently used" query only turns on once its own field is actually
   // focused -- all 5 firing together the moment the Address step mounts was
   // 5 extra DB round-trips competing with everything else on page load,
