@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { useProfile } from "@/hooks/useProfile"
 import { usePendingExpenseClaims, usePetrolReferenceAmount, useVerifyExpenseClaim } from "@/hooks/useMonthlyExpenses"
 import { expenseClaimPhotoSignedUrl } from "@/services/monthlyExpenses"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Monthly Expenses spec Unit 3 — verification queue. Owner revision: for
@@ -104,7 +105,7 @@ function ClaimCard({
 
       <div className="space-y-1">
         <Label htmlFor={`verified-${claim.id}`}>{t("expenses.verification.amountToPay")}</Label>
-        <Input id={`verified-${claim.id}`} type="number" min={0} step="0.5" value={verifiedAmount} onChange={(e) => setVerifiedAmount(e.target.value)} />
+        <Input id={`verified-${claim.id}`} type="number" inputMode="decimal" min={0} step="0.5" className={FIELD_W.amount} value={verifiedAmount} onChange={(e) => setVerifiedAmount(e.target.value)} />
       </div>
       {differs ? (
         <div className="space-y-1">

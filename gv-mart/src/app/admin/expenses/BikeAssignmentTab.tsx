@@ -13,6 +13,7 @@ import {
   useSetTechnicianVehicle,
   useTechnicianVehicleHistory,
 } from "@/hooks/useMonthlyExpenses"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Monthly Expenses spec Unit 1 — bike ownership + petrol rate, effective-
@@ -107,7 +108,7 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
             id={`ownership-${technicianId}`}
             value={ownership}
             onChange={(e) => setOwnership(e.target.value as "own" | "company")}
-            className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
             <option value="own">{t("expenses.bikeAssignment.ownershipValues.own")}</option>
             <option value="company">{t("expenses.bikeAssignment.ownershipValues.company")}</option>
@@ -115,7 +116,7 @@ function BikeAssignmentForm({ orgId, technicianId }: { orgId: string | undefined
         </div>
         <div className="space-y-1">
           <Label htmlFor={`rate-${technicianId}`}>{t("expenses.bikeAssignment.rate")}</Label>
-          <Input id={`rate-${technicianId}`} type="number" min={0} step="0.5" value={rate} onChange={(e) => setRate(e.target.value)} />
+          <Input id={`rate-${technicianId}`} type="number" inputMode="decimal" min={0} step="0.5" className={FIELD_W.amount} value={rate} onChange={(e) => setRate(e.target.value)} />
         </div>
         <div className="space-y-1">
           <Label>{t("expenses.bikeAssignment.effectiveFrom")}</Label>

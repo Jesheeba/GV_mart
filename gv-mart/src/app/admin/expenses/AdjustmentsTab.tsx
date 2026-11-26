@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase"
 import { useQuery } from "@tanstack/react-query"
 import { useAddMonthlyAdjustment, useMonthlyAdjustments } from "@/hooks/useMonthlyExpenses"
 import type { AdjustmentTarget } from "@/services/monthlyExpenses"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /** Monthly Expenses spec Unit 4/§1.7 — top-ups and exclusions, scoped (per
  *  the owner's revision) to `recharge` and `bike_allowance` only. Petrol and
@@ -63,7 +64,7 @@ export function AdjustmentsTab() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="space-y-1">
             <Label htmlFor="adj-person">{t("expenses.adjustments.person")}</Label>
-            <select id="adj-person" value={profileId} onChange={(e) => setProfileId(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+            <select id="adj-person" value={profileId} onChange={(e) => setProfileId(e.target.value)} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
               <option value="">{t("expenses.adjustments.selectPerson")}</option>
               {(people.data ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
@@ -74,14 +75,14 @@ export function AdjustmentsTab() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="adj-target">{t("expenses.adjustments.target")}</Label>
-            <select id="adj-target" value={target} onChange={(e) => setTarget(e.target.value as AdjustmentTarget)} className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+            <select id="adj-target" value={target} onChange={(e) => setTarget(e.target.value as AdjustmentTarget)} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
               <option value="recharge">{t("expenses.adjustments.targetValues.recharge")}</option>
               <option value="bike_allowance">{t("expenses.adjustments.targetValues.bike_allowance")}</option>
             </select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="adj-type">{t("expenses.adjustments.type")}</Label>
-            <select id="adj-type" value={type} onChange={(e) => setType(e.target.value as "top_up" | "exclude")} className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+            <select id="adj-type" value={type} onChange={(e) => setType(e.target.value as "top_up" | "exclude")} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
               <option value="top_up">{t("expenses.adjustments.topUp")}</option>
               <option value="exclude">{t("expenses.adjustments.exclude")}</option>
             </select>
@@ -89,7 +90,7 @@ export function AdjustmentsTab() {
           {type === "top_up" ? (
             <div className="space-y-1">
               <Label htmlFor="adj-amount">{t("expenses.adjustments.amount")}</Label>
-              <Input id="adj-amount" type="number" min={0} step="10" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input id="adj-amount" type="number" inputMode="numeric" min={0} step="10" className={FIELD_W.amount} value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
           ) : null}
         </div>

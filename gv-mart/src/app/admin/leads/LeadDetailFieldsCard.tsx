@@ -11,6 +11,7 @@ import { useUpdateLeadDetailFields } from "@/hooks/useAutomation"
 import { leadDocumentSignedUrl, uploadLeadDocument, validateLeadDocument } from "@/services/leadDocuments"
 import type { LeadListItem } from "@/services/automation"
 import { ReferredBySection } from "./ReferredBySection"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Lead Dashboard Enhancement, feature 4 — customer requirement, special
@@ -129,7 +130,7 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
           </div>
           <div className="space-y-1">
             <Label htmlFor="field-budget">{t("leads.new.budget")}</Label>
-            <Input id="field-budget" type="number" min={0} value={form.budget} onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))} />
+            <Input id="field-budget" type="number" inputMode="decimal" min={0} className={FIELD_W.amount} value={form.budget} onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))} />
             {budgetInvalid ? <p className="text-xs text-danger">{t("leads.errors.budgetNonNegative")}</p> : null}
           </div>
           <div className="space-y-1">

@@ -46,6 +46,7 @@ import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocu
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
 import { formatDate, formatShortDateTime, formatTime } from "@/lib/formatDate"
 import { istDateOf } from "@/lib/ist"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 const SKILL_OPTIONS = TECHNICIAN_SKILL_OPTIONS
 // Indian mobile: 10 digits, starts 6-9 — same rule as lib/validation/technician.ts.
@@ -381,6 +382,9 @@ export function TechnicianDetailPage() {
                 <Input
                   id="tech-phone"
                   type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className={FIELD_W.mobile}
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   aria-invalid={!phoneValid}
@@ -396,6 +400,8 @@ export function TechnicianDetailPage() {
                 <Input
                   id="tech-daily-capacity"
                   type="number"
+                  inputMode="numeric"
+                  className={FIELD_W.qty}
                   min={1}
                   step={1}
                   value={editCapacity}
@@ -408,7 +414,7 @@ export function TechnicianDetailPage() {
                   <Label htmlFor="tech-tier">{t("technicians.detail.tier.override")}</Label>
                   <select
                     id="tech-tier"
-                    className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-text"
+                    className="h-10 w-full rounded-md border border-border bg-surface px-2 text-sm text-text"
                     value={editTierId}
                     onChange={(e) => setEditTierId(e.target.value)}
                   >
@@ -434,7 +440,7 @@ export function TechnicianDetailPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="tech-pincode">{t("technicians.detail.fields.pincode")}</Label>
-                <Input id="tech-pincode" value={editPincode} onChange={(e) => setEditPincode(e.target.value)} />
+                <Input id="tech-pincode" inputMode="numeric" className={FIELD_W.pincode} value={editPincode} onChange={(e) => setEditPincode(e.target.value)} />
               </div>
               <TechnicianDocumentUpload
                 label={t("technicians.list.fields.aadhar")}
@@ -1087,7 +1093,7 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
             id="avail-status"
             value={status}
             onChange={(e) => setStatus(e.target.value as (typeof AVAILABILITY_STATUS_OPTIONS)[number])}
-            className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
             {AVAILABILITY_STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>

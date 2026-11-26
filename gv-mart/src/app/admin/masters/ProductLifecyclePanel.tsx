@@ -293,7 +293,8 @@ export function ProductLifecyclePanel({
                   onChange={(e) => setLifetimeValue(e.target.value)}
                   placeholder={t("productLifecycle.lifetime.valueLabel")}
                   aria-label={t("productLifecycle.lifetime.valueLabel")}
-                  className="flex-1"
+                  inputMode="numeric"
+                  className="max-w-40 flex-1"
                 />
                 <UnitSelect value={lifetimeUnit} onChange={setLifetimeUnit} />
                 <Button size="sm" disabled={upsertConfigMut.isPending} onClick={handleSaveLifetime}>
@@ -327,7 +328,7 @@ export function ProductLifecyclePanel({
                             const picked = spareOptions.find((s) => s.id === spareId)
                             patchRowEdit(row, { spareId, label: !edits.label && picked ? picked.name : edits.label })
                           }}
-                          className="h-9 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                          className="h-10 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                         >
                           <option value="">{t("productLifecycle.spares.noSparePicked")}</option>
                           {spareOptions.map((s) => (
@@ -373,7 +374,8 @@ export function ProductLifecyclePanel({
                           onChange={(e) => patchRowEdit(row, { intervalValue: e.target.value })}
                           placeholder={t("productLifecycle.spares.intervalLabel")}
                           aria-label={t("productLifecycle.spares.intervalLabel")}
-                          className="flex-1"
+                          inputMode="numeric"
+                          className="max-w-40 flex-1"
                         />
                         <UnitSelect value={edits.intervalUnit} onChange={(unit) => patchRowEdit(row, { intervalUnit: unit })} />
                         <Button size="icon-xs" disabled={updateRowMut.isPending} onClick={() => handleSaveRow(row)} title={t("productLifecycle.spares.save")}>
@@ -397,7 +399,7 @@ export function ProductLifecyclePanel({
                             const picked = spareOptions.find((s) => s.id === spareId)
                             patchDraftRow(draft.key, { spareId, label: !draft.label && picked ? picked.name : draft.label })
                           }}
-                          className="h-9 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                          className="h-10 flex-1 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                         >
                           <option value="">{t("productLifecycle.spares.noSparePicked")}</option>
                           {spareOptions.map((s) => (
@@ -427,7 +429,8 @@ export function ProductLifecyclePanel({
                           onChange={(e) => patchDraftRow(draft.key, { intervalValue: e.target.value })}
                           placeholder={t("productLifecycle.spares.intervalLabel")}
                           aria-label={t("productLifecycle.spares.intervalLabel")}
-                          className="flex-1"
+                          inputMode="numeric"
+                          className="max-w-40 flex-1"
                         />
                         <UnitSelect value={draft.intervalUnit} onChange={(unit) => patchDraftRow(draft.key, { intervalUnit: unit })} />
                         <Button size="icon-xs" disabled={createRowMut.isPending} onClick={() => handleSaveDraftRow(draft)} title={t("productLifecycle.spares.save")}>

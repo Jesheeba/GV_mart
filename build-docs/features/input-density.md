@@ -1,6 +1,6 @@
 # Feature: input-density
 
-Status: PLANNED, awaiting owner approval. No migration.
+Status: BUILT (B1 + B2) on feat/input-density, not pushed. No migration.
 
 ## Purpose
 Owner feedback (2026-11-26): the app feels clumsy, and full-width boxes are used for 5-digit numbers. The inventory found about 72 short-number inputs across 44 pages that are full width or stretched, plus inconsistent select heights (h-8 / h-9 / h-10 / h-11).

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 // Supabase/PostgREST rejections (PostgrestError) are plain objects with a
 // `.message` string but are not `instanceof Error`, so a naive instanceof
@@ -473,7 +474,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     id={`f-${f.key}`}
                     value={values[f.key] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                    className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
+                    className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
                   >
                     {resolveOptions(f, values).map((o) => (
                       <option key={o.value} value={o.value}>
@@ -491,7 +492,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     className="w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
                   />
                 ) : f.readOnly ? (
-                  <Input id={`f-${f.key}`} type={f.type} disabled value={f.deriveValue ? f.deriveValue(values) : (values[f.key] ?? "")} />
+                  <Input id={`f-${f.key}`} type={f.type} disabled className={f.type === "number" ? FIELD_W.amount : undefined} value={f.deriveValue ? f.deriveValue(values) : (values[f.key] ?? "")} />
                 ) : (
                   <Input
                     id={`f-${f.key}`}
@@ -500,6 +501,11 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     min={f.min}
                     max={f.max}
                     pattern={f.pattern}
+                    // Number/tel fields get a fitted width inside their grid cell (input-density);
+                    // numbers use the decimal keypad, not numeric, because field defs don't say
+                    // whether a number is integer-only.
+                    inputMode={f.type === "number" ? "decimal" : undefined}
+                    className={f.type === "number" ? FIELD_W.amount : f.type === "tel" ? FIELD_W.mobile : undefined}
                     placeholder={f.placeholder}
                     value={values[f.key] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}

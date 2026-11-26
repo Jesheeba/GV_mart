@@ -213,8 +213,9 @@ export function LinkPhoneCard() {
                 type="tel"
                 inputMode="numeric"
                 autoComplete="tel"
+                maxLength={10}
                 placeholder={t("auth.mobilePlaceholder")}
-                className="pl-10"
+                className="max-w-64 pl-10"
                 aria-invalid={!!mobileForm.formState.errors.mobile}
                 {...mobileForm.register("mobile")}
               />
@@ -249,6 +250,7 @@ export function LinkPhoneCard() {
               autoComplete="one-time-code"
               maxLength={6}
               placeholder={t("auth.linkAccountCodePlaceholder")}
+              className="max-w-48"
               aria-invalid={!!codeForm.formState.errors.code}
               {...codeForm.register("code")}
             />

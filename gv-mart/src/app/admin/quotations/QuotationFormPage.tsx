@@ -17,6 +17,8 @@ import { useCreateQuotation } from "@/hooks/useQuotations"
 import { formatCurrency } from "@/lib/sale-calc"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { Enums } from "@/types/database"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none"
 
@@ -221,7 +223,7 @@ export function QuotationFormPage() {
             )}
             inputClassName="h-8"
           />
-          <Input type="number" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+          <Input type="number" inputMode="numeric" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
           <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={addProductLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}
@@ -236,7 +238,7 @@ export function QuotationFormPage() {
               </option>
             ))}
           </select>
-          <Input type="number" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+          <Input type="number" inputMode="numeric" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
           <Button type="button" size="sm" variant="outline" disabled={!spareId} onClick={addSpareLine}>
             <Plus className="size-3.5" />
             {t("sales.items.add")}

@@ -14,6 +14,7 @@ import { useMyTechnician } from "@/hooks/useTechnician"
 import { useAddKmLogEntry, useKmLogMonthlySum, useSubmitExpenseClaim } from "@/hooks/useMonthlyExpenses"
 import { uploadExpenseClaimPhoto } from "@/services/monthlyExpenses"
 import { isNotYetAvailableError } from "@/lib/supabaseErrors"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Monthly Expenses spec Units 2/3 — technician side: submit a petrol or
@@ -96,7 +97,7 @@ function ClaimForm({ orgId, technicianId, claimType }: { orgId: string | undefin
         <>
           <div className="space-y-1">
             <Label htmlFor={`amount-${claimType}`}>{t("technician.expenses.amount")}</Label>
-            <Input id={`amount-${claimType}`} type="number" min={0} step="0.5" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input id={`amount-${claimType}`} type="number" inputMode="decimal" min={0} step="0.5" className={FIELD_W.amount} value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
           <div className="flex flex-wrap gap-2">
             <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
@@ -169,7 +170,7 @@ function KmLogForm({ orgId, technicianId }: { orgId: string | undefined; technic
         </div>
         <div className="space-y-1">
           <Label htmlFor="tech-km">{t("technician.expenses.kmLog.km")}</Label>
-          <Input id="tech-km" type="number" min={0} step="0.1" value={km} onChange={(e) => setKm(e.target.value)} />
+          <Input id="tech-km" type="number" inputMode="decimal" min={0} step="0.1" className={FIELD_W.reading} value={km} onChange={(e) => setKm(e.target.value)} />
         </div>
       </div>
       <Button type="button" size="sm" disabled={!km || addEntry.isPending} onClick={submit}>

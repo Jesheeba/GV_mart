@@ -13,6 +13,8 @@ import type { Enums } from "@/types/database"
 import { createReturnSchema } from "@/lib/validation/systemPages"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 const STATUS_TONE: Record<ReturnStatus, StatusTone> = { requested: "warning", approved: "info", completed: "success", rejected: "danger" }
 const NEXT_STATUS: Record<ReturnStatus, ReturnStatus | null> = { requested: "approved", approved: "completed", completed: null, rejected: null }
@@ -156,7 +158,7 @@ export function ReturnsPage() {
                   setInvoiceId(e.target.value)
                   setItemKey("")
                 }}
-                className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
               >
                 <option value="">{t("returns.form.selectInvoice")}</option>
                 {invoiceOptions.map((o) => (
@@ -173,7 +175,7 @@ export function ReturnsPage() {
                 value={itemKey}
                 onChange={(e) => setItemKey(e.target.value)}
                 disabled={!invoiceId}
-                className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none disabled:opacity-50"
+                className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none disabled:opacity-50"
               >
                 <option value="">{t("returns.form.selectItem")}</option>
                 {itemOptions.map((it) => (
@@ -188,10 +190,11 @@ export function ReturnsPage() {
               <input
                 id="r-qty"
                 type="number"
+                inputMode="numeric"
                 min={1}
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
-                className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                className={cn("h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none", FIELD_W.qty)}
               />
             </div>
             <div className="flex items-center gap-2 pt-6">
