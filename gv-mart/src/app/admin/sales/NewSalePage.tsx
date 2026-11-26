@@ -18,7 +18,8 @@ import { useCreateSale, useCustomerReferralBalance } from "@/hooks/useSales"
 import { useQuotation } from "@/hooks/useQuotations"
 import { useTechnicians } from "@/hooks/useService"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
-import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema } from "@/lib/validation/sale"
+import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema, PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
+import { focusChoice } from "@/lib/utils"
 import { formatCurrency, findStockGap } from "@/lib/sale-calc"
 import { ItemsStep } from "./ItemsStep"
 import { SaleFamilyReviewSection } from "./SaleFamilyReviewSection"
@@ -43,7 +44,7 @@ type NewSaleDraftData = {
   discountInput: string
   discountAmountInput: string
   giftId: string | null
-  paymentMethod: Enums<"payment_method">
+  paymentMethod: Enums<"payment_method"> | null
   txnId: string
   paymentDescription: string
   redeemPointsInput: string
@@ -51,6 +52,8 @@ type NewSaleDraftData = {
   amountPaidTouched: boolean
   /** Optional so drafts saved before the GST switch existed still restore. */
   gstInclusiveChoice?: boolean | null
+  // Optional: drafts saved before 2026-11-26 don't have it (the referrer was silently dropped on restore).
+  referredByTechnicianId?: string
 }
 
 /**
@@ -89,7 +92,8 @@ export function NewSalePage() {
   const [discountAmountInput, setDiscountAmountInput] = useState("0")
   const discountPercent = discountEnabled ? Math.max(0, Number(discountInput) || 0) : 0
   const [giftId, setGiftId] = useState<string | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method">>("cash")
+  // Unchosen until staff pick one (choice-no-preselect).
+  const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method"> | null>(null)
   const [txnId, setTxnId] = useState("")
   const [paymentDescription, setPaymentDescription] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -230,6 +234,7 @@ export function NewSalePage() {
     amountPaidInput,
     amountPaidTouched,
     gstInclusiveChoice,
+    referredByTechnicianId,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -255,6 +260,7 @@ export function NewSalePage() {
     if (restoredDraft.amountPaidInput != null) setAmountPaidInput(restoredDraft.amountPaidInput)
     if (restoredDraft.amountPaidTouched != null) setAmountPaidTouched(restoredDraft.amountPaidTouched)
     if (restoredDraft.gstInclusiveChoice !== undefined) setGstInclusiveChoice(restoredDraft.gstInclusiveChoice)
+    if (restoredDraft.referredByTechnicianId) setReferredByTechnicianId(restoredDraft.referredByTechnicianId)
   }, [restoredDraft])
 
   const techMax = settings ? Number(settings.discount_tech_max) : 5
@@ -286,7 +292,9 @@ export function NewSalePage() {
   function handlePaymentContinue() {
     const result = paymentDetailsSchema.safeParse({ method: paymentMethod, txnId, description: paymentDescription, amountPaid })
     if (!result.success) {
-      setPaymentError(result.error.issues[0]?.message ?? "sales.errors.paymentInvalid")
+      const message = result.error.issues[0]?.message ?? "sales.errors.paymentInvalid"
+      setPaymentError(message)
+      if (message === PAYMENT_METHOD_REQUIRED) focusChoice("sale-payment-method")
       return
     }
     if (isAmountPaidBlocked(amountPaid, computedPayable)) {
@@ -310,6 +318,12 @@ export function NewSalePage() {
 
   async function handleGenerate() {
     if (!orgId || !customerId) return
+    // Only reachable through the payment step, which already requires a method; a restored draft can't skip it.
+    if (!paymentMethod) {
+      setStep(3)
+      setPaymentError(PAYMENT_METHOD_REQUIRED)
+      return
+    }
     const gap = stockGapMessage()
     if (gap) {
       setStockError(gap)
@@ -373,7 +387,7 @@ export function NewSalePage() {
             setDiscountInput("0")
             setDiscountAmountInput("0")
             setGiftId(null)
-            setPaymentMethod("cash")
+            setPaymentMethod(null)
             setTxnId("")
             setPaymentDescription("")
             setRedeemPointsInput("0")
@@ -470,19 +484,32 @@ export function NewSalePage() {
 
           {step === 3 ? (
             <Card className="gap-3 px-5">
-              <Label>{t("sales.payment.method")}</Label>
-              <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
+              <Label id="sale-payment-method-label">{t("sales.payment.method")}</Label>
+              <div
+                id="sale-payment-method"
+                role="group"
+                aria-labelledby="sale-payment-method-label"
+                aria-describedby={paymentError === PAYMENT_METHOD_REQUIRED ? "sale-payment-method-error" : undefined}
+                className="flex w-fit gap-1 rounded-full bg-surface-alt p-1"
+              >
                 {(["cash", "transfer"] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setPaymentMethod(m)}
+                    aria-pressed={paymentMethod === m}
+                    onClick={() => {
+                      setPaymentMethod(m)
+                      if (paymentError === PAYMENT_METHOD_REQUIRED) setPaymentError(null)
+                    }}
                     className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${paymentMethod === m ? "bg-ink text-white" : "text-text-muted"}`}
                   >
                     {t(`sales.payment.${m}`)}
                   </button>
                 ))}
               </div>
+              {paymentError === PAYMENT_METHOD_REQUIRED ? (
+                <p id="sale-payment-method-error" role="alert" className="text-xs text-danger">{t(PAYMENT_METHOD_REQUIRED)}</p>
+              ) : null}
               {paymentMethod === "transfer" ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -544,7 +571,7 @@ export function NewSalePage() {
                 ) : null}
               </div>
 
-              {paymentError ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
+              {paymentError && paymentError !== PAYMENT_METHOD_REQUIRED ? <p className="text-xs text-danger">{t(paymentError)}</p> : null}
             </Card>
           ) : null}
 

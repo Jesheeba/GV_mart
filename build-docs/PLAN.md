@@ -74,3 +74,30 @@ Chips/tiles/filter (1–3) touch no schema and are safe to ship first, independe
 
 ## 6. What happens after approval
 Per-feature loop: design doc (already written) → impact check → implement (Ponytail) → write tests → run → fix root causes → regression check on that feature's impact map → update `build-docs/TESTING.md` + `CHANGELOG.md` → commit `feat(lead-<name>): ...` → push → short status → next feature.
+
+---
+
+# PLAN — UX pass: choices, input density, dates (2026-11-26)
+
+## Goal and scope
+- Fix the owner's three usability complaints across the whole app:
+  1. options pre-selected, so staff choose blindly;
+  2. oversized inputs for short numbers;
+  3. dates wrapping or split over extra rows.
+- **Out of scope:** visual redesign, colours, new components, any DB change, changing existing saved data.
+
+## Project memory respected
+- Check before build: every target came from the 2026-11-26 inventory, nothing duplicated. SegButton, Input and formatDate helpers are reused.
+- Dropdown request challenged; the owner approved "buttons with no pre-selection + required" (MEMORY.md).
+- Worktree-only git; one commit per feature; build, test, stop for review.
+
+## Features, build order
+1. **[choice-no-preselect](features/choice-no-preselect.md)**: most impact (money and customer data recorded blindly). Phase A1 address + payment method, then A2 everything else + EntityCrudTable.
+2. **[input-density](features/input-density.md)**: B1 most-used screens, then B2 the rest.
+3. **[date-display](features/date-display.md)**: independent; last, because it touches list pages the other two don't.
+
+Each phase gets: tsc -b + vite build, vitest (validation schemas, formatDate helpers), a 390px and 1280px screenshot check of every touched screen, and a commit and merge to main after owner OK.
+
+## Blocker for screenshot checks
+- The `.env.test` master login is rejected on local dev.
+- Needed: either reset the `master@gvmart.test` test password (then update `.env.test`), or reconnect the Chrome extension.

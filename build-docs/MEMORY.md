@@ -47,6 +47,39 @@
 - Storage: localStorage `gv_mart_admin_sidebar_pins:<profile.id>` — user chose browser-only over a DB prefs table (no migration; pins don't sync across devices).
 - Pinned items stay in their original group too (user's choice) — nothing moves.
 
+## Customer water & household (2026-11-26, owner decisions)
+- Single store: the `customers` row. `addresses.water_*` and the health objects are dropped (owner chose "Drop from DB").
+- Problems faced are visible to all (plain column), unlike the old protected health table.
+- Follow-up date has no customer column: the open `customer_water_followup` task's `due_date` IS the date, so postponing on Tasks and the customer form can't disagree.
+- Recommended solution is free text. Postpone requires a reason and a later date.
+- Customer edit UI is master + sales_admin (route guard). The DB guard still also allows operation_admin.
+
+## Pin auto-correct (2026-11-26, owner: "automate and skip the manual work")
+- REVERSES the 2026-09-15 "Reached is a hard block outside the radius" decision for the band radius..pin_autocorrect_max_m (2 km) and for no-pin addresses. Beyond it, or for a locked pin, the hard block stands.
+- No office approval: the pin moves automatically, the office gets an FYI only. Safety comes from not locking. Two visits must agree (the next in-radius arrival locks it).
+- WhatsApp "share your location" to customers is deferred (phase 2; Wasi inbound location is unverified).
+- Doc: `features/pin-autocorrect.md`.
+
+## Arrival location lock (2026-11-26, owner decisions)
+- First confirmed technician arrival locks an address's pin as final; later arrivals never move it. Doc: `features/arrival-location-lock.md`.
+- Only master can reset (reason required); next arrival re-locks.
+- Arrival at a secondary address no longer makes it primary (replaces swap+copy, which also dropped full_address/sub_area/zone/water_*).
+- Address text edits never clear a locked pin.
+- Arrival-mismatch alert migration 20261212120000 verified LIVE 2026-11-26 (function md5 matches file, trigger enabled, 0 block rows so far).
+
+## UX pass build decisions + open bugs (2026-11-26)
+- Admin address type/ownership are required only when the address has details (text or pin), mirroring the RPC's has_address.
+- Two-option selects that were already selects (role, availability, bike ownership, adjustments) keep the select + "Select…" (not converted to buttons).
+- An outcome's configured default_followup_type still pre-fills the next follow-up type (it's master config, not a UI guess).
+- OPEN, owner decision: OnSiteVisitPage payment method is still pre-set to cash. The invoice is queued on the invoice step BEFORE the payment step shows the method, so every on-site invoice records cash (and no transfer txn id) whatever the technician picks later. Fix = move method + txn onto the invoice step, unchosen + required.
+- OPEN bug: `servicePaymentSchema` accepts only cash/transfer, but the on-site page offers UPI when payment_enabled, so a UPI visit can't be completed.
+- Known, not from this pass: Leads page at 390px clips an inner container (document doesn't overflow).
+
+## UX pass decisions (2026-11-26)
+- Owner asked for every either/or to be a dropdown with "Not set". Challenged: the bug is pre-selection, and dropdowns add taps. Owner approved: 2–3 options = buttons with nothing selected + required; 4+ = "Select…" dropdown; optional = "Not set". Existing data untouched.
+- Input density: fix widths, not heights (40px touch targets kept).
+- Plan: PLAN.md "UX pass" section; docs features/choice-no-preselect.md, input-density.md, date-display.md.
+
 ## Batch 2026-11-26 decisions (owner)
 - D1 Spreadsheet brand: **code fix only** — labels hide `RO (spreadsheet import)` and repeated model text; no DB rename/archive.
 - D2 GST: **org default in Settings + per-bill Included/Extra switch** on sale, service invoice, AMC, quotation. Old invoices stay exclusive (column default false).

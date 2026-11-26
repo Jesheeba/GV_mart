@@ -105,6 +105,8 @@
     "toggleGroup": "Show or hide {{group}}"
   },
   "common": {
+    "chooseOption": "Choose an option",
+    "selectPlaceholder": "Select…",
     "quickAdd": "Add “{{text}}”",
     "appName": "GV Mart",
     "adminApp": "GV Mart Admin",
@@ -600,15 +602,16 @@
       },
       "waterTds": "Water TDS (ppm)",
       "waterPh": "Water pH",
-      "healthCondition": "Health condition",
-      "healthConditionPlaceholder": "Not asked yet",
-      "healthConditionLevels": {
-        "none": "No",
-        "normal": "Normal",
-        "medium": "Medium",
-        "high": "High"
-      },
-      "familyMembersCount": "Family members",
+      "waterHardness": "Total hardness (ppm)",
+      "problemsFaced": "Problems faced by the family",
+      "problemPlaceholder": "e.g. Hair fall, white stains on taps",
+      "addProblem": "Add another problem",
+      "removeProblem": "Remove problem",
+      "recommendedSolution": "Recommended solution",
+      "recommendedSolutionPlaceholder": "e.g. Water softener + RO with mineral cartridge",
+      "followUpDate": "Follow-up date",
+      "followUpDateHint": "Creates a follow-up task for the master on this date.",
+      "clearFollowUpDate": "Clear follow-up date",
       "latestReadingTitle": "Latest on-site reading ({{date}})",
       "rentals": {
         "startDate": "Started {{date}}",
@@ -724,10 +727,20 @@
       "back": "Back",
       "next": "Next",
       "map": {
+        "verifiedOnSite": "Verified on site by {{name}} on {{date}}",
+        "verifiedTechnicianFallback": "a technician",
+        "verifiedLockedNote": "This location is locked as final and can't be changed here.",
+        "verifiedOpenInMaps": "Open in Google Maps",
+        "resetVerified": "Reset verified location",
+        "resetReasonLabel": "Reason for reset",
+        "resetReasonPlaceholder": "e.g. Customer moved to a new house",
+        "resetConfirm": "Reset location",
         "title": "Pin location on map",
         "autoLocating": "Locating from the address above…",
         "pinned": "Location pinned",
         "notPinned": "Exact location not pinned",
+        "verifiedChip": "Verified on site",
+        "correctedChip": "Corrected by technician — confirms next visit",
         "pinRequired": "This address has no confirmed pin yet — search or drag the pin below so the technician navigates to the right place.",
         "pinOptionalMasterNote": "No exact pin yet — you can save without one, but technicians won't get a map location for this address until it's pinned.",
         "searchPlaceholder": "Search for the address…",
@@ -748,18 +761,6 @@
         "tooManyRequests": "Too many requests. Please wait a few minutes and try again, or type the address yourself.",
         "useMyCurrentLocation": "Use my current location",
         "locating": "Finding your location…"
-      },
-      "water": {
-        "title": "Water & household",
-        "edit": "Edit",
-        "waterSource": "Water source",
-        "waterSourcePlaceholder": "Enter source",
-        "waterTds": "Water TDS (ppm)",
-        "waterPh": "Water pH",
-        "healthCondition": "Health condition",
-        "healthConditionPlaceholder": "Enter details",
-        "valuePlaceholder": "Value",
-        "familyMembers": "Family members"
       }
     },
     "duplicateContactWarning": {
@@ -772,6 +773,8 @@
       "createAnyway": "I've checked — create a new record anyway"
     },
     "errors": {
+      "ownershipRequired": "Choose Own or Rental",
+      "addressTypeRequired": "Choose Residential or Commercial",
       "nameRequired": "Enter a name (at least 2 characters)",
       "mobileInvalid": "Enter a valid 10-digit mobile number",
       "emailInvalid": "Enter a valid email address",
@@ -782,6 +785,12 @@
       "pincodeInvalid": "Enter a valid 6-digit PIN code",
       "waterPhInvalid": "pH must be between 0 and 14",
       "waterTdsInvalid": "TDS cannot be negative",
+      "waterHardnessInvalid": "Hardness cannot be negative",
+      "problemTooLong": "Keep each problem under 100 characters",
+      "tooManyProblems": "Up to 10 problems",
+      "solutionTooLong": "Keep the solution under 500 characters",
+      "followUpDateInvalid": "Pick a valid date",
+      "followUpDatePast": "The follow-up date cannot be in the past",
       "waterSourceOtherRequiresOther": "Only set this when the source is \"Other\""
     }
   },
@@ -1238,6 +1247,7 @@
       "add": "Add"
     },
     "productMedia": {
+      "docTypeLabel": "Document type",
       "manage": "Manage media",
       "title": "Media",
       "imagesTab": "Images",
@@ -1297,6 +1307,7 @@
       }
     },
     "productFeatures": {
+      "relationTypeLabel": "Relation type",
       "manage": "Manage features & related products",
       "title": "Features & Related Products",
       "bulletsTitle": "Feature bullets",
@@ -1774,6 +1785,7 @@
       "redeemPoints": "Referral points redeemed: {{points}} ({{amount}})"
     },
     "errors": {
+      "paymentMethodRequired": "Choose a payment method",
       "txnIdRequired": "Enter the transaction ID for a bank transfer",
       "paymentDescriptionRequired": "Enter a short description for the bank transfer",
       "paymentInvalid": "Check the payment details and try again",
@@ -2190,6 +2202,7 @@
       },
       "attachedPhotos": "Customer-attached photos",
       "confirmedAvailability": {
+        "reasonRequired": "Choose a reason",
         "title": "Confirmed availability",
         "logButton": "Log a call",
         "empty": "No confirmed-availability calls logged yet.",
@@ -2212,6 +2225,7 @@
       "jobReport": "Job report",
       "startTime": "Start time",
       "closeTime": "Close time",
+      "startClose": "Start – close time",
       "totalTime": "Total time",
       "minutes_one": "{{count}} minute",
       "minutes_other": "{{count}} minutes",
@@ -2222,6 +2236,7 @@
         "title": "Payment proof",
         "date": "Payment date",
         "time": "Payment time",
+        "dateTime": "Payment date & time",
         "method": "Payment method",
         "txnRef": "Transaction reference",
         "technician": "Technician"
@@ -2566,6 +2581,7 @@
       "productRequired": "Select a product"
     },
     "profile": {
+      "locationVerified": "Location verified by our technician",
       "title": "Profile",
       "edit": "Edit",
       "notSet": "Not set",
@@ -3301,7 +3317,7 @@
       "noDestinationBody": "Open this from a job card to navigate to a customer.",
       "goToHome": "Go to today's jobs",
       "noPinTitle": "Exact location not pinned",
-      "noPinBody": "This customer's address has no confirmed map pin yet — ask the office to add one.",
+      "noPinBody": "This address has no map pin yet. Once you are at the customer, take a selfie and start — your location becomes the pin.",
       "jobClosedTitle": "This job is already completed",
       "jobClosedBody": "It's already been finished and rated — no need to navigate or start it again.",
       "distance": "Distance",
@@ -3320,6 +3336,13 @@
       "continueToService": "Continue to service",
       "arrivedButton": "I've arrived",
       "arrivedOutsideGeofence": "Move within {{radius}} m of the customer to mark arrival.",
+      "pinWrongButton": "I'm at the customer — pin is wrong",
+      "pinWrongNote": "The saved pin is {{km}} km away. Starting here moves the customer's pin to your location; the next visit confirms it.",
+      "pinMissingButton": "I'm at the customer — start here",
+      "pinMissingNote": "Your location becomes the customer's pin; the next visit confirms it.",
+      "pinTooFar": "You are too far from the saved pin to correct it automatically. The office is alerted after 5 minutes — call them if you are at the customer.",
+      "pinFixTooCoarse": "Waiting for a more accurate GPS fix (within 75 m). Step outside or tap Refresh.",
+      "pinLockedOutside": "This location was verified on an earlier visit. Move within {{radius}} m of it, or ask a master to reset it.",
       "arrivedNoLocation": "Waiting for your location — arrival can't be confirmed yet."
     },
     "search": {
@@ -3345,8 +3368,8 @@
       "waterSource": "Water source",
       "waterTds": "Water TDS (ppm)",
       "waterPh": "Water pH",
-      "healthCondition": "Health condition",
-      "familyMembersCount": "Family members",
+      "waterHardness": "Total hardness (ppm)",
+      "problemsFaced": "Problems faced by the family",
       "complaintTitle": "Complaint",
       "raised": "Raised {{date}}",
       "costingRuleTitle": "Costing rule",
@@ -4026,6 +4049,7 @@
       "badgeTitle": "Daily Follow Up: {{overdue}} overdue, {{today}} due today"
     },
     "followup": {
+      "typeRequired": "Choose a follow-up type",
       "none": "No follow-up",
       "overdue": "Overdue",
       "postponed": "Postponed ×{{count}}",
@@ -4116,6 +4140,8 @@
       "savedAlert": "Call logged. Master and operations have been notified."
     },
     "outcomeSheet": {
+      "nextTypeRequired": "Choose the next follow-up type",
+      "channelRequired": "Choose how you contacted them",
       "title": "Log outcome",
       "reopenTitle": "Reopen lead",
       "step1": "What happened?",
@@ -5598,6 +5624,23 @@
     "needsReviewLinkTitle": "Matching records",
     "needsReviewLinkNoContact": "This customer has no mobile or email on file yet to check against.",
     "needsReviewLinkViewCustomer": "View customer",
+    "waterFollowup": {
+      "title": "Water solution follow-up",
+      "viewCustomer": "View customer",
+      "postpone": "Postpone",
+      "convertToLead": "Convert to lead",
+      "newDate": "New date",
+      "reason": "Reason",
+      "reasonPlaceholder": "Why is this being postponed?",
+      "confirmPostpone": "Postpone",
+      "postponed": "Follow-up postponed",
+      "convertedToLead": "Lead created and the follow-up task closed",
+      "closeFailed": "Lead created, but the follow-up task could not be closed. Close it from Tasks.",
+      "errors": {
+        "past": "The date cannot be in the past",
+        "notLater": "Pick a date later than the current one"
+      }
+    },
     "arrivalMismatchLinkTitle": "Technician arrived outside the pinned location",
     "arrivalMismatchLinkBody": "The map pin may be wrong or stale. Open the customer and drop a corrected pin.",
     "arrivalMismatchLinkViewCustomer": "View customer",
@@ -5677,7 +5720,9 @@
       "wa_lead_captured": "New WhatsApp lead",
       "customer_needs_review": "Customer needs account review",
       "arrival_location_mismatch": "Address may need a recheck",
-      "arrival_location_mismatch_flood": "Multiple addresses need a recheck"
+      "pin_autocorrected": "Customer pin corrected by technician",
+      "arrival_location_mismatch_flood": "Multiple addresses need a recheck",
+      "water_followup_due": "Water follow-up due"
     }
   },
   "approvals": {
@@ -6080,11 +6125,12 @@
       "title": "Product lifetime",
       "hint": "How long this product is expected to last before it needs replacing.",
       "valueLabel": "Lifetime value",
+      "unitLabel": "Unit",
       "unit": { "months": "Months", "years": "Years" },
       "save": "Save lifetime",
       "saved": "Lifetime saved",
       "saveFailed": "Could not save the lifetime.",
-      "errors": { "valueInvalid": "Enter a whole number greater than 0." }
+      "errors": { "valueInvalid": "Enter a whole number greater than 0.", "unitRequired": "Choose months or years" }
     },
     "spares": {
       "title": "Spare part replacement schedule",

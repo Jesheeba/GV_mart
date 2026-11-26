@@ -32,6 +32,7 @@ export function LeadKindsTab() {
       key: "is_active",
       label: t("masters.leadKinds.status"),
       type: "select",
+      defaultValue: "true",
       options: [
         { value: "true", label: t("masters.leadKinds.active") },
         { value: "false", label: t("masters.leadKinds.inactive") },

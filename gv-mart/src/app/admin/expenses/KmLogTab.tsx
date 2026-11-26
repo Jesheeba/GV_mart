@@ -10,6 +10,7 @@ import { periodToRange, type PeriodValue } from "@/services/reports"
 import { useProfile } from "@/hooks/useProfile"
 import { useTechniciansList } from "@/hooks/useTechniciansAdmin"
 import { useAddKmLogEntry, useApproxDistanceKm, useKmLogEntries, useKmLogMonthlySum } from "@/hooks/useMonthlyExpenses"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /** Monthly Expenses spec Unit 2 — kilometre log, admin side. Reuses
  *  PeriodFilter/periodToRange exactly as every report tab does (confirmed
@@ -48,7 +49,7 @@ export function KmLogTab() {
           id="km-technician"
           value={technicianId ?? ""}
           onChange={(e) => setTechnicianId(e.target.value || null)}
-          className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+          className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
         >
           <option value="">{t("expenses.kmLog.selectTechnician")}</option>
           {(technicians.data ?? []).map((tech) => (
@@ -78,7 +79,7 @@ export function KmLogTab() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="km-value">{t("expenses.kmLog.km")}</Label>
-              <Input id="km-value" type="number" min={0} step="0.1" value={km} onChange={(e) => setKm(e.target.value)} />
+              <Input id="km-value" type="number" inputMode="decimal" min={0} step="0.1" className={FIELD_W.reading} value={km} onChange={(e) => setKm(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="km-note">{t("expenses.kmLog.note")}</Label>

@@ -16,6 +16,7 @@ import { productsHooks, rentalPlansHooks } from "@/hooks/useMasters"
 import { useCreateRental } from "@/hooks/useRentals"
 import { rentOutSchema, type RentOutInput } from "@/lib/validation/rentals"
 import { addressLocalityText } from "@/lib/address"
+import { focusChoice } from "@/lib/utils"
 
 const PAYMENT_METHODS = ["cash", "transfer", "upi"] as const
 
@@ -50,7 +51,8 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
       planId: "",
       addressId: "",
       startDate: getIstNow().date,
-      paymentMethod: "cash",
+      // Unchosen until staff pick one (choice-no-preselect).
+      paymentMethod: undefined,
       txnId: "",
       paymentDescription: "",
     },
@@ -163,7 +165,7 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
         </div>
         <div className="space-y-1.5">
           <Label>{t("rentals.rentOut.startDate")}</Label>
-          <DatePicker value={form.watch("startDate")} onChange={(v) => form.setValue("startDate", v, { shouldValidate: true })} />
+          <DatePicker value={form.watch("startDate")} onChange={(v) => form.setValue("startDate", v, { shouldValidate: true })} className="w-44" />
         </div>
       </div>
 
@@ -174,12 +176,19 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
       ) : null}
 
       <div className="space-y-1.5">
-        <Label>{t("sales.payment.method")}</Label>
-        <div className="flex gap-2">
+        <Label id="rent-payment-method-label">{t("sales.payment.method")}</Label>
+        <div
+          id="rent-payment-method"
+          role="group"
+          aria-labelledby="rent-payment-method-label"
+          aria-describedby={form.formState.errors.paymentMethod ? "rent-payment-method-error" : undefined}
+          className="flex gap-2"
+        >
           {PAYMENT_METHODS.map((m) => (
             <button
               key={m}
               type="button"
+              aria-pressed={paymentMethod === m}
               onClick={() => form.setValue("paymentMethod", m, { shouldValidate: true })}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 paymentMethod === m ? "bg-ink text-white" : "bg-surface-alt text-text-muted"
@@ -189,6 +198,9 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
             </button>
           ))}
         </div>
+        {form.formState.errors.paymentMethod ? (
+          <p id="rent-payment-method-error" role="alert" className="text-xs text-danger">{t(form.formState.errors.paymentMethod.message!)}</p>
+        ) : null}
         {paymentMethod === "transfer" ? (
           <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -206,7 +218,12 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
       {createRental.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{(createRental.error as Error).message}</p> : null}
 
       <div className="flex justify-end">
-        <Button onClick={form.handleSubmit(onSubmit)} disabled={createRental.isPending}>
+        <Button
+          onClick={form.handleSubmit(onSubmit, (errs) => {
+            // The method buttons aren't registered inputs, so react-hook-form can't focus them itself.
+            if (errs.paymentMethod && Object.keys(errs).length === 1) focusChoice("rent-payment-method")
+          })}
+          disabled={createRental.isPending}>
           {createRental.isPending ? <Loader2 className="size-4 animate-spin" /> : t("rentals.rentOut.submit")}
         </Button>
       </div>

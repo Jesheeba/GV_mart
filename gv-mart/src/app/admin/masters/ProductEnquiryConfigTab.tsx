@@ -11,6 +11,8 @@ import {
 } from "@/hooks/useMasters"
 import { useProfile } from "@/hooks/useProfile"
 import type { Enums, Json, Tables } from "@/types/database"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 const TAB_TYPES: Enums<"product_enquiry_tab_type">[] = ["catalog_grid", "video_library"]
 const CTA_TYPES: Enums<"product_enquiry_cta_type">[] = ["quotation", "callback", "share"]
@@ -325,18 +327,20 @@ function CtaSection({ orgId }: { orgId: string | undefined }) {
                 {t("masters.productEnquiryConfig.minQty")}
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={values.min_qty ?? "1"}
                   onChange={(e) => setValues((v) => ({ ...v, min_qty: e.target.value }))}
-                  className="mt-1 h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                  className={cn("mt-1 block h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none", FIELD_W.qty)}
                 />
               </label>
               <label className="space-y-1 text-xs text-text-muted">
                 {t("masters.productEnquiryConfig.maxQty")}
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={values.max_qty ?? "10"}
                   onChange={(e) => setValues((v) => ({ ...v, max_qty: e.target.value }))}
-                  className="mt-1 h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                  className={cn("mt-1 block h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none", FIELD_W.qty)}
                 />
               </label>
             </div>
@@ -348,9 +352,10 @@ function CtaSection({ orgId }: { orgId: string | undefined }) {
               {t("masters.productEnquiryConfig.maxDaysAhead")}
               <input
                 type="number"
+                inputMode="numeric"
                 value={values.max_days_ahead ?? "15"}
                 onChange={(e) => setValues((v) => ({ ...v, max_days_ahead: e.target.value }))}
-                className="mt-1 h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+                className={cn("mt-1 block h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none", FIELD_W.qty)}
               />
             </label>
           )

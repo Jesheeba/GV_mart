@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import { WaterHouseholdSummary, waterValuesFromCustomer } from "@/components/shared/WaterHouseholdSummary"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Coins, Droplet, Home as HomeIcon, Loader2, LogOut, MapPinned, Pencil, Plus, Star, Trash2, UserPlus } from "lucide-react"
+import { Coins, Droplet, Home as HomeIcon, Loader2, LogOut, MapPinned, Pencil, Plus, Star, Trash2, UserPlus, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,6 +35,8 @@ import {
 import { customerMemberSchema, type CustomerMemberInput } from "@/lib/validation/customerApp"
 import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 const MAX_MEMBERS = 5
 
@@ -105,11 +108,20 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
                     <AddressPinPreview lat={a.lat} lng={a.lng} />
                   </div>
                 ) : null}
+                {a.location_verified_at ? (
+                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-success">
+                    <ShieldCheck className="size-3.5" />
+                    {t("customerApp.profile.locationVerified")}
+                  </p>
+                ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <Button size="icon-xs" variant="ghost" title={t("customerApp.profile.pinAddress")} onClick={() => setPinningId(a.id)}>
-                  <MapPinned className="size-3.5" />
-                </Button>
+                {/* A technician-verified pin is locked (20261214100000) — no re-pinning from here. */}
+                {!a.location_verified_at ? (
+                  <Button size="icon-xs" variant="ghost" title={t("customerApp.profile.pinAddress")} onClick={() => setPinningId(a.id)}>
+                    <MapPinned className="size-3.5" />
+                  </Button>
+                ) : null}
                 {!a.is_primary ? (
                   <Button
                     size="xs"
@@ -301,9 +313,9 @@ function MembersSection({ customerId, orgId }: { customerId: string; orgId: stri
               <Input id="member-name" placeholder={t("customerApp.profile.memberName")} aria-invalid={!!errors.name} {...register("name")} />
               {errors.name ? <p className="text-xs text-danger">{t(errors.name.message!)}</p> : null}
             </div>
-            <div className="flex-1 space-y-1">
+            <div className={cn(FIELD_W.mobile, "shrink-0 space-y-1")}>
               <Label htmlFor="member-mobile">{t("customerApp.profile.memberMobile")}</Label>
-              <Input id="member-mobile" placeholder={t("customerApp.profile.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
+              <Input id="member-mobile" inputMode="numeric" maxLength={10} placeholder={t("customerApp.profile.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>
@@ -422,16 +434,10 @@ function ReferralWalletCard({ customerId }: { customerId: string }) {
   )
 }
 
-/**
- * Read-only (spec default, FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md §3.4/9) — the customer
- * sees these fields but edits them nowhere in this app; master/operation_admin edit them from
- * the admin side. health_condition comes through the get_customer_health_condition RPC inside
- * useMyCustomerRecord (the raw column is select-revoked for everyone), not a direct column.
- */
+/** Read-only — the customer sees these fields but edits them nowhere in this app; staff edit them from the admin side. */
 function WaterHouseholdSection({ customerId }: { customerId: string }) {
   const { t } = useTranslation()
   const { data: record } = useMyCustomerRecord(customerId)
-  const familyMemberCount = record?.customer_members?.length ?? 0
 
   return (
     <Card className="gap-3 lg:px-5">
@@ -439,26 +445,7 @@ function WaterHouseholdSection({ customerId }: { customerId: string }) {
         <Droplet className="size-4 text-text-muted" />
         {t("customerApp.profile.waterHouseholdTitle")}
       </h2>
-      <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
-        <span className="text-text-muted">{t("customers.detail.waterSource")}</span>
-        <span className="text-text">
-          {record?.water_source
-            ? record.water_source === "other" && record.water_source_other
-              ? record.water_source_other
-              : t(`customers.detail.waterSourceOptions.${record.water_source}`)
-            : "—"}
-        </span>
-        <span className="text-text-muted">{t("customers.detail.waterTds")}</span>
-        <span className="text-text">{record?.water_tds_ppm ?? "—"}</span>
-        <span className="text-text-muted">{t("customers.detail.waterPh")}</span>
-        <span className="text-text">{record?.water_ph ?? "—"}</span>
-        <span className="text-text-muted">{t("customers.detail.healthCondition")}</span>
-        <span className="text-text">
-          {record?.health_condition ? t(`customers.detail.healthConditionLevels.${record.health_condition}`) : "—"}
-        </span>
-        <span className="text-text-muted">{t("customers.detail.familyMembersCount")}</span>
-        <span className="text-text">{familyMemberCount}</span>
-      </div>
+      <WaterHouseholdSummary values={waterValuesFromCustomer(record ?? {})} />
     </Card>
   )
 }

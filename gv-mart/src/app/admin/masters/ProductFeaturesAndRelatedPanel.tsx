@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { productsHooks, useAddProductRelated, useProductRelated, useRemoveProductRelated, useSetProductFeatureBullets } from "@/hooks/useMasters"
 import type { Tables, TablesInsert } from "@/types/database"
+import { focusChoice } from "@/lib/utils"
 
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message
@@ -45,7 +46,9 @@ export function ProductFeaturesAndRelatedPanel({
   const addRelatedMut = useAddProductRelated(productId)
   const removeRelatedMut = useRemoveProductRelated(productId)
   const [pickerProductId, setPickerProductId] = useState("")
-  const [relationType, setRelationType] = useState<TablesInsert<"product_related">["relation_type"]>("related")
+  // Unchosen until picked (choice-no-preselect).
+  const [relationType, setRelationType] = useState<TablesInsert<"product_related">["relation_type"] | "">("")
+  const [relationTypeError, setRelationTypeError] = useState(false)
 
   const relatedRows = (related ?? []) as (Tables<"product_related"> & { related: { id: string; name: string; is_active: boolean } | null })[]
   const relatedIds = new Set(relatedRows.map((r) => r.related_product_id))
@@ -84,10 +87,16 @@ export function ProductFeaturesAndRelatedPanel({
 
   async function handleAddRelated() {
     if (!pickerProductId || !orgId) return
+    if (!relationType) {
+      setRelationTypeError(true)
+      focusChoice("related-relation-type")
+      return
+    }
     setError(null)
     try {
       await addRelatedMut.mutateAsync({ orgId, relatedProductId: pickerProductId, relationType })
       setPickerProductId("")
+      setRelationType("")
     } catch (e) {
       setError(extractErrorMessage(e))
     }
@@ -178,10 +187,20 @@ export function ProductFeaturesAndRelatedPanel({
               ))}
             </select>
             <select
+              id="related-relation-type"
               value={relationType}
-              onChange={(e) => setRelationType(e.target.value as TablesInsert<"product_related">["relation_type"])}
+              onChange={(e) => {
+                setRelationType(e.target.value as TablesInsert<"product_related">["relation_type"])
+                setRelationTypeError(false)
+              }}
+              aria-label={t("masters.productFeatures.relationTypeLabel")}
+              aria-invalid={relationTypeError || undefined}
+              aria-describedby={relationTypeError ? "related-relation-type-error" : undefined}
               className="h-9 w-40 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
             >
+              <option value="" disabled>
+                {t("common.selectPlaceholder")}
+              </option>
               {RELATION_TYPES.map((rt) => (
                 <option key={rt} value={rt}>
                   {t(`masters.productFeatures.relationType.${rt}`)}
@@ -193,6 +212,11 @@ export function ProductFeaturesAndRelatedPanel({
               {t("masters.productFeatures.add")}
             </Button>
           </div>
+          {relationTypeError ? (
+            <p id="related-relation-type-error" role="alert" className="text-xs text-danger">
+              {t("common.chooseOption")}
+            </p>
+          ) : null}
         </div>
         {error ? <p className="text-xs text-danger">{error}</p> : null}
       </DialogContent>

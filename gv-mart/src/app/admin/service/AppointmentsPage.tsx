@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { formatTime } from "@/lib/formatDate"
 import { useProfile } from "@/hooks/useProfile"
 import { useAppointmentsRange, useAssignTicketTechnician, useAutoAssignTicket, useTechnicians, useUnassignAppointment } from "@/hooks/useService"
 import type { AppointmentListItem } from "@/services/service"
@@ -207,8 +208,8 @@ export function AppointmentsPage() {
                             {a.service_tickets?.type ? <TicketTypeBadge type={a.service_tickets.type} /> : null}
                             {a.service_tickets?.priority ? <PriorityBadge priority={a.service_tickets.priority} /> : null}
                           </div>
-                          <div className="mt-1 text-text-muted">
-                            {a.mode === "always" ? t("service.appointment.always") : a.scheduled_at ? new Date(a.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                          <div className="mt-1 whitespace-nowrap text-text-muted">
+                            {a.mode === "always" ? t("service.appointment.always") : a.scheduled_at ? formatTime(a.scheduled_at) : "—"}
                           </div>
                         </div>
                       ))

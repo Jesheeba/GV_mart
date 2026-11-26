@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type HTMLAttributes, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { Loader2, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -24,6 +24,7 @@ export function Autocomplete<T>({
   inputClassName,
   openOnFocus,
   maxLength,
+  inputMode,
   ariaInvalid,
   onFocus,
   onCreate,
@@ -46,6 +47,8 @@ export function Autocomplete<T>({
   inputClassName?: string
   /** Forwarded to the underlying input, e.g. a 6-digit Pincode field. */
   maxLength?: number
+  /** Forwarded to the underlying input, e.g. "numeric" for a Pincode field so phones open the number keypad. */
+  inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"]
   /** Forwarded to the underlying input's aria-invalid, for callers with their own validation error state. */
   ariaInvalid?: boolean
   /**
@@ -155,6 +158,7 @@ export function Autocomplete<T>({
         className={cn(icon && "pl-10", inputClassName)}
         autoComplete="off"
         maxLength={maxLength}
+        inputMode={inputMode}
         role="combobox"
         aria-expanded={showList}
         aria-controls={listboxId}

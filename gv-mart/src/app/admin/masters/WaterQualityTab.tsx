@@ -142,6 +142,7 @@ function AliasesSection({ orgId }: { orgId: string | undefined }) {
       key: "is_proxy",
       label: t("masters.waterQuality.isProxy"),
       type: "select",
+      defaultValue: "false",
       options: [
         { value: "false", label: t("common.no") },
         { value: "true", label: t("common.yes") },

@@ -16,7 +16,7 @@ import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { AssignTaskDialog } from "@/app/admin/tasks/AssignTaskDialog"
 import { TaskDetailDialog } from "@/app/admin/tasks/TaskDetailDialog"
 import { cn } from "@/lib/utils"
-import { formatDate, formatDateTime } from "@/lib/formatDate"
+import { formatShortDate, formatShortDateTime } from "@/lib/formatDate"
 import { type CompleteBlockReason, canCompleteTask, compareTasksOverdueFirst, completeBlockReason, isTaskOverdue } from "@/lib/task-rules"
 import { getIstNow } from "@/lib/ist"
 
@@ -164,7 +164,7 @@ function TaskCard({
 }) {
   const { t } = useTranslation()
   const isDone = task.status === "done"
-  const dueLabel = task.due_at ? formatDateTime(task.due_at) : task.due_date ? formatDate(task.due_date) : null
+  const dueLabel = task.due_at ? formatShortDateTime(task.due_at) : task.due_date ? formatShortDate(task.due_date) : null
 
   return (
     <button type="button" onClick={onOpen} className="block w-full text-left">
@@ -207,7 +207,7 @@ function TaskCard({
               <User className="size-3" />
               {task.assignee?.full_name ?? t("tasks.unknownUser")}
             </span>
-            {dueLabel ? <span className={cn(overdue && "font-semibold text-danger")}>{t("tasks.due", { date: dueLabel })}</span> : null}
+            {dueLabel ? <span className={cn("whitespace-nowrap", overdue && "font-semibold text-danger")}>{t("tasks.due", { date: dueLabel })}</span> : null}
           </div>
           {!isDone && blockReason === "po_needs_master" ? <p className="text-xs font-medium text-warning">{t("tasks.cannotFinish.po_needs_master")}</p> : null}
         </div>

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { BatteryCharging, ChevronLeft, Droplet, FlaskConical, MapPin, MessageCircle, Package, Pencil, Phone, ReceiptText, Trash2, UserPlus, Users, Wind, Wrench, Zap } from "lucide-react"
@@ -27,7 +28,8 @@ import { useReferrersForCustomers } from "@/hooks/useReferrals"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerRentalContracts, useMarkRentalReturned } from "@/hooks/useRentals"
 import { avatarPalette, initials } from "@/lib/avatar"
-import { addressLocalityText } from "@/lib/address"
+import { addressLocalityText, pinStatus } from "@/lib/address"
+import { getLatestAddressLocationEvent } from "@/services/customers"
 import { formatDate, formatDateTime } from "@/lib/formatDate"
 import { formatCurrency } from "@/lib/sale-calc"
 import { formatDurationMinutes } from "@/lib/visit-duration"
@@ -38,7 +40,7 @@ import { ExemptionWindowsPanel } from "./ExemptionWindowsPanel"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
 import { GoogleAccountLinkPanel } from "./GoogleAccountLinkPanel"
 import { MergeAutoCustomerPanel } from "./MergeAutoCustomerPanel"
-import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
+import { WaterHouseholdPanel, waterValuesFromCustomer } from "./WaterHouseholdPanel"
 import { TdsSuggestionDialog } from "./TdsSuggestionDialog"
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog"
 import { productExtraParts } from "@/lib/productSearch"
@@ -126,6 +128,12 @@ export function CustomerDetailPage() {
   const customerReferrers = useReferrersForCustomers(id ? [id] : [])
   const referrer = customerReferrers.data?.[0] ?? null
   const primaryDistrict = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.district ?? null
+  const primaryAddressId = (customer?.addresses.find((a) => a.is_primary) ?? customer?.addresses[0])?.id
+  const latestPinEvent = useQuery({
+    queryKey: ["address-location-event", primaryAddressId],
+    queryFn: () => getLatestAddressLocationEvent(primaryAddressId!),
+    enabled: !!primaryAddressId,
+  })
   const tdsSuggestion = useCustomerTdsSuggestion(orgId, primaryDistrict)
   const measuredWater = useCustomerMeasuredWaterReading(orgId, customer?.id)
 
@@ -332,44 +340,38 @@ export function CustomerDetailPage() {
 
       <div className="grid grid-cols-1 gap-4.5 lg:grid-cols-[2fr_1fr]">
         <Card className="gap-5">
-          <div className="flex flex-wrap items-start justify-between gap-3 px-1">
-            <div className="flex items-start gap-4.5">
+          <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-1 items-start gap-4.5">
               <span
                 className="flex size-16 shrink-0 items-center justify-center rounded-[18px] text-[22px] font-extrabold"
                 style={{ background: palette.bg, color: palette.fg }}
               >
                 {initials(customer.name)}
               </span>
-              <div>
+              <div className="min-w-0">
                 <h1 className="mb-1 text-[23px] font-extrabold tracking-tight text-text">{customer.name}</h1>
                 <p className="mb-2.5 text-sm font-medium text-text-muted">{subtitleParts.join(" · ")}</p>
-                <div className="mb-2.5 max-w-xs">
-                  <PreferredLanguageSelect
-                    id="customer-preferred-language"
-                    i18nPrefix="customers.form"
-                    value={(customer.preferred_language as "en" | "ta" | null | undefined) ?? null}
-                    disabled={setPreferredLanguage.isPending}
-                    onChange={(next) => setPreferredLanguage.mutate(next, { onError: () => toast.error(t("common.actionFailed")) })}
-                  />
-                </div>
+                {primaryAddress ? (
+                  <p className="mb-2.5 flex items-start gap-1.5 text-[15px] font-semibold leading-snug text-text">
+                    <MapPin className="mt-0.5 size-4 shrink-0 text-text-muted" aria-hidden="true" />
+                    {[addressLocalityText(primaryAddress), primaryAddress.area, primaryAddress.district, primaryAddress.state, primaryAddress.pincode]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   {primaryAddress ? (
                     <>
                       <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
                         {t(`customers.form.${primaryAddress.address_type}`)} · {t(`customers.form.${primaryAddress.ownership}`)}
                       </span>
-                      <span className="flex items-center gap-1 rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
-                        <MapPin className="size-3" />
-                        {[addressLocalityText(primaryAddress), primaryAddress.area, primaryAddress.district, primaryAddress.state, primaryAddress.pincode]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </span>
                       <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold">
-                        {primaryAddress.lat != null && primaryAddress.lng != null ? (
-                          <StatusDot tone="success" label={t("customers.form.map.pinned")} />
-                        ) : (
-                          <StatusDot tone="warning" label={t("customers.form.map.notPinned")} />
-                        )}
+                        {(() => {
+                          const status = pinStatus(primaryAddress, latestPinEvent.data)
+                          const tone = status === "verified" || status === "pinned" ? "success" : "warning"
+                          const key = { verified: "verifiedChip", corrected: "correctedChip", pinned: "pinned", notPinned: "notPinned" }[status]
+                          return <StatusDot tone={tone} label={t(`customers.form.map.${key}`)} />
+                        })()}
                       </span>
                       {primaryAddress.lat != null && primaryAddress.lng != null ? (
                         <AddressPinPreview lat={primaryAddress.lat} lng={primaryAddress.lng} />
@@ -408,26 +410,38 @@ export function CustomerDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              {customer.mobile ? (
-                <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
-                  <Phone className="size-4" />
+            <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+              <div className="flex items-center gap-1.5">
+                {customer.mobile ? (
+                  <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
+                    <Phone className="size-4" />
+                  </Button>
+                ) : null}
+                <Button variant="outline" size="icon" title={t("customers.detail.actions.edit")} onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
+                  <Pencil className="size-4" />
                 </Button>
-              ) : null}
-              <Button variant="outline" size="icon" title={t("customers.detail.actions.edit")} onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
-                <Pencil className="size-4" />
-              </Button>
-              {profile?.role === "master" ? (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title={t("customers.detail.actions.delete")}
-                  className="text-danger hover:bg-danger/10"
-                  onClick={() => setDeleteDialogOpen(true)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              ) : null}
+                {profile?.role === "master" ? (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={t("customers.detail.actions.delete")}
+                    className="text-danger hover:bg-danger/10"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                ) : null}
+              </div>
+              <div className="w-44">
+                <PreferredLanguageSelect
+                  id="customer-preferred-language"
+                  i18nPrefix="customers.form"
+                  compact
+                  value={(customer.preferred_language as "en" | "ta" | null | undefined) ?? null}
+                  disabled={setPreferredLanguage.isPending}
+                  onChange={(next) => setPreferredLanguage.mutate(next, { onError: () => toast.error(t("common.actionFailed")) })}
+                />
+              </div>
             </div>
           </div>
 
@@ -590,13 +604,7 @@ export function CustomerDetailPage() {
           <Card size="default">
             <WaterHouseholdPanel
               customerId={customer.id}
-              orgId={orgId}
-              waterSource={customer.water_source}
-              waterSourceOther={customer.water_source_other}
-              waterTdsPpm={customer.water_tds_ppm}
-              waterPh={customer.water_ph}
-              healthCondition={customer.health_condition}
-              familyMemberCount={customer.customer_members.length}
+              values={waterValuesFromCustomer(customer)}
               measuredReading={measured}
               canEdit={canEditWaterHousehold(profile?.role)}
             />

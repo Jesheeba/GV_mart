@@ -31,6 +31,7 @@ export function GiftExclusionsTab() {
       key: "is_active",
       label: t("masters.giftExclusions.active"),
       type: "select",
+      defaultValue: "true",
       options: [
         { value: "true", label: t("common.yes") },
         { value: "false", label: t("common.no") },

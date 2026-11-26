@@ -130,8 +130,9 @@ export function ReferredBySection({
           <Input
             aria-label={t("leads.new.referredByPhone")}
             type="tel"
+            inputMode="tel"
             placeholder={t("leads.new.referredByPhone")}
-            className="h-8 px-2.5"
+            className="h-8 max-w-40 px-2.5"
             value={referredByPhone}
             onChange={(e) => onReferredByPhoneChange(e.target.value)}
           />

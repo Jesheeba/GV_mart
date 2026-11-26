@@ -9,6 +9,8 @@ import { useToast } from "@/components/ui/toast-context"
 import { shouldWarnReferralMismatch } from "@/lib/referral-match"
 import type { AmcPlanRow } from "@/services/customerApp"
 import { addressLocalityText } from "@/lib/address"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount)
@@ -120,11 +122,12 @@ export function AmcBookingPanel({
           <label className="text-xs font-medium text-text-muted">{t("customerApp.amc.years")}</label>
           <input
             type="number"
+            inputMode="numeric"
             min={1}
             step={1}
             value={selectedYears}
             onChange={(e) => setSelectedYears(Math.max(1, Number(e.target.value) || 1))}
-            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            className={cn("block h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none", FIELD_W.qty)}
           />
           <p className="text-sm font-medium text-text">{t("customerApp.amc.totalPrice", { amount: formatCurrency(computedTotal) })}</p>
         </div>

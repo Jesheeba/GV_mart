@@ -7,12 +7,12 @@ import { Autocomplete } from "@/components/shared/Autocomplete"
 import { SparePicker } from "@/components/shared/SparePicker"
 import { productsHooks, sparesHooks } from "@/hooks/useMasters"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
-import type { PoItemInput } from "@/lib/validation/automation"
+import { emptyPoItem, type PoItemDraft } from "@/lib/validation/automation"
 
 /** Shared "line items" editor for both Purchase Order creation and Bill
  * Entry — same shape (item type/id/qty/price), matching how the sales cart
  * (src/app/admin/sales/ItemsStep.tsx) builds product/spare rows. */
-export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefined; items: PoItemInput[]; onChange: (items: PoItemInput[]) => void }) {
+export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefined; items: PoItemDraft[]; onChange: (items: PoItemDraft[]) => void }) {
   const { t } = useTranslation()
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
@@ -21,14 +21,14 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
   // resolves back to a label, see productLabelFor below).
   const [productQueries, setProductQueries] = useState<Record<number, string>>({})
 
-  function update(i: number, patch: Partial<PoItemInput>) {
+  function update(i: number, patch: Partial<PoItemDraft>) {
     onChange(items.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
   }
   function remove(i: number) {
     onChange(items.filter((_, idx) => idx !== i))
   }
   function add() {
-    onChange([...items, { itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    onChange([...items, emptyPoItem()])
   }
 
   // Active-only for products, same as the sales cart's own picker
@@ -47,8 +47,12 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
           <select
             value={row.itemType}
             onChange={(e) => update(i, { itemType: e.target.value as "product" | "spare", itemId: "" })}
+            aria-label={t("suppliers.itemType")}
             className="h-10 rounded-xl border border-border bg-surface px-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           >
+            <option value="" disabled>
+              {t("common.selectPlaceholder")}
+            </option>
             <option value="spare">{t("masters.tabs.spares")}</option>
             <option value="product">{t("masters.tabs.products")}</option>
           </select>
@@ -72,13 +76,16 @@ export function PoItemRows({ orgId, items, onChange }: { orgId: string | undefin
               inputClassName="h-10"
             />
           ) : (
-            <SparePicker
-              inputClassName="h-10"
-              spares={spareOptions}
-              value={row.itemId}
-              onChange={(itemId) => update(i, { itemId })}
-              placeholder={t("purchase.items.selectItem")}
-            />
+            // Disabled until an item type is chosen (choice-no-preselect); a fieldset disables its inputs natively.
+            <fieldset disabled={row.itemType === ""} className="contents">
+              <SparePicker
+                inputClassName="h-10"
+                spares={spareOptions}
+                value={row.itemId}
+                onChange={(itemId) => update(i, { itemId })}
+                placeholder={t("purchase.items.selectItem")}
+              />
+            </fieldset>
           )}
           <Input
             type="number"

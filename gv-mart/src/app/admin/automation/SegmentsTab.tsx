@@ -17,6 +17,7 @@ import {
 } from "@/hooks/useAudienceSegments"
 import { SEGMENT_FIELDS, SEGMENT_TEXT_OPERATORS, type SegmentConditionLeaf, type SegmentConditionTree } from "@/services/audienceSegments"
 import { cn } from "@/lib/utils"
+import { formatShortDateTime } from "@/lib/formatDate"
 
 /** Advanced/secondary automation — build an audience from any combination of customer + purchase
  * attributes, save it, pick an approved template, and send once or make it standing (auto-fires on
@@ -284,7 +285,7 @@ function SegmentRow({ segment }: { segment: import("@/services/audienceSegments"
                 <td className="py-1">{r.queued_count}</td>
                 <td className="py-1">{r.skipped_opted_out_count}</td>
                 <td className="py-1">{r.skipped_recent_count}</td>
-                <td className="py-1">{new Date(r.fired_at).toLocaleString()}</td>
+                <td className="whitespace-nowrap py-1">{formatShortDateTime(r.fired_at)}</td>
               </tr>
             ))}
             {!runs?.length && (

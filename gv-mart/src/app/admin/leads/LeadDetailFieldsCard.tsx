@@ -11,6 +11,7 @@ import { useUpdateLeadDetailFields } from "@/hooks/useAutomation"
 import { leadDocumentSignedUrl, uploadLeadDocument, validateLeadDocument } from "@/services/leadDocuments"
 import type { LeadListItem } from "@/services/automation"
 import { ReferredBySection } from "./ReferredBySection"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Lead Dashboard Enhancement, feature 4 — customer requirement, special
@@ -19,14 +20,8 @@ import { ReferredBySection } from "./ReferredBySection"
  * Plain columns (not trigger-gated like assigned_to), so a direct update
  * through leads_update_sales RLS is enough — no new RPC for these fields.
  */
-export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
-  const { t } = useTranslation()
-  const { toast } = useToast()
-  const { data: profile } = useProfile()
-  const update = useUpdateLeadDetailFields()
-  const [editing, setEditing] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [form, setForm] = useState({
+export function fieldsFromLead(lead: LeadListItem) {
+  return {
     customer_requirement: lead.customer_requirement ?? "",
     special_description: lead.special_description ?? "",
     budget: lead.budget != null ? String(lead.budget) : "",
@@ -34,7 +29,18 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
     tds_status: lead.tds_status ?? "",
     referred_by_name: lead.referred_by_name ?? "",
     referred_by_phone: lead.referred_by_phone ?? "",
-  })
+  }
+}
+
+export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
+  const { t } = useTranslation()
+  const { toast } = useToast()
+  const { data: profile } = useProfile()
+  const update = useUpdateLeadDetailFields()
+  const [editing, setEditing] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  // Re-read from the lead every time Edit opens, so a cancelled edit or a refetched lead never leaves stale values in the form.
+  const [form, setForm] = useState(() => fieldsFromLead(lead))
   const budgetInvalid = form.budget !== "" && Number(form.budget) < 0
 
   async function save() {
@@ -99,7 +105,10 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
             </Button>
           </div>
         ) : (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+          <Button size="sm" variant="outline" onClick={() => {
+            setForm(fieldsFromLead(lead))
+            setEditing(true)
+          }}>
             {t("leads.detail.edit")}
           </Button>
         )}
@@ -129,7 +138,7 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
           </div>
           <div className="space-y-1">
             <Label htmlFor="field-budget">{t("leads.new.budget")}</Label>
-            <Input id="field-budget" type="number" min={0} value={form.budget} onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))} />
+            <Input id="field-budget" type="number" inputMode="decimal" min={0} className={FIELD_W.amount} value={form.budget} onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))} />
             {budgetInvalid ? <p className="text-xs text-danger">{t("leads.errors.budgetNonNegative")}</p> : null}
           </div>
           <div className="space-y-1">

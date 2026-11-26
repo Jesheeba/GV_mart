@@ -308,7 +308,7 @@ export async function listMyHandovers(technicianId: string) {
 export type JobCard = AppointmentRow & {
   service_tickets: ServiceTicketRow & {
     customers: { id: string; name: string; mobile: string } | null
-    addresses: { area: string | null; door_no: string | null; full_address: string | null; lat: number | null; lng: number | null } | null
+    addresses: { area: string | null; door_no: string | null; full_address: string | null; lat: number | null; lng: number | null; location_verified_at: string | null } | null
     products: { name: string } | null
     // Added for Build Order A4 (job-overrun red styling on the home list) —
     // the open visit's timer, alongside estimated_duration_minutes which
@@ -331,7 +331,7 @@ export async function listTodaysJobs(technicianId: string): Promise<JobCard[]> {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,full_address,lat,lng), products(name), service_visits(id,timer_start,timer_end, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)))"
+        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,full_address,lat,lng,location_verified_at), products(name), service_visits(id,timer_start,timer_end, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)))"
       )
       .eq("technician_id", technicianId)
       .in("status", ["scheduled", "in_progress"])
@@ -426,6 +426,8 @@ export type JobDetail = ServiceTicketRow & {
     water_source_other: string | null
     water_tds_ppm: number | null
     water_ph: number | null
+    water_hardness_ppm?: number | null
+    household_problems?: string[]
     customer_members: {
       id: string
       name: string
@@ -487,25 +489,9 @@ export type JobDetail = ServiceTicketRow & {
 }
 
 const JOB_DETAIL_CUSTOMER_COLUMNS_BASE = "id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
-const JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER = "id,name,mobile,water_source,water_source_other,water_tds_ppm,water_ph,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
+const JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER = "id,name,mobile,water_source,water_source_other,water_tds_ppm,water_ph,water_hardness_ppm,household_problems,water_recommended_solution,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
 const JOB_DETAIL_REST =
   "addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
-
-/**
- * Sensitive (FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md §3.5) — routed through
- * get_customer_health_condition rather than a raw column select (column-select-revoked on
- * customers for everyone). The function itself only returns a value to a technician when the
- * org's show_health_condition_to_technicians setting is on AND they have an appointment for
- * that customer — both checked server-side, not trusted from this layer.
- */
-export async function getCustomerHealthConditionForTechnician(customerId: string): Promise<Enums<"household_health_level"> | null> {
-  const { data, error } = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
-  if (error) {
-    if ((error as { code?: string }).code === "42883") return null // deploy-order safety (§6)
-    throw error
-  }
-  return data ?? null
-}
 
 export async function getJobDetail(ticketId: string): Promise<JobDetail> {
   if (navigator.onLine) {
@@ -513,6 +499,8 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
       .from("service_tickets")
       .select(`*, customers(${JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER}), ${JOB_DETAIL_REST}`)
       .eq("id", ticketId)
+      // Moved-out members are not family any more (same rule as the admin getCustomer).
+      .is("customers.customer_members.moved_out_at", null)
       .single()
     if (error && isUndefinedColumnError(error)) {
       // Deploy-order safety (§6): the water-profile columns migration hasn't landed on the
@@ -521,6 +509,7 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
         .from("service_tickets")
         .select(`*, customers(${JOB_DETAIL_CUSTOMER_COLUMNS_BASE}), ${JOB_DETAIL_REST}`)
         .eq("id", ticketId)
+        .is("customers.customer_members.moved_out_at", null)
         .single())
     }
     if (!error && data) {
@@ -615,8 +604,15 @@ export async function queueLocationPing(orgId: string, technicianId: string, lat
 // proven inside the job-visit radius. Not a workaround for being out of
 // range: that case can never reach this call at all, since handleArrived's
 // own guard (insideArrivalGeofence) blocks it first.
-export async function queueArrivalAddressConfirm(orgId: string, ticketId: string, lat: number, lng: number) {
-  await enqueue("location.arrival_address_confirm", { orgId, ticketId, lat, lng })
+// accuracyM (metres) lets the server refuse to lock the address on a poor fix (> 75m) — see
+// 20261214100000_arrival_location_lock.sql. Optional: items queued before this change omit it.
+export async function queueArrivalAddressConfirm(orgId: string, ticketId: string, lat: number, lng: number, accuracyM?: number) {
+  await enqueue("location.arrival_address_confirm", { orgId, ticketId, lat, lng, accuracyM: accuracyM ?? null })
+}
+
+/** Pin auto-correct: the technician is at the customer but the pin is wrong or missing. Server re-checks everything. */
+export async function queuePinCorrection(orgId: string, ticketId: string, lat: number, lng: number, accuracyM: number) {
+  await enqueue("location.pin_correction", { orgId, ticketId, lat, lng, accuracyM })
 }
 
 /**

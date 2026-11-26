@@ -11,6 +11,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useReferralBonusRates, useSetReferralBonusRate } from "@/hooks/useReferralBonusRates"
 import type { ReferralSource } from "@/services/referralBonusRates"
 import { getIstNow } from "@/lib/ist"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 const SOURCES: ReferralSource[] = ["sale", "amc", "service"]
 
@@ -138,6 +139,8 @@ export function ReferralBonusRateCard() {
               <Input
                 id="referral-bonus-amount"
                 type="number"
+                inputMode="decimal"
+                className={FIELD_W.amount}
                 min={0.01}
                 step="0.01"
                 value={amount}

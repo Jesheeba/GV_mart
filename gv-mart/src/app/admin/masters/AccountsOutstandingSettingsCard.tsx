@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast-context"
 import { useSettings, useUpdateSettings } from "@/hooks/useMasters"
 import { useAssignableProfiles } from "@/hooks/useTasks"
 import { useProfile } from "@/hooks/useProfile"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /**
  * Masters > Settings — the minimum-balance / minimum-age threshold and the
@@ -70,12 +71,12 @@ export function AccountsOutstandingSettingsCard() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="ao-balance">{t("masters.accountsOutstanding.minBalance")}</Label>
-          <Input id="ao-balance" type="number" min={0} step="1" value={balance} onChange={(e) => setBalance(e.target.value)} />
+          <Input id="ao-balance" type="number" inputMode="numeric" min={0} step="1" className={FIELD_W.amount} value={balance} onChange={(e) => setBalance(e.target.value)} />
           <p className="text-xs text-text-muted">{t("masters.accountsOutstanding.minBalanceHint")}</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="ao-days">{t("masters.accountsOutstanding.minDays")}</Label>
-          <Input id="ao-days" type="number" min={0} step="1" value={days} onChange={(e) => setDays(e.target.value)} />
+          <Input id="ao-days" type="number" inputMode="numeric" min={0} step="1" className={FIELD_W.qty} value={days} onChange={(e) => setDays(e.target.value)} />
           <p className="text-xs text-text-muted">{t("masters.accountsOutstanding.minDaysHint")}</p>
         </div>
         <div className="space-y-1.5">

@@ -21,6 +21,7 @@ import { createExpenseSchema, type CreateExpenseFormInput, type CreateExpenseOut
 import { resolveLegacyExpenseCategoryEnum } from "@/services/reportMappers"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
+import { formatShortDate } from "@/lib/formatDate"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -31,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { PeriodFilter } from "../reports/PeriodFilter"
 import { PnlReportTab } from "../reports/PnlReportTab"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /** Accounts / Expenses (money-out) dashboard — 2026-09-24 change request
  * against the v2.2 scope guard's "bank-payment-tracking screen" item (see
@@ -223,7 +225,7 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
                 <tbody>
                   {filteredExpenses.map((e) => (
                     <tr key={e.id} className="border-b border-[#F1EDE6]">
-                      <td className="py-2 pr-3 text-text-muted">{e.date}</td>
+                      <td className="whitespace-nowrap py-2 pr-3 text-text-muted">{formatShortDate(e.date)}</td>
                       <td className="py-2 pr-3 font-medium text-text">{e.categoryName ?? t("accounts.uncategorised")}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.staffName ?? "—"}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.note ?? "—"}</td>
@@ -484,7 +486,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="accounts-expense-amount">{t("reports.pnl.amount")}</Label>
-          <Input id="accounts-expense-amount" type="number" min={0} step="0.01" {...form.register("amount")} />
+          <Input id="accounts-expense-amount" type="number" inputMode="decimal" min={0} step="0.01" className={FIELD_W.amount} {...form.register("amount")} />
           {form.formState.errors.amount ? <p className="text-xs text-danger">{t(form.formState.errors.amount.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
@@ -492,7 +494,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
           <Controller
             control={form.control}
             name="date"
-            render={({ field }) => <DatePicker id="accounts-expense-date" value={field.value ?? ""} onChange={field.onChange} />}
+            render={({ field }) => <DatePicker id="accounts-expense-date" value={field.value ?? ""} onChange={field.onChange} className="w-44" />}
           />
           {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
         </div>

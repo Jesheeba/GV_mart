@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { getIstNow } from "@/lib/ist"
+import { formatTime } from "@/lib/formatDate"
 import { useTranslation } from "react-i18next"
 import { Check, X } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -56,7 +57,7 @@ export function TechniciansAttendancePage() {
     {
       key: "checkIn",
       header: t("technicians.attendance.checkInTime"),
-      render: (r) => (r.check_in_at ? new Date(r.check_in_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"),
+      render: (r) => (r.check_in_at ? <span className="whitespace-nowrap">{formatTime(r.check_in_at)}</span> : "—"),
     },
     { key: "geofence", header: t("technicians.attendance.insideGeofence"), render: (r) => <Tick ok={r.inside_geofence} /> },
     { key: "affirmation", header: t("technicians.attendance.affirmation"), render: (r) => <Tick ok={r.affirmation} /> },

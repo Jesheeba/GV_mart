@@ -11,7 +11,7 @@ import { useSuppliersList } from "@/hooks/useSuppliers"
 import { useCreatePurchaseOrder, useMarkPoPaid, usePoItems, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
 import { PoReceiptForm } from "./PoReceiptForm"
-import type { PoItemInput } from "@/lib/validation/automation"
+import { emptyPoItem, isCompletePoItem, type PoItemDraft } from "@/lib/validation/automation"
 import type { PurchaseOrderListItem } from "@/services/automation"
 import { formatDate } from "@/lib/formatDate"
 
@@ -33,7 +33,7 @@ export function PurchaseOrdersTab() {
 
   const [showNew, setShowNew] = useState(false)
   const [supplierId, setSupplierId] = useState("")
-  const [items, setItems] = useState<PoItemInput[]>([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+  const [items, setItems] = useState<PoItemDraft[]>([emptyPoItem()])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const poItems = usePoItems(expandedId ?? undefined)
   const [receiptPo, setReceiptPo] = useState<PurchaseOrderListItem | null>(null)
@@ -45,10 +45,10 @@ export function PurchaseOrdersTab() {
   )
 
   async function submit() {
-    await createPo.mutateAsync({ orgId: orgId!, supplierId, items: items.filter((i) => i.itemId && i.qty > 0) })
+    await createPo.mutateAsync({ orgId: orgId!, supplierId, items: items.filter(isCompletePoItem) })
     setShowNew(false)
     setSupplierId("")
-    setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    setItems([emptyPoItem()])
   }
 
   const columns: DataTableColumn<PurchaseOrderListItem>[] = [

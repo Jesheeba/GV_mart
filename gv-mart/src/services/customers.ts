@@ -1,7 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import { itemNameLookup } from "@/services/sales"
 import { pickHistoryVisit } from "@/services/techniciansAdmin"
-import { isUndefinedTableError } from "@/lib/supabaseErrors"
 import type { Enums, Tables } from "@/types/database"
 import type { FamilyRelation } from "@/lib/validation/customer"
 import type { DuplicateContactMatch } from "@/lib/duplicateContactWarning"
@@ -300,6 +299,8 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null,
     })
     .eq("org_id", orgId)
     .is("archived_at", null)
+    // Moved-out members are not family any more (same rule as getCustomer).
+    .is("member_count.moved_out_at", null)
     .order("created_at", { ascending: false })
 
   if (filters.appSourced) query = query.eq("source", "customer_app")
@@ -312,88 +313,40 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null,
   return { rows: (data ?? []) as CustomerListItem[], count: ids ? ids.length : (count ?? 0), pageSize: PAGE_SIZE }
 }
 
-// Reverted to the original select list (reviewer feedback: do not touch customers' grants or
-// column privileges at all — health_condition never lived on customers in the applied design,
-// so there's nothing to carve out of "*" here). Deploy-order safety for the 4 new water
-// columns (20261108100000_customer_water_profile.sql) comes for free with "*" — a column that
-// doesn't exist yet simply isn't in the row, no error, nothing to special-case.
+// "*" keeps deploy-order safety for the water columns: a column that doesn't exist yet simply
+// isn't in the row, no error, nothing to special-case.
 export async function getCustomer(id: string) {
-  // The main row and the health profile only depend on `id`, not on each
-  // other — fetched in parallel instead of one `await` after the other.
-  const [{ data, error }, healthCondition] = await Promise.all([
-    supabase
-      .from("customers")
-      .select("*, addresses(*), customer_members(*)")
-      .eq("id", id)
-      // Item D3: a member "moved out" to their own customer record is soft-
-      // detached (moved_out_at set), not deleted — excluded here so every
-      // consumer of customer.customer_members (Family tab count, the family
-      // chip, this panel's own list) only ever sees active members.
-      .is("customer_members.moved_out_at", null)
-      .order("is_primary", { referencedTable: "addresses", ascending: false })
-      .order("is_primary", { referencedTable: "customer_members", ascending: false })
-      .single(),
-    getCustomerHealthProfile(id),
-  ])
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*, addresses(*), customer_members(*)")
+    .eq("id", id)
+    // Item D3: a member "moved out" to their own customer record is soft-
+    // detached (moved_out_at set), not deleted — excluded here so every
+    // consumer of customer.customer_members (Family tab count, the family
+    // chip, this panel's own list) only ever sees active members.
+    .is("customer_members.moved_out_at", null)
+    .order("is_primary", { referencedTable: "addresses", ascending: false })
+    .order("is_primary", { referencedTable: "customer_members", ascending: false })
+    .single()
   if (error) throw error
   // customer_members(*) is typed from the pre-`relation`-column generated
   // schema (see MemberRow comment) — the column IS in the actual row, just
   // not the generated type.
-  return { ...data, customer_members: data.customer_members as MemberRow[], health_condition: healthCondition }
+  return { ...data, customer_members: data.customer_members as MemberRow[] }
 }
 
-/**
- * health_condition lives in its own table, customer_health_profile (not a customers column —
- * reviewer feedback: no revoke/regrant of any kind on customers). Staff/the customer read it
- * directly here, via customer_health_profile's own RLS (staff: is_staff(); the customer: their
- * own row). A technician instead goes through get_customer_health_condition below, the only
- * path that respects show_health_condition_to_technicians — that RPC is not called from here.
- * Deploy-order safety (§2): the table may not exist yet (42P01) — degrade to null.
- */
-export async function getCustomerHealthProfile(customerId: string): Promise<Enums<"household_health_level"> | null> {
-  const { data, error } = await supabase.from("customer_health_profile").select("health_condition").eq("customer_id", customerId).maybeSingle()
-  if (error) {
-    if (isUndefinedTableError(error)) return null
-    throw error
-  }
-  return data?.health_condition ?? null
+/** The customer's one water & household profile (customers columns). Only the keys passed are written. */
+export type WaterProfilePatch = {
+  waterSource?: Enums<"water_source_type"> | null
+  waterSourceOther?: string | null
+  waterTdsPpm?: number | null
+  waterPh?: number | null
+  waterHardnessPpm?: number | null
+  householdProblems?: string[]
+  waterRecommendedSolution?: string | null
 }
 
-export async function upsertCustomerHealthCondition(customerId: string, orgId: string, healthCondition: Enums<"household_health_level">) {
-  const { error } = await supabase
-    .from("customer_health_profile")
-    .upsert({ customer_id: customerId, org_id: orgId, health_condition: healthCondition }, { onConflict: "customer_id" })
-  if (error) throw error
-}
-
-/**
- * A technician's ONLY path to health_condition — SECURITY DEFINER, bypasses
- * customer_health_profile's RLS/grants entirely; checks org, role (is_staff()/the customer's
- * own id), and show_health_condition_to_technicians internally. Staff/customer reads go
- * through getCustomerHealthProfile above instead; this is kept for services/technician.ts.
- */
-export async function getCustomerHealthCondition(customerId: string): Promise<Enums<"household_health_level"> | null> {
-  const { data, error } = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
-  if (error) {
-    // Postgres "function does not exist" (42883) — deploy-order safety, same idea as the
-    // 42P01 table-not-found case above, just for a function instead of a table.
-    if ((error as { code?: string }).code === "42883") return null
-    throw error
-  }
-  return data ?? null
-}
-
-// health_condition is deliberately not accepted here — it lives in customer_health_profile
-// now, written via upsertCustomerHealthCondition above, not this customers update.
-export async function updateCustomerWaterProfile(
-  customerId: string,
-  patch: {
-    waterSource?: Enums<"water_source_type"> | null
-    waterSourceOther?: string | null
-    waterTdsPpm?: number | null
-    waterPh?: number | null
-  }
-) {
+export async function updateCustomerWaterProfile(customerId: string, patch: WaterProfilePatch) {
   const { error } = await supabase
     .from("customers")
     .update({
@@ -401,8 +354,57 @@ export async function updateCustomerWaterProfile(
       water_source_other: patch.waterSourceOther,
       water_tds_ppm: patch.waterTdsPpm,
       water_ph: patch.waterPh,
+      water_hardness_ppm: patch.waterHardnessPpm,
+      household_problems: patch.householdProblems,
+      water_recommended_solution: patch.waterRecommendedSolution,
     })
     .eq("id", customerId)
+  if (error) throw error
+}
+
+// ── Water solution follow-up (20261216110000). The open task's due_date IS the follow-up date. ──
+
+export type WaterFollowup = { taskId: string; dueDate: string | null }
+
+export async function getCustomerWaterFollowup(customerId: string): Promise<WaterFollowup | null> {
+  const { data, error } = await supabase.rpc("get_customer_water_followup", { p_customer_id: customerId })
+  if (error) throw error
+  const row = (data ?? [])[0]
+  return row ? { taskId: row.task_id, dueDate: row.due_date } : null
+}
+
+/** Creates/moves the one open follow-up task; null closes it. Returns the open task id (null when cleared). */
+export async function setCustomerWaterFollowup(customerId: string, dueDate: string | null): Promise<string | null> {
+  const { data, error } = await supabase.rpc("set_customer_water_followup", { p_customer_id: customerId, p_due_date: dueDate })
+  if (error) throw error
+  return data ?? null
+}
+
+export async function postponeWaterFollowup(taskId: string, newDate: string, reason: string) {
+  const { error } = await supabase.rpc("postpone_water_followup", { p_task_id: taskId, p_new_date: newDate, p_reason: reason })
+  if (error) throw error
+}
+
+/**
+ * One save for the Water & household step/panel: profile first (so the follow-up task's description is current),
+ * then create/move/clear the follow-up task. The task is touched only when the date changed, or when a date is set
+ * and the profile changed (refreshes the task description).
+ */
+export async function saveWaterHousehold(args: {
+  customerId: string
+  patch: WaterProfilePatch
+  profileDirty: boolean
+  followUpDate: string | null
+  savedFollowUpDate: string | null
+}) {
+  if (args.profileDirty) await updateCustomerWaterProfile(args.customerId, args.patch)
+  if (args.followUpDate !== args.savedFollowUpDate || (args.followUpDate && args.profileDirty)) {
+    await setCustomerWaterFollowup(args.customerId, args.followUpDate)
+  }
+}
+
+export async function closeWaterFollowupAsLead(taskId: string, leadId: string) {
+  const { error } = await supabase.rpc("close_water_followup_as_lead", { p_task_id: taskId, p_lead_id: leadId })
   if (error) throw error
 }
 
@@ -588,8 +590,9 @@ export type CreateCustomerInput = {
     pincode?: string
     district?: string
     state?: string
-    addressType: Enums<"address_type">
-    ownership: Enums<"ownership_type">
+    /** Omitted only when the address has no details at all (the form requires both otherwise); the RPC/column default then applies. */
+    addressType?: Enums<"address_type">
+    ownership?: Enums<"ownership_type">
     lat?: number
     lng?: number
   }
@@ -761,11 +764,11 @@ export async function addMember(
   return data as unknown as MemberRow
 }
 
+// The primary member IS the customer: the DB trigger zz_sync_primary_member_to_customer copies name/mobile/email/
+// profession onto the customers row (20261216120000), so no second client-side write here.
 export async function updateMember(
   memberId: string,
-  member: { name: string; mobile: string; relation?: FamilyRelation | null; profession?: string | null; email?: string | null },
-  // The primary member IS the customer: keep customers.profession in step with theirs.
-  syncCustomer?: { customerId: string }
+  member: { name: string; mobile: string; relation?: FamilyRelation | null; profession?: string | null; email?: string | null }
 ) {
   const { data, error } = await supabase
     .from("customer_members")
@@ -776,10 +779,6 @@ export async function updateMember(
     .select()
     .single()
   if (error) throw error
-  if (syncCustomer) {
-    const { error: profErr } = await supabase.from("customers").update({ profession: member.profession || "" }).eq("id", syncCustomer.customerId)
-    if (profErr) throw profErr
-  }
   return data as unknown as MemberRow
 }
 
@@ -844,14 +843,13 @@ export async function upsertPrimaryAddress(
     district?: string
     state?: string
     zone?: string
-    addressType: Enums<"address_type">
-    ownership: Enums<"ownership_type">
+    /** Omitted only when the address has no details at all (the form requires both otherwise); the RPC/column default then applies. */
+    addressType?: Enums<"address_type">
+    ownership?: Enums<"ownership_type">
     lat?: number
     lng?: number
-    waterSource?: string
-    waterTds?: number
-    waterPh?: number
-    healthCondition?: string
+    /** True when the address's pin is technician-verified (locked): lat/lng are left out of the write entirely — the DB guard rejects any change to them. */
+    keepLocation?: boolean
   }
 ) {
   const row = {
@@ -869,12 +867,7 @@ export async function upsertPrimaryAddress(
     zone: patch.zone || null,
     address_type: patch.addressType,
     ownership: patch.ownership,
-    lat: patch.lat ?? null,
-    lng: patch.lng ?? null,
-    water_source: patch.waterSource || null,
-    water_tds: patch.waterTds ?? null,
-    water_ph: patch.waterPh ?? null,
-    health_condition: patch.healthCondition || null,
+    ...(patch.keepLocation ? {} : { lat: patch.lat ?? null, lng: patch.lng ?? null }),
   }
   if (existingAddressId) {
     const { data, error } = await supabase.from("addresses").update(row).eq("id", existingAddressId).select().single()
@@ -936,27 +929,6 @@ export async function setAddressStructuredFields(
       street_cross: patch.streetCross || null,
       sub_area: patch.subArea || null,
       landmark: patch.landmark || null,
-    })
-    .eq("id", addressId)
-  if (error) throw error
-}
-
-/**
- * Same follow-up-write pattern as setAddressZone above — the create-customer
- * RPC doesn't accept the Water & household fields, so a brand-new customer's
- * primary address gets them patched on right after creation.
- */
-export async function setAddressWaterHousehold(
-  addressId: string,
-  patch: { waterSource?: string; waterTds?: number; waterPh?: number; healthCondition?: string }
-) {
-  const { error } = await supabase
-    .from("addresses")
-    .update({
-      water_source: patch.waterSource || null,
-      water_tds: patch.waterTds ?? null,
-      water_ph: patch.waterPh ?? null,
-      health_condition: patch.healthCondition || null,
     })
     .eq("id", addressId)
   if (error) throw error
@@ -1421,5 +1393,33 @@ export async function setCustomerPreferredLanguage(customerId: string, language:
   // RPC, not a table UPDATE: the customers write policy covers master and sales_admin only, so an operations-only
   // user's direct UPDATE would silently change nothing.
   const { error } = await supabase.rpc("set_customer_preferred_language", { p_customer_id: customerId, p_language: language })
+  if (error) throw error
+}
+
+// ── Arrival location lock (20261214100000) ──────────────────────────────
+
+export async function getTechnicianName(technicianId: string): Promise<string | null> {
+  const { data, error } = await supabase.from("technicians").select("profiles(full_name)").eq("id", technicianId).maybeSingle()
+  if (error) throw error
+  const profile = (data as { profiles: { full_name: string | null } | null } | null)?.profiles
+  return profile?.full_name ?? null
+}
+
+/** Latest pin event for an address (pin-autocorrect chip). Staff-only via RLS. */
+export async function getLatestAddressLocationEvent(addressId: string) {
+  const { data, error } = await supabase
+    .from("address_location_events")
+    .select("event, new_lat, new_lng")
+    .eq("address_id", addressId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+/** Master-only (enforced server-side). Lifts the lock but keeps the pin; the next technician arrival re-verifies it. */
+export async function resetVerifiedLocation(addressId: string, reason: string) {
+  const { error } = await supabase.rpc("reset_address_location_verification", { p_address_id: addressId, p_reason: reason })
   if (error) throw error
 }

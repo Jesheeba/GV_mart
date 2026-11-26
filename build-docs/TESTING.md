@@ -2,6 +2,23 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## UX pass (choice-no-preselect, input-density, date-display) — 2026-11-26
+- Unit tests added: `choiceNoPreselect.test.ts`, `crudForm.test.ts` (AC1-6), `fieldWidth.test.ts` (AC1), `formatDate.test.ts` (AC2-4: year rule, IST midnight across 3 TZs, null, range, invoice date).
+- Integrated branch (all 3 merged + header fix): `tsc -b` clean, `vite build` OK, vitest serial 1145 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).
+- Browser (local dev, view only, nothing saved): per-feature checks by each builder (screens in scratchpad choice/, density/, dates/; about 750 date strings measured, 0 wrapped; overflow check passed on every density page at 390 and 1280). Integrated smoke: 16 admin pages at 1280, 8 at 390, 5 technician pages at 390 — 0 crashes, 0 console errors, 0 horizontal overflow.
+- Not browser-checked: customer-app screens (no customer test login), on-site visit payment (needs an open job), New Sale payment step / Record payment (would need real data).
+
+## pin-autocorrect
+- 2026-11-26. vitest: `arrivalMode` (8 cases: AC1/4/5 + boundary) and `pinStatus` (6 cases), outbox contract, i18n parity all pass. Full serial suite 1098 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).
+- `tsc`: clean apart from the pre-existing unused `fullAddress` in CustomerFormPage.tsx (from origin/main, untouched).
+- `supabase/tests/pin_autocorrect.test.sql` run LIVE once after apply, one DO block ending in RAISE: ALL PASSED (AC1 move+event+notification, no task; AC2 next arrival locks; AC3 locked untouched; AC4 inside/too far/120m/null accuracy no-op; AC5 no-pin set; AC6 other technician not_assigned, master rejected; AC7 anon no EXECUTE). Checked afterwards: 0 corrected events, 0 pin_autocorrected notifications, settings unchanged (2000/250).
+- NOT browser-verified: Chrome extension not connected and the `.env.test` master login was rejected on local dev.
+
+## arrival-location-lock
+- 2026-11-26. `supabase/tests/arrival_location_lock.test.sql` run LIVE after apply, inside one DO block ending in RAISE (fully rolled back; verified afterwards: 0 events, 0 locked, no test rows, fixture pin/ticket unchanged). Result: ALL PASSED - AC1 lock+event (distance 50-60m), AC2 no second move, AC3 secondary locked with is_primary untouched and no new rows, AC4 out-of-radius / 120m accuracy not locked, AC5 direct lat/lng and verified_at changes rejected (master and postgres), AC6 text edit keeps pin, AC7 opadmin + blank reason rejected / master reset keeps pin + logs reason, AC8 other technician no-op + non-technician rejected, insert can't be pre-verified.
+- AC9 (post-apply read): anon has no EXECUTE on arrival/reset RPCs; authenticated can't insert events or execute the guard fn.
+- `tsc` clean. vitest serial run (`--no-file-parallelism`): 2 failed / 1084 passed = identical to main baseline (pre-existing: waOutboxSentGuard, wa-event-context). Parallel full run in this worktree shows 24 extra mock failures in otaManager + customer-link-otp tests that pass in isolation and in serial - environment flake, not this change.
+- NOT browser-verified: no address is locked live yet, and creating one would be a real DB write.
 ## customer-form-map-search-prefill
 - 2026-11-25. `tsc --noEmit` clean. No automated test: vitest runs in plain Node with no DOM/RTL harness.
 - Manual browser check on local dev server (master test account, nothing saved), all pass:
@@ -81,6 +98,24 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - `src/lib/gstInclusive.test.ts`: 12/12 pass (AC numbers 11,800→1,800; 12,500→1,906.78; discount then GST; Extra unchanged; rate 0; 100% discount; payable follows the switch; redemption floor). Existing `sale-calc.test.ts` still green.
 - `supabase/tests/gst_inclusive_toggle.test.sql`: **19/19 PASS on live, 2026-11-26**, run alone after apply. Three earlier runs stopped on test-fixture mistakes (new-org 5% discount cap, products need brand+model, `rental_plans.monthly_rate` is generated); only the fixtures were fixed. Before/after row counts were identical on all 4 runs, so nothing persisted. It covers ACLs, one overload each, all 6 functions on `_gst_amount`, SQL math = JS math, create_sale included/extra/org-default/partial payment, create_quotation explicit/default/legacy NULL, and run_rental_billing on the org default.
 - Full suite 1114 pass / 2 fail (the same WhatsApp tests that were already failing on origin/main); tsc clean apart from the CustomerFormPage error that was already there.
+
+## customer-water-household + water-solution-followup (2026-11-26)
+- `src/lib/validation/customer.test.ts`: 18 pass (hardness, problems cap/length, health removed, cleanHouseholdProblems).
+- `src/app/admin/customers/waterHouseholdForm.test.ts`: WH-1 prefill round-trip, patch mapping, empty-patch detection, dirty rule, FU date rules (follow-up + postpone), schema limits. All pass.
+- `src/services/customerWaterHousehold.test.ts`: exact writes and order (profile before RPC), no address/health writes, when the RPC is or isn't called, error surfacing, moved-out filter (admin + customer app). All pass.
+- Subtotal for those 3 files: 42/42 pass. Full suite: 1110 pass, 2 fail. The 2 failures (`waOutboxSentGuard`, `wa-event-context`) also fail on clean origin/main (verified in a temp worktree), so they are unrelated. `tsc` clean, `vite build` ok.
+- DB: `supabase/tests/customer_water_household_v2.{fixtures,test}.sql`, about 70 checks (backfill mapping, real-org untouched, checks, guard, RPC security incl. cross-org/anon, unique index, postpone/convert/clear, reminder idempotency, cron). Rehearsal file is `_local_only/rehearsal-files/2026-11-26_customer_water_household_v2.rehearsal.sql` and passes the guard check. Run 2026-11-26, see below.
+- Live read-only precheck (2026-11-26): every object to drop exists, nothing else depends on them; 2 address rows hold water data, 1 health row, tech flag off in all orgs.
+
+## customer-data-sync (2026-11-26)
+- `address.test.ts`: 20 pass. The old "area alone is structured / full_address is stale" test was replaced (it encoded the bug), and resolveFullAddress plus round-trip tests were added.
+- `customerWaterHousehold.test.ts`: added the single-write updateMember test. Moved-out filter is covered for admin + customer app.
+- PostgREST filter paths (`member_count.moved_out_at`, `customers.customer_members.moved_out_at`) were checked against live with the anon key. They parse (reach RLS), and a bogus path is rejected with PGRST108.
+- DB: about 20 SYNC/ADDR checks were added to `customer_water_household_v2.test.sql` (90 checks total). **Not run yet.**
+- Full suite: 1118 pass, the same 2 pre-existing failures as main. `tsc` clean, `vite build` ok.
+- Manual only (no DOM test env): draft restore of complaint type/referrer, lead fields card Cancel/Edit.
+- **DB rehearsal run 2026-11-26 (rolled back): 90 pass / 0 fail.** Harness fixes on the way: (1) granted EXECUTE on the pg_temp helpers, since this project revokes default EXECUTE; (2) one test sent an email with spaces, which the existing customer_members_email_format check rejects (the app trims first); (3) the real-org check now names the changed columns. The only live non-water change is 1 blank profession filled (intended, from 20261216120000).
+- **Final rehearsal on merged/renumbered migrations: 90/0.** Apply-file dry run (rolled back) passed all checks. **Applied live 2026-11-26** in one DO block; post-check: 3 versions registered, 3 customers columns present, address water columns and health table gone, cron `water-followup-due` active, RPCs not executable by anon, 2 customers carry backfilled water/problems. 10 pre-existing primary member/customer name-or-mobile mismatches left as-is (see customer-data-sync.md).
 
 ## Live UI check — 2026-11-26 (owner signed in; Playwright drove the rest; option B = no sale created)
 - Settings: "Prices include GST by default" shows, saves (DB true), and was switched back OFF afterwards (DB false).

@@ -9,9 +9,13 @@ import { z } from "zod"
  * server-action boundary (lib/validation/customer.ts's comment on why
  * messages are i18n keys applies here too).
  */
+/** i18n key for "no payment method picked" — pages compare against it to show the error under the method buttons. */
+export const PAYMENT_METHOD_REQUIRED = "sales.errors.paymentMethodRequired"
+
 export const paymentDetailsSchema = z
   .object({
-    method: z.enum(["cash", "transfer"]),
+    // No default (choice-no-preselect): staff must pick how the money came in.
+    method: z.enum(["cash", "transfer"], { message: PAYMENT_METHOD_REQUIRED }),
     txnId: z
       .string()
       .trim()

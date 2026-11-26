@@ -165,7 +165,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
         </div>
         <div className="space-y-1.5">
           <Label>{t("amc.sellAmc.startDate")}</Label>
-          <Controller control={form.control} name="startDate" render={({ field }) => <DatePicker value={field.value ?? ""} onChange={field.onChange} />} />
+          <Controller control={form.control} name="startDate" render={({ field }) => <DatePicker value={field.value ?? ""} onChange={field.onChange} className="w-44" />} />
         </div>
       </div>
 

@@ -12,6 +12,8 @@ import { useInventoryList } from "@/hooks/useInventory"
 import { formatCurrency } from "@/lib/sale-calc"
 import { productExtraParts, productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { CartAmc, CartProductLine, SaleCartState } from "./types"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 const selectClass = "h-8 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-text outline-none disabled:opacity-50"
 
@@ -176,7 +178,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                 )}
                 inputClassName="h-8"
               />
-              <Input type="number" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+              <Input type="number" inputMode="numeric" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
             </div>
             <div className="flex items-center justify-between px-1 pt-2">
               <p className="text-xs text-text-muted">
@@ -202,7 +204,7 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                 placeholder={t("sales.items.selectSpare")}
                 renderMeta={(s) => `${formatCurrency(Number(s.price))} (${t("sales.items.stockShort", { count: stockFor(s.id, spareStock) ?? 0 })})`}
               />
-              <Input type="number" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} className="h-8" />
+              <Input type="number" inputMode="numeric" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
             </div>
             <div className="flex justify-end px-1 pt-2">
               <Button ref={spareAddBtnRef} type="button" size="sm" disabled={!selectedSpare} onClick={addSpare}>

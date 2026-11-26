@@ -68,6 +68,10 @@ type NewComplaintDraftData = {
   unlistedProductName: string
   details: ComplaintDetailsStepInput
   appointment: ComplaintAppointmentStepInput
+  // Optional: drafts saved before 2026-11-26 don't have them. Without complaintTypeId a restored draft kept the
+  // complaint text but lost its link to the complaint type (spare suggestions, standard minutes).
+  complaintTypeId?: string | null
+  referredByTechnicianId?: string
 }
 
 export function NewComplaintPage() {
@@ -254,6 +258,8 @@ export function NewComplaintPage() {
     unlistedProductName,
     details: detailsForm.watch(),
     appointment: appointmentForm.watch(),
+    complaintTypeId,
+    referredByTechnicianId,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewComplaintDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -276,6 +282,8 @@ export function NewComplaintPage() {
     if (restoredDraft.unlistedProductName) setUnlistedProductName(restoredDraft.unlistedProductName)
     if (restoredDraft.details) detailsForm.reset(restoredDraft.details)
     if (restoredDraft.appointment) appointmentForm.reset(restoredDraft.appointment)
+    if (restoredDraft.complaintTypeId) setComplaintTypeId(restoredDraft.complaintTypeId)
+    if (restoredDraft.referredByTechnicianId) setReferredByTechnicianId(restoredDraft.referredByTechnicianId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restoredDraft])
 
@@ -723,6 +731,7 @@ export function NewComplaintPage() {
                 render={({ field }) => (
                   <DatePicker
                     id="scheduledDate"
+                    className="w-44"
                     min={todayInput()}
                     value={field.value ?? ""}
                     onChange={field.onChange}

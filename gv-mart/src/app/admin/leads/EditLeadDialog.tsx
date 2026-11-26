@@ -13,6 +13,7 @@ import { useLeadProductTypeOptions } from "@/hooks/useLeadLists"
 import { findDuplicateLeadOrCustomerByMobile, type LeadDuplicateMatch } from "@/services/automation"
 import { normalizeOptionalIndianMobile } from "@/lib/mobile"
 import { isLeadSourceEditAllowed } from "@/lib/lead-edit"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 export type EditableLead = {
   id: string
@@ -156,12 +157,12 @@ export function EditLeadDialog({ lead, open, onOpenChange, onDone }: { lead: Edi
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="edit-lead-mobile">{t("leads.new.mobile")}</Label>
-            <Input id="edit-lead-mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+            <Input id="edit-lead-mobile" type="tel" inputMode="tel" className={FIELD_W.mobile} value={mobile} onChange={(e) => setMobile(e.target.value)} />
             {errors.mobile ? <p className="text-xs text-danger">{errors.mobile}</p> : null}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="edit-lead-alt-mobile">{t("leads.edit.alternateMobile")}</Label>
-            <Input id="edit-lead-alt-mobile" value={altMobile} onChange={(e) => setAltMobile(e.target.value)} />
+            <Input id="edit-lead-alt-mobile" type="tel" inputMode="tel" className={FIELD_W.mobile} value={altMobile} onChange={(e) => setAltMobile(e.target.value)} />
             {errors.alternateMobile ? <p className="text-xs text-danger">{errors.alternateMobile}</p> : null}
           </div>
           <div className="space-y-1.5 sm:col-span-2">

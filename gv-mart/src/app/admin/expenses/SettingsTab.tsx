@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { useProfile } from "@/hooks/useProfile"
 import { setOwnBikeAllowanceBase } from "@/services/monthlyExpenses"
 import { supabase } from "@/lib/supabase"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /** Monthly Expenses spec §1.6/§3.6 — the own-bike allowance base amount,
  *  editable by master only (narrower than this page's operation_admin
@@ -58,7 +59,7 @@ export function SettingsTab() {
       <p className="text-xs text-text-muted">{t("expenses.settings.hint")}</p>
       <div className="space-y-1">
         <Label htmlFor="bike-base">{t("expenses.settings.amount")}</Label>
-        <Input id="bike-base" type="number" min={0} step="50" value={value} onChange={(e) => setValue(e.target.value)} />
+        <Input id="bike-base" type="number" inputMode="numeric" min={0} step="50" className={FIELD_W.amount} value={value} onChange={(e) => setValue(e.target.value)} />
       </div>
       {error ? <p className="text-xs text-danger">{error}</p> : null}
       <Button type="button" size="sm" disabled={saving} onClick={save}>

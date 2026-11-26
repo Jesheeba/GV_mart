@@ -51,6 +51,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { db } from "@/lib/offline/db"
 import { startSyncEngine } from "@/lib/offline/sync"
 import type { Enums } from "@/types/database"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 // GV.md 1.1/D4: the SOP checklist is now populated from the job's actual
 // inventory items (each carrying its admin-set standard time), not free
@@ -1265,7 +1266,7 @@ export function OnSiteVisitPage() {
         <Card className="gap-3">
           <div className="space-y-1.5 px-1">
             <Label htmlFor="serviceCharge">{t("technician.onsite.charges.serviceCharge")}</Label>
-            <Input id="serviceCharge" type="number" min={0} value={serviceChargeInput} onChange={(e) => setServiceChargeInput(e.target.value)} disabled={!chargeable} />
+            <Input id="serviceCharge" type="number" inputMode="decimal" min={0} className={FIELD_W.amount} value={serviceChargeInput} onChange={(e) => setServiceChargeInput(e.target.value)} disabled={!chargeable} />
             {!chargeable ? <p className="text-xs text-text-muted">{t("technician.onsite.charges.notChargeableNote", { type: t(`service.type.${ticket.type ?? "warranty"}`) })}</p> : null}
           </div>
 
@@ -1281,11 +1282,11 @@ export function OnSiteVisitPage() {
           <div className="grid grid-cols-2 gap-3 px-1">
             <div className="space-y-1.5">
               <Label htmlFor="tdsBefore">{t("technician.onsite.ro.tdsBefore")}</Label>
-              <Input id="tdsBefore" type="number" min={0} value={tdsBefore} onChange={(e) => setTdsBefore(e.target.value)} />
+              <Input id="tdsBefore" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={tdsBefore} onChange={(e) => setTdsBefore(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tdsAfter">{t("technician.onsite.ro.tdsAfter")}</Label>
-              <Input id="tdsAfter" type="number" min={0} value={tdsAfter} onChange={(e) => setTdsAfter(e.target.value)} />
+              <Input id="tdsAfter" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={tdsAfter} onChange={(e) => setTdsAfter(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5 px-1">
@@ -1319,15 +1320,15 @@ export function OnSiteVisitPage() {
           <div className="grid grid-cols-3 gap-3 px-1">
             <div className="space-y-1.5">
               <Label htmlFor="waterTds">{t("technician.onsite.ro.waterTds")}</Label>
-              <Input id="waterTds" type="number" min={0} value={waterTds} onChange={(e) => setWaterTds(e.target.value)} />
+              <Input id="waterTds" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={waterTds} onChange={(e) => setWaterTds(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="waterPh">{t("technician.onsite.ro.waterPh")}</Label>
-              <Input id="waterPh" type="number" min={0} max={14} value={waterPh} onChange={(e) => setWaterPh(e.target.value)} />
+              <Input id="waterPh" type="number" inputMode="decimal" min={0} max={14} className={FIELD_W.reading} value={waterPh} onChange={(e) => setWaterPh(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="waterHardness">{t("technician.onsite.ro.waterHardness")}</Label>
-              <Input id="waterHardness" type="number" min={0} value={waterHardness} onChange={(e) => setWaterHardness(e.target.value)} />
+              <Input id="waterHardness" type="number" inputMode="numeric" min={0} className={FIELD_W.reading} value={waterHardness} onChange={(e) => setWaterHardness(e.target.value)} />
             </div>
           </div>
 
@@ -1363,7 +1364,7 @@ export function OnSiteVisitPage() {
                   placeholder={t("technician.onsite.ro.extraFieldValuePlaceholder")}
                   value={reading.value}
                   onChange={(e) => updateExtraReading(i, "value", e.target.value)}
-                  className="flex-1"
+                  className={FIELD_W.reading}
                 />
                 <Button type="button" variant="ghost" size="icon" title={t("technician.onsite.ro.removeExtraField")} onClick={() => removeExtraReading(i)}>
                   <Trash2 className="size-4" />
@@ -1554,6 +1555,7 @@ export function OnSiteVisitPage() {
                         type="number"
                         min={0}
                         step="1"
+                        inputMode="numeric"
                         value={discountAmountInput}
                         onChange={(e) => setDiscountAmountInput(e.target.value)}
                         className="w-32"
@@ -1563,7 +1565,7 @@ export function OnSiteVisitPage() {
                       </p>
                     </>
                   ) : (
-                    <Input id="discount" type="number" min={0} max={adminMax} step="0.5" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-32" />
+                    <Input id="discount" type="number" inputMode="decimal" min={0} max={adminMax} step="0.5" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-32" />
                   )}
                   <p className="text-xs text-text-muted">{t("technician.onsite.charges.freeUpTo", { max: techMax })}</p>
                   <p className="text-xs text-warning">{t("technician.onsite.charges.approvalBand", { min: techMax, max: adminMax })}</p>
@@ -1749,7 +1751,7 @@ export function OnSiteVisitPage() {
                 <p className="text-sm font-semibold text-text">{t("technician.onsite.otp.title")}</p>
                 <p className="text-xs text-text-muted">{t("technician.onsite.otp.hint")}</p>
                 <div className="flex items-end gap-2">
-                  <div className="flex-1 space-y-1">
+                  <div className="space-y-1">
                     <Label htmlFor="otpCode">{t("technician.onsite.otp.codeLabel")}</Label>
                     <Input
                       id="otpCode"
@@ -1758,7 +1760,7 @@ export function OnSiteVisitPage() {
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
                       placeholder="••••"
-                      className="text-center text-lg tracking-[0.5em]"
+                      className={cn(FIELD_W.otp, "text-center text-lg tracking-[0.5em]")}
                     />
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={handleResendOtp} disabled={otpGenerating || !visitId}>
@@ -1803,6 +1805,9 @@ export function OnSiteVisitPage() {
                 <Input
                   id="enquiryMobile"
                   type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className={FIELD_W.mobile}
                   value={enquiryMobile}
                   onChange={(e) => setEnquiryMobile(e.target.value)}
                   placeholder={t("technician.onsite.enquiry.mobilePlaceholder")}
