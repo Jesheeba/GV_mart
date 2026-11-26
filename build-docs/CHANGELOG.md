@@ -1,5 +1,10 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## customer-data-sync (2026-11-26)
+- See features/customer-data-sync.md for the 7 sweep fixes: primary member sync, one email box, app address no longer overwritten, profession no longer reverted, moved-out members never counted, drafts keep complaint type and referrer, lead fields card never stale.
+- Migration `20261215120000_primary_member_sync.sql` + rollback written. **NOT applied.**
+- Changed test: `address.test.ts` "treats a populated area alone as a structured field" was replaced. It asserted the behaviour that dropped customer-app addresses.
+
 ## customer-water-household + water-solution-followup (2026-11-26)
 - Edit customer showed Water & household twice: step-1 panel (customers row) and step-3 form (addresses row). Now one step 3 in both modes, backed only by the customers row.
 - Create no longer writes `addresses.water_*`, which nothing displayed. Water values typed at create now show on the detail page, technician job/history and customer app.

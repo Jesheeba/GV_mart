@@ -1,4 +1,5 @@
--- Rolled-back DB tests for 20261215100000_customer_water_household_v2 + 20261215110000_water_solution_followup.
+-- Rolled-back DB tests for 20261215100000_customer_water_household_v2 + 20261215110000_water_solution_followup
+-- + 20261215120000_primary_member_sync.
 -- Runs AFTER customer_water_household_v2.fixtures.sql and both migrations, in one transaction ending in RAISE: read
 -- RESULTS in the error. Test names map to the acceptance criteria / edge cases in
 -- build-docs/features/customer-water-household.md (WH-*) and water-solution-followup.md (FU-*).
@@ -261,6 +262,68 @@ begin
   perform pg_temp.as_pg();
   select description into txt from tasks where id = v_task2;
   perform pg_temp.chk('FU-edge: a profile with no problems/solution gives a null description', txt is null, coalesce(txt, 'null'));
+
+  -- ══ SYNC: primary member <-> customer row (20261215120000) ══════════════════════════════════════════════
+  perform pg_temp.chk('SYNC-backfill: blank member email filled from the account email',
+    (select email from customer_members where id = pg_temp.fx('m_sync')) = 'sync.a@test.invalid');
+  perform pg_temp.chk('SYNC-backfill: blank customer profession filled from the primary member',
+    (select profession from customers where id = pg_temp.fx('c_sync')) = 'Teacher');
+  perform pg_temp.chk('SYNC-backfill: account email is NOT filled from a member email (sign-in matching stays opt-in)',
+    (select email from customers where id = pg_temp.fx('c_sync2')) is null);
+
+  perform pg_temp.as_user(v_sales);
+  update customer_members set name = '__TEST_ sync A renamed', mobile = '9000000499', email = ' New.Mail@Test.Invalid ' where id = pg_temp.fx('m_sync');
+  perform pg_temp.as_pg();
+  select * into r from customers where id = pg_temp.fx('c_sync');
+  perform pg_temp.chk('SYNC-1: staff editing the primary member updates the customer name + mobile',
+    r.name = '__TEST_ sync A renamed' and r.mobile = '9000000499', format('%s / %s', r.name, r.mobile));
+  perform pg_temp.chk('SYNC-4: ... and the account email (normalised lower/trim)', r.email = 'new.mail@test.invalid', coalesce(r.email, 'null'));
+
+  perform pg_temp.as_user(v_sales);
+  update customer_members set name = '__TEST_ kid renamed' where id = pg_temp.fx('m_sync_kid');
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('SYNC-edge: a non-primary member edit never touches the customer row',
+    (select name from customers where id = pg_temp.fx('c_sync')) = '__TEST_ sync A renamed');
+
+  -- customer row -> primary member, only the changed column
+  perform pg_temp.as_user(v_sales);
+  update customers set profession = 'Engineer' where id = pg_temp.fx('c_sync2');
+  perform pg_temp.as_pg();
+  select * into r from customer_members where id = pg_temp.fx('m_sync2');
+  perform pg_temp.chk('SYNC-6: a profession edited on the customer row reaches the primary member', r.profession = 'Engineer', coalesce(r.profession, 'null'));
+  perform pg_temp.chk('SYNC-edge: an unrelated customer edit never blanks the member''s email (account email is null)', r.email = 'member.b@test.invalid', coalesce(r.email, 'null'));
+
+  -- the customer editing their own family row: name/profession move, mobile/email do not
+  perform pg_temp.as_user(pg_temp.fx('custp2'));
+  update customer_members set name = '__TEST_ self renamed', mobile = '9000000498' where id = pg_temp.fx('m_self');
+  perform pg_temp.as_pg();
+  select * into r from customers where id = pg_temp.fx('c_self');
+  perform pg_temp.chk('SYNC-sec: the customer''s own member edit moves the name onto the account', r.name = '__TEST_ self renamed', r.name);
+  perform pg_temp.chk('SYNC-sec: ... but never the account mobile (sign-in matching)', r.mobile = '9000000413', r.mobile);
+  perform pg_temp.as_user(pg_temp.fx('custp2'));
+  update customers set profession = 'Doctor' where id = pg_temp.fx('c_self');
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('SYNC-6: a profession set in the customer app reaches the primary member',
+    (select profession from customer_members where id = pg_temp.fx('m_self')) = 'Doctor');
+
+  -- ══ ADDR: customer-app address text edit clears stale street-level parts ════════════════════════════════
+  perform pg_temp.as_user(pg_temp.fx('custp2'));
+  update addresses set lat = 13.08, lng = 80.27 where id = pg_temp.fx('a_self');
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('ADDR-edge: a pin-only customer edit keeps the admin''s street-level parts',
+    (select door_no = '12A' and street_cross = '2nd Cross' from addresses where id = pg_temp.fx('a_self')));
+  perform pg_temp.as_user(pg_temp.fx('custp2'));
+  update addresses set full_address = '45, New Street, Anna Nagar', area = 'Anna Nagar' where id = pg_temp.fx('a_self');
+  perform pg_temp.as_pg();
+  select * into r from addresses where id = pg_temp.fx('a_self');
+  perform pg_temp.chk('ADDR-2: the customer changing the address text clears the stale parts and keeps their text',
+    r.door_no is null and r.street_cross is null and r.full_address = '45, New Street, Anna Nagar' and r.area = 'Anna Nagar');
+  perform pg_temp.as_user(v_sales);
+  update addresses set door_no = '7', full_address = '7, Anna Nagar' where id = pg_temp.fx('a_self');
+  update addresses set full_address = '7, Main Road, Anna Nagar' where id = pg_temp.fx('a_self');
+  perform pg_temp.as_pg();
+  perform pg_temp.chk('ADDR-edge: a staff edit of the address text never clears the parts',
+    (select door_no from addresses where id = pg_temp.fx('a_self')) = '7');
 
   select string_agg(r2.line, E'\n' order by r2.n) into txt from pg_temp.res r2;
   raise exception E'RESULTS (% pass / % fail)\n%',

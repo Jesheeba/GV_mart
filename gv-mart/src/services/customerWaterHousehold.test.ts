@@ -41,6 +41,7 @@ import {
   setCustomerWaterFollowup,
   postponeWaterFollowup,
   closeWaterFollowupAsLead,
+  updateMember,
 } from "@/services/customers"
 import { getMyCustomerRecord } from "@/services/customerApp"
 
@@ -145,5 +146,13 @@ describe("family members: moved-out members are never counted", () => {
   it("customer app getMyCustomerRecord filters moved_out_at too", async () => {
     await getMyCustomerRecord("c1").catch(() => undefined)
     expect(state.calls.some((c) => c.method === "is" && (c.args as unknown[])[0] === "customer_members.moved_out_at")).toBe(true)
+  })
+})
+
+describe("SYNC-1/6: editing the primary member is ONE write (the DB copies it onto the customer row)", () => {
+  it("updateMember writes customer_members only, never a second client-side customers update", async () => {
+    await updateMember("m1", { name: "Ravi Kumar", mobile: "9000000001", profession: "Teacher", email: "r@x.in" }).catch(() => undefined)
+    expect(state.calls.some((c) => c.kind === "from:customer_members" && c.method === "update")).toBe(true)
+    expect(state.calls.some((c) => c.kind === "from:customers")).toBe(false)
   })
 })

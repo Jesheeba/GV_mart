@@ -72,3 +72,11 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Subtotal for those 3 files: 42/42 pass. Full suite: 1110 pass, 2 fail. The 2 failures (`waOutboxSentGuard`, `wa-event-context`) also fail on clean origin/main (verified in a temp worktree), so they are unrelated. `tsc` clean, `vite build` ok.
 - DB: `supabase/tests/customer_water_household_v2.{fixtures,test}.sql`, about 70 checks (backfill mapping, real-org untouched, checks, guard, RPC security incl. cross-org/anon, unique index, postpone/convert/clear, reminder idempotency, cron). Rehearsal file is `_local_only/rehearsal-files/2026-11-26_customer_water_household_v2.rehearsal.sql` and passes the guard check. **Not run yet**: the live call is blocked pending owner approval.
 - Live read-only precheck (2026-11-26): every object to drop exists, nothing else depends on them; 2 address rows hold water data, 1 health row, tech flag off in all orgs.
+
+## customer-data-sync (2026-11-26)
+- `address.test.ts`: 20 pass. The old "area alone is structured / full_address is stale" test was replaced (it encoded the bug), and resolveFullAddress plus round-trip tests were added.
+- `customerWaterHousehold.test.ts`: added the single-write updateMember test. Moved-out filter is covered for admin + customer app.
+- PostgREST filter paths (`member_count.moved_out_at`, `customers.customer_members.moved_out_at`) were checked against live with the anon key. They parse (reach RLS), and a bogus path is rejected with PGRST108.
+- DB: about 20 SYNC/ADDR checks were added to `customer_water_household_v2.test.sql` (90 checks total). **Not run yet.**
+- Full suite: 1118 pass, the same 2 pre-existing failures as main. `tsc` clean, `vite build` ok.
+- Manual only (no DOM test env): draft restore of complaint type/referrer, lead fields card Cancel/Edit.

@@ -85,6 +85,30 @@ begin
   insert into customers (org_id, name, mobile) values (v_org2, '__TEST_ wv2 org2 cust', '9000000409') returning id into v;
   insert into pg_temp.fx values ('c_org2', v);
 
+  -- primary-member sync (20261215120000) fixtures
+  insert into pg_temp.fx values ('custp2', pg_temp.mkuser('customer', v_org));
+  insert into customers (org_id, name, mobile, email, profession) values (v_org, '__TEST_ sync A', '9000000410', 'sync.a@test.invalid', null) returning id into v;
+  insert into pg_temp.fx values ('c_sync', v);
+  insert into customer_members (org_id, customer_id, name, mobile, is_primary, email, profession)
+    values (v_org, v, '__TEST_ sync A', '9000000410', true, null, 'Teacher') returning id into v;
+  insert into pg_temp.fx values ('m_sync', v);
+  insert into customer_members (org_id, customer_id, name, mobile, is_primary)
+    values (v_org, pg_temp.fx('c_sync'), '__TEST_ sync A kid', '9000000411', false) returning id into v;
+  insert into pg_temp.fx values ('m_sync_kid', v);
+  insert into customers (org_id, name, mobile, email) values (v_org, '__TEST_ sync B', '9000000412', null) returning id into v;
+  insert into pg_temp.fx values ('c_sync2', v);
+  insert into customer_members (org_id, customer_id, name, mobile, is_primary, email)
+    values (v_org, v, '__TEST_ sync B', '9000000412', true, 'member.b@test.invalid') returning id into v;
+  insert into pg_temp.fx values ('m_sync2', v);
+  insert into customers (org_id, name, mobile, primary_profile_id) values (v_org, '__TEST_ self', '9000000413', pg_temp.fx('custp2')) returning id into v;
+  insert into pg_temp.fx values ('c_self', v);
+  insert into customer_members (org_id, customer_id, name, mobile, is_primary)
+    values (v_org, v, '__TEST_ self', '9000000413', true) returning id into v;
+  insert into pg_temp.fx values ('m_self', v);
+  insert into addresses (org_id, customer_id, full_address, area, is_primary, door_no, street_cross)
+    values (v_org, pg_temp.fx('c_self'), '12A, 2nd Cross, Anna Nagar', 'Anna Nagar', true, '12A', '2nd Cross') returning id into v;
+  insert into pg_temp.fx values ('a_self', v);
+
   -- a health row, to prove the table really goes
   insert into customer_health_profile (customer_id, org_id, health_condition) values (pg_temp.fx('c_fu'), v_org, 'high');
 

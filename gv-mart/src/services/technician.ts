@@ -489,7 +489,7 @@ export type JobDetail = ServiceTicketRow & {
 }
 
 const JOB_DETAIL_CUSTOMER_COLUMNS_BASE = "id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
-const JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER = "id,name,mobile,water_source,water_source_other,water_tds_ppm,water_ph,water_hardness_ppm,household_problems,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
+const JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER = "id,name,mobile,water_source,water_source_other,water_tds_ppm,water_ph,water_hardness_ppm,household_problems,water_recommended_solution,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
 const JOB_DETAIL_REST =
   "addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
 
@@ -499,6 +499,8 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
       .from("service_tickets")
       .select(`*, customers(${JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER}), ${JOB_DETAIL_REST}`)
       .eq("id", ticketId)
+      // Moved-out members are not family any more (same rule as the admin getCustomer).
+      .is("customers.customer_members.moved_out_at", null)
       .single()
     if (error && isUndefinedColumnError(error)) {
       // Deploy-order safety (§6): the water-profile columns migration hasn't landed on the
@@ -507,6 +509,7 @@ export async function getJobDetail(ticketId: string): Promise<JobDetail> {
         .from("service_tickets")
         .select(`*, customers(${JOB_DETAIL_CUSTOMER_COLUMNS_BASE}), ${JOB_DETAIL_REST}`)
         .eq("id", ticketId)
+        .is("customers.customer_members.moved_out_at", null)
         .single())
     }
     if (!error && data) {

@@ -49,6 +49,8 @@ type NewSaleDraftData = {
   redeemPointsInput: string
   amountPaidInput: string
   amountPaidTouched: boolean
+  // Optional: drafts saved before 2026-11-26 don't have it (the referrer was silently dropped on restore).
+  referredByTechnicianId?: string
 }
 
 /**
@@ -224,6 +226,7 @@ export function NewSalePage() {
     redeemPointsInput,
     amountPaidInput,
     amountPaidTouched,
+    referredByTechnicianId,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -248,6 +251,7 @@ export function NewSalePage() {
     if (restoredDraft.redeemPointsInput != null) setRedeemPointsInput(restoredDraft.redeemPointsInput)
     if (restoredDraft.amountPaidInput != null) setAmountPaidInput(restoredDraft.amountPaidInput)
     if (restoredDraft.amountPaidTouched != null) setAmountPaidTouched(restoredDraft.amountPaidTouched)
+    if (restoredDraft.referredByTechnicianId) setReferredByTechnicianId(restoredDraft.referredByTechnicianId)
   }, [restoredDraft])
 
   const techMax = settings ? Number(settings.discount_tech_max) : 5

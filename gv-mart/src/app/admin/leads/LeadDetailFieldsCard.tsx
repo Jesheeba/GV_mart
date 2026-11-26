@@ -19,14 +19,8 @@ import { ReferredBySection } from "./ReferredBySection"
  * Plain columns (not trigger-gated like assigned_to), so a direct update
  * through leads_update_sales RLS is enough — no new RPC for these fields.
  */
-export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
-  const { t } = useTranslation()
-  const { toast } = useToast()
-  const { data: profile } = useProfile()
-  const update = useUpdateLeadDetailFields()
-  const [editing, setEditing] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [form, setForm] = useState({
+export function fieldsFromLead(lead: LeadListItem) {
+  return {
     customer_requirement: lead.customer_requirement ?? "",
     special_description: lead.special_description ?? "",
     budget: lead.budget != null ? String(lead.budget) : "",
@@ -34,7 +28,18 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
     tds_status: lead.tds_status ?? "",
     referred_by_name: lead.referred_by_name ?? "",
     referred_by_phone: lead.referred_by_phone ?? "",
-  })
+  }
+}
+
+export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
+  const { t } = useTranslation()
+  const { toast } = useToast()
+  const { data: profile } = useProfile()
+  const update = useUpdateLeadDetailFields()
+  const [editing, setEditing] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  // Re-read from the lead every time Edit opens, so a cancelled edit or a refetched lead never leaves stale values in the form.
+  const [form, setForm] = useState(() => fieldsFromLead(lead))
   const budgetInvalid = form.budget !== "" && Number(form.budget) < 0
 
   async function save() {
@@ -99,7 +104,10 @@ export function LeadDetailFieldsCard({ lead }: { lead: LeadListItem }) {
             </Button>
           </div>
         ) : (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+          <Button size="sm" variant="outline" onClick={() => {
+            setForm(fieldsFromLead(lead))
+            setEditing(true)
+          }}>
             {t("leads.detail.edit")}
           </Button>
         )}

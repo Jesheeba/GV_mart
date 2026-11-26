@@ -299,6 +299,8 @@ async function queryCustomers(orgId: string, page: number, ids: string[] | null,
     })
     .eq("org_id", orgId)
     .is("archived_at", null)
+    // Moved-out members are not family any more (same rule as getCustomer).
+    .is("member_count.moved_out_at", null)
     .order("created_at", { ascending: false })
 
   if (filters.appSourced) query = query.eq("source", "customer_app")
@@ -761,11 +763,11 @@ export async function addMember(
   return data as unknown as MemberRow
 }
 
+// The primary member IS the customer: the DB trigger zz_sync_primary_member_to_customer copies name/mobile/email/
+// profession onto the customers row (20261215120000), so no second client-side write here.
 export async function updateMember(
   memberId: string,
-  member: { name: string; mobile: string; relation?: FamilyRelation | null; profession?: string | null; email?: string | null },
-  // The primary member IS the customer: keep customers.profession in step with theirs.
-  syncCustomer?: { customerId: string }
+  member: { name: string; mobile: string; relation?: FamilyRelation | null; profession?: string | null; email?: string | null }
 ) {
   const { data, error } = await supabase
     .from("customer_members")
@@ -776,10 +778,6 @@ export async function updateMember(
     .select()
     .single()
   if (error) throw error
-  if (syncCustomer) {
-    const { error: profErr } = await supabase.from("customers").update({ profession: member.profession || "" }).eq("id", syncCustomer.customerId)
-    if (profErr) throw profErr
-  }
   return data as unknown as MemberRow
 }
 

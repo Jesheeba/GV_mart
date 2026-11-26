@@ -46,11 +46,8 @@ export const peopleStepSchema = z.object({
   members: z.array(memberSchema).min(1, "customers.errors.memberRequired").max(5, "customers.errors.memberMax"),
   primaryIndex: z.number().int().min(0),
   profession: z.string().trim().max(80).optional().or(z.literal("")),
-  // The account holder's own email (customers.email) -- distinct from a family member's own
-  // optional email above. Matched against on Google auto-onboard
-  // (customer_auto_onboard, 20261130100001) -- normalized trim+lowercase on save, same as the
-  // RPC's own lower(trim(...)) comparison, so a staff-entered email always matches correctly.
-  email: z.string().trim().max(254).refine((v) => v === "" || EMAIL_REGEX.test(v), "customers.errors.emailInvalid").optional(),
+  // No separate account-email field: the primary member's own email IS the account email (customers.email),
+  // kept in step by the DB (20261215120000_primary_member_sync.sql).
   // WhatsApp message language (customers.preferred_language); "" = not set (English).
   preferredLanguage: z.union([z.enum(["en", "ta"]), z.literal("")]).optional(),
   // Referral incentives — capture-at-creation only (never shown/edited in edit mode, per

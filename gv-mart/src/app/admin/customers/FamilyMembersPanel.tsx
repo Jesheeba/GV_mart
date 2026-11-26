@@ -30,8 +30,9 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
       name: member.name,
       mobile: member.mobile,
       relation: member.relation ?? undefined,
-      // the primary member IS the customer: fall back to the customer-level profession older records kept
-      profession: member.profession ?? (member.is_primary ? customerProfession ?? "" : ""),
+      // The primary member IS the customer. The customer row's profession is the one the customer app edits, so it
+      // wins for the primary; saving an older member copy would revert it. The DB keeps both in step from 20261215120000.
+      profession: (member.is_primary ? (customerProfession || member.profession) : member.profession) ?? "",
       email: member.email ?? "",
     },
   })
@@ -47,7 +48,6 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
           profession: values.profession || null,
           email: values.email || null,
         },
-        syncCustomer: member.is_primary ? { customerId: member.customer_id } : undefined,
       },
       { onSuccess: onDone }
     )

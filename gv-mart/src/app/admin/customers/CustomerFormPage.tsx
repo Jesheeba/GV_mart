@@ -49,7 +49,7 @@ import {
   updateCustomerEmail,
   saveWaterHousehold,
 } from "@/services/customers"
-import { composeFullAddress, splitAddressForForm, type StructuredAddressFields } from "@/lib/address"
+import { resolveFullAddress, splitAddressForForm, type StructuredAddressFields } from "@/lib/address"
 import {
   useAreaAutocomplete,
   useCreateCustomer,
@@ -61,7 +61,6 @@ import {
   usePincodeSuggestions,
   useStreetCrossAutocomplete,
   useSubAreaAutocomplete,
-  useUpdateCustomerEmail,
   useCustomerWaterFollowup,
   useSaveWaterHousehold,
   useUpsertPrimaryAddress,
@@ -206,7 +205,7 @@ function MemberFieldRow({
 
 /** The address text a map pin belongs to -- what auto-locate geocodes and what a confirmed pin is compared against. */
 function locationText(v: StructuredAddressFields & { fullAddress?: string; pincode?: string; district?: string; state?: string }) {
-  return [composeFullAddress(v) || v.fullAddress, v.pincode, v.district, v.state].filter(Boolean).join(", ")
+  return [resolveFullAddress(v), v.pincode, v.district, v.state].filter(Boolean).join(", ")
 }
 
 // Compact field sizing for every step card (Autocomplete renders the same Input).
@@ -224,11 +223,6 @@ export function CustomerFormPage() {
 
   const existing = useCustomer(mode === "edit" ? id : undefined)
   const [step, setStep] = useState(0)
-  // Edit mode: the account holder's own email, independent of the people-step wizard form
-  // (which only exists for create mode) -- saved immediately, same "edit one field, save it
-  // right away" shape as FamilyMembersPanel's own per-member edits below it.
-  const [editEmail, setEditEmail] = useState("")
-  const updateEmail = useUpdateCustomerEmail(id ?? "")
   // Only ever grows — tracks the furthest step reached so navigating back
   // (which decreases `step`) doesn't make already-completed steps lose their
   // checkmark in the Stepper below. See Stepper's `maxCompletedIndex` doc.
@@ -244,10 +238,11 @@ export function CustomerFormPage() {
 
   // Urgent item (2026-11-02): staff-side duplicate-contact warning (not a
   // hard block -- see DuplicateContactWarning's own header). Only looked up
-  // in create mode, against the primary member's own mobile + the top-level
-  // email field (the two identifiers find_duplicate_contacts matches on).
+  // in create mode, against the primary member's own mobile + email (the two identifiers
+  // find_duplicate_contacts matches on). The primary member's row is the ONE place the account
+  // email is typed (sweep 2026-11-26: a second "email" box saved somewhere else).
   const primaryMobile = peopleForm.watch(`members.${primaryIndex}.mobile`) ?? ""
-  const topEmail = peopleForm.watch("email") ?? ""
+  const topEmail = peopleForm.watch(`members.${primaryIndex}.email`) ?? ""
   const dupWarning = useDuplicateContactWarning(mode === "create" ? orgId : undefined, primaryMobile, topEmail)
   const dupWarningKey = duplicateWarningKey(primaryMobile, topEmail)
   // Tracks WHICH (mobile, email) pair was confirmed, not just a bare
@@ -394,7 +389,6 @@ export function CustomerFormPage() {
   useEffect(() => {
     if (mode === "edit" && existing.data) {
       peopleForm.reset({ members: [], primaryIndex: 0, profession: existing.data.profession ?? "" })
-      setEditEmail(existing.data.email ?? "")
       const primary = existing.data.addresses.find((a) => a.is_primary) ?? existing.data.addresses[0]
       if (primary) {
         // Structured columns win when any are populated; a customer saved
@@ -421,8 +415,14 @@ export function CustomerFormPage() {
           lat: primary.lat ?? undefined,
           lng: primary.lng ?? undefined,
         })
-        const composed = composeFullAddress(split) || split.legacyFullAddress
-        confirmedLocationTextRef.current = [composed, primary.pincode, primary.district, primary.state].filter(Boolean).join(", ")
+        // Same text locationText() builds for the loaded values, so a saved pin isn't cleared on load.
+        confirmedLocationTextRef.current = locationText({
+          ...split,
+          fullAddress: split.legacyFullAddress,
+          pincode: primary.pincode ?? "",
+          district: primary.district ?? "",
+          state: primary.state ?? "",
+        })
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -491,7 +491,7 @@ export function CustomerFormPage() {
     // Structured fields are the source of truth the moment any is filled;
     // only a customer that still has nothing but the legacy fallback box
     // keeps that text as full_address. See composeFullAddress in src/lib/address.ts.
-    const composedFullAddress = composeFullAddress(addressValues) || addressValues.fullAddress?.trim() || ""
+    const composedFullAddress = resolveFullAddress(addressValues)
 
     if (mode === "create") {
       const peopleValues = peopleForm.getValues()
@@ -541,12 +541,14 @@ export function CustomerFormPage() {
           toast.error(t("common.actionFailed"))
         }
       }
-      // create_customer_with_details (RPC) doesn't accept an email either -- same small
-      // follow-up write shape as the language field above (updateCustomerEmail normalizes
-      // trim+lowercase).
-      if (peopleValues.email?.trim()) {
+      // create_customer_with_details stores member emails but not the account email (customers.email,
+      // used for Google sign-in matching) -- set it from the primary member, same follow-up write shape
+      // as the language field above (updateCustomerEmail normalizes trim+lowercase). From then on the
+      // DB keeps the two in step (20261215120000_primary_member_sync.sql).
+      const primaryEmail = peopleValues.members[peopleValues.primaryIndex]?.email?.trim()
+      if (primaryEmail) {
         try {
-          await updateCustomerEmail(newId, peopleValues.email)
+          await updateCustomerEmail(newId, primaryEmail)
         } catch {
           toast.error(t("common.actionFailed"))
         }
@@ -694,11 +696,6 @@ export function CustomerFormPage() {
                 value={(peopleForm.watch("preferredLanguage") || null) as "en" | "ta" | null}
                 onChange={(next) => peopleForm.setValue("preferredLanguage", next ?? "")}
               />
-              <div className="space-y-1">
-                <Label htmlFor="new-customer-email">{t("customers.form.email")}</Label>
-                <Input id="new-customer-email" type="email" placeholder={t("customers.form.emailPlaceholder")} {...peopleForm.register("email")} />
-                {peopleForm.formState.errors.email ? <p className="text-xs text-danger">{t(peopleForm.formState.errors.email.message!)}</p> : null}
-              </div>
               {/* Referral incentives — capture-at-creation only, never shown in edit mode. */}
               <ReferrerPicker
                 id="new-customer-referred-by"
@@ -709,24 +706,7 @@ export function CustomerFormPage() {
               />
             </div>
           ) : (
-            <>
-              <div className="space-y-1">
-                <Label htmlFor="edit-customer-email">{t("customers.form.email")}</Label>
-                <div className="flex gap-2">
-                  <Input id="edit-customer-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder={t("customers.form.emailPlaceholder")} />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={updateEmail.isPending || editEmail.trim().toLowerCase() === (existing.data!.email ?? "")}
-                    onClick={() => updateEmail.mutate(editEmail, { onError: () => toast.error(t("common.actionFailed")) })}
-                  >
-                    {t("common.save")}
-                  </Button>
-                </div>
-              </div>
-              <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
-            </>
+            <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
           )}
         </Card>
       ) : step === 1 ? (
