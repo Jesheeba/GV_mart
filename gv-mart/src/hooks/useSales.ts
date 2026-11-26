@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { ReferrerValue } from "@/lib/referrer"
 import * as sales from "@/services/sales"
 import type { Enums } from "@/types/database"
 import { triggerWaDispatchNow } from "@/services/whatsapp"
@@ -13,6 +14,7 @@ export function useCreateSale() {
       quotationId?: string | null
       referredByTechnicianId?: string | null
       amountPaid?: number | null
+      referrer?: ReferrerValue | null
     }) =>
       sales.createSale(
         input.orgId,
@@ -20,7 +22,8 @@ export function useCreateSale() {
         input.cart,
         input.quotationId,
         input.referredByTechnicianId,
-        input.amountPaid
+        input.amountPaid,
+        input.referrer
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["invoices"] })

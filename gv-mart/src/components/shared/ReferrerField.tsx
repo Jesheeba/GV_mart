@@ -29,6 +29,8 @@ export function ReferrerField({
   kinds = REFERRER_KINDS,
   excludeCustomerId,
   label,
+  technicians,
+  allowQuickAdd = true,
 }: {
   idPrefix: string
   orgId: string | undefined
@@ -37,6 +39,14 @@ export function ReferrerField({
   kinds?: readonly ReferrerKind[]
   excludeCustomerId?: string | null
   label?: string
+  /**
+   * Sale / Complaint / AMC: their technician referrer is a technicians.id (finder
+   * credit), not a profile id. Passing the screen's list makes the technician
+   * option a plain select over it, so `value.userId` holds a technicians.id there.
+   */
+  technicians?: { id: string; full_name: string }[]
+  /** Only master/sales staff can create customers (RLS) — hide quick-add for other roles. */
+  allowQuickAdd?: boolean
 }) {
   const { t } = useTranslation()
   const [search, setSearch] = useState("")
@@ -71,7 +81,26 @@ export function ReferrerField({
         </div>
       ) : null}
 
-      {kind === "technician" || kind === "staff" ? (
+      {kind === "technician" && technicians ? (
+        <div className="space-y-1">
+          <label htmlFor={`${idPrefix}-technician`} className="block text-xs font-medium text-text-muted">
+            {t("leads.referredBy.pickTechnician")}
+          </label>
+          <select
+            id={`${idPrefix}-technician`}
+            value={value.userId}
+            onChange={(e) => onChange({ ...value, kind, userId: e.target.value })}
+            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
+          >
+            <option value="">{t("common.none")}</option>
+            {technicians.map((tech) => (
+              <option key={tech.id} value={tech.id}>
+                {tech.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : kind === "technician" || kind === "staff" ? (
         <ReferrerPicker
           id={`${idPrefix}-${kind}`}
           orgId={orgId}
@@ -119,13 +148,15 @@ export function ReferrerField({
                 onChange({ ...value, kind, customerId: c.id, name: c.name, phone: c.mobile ?? "" })
                 setSearch("")
               }}
-              onCreate={() => setQuickAddOpen(true)}
+              onCreate={allowQuickAdd ? () => setQuickAddOpen(true) : undefined}
               createLabel={t("referrer.addNewCustomer")}
             />
-            <Button type="button" variant="outline" size="xs" onClick={() => setQuickAddOpen(true)}>
-              <UserPlus data-icon="inline-start" />
-              {t("referrer.addNewCustomer")}
-            </Button>
+            {allowQuickAdd ? (
+              <Button type="button" variant="outline" size="xs" onClick={() => setQuickAddOpen(true)}>
+                <UserPlus data-icon="inline-start" />
+                {t("referrer.addNewCustomer")}
+              </Button>
+            ) : null}
           </div>
         )
       ) : null}

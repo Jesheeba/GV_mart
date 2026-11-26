@@ -79,6 +79,8 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     enquiry_time_allowance_minutes: settings.enquiry_time_allowance_minutes,
     emi_enabled: settings.emi_enabled,
     review_incentives_enabled: settings.review_incentives_enabled,
+    customer_referral_points_enabled: settings.customer_referral_points_enabled ?? false,
+    customer_referral_points: settings.customer_referral_points ?? 0,
     emi_tenure_months: (Array.isArray(settings.emi_tenure_months) ? settings.emi_tenure_months : []).join(","),
     emi_disclaimer: settings.emi_disclaimer ?? "",
   }
@@ -122,6 +124,8 @@ const FIELD_GROUPS = {
     "review_flag_threshold_percent",
     "review_flag_min_visits",
     "review_incentives_enabled",
+    "customer_referral_points_enabled",
+    "customer_referral_points",
   ],
   inventory: ["default_min_stock", "po_approval_threshold", "po_quote_timeout_hours", "po_quote_day_of_month", "po_requires_approval"],
   productEnquiry: ["emi_tenure_months", "emi_disclaimer", "emi_enabled"],
@@ -379,6 +383,16 @@ export function SettingsTab() {
             <span className="block text-xs text-text-muted">{t("settings.reviewIncentivesEnabledHint")}</span>
           </span>
         </label>
+        <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
+          <input type="checkbox" className="size-4 accent-accent" {...register("customer_referral_points_enabled", { onChange: () => setJustSavedGroup(null) })} />
+          <span>
+            <span className="block font-medium">{t("settings.customerReferralPointsEnabled")}</span>
+            <span className="block text-xs text-text-muted">{t("settings.customerReferralPointsEnabledHint")}</span>
+          </span>
+        </label>
+        <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">
+          {field("customer_referral_points", t("settings.customerReferralPoints"), "number", "1")}
+        </div>
         <GroupSaveRow groupKey="amcReferral" />
       </Card>
 

@@ -63,6 +63,7 @@ export function NewLeadForm({
       tdsStatus: "",
       referredByName: "",
       referredByPhone: "",
+      referredByCustomerId: "",
     },
   })
 
@@ -95,6 +96,7 @@ export function NewLeadForm({
       tds_status: values.tdsStatus || null,
       referred_by_name: values.referredByName || null,
       referred_by_phone: values.referredByPhone || null,
+      referred_by_customer_id: values.referredByCustomerId || null,
       customer_id: existingCustomer?.id ?? null,
     })
     // Self-referral / anti-abuse guard (stage2_corrections_addendum.md item 9) —
@@ -167,6 +169,8 @@ export function NewLeadForm({
           onReferredByNameChange={(next) => form.setValue("referredByName", next)}
           referredByPhone={form.watch("referredByPhone") ?? ""}
           onReferredByPhoneChange={(next) => form.setValue("referredByPhone", next)}
+          referredByCustomerId={form.watch("referredByCustomerId") ?? ""}
+          onReferredByCustomerIdChange={(next) => form.setValue("referredByCustomerId", next)}
         />
         <div className="space-y-0.5">
           <Label htmlFor="lead-product-category">{t("leads.new.productCategory")}</Label>

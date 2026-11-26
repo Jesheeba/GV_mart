@@ -1,5 +1,11 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## referral-sources R3+R4 (2026-11-26)
+- New Customer, New Sale, New Complaint, Sell AMC use `ReferrerField`; non-technician referrers go through the `*_with_referrer` RPCs, technician keeps the original finder-credit path. Old drafts with `referredByTechnicianId` restore as a technician referrer.
+- Leads save `referred_by_customer_id`; customer + lead detail show a customer referrer (click opens that customer).
+- Masters → Settings → AMC & referral: "Customer referral points" switch (OFF) + points per referred customer; on requires points > 0.
+- Quick-add hidden for operation_admin on New Complaint (only master/sales can create customers).
+
 ## referral-sources R2 (2026-11-26) — migration APPLIED LIVE 2026-11-26 (owner "go apply")
 - `20261228100000_referral_sources.sql` (+ `.rollback.sql`): `referred_by_customer_id` on customers + leads with guards; points toggle (`settings.customer_referral_points_enabled` / `customer_referral_points`, OFF / 0); once-per-customer award on first paid invoice; carry-over also carries a customer referrer; wrappers `create_customer_with_referrer`, `create_sale_with_referrer`, `create_complaint_ticket_with_referrer`, `sell_amc_plan_with_referrer`. create_sale / create_complaint_ticket / sell_amc_plan / create_customer_with_details bodies untouched.
 

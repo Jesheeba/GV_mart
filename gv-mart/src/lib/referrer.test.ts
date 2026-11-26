@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import en from "@/lib/i18n/en.json"
 import ta from "@/lib/i18n/ta.json"
-import { EMPTY_REFERRER, REFERRER_KINDS, existingCustomerMatch, isReferrerComplete, quickAddCustomerSchema, switchReferrerKind } from "./referrer"
+import { EMPTY_REFERRER, REFERRER_KINDS, existingCustomerMatch, isReferrerComplete, nonTechnicianReferrerArgs, quickAddCustomerSchema, switchReferrerKind } from "./referrer"
+import { customerReferralPointsValid, settingsSchema } from "./validation/settings"
 import type { DuplicateContactMatch } from "./duplicateContactWarning"
 
 const match = (source: "customer" | "lead", id: string): DuplicateContactMatch => ({
@@ -88,5 +89,58 @@ describe("AC4 existing mobile offers the existing customer", () => {
     expect(existingCustomerMatch([match("lead", "l1")])).toBeNull()
     expect(existingCustomerMatch([])).toBeNull()
     expect(existingCustomerMatch(undefined)).toBeNull()
+  })
+})
+
+describe("AC5/AC1 wrapper args: technician keeps the plain RPC, others use *_with_referrer", () => {
+  it("technician or nothing -> null (plain RPC, finder credit unchanged)", () => {
+    expect(nonTechnicianReferrerArgs({ ...EMPTY_REFERRER, kind: "technician", userId: "t1" })).toBeNull()
+    expect(nonTechnicianReferrerArgs(EMPTY_REFERRER)).toBeNull()
+    expect(nonTechnicianReferrerArgs(undefined)).toBeNull()
+  })
+  it("incomplete referrer -> null (nothing half-picked is sent)", () => {
+    expect(nonTechnicianReferrerArgs({ ...EMPTY_REFERRER, kind: "customer" })).toBeNull()
+    expect(nonTechnicianReferrerArgs({ ...EMPTY_REFERRER, kind: "other", name: "  " })).toBeNull()
+  })
+  it("staff -> user id only", () => {
+    expect(nonTechnicianReferrerArgs({ ...EMPTY_REFERRER, kind: "staff", userId: "u1" })).toEqual({
+      p_referred_by_user_id: "u1", p_referred_by_customer_id: null, p_referred_by_name: null, p_referred_by_phone: null,
+    })
+  })
+  it("customer -> customer id only (name/phone copies are not sent)", () => {
+    expect(nonTechnicianReferrerArgs({ kind: "customer", userId: "", customerId: "c1", name: "Asha", phone: "9876543210" })).toEqual({
+      p_referred_by_user_id: null, p_referred_by_customer_id: "c1", p_referred_by_name: null, p_referred_by_phone: null,
+    })
+  })
+  it("someone else -> trimmed name, phone optional", () => {
+    expect(nonTechnicianReferrerArgs({ ...EMPTY_REFERRER, kind: "other", name: " Ravi ", phone: " " })).toEqual({
+      p_referred_by_user_id: null, p_referred_by_customer_id: null, p_referred_by_name: "Ravi", p_referred_by_phone: null,
+    })
+  })
+})
+
+describe("AC7 points setting (master toggle, OFF by default)", () => {
+  it("toggle on requires points > 0; off accepts 0", () => {
+    expect(customerReferralPointsValid(false, 0)).toBe(true)
+    expect(customerReferralPointsValid(true, 0)).toBe(false)
+    expect(customerReferralPointsValid(true, 50)).toBe(true)
+  })
+  it("amount must be a whole number between 0 and 100000", () => {
+    const f = settingsSchema.shape.customer_referral_points
+    expect(f.safeParse("50").success).toBe(true)
+    expect(f.safeParse(0).success).toBe(true)
+    expect(f.safeParse(-1).success).toBe(false)
+    expect(f.safeParse(2.5).success).toBe(false)
+    expect(f.safeParse(100001).success).toBe(false)
+  })
+  it("has en + ta strings for the setting and its errors", () => {
+    for (const k of ["customerReferralPointsEnabled", "customerReferralPointsEnabledHint", "customerReferralPoints"] as const) {
+      expect(en.settings[k]).toBeTruthy()
+      expect(ta.settings[k]).toBeTruthy()
+    }
+    for (const k of ["wholeNumber", "customerReferralPointsMax", "customerReferralPointsNeeded"] as const) {
+      expect(en.settings.errors[k]).toBeTruthy()
+      expect(ta.settings.errors[k]).toBeTruthy()
+    }
   })
 })

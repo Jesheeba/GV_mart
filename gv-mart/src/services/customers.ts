@@ -583,6 +583,8 @@ export type CreateCustomerInput = {
   // Referral incentives — capture-at-creation only (customers.referred_by_user_id,
   // first-write-wins, never settable in edit mode). See CustomerFormPage.tsx.
   referredByUserId?: string
+  /** Referral sources (20261228100000): existing customer who referred this one -> create_customer_with_referrer. */
+  referredByCustomerId?: string
   members: { name: string; mobile: string; isPrimary: boolean; relation?: FamilyRelation; profession?: string; email?: string }[]
   address: {
     fullAddress?: string
@@ -599,7 +601,7 @@ export type CreateCustomerInput = {
 }
 
 export async function createCustomerWithDetails(input: CreateCustomerInput) {
-  const { data, error } = await supabase.rpc("create_customer_with_details", {
+  const args = {
     p_org_id: input.orgId,
     // Supabase's generated Args type marks this non-null even though the SQL
     // parameter accepts null (a generator limitation, not a real constraint).
@@ -629,7 +631,10 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
       lat: input.address.lat ?? null,
       lng: input.address.lng ?? null,
     },
-  })
+  }
+  const { data, error } = input.referredByCustomerId
+    ? await supabase.rpc("create_customer_with_referrer", { ...args, p_referred_by_customer_id: input.referredByCustomerId })
+    : await supabase.rpc("create_customer_with_details", args)
   if (error) throw error
   return data
 }
@@ -1422,4 +1427,11 @@ export async function getLatestAddressLocationEvent(addressId: string) {
 export async function resetVerifiedLocation(addressId: string, reason: string) {
   const { error } = await supabase.rpc("reset_address_location_verification", { p_address_id: addressId, p_reason: reason })
   if (error) throw error
+}
+
+/** Referral sources (20261228100000): the referring customer's name for the "Referred by" chip. */
+export async function getCustomerName(id: string): Promise<string | null> {
+  const { data, error } = await supabase.from("customers").select("name").eq("id", id).maybeSingle()
+  if (error) throw error
+  return data?.name ?? null
 }

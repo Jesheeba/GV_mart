@@ -110,6 +110,8 @@ export async function createLead(row: {
   // Lead Dashboard Enhancement, feature 5 — free-text, coexists with referred_by_user_id above.
   referred_by_name?: string | null
   referred_by_phone?: string | null
+  // Referral sources (20261228100000) — existing customer who referred this lead; carried to the customer on conversion.
+  referred_by_customer_id?: string | null
   // Existing-customer new-enquiry flow (2026-11-11): set when this lead is
   // created from CustomerDetailPage's "New lead" button, so the lead starts
   // out attached to that customer instead of only linking up at conversion.
@@ -147,6 +149,7 @@ export type LeadDetailFieldsPatch = {
   tds_status?: string | null
   referred_by_name?: string | null
   referred_by_phone?: string | null
+  referred_by_customer_id?: string | null
 }
 
 /** Plain column update — unlike assigned_to, these fields have no trigger/RPC gate (leads_update_sales RLS covers them). */

@@ -37,6 +37,8 @@ export function ReferredBySection({
   onReferredByNameChange,
   referredByPhone,
   onReferredByPhoneChange,
+  referredByCustomerId,
+  onReferredByCustomerIdChange,
   // Technician/staff attribution (referredByUserId) is a bonus-eligible,
   // set-once-at-creation field (see referral_bonus_rates/_carry_over_lead_referral)
   // — LeadDetailFieldsCard's edit form doesn't touch it, so it hides that
@@ -51,6 +53,8 @@ export function ReferredBySection({
   onReferredByNameChange: (next: string) => void
   referredByPhone: string
   onReferredByPhoneChange: (next: string) => void
+  referredByCustomerId: string
+  onReferredByCustomerIdChange: (next: string) => void
   allowTechnicianOrStaff?: boolean
 }) {
   const { t } = useTranslation()
@@ -61,10 +65,8 @@ export function ReferredBySection({
   // stay out of the edit card (allowTechnicianOrStaff=false) — set-once at creation.
   const kinds: ReferrerKind[] =
     mode === "customer" ? ["customer"] : allowTechnicianOrStaff ? ["other", "technician", "staff", "customer"] : ["other", "customer"]
-  // Kind + picked customer id are UI state: until referred_by_customer_id exists
-  // (R2 migration), a customer referrer persists as its name/phone, same as before.
-  const [kind, setKind] = useState<ReferrerKind>(kinds[0])
-  const [customerId, setCustomerId] = useState("")
+  // A customer referrer is saved as referred_by_customer_id (+ a name/phone copy for display).
+  const [kind, setKind] = useState<ReferrerKind>(referredByCustomerId ? "customer" : kinds[0])
 
   // Switching Source away from a mode clears that mode's own fields, so
   // stale data from a source the user backed out of never gets submitted.
@@ -74,8 +76,8 @@ export function ReferredBySection({
       if (referredByUserId) onReferredByUserIdChange("")
       if (referredByName) onReferredByNameChange("")
       if (referredByPhone) onReferredByPhoneChange("")
+      if (referredByCustomerId) onReferredByCustomerIdChange("")
       setKind(kinds[0])
-      setCustomerId("")
       prevMode.current = mode
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,10 +102,10 @@ export function ReferredBySection({
           idPrefix="lead-referred-by"
           orgId={orgId}
           kinds={kinds}
-          value={{ kind, userId: referredByUserId, customerId, name: referredByName, phone: referredByPhone }}
+          value={{ kind, userId: referredByUserId, customerId: referredByCustomerId, name: referredByName, phone: referredByPhone }}
           onChange={(next) => {
             setKind(next.kind)
-            setCustomerId(next.customerId)
+            if (next.customerId !== referredByCustomerId) onReferredByCustomerIdChange(next.customerId)
             if (next.userId !== referredByUserId) onReferredByUserIdChange(next.userId)
             if (next.name !== referredByName) onReferredByNameChange(next.name)
             if (next.phone !== referredByPhone) onReferredByPhoneChange(next.phone)

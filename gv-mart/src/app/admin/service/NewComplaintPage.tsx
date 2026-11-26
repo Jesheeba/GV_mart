@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { ReferrerField } from "@/components/shared/ReferrerField"
+import { EMPTY_REFERRER, type ReferrerValue } from "@/lib/referrer"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -70,7 +72,9 @@ type NewComplaintDraftData = {
   // Optional: drafts saved before 2026-11-26 don't have them. Without complaintTypeId a restored draft kept the
   // complaint text but lost its link to the complaint type (spare suggestions, standard minutes).
   complaintTypeId?: string | null
+  /** Pre-2026-11-26 drafts only; restored as a technician referrer. */
   referredByTechnicianId?: string
+  referrer?: ReferrerValue
 }
 
 export function NewComplaintPage() {
@@ -238,7 +242,7 @@ export function NewComplaintPage() {
 
   const createTicket = useCreateComplaintTicket()
   const { data: technicians } = useTechnicians(orgId)
-  const [referredByTechnicianId, setReferredByTechnicianId] = useState("")
+  const [referrer, setReferrer] = useState<ReferrerValue>(EMPTY_REFERRER)
 
   // Local draft persistence — see useLocalDraft's doc comment. Disabled for
   // the prefilled-customer entry point (see NewComplaintDraftData).
@@ -258,7 +262,7 @@ export function NewComplaintPage() {
     details: detailsForm.watch(),
     appointment: appointmentForm.watch(),
     complaintTypeId,
-    referredByTechnicianId,
+    referrer,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewComplaintDraftData>(draftKey, draftSnapshot)
   const appliedDraftRef = useRef(false)
@@ -282,7 +286,8 @@ export function NewComplaintPage() {
     if (restoredDraft.details) detailsForm.reset(restoredDraft.details)
     if (restoredDraft.appointment) appointmentForm.reset(restoredDraft.appointment)
     if (restoredDraft.complaintTypeId) setComplaintTypeId(restoredDraft.complaintTypeId)
-    if (restoredDraft.referredByTechnicianId) setReferredByTechnicianId(restoredDraft.referredByTechnicianId)
+    if (restoredDraft.referrer) setReferrer(restoredDraft.referrer)
+    else if (restoredDraft.referredByTechnicianId) setReferrer({ ...EMPTY_REFERRER, kind: "technician", userId: restoredDraft.referredByTechnicianId })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restoredDraft])
 
@@ -357,7 +362,8 @@ export function NewComplaintPage() {
       // UTC-midnight anchoring is needed here.
       scheduledDate: appt.scheduledDate || null,
       unavailableWindows: appt.unavailableWindows ?? [],
-      referredByTechnicianId: referredByTechnicianId || null,
+      referredByTechnicianId: referrer.kind === "technician" ? referrer.userId || null : null,
+      referrer,
       // Urgent item 1 fix (2026-11-02): the master's explicit "Assign to"
       // pick, if any — "" (nothing picked) must become null, never a
       // fallback technician. The RPC gives this priority over autoAssign.
@@ -816,19 +822,15 @@ export function NewComplaintPage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>{t("common.referredByTechnician")}</Label>
-            <select
-              value={referredByTechnicianId}
-              onChange={(e) => setReferredByTechnicianId(e.target.value)}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none sm:max-w-xs"
-            >
-              <option value="">{t("common.none")}</option>
-              {(technicians ?? []).map((tech) => (
-                <option key={tech.id} value={tech.id}>
-                  {tech.full_name}
-                </option>
-              ))}
-            </select>
+            <ReferrerField
+              idPrefix="new-complaint-referrer"
+              orgId={orgId}
+              value={referrer}
+              onChange={setReferrer}
+              technicians={technicians ?? []}
+              excludeCustomerId={customerId || null}
+              allowQuickAdd={profile?.role === "master" || profile?.role === "sales_admin"}
+            />
           </div>
 
           {createTicket.error ? (

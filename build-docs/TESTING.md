@@ -2,6 +2,13 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## referral-sources R3+R4 (screens + points switch) — 2026-11-26
+- `src/lib/referrer.test.ts` 22/22 (+8): wrapper args per kind (technician keeps plain RPC = AC5), incomplete referrer sends nothing, points toggle needs amount > 0, amount 0..100000 whole number, en/ta strings.
+- `tsc -b` clean, oxlint clean (no new warnings), `vite build` OK.
+- Full vitest in a clean worktree with the R3 diff applied: 1231 passed / 2 failed (pre-existing waOutboxSentGuard, wa-event-context; same 2 on origin/main).
+- Found: inside the feature worktree (dev server running there) the full run also fails 24 OTA tests; they pass alone, with `--no-cache` for subsets, and in any clean worktree with identical code. Environment-only, not caused by this change; not chased further.
+- Not browser-checked by me: signing in uses the live auth host. Owner checks in the local tab.
+
 ## referral-sources R2 (migration, NOT applied) — 2026-11-26
 - `supabase/tests/referral_sources.test.sql` via rolled-back rehearsal (begin + migration + test, ends in RAISE): **40/40 pass** on the first run. Covers AC-1/5/6/7/8/9, guards, first-referrer-wins, history rule, atomic rollback of a failed sale, carry-over, points toggle/once/paid-later, delete of referrer, grants, billing RPC md5 unchanged.
 - Leak check afterwards (read-only): 0 new columns/functions, 0 test orgs/users, carry-over md5 still 9a4e65a1.

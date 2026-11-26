@@ -14,7 +14,7 @@ export type ReferrerKind = (typeof REFERRER_KINDS)[number]
 
 export type ReferrerValue = {
   kind: ReferrerKind
-  /** profiles.id — technician or staff (kind technician/staff). */
+  /** profiles.id (technician/staff); on Sale/Complaint/AMC a technician is a technicians.id (finder credit). */
   userId: string
   /** customers.id — kind customer. */
   customerId: string
@@ -60,4 +60,30 @@ export type QuickAddCustomerInput = z.input<typeof quickAddCustomerSchema>
 /** The existing customer (not lead) holding this mobile, if any — quick-add offers it instead of creating a duplicate. */
 export function existingCustomerMatch(matches: DuplicateContactMatch[] | undefined | null): DuplicateContactMatch | null {
   return (matches ?? []).find((m) => m.source === "customer") ?? null
+}
+
+export type ReferrerRpcArgs = {
+  p_referred_by_user_id: string | null
+  p_referred_by_customer_id: string | null
+  p_referred_by_name: string | null
+  p_referred_by_phone: string | null
+}
+
+/**
+ * Args for the *_with_referrer wrapper RPCs (20261228100000), or null when the
+ * plain RPC should be called: no referrer, or a technician (who keeps the
+ * original finder-credit path via p_referred_by_technician_id).
+ */
+export function nonTechnicianReferrerArgs(v: ReferrerValue | null | undefined): ReferrerRpcArgs | null {
+  if (!v || !isReferrerComplete(v)) return null
+  switch (v.kind) {
+    case "staff":
+      return { p_referred_by_user_id: v.userId, p_referred_by_customer_id: null, p_referred_by_name: null, p_referred_by_phone: null }
+    case "customer":
+      return { p_referred_by_user_id: null, p_referred_by_customer_id: v.customerId, p_referred_by_name: null, p_referred_by_phone: null }
+    case "other":
+      return { p_referred_by_user_id: null, p_referred_by_customer_id: null, p_referred_by_name: v.name.trim(), p_referred_by_phone: v.phone.trim() || null }
+    default:
+      return null
+  }
 }

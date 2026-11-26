@@ -101,6 +101,15 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
           <UserCheck className="size-3.5" />
           {t("leads.detail.referredBy", { name: leadReferrer.referrer_name })}
         </p>
+      ) : lead.referred_by_customer_id ? (
+        <button
+          type="button"
+          onClick={() => navigate(`/admin/customers/${lead.referred_by_customer_id}`)}
+          className="flex items-center gap-1 text-left text-xs text-text-muted hover:underline"
+        >
+          <UserCheck className="size-3.5" />
+          {t("leads.detail.referredBy", { name: `${lead.referred_by_name ?? ""} (${t("referrer.kind.customer")})` })}
+        </button>
       ) : null}
 
       {(lead.lead_items ?? []).length > 0 ? (

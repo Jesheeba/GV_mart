@@ -36,6 +36,8 @@ export const leadSchema = z.object({
   // customer/profile — coexists with referredByUserId above, doesn't replace it.
   referredByName: z.string().trim().max(120).optional().or(z.literal("")),
   referredByPhone: z.string().trim().max(20).optional().or(z.literal("")),
+  // Referral sources (20261228100000): linked existing-customer referrer.
+  referredByCustomerId: z.string().uuid().optional().or(z.literal("")),
 })
 export type LeadInput = z.infer<typeof leadSchema>
 
