@@ -13,12 +13,15 @@ export function PreferredLanguageSelect({
   i18nPrefix,
   disabled,
   id,
+  compact,
 }: {
   value: PreferredLanguage | null | undefined
   onChange: (next: PreferredLanguage | null) => void
   i18nPrefix: "customers.form" | "customerApp.profile"
   disabled?: boolean
   id?: string
+  /** Header placement: hint moves into the select's tooltip so it takes no vertical space. */
+  compact?: boolean
 }) {
   const { t } = useTranslation()
   return (
@@ -30,6 +33,7 @@ export function PreferredLanguageSelect({
         id={id}
         value={value ?? ""}
         disabled={disabled}
+        title={compact ? t(`${i18nPrefix}.preferredLanguageHint`) : undefined}
         onChange={(e) => onChange(e.target.value === "en" || e.target.value === "ta" ? e.target.value : null)}
         className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
       >
@@ -37,7 +41,7 @@ export function PreferredLanguageSelect({
         <option value="en">{t(`${i18nPrefix}.languageEnglish`)}</option>
         <option value="ta">{t(`${i18nPrefix}.languageTamil`)}</option>
       </select>
-      <p className="text-[11px] text-text-muted">{t(`${i18nPrefix}.preferredLanguageHint`)}</p>
+      {compact ? null : <p className="text-[11px] text-text-muted">{t(`${i18nPrefix}.preferredLanguageHint`)}</p>}
     </div>
   )
 }
