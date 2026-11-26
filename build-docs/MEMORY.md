@@ -53,3 +53,16 @@
 - Follow-up date has no customer column: the open `customer_water_followup` task's `due_date` IS the date, so postponing on Tasks and the customer form can't disagree.
 - Recommended solution is free text. Postpone requires a reason and a later date.
 - Customer edit UI is master + sales_admin (route guard). The DB guard still also allows operation_admin.
+
+## Pin auto-correct (2026-11-26, owner: "automate and skip the manual work")
+- REVERSES the 2026-09-15 "Reached is a hard block outside the radius" decision for the band radius..pin_autocorrect_max_m (2 km) and for no-pin addresses. Beyond it, or for a locked pin, the hard block stands.
+- No office approval: the pin moves automatically, the office gets an FYI only. Safety comes from not locking. Two visits must agree (the next in-radius arrival locks it).
+- WhatsApp "share your location" to customers is deferred (phase 2; Wasi inbound location is unverified).
+- Doc: `features/pin-autocorrect.md`.
+
+## Arrival location lock (2026-11-26, owner decisions)
+- First confirmed technician arrival locks an address's pin as final; later arrivals never move it. Doc: `features/arrival-location-lock.md`.
+- Only master can reset (reason required); next arrival re-locks.
+- Arrival at a secondary address no longer makes it primary (replaces swap+copy, which also dropped full_address/sub_area/zone/water_*).
+- Address text edits never clear a locked pin.
+- Arrival-mismatch alert migration 20261212120000 verified LIVE 2026-11-26 (function md5 matches file, trigger enabled, 0 block rows so far).

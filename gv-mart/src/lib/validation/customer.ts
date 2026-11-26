@@ -47,7 +47,7 @@ export const peopleStepSchema = z.object({
   primaryIndex: z.number().int().min(0),
   profession: z.string().trim().max(80).optional().or(z.literal("")),
   // No separate account-email field: the primary member's own email IS the account email (customers.email),
-  // kept in step by the DB (20261215120000_primary_member_sync.sql).
+  // kept in step by the DB (20261216120000_primary_member_sync.sql).
   // WhatsApp message language (customers.preferred_language); "" = not set (English).
   preferredLanguage: z.union([z.enum(["en", "ta"]), z.literal("")]).optional(),
   // Referral incentives — capture-at-creation only (never shown/edited in edit mode, per

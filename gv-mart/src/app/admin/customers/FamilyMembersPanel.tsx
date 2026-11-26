@@ -31,7 +31,7 @@ function MemberEditForm({ member, customerProfession, onDone }: { member: Member
       mobile: member.mobile,
       relation: member.relation ?? undefined,
       // The primary member IS the customer. The customer row's profession is the one the customer app edits, so it
-      // wins for the primary; saving an older member copy would revert it. The DB keeps both in step from 20261215120000.
+      // wins for the primary; saving an older member copy would revert it. The DB keeps both in step from 20261216120000.
       profession: (member.is_primary ? (customerProfession || member.profession) : member.profession) ?? "",
       email: member.email ?? "",
     },

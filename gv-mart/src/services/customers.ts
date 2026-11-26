@@ -362,7 +362,7 @@ export async function updateCustomerWaterProfile(customerId: string, patch: Wate
   if (error) throw error
 }
 
-// ── Water solution follow-up (20261215110000). The open task's due_date IS the follow-up date. ──
+// ── Water solution follow-up (20261216110000). The open task's due_date IS the follow-up date. ──
 
 export type WaterFollowup = { taskId: string; dueDate: string | null }
 
@@ -764,7 +764,7 @@ export async function addMember(
 }
 
 // The primary member IS the customer: the DB trigger zz_sync_primary_member_to_customer copies name/mobile/email/
-// profession onto the customers row (20261215120000), so no second client-side write here.
+// profession onto the customers row (20261216120000), so no second client-side write here.
 export async function updateMember(
   memberId: string,
   member: { name: string; mobile: string; relation?: FamilyRelation | null; profession?: string | null; email?: string | null }
@@ -846,6 +846,8 @@ export async function upsertPrimaryAddress(
     ownership: Enums<"ownership_type">
     lat?: number
     lng?: number
+    /** True when the address's pin is technician-verified (locked): lat/lng are left out of the write entirely — the DB guard rejects any change to them. */
+    keepLocation?: boolean
   }
 ) {
   const row = {
@@ -863,8 +865,7 @@ export async function upsertPrimaryAddress(
     zone: patch.zone || null,
     address_type: patch.addressType,
     ownership: patch.ownership,
-    lat: patch.lat ?? null,
-    lng: patch.lng ?? null,
+    ...(patch.keepLocation ? {} : { lat: patch.lat ?? null, lng: patch.lng ?? null }),
   }
   if (existingAddressId) {
     const { data, error } = await supabase.from("addresses").update(row).eq("id", existingAddressId).select().single()
@@ -1390,5 +1391,33 @@ export async function setCustomerPreferredLanguage(customerId: string, language:
   // RPC, not a table UPDATE: the customers write policy covers master and sales_admin only, so an operations-only
   // user's direct UPDATE would silently change nothing.
   const { error } = await supabase.rpc("set_customer_preferred_language", { p_customer_id: customerId, p_language: language })
+  if (error) throw error
+}
+
+// ── Arrival location lock (20261214100000) ──────────────────────────────
+
+export async function getTechnicianName(technicianId: string): Promise<string | null> {
+  const { data, error } = await supabase.from("technicians").select("profiles(full_name)").eq("id", technicianId).maybeSingle()
+  if (error) throw error
+  const profile = (data as { profiles: { full_name: string | null } | null } | null)?.profiles
+  return profile?.full_name ?? null
+}
+
+/** Latest pin event for an address (pin-autocorrect chip). Staff-only via RLS. */
+export async function getLatestAddressLocationEvent(addressId: string) {
+  const { data, error } = await supabase
+    .from("address_location_events")
+    .select("event, new_lat, new_lng")
+    .eq("address_id", addressId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+/** Master-only (enforced server-side). Lifts the lock but keeps the pin; the next technician arrival re-verifies it. */
+export async function resetVerifiedLocation(addressId: string, reason: string) {
+  const { error } = await supabase.rpc("reset_address_location_verification", { p_address_id: addressId, p_reason: reason })
   if (error) throw error
 }

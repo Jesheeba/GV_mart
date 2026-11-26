@@ -1,5 +1,5 @@
--- Rolled-back DB tests for 20261215100000_customer_water_household_v2 + 20261215110000_water_solution_followup
--- + 20261215120000_primary_member_sync.
+-- Rolled-back DB tests for 20261216100000_customer_water_household_v2 + 20261216110000_water_solution_followup
+-- + 20261216120000_primary_member_sync.
 -- Runs AFTER customer_water_household_v2.fixtures.sql and both migrations, in one transaction ending in RAISE: read
 -- RESULTS in the error. Test names map to the acceptance criteria / edge cases in
 -- build-docs/features/customer-water-household.md (WH-*) and water-solution-followup.md (FU-*).
@@ -49,7 +49,7 @@ begin
   where (to_jsonb(c) - array['water_source', 'water_source_other', 'water_tds_ppm', 'water_ph', 'water_hardness_ppm', 'household_problems', 'water_recommended_solution', 'updated_at'])
         is distinct from (b0.j - array['water_source', 'water_source_other', 'water_tds_ppm', 'water_ph', 'updated_at']);
   -- name WHICH columns moved, and whether each was blank before (the only intended non-water change is
-  -- 20261215120000's blank-profession fill)
+  -- 20261216120000's blank-profession fill)
   select string_agg(distinct k.key || case when nullif(btrim(b0.j ->> k.key), '') is null then '(was blank)' else '(had value)' end, ', ')
   into txt
   from real_before b0 join public.customers c on c.id = b0.id
@@ -272,7 +272,7 @@ begin
   select description into txt from tasks where id = v_task2;
   perform pg_temp.chk('FU-edge: a profile with no problems/solution gives a null description', txt is null, coalesce(txt, 'null'));
 
-  -- ══ SYNC: primary member <-> customer row (20261215120000) ══════════════════════════════════════════════
+  -- ══ SYNC: primary member <-> customer row (20261216120000) ══════════════════════════════════════════════
   perform pg_temp.chk('SYNC-backfill: blank member email filled from the account email',
     (select email from customer_members where id = pg_temp.fx('m_sync')) = 'sync.a@test.invalid');
   perform pg_temp.chk('SYNC-backfill: blank customer profession filled from the primary member',

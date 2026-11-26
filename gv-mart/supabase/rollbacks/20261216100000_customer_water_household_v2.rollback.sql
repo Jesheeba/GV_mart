@@ -1,4 +1,4 @@
--- Rollback for 20261215100000_customer_water_household_v2.sql.
+-- Rollback for 20261216100000_customer_water_household_v2.sql.
 -- Restores the STRUCTURE only: address water columns, the health-condition objects (verbatim from 20261108100000) and
 -- the original edit guard. Dropped DATA (customer_health_profile rows, address water values, the settings flag) comes
 -- back only from the pre-apply backup in _local_only/backups. Refuses if hardness/problems already hold data, rather

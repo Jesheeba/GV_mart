@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { classifyGeoError, distanceKm, expectedMinutes, isInsideGeofence } from "./geo"
+import { arrivalMode, classifyGeoError, distanceKm, expectedMinutes, isInsideGeofence } from "./geo"
 
 describe("distanceKm", () => {
   it("is 0 for the same point", () => {
@@ -101,5 +101,24 @@ describe("classifyGeoError", () => {
     expect(classifyGeoError(new Error("some other error"))).toBe("unknown")
     expect(classifyGeoError(undefined)).toBe("unknown")
     expect(classifyGeoError(null)).toBe("unknown")
+  })
+})
+
+// pin-autocorrect acceptance criteria (build-docs/features/pin-autocorrect.md)
+describe("arrivalMode (pin-autocorrect)", () => {
+  const pin = { lat: 10.8, lng: 78.7 }
+  const at = (dLat: number, accuracy?: number) => ({ lat: pin.lat + dLat, lng: pin.lng, accuracy })
+  const mode = (p: Parameters<typeof arrivalMode>[0], pinArg: Parameters<typeof arrivalMode>[1] = pin) => arrivalMode(p, pinArg, 250, 2000, 75)
+
+  it("AC-inside: within the radius is a normal arrival", () => expect(mode(at(0.001, 20))).toBe("inside"))
+  it("AC1: 1.1 km off with a good fix is correctable", () => expect(mode(at(0.01, 20))).toBe("correctable"))
+  it("AC4: beyond the auto-correct max stays blocked", () => expect(mode(at(0.03, 20))).toBe("tooFar"))
+  it("AC4: a coarse fix never corrects", () => expect(mode(at(0.01, 120))).toBe("noFix"))
+  it("AC4: a fix with no accuracy never corrects", () => expect(mode(at(0.01))).toBe("noFix"))
+  it("AC4: no position at all", () => expect(mode(null)).toBe("noFix"))
+  it("AC5: no pin with a good fix is correctable", () => expect(mode(at(0, 30), null)).toBe("correctable"))
+  it("edge: exactly at the max distance is still correctable", () => {
+    const p = at(0.01, 20)
+    expect(arrivalMode(p, pin, 250, distanceKm(p, pin) * 1000, 75)).toBe("correctable")
   })
 })

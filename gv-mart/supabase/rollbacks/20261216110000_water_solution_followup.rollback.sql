@@ -1,4 +1,4 @@
--- Rollback for 20261215110000_water_solution_followup.sql. Refuses if any recommended solution was saved, rather
+-- Rollback for 20261216110000_water_solution_followup.sql. Refuses if any recommended solution was saved, rather
 -- than silently discarding it. Follow-up tasks already created stay as ordinary tasks (nothing is deleted); only
 -- the dedupe index, the RPCs, the reminder job and the column go.
 do $$
@@ -21,7 +21,7 @@ drop function public._water_followup_today();
 drop function public._water_followup_caller_ok();
 drop index public.tasks_water_followup_one_open_idx;
 
--- guard back to the 20261215100000 version (6 water columns) before the column goes
+-- guard back to the 20261216100000 version (6 water columns) before the column goes
 create or replace function public.guard_water_profile_edit_roles()
 returns trigger
 language plpgsql

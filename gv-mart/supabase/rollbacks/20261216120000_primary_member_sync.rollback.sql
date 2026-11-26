@@ -1,4 +1,4 @@
--- Rollback for 20261215120000_primary_member_sync.sql. Removes the sync and the stale-address-parts triggers. The
+-- Rollback for 20261216120000_primary_member_sync.sql. Removes the sync and the stale-address-parts triggers. The
 -- one-off blank fills (member email from the account email, blank professions) are not undone: they only filled
 -- empty values, and the pre-apply backup has the before-state if ever needed.
 drop trigger if exists zz_sync_primary_member_to_customer on public.customer_members;

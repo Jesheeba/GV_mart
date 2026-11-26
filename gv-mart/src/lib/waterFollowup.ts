@@ -1,4 +1,4 @@
-/** tasks.ref_type of a water solution follow-up (ref_id = customer). See 20261215110000_water_solution_followup.sql. */
+/** tasks.ref_type of a water solution follow-up (ref_id = customer). See 20261216110000_water_solution_followup.sql. */
 export const WATER_FOLLOWUP_REF_TYPE = "customer_water_followup"
 
 export function isWaterFollowupTask(refType: string | null | undefined): boolean {

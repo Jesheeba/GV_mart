@@ -15,7 +15,7 @@ alter table public.customers
   add column water_recommended_solution text
     check (water_recommended_solution is null or char_length(btrim(water_recommended_solution)) between 1 and 500);
 
--- The edit guard grows by one column (body otherwise identical to 20261215100000).
+-- The edit guard grows by one column (body otherwise identical to 20261216100000).
 create or replace function public.guard_water_profile_edit_roles()
 returns trigger
 language plpgsql

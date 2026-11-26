@@ -308,7 +308,7 @@ export async function listMyHandovers(technicianId: string) {
 export type JobCard = AppointmentRow & {
   service_tickets: ServiceTicketRow & {
     customers: { id: string; name: string; mobile: string } | null
-    addresses: { area: string | null; door_no: string | null; full_address: string | null; lat: number | null; lng: number | null } | null
+    addresses: { area: string | null; door_no: string | null; full_address: string | null; lat: number | null; lng: number | null; location_verified_at: string | null } | null
     products: { name: string } | null
     // Added for Build Order A4 (job-overrun red styling on the home list) —
     // the open visit's timer, alongside estimated_duration_minutes which
@@ -331,7 +331,7 @@ export async function listTodaysJobs(technicianId: string): Promise<JobCard[]> {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,full_address,lat,lng), products(name), service_visits(id,timer_start,timer_end, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)))"
+        "*, service_tickets!inner(*, customers(id,name,mobile), addresses(area,door_no,full_address,lat,lng,location_verified_at), products(name), service_visits(id,timer_start,timer_end, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id)))"
       )
       .eq("technician_id", technicianId)
       .in("status", ["scheduled", "in_progress"])
@@ -604,8 +604,15 @@ export async function queueLocationPing(orgId: string, technicianId: string, lat
 // proven inside the job-visit radius. Not a workaround for being out of
 // range: that case can never reach this call at all, since handleArrived's
 // own guard (insideArrivalGeofence) blocks it first.
-export async function queueArrivalAddressConfirm(orgId: string, ticketId: string, lat: number, lng: number) {
-  await enqueue("location.arrival_address_confirm", { orgId, ticketId, lat, lng })
+// accuracyM (metres) lets the server refuse to lock the address on a poor fix (> 75m) — see
+// 20261214100000_arrival_location_lock.sql. Optional: items queued before this change omit it.
+export async function queueArrivalAddressConfirm(orgId: string, ticketId: string, lat: number, lng: number, accuracyM?: number) {
+  await enqueue("location.arrival_address_confirm", { orgId, ticketId, lat, lng, accuracyM: accuracyM ?? null })
+}
+
+/** Pin auto-correct: the technician is at the customer but the pin is wrong or missing. Server re-checks everything. */
+export async function queuePinCorrection(orgId: string, ticketId: string, lat: number, lng: number, accuracyM: number) {
+  await enqueue("location.pin_correction", { orgId, ticketId, lat, lng, accuracyM })
 }
 
 /**

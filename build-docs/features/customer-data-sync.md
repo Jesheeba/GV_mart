@@ -3,7 +3,7 @@
 Owner: "fix them all". These came from a code sweep for the same class of bug as the duplicate Water & household section: one concept shown or stored twice, or create-only state used in edit.
 
 ## Fixes
-1. **Primary member ↔ customer row.** `customers.name/mobile/email/profession` copy the primary member, but only `set_primary_member` refreshed them. Fix: trigger pair `zz_sync_primary_member_to_customer` / `zz_sync_customer_to_primary_member` (migration `20261215120000`).
+1. **Primary member ↔ customer row.** `customers.name/mobile/email/profession` copy the primary member, but only `set_primary_member` refreshed them. Fix: trigger pair `zz_sync_primary_member_to_customer` / `zz_sync_customer_to_primary_member` (migration `20261216120000`).
    - Each side copies only the columns changed in that statement, so an unrelated edit never blanks the other side.
    - A customer editing their own member row moves only name/profession; mobile/email are used for sign-in matching and stay staff-only.
    - `updateMember`'s client-side profession copy is removed (single mechanism).

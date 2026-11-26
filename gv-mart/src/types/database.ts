@@ -644,7 +644,7 @@ export type Database = {
           // list/search; the row and its audit_log trail are kept, never hard-deleted.
           archived_at: string | null
           archived_by: string | null
-          // Customer water & household profile (20261108100000, 20261213100000).
+          // Customer water & household profile (20261108100000, 20261216100000, 20261216110000).
           water_source: Database["public"]["Enums"]["water_source_type"] | null
           water_source_other: string | null
           water_tds_ppm: number | null
@@ -834,6 +834,29 @@ export type Database = {
           },
         ]
       }
+      // Added 20261214100000 (arrival location lock) -- post-dates the last database.ts regen.
+      address_location_events: {
+        Row: {
+          id: string
+          org_id: string
+          address_id: string
+          event: "verified" | "reset" | "corrected"
+          technician_id: string | null
+          actor_profile_id: string | null
+          ticket_id: string | null
+          prev_lat: number | null
+          prev_lng: number | null
+          new_lat: number | null
+          new_lng: number | null
+          distance_m: number | null
+          accuracy_m: number | null
+          reason: string | null
+          created_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       addresses: {
         Row: {
           id: string
@@ -863,6 +886,9 @@ export type Database = {
           // browser geolocation accuracy (metres) when it came from "use my current location".
           pinned_at: string | null
           location_accuracy_m: number | null
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at: string | null
+          location_verified_by: string | null
           address_type: Database["public"]["Enums"]["address_type"]
           ownership: Database["public"]["Enums"]["ownership_type"]
           is_primary: boolean
@@ -893,6 +919,9 @@ export type Database = {
           lng?: number | null
           pinned_at?: string | null
           location_accuracy_m?: number | null
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at?: string | null
+          location_verified_by?: string | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
@@ -921,6 +950,9 @@ export type Database = {
           lng?: number | null
           pinned_at?: string | null
           location_accuracy_m?: number | null
+          /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
+          location_verified_at?: string | null
+          location_verified_by?: string | null
           address_type?: Database["public"]["Enums"]["address_type"]
           ownership?: Database["public"]["Enums"]["ownership_type"]
           is_primary?: boolean
@@ -6680,6 +6712,7 @@ export type Database = {
           // Group C (technician arrival geofence, 2026-09-15) — see
           // 20260915170000_technician_arrival_geofence_and_blocks.sql.
           geofence_radius_job_m: number
+          pin_autocorrect_max_m: number
           office_lat: number
           office_lng: number
           work_start: string
@@ -6782,6 +6815,7 @@ export type Database = {
           per_km_minutes?: number
           geofence_radius_m?: number
           geofence_radius_job_m?: number
+          pin_autocorrect_max_m?: number
           office_lat?: number
           office_lng?: number
           work_start?: string
@@ -6865,6 +6899,7 @@ export type Database = {
           per_km_minutes?: number
           geofence_radius_m?: number
           geofence_radius_job_m?: number
+          pin_autocorrect_max_m?: number
           office_lat?: number
           office_lng?: number
           work_start?: string
@@ -7674,7 +7709,7 @@ export type Database = {
       }
     }
     Functions: {
-      // Water solution follow-up (20261215110000).
+      // Water solution follow-up (20261216110000).
       set_customer_water_followup: {
         Args: { p_customer_id: string; p_due_date: string | null }
         Returns: string | null
@@ -8053,7 +8088,22 @@ export type Database = {
           p_ticket_id: string
           p_lat: number
           p_lng: number
+          p_accuracy_m?: number | null
         }
+        Returns: undefined
+      }
+      record_technician_pin_correction: {
+        Args: {
+          p_org_id: string
+          p_ticket_id: string
+          p_lat: number
+          p_lng: number
+          p_accuracy_m: number
+        }
+        Returns: string
+      }
+      reset_address_location_verification: {
+        Args: { p_address_id: string; p_reason: string }
         Returns: undefined
       }
       create_service_invoice: {

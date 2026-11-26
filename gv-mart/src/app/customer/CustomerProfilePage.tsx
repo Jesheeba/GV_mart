@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { WaterHouseholdSummary, waterValuesFromCustomer } from "@/components/shared/WaterHouseholdSummary"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import { Coins, Droplet, Home as HomeIcon, Loader2, LogOut, MapPinned, Pencil, Plus, Star, Trash2, UserPlus } from "lucide-react"
+import { Coins, Droplet, Home as HomeIcon, Loader2, LogOut, MapPinned, Pencil, Plus, Star, Trash2, UserPlus, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -106,11 +106,20 @@ function AddressesSection({ customerId, orgId }: { customerId: string; orgId: st
                     <AddressPinPreview lat={a.lat} lng={a.lng} />
                   </div>
                 ) : null}
+                {a.location_verified_at ? (
+                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-success">
+                    <ShieldCheck className="size-3.5" />
+                    {t("customerApp.profile.locationVerified")}
+                  </p>
+                ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <Button size="icon-xs" variant="ghost" title={t("customerApp.profile.pinAddress")} onClick={() => setPinningId(a.id)}>
-                  <MapPinned className="size-3.5" />
-                </Button>
+                {/* A technician-verified pin is locked (20261214100000) — no re-pinning from here. */}
+                {!a.location_verified_at ? (
+                  <Button size="icon-xs" variant="ghost" title={t("customerApp.profile.pinAddress")} onClick={() => setPinningId(a.id)}>
+                    <MapPinned className="size-3.5" />
+                  </Button>
+                ) : null}
                 {!a.is_primary ? (
                   <Button
                     size="xs"

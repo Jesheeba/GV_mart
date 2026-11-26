@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { addressLine, addressLocalityText, composeFullAddress, hasStreetLevelFields, resolveFullAddress, splitAddressForForm } from "./address"
+import { addressLine, addressLocalityText, composeFullAddress, hasStreetLevelFields, pinStatus, resolveFullAddress, splitAddressForForm } from "./address"
 
 describe("composeFullAddress", () => {
   it("joins all structured fields in order, skipping blanks", () => {
@@ -208,4 +208,18 @@ describe("resolveFullAddress (what the admin address step saves)", () => {
     const split = splitAddressForForm(row)
     expect(resolveFullAddress({ ...split, fullAddress: split.legacyFullAddress })).toBe(row.full_address)
   })
+})
+
+// pin-autocorrect: customer-page pin chip
+describe("pinStatus", () => {
+  const addr = { lat: 10.81, lng: 78.7, location_verified_at: null }
+  it("no pin -> notPinned", () => expect(pinStatus({ lat: null, lng: null }, null)).toBe("notPinned"))
+  it("locked -> verified, even with a correction event", () =>
+    expect(pinStatus({ ...addr, location_verified_at: "2026-11-26T10:00:00Z" }, { event: "corrected", new_lat: 10.81, new_lng: 78.7 })).toBe("verified"))
+  it("latest event is a correction at the current pin -> corrected", () =>
+    expect(pinStatus(addr, { event: "corrected", new_lat: 10.8100004, new_lng: 78.7000003 })).toBe("corrected"))
+  it("office moved the pin after the correction -> pinned", () =>
+    expect(pinStatus(addr, { event: "corrected", new_lat: 10.9, new_lng: 78.7 })).toBe("pinned"))
+  it("latest event is a reset -> pinned", () => expect(pinStatus(addr, { event: "reset", new_lat: null, new_lng: null })).toBe("pinned"))
+  it("no events -> pinned", () => expect(pinStatus(addr, undefined)).toBe("pinned"))
 })

@@ -2,6 +2,17 @@
 
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
+## pin-autocorrect
+- 2026-11-26. vitest: `arrivalMode` (8 cases: AC1/4/5 + boundary) and `pinStatus` (6 cases), outbox contract, i18n parity all pass. Full serial suite 1098 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context).
+- `tsc`: clean apart from the pre-existing unused `fullAddress` in CustomerFormPage.tsx (from origin/main, untouched).
+- `supabase/tests/pin_autocorrect.test.sql` run LIVE once after apply, one DO block ending in RAISE: ALL PASSED (AC1 move+event+notification, no task; AC2 next arrival locks; AC3 locked untouched; AC4 inside/too far/120m/null accuracy no-op; AC5 no-pin set; AC6 other technician not_assigned, master rejected; AC7 anon no EXECUTE). Checked afterwards: 0 corrected events, 0 pin_autocorrected notifications, settings unchanged (2000/250).
+- NOT browser-verified: Chrome extension not connected and the `.env.test` master login was rejected on local dev.
+
+## arrival-location-lock
+- 2026-11-26. `supabase/tests/arrival_location_lock.test.sql` run LIVE after apply, inside one DO block ending in RAISE (fully rolled back; verified afterwards: 0 events, 0 locked, no test rows, fixture pin/ticket unchanged). Result: ALL PASSED - AC1 lock+event (distance 50-60m), AC2 no second move, AC3 secondary locked with is_primary untouched and no new rows, AC4 out-of-radius / 120m accuracy not locked, AC5 direct lat/lng and verified_at changes rejected (master and postgres), AC6 text edit keeps pin, AC7 opadmin + blank reason rejected / master reset keeps pin + logs reason, AC8 other technician no-op + non-technician rejected, insert can't be pre-verified.
+- AC9 (post-apply read): anon has no EXECUTE on arrival/reset RPCs; authenticated can't insert events or execute the guard fn.
+- `tsc` clean. vitest serial run (`--no-file-parallelism`): 2 failed / 1084 passed = identical to main baseline (pre-existing: waOutboxSentGuard, wa-event-context). Parallel full run in this worktree shows 24 extra mock failures in otaManager + customer-link-otp tests that pass in isolation and in serial - environment flake, not this change.
+- NOT browser-verified: no address is locked live yet, and creating one would be a real DB write.
 ## customer-form-map-search-prefill
 - 2026-11-25. `tsc --noEmit` clean. No automated test: vitest runs in plain Node with no DOM/RTL harness.
 - Manual browser check on local dev server (master test account, nothing saved), all pass:
@@ -80,4 +91,4 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - DB: about 20 SYNC/ADDR checks were added to `customer_water_household_v2.test.sql` (90 checks total). **Not run yet.**
 - Full suite: 1118 pass, the same 2 pre-existing failures as main. `tsc` clean, `vite build` ok.
 - Manual only (no DOM test env): draft restore of complaint type/referrer, lead fields card Cancel/Edit.
-- **DB rehearsal run 2026-11-26 (rolled back): 90 pass / 0 fail.** Harness fixes on the way: (1) granted EXECUTE on the pg_temp helpers, since this project revokes default EXECUTE; (2) one test sent an email with spaces, which the existing customer_members_email_format check rejects (the app trims first); (3) the real-org check now names the changed columns. The only live non-water change is 1 blank profession filled (intended, from 20261215120000).
+- **DB rehearsal run 2026-11-26 (rolled back): 90 pass / 0 fail.** Harness fixes on the way: (1) granted EXECUTE on the pg_temp helpers, since this project revokes default EXECUTE; (2) one test sent an email with spaces, which the existing customer_members_email_format check rejects (the app trims first); (3) the real-org check now names the changed columns. The only live non-water change is 1 blank profession filled (intended, from 20261216120000).

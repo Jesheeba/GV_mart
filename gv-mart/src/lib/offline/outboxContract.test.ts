@@ -53,6 +53,7 @@ const GOLDEN_SNAPSHOT: Record<OutboxKind, readonly string[]> = {
   "amc.sell_onsite": ["orgId", "customerId", "productId", "planId", "paymentMethod", "txnId", "paymentDescription"],
   "location.arrival_address_confirm": ["orgId", "ticketId", "lat", "lng"],
   "location.arrival_block": ["org_id", "technician_id", "ticket_id", "lat", "lng", "distance_m", "radius_m"],
+  "location.pin_correction": ["orgId", "ticketId", "lat", "lng", "accuracyM"],
   "customer_member.google_review": ["orgId", "visitId", "memberId", "stars", "photoUrl"],
   "rating.mark_review_clicked": ["orgId", "visitId"],
   // Product Lifecycle & Automated Service Reminder System (2026-10-29) — see

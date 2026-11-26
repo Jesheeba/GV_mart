@@ -14,7 +14,7 @@
 - Editing stays master + sales_admin in the UI (customer routes are `SALES_ROLES`). The DB guard still also allows operation_admin, unchanged.
 
 ## Architecture
-- Migration `20261213100000_customer_water_household_v2.sql`: adds `customers.water_hardness_ppm numeric(7,2) >= 0` and `household_problems text[] not null default '{}'` (≤10 items, no blanks); backfills from the primary address; drops the address columns and the health objects; extends `guard_water_profile_edit_roles` to the new columns.
+- Migration `20261216100000_customer_water_household_v2.sql`: adds `customers.water_hardness_ppm numeric(7,2) >= 0` and `household_problems text[] not null default '{}'` (≤10 items, no blanks); backfills from the primary address; drops the address columns and the health objects; extends `guard_water_profile_edit_roles` to the new columns.
 - UI: `WaterHouseholdFields` (editable, shared by form step 3 and detail panel) and `components/shared/WaterHouseholdSummary` (read-only, shared by admin, technician and customer app).
 - Form: steps People → Address → Water in both modes. Water step uses its own `waterForm`. Save writes the customers row (create: follow-up write after the RPC; edit: only when dirty).
 

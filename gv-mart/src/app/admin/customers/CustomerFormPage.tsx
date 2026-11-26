@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card"
 import { Stepper } from "@/components/shared/Stepper"
 import { SegButton } from "@/components/shared/SegButton"
 import { Autocomplete } from "@/components/shared/Autocomplete"
+import { VerifiedLocationCard } from "./VerifiedLocationCard"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { ReferrerPicker } from "@/components/shared/ReferrerPicker"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
@@ -311,6 +312,11 @@ export function CustomerFormPage() {
   const pincodeSuggestions = usePincodeSuggestions(orgId, pincode, touchedFields.pincode)
   const pincodeLookup = usePincodeLookup(orgId, pincode)
   const autoLocate = useGeocodeAddress()
+  // Arrival location lock: the primary address's pin was verified on site by a
+  // technician — the map is read-only and nothing here may move or clear it.
+  const editedAddress = mode === "edit" ? (existing.data?.addresses.find((a) => a.is_primary) ?? existing.data?.addresses[0]) : undefined
+  const lockedAddress = editedAddress?.location_verified_at && editedAddress.lat != null && editedAddress.lng != null ? editedAddress : null
+  const locationLocked = !!lockedAddress
 
   useEffect(() => {
     if (pincodeLookup.data && !addressForm.getValues("district")) {
@@ -347,7 +353,7 @@ export function CustomerFormPage() {
   const debouncedAutoLocateQuery = useDebouncedValue(autoLocateQuery, 800)
   const [suggestedPin, setSuggestedPin] = useState<{ lat: number; lng: number; formatted: string; precise: boolean } | null>(null)
   useEffect(() => {
-    if (lat != null && lng != null) return
+    if (locationLocked || (lat != null && lng != null)) return
     if (!area.trim() || pincode.trim().length !== 6) return
     autoLocate.mutate(debouncedAutoLocateQuery, {
       onSuccess: (results) => {
@@ -361,7 +367,7 @@ export function CustomerFormPage() {
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedAutoLocateQuery, pincode, lat, lng])
+  }, [debouncedAutoLocateQuery, pincode, lat, lng, locationLocked])
 
   // Bug fix: this effect's guard above ("once set... later edits must not
   // silently yank an already-placed pin") was written to protect a pin staff
@@ -379,7 +385,7 @@ export function CustomerFormPage() {
   const [mapQuery, setMapQuery] = useState(autoLocateQuery)
   useEffect(() => setMapQuery(autoLocateQuery), [autoLocateQuery])
   useEffect(() => {
-    if ((lat == null && lng == null) || autoLocateQuery === confirmedLocationTextRef.current) return
+    if (locationLocked || (lat == null && lng == null) || autoLocateQuery === confirmedLocationTextRef.current) return
     addressForm.setValue("lat", undefined, { shouldValidate: true })
     addressForm.setValue("lng", undefined, { shouldValidate: true })
     setSuggestedPin(null)
@@ -544,7 +550,7 @@ export function CustomerFormPage() {
       // create_customer_with_details stores member emails but not the account email (customers.email,
       // used for Google sign-in matching) -- set it from the primary member, same follow-up write shape
       // as the language field above (updateCustomerEmail normalizes trim+lowercase). From then on the
-      // DB keeps the two in step (20261215120000_primary_member_sync.sql).
+      // DB keeps the two in step (20261216120000_primary_member_sync.sql).
       const primaryEmail = peopleValues.members[peopleValues.primaryIndex]?.email?.trim()
       if (primaryEmail) {
         try {
@@ -616,7 +622,7 @@ export function CustomerFormPage() {
     const existingAddressId = existing.data!.addresses.find((a) => a.is_primary)?.id ?? existing.data!.addresses[0]?.id ?? null
     // Blank address on a customer with none stays "needs setup" — no empty row.
     if (existingAddressId || hasAddressText(addressValues)) {
-      await upsertAddress.mutateAsync({ existingAddressId, patch: { ...addressValues, fullAddress: composedFullAddress } })
+      await upsertAddress.mutateAsync({ existingAddressId, patch: { ...addressValues, fullAddress: composedFullAddress, keepLocation: locationLocked } })
     }
     await saveWater.mutateAsync({
       customerId: id!,
@@ -867,6 +873,18 @@ export function CustomerFormPage() {
                 </span>
               ) : null}
             </div>
+            {lockedAddress ? (
+              <VerifiedLocationCard
+                customerId={id!}
+                addressId={lockedAddress.id}
+                lat={lockedAddress.lat!}
+                lng={lockedAddress.lng!}
+                verifiedAt={lockedAddress.location_verified_at!}
+                verifiedBy={lockedAddress.location_verified_by}
+                canReset={profile?.role === "master"}
+              />
+            ) : (
+            <>
             <AddressMapPicker
               lat={addressForm.watch("lat")}
               lng={addressForm.watch("lng")}
@@ -920,6 +938,8 @@ export function CustomerFormPage() {
                 {pinOptional ? t("customers.form.map.pinOptionalMasterNote") : t("customers.form.map.pinRequired")}
               </p>
             ) : null}
+            </>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-4 border-t border-border px-1 pt-3">

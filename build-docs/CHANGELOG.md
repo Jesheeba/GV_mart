@@ -2,7 +2,7 @@
 
 ## customer-data-sync (2026-11-26)
 - See features/customer-data-sync.md for the 7 sweep fixes: primary member sync, one email box, app address no longer overwritten, profession no longer reverted, moved-out members never counted, drafts keep complaint type and referrer, lead fields card never stale.
-- Migration `20261215120000_primary_member_sync.sql` + rollback written. **NOT applied.**
+- Migration `20261216120000_primary_member_sync.sql` + rollback written. **NOT applied.**
 - Changed test: `address.test.ts` "treats a populated area alone as a structured field" was replaced. It asserted the behaviour that dropped customer-app addresses.
 
 ## customer-water-household + water-solution-followup (2026-11-26)
@@ -12,9 +12,20 @@
 - Added Total hardness and "Problems faced" (list, + add another). Health condition removed from all screens and dropped from the DB.
 - Added Recommended solution and Follow-up date. The date creates one task for the master. Tasks gets Postpone (later date + reason) and Convert to lead (opens New Lead prefilled, closes the task when saved). Daily 09:00 IST due reminder.
 - Shared `WaterHouseholdFields` (edit) / `WaterHouseholdSummary` (read-only) replace four hand-copied blocks.
-- Migrations `20261215100000`, `20261215110000` + rollbacks + SQL tests are written. **NOT applied, and the SQL rehearsal has not been run.**
+- Migrations `20261216100000`, `20261216110000` + rollbacks + SQL tests are written. **NOT applied, and the SQL rehearsal has not been run.**
 - Also removed a pre-existing unused `fullAddress` variable in CustomerFormPage (failed `tsc` on main).
 
+## pin-autocorrect (2026-11-26)
+- A technician at the customer but outside a wrong (up to 2 km) or missing pin can start the job. Their GPS becomes the pin automatically, with no office approval. The next in-radius arrival locks it.
+- Migration `20261216100000_pin_autocorrect.sql` APPLIED LIVE 2026-11-26 (owner: "go apply"), one transaction, version registered by hand; function md5 2bccb48abbcc71cb918e59bbdfdf32a2: `settings.pin_autocorrect_max_m`, event `corrected`, RPC `record_technician_pin_correction`, FYI notification `pin_autocorrected`. Rollback in `supabase/rollbacks/`.
+- App: MapPage "pin is wrong" / "start here" flow plus a reason when blocked; new outbox kind; customer header pin chip (verified / corrected / pinned / not pinned). en/ta strings.
+
+## arrival-location-lock (2026-11-26)
+- Migration `20261214100000_arrival_location_lock.sql` APPLIED LIVE 2026-11-26 (owner: "go apply"), one transaction, version registered by hand. Rollback file alongside.
+- First in-radius technician arrival locks the address pin (addresses.location_verified_at/by) and logs old vs new pin + distance in new `address_location_events`.
+- Arrival RPC re-checks geofence + accuracy (<= 75m) server-side; no longer swaps a secondary address to primary (removes the copy bug that dropped full_address/sub_area/zone/water_*).
+- `reset_address_location_verification` (master only, reason required). Guard trigger blocks every other change to a locked pin / verified_* columns.
+- App: MapPage sends GPS accuracy; office form shows `VerifiedLocationCard` (read-only, master reset) and never sends lat/lng for a locked address; customer app hides re-pin and shows "Location verified by our technician". en/ta strings.
 ## customer-form-map-search-prefill (2026-11-25)
 - Map search box on the customer Address step now mirrors the typed address fields (door/street/area/PIN/district/state) -- no retyping.
 - Mirrored text never auto-opens suggestions or spends a Places call; focusing the pre-filled box searches it once. User-typed text searches live as before.

@@ -1,4 +1,4 @@
--- Pre-migration fixtures for customer_water_household_v2.test.sql. Runs BEFORE 20261215100000 inside the same
+-- Pre-migration fixtures for customer_water_household_v2.test.sql. Runs BEFORE 20261216100000 inside the same
 -- rolled-back rehearsal transaction, so the address-to-customer backfill can be asserted on known rows. Throwaway
 -- __TEST_ organisation only; ids are kept in pg_temp.fx for the test block.
 create temp table res (n serial, line text);
@@ -89,7 +89,7 @@ begin
   insert into customers (org_id, name, mobile) values (v_org2, '__TEST_ wv2 org2 cust', '9000000409') returning id into v;
   insert into pg_temp.fx values ('c_org2', v);
 
-  -- primary-member sync (20261215120000) fixtures
+  -- primary-member sync (20261216120000) fixtures
   insert into pg_temp.fx values ('custp2', pg_temp.mkuser('customer', v_org));
   insert into customers (org_id, name, mobile, email, profession) values (v_org, '__TEST_ sync A', '9000000410', 'sync.a@test.invalid', null) returning id into v;
   insert into pg_temp.fx values ('c_sync', v);
