@@ -3,7 +3,7 @@
 ## choice-dropdowns-not-set (2026-11-26)
 - Every either/or data-entry field is a `ChoiceSelect` dropdown with "Not set" first and nothing pre-selected (about 45 screens: sales/payments, purchase, accounts, leads, service, on-site, tasks, HR, expenses, masters, automation, family relation). Plan: features/choice-dropdowns-not-set.md.
 - Optional fields save "Not set" as empty: on-site water source, tank cleaned, product explained; member relation; lead product category and kind; technician tier override (clears to base tier).
-- Address type and ownership save "Not set" as null via migration `20261227100000_address_choice_not_set` (rehearsal 12/0). **NOT applied.**
+- Address type and ownership save "Not set" as null via migration `20261229100000_address_choice_not_set` (rehearsal 12/0). **NOT applied.**
 - Required fields show "Not set" but block Save with an inline error and focus: payment methods, expense categories, lead source, follow-up type, channel, outcome, lost reason, complaint and task priority, enquiry fields, roles, statuses, item types, units, doc types, phrase category, segment rules.
 - Removed pre-selections: on-site payment "cash", enquiry type "online", complaint and task priority "normal", lead source "other", bill category "purchase", spare interval "months", bot phrase category, segment rule parts, ReorderableListCard first option.
 - EntityCrudTable and ReorderableListCard show "Not set". ReorderableListCard now validates before save, like EntityCrudTable.

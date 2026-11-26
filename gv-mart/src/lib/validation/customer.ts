@@ -154,7 +154,7 @@ export const addressStepSchema = z.object({
   district: z.string().trim().optional().or(z.literal("")),
   state: z.string().trim().optional().or(z.literal("")),
   zone: z.string().trim().optional().or(z.literal("")),
-  // Optional: "Not set" is a real answer, saved as null (owner, 2026-11-26; 20261227100000_address_choice_not_set).
+  // Optional: "Not set" is a real answer, saved as null (owner, 2026-11-26; 20261229100000_address_choice_not_set).
   addressType: z.enum(["residential", "commercial"], { message: "customers.errors.addressTypeRequired" }).optional(),
   ownership: z.enum(["own", "rental"], { message: "customers.errors.ownershipRequired" }).optional(),
   lat: z.number().min(-90).max(90).optional(),

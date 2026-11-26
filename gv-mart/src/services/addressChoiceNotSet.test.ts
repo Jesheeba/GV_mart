@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 /**
- * Address type / ownership "Not set" (owner, 2026-11-26; 20261227100000_address_choice_not_set.sql): every write
+ * Address type / ownership "Not set" (owner, 2026-11-26; 20261229100000_address_choice_not_set.sql): every write
  * path sends an explicit null, so the DB stores "Not set" instead of a default, and an edit back to "Not set"
  * clears an earlier answer (a missing key would leave the old value in place).
  */

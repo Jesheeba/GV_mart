@@ -590,7 +590,7 @@ export type CreateCustomerInput = {
     pincode?: string
     district?: string
     state?: string
-    /** Omitted = "Not set": written as null, never defaulted (20261227100000_address_choice_not_set). */
+    /** Omitted = "Not set": written as null, never defaulted (20261229100000_address_choice_not_set). */
     addressType?: Enums<"address_type">
     ownership?: Enums<"ownership_type">
     lat?: number
@@ -843,7 +843,7 @@ export async function upsertPrimaryAddress(
     district?: string
     state?: string
     zone?: string
-    /** Omitted = "Not set": written as null, never defaulted (20261227100000_address_choice_not_set). */
+    /** Omitted = "Not set": written as null, never defaulted (20261229100000_address_choice_not_set). */
     addressType?: Enums<"address_type">
     ownership?: Enums<"ownership_type">
     lat?: number

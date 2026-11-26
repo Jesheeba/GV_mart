@@ -1,4 +1,4 @@
--- Rollback for 20261227100000_address_choice_not_set. Refuses while any address has a null type/ownership
+-- Rollback for 20261229100000_address_choice_not_set. Refuses while any address has a null type/ownership
 -- ("Not set" answers would otherwise be silently turned into residential/own).
 do $$ begin
   if exists (select 1 from public.addresses where address_type is null or ownership is null) then

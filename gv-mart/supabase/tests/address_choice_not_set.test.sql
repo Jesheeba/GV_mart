@@ -1,4 +1,4 @@
--- Tests for 20261227100000_address_choice_not_set. Runs after the fixtures + migration in one rolled-back
+-- Tests for 20261229100000_address_choice_not_set. Runs after the fixtures + migration in one rolled-back
 -- transaction and ENDS IN AN UNCONDITIONAL RAISE, so nothing persists.
 do $t$
 declare

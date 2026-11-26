@@ -1,6 +1,6 @@
 # Feature: choice-dropdowns-not-set (2026-11-26)
 
-Status: BUILT on fix/choice-dropdowns. Migration 20261227100000 NOT applied.
+Status: BUILT on fix/choice-dropdowns. Migration 20261229100000 NOT applied.
 
 Open:
 - On-site invoice still queues "cash" when no method is chosen yet (known bug: the invoice is created before the payment step).
@@ -15,7 +15,7 @@ Open:
 - Nothing is pre-selected on a new record. Edit shows the saved value.
 - What "Not set" does on Save depends on the field:
   - **A — saved as empty.** The column is already nullable and nothing downstream needs a value.
-  - **B — address type/ownership.** Saved as empty after migration 20261227100000 (owner decision). Rehearsal passed 12/0; not applied.
+  - **B — address type/ownership.** Saved as empty after migration 20261229100000 (owner decision). Rehearsal passed 12/0; not applied.
   - **C — required.** "Not set" is shown, but Save is blocked with "Choose an option" because the record can't exist without a value (e.g. a payment needs a method).
 - Empty values that already mean something real keep their label: "Any", "All sources", "Every day", "Default", "No gift", "None", "No role".
 - A dropdown pre-filled by a master rule is not a default and stays pre-filled (lead outcome → follow-up type / follow-up needed / lost-reason hint).
@@ -45,7 +45,7 @@ Open:
 - `ChoiceSelect`: always renders "Not set" first; `required` only changes validation, not the option.
 - Forms keep their zod rules: C fields stay required (existing `chooseOption`/`*Required` messages); A fields optional.
 - `EntityCrudTable` and `ReorderableListCard`: the placeholder becomes "Not set" (label change only). Required unless the field is optional. ReorderableListCard stops pre-selecting the first option.
-- No DB change beyond 20261227100000.
+- No DB change beyond 20261229100000.
 
 ## Impact map
 - About 35 component files plus their zod schemas, ChoiceSelect, EntityCrudTable, ReorderableListCard, i18n en/ta.
