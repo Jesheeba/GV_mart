@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Autocomplete } from "@/components/shared/Autocomplete"
 import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
+import { GstSummary } from "@/components/shared/GstSummary"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomer, useCustomerAutocomplete } from "@/hooks/useCustomers"
-import { productsHooks, rentalPlansHooks } from "@/hooks/useMasters"
+import { productsHooks, rentalPlansHooks, useSettings } from "@/hooks/useMasters"
 import { useCreateRental } from "@/hooks/useRentals"
 import { rentOutSchema, type RentOutInput } from "@/lib/validation/rentals"
 import { addressLocalityText } from "@/lib/address"
@@ -42,6 +43,11 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
   const { data: products } = productsHooks.useList(orgId)
   const { data: plans } = rentalPlansHooks.useList(orgId)
   const createRental = useCreateRental()
+  const { data: orgSettings } = useSettings(orgId)
+  // null = org default until staff flip the switch; the choice is kept on the contract for every monthly bill
+  const [gstChoice, setGstChoice] = useState<boolean | null>(null)
+  const gstInclusive = gstChoice ?? !!orgSettings?.prices_include_gst
+  const gstRate = Number(orgSettings?.gst_rate ?? 0)
 
   const form = useForm<RentOutInput>({
     resolver: zodResolver(rentOutSchema),
@@ -83,6 +89,7 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
       paymentMethod: values.paymentMethod,
       txnId: values.paymentMethod === "transfer" ? values.txnId : null,
       paymentDescription: values.paymentMethod === "transfer" ? values.paymentDescription : null,
+      gstInclusive,
     })
     onRented()
   }
@@ -171,9 +178,10 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
       </div>
 
       {selectedPlan ? (
-        <p className="px-1 text-sm font-medium text-text">
-          {t("rentals.rentOut.monthlyTotal", { amount: `₹${selectedPlan.monthly_rate}` })}
-        </p>
+        <div className="space-y-1 px-1">
+          <p className="text-sm text-text">{t("rentals.rentOut.monthlyTotal", { amount: `₹${selectedPlan.monthly_rate}` })}</p>
+          <GstSummary net={Number(selectedPlan.monthly_rate)} rate={gstRate} inclusive={gstInclusive} onInclusiveChange={setGstChoice} totalLabel={t("rentals.rentOut.monthlyPayable")} />
+        </div>
       ) : null}
 
       <div className="space-y-1.5">

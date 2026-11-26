@@ -62,10 +62,18 @@ export type SellAmcInput = {
   confirmBackdated?: boolean
   /** Referral sources (20261228100000): a non-technician referrer routes through sell_amc_plan_with_referrer. */
   referrer?: ReferrerValue | null
+  /** gst-everywhere: the sale bills an AMC invoice. No method -> invoice left due. */
+  paymentMethod?: Enums<"payment_method"> | null
+  txnId?: string | null
+  paymentDescription?: string | null
+  /** Per-bill GST switch. Omitted -> org default. */
+  gstInclusive?: boolean
 }
 
 export type SellAmcResult = {
   contract_id: string
+  invoice_id: string
+  total: number
   ticket_ids: string[]
   expiry_date: string
   visits_expected: number
@@ -85,6 +93,10 @@ export async function sellAmcPlan(input: SellAmcInput) {
     p_years: input.years ?? null,
     p_referred_by_technician_id: input.referredByTechnicianId ?? null,
     p_confirm_backdated: input.confirmBackdated ?? false,
+    p_payment_method: input.paymentMethod ?? null,
+    p_txn_id: input.txnId || null,
+    p_payment_description: input.paymentDescription || null,
+    p_gst_inclusive: input.gstInclusive ?? null,
   }
   const extra = nonTechnicianReferrerArgs(input.referrer)
   const { data, error } = extra ? await supabase.rpc("sell_amc_plan_with_referrer", { ...args, ...extra }) : await supabase.rpc("sell_amc_plan", args)

@@ -41,6 +41,8 @@ export type CreateRentalInput = {
   paymentMethod: Enums<"payment_method">
   txnId?: string | null
   paymentDescription?: string | null
+  /** Per-contract GST switch (gst-everywhere), stored on the contract so monthly bills follow it. Omitted -> org default. */
+  gstInclusive?: boolean
 }
 
 export async function createRental(input: CreateRentalInput) {
@@ -54,6 +56,7 @@ export async function createRental(input: CreateRentalInput) {
     p_payment_method: input.paymentMethod,
     p_txn_id: input.txnId ?? null,
     p_payment_description: input.paymentDescription ?? null,
+    p_gst_inclusive: input.gstInclusive ?? null,
   })
   if (error) throw error
   return data as { contract_id: string; invoice_id: string; install_ticket_id: string; visit_ticket_id: string }

@@ -1128,6 +1128,8 @@ export type CreateServiceInvoiceInput = {
   amountPaid?: number
   /** Installation Tracking + Incentive (2026-09-25): products newly installed on this visit — logged for incentive counting only, no invoice line. */
   installations?: { productId: string; qty: number }[]
+  /** Per-bill GST switch (gst-everywhere): true = prices include GST. Omitted -> org default. */
+  gstInclusive?: boolean
 }
 
 export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput) {
@@ -1143,6 +1145,7 @@ export async function queueCreateServiceInvoice(input: CreateServiceInvoiceInput
     isChargeable: input.isChargeable,
     amountPaid: input.amountPaid,
     installations: (input.installations ?? []).map((i) => ({ product_id: i.productId, qty: i.qty })),
+    gstInclusive: input.gstInclusive,
   })
 }
 
@@ -1248,6 +1251,8 @@ export async function queueSellAmcOnsite(input: {
   paymentMethod: Enums<"payment_method">
   txnId?: string
   paymentDescription?: string
+  /** Per-bill GST switch (gst-everywhere). Omitted -> org default. */
+  gstInclusive?: boolean
 }) {
   await enqueue("amc.sell_onsite", {
     orgId: input.orgId,
@@ -1257,6 +1262,7 @@ export async function queueSellAmcOnsite(input: {
     paymentMethod: input.paymentMethod,
     txnId: input.txnId,
     paymentDescription: input.paymentDescription,
+    gstInclusive: input.gstInclusive,
   })
 }
 

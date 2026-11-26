@@ -4,7 +4,9 @@ import { CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AddressPickerModal } from "@/components/shared/AddressPickerModal"
 import { isAmcRenewalOpen, pricePerYearOf } from "@/lib/amc-window"
-import { useMyAddresses, useRenewAmcPlan } from "@/hooks/useCustomerApp"
+import { useCustomerAppSettings, useMyAddresses, useRenewAmcPlan } from "@/hooks/useCustomerApp"
+import { GstSummary } from "@/components/shared/GstSummary"
+import { billBreakdown, formatCurrency as formatExact } from "@/lib/sale-calc"
 import { useToast } from "@/components/ui/toast-context"
 import { shouldWarnReferralMismatch } from "@/lib/referral-match"
 import type { AmcPlanRow } from "@/services/customerApp"
@@ -63,6 +65,11 @@ export function AmcBookingPanel({
   const { withinWindow, daysUntil } = isAmcRenewalOpen(dueDateStr, bookWindowDays, new Date())
   const selectedPlan = plans.find((p) => p.id === selectedPlanId)
   const computedTotal = selectedPlan ? pricePerYearOf(selectedPlan) * selectedYears : 0
+  // Same GST as the invoice renew_amc_plan creates (org default; customers do not get a switch).
+  const { data: appSettings } = useCustomerAppSettings(orgId)
+  const gstRate = Number(appSettings?.gst_rate ?? 0)
+  const gstInclusive = !!appSettings?.prices_include_gst
+  const payable = billBreakdown(computedTotal, 0, gstRate, gstInclusive).total
 
   if (renewAmc.isSuccess) {
     return (
@@ -129,7 +136,8 @@ export function AmcBookingPanel({
             onChange={(e) => setSelectedYears(Math.max(1, Number(e.target.value) || 1))}
             className={cn("block h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none", FIELD_W.qty)}
           />
-          <p className="text-sm font-medium text-text">{t("customerApp.amc.totalPrice", { amount: formatCurrency(computedTotal) })}</p>
+          <p className="text-sm text-text">{t("customerApp.amc.planPrice", { amount: formatCurrency(computedTotal) })}</p>
+          <GstSummary net={computedTotal} rate={gstRate} inclusive={gstInclusive} totalLabel={t("customerApp.amc.payable")} />
         </div>
       ) : null}
 
@@ -215,7 +223,7 @@ export function AmcBookingPanel({
                   )
                 }}
               >
-                {renewAmc.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("customerApp.amc.payAmount", { amount: formatCurrency(computedTotal) })}
+                {renewAmc.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("customerApp.amc.payAmount", { amount: formatExact(payable) })}
               </Button>
             </div>
           </div>

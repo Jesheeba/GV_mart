@@ -1,5 +1,13 @@
 # TESTING — Leads Dashboard Enhancement
 
+## gst-everywhere (2026-11-26)
+- `src/lib/gstEverywhere.test.ts` (E1-E5): 10/10. Numbers match the SQL test so the screen total equals the server invoice.
+- `tsc -p tsconfig.app.json` clean. Full vitest: 1392 passed, 2 failed. Both failures (waOutboxSentGuard, wa-event-context) also fail on main.
+- Migration APPLIED LIVE 2026-11-26 (owner "go apply") after the 8 baseline md5s matched. One overload each; ACLs as before (anon none).
+- `supabase/tests/gst_everywhere.test.sql`: **20/20**, run alone, rolled back, row counts identical before and after.
+  - Fixture fix 1: a technician can hold only one open untimed appointment, so visit 2 got a second technician.
+  - Fixture fix 2: month 1 and the cron bill share created_at in one transaction, so the test now selects the cron bill by payment_method null.
+
 ## missing-i18n-keys (2026-11-26)
 - `keysComplete.test.ts` (AC1, AC2): 6/6 pass. Against origin/main's JSON, 5/6 fail (missing en, missing ta, en dups, ta dups, budget key), so the guard catches the original bugs.
 - `parity.test.ts` (AC3): passes with the allowlist removed. All src/lib/i18n tests: 72/72.
@@ -188,3 +196,10 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
   - Supplier on Create PO ("pvm" → PVM) and Bill Entry ("CHENNAI electro traders") selected the existing supplier, count unchanged.
   - Edit Lead entry point is hidden on main (1761eaa, update_lead_details not live), so its quick-add is dormant.
 - **Test-script mistake:** my automation clicked the Source link three times. That created 2 unused lead sources in the owner's org ("ro / WATER purifier" key ro_water_purifier, "service" key service; 0 leads use them). Left in place pending the owner's decision. This was a test-script error, not a code bug: the feature did what it was told.
+
+## fix(referral-sources): leads<->customers embed ambiguity (2026-11-26)
+- Bug: after 20261228100000, leads has 2 FKs to customers -> PostgREST PGRST201 on `leads?select=*,customers(...)` (leads list + lead detail broke in prod). Reproduced against live API (HTTP 300 PGRST201).
+- Fix: `customers!leads_customer_id_fkey(...)` in services/automation.ts listLeads/getLead; new FKs added to types/database.ts Relationships.
+- Test: src/lib/leadCustomerEmbed.test.ts (2/2) — scans src + supabase/functions for un-hinted leads<->customers embeds; verified it FAILS on the old code. Live API with the hinted select: 200.
+- tsc clean. Full suite: only the dispatcher-mock `abortSignal` failures (pre-existing on main since 05707bd, unrelated files) + known wa-event-context.
+- Customer detail page ("Couldn't load customers") NOT reproduced: getCustomer works via API and under owner RLS simulation; awaiting browser error details.

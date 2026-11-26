@@ -107,3 +107,9 @@
 ## i18n JSON convention (2026-11-26)
 - en.json/ta.json must not contain duplicate keys. Merges had pasted whole blocks twice, and JSON.parse silently keeps only the last copy. Enforced by `src/lib/i18n/keysComplete.test.ts`.
 - zod messages in `src/lib/validation/*` are i18n keys, so any dotted string there must exist in en+ta (same test).
+
+## gst-everywhere (2026-11-26, owner)
+- "fix them all": per-bill GST switch on technician on-site invoice/AMC, rentals (per contract) and admin Sell AMC. Customers get no switch (org default).
+- AMC: owner chose "Create GST invoice". Admin Sell AMC asks for the payment method; customer renewal invoice is DUE because the app payment is simulated (never record fake revenue).
+- Technician screen omitted GST from the total it collected (server added it). Fixed; any total shown before payment must come from `billBreakdown` with the bill's GST mode.
+- Test lead sources "ro / WATER purifier" + "service" deleted on owner's word (0 leads used them).

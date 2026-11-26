@@ -56,7 +56,7 @@ export type LeadFilters = {
 export async function listLeads(orgId: string, filters: LeadFilters = {}): Promise<LeadListItem[]> {
   let query = supabase
     .from("leads")
-    .select("*, customers(name, mobile), technicians(profiles(full_name)), lead_items(id, product_id, spare_id, qty, products(name, price), spares(name, price))")
+    .select("*, customers!leads_customer_id_fkey(name, mobile), technicians(profiles(full_name)), lead_items(id, product_id, spare_id, qty, products(name, price), spares(name, price))")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
   if (filters.source) query = query.eq("source", filters.source)
@@ -77,7 +77,7 @@ export async function listLeads(orgId: string, filters: LeadFilters = {}): Promi
 export async function getLead(leadId: string): Promise<LeadListItem | null> {
   const { data, error } = await supabase
     .from("leads")
-    .select("*, customers(name, mobile), technicians(profiles(full_name)), lead_items(id, product_id, spare_id, qty, products(name, price), spares(name, price))")
+    .select("*, customers!leads_customer_id_fkey(name, mobile), technicians(profiles(full_name)), lead_items(id, product_id, spare_id, qty, products(name, price), spares(name, price))")
     .eq("id", leadId)
     .maybeSingle()
   if (error) throw error

@@ -6,8 +6,9 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ChoiceSelect } from "@/components/shared/ChoiceSelect"
-import { useAmcPlansForTechnician, useSellAmcOnsite } from "@/hooks/useTechnician"
-import { formatCurrency } from "@/lib/sale-calc"
+import { GstSummary } from "@/components/shared/GstSummary"
+import { useAmcPlansForTechnician, useSellAmcOnsite, useTechnicianSettings } from "@/hooks/useTechnician"
+import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
 import type { Enums } from "@/types/database"
 import { focusChoice } from "@/lib/utils"
 import { PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
@@ -45,8 +46,15 @@ export function SellAmcSection({
 
   const plans = useAmcPlansForTechnician(orgId)
   const sellAmc = useSellAmcOnsite()
+  const settings = useTechnicianSettings(orgId)
+  // null = follow the org default (Masters -> Settings) until the technician flips the switch
+  const [gstChoice, setGstChoice] = useState<boolean | null>(null)
+  const gstInclusive = gstChoice ?? !!settings.data?.prices_include_gst
+  const gstRate = Number(settings.data?.gst_rate ?? 0)
 
   const selectedPlan = (plans.data ?? []).find((p) => p.id === planId)
+  const planPrice = selectedPlan ? (selectedPlan.price_per_year != null ? selectedPlan.price_per_year * selectedPlan.years : selectedPlan.price) : 0
+  const payable = billBreakdown(planPrice, 0, gstRate, gstInclusive).total
   // A missing method doesn't disable the button: tapping it shows why (inline error) instead.
   const canSubmit = !!planId && (paymentMethod !== "transfer" || (txnId.trim() && paymentDescription.trim()))
 
@@ -65,6 +73,7 @@ export function SellAmcSection({
       paymentMethod,
       txnId: paymentMethod === "transfer" ? txnId : undefined,
       paymentDescription: paymentMethod === "transfer" ? paymentDescription : undefined,
+      gstInclusive,
     })
     setQueued(true)
   }
@@ -114,6 +123,7 @@ export function SellAmcSection({
 
             {selectedPlan ? (
               <>
+                <GstSummary net={planPrice} rate={gstRate} inclusive={gstInclusive} onInclusiveChange={setGstChoice} />
                 <ChoiceSelect
                   id="amc-payment-method"
                   label={t("technician.onsite.payment.method")}
@@ -140,7 +150,7 @@ export function SellAmcSection({
                 ) : null}
 
                 <Button type="button" variant="outline" onClick={handleSell} disabled={!canSubmit || sellAmc.isPending}>
-                  {sellAmc.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.sellAmc.sell", { amount: formatCurrency(selectedPlan.price_per_year != null ? selectedPlan.price_per_year * selectedPlan.years : selectedPlan.price) })}
+                  {sellAmc.isPending ? <Loader2 className="size-4 animate-spin" /> : t("technician.onsite.sellAmc.sell", { amount: formatCurrency(payable) })}
                 </Button>
                 {sellAmc.isError ? <p className="text-xs text-danger">{t("common.actionFailed")}</p> : null}
               </>
