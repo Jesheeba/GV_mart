@@ -77,7 +77,7 @@ function RegisterProductForm({ orgId, customerId, onDone }: { orgId: string | un
           <Controller
             control={control}
             name="purchaseDate"
-            render={({ field }) => <DatePicker id={PURCHASE_DATE_FIELD_ID} value={field.value ?? ""} onChange={field.onChange} />}
+            render={({ field }) => <DatePicker id={PURCHASE_DATE_FIELD_ID} value={field.value ?? ""} onChange={field.onChange} className="w-44" />}
           />
         </div>
         {registerProduct.isError ? <p className="text-xs text-danger">{(registerProduct.error as Error).message}</p> : null}

@@ -19,11 +19,6 @@ import type { StatusTone } from "@/components/shared/StatusDot"
 const PAYMENT_STATUS_TONE: Record<string, StatusTone> = { paid: "success", partial: "warning", due: "danger" }
 const CELL = "border border-[#444] p-2 align-top"
 
-function ddmmyyyy(iso: string) {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
-}
 
 export function InvoicePage() {
   const { t } = useTranslation()
@@ -147,7 +142,7 @@ export function InvoicePage() {
                     </tr>
                     <tr>
                       <td className={CELL}>{t("sales.invoice.dateLabel")}</td>
-                      <td className={CELL}>{ddmmyyyy(invoice.created_at)}</td>
+                      <td className={`${CELL} whitespace-nowrap`}>{formatDate(invoice.created_at)}</td>
                     </tr>
                   </tbody>
                 </table>

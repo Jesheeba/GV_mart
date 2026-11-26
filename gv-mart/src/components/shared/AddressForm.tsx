@@ -6,6 +6,7 @@ import { Loader2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { SegButton } from "@/components/shared/SegButton"
 import { AddressMapPicker } from "@/components/shared/AddressMapPicker"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useGeocodeAddress, useReverseGeocode } from "@/hooks/useMaps"
@@ -14,6 +15,8 @@ import { geocodeResultToAddressFields, mergeAddressFieldsPreservingTyped } from 
 import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validation/customerApp"
 import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { focusChoice } from "@/lib/utils"
 
 /**
  * Shared add/edit address form — used by the Profile page's address list and
@@ -63,14 +66,16 @@ export function AddressForm({
       pincode: initial?.pincode ?? "",
       district: initial?.district ?? "",
       state: initial?.state ?? "",
-      addressType: initial?.address_type ?? "residential",
-      ownership: initial?.ownership ?? "own",
+      // A new address starts unchosen (choice-no-preselect); editing shows the saved values.
+      addressType: initial?.address_type ?? undefined,
+      ownership: initial?.ownership ?? undefined,
       lat: initial?.lat ?? undefined,
       lng: initial?.lng ?? undefined,
     },
   })
   const lat = watch("lat")
   const lng = watch("lng")
+  const [addressType, ownership] = watch(["addressType", "ownership"])
   const [fullAddress, area, pincode, district, state] = watch(["fullAddress", "area", "pincode", "district", "state"])
   const locationText = [fullAddress, area, pincode, district, state].join("|")
   // Bug fix: editing an existing address's text (e.g. correcting the door
@@ -169,7 +174,14 @@ export function AddressForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5 border-t border-border pt-3">
+    <form
+      onSubmit={handleSubmit(onSubmit, (errs) => {
+        // react-hook-form focuses the text fields it registered itself; the button groups need a hand.
+        if (errs.fullAddress || errs.area || errs.pincode) return
+        if (errs.addressType) focusChoice(`${uid}-addressType`)
+        else if (errs.ownership) focusChoice(`${uid}-ownership`)
+      })}
+      className="space-y-2.5 border-t border-border pt-3">
       <div className="space-y-1">
         <Label htmlFor={`${uid}-fullAddress`} className="sr-only">{t("customerApp.profile.address.fullAddress")}</Label>
         <textarea
@@ -190,7 +202,7 @@ export function AddressForm({
       <div className="grid grid-cols-2 gap-2.5">
         <div className="space-y-1">
           <Label htmlFor={`${uid}-pincode`} className="sr-only">{t("customerApp.profile.address.pincode")}</Label>
-          <Input id={`${uid}-pincode`} placeholder={t("customerApp.profile.address.pincode")} aria-invalid={!!errors.pincode} {...register("pincode")} />
+          <Input id={`${uid}-pincode`} inputMode="numeric" maxLength={6} className={FIELD_W.pincode} placeholder={t("customerApp.profile.address.pincode")} aria-invalid={!!errors.pincode} {...register("pincode")} />
           {errors.pincode ? <p className="text-xs text-danger">{t(errors.pincode.message!)}</p> : null}
         </div>
         <Input placeholder={t("customerApp.profile.address.district")} {...register("district")} />
@@ -251,20 +263,46 @@ export function AddressForm({
         {lat == null || lng == null ? <p className="text-xs text-warning">{t("customerApp.profile.address.mapRequired")}</p> : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5">
+      {/* Same one-tap buttons as the admin customer form (CustomerFormPage), nothing selected on a new
+          address; min-h-10 keeps them thumb-sized in the customer app. */}
+      <div className="flex flex-wrap gap-4">
         <div className="space-y-1">
-          <Label htmlFor={`${uid}-addressType`} className="text-xs text-text-muted">{t("customerApp.profile.address.type")}</Label>
-          <select id={`${uid}-addressType`} className="h-10 w-full rounded-xl border border-input bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30" {...register("addressType")}>
-            <option value="residential">{t("customerApp.profile.address.residential")}</option>
-            <option value="commercial">{t("customerApp.profile.address.commercial")}</option>
-          </select>
+          <Label id={`${uid}-addressType-label`} className="text-xs text-text-muted">{t("customerApp.profile.address.type")}</Label>
+          <div
+            id={`${uid}-addressType`}
+            role="group"
+            aria-labelledby={`${uid}-addressType-label`}
+            aria-describedby={errors.addressType ? `${uid}-addressType-error` : undefined}
+            className="flex gap-1 rounded-full bg-surface-alt p-1"
+          >
+            {(["residential", "commercial"] as const).map((v) => (
+              <SegButton key={v} className="min-h-10" active={addressType === v} onClick={() => setValue("addressType", v, { shouldValidate: true })}>
+                {t(`customerApp.profile.address.${v}`)}
+              </SegButton>
+            ))}
+          </div>
+          {errors.addressType ? (
+            <p id={`${uid}-addressType-error`} role="alert" className="text-xs text-danger">{t(errors.addressType.message!)}</p>
+          ) : null}
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${uid}-ownership`} className="text-xs text-text-muted">{t("customerApp.profile.address.ownership")}</Label>
-          <select id={`${uid}-ownership`} className="h-10 w-full rounded-xl border border-input bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30" {...register("ownership")}>
-            <option value="own">{t("customerApp.profile.address.own")}</option>
-            <option value="rental">{t("customerApp.profile.address.rental")}</option>
-          </select>
+          <Label id={`${uid}-ownership-label`} className="text-xs text-text-muted">{t("customerApp.profile.address.ownership")}</Label>
+          <div
+            id={`${uid}-ownership`}
+            role="group"
+            aria-labelledby={`${uid}-ownership-label`}
+            aria-describedby={errors.ownership ? `${uid}-ownership-error` : undefined}
+            className="flex gap-1 rounded-full bg-surface-alt p-1"
+          >
+            {(["own", "rental"] as const).map((v) => (
+              <SegButton key={v} className="min-h-10" active={ownership === v} onClick={() => setValue("ownership", v, { shouldValidate: true })}>
+                {t(`customerApp.profile.address.${v}`)}
+              </SegButton>
+            ))}
+          </div>
+          {errors.ownership ? (
+            <p id={`${uid}-ownership-error`} role="alert" className="text-xs text-danger">{t(errors.ownership.message!)}</p>
+          ) : null}
         </div>
       </div>
       {error ? <p className="text-xs text-danger">{error}</p> : null}

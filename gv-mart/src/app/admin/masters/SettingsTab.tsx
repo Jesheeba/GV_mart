@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { AppointmentSlotsCard } from "./AppointmentSlotsCard"
 import { AutoAssignLeadsCard } from "./AutoAssignLeadsCard"
 import { AccountsOutstandingSettingsCard } from "./AccountsOutstandingSettingsCard"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 function hhmm(value: string) {
   return value.slice(0, 5)
@@ -489,7 +490,7 @@ function OrgProfileCard({ orgId, onDirtyChange }: { orgId: string | undefined; o
         </div>
         <div className="space-y-1">
           <Label htmlFor="org-phone">{t("settings.orgProfile.phone")}</Label>
-          <Input id="org-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Input id="org-phone" type="tel" inputMode="tel" className={FIELD_W.mobile} value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="space-y-1 sm:col-span-1">
           <Label htmlFor="org-address">{t("settings.orgProfile.address")}</Label>

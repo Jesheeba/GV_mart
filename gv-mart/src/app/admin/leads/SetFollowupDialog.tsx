@@ -22,12 +22,13 @@ import {
   formatIstDateTime,
   getIstNow,
   isFollowupAlreadySetError,
+  isNextFollowupValid,
   nextWorkingDay,
   toIso,
   type NextFollowupValue,
   type SetFollowupType,
 } from "@/lib/lead-followups"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
 
 /**
  * Schedule the first follow-up for an open lead that has none, without logging
@@ -67,7 +68,9 @@ function Body({ leadId, leadName, onClose, onDone }: { leadId: string; leadName:
   const setFollowup = useSetLeadFollowup()
   const createTask = useCreateTask()
   const qc = useQueryClient()
-  const [type, setType] = useState<SetFollowupType>("call")
+  // Unchosen until staff pick one (choice-no-preselect).
+  const [type, setType] = useState<SetFollowupType | null>(null)
+  const [typeError, setTypeError] = useState(false)
   const [note, setNote] = useState("")
   const [reminder, setReminder] = useState<ReminderOffset>("")
   const [next, setNext] = useState<NextFollowupValue>(() => {
@@ -76,9 +79,15 @@ function Body({ leadId, leadName, onClose, onDone }: { leadId: string; leadName:
   })
   const [keepNonWorking, setKeepNonWorking] = useState<string | null>(null)
 
-  const canSave = canSetFollowup({ type, next })
+  // Without a type the button stays enabled so tapping it can say what's missing (inline error below the types).
+  const canSave = type ? canSetFollowup({ type, next }) : isNextFollowupValid(next)
 
   async function save() {
+    if (!type) {
+      setTypeError(true)
+      focusChoice("set-followup-type")
+      return
+    }
     try {
       const dueAt = toIso(next.date!, next.time!)
       await setFollowup.mutateAsync({ leadId, dueAt, type, note: cleanFollowupNote(note), isExact: next.exact })
@@ -115,14 +124,23 @@ function Body({ leadId, leadName, onClose, onDone }: { leadId: string; leadName:
   return (
     <div className="space-y-4">
       <section className="space-y-2">
-        <Label>{t("leads.followup.setType")}</Label>
-        <div className="flex flex-wrap gap-1.5">
+        <Label id="set-followup-type-label">{t("leads.followup.setType")}</Label>
+        <div
+          id="set-followup-type"
+          role="group"
+          aria-labelledby="set-followup-type-label"
+          aria-describedby={typeError ? "set-followup-type-error" : undefined}
+          className="flex flex-wrap gap-1.5"
+        >
           {FOLLOWUP_TYPES.map((c) => (
             <button
               key={c}
               type="button"
               aria-pressed={type === c}
-              onClick={() => setType(c)}
+              onClick={() => {
+                setType(c)
+                setTypeError(false)
+              }}
               className={cn(
                 "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
                 type === c ? "border-ink bg-ink text-white" : "border-border bg-surface text-text hover:bg-surface-alt"
@@ -132,6 +150,11 @@ function Body({ leadId, leadName, onClose, onDone }: { leadId: string; leadName:
             </button>
           ))}
         </div>
+        {typeError ? (
+          <p id="set-followup-type-error" role="alert" className="text-xs text-danger">
+            {t("leads.followup.typeRequired")}
+          </p>
+        ) : null}
       </section>
       <section className="space-y-2">
         <Label>{t("leads.followup.setWhen")}</Label>

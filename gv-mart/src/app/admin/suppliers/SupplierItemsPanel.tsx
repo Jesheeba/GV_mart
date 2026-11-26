@@ -15,6 +15,7 @@ import {
   useUpdateSupplierItem,
 } from "@/hooks/useSuppliers"
 import type { ItemType, SupplierRow } from "@/services/suppliers"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 type LinkedRow = {
   id: string
@@ -52,7 +53,8 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
   const unlinkMut = useUnlinkSupplierItem(orgId, supplier.id)
 
   const [showForm, setShowForm] = useState(false)
-  const [itemType, setItemType] = useState<ItemType>("product")
+  // Unchosen until picked (choice-no-preselect); the item list below stays disabled until then.
+  const [itemType, setItemType] = useState<ItemType | null>(null)
   const [itemId, setItemId] = useState("")
   const [price, setPrice] = useState("")
   const [leadTime, setLeadTime] = useState("")
@@ -61,14 +63,15 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
   const catalogOptions = useMemo(() => {
     if (itemType === "product") return catalog?.products ?? []
     if (itemType === "gift") return catalog?.gifts ?? []
-    return catalog?.spares ?? []
+    if (itemType === "spare") return catalog?.spares ?? []
+    return []
   }, [catalog, itemType])
 
   function submitLink() {
-    if (!itemId || !price) return
+    if (!itemType || !itemId || !price) return
     linkMut.mutate(
       { item_type: itemType, item_id: itemId, price: Number(price) || 0, lead_time_days: leadTime ? Number(leadTime) : null, is_preferred: false },
-      { onSuccess: () => { setShowForm(false); setItemId(""); setPrice(""); setLeadTime("") } }
+      { onSuccess: () => { setShowForm(false); setItemType(null); setItemId(""); setPrice(""); setLeadTime("") } }
     )
   }
 
@@ -136,12 +139,13 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
       {showForm ? (
         <div className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3.5 sm:grid-cols-4">
           <div className="space-y-1">
-            <Label>{t("suppliers.itemType")}</Label>
-            <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+            <Label id="supplier-item-type-label">{t("suppliers.itemType")}</Label>
+            <div role="group" aria-labelledby="supplier-item-type-label" className="flex gap-1 rounded-full bg-surface-alt p-1">
               {(["product", "spare", "gift"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
+                  aria-pressed={itemType === v}
                   onClick={() => { setItemType(v); setItemId("") }}
                   className={`flex-1 rounded-full px-2 py-1.5 text-xs font-medium ${itemType === v ? "bg-ink text-white" : "text-text-muted"}`}
                 >
@@ -155,7 +159,9 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
             <select
               value={itemId}
               onChange={(e) => setItemId(e.target.value)}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+              disabled={!itemType}
+              aria-label={t("suppliers.item")}
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none disabled:opacity-50"
             >
               <option value="">{t("suppliers.selectItem")}</option>
               {catalogOptions.map((o) => (
@@ -167,11 +173,11 @@ export function SupplierItemsPanel({ supplier }: { supplier: SupplierRow }) {
           </div>
           <div className="space-y-1">
             <Label>{t("suppliers.price")}</Label>
-            <Input type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+            <Input type="number" inputMode="decimal" min={0} step="0.01" className={FIELD_W.amount} value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label>{t("suppliers.leadTime")}</Label>
-            <Input type="number" min={0} step="1" value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
+            <Input type="number" inputMode="numeric" min={0} step="1" className={FIELD_W.qty} value={leadTime} onChange={(e) => setLeadTime(e.target.value)} />
           </div>
           <div className="col-span-full flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>

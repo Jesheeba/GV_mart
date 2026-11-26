@@ -15,8 +15,9 @@ export const customerAddressSchema = z.object({
   pincode: z.string().regex(/^\d{6}$/, "customerApp.errors.pincodeInvalid"),
   district: z.string().trim().optional().or(z.literal("")),
   state: z.string().trim().optional().or(z.literal("")),
-  addressType: z.enum(["residential", "commercial"]),
-  ownership: z.enum(["own", "rental"]),
+  // No pre-selection (choice-no-preselect): the customer must pick both, same messages as the admin form.
+  addressType: z.enum(["residential", "commercial"], { message: "customers.errors.addressTypeRequired" }),
+  ownership: z.enum(["own", "rental"], { message: "customers.errors.ownershipRequired" }),
   // Root-cause fix (technician map location bug): this address form never
   // captured coordinates at all — every customer-self-added address had
   // lat/lng permanently null, so the technician's map had nothing to plot

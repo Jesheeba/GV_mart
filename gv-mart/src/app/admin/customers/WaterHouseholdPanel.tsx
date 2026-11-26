@@ -21,6 +21,7 @@ import { formatDate } from "@/lib/formatDate"
 import { getIstNow } from "@/lib/ist"
 import type { WaterProfilePatch } from "@/services/customers"
 import type { CustomerMeasuredWaterReading } from "@/services/waterQuality"
+import { FIELD_W } from "@/lib/fieldWidth"
 import { WaterHouseholdSummary, type WaterHouseholdValues } from "@/components/shared/WaterHouseholdSummary"
 
 export { waterValuesFromCustomer } from "@/components/shared/WaterHouseholdSummary"
@@ -98,7 +99,7 @@ export function WaterHouseholdFields({ form }: { form: UseFormReturn<WaterProfil
   const numberField = (name: "waterTdsPpm" | "waterPh" | "waterHardnessPpm", label: string, extra: { step: string; max?: number }) => (
     <div className="space-y-1.5">
       <Label htmlFor={name}>{label}</Label>
-      <Input id={name} type="number" min={0} inputMode="decimal" aria-invalid={!!errors[name]} {...extra} {...register(name, { valueAsNumber: true })} />
+      <Input id={name} type="number" min={0} inputMode="decimal" className={FIELD_W.reading} aria-invalid={!!errors[name]} {...extra} {...register(name, { valueAsNumber: true })} />
       {errors[name] ? <p className="text-xs text-danger">{t(errors[name]!.message!)}</p> : null}
     </div>
   )

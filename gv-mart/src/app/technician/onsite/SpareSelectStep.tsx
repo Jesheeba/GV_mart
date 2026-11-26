@@ -10,6 +10,7 @@ import { filterDueOrOverdueParts, useDueParts, type CustomerPartSchedule } from 
 import { enqueue } from "@/lib/offline/outbox"
 import { getIstNow } from "@/lib/ist"
 import { formatCurrency } from "@/lib/sale-calc"
+import { formatShortDate } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
 
 // GV.md 1.1/D4: standardTimeMinutes (admin-set on the spare master) rides
@@ -164,7 +165,7 @@ function DuePartsWarningList({
   function statusLabel(p: CustomerPartSchedule) {
     const key =
       p.status === "overdue" ? "technicianLifecycle.warningList.overdue" : p.status === "due" ? "technicianLifecycle.warningList.due" : "technicianLifecycle.warningList.dueSoon"
-    return t(key, { date: new Date(p.nextDueDate).toLocaleDateString("en-IN") })
+    return t(key, { date: formatShortDate(p.nextDueDate) })
   }
 
   return (

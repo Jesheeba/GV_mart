@@ -9,6 +9,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { supabase } from "@/lib/supabase"
 import { useQuery } from "@tanstack/react-query"
 import { useClosePersonAllowanceRow, usePersonAllowanceHistory, useSetPersonAllowance } from "@/hooks/useMonthlyExpenses"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 /** Monthly Expenses spec Unit 4 — per-person recharge allowance. Scoped to
  *  `profiles`, not `technicians` (§1.1: "not restricted to technicians"). */
@@ -75,7 +76,7 @@ function AllowanceForm({ orgId, profileId }: { orgId: string | undefined; profil
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label htmlFor={`recharge-${profileId}`}>{t("expenses.allowances.amount")}</Label>
-          <Input id={`recharge-${profileId}`} type="number" min={0} step="10" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <Input id={`recharge-${profileId}`} type="number" inputMode="numeric" min={0} step="10" className={FIELD_W.amount} value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
         <div className="space-y-1">
           <Label>{t("expenses.allowances.effectiveFrom")}</Label>

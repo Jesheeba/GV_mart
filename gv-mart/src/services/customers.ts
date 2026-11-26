@@ -590,8 +590,9 @@ export type CreateCustomerInput = {
     pincode?: string
     district?: string
     state?: string
-    addressType: Enums<"address_type">
-    ownership: Enums<"ownership_type">
+    /** Omitted only when the address has no details at all (the form requires both otherwise); the RPC/column default then applies. */
+    addressType?: Enums<"address_type">
+    ownership?: Enums<"ownership_type">
     lat?: number
     lng?: number
   }
@@ -842,8 +843,9 @@ export async function upsertPrimaryAddress(
     district?: string
     state?: string
     zone?: string
-    addressType: Enums<"address_type">
-    ownership: Enums<"ownership_type">
+    /** Omitted only when the address has no details at all (the form requires both otherwise); the RPC/column default then applies. */
+    addressType?: Enums<"address_type">
+    ownership?: Enums<"ownership_type">
     lat?: number
     lng?: number
     /** True when the address's pin is technician-verified (locked): lat/lng are left out of the write entirely — the DB guard rejects any change to them. */

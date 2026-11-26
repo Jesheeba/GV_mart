@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
@@ -40,11 +40,13 @@ import { PriorityBadge, TicketTypeBadge } from "@/app/admin/service/TicketBadges
 import { pickHistoryVisit, TECHNICIAN_SKILL_OPTIONS } from "@/services/techniciansAdmin"
 import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianKpiSummary, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
 import { formatDurationMinutes, minutesBetween, resolveVisitDurationMinutes } from "@/lib/visit-duration"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocumentUpload"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
-import { formatDate, formatDateTime } from "@/lib/formatDate"
+import { formatDate, formatShortDateTime, formatTime } from "@/lib/formatDate"
+import { istDateOf } from "@/lib/ist"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 const SKILL_OPTIONS = TECHNICIAN_SKILL_OPTIONS
 // Indian mobile: 10 digits, starts 6-9 — same rule as lib/validation/technician.ts.
@@ -53,8 +55,10 @@ const MOBILE_REGEX = /^[6-9]\d{9}$/
 function fmtDate(iso: string | null | undefined) {
   return formatDate(iso)
 }
-function fmtDateTime(iso: string | null | undefined) {
-  return formatDateTime(iso)
+/** Time only when it falls on `dateStr` (the day heading already shows the date); otherwise the compact date-time. */
+function fmtTimeOn(iso: string | null | undefined, dateStr: string) {
+  if (!iso) return "—"
+  return istDateOf(iso) === dateStr ? formatTime(iso) : formatShortDateTime(iso)
 }
 /** Requirement 2/11 — convenience wrapper over the shared visit-duration.ts primitives, for Attendance's worked-hours readout (plain check-in/check-out, no persisted duration column). History's visit duration uses resolveVisitDurationMinutes directly (see below) to prefer the persisted actual_duration_minutes. */
 function fmtDuration(startIso: string, endIso: string): string {
@@ -378,6 +382,9 @@ export function TechnicianDetailPage() {
                 <Input
                   id="tech-phone"
                   type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className={FIELD_W.mobile}
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   aria-invalid={!phoneValid}
@@ -393,6 +400,8 @@ export function TechnicianDetailPage() {
                 <Input
                   id="tech-daily-capacity"
                   type="number"
+                  inputMode="numeric"
+                  className={FIELD_W.qty}
                   min={1}
                   step={1}
                   value={editCapacity}
@@ -405,7 +414,7 @@ export function TechnicianDetailPage() {
                   <Label htmlFor="tech-tier">{t("technicians.detail.tier.override")}</Label>
                   <select
                     id="tech-tier"
-                    className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-text"
+                    className="h-10 w-full rounded-md border border-border bg-surface px-2 text-sm text-text"
                     value={editTierId}
                     onChange={(e) => setEditTierId(e.target.value)}
                   >
@@ -431,7 +440,7 @@ export function TechnicianDetailPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="tech-pincode">{t("technicians.detail.fields.pincode")}</Label>
-                <Input id="tech-pincode" value={editPincode} onChange={(e) => setEditPincode(e.target.value)} />
+                <Input id="tech-pincode" inputMode="numeric" className={FIELD_W.pincode} value={editPincode} onChange={(e) => setEditPincode(e.target.value)} />
               </div>
               <TechnicianDocumentUpload
                 label={t("technicians.list.fields.aadhar")}
@@ -573,7 +582,10 @@ function CurrentJobTab({
         <Field label={t("service.table.product")} value={job.productName ?? "—"} />
         <Field label={t("service.newComplaint.nameOfComplaint")} value={job.complaintName ?? "—"} />
         <Field label={t("service.table.area")} value={job.area ?? "—"} />
-        <Field label={t("service.table.appointment")} value={job.mode === "always" ? t("service.appointment.always") : fmtDateTime(job.scheduledAt)} />
+        <Field
+          label={t("service.table.appointment")}
+          value={<span className="whitespace-nowrap">{job.mode === "always" ? t("service.appointment.always") : formatShortDateTime(job.scheduledAt)}</span>}
+        />
         <Field label={t("customers.detail.call")} value={job.customerMobile ?? "—"} />
       </div>
       <Button size="sm" variant="outline" className="w-fit" onClick={() => onOpenTicket(job.ticketId)}>
@@ -583,7 +595,7 @@ function CurrentJobTab({
   )
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <div className="text-xs text-text-muted">{label}</div>
@@ -770,8 +782,8 @@ function AttendanceTab({ technicianId }: { technicianId: string | undefined }) {
               const isSelected = !!c.dateStr && c.dateStr === selectedDate
               const title = record
                 ? [
-                    record.check_in_at ? t("technicians.detail.attendance.checkedInAt", { time: fmtDateTime(record.check_in_at) }) : null,
-                    t("technicians.detail.attendance.checkedOutAt", { time: record.check_out_at ? fmtDateTime(record.check_out_at) : "—" }),
+                    record.check_in_at ? t("technicians.detail.attendance.checkedInAt", { time: fmtTimeOn(record.check_in_at, c.dateStr ?? "") }) : null,
+                    t("technicians.detail.attendance.checkedOutAt", { time: fmtTimeOn(record.check_out_at, c.dateStr ?? "") }),
                     !record.inside_geofence ? t("technicians.detail.outsideGeofence") : null,
                   ]
                     .filter(Boolean)
@@ -852,10 +864,8 @@ function DayDetailPanel({
         <p className="text-xs font-semibold text-text-muted uppercase">{t("technicians.detail.attendance.timeLogTitle")}</p>
         {record ? (
           <div className="space-y-1 rounded-lg bg-surface px-3 py-2.5">
-            <p className="text-sm text-text">{t("technicians.detail.attendance.checkedInAt", { time: record.check_in_at ? fmtDateTime(record.check_in_at) : "—" })}</p>
-            <p className="text-sm text-text">
-              {t("technicians.detail.attendance.checkedOutAt", { time: record.check_out_at ? fmtDateTime(record.check_out_at) : "—" })}
-            </p>
+            <p className="text-sm text-text">{t("technicians.detail.attendance.checkedInAt", { time: fmtTimeOn(record.check_in_at, dateStr) })}</p>
+            <p className="text-sm text-text">{t("technicians.detail.attendance.checkedOutAt", { time: fmtTimeOn(record.check_out_at, dateStr) })}</p>
             {record.check_in_at && record.check_out_at ? (
               <p className="text-sm text-text-muted">{t("technicians.detail.attendance.workedHours", { duration: fmtDuration(record.check_in_at, record.check_out_at) })}</p>
             ) : null}
@@ -1038,12 +1048,19 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
   const deleteMut = useDeleteTechnicianAvailability()
 
   const [date, setDate] = useState(todayIso())
-  const [status, setStatus] = useState<(typeof AVAILABILITY_STATUS_OPTIONS)[number]>("leave")
+  // Unchosen until picked (choice-no-preselect).
+  const [status, setStatus] = useState<(typeof AVAILABILITY_STATUS_OPTIONS)[number] | "">("")
+  const [statusError, setStatusError] = useState(false)
   const [shiftStart, setShiftStart] = useState("")
   const [shiftEnd, setShiftEnd] = useState("")
 
   function submit() {
     if (!technicianId || !orgId || !date) return
+    if (!status) {
+      setStatusError(true)
+      focusChoice("avail-status")
+      return
+    }
     upsertMut.mutate(
       {
         org_id: orgId,
@@ -1056,7 +1073,7 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
       {
         onSuccess: () => {
           setDate(todayIso())
-          setStatus("leave")
+          setStatus("")
           setShiftStart("")
           setShiftEnd("")
         },
@@ -1082,15 +1099,28 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
           <select
             id="avail-status"
             value={status}
-            onChange={(e) => setStatus(e.target.value as (typeof AVAILABILITY_STATUS_OPTIONS)[number])}
-            className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            onChange={(e) => {
+              setStatus(e.target.value as (typeof AVAILABILITY_STATUS_OPTIONS)[number])
+              setStatusError(false)
+            }}
+            aria-invalid={statusError || undefined}
+            aria-describedby={statusError ? "avail-status-error" : undefined}
+            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
+            <option value="" disabled>
+              {t("common.selectPlaceholder")}
+            </option>
             {AVAILABILITY_STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {t(`technicians.detail.availability.statusOptions.${s}`)}
               </option>
             ))}
           </select>
+          {statusError ? (
+            <p id="avail-status-error" role="alert" className="text-xs text-danger">
+              {t("common.chooseOption")}
+            </p>
+          ) : null}
         </div>
         <div className="space-y-1">
           <Label htmlFor="avail-shift-start">{t("technicians.detail.availability.shiftStart")}</Label>

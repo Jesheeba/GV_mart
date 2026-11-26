@@ -337,8 +337,8 @@ export function CustomerDetailPage() {
 
       <div className="grid grid-cols-1 gap-4.5 lg:grid-cols-[2fr_1fr]">
         <Card className="gap-5">
-          <div className="flex flex-wrap items-start justify-between gap-3 px-1">
-            <div className="flex min-w-0 flex-1 basis-80 items-start gap-4.5">
+          <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-1 items-start gap-4.5">
               <span
                 className="flex size-16 shrink-0 items-center justify-center rounded-[18px] text-[22px] font-extrabold"
                 style={{ background: palette.bg, color: palette.fg }}
@@ -407,7 +407,28 @@ export function CustomerDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-end gap-1.5">
+            <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+              <div className="flex items-center gap-1.5">
+                {customer.mobile ? (
+                  <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
+                    <Phone className="size-4" />
+                  </Button>
+                ) : null}
+                <Button variant="outline" size="icon" title={t("customers.detail.actions.edit")} onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
+                  <Pencil className="size-4" />
+                </Button>
+                {profile?.role === "master" ? (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={t("customers.detail.actions.delete")}
+                    className="text-danger hover:bg-danger/10"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                ) : null}
+              </div>
               <div className="w-44">
                 <PreferredLanguageSelect
                   id="customer-preferred-language"
@@ -418,25 +439,6 @@ export function CustomerDetailPage() {
                   onChange={(next) => setPreferredLanguage.mutate(next, { onError: () => toast.error(t("common.actionFailed")) })}
                 />
               </div>
-              {customer.mobile ? (
-                <Button variant="outline" size="icon" title={t("customers.detail.call")} nativeButton={false} render={<a href={`tel:${customer.mobile}`} />}>
-                  <Phone className="size-4" />
-                </Button>
-              ) : null}
-              <Button variant="outline" size="icon" title={t("customers.detail.actions.edit")} onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}>
-                <Pencil className="size-4" />
-              </Button>
-              {profile?.role === "master" ? (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title={t("customers.detail.actions.delete")}
-                  className="text-danger hover:bg-danger/10"
-                  onClick={() => setDeleteDialogOpen(true)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              ) : null}
             </div>
           </div>
 

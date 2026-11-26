@@ -19,6 +19,7 @@ import { formatCurrency } from "@/lib/sale-calc"
 import { formatDate } from "@/lib/formatDate"
 import { LOST_REASON_PRESETS, lostReasonLabel, type LostReasonPreset } from "@/lib/lead-lost-reasons"
 import type { LeadListItem, LeadStatus } from "@/services/automation"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 const QUOTATION_STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
 
@@ -196,7 +197,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
           <select
             value={lostPreset}
             onChange={(e) => setLostPreset(e.target.value as LostReasonPreset | "")}
-            className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+            className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           >
             <option value="">{t("leads.detail.lostReasonPlaceholder")}</option>
             {LOST_REASON_PRESETS.map((r) => (
@@ -271,7 +272,7 @@ export function LeadDetailPanel({ lead }: { lead: LeadListItem }) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="referral-points">{t("leads.detail.pointsLabel")}</Label>
-                <Input id="referral-points" type="number" min={1} step="1" value={points} onChange={(e) => setPoints(e.target.value)} />
+                <Input id="referral-points" type="number" inputMode="numeric" min={1} step="1" className={FIELD_W.qty} value={points} onChange={(e) => setPoints(e.target.value)} />
               </div>
               <div className="flex justify-end">
                 <Button

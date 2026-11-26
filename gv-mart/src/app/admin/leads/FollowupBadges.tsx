@@ -19,14 +19,15 @@ export function FollowupChip({ dueAt, className }: { dueAt: string | null; class
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+        "inline-flex w-fit max-w-full flex-wrap items-center gap-x-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
         overdue ? "border-danger/40 bg-danger/10 text-danger" : "border-border bg-surface-alt text-text",
         className
       )}
     >
       <CalendarClock className="size-3" />
       {overdue ? `${t("leads.followup.overdue")} · ` : ""}
-      {formatIstDateTime(dueAt, i18n.language)}
+      {/* the date-time never splits; in narrow cards only "Overdue ·" and the date part onto two lines */}
+      <span className="whitespace-nowrap">{formatIstDateTime(dueAt, i18n.language)}</span>
     </span>
   )
 }

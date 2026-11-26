@@ -2,7 +2,7 @@
 
 ## customer-data-sync (2026-11-26)
 - See features/customer-data-sync.md for the 7 sweep fixes: primary member sync, one email box, app address no longer overwritten, profession no longer reverted, moved-out members never counted, drafts keep complaint type and referrer, lead fields card never stale.
-- Migration `20261216120000_primary_member_sync.sql` + rollback written. **NOT applied.**
+- Migration `20261216120000_primary_member_sync.sql` + rollback. **APPLIED LIVE 2026-11-26.**
 - Changed test: `address.test.ts` "treats a populated area alone as a structured field" was replaced. It asserted the behaviour that dropped customer-app addresses.
 
 ## customer-water-household + water-solution-followup (2026-11-26)
@@ -12,8 +12,14 @@
 - Added Total hardness and "Problems faced" (list, + add another). Health condition removed from all screens and dropped from the DB.
 - Added Recommended solution and Follow-up date. The date creates one task for the master. Tasks gets Postpone (later date + reason) and Convert to lead (opens New Lead prefilled, closes the task when saved). Daily 09:00 IST due reminder.
 - Shared `WaterHouseholdFields` (edit) / `WaterHouseholdSummary` (read-only) replace four hand-copied blocks.
-- Migrations `20261216100000`, `20261216110000` + rollbacks + SQL tests are written. **NOT applied, and the SQL rehearsal has not been run.**
+- Migrations `20261216100000`, `20261216110000` + rollbacks + SQL tests. Rehearsal 90/90; **APPLIED LIVE 2026-11-26** (backup in `_local_only/backups/2026-11-26_customer_water_household_v2`).
 - Also removed a pre-existing unused `fullAddress` variable in CustomerFormPage (failed `tsc` on main).
+
+## UX pass (2026-11-26): choice-no-preselect, input-density, date-display, header wrap fix
+- choice-no-preselect (ad28862): address type/ownership (admin + customer app, now the same buttons), payment method (New Sale, Record payment, Rent out, Sell AMC), follow-up type/channel, availability reason, HR/expenses selects, purchase/master item types start unchosen and are required. EntityCrudTable: "Select…" placeholder + required, `defaultValue` keeps Active/pending/No where the DB default matches. New `lib/crudForm.ts`.
+- input-density (bc58f8c): `lib/fieldWidth.ts` width map; about 70 short-number inputs fitted, numeric keypads, maxLength where a strict rule exists; form selects unified to h-10.
+- date-display (f312368): `formatShortDate/DateTime/DateTimeRange` (IST, year only if not current); dates nowrap; split date/time rows merged; device-TZ formatting replaced; 16 date pickers `w-44`; invoice print date now IST (DD/MM/YYYY).
+- Customer header (c7b0851): language picker stays top-right under the action icons instead of wrapping below.
 
 ## pin-autocorrect (2026-11-26)
 - A technician at the customer but outside a wrong (up to 2 km) or missing pin can start the job. Their GPS becomes the pin automatically, with no office approval. The next in-radius arrival locks it.

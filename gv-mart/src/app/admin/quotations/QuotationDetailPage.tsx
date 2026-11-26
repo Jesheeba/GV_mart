@@ -114,12 +114,12 @@ export function QuotationDetailPage() {
                     </tr>
                     <tr>
                       <td className={CELL}>{t("sales.invoice.dateLabel")}</td>
-                      <td className={CELL}>{formatDate(quotation.created_at)}</td>
+                      <td className={`${CELL} whitespace-nowrap`}>{formatDate(quotation.created_at)}</td>
                     </tr>
                     {quotation.valid_until ? (
                       <tr>
                         <td className={CELL}>{t("quotations.table.validUntil")}</td>
-                        <td className={CELL}>{formatDate(quotation.valid_until)}</td>
+                        <td className={`${CELL} whitespace-nowrap`}>{formatDate(quotation.valid_until)}</td>
                       </tr>
                     ) : null}
                   </tbody>

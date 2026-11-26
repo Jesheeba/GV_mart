@@ -24,6 +24,7 @@ import { ColumnPicker } from "@/components/shared/ColumnPicker"
 import { useColumnPrefs } from "@/hooks/useColumnPrefs"
 import { KpiTileStrip } from "../kpi/KpiTileStrip"
 import { PeriodFilter } from "./PeriodFilter"
+import { FIELD_W } from "@/lib/fieldWidth"
 
 // Optional P&L summary rows (revenue / COGS / OpEx / Net Profit always show)
 // and optional expense-breakdown columns — fixed catalogs, toggled per admin.
@@ -412,7 +413,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pnl-expense-amount">{t("reports.pnl.amount")}</Label>
-          <Input id="pnl-expense-amount" type="number" min={0} step="0.01" {...form.register("amount")} />
+          <Input id="pnl-expense-amount" type="number" inputMode="decimal" min={0} step="0.01" className={FIELD_W.amount} {...form.register("amount")} />
           {form.formState.errors.amount ? <p className="text-xs text-danger">{t(form.formState.errors.amount.message!)}</p> : null}
         </div>
         <div className="space-y-1.5">
@@ -420,7 +421,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
           <Controller
             control={form.control}
             name="date"
-            render={({ field }) => <DatePicker id="pnl-expense-date" value={field.value ?? ""} onChange={field.onChange} />}
+            render={({ field }) => <DatePicker id="pnl-expense-date" value={field.value ?? ""} onChange={field.onChange} className="w-44" />}
           />
           {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
         </div>

@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { memberSchema, FAMILY_RELATIONS, type MemberInput } from "@/lib/validation/customer"
 import { useAddMember, useCustomer, useLogMemberGoogleReview } from "@/hooks/useCustomers"
 import { avatarPalette, initials } from "@/lib/avatar"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 /**
  * Read-only-ish sibling of FamilyMembersPanel, embedded in New Sale step 0.
@@ -135,8 +137,8 @@ export function SaleFamilyReviewSection({ orgId, customerId }: { orgId: string |
               <Input placeholder={t("customers.form.memberName")} aria-invalid={!!errors.name} {...register("name")} />
               {errors.name ? <p className="text-xs text-danger">{t(errors.name.message!)}</p> : null}
             </div>
-            <div className="flex-1 space-y-1">
-              <Input placeholder={t("customers.form.memberMobile")} aria-invalid={!!errors.mobile} {...register("mobile")} />
+            <div className={cn(FIELD_W.mobile, "shrink-0 space-y-1")}>
+              <Input placeholder={t("customers.form.memberMobile")} inputMode="numeric" maxLength={10} aria-invalid={!!errors.mobile} {...register("mobile")} />
               {errors.mobile ? <p className="text-xs text-danger">{t(errors.mobile.message!)}</p> : null}
             </div>
           </div>
@@ -152,7 +154,7 @@ export function SaleFamilyReviewSection({ orgId, customerId }: { orgId: string |
           <select
             aria-label={t("customers.form.memberRelation")}
             defaultValue=""
-            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
             {...register("relation")}
           >
             <option value="">{t("customers.form.memberRelationPlaceholder")}</option>

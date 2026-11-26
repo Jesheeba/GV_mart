@@ -41,10 +41,10 @@ import type { ConfirmedAvailabilityReason } from "@/services/service"
 import { ticketPhotoSignedUrl } from "@/services/ticketPhotos"
 import { paymentProofSignedUrl } from "@/services/paymentProofs"
 import { computeJobOverrun } from "@/lib/job-overrun"
-import { formatDate, formatDateTime } from "@/lib/formatDate"
+import { formatDate, formatDateTime, formatShortDateTime, formatShortDateTimeRange, formatTime } from "@/lib/formatDate"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { resolveVisitDurationMinutes } from "@/lib/visit-duration"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
 import { ChannelBadge, PriorityBadge, TicketTypeBadge } from "./TicketBadges"
 import { SlaCountdown } from "./SlaCountdown"
 import { InstallationChargeRow } from "./InstallationChargeRow"
@@ -91,10 +91,7 @@ function PaymentProofCard({
       )}
       <div className="min-w-0 space-y-0.5 text-xs">
         <p className="text-text-muted">
-          {t("service.detail.paymentProof.date")}: <span className="text-text">{formatDate(paidAt)}</span>
-        </p>
-        <p className="text-text-muted">
-          {t("service.detail.paymentProof.time")}: <span className="text-text">{paidAt ? paidAt.toLocaleTimeString() : "—"}</span>
+          {t("service.detail.paymentProof.dateTime")}: <span className="whitespace-nowrap text-text">{formatShortDateTime(paidAt)}</span>
         </p>
         <p className="text-text-muted">
           {t("service.detail.paymentProof.method")}: <span className="text-text">{proof.payments?.payment_method ?? "—"}</span>
@@ -145,7 +142,9 @@ export function TicketDetailPage() {
   // auto-assignment: log a phone-confirmed availability window (customer
   // follow-up/complaint, or the assigned technician can't make the day).
   const [loggingAvailability, setLoggingAvailability] = useState(false)
-  const [availReason, setAvailReason] = useState<ConfirmedAvailabilityReason>("customer_followup")
+  // Unchosen until staff pick one (choice-no-preselect).
+  const [availReason, setAvailReason] = useState<ConfirmedAvailabilityReason | null>(null)
+  const [availReasonError, setAvailReasonError] = useState(false)
   const [availDate, setAvailDate] = useState("")
   const [availFrom, setAvailFrom] = useState("")
   const [availTo, setAvailTo] = useState("")
@@ -479,7 +478,10 @@ export function TicketDetailPage() {
           </div>
           <Field label={t("service.newComplaint.nameOfComplaint")} value={ticket.name_of_complaint || "—"} />
           <Field label={t("service.newComplaint.natureOfComplaint")} value={ticket.nature_of_complaint || "—"} />
-          <Field label={t("service.table.appointment")} value={appointment?.mode === "always" ? t("service.appointment.always") : appointment?.scheduled_at ? formatDateTime(appointment.scheduled_at) : "—"} />
+          <Field
+            label={t("service.table.appointment")}
+            value={<span className="whitespace-nowrap">{appointment?.mode === "always" ? t("service.appointment.always") : formatShortDateTime(appointment?.scheduled_at)}</span>}
+          />
           <Field label={t("service.detail.status")} value={t(`service.status.${ticket.status}`)} />
           {!editingAddress ? (
             <div>
@@ -849,12 +851,22 @@ export function TicketDetailPage() {
 
           {loggingAvailability ? (
             <div className="space-y-2.5 border-t border-border pt-3">
-              <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+              <div
+                id="avail-reason"
+                role="group"
+                aria-label={t("service.detail.confirmedAvailability.title")}
+                aria-describedby={availReasonError ? "avail-reason-error" : undefined}
+                className="flex gap-1 rounded-full bg-surface-alt p-1"
+              >
                 {(["customer_followup", "technician_unavailable"] as const).map((r) => (
                   <button
                     key={r}
                     type="button"
-                    onClick={() => setAvailReason(r)}
+                    aria-pressed={availReason === r}
+                    onClick={() => {
+                      setAvailReason(r)
+                      setAvailReasonError(false)
+                    }}
                     className={cn(
                       "flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                       availReason === r ? "bg-ink text-white" : "text-text-muted"
@@ -864,10 +876,15 @@ export function TicketDetailPage() {
                   </button>
                 ))}
               </div>
+              {availReasonError ? (
+                <p id="avail-reason-error" role="alert" className="text-xs text-danger">
+                  {t("service.detail.confirmedAvailability.reasonRequired")}
+                </p>
+              ) : null}
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <div className="space-y-1">
                   <Label htmlFor="avail-call-date">{t("service.detail.confirmedAvailability.date")}</Label>
-                  <DatePicker id="avail-call-date" value={availDate} onChange={setAvailDate} />
+                  <DatePicker id="avail-call-date" value={availDate} onChange={setAvailDate} className="w-44" />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="avail-call-from">{t("service.detail.confirmedAvailability.from")}</Label>
@@ -896,7 +913,12 @@ export function TicketDetailPage() {
                 <Button
                   size="sm"
                   disabled={!availDate || !availFrom || !availTo || availFrom >= availTo || logAvailability.isPending}
-                  onClick={() =>
+                  onClick={() => {
+                    if (!availReason) {
+                      setAvailReasonError(true)
+                      focusChoice("avail-reason")
+                      return
+                    }
                     logAvailability.mutate(
                       { appointmentId: appointment.id, reason: availReason, confirmedDate: availDate, confirmedFrom: availFrom, confirmedTo: availTo, note: availNote },
                       {
@@ -906,12 +928,12 @@ export function TicketDetailPage() {
                           setAvailFrom("")
                           setAvailTo("")
                           setAvailNote("")
-                          setAvailReason("customer_followup")
+                          setAvailReason(null)
                         },
                         onError: () => toast.error(t("common.actionFailed")),
                       }
                     )
-                  }
+                  }}
                 >
                   {logAvailability.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
                 </Button>
@@ -935,8 +957,9 @@ export function TicketDetailPage() {
         </div>
         {visit ? (
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <Field label={t("service.detail.startTime")} value={visit.timer_start ? formatDateTime(visit.timer_start) : "—"} />
-            <Field label={t("service.detail.closeTime")} value={visit.timer_end ? formatDateTime(visit.timer_end) : "—"} />
+            <div className="col-span-2">
+              <Field label={t("service.detail.startClose")} value={<span className="whitespace-nowrap">{formatShortDateTimeRange(visit.timer_start, visit.timer_end)}</span>} />
+            </div>
             <Field
               label={t("service.detail.totalTime")}
               value={
@@ -1275,7 +1298,7 @@ export function TicketDetailPage() {
                     <ul className="max-h-32 space-y-0.5 overflow-y-auto rounded-lg border border-border p-2 text-xs text-text-muted">
                       {v.locations.map((loc) => (
                         <li key={loc.id}>
-                          {loc.lat}, {loc.lng} @ {new Date(loc.recorded_at).toLocaleTimeString()}
+                          {loc.lat}, {loc.lng} @ <span className="whitespace-nowrap">{formatTime(loc.recorded_at)}</span>
                         </li>
                       ))}
                     </ul>

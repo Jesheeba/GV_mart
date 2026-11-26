@@ -17,6 +17,8 @@ import { canSubmitWithWarning, duplicateWarningKey } from "@/lib/duplicateContac
 import { useProfile } from "@/hooks/useProfile"
 import { useLeadSourceOptions } from "@/hooks/useLeadSources"
 import { useLeadKindOptions, useLeadProductTypeOptions } from "@/hooks/useLeadLists"
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn } from "@/lib/utils"
 
 export function NewLeadForm({
   onClose,
@@ -130,7 +132,7 @@ export function NewLeadForm({
         </div>
         <div className="space-y-0.5">
           <Label htmlFor="lead-mobile">{t("leads.new.mobile")}</Label>
-          <Input id="lead-mobile" className="h-8 px-2.5" {...form.register("mobile")} />
+          <Input id="lead-mobile" type="tel" inputMode="tel" className={cn("h-8 px-2.5", FIELD_W.mobile)} {...form.register("mobile")} />
         </div>
         {!existingCustomer ? (
           <div className="sm:col-span-2">
@@ -190,7 +192,7 @@ export function NewLeadForm({
         </div>
         <div className="space-y-0.5">
           <Label htmlFor="lead-budget">{t("leads.new.budget")}</Label>
-          <Input id="lead-budget" type="number" min={0} className="h-8 px-2.5" {...form.register("budget")} />
+          <Input id="lead-budget" type="number" inputMode="decimal" min={0} className={cn("h-8 px-2.5", FIELD_W.amount)} {...form.register("budget")} />
           {form.formState.errors.budget ? <p className="text-xs text-danger">{t(form.formState.errors.budget.message!)}</p> : null}
         </div>
         <div className="space-y-0.5">

@@ -154,12 +154,34 @@ export const addressStepSchema = z.object({
   district: z.string().trim().optional().or(z.literal("")),
   state: z.string().trim().optional().or(z.literal("")),
   zone: z.string().trim().optional().or(z.literal("")),
-  addressType: z.enum(["residential", "commercial"]),
-  ownership: z.enum(["own", "rental"]),
+  // Start unchosen (choice-no-preselect): required as soon as the address has any detail — a contact
+  // saved with no address at all has nothing for them to describe.
+  addressType: z.enum(["residential", "commercial"], { message: "customers.errors.addressTypeRequired" }).optional(),
+  ownership: z.enum(["own", "rental"], { message: "customers.errors.ownershipRequired" }).optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
+}).superRefine((v, ctx) => {
+  if (!hasAddressDetails(v)) return
+  if (!v.addressType) ctx.addIssue({ code: "custom", path: ["addressType"], message: "customers.errors.addressTypeRequired" })
+  if (!v.ownership) ctx.addIssue({ code: "custom", path: ["ownership"], message: "customers.errors.ownershipRequired" })
 })
 export type AddressStepInput = z.infer<typeof addressStepSchema>
+
+type AddressDetailFields = Pick<
+  AddressStepInput,
+  "doorNo" | "plotNo" | "buildingName" | "streetCross" | "subArea" | "landmark" | "fullAddress" | "area" | "pincode" | "district" | "state" | "zone" | "lat" | "lng"
+>
+
+/** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
+export function hasAddressDetails(a: AddressDetailFields) {
+  return (
+    [a.doorNo, a.plotNo, a.buildingName, a.streetCross, a.subArea, a.landmark, a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some(
+      (v) => v?.trim()
+    ) ||
+    a.lat != null ||
+    a.lng != null
+  )
+}
 
 /**
  * Only the master role may save a customer address without pinning an exact

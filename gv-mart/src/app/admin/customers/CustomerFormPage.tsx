@@ -35,6 +35,7 @@ import {
   FAMILY_RELATIONS,
   waterProfileSchema,
   type WaterProfileInput,
+  hasAddressDetails,
   type AddressStepInput,
   type PeopleStepInput,
 } from "@/lib/validation/customer"
@@ -69,17 +70,8 @@ import {
 import { canSubmitWithWarning, duplicateWarningKey } from "@/lib/duplicateContactWarning"
 import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
 import { guardReentry } from "@/lib/async-guard"
-
-/** Mirrors the RPC's has_address: any address text or a map pin (type/ownership alone don't count). */
-function hasAddressText(a: AddressStepInput) {
-  return (
-    [a.doorNo, a.plotNo, a.buildingName, a.streetCross, a.subArea, a.landmark, a.fullAddress, a.area, a.pincode, a.district, a.state, a.zone].some(
-      (v) => v?.trim()
-    ) ||
-    a.lat != null ||
-    a.lng != null
-  )
-}
+import { FIELD_W } from "@/lib/fieldWidth"
+import { cn, focusChoice } from "@/lib/utils"
 
 function MemberFieldRow({
   index,
@@ -117,9 +109,11 @@ function MemberFieldRow({
           <Input placeholder={t("customers.form.memberName")} aria-invalid={!!errors.members?.[index]?.name} {...register(`members.${index}.name`)} />
           {errors.members?.[index]?.name ? <p className="text-xs text-danger">{t(errors.members[index]!.name!.message!)}</p> : null}
         </div>
-        <div className="flex-1 space-y-1">
+        <div className={cn(FIELD_W.mobile, "shrink-0 space-y-1")}>
           <Input
             placeholder={t("customers.form.memberMobile")}
+            inputMode="numeric"
+            maxLength={10}
             aria-invalid={!!errors.members?.[index]?.mobile}
             {...register(`members.${index}.mobile`)}
           />
@@ -149,7 +143,7 @@ function MemberFieldRow({
           <select
             aria-label={t("customers.form.memberRelation")}
             defaultValue=""
-            className="h-9 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
             {...register(`members.${index}.relation`)}
           >
             <option value="">{t("customers.form.memberRelationPlaceholder")}</option>
@@ -268,8 +262,9 @@ export function CustomerFormPage() {
       district: "",
       state: "",
       zone: "",
-      addressType: "residential",
-      ownership: "own",
+      // Unchosen on a new customer (choice-no-preselect); the edit reset below loads the saved values.
+      addressType: undefined,
+      ownership: undefined,
       lat: undefined,
       lng: undefined,
     },
@@ -476,9 +471,25 @@ export function CustomerFormPage() {
     setMaxStepReached((m) => Math.max(m, 1))
   }
 
+  // Type/ownership live on the address step: send staff back there and focus the first missing choice.
+  function focusMissingAddressChoice() {
+    const id = addressForm.getFieldState("addressType").error
+      ? "address-type-group"
+      : addressForm.getFieldState("ownership").error
+        ? "address-ownership-group"
+        : null
+    if (!id) return false
+    setStep(1)
+    requestAnimationFrame(() => focusChoice(id))
+    return true
+  }
+
   async function handleAddressNext() {
-    const valid = await addressForm.trigger(["pincode"])
-    if (!valid) return
+    const valid = await addressForm.trigger(["pincode", "addressType", "ownership"])
+    if (!valid) {
+      focusMissingAddressChoice()
+      return
+    }
     setStep(2)
     setMaxStepReached((m) => Math.max(m, 2))
   }
@@ -491,7 +502,11 @@ export function CustomerFormPage() {
 
   async function handleSaveAndFinishInner() {
     const [valid, waterValid] = await Promise.all([addressForm.trigger(), waterForm.trigger()])
-    if (!valid || !waterValid || !checkFollowUpDate(waterForm, savedFollowUpDate)) return
+    if (!valid) {
+      focusMissingAddressChoice()
+      return
+    }
+    if (!waterValid || !checkFollowUpDate(waterForm, savedFollowUpDate)) return
     const addressValues = addressForm.getValues()
     const waterPatch = waterFormToPatch(waterForm.getValues())
     // Structured fields are the source of truth the moment any is filled;
@@ -564,7 +579,7 @@ export function CustomerFormPage() {
       // The customer itself is already created at this point, so a failure
       // here shouldn't block navigation — just warn so it can be re-entered
       // via edit.
-      if (addressValues.zone?.trim() && hasAddressText(addressValues)) {
+      if (addressValues.zone?.trim() && hasAddressDetails(addressValues)) {
         try {
           const primaryAddressId = await getPrimaryAddressId(newId)
           await setAddressZone(primaryAddressId, addressValues.zone.trim())
@@ -583,7 +598,7 @@ export function CustomerFormPage() {
         addressValues.streetCross?.trim() ||
         addressValues.subArea?.trim() ||
         addressValues.landmark?.trim()
-      if (hasStructuredFields && hasAddressText(addressValues)) {
+      if (hasStructuredFields && hasAddressDetails(addressValues)) {
         try {
           const primaryAddressId = await getPrimaryAddressId(newId)
           await setAddressStructuredFields(primaryAddressId, {
@@ -621,7 +636,7 @@ export function CustomerFormPage() {
     // edit mode (profession is edited per member now; the primary member's change also updates the customer)
     const existingAddressId = existing.data!.addresses.find((a) => a.is_primary)?.id ?? existing.data!.addresses[0]?.id ?? null
     // Blank address on a customer with none stays "needs setup" — no empty row.
-    if (existingAddressId || hasAddressText(addressValues)) {
+    if (existingAddressId || hasAddressDetails(addressValues)) {
       await upsertAddress.mutateAsync({ existingAddressId, patch: { ...addressValues, fullAddress: composedFullAddress, keepLocation: locationLocked } })
     }
     await saveWater.mutateAsync({
@@ -838,6 +853,8 @@ export function CustomerFormPage() {
                 openOnFocus
                 onFocus={() => touch("pincode")}
                 maxLength={6}
+                inputMode="numeric"
+                inputClassName={FIELD_W.pincode}
                 ariaInvalid={!!addressForm.formState.errors.pincode}
               />
               {addressForm.formState.errors.pincode ? (
@@ -933,7 +950,7 @@ export function CustomerFormPage() {
                 confirmedLocationTextRef.current = locationText(addressForm.getValues())
               }}
             />
-            {lat == null && lng == null && !autoLocate.isPending && hasAddressText(addressForm.getValues()) ? (
+            {lat == null && lng == null && !autoLocate.isPending && hasAddressDetails(addressForm.getValues()) ? (
               <p className="text-xs text-warning">
                 {pinOptional ? t("customers.form.map.pinOptionalMasterNote") : t("customers.form.map.pinRequired")}
               </p>
@@ -944,24 +961,42 @@ export function CustomerFormPage() {
 
           <div className="flex flex-wrap gap-4 border-t border-border px-1 pt-3">
             <div className="space-y-1.5">
-              <Label>{t("customers.form.addressType")}</Label>
-              <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+              <Label id="address-type-label">{t("customers.form.addressType")}</Label>
+              <div
+                id="address-type-group"
+                role="group"
+                aria-labelledby="address-type-label"
+                aria-describedby={addressForm.formState.errors.addressType ? "address-type-error" : undefined}
+                className="flex gap-1 rounded-full bg-surface-alt p-1"
+              >
                 {(["residential", "commercial"] as const).map((v) => (
-                  <SegButton key={v} active={addressForm.watch("addressType") === v} onClick={() => addressForm.setValue("addressType", v)}>
+                  <SegButton key={v} active={addressForm.watch("addressType") === v} onClick={() => addressForm.setValue("addressType", v, { shouldValidate: true })}>
                     {t(`customers.form.${v}`)}
                   </SegButton>
                 ))}
               </div>
+              {addressForm.formState.errors.addressType ? (
+                <p id="address-type-error" role="alert" className="text-xs text-danger">{t(addressForm.formState.errors.addressType.message!)}</p>
+              ) : null}
             </div>
             <div className="space-y-1.5">
-              <Label>{t("customers.form.ownership")}</Label>
-              <div className="flex gap-1 rounded-full bg-surface-alt p-1">
+              <Label id="address-ownership-label">{t("customers.form.ownership")}</Label>
+              <div
+                id="address-ownership-group"
+                role="group"
+                aria-labelledby="address-ownership-label"
+                aria-describedby={addressForm.formState.errors.ownership ? "address-ownership-error" : undefined}
+                className="flex gap-1 rounded-full bg-surface-alt p-1"
+              >
                 {(["own", "rental"] as const).map((v) => (
-                  <SegButton key={v} active={addressForm.watch("ownership") === v} onClick={() => addressForm.setValue("ownership", v)}>
+                  <SegButton key={v} active={addressForm.watch("ownership") === v} onClick={() => addressForm.setValue("ownership", v, { shouldValidate: true })}>
                     {t(`customers.form.${v}`)}
                   </SegButton>
                 ))}
               </div>
+              {addressForm.formState.errors.ownership ? (
+                <p id="address-ownership-error" role="alert" className="text-xs text-danger">{t(addressForm.formState.errors.ownership.message!)}</p>
+              ) : null}
             </div>
           </div>
         </Card>
@@ -988,7 +1023,7 @@ export function CustomerFormPage() {
           <Button
             type="button"
             onClick={handleAddressNext}
-            disabled={!pinOptional && lat == null && lng == null && hasAddressText(addressForm.getValues())}
+            disabled={!pinOptional && lat == null && lng == null && hasAddressDetails(addressForm.getValues())}
           >
             {t("customers.form.next")}
           </Button>

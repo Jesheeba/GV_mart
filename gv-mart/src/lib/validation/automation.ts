@@ -85,6 +85,16 @@ export const poItemSchema = z.object({
 })
 export type PoItemInput = z.infer<typeof poItemSchema>
 
+/** A PO/bill line while it's being filled in: the item type starts unchosen ("") so staff pick Spare or
+ * Product themselves (choice-no-preselect). Only complete lines are submitted — see isCompletePoItem. */
+export type PoItemDraft = Omit<PoItemInput, "itemType"> & { itemType: PoItemInput["itemType"] | "" }
+export function emptyPoItem(): PoItemDraft {
+  return { itemType: "", itemId: "", qty: 1, price: 0 }
+}
+export function isCompletePoItem(i: PoItemDraft): i is PoItemInput {
+  return i.itemType !== "" && !!i.itemId && i.qty > 0
+}
+
 export const createPurchaseOrderSchema = z.object({
   supplierId: z.string().uuid("purchase.errors.supplierRequired"),
   items: z.array(poItemSchema).min(1, "purchase.errors.itemsRequired"),
