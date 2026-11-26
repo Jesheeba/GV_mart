@@ -75,8 +75,8 @@ export type AddressInput = {
   // map-picker integration and customerAddressSchema's doc comment.
   lat?: number
   lng?: number
-  addressType: Enums<"address_type">
-  ownership: Enums<"ownership_type">
+  addressType?: Enums<"address_type">
+  ownership?: Enums<"ownership_type">
 }
 
 function addressRow(input: AddressInput) {
@@ -95,8 +95,8 @@ function addressRow(input: AddressInput) {
     // in that same case.
     lat: input.lat,
     lng: input.lng,
-    address_type: input.addressType,
-    ownership: input.ownership,
+    address_type: input.addressType ?? null,
+    ownership: input.ownership ?? null,
   }
 }
 

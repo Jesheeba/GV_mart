@@ -889,8 +889,8 @@ export type Database = {
           /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
           location_verified_at: string | null
           location_verified_by: string | null
-          address_type: Database["public"]["Enums"]["address_type"]
-          ownership: Database["public"]["Enums"]["ownership_type"]
+          address_type: Database["public"]["Enums"]["address_type"] | null
+          ownership: Database["public"]["Enums"]["ownership_type"] | null
           is_primary: boolean
           zone: string | null
           /** Single free-text address box — see migration 20261103090000. */
@@ -922,8 +922,8 @@ export type Database = {
           /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
           location_verified_at?: string | null
           location_verified_by?: string | null
-          address_type?: Database["public"]["Enums"]["address_type"]
-          ownership?: Database["public"]["Enums"]["ownership_type"]
+          address_type?: Database["public"]["Enums"]["address_type"] | null
+          ownership?: Database["public"]["Enums"]["ownership_type"] | null
           is_primary?: boolean
           zone?: string | null
           full_address?: string | null
@@ -953,8 +953,8 @@ export type Database = {
           /** Arrival location lock (20261214100000): set once by the first in-radius technician arrival; only reset_address_location_verification clears it. */
           location_verified_at?: string | null
           location_verified_by?: string | null
-          address_type?: Database["public"]["Enums"]["address_type"]
-          ownership?: Database["public"]["Enums"]["ownership_type"]
+          address_type?: Database["public"]["Enums"]["address_type"] | null
+          ownership?: Database["public"]["Enums"]["ownership_type"] | null
           is_primary?: boolean
           zone?: string | null
           full_address?: string | null

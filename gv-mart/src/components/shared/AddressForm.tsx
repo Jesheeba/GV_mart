@@ -16,7 +16,6 @@ import { customerAddressSchema, type CustomerAddressInput } from "@/lib/validati
 import { addressLocalityText } from "@/lib/address"
 import type { AddressRow } from "@/services/customerApp"
 import { FIELD_W } from "@/lib/fieldWidth"
-import { focusChoice } from "@/lib/utils"
 
 /**
  * Shared add/edit address form — used by the Profile page's address list and
@@ -175,12 +174,7 @@ export function AddressForm({
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit, (errs) => {
-        // react-hook-form focuses the text fields it registered itself; the button groups need a hand.
-        if (errs.fullAddress || errs.area || errs.pincode) return
-        if (errs.addressType) focusChoice(`${uid}-addressType`)
-        else if (errs.ownership) focusChoice(`${uid}-ownership`)
-      })}
+      onSubmit={handleSubmit(onSubmit)}
       className="space-y-2.5 border-t border-border pt-3">
       <div className="space-y-1">
         <Label htmlFor={`${uid}-fullAddress`} className="sr-only">{t("customerApp.profile.address.fullAddress")}</Label>
@@ -267,20 +261,22 @@ export function AddressForm({
       <div className="grid grid-cols-2 gap-3">
         <ChoiceSelect
           id={`${uid}-addressType`}
+          optional
           label={t("customerApp.profile.address.type")}
           labelClassName="text-xs text-text-muted"
           value={addressType}
           options={(["residential", "commercial"] as const).map((v) => ({ value: v, label: t(`customerApp.profile.address.${v}`) }))}
-          onChange={(v) => v && setValue("addressType", v, { shouldValidate: true })}
+          onChange={(v) => setValue("addressType", v || undefined, { shouldValidate: true })}
           error={errors.addressType ? t(errors.addressType.message!) : undefined}
         />
         <ChoiceSelect
           id={`${uid}-ownership`}
+          optional
           label={t("customerApp.profile.address.ownership")}
           labelClassName="text-xs text-text-muted"
           value={ownership}
           options={(["own", "rental"] as const).map((v) => ({ value: v, label: t(`customerApp.profile.address.${v}`) }))}
-          onChange={(v) => v && setValue("ownership", v, { shouldValidate: true })}
+          onChange={(v) => setValue("ownership", v || undefined, { shouldValidate: true })}
           error={errors.ownership ? t(errors.ownership.message!) : undefined}
         />
       </div>

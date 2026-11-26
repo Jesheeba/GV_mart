@@ -590,7 +590,7 @@ export type CreateCustomerInput = {
     pincode?: string
     district?: string
     state?: string
-    /** Omitted only when the address has no details at all (the form requires both otherwise); the RPC/column default then applies. */
+    /** Omitted = "Not set": written as null, never defaulted (20261227100000_address_choice_not_set). */
     addressType?: Enums<"address_type">
     ownership?: Enums<"ownership_type">
     lat?: number
@@ -624,8 +624,8 @@ export async function createCustomerWithDetails(input: CreateCustomerInput) {
       pincode: input.address.pincode ?? "",
       district: input.address.district ?? "",
       state: input.address.state ?? "",
-      address_type: input.address.addressType,
-      ownership: input.address.ownership,
+      address_type: input.address.addressType ?? null,
+      ownership: input.address.ownership ?? null,
       lat: input.address.lat ?? null,
       lng: input.address.lng ?? null,
     },
@@ -843,7 +843,7 @@ export async function upsertPrimaryAddress(
     district?: string
     state?: string
     zone?: string
-    /** Omitted only when the address has no details at all (the form requires both otherwise); the RPC/column default then applies. */
+    /** Omitted = "Not set": written as null, never defaulted (20261227100000_address_choice_not_set). */
     addressType?: Enums<"address_type">
     ownership?: Enums<"ownership_type">
     lat?: number
@@ -865,8 +865,8 @@ export async function upsertPrimaryAddress(
     district: patch.district || null,
     state: patch.state || null,
     zone: patch.zone || null,
-    address_type: patch.addressType,
-    ownership: patch.ownership,
+    address_type: patch.addressType ?? null,
+    ownership: patch.ownership ?? null,
     ...(patch.keepLocation ? {} : { lat: patch.lat ?? null, lng: patch.lng ?? null }),
   }
   if (existingAddressId) {

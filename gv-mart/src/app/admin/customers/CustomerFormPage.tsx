@@ -71,7 +71,7 @@ import { canSubmitWithWarning, duplicateWarningKey } from "@/lib/duplicateContac
 import { DuplicateContactWarning } from "@/components/shared/DuplicateContactWarning"
 import { guardReentry } from "@/lib/async-guard"
 import { FIELD_W } from "@/lib/fieldWidth"
-import { cn, focusChoice } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 function MemberFieldRow({
   index,
@@ -411,8 +411,8 @@ export function CustomerFormPage() {
           district: primary.district ?? "",
           state: primary.state ?? "",
           zone: primary.zone ?? "",
-          addressType: primary.address_type,
-          ownership: primary.ownership,
+          addressType: primary.address_type ?? undefined,
+          ownership: primary.ownership ?? undefined,
           lat: primary.lat ?? undefined,
           lng: primary.lng ?? undefined,
         })
@@ -471,25 +471,8 @@ export function CustomerFormPage() {
     setMaxStepReached((m) => Math.max(m, 1))
   }
 
-  // Type/ownership live on the address step: send staff back there and focus the first missing choice.
-  function focusMissingAddressChoice() {
-    const id = addressForm.getFieldState("addressType").error
-      ? "address-type"
-      : addressForm.getFieldState("ownership").error
-        ? "address-ownership"
-        : null
-    if (!id) return false
-    setStep(1)
-    requestAnimationFrame(() => focusChoice(id))
-    return true
-  }
-
   async function handleAddressNext() {
-    const valid = await addressForm.trigger(["pincode", "addressType", "ownership"])
-    if (!valid) {
-      focusMissingAddressChoice()
-      return
-    }
+    if (!(await addressForm.trigger(["pincode"]))) return
     setStep(2)
     setMaxStepReached((m) => Math.max(m, 2))
   }
@@ -503,7 +486,7 @@ export function CustomerFormPage() {
   async function handleSaveAndFinishInner() {
     const [valid, waterValid] = await Promise.all([addressForm.trigger(), waterForm.trigger()])
     if (!valid) {
-      focusMissingAddressChoice()
+      setStep(1) // the address step's error (e.g. PIN code) is shown there
       return
     }
     if (!waterValid || !checkFollowUpDate(waterForm, savedFollowUpDate)) return
@@ -962,6 +945,7 @@ export function CustomerFormPage() {
           <div className="grid grid-cols-2 gap-3 border-t border-border px-1 pt-3 sm:max-w-md">
             <ChoiceSelect
               id="address-type"
+              optional
               label={t("customers.form.addressType")}
               value={addressForm.watch("addressType")}
               options={(["residential", "commercial"] as const).map((v) => ({ value: v, label: t(`customers.form.${v}`) }))}
@@ -970,6 +954,7 @@ export function CustomerFormPage() {
             />
             <ChoiceSelect
               id="address-ownership"
+              optional
               label={t("customers.form.ownership")}
               value={addressForm.watch("ownership")}
               options={(["own", "rental"] as const).map((v) => ({ value: v, label: t(`customers.form.${v}`) }))}

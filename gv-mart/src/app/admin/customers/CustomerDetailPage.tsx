@@ -359,9 +359,14 @@ export function CustomerDetailPage() {
                 <div className="flex flex-wrap gap-2">
                   {primaryAddress ? (
                     <>
-                      <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
-                        {t(`customers.form.${primaryAddress.address_type}`)} · {t(`customers.form.${primaryAddress.ownership}`)}
-                      </span>
+                      {primaryAddress.address_type || primaryAddress.ownership ? (
+                        <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold text-text">
+                          {[primaryAddress.address_type, primaryAddress.ownership]
+                            .filter(Boolean)
+                            .map((v) => t(`customers.form.${v}`))
+                            .join(" · ")}
+                        </span>
+                      ) : null}
                       <span className="rounded-full border border-border bg-surface-alt px-2.75 py-1 text-[11px] font-semibold">
                         {(() => {
                           const status = pinStatus(primaryAddress, latestPinEvent.data)

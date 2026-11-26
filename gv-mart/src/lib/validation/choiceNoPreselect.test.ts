@@ -5,7 +5,7 @@ import { paymentDetailsSchema, PAYMENT_METHOD_REQUIRED } from "./sale"
 import { rentOutSchema } from "./rentals"
 import { emptyPoItem, isCompletePoItem, poItemSchema } from "./automation"
 
-/** choice-no-preselect (build-docs/features/choice-no-preselect.md): either/or choices start unchosen and are required. */
+/** choice-no-preselect (build-docs/features/choice-no-preselect.md): either/or choices start unchosen. Address type/ownership: optional "Not set" since 2026-11-26. */
 
 const messages = (r: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }) =>
   (r.error?.issues ?? []).map((i) => `${i.path.join(".")}:${i.message}`)
@@ -13,16 +13,21 @@ const messages = (r: { success: boolean; error?: { issues: { path: PropertyKey[]
 describe("addressStepSchema (admin customer form)", () => {
   const filled = { pincode: "600001", area: "Anna Nagar" }
 
-  it("AC2: an address with details but no type/ownership is blocked with both choice errors", () => {
+  // Owner, 2026-11-26: type/ownership are dropdowns with "Not set", saved as null (replaces the earlier
+  // "must choose" rule, so the two tests that asserted it were rewritten, not weakened).
+  it("Not set: an address with details but no type/ownership saves, with both left empty (not defaulted)", () => {
     const r = addressStepSchema.safeParse(filled)
-    expect(r.success).toBe(false)
-    expect(messages(r)).toEqual(
-      expect.arrayContaining(["addressType:customers.errors.addressTypeRequired", "ownership:customers.errors.ownershipRequired"])
-    )
+    expect(r.success).toBe(true)
+    expect(r.data?.addressType).toBeUndefined()
+    expect(r.data?.ownership).toBeUndefined()
   })
 
-  it("AC2: a map pin alone counts as an address, so the choices are required", () => {
-    expect(addressStepSchema.safeParse({ pincode: "", lat: 13.08, lng: 80.27 }).success).toBe(false)
+  it("Not set: a map pin with no type/ownership also saves", () => {
+    expect(addressStepSchema.safeParse({ pincode: "", lat: 13.08, lng: 80.27 }).success).toBe(true)
+  })
+
+  it("Not set: one chosen, the other left Not set, is allowed", () => {
+    expect(addressStepSchema.safeParse({ ...filled, ownership: "rental" }).success).toBe(true)
   })
 
   it("AC1/AC2: a contact saved with no address at all needs no type/ownership (nothing to describe)", () => {
@@ -52,11 +57,15 @@ describe("addressStepSchema (admin customer form)", () => {
 describe("customerAddressSchema (customer app AddressForm)", () => {
   const base = { fullAddress: "12, 2nd Street", area: "Anna Nagar", pincode: "600040" }
 
-  it("AC2/AC4: missing type and ownership fail with the same messages as the admin form", () => {
-    expect(messages(customerAddressSchema.safeParse(base))).toEqual([
-      "addressType:customers.errors.addressTypeRequired",
-      "ownership:customers.errors.ownershipRequired",
-    ])
+  it("Not set: the customer may leave type and ownership unset, same as the admin form", () => {
+    const r = customerAddressSchema.safeParse(base)
+    expect(r.success).toBe(true)
+    expect(r.data?.addressType).toBeUndefined()
+    expect(r.data?.ownership).toBeUndefined()
+  })
+
+  it("still rejects a value outside the enum", () => {
+    expect(messages(customerAddressSchema.safeParse({ ...base, ownership: "leased" }))).toEqual(["ownership:customers.errors.ownershipRequired"])
   })
 
   it("AC2: valid choices pass", () => {
