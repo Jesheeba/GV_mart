@@ -49,7 +49,7 @@ import {
 } from "@/hooks/useTechnician"
 import { findOpenVisit, isChargeableTicketType, isTicketClosed } from "@/services/technician"
 import { discountNeedsApproval, isDiscountBlocked, roChecklistSchema, servicePaymentSchema, enquiryLeadSchema, fromYesNo, toYesNo, ENQUIRY_TYPE_REQUIRED, type YesNo } from "@/lib/validation/technician"
-import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
+import { billBreakdown, defaultGstMode, formatCurrency, gstModeParts, toGstMode, type GstMode } from "@/lib/sale-calc"
 import { db } from "@/lib/offline/db"
 import { startSyncEngine } from "@/lib/offline/sync"
 import type { Enums } from "@/types/database"
@@ -121,6 +121,8 @@ type VisitDraftData = {
   discountMode: "percent" | "amount"
   discountAmountInput: string
   /** Per-bill GST switch; null = org default (gst-everywhere). */
+  gstModeChoice?: GstMode | null
+  /** Drafts saved before no-gst-bill (true = included). */
   gstInclusiveChoice?: boolean | null
   serviceChargeInput: string
   tdsBefore: string
@@ -231,7 +233,7 @@ export function OnSiteVisitPage() {
   // payload) is unaffected by which mode was used to arrive at it.
   const [discountMode, setDiscountMode] = useState<"percent" | "amount">("percent")
   // null = follow the org default (Masters -> Settings) until the technician flips the switch
-  const [gstInclusiveChoice, setGstInclusiveChoice] = useState<boolean | null>(null)
+  const [gstModeChoice, setGstModeChoice] = useState<GstMode | null>(null)
   const [discountAmountInput, setDiscountAmountInput] = useState("0")
   const [serviceChargeInput, setServiceChargeInput] = useState("0")
 
@@ -406,7 +408,8 @@ export function OnSiteVisitPage() {
       if (d.discountInput != null) setDiscountInput(d.discountInput)
       if (d.discountMode) setDiscountMode(d.discountMode)
       if (d.discountAmountInput != null) setDiscountAmountInput(d.discountAmountInput)
-      if (d.gstInclusiveChoice !== undefined) setGstInclusiveChoice(d.gstInclusiveChoice)
+      const restoredGst = toGstMode(d.gstModeChoice ?? d.gstInclusiveChoice)
+      if (restoredGst) setGstModeChoice(restoredGst)
       if (d.serviceChargeInput != null) setServiceChargeInput(d.serviceChargeInput)
       if (d.tdsBefore != null) setTdsBefore(d.tdsBefore)
       if (d.tdsAfter != null) setTdsAfter(d.tdsAfter)
@@ -462,7 +465,7 @@ export function OnSiteVisitPage() {
     discountInput,
     discountMode,
     discountAmountInput,
-    gstInclusiveChoice,
+    gstModeChoice,
     serviceChargeInput,
     tdsBefore,
     tdsAfter,
@@ -744,11 +747,12 @@ export function OnSiteVisitPage() {
         ? Math.max(0, ((Number(discountAmountInput) || 0) / subtotal) * 100)
         : 0
       : Math.max(0, Number(discountInput) || 0)
-  const gstInclusive = gstInclusiveChoice ?? !!settings.data.prices_include_gst
+  const gstMode = gstModeChoice ?? defaultGstMode(settings.data.prices_include_gst)
   const gstRate = Number(settings.data.gst_rate ?? 0)
+  const { gstInclusive, noGst, rate: billGstRate } = gstModeParts(gstMode, gstRate)
   // Same math as create_service_invoice (_gst_amount): GST on top when Extra, carved out when Included.
   // Before gst-everywhere this total left GST out, so the QR / cash amount was 18% short of the invoice.
-  const bill = billBreakdown(subtotal, discountPercent, gstRate, gstInclusive)
+  const bill = billBreakdown(subtotal, discountPercent, billGstRate, gstInclusive)
   const discountAmount = bill.discount
   const invoiceTotal = Math.max(0, bill.total)
   // Nothing to collect on a free / zero-total job, so no method is asked; the invoice records cash as before.
@@ -919,6 +923,7 @@ export function OnSiteVisitPage() {
       isChargeable: chargeable,
       amountPaid: method === "upi" ? 0 : undefined,
       gstInclusive,
+      noGst,
     })
     setInvoiceQueued(true)
   }
@@ -1615,11 +1620,11 @@ export function OnSiteVisitPage() {
               <div className="flex justify-between"><span className="text-text-muted">{t("technician.onsite.charges.discountAmount")}</span><span className="text-text">-{formatCurrency(discountAmount)}</span></div>
             ) : null}
             {gstRate > 0 && subtotal > 0 ? (
-              <div className="flex justify-between"><span className="text-text-muted">{t(gstInclusive ? "sales.gst.includedLine" : "sales.summary.gst", { rate: gstRate })}</span><span className="text-text">{formatCurrency(bill.gst)}</span></div>
+              <div className="flex justify-between"><span className="text-text-muted">{noGst ? t("sales.gst.notCharged") : t(gstInclusive ? "sales.gst.includedLine" : "sales.summary.gst", { rate: gstRate })}</span><span className="text-text">{formatCurrency(bill.gst)}</span></div>
             ) : null}
             <div className="flex justify-between border-t border-border pt-1 font-semibold"><span className="text-text">{t("technician.onsite.charges.total")}</span><span className="text-text">{formatCurrency(invoiceTotal)}</span></div>
             {!invoiceQueued && subtotal > 0 && gstRate > 0 ? (
-              <div className="pt-1"><GstModeToggle value={gstInclusive} onChange={setGstInclusiveChoice} /></div>
+              <div className="pt-1"><GstModeToggle value={gstMode} onChange={setGstModeChoice} /></div>
             ) : null}
           </div>
 

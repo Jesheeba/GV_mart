@@ -113,3 +113,8 @@
 - AMC: owner chose "Create GST invoice". Admin Sell AMC asks for the payment method; customer renewal invoice is DUE because the app payment is simulated (never record fake revenue).
 - Technician screen omitted GST from the total it collected (server added it). Fixed; any total shown before payment must come from `billBreakdown` with the bill's GST mode.
 - Test lead sources "ro / WATER purifier" + "service" deleted on owner's word (0 leads used them).
+
+## No-GST bill (2026-11-26, owner decisions)
+- Owner chose a real no-GST bill (GST 0 on the invoice) on every staff GST switch, after being told that a GST-registered shop may only do this for exempt goods (audit risk accepted by the owner).
+- Control: a 3-way switch, GST extra | GST included | No GST. Never the default. Everyone who bills may choose it, technicians included.
+- Customer-app AMC renewal is out of scope (the customer doesn't choose).

@@ -1,5 +1,9 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## no-gst-bill (2026-11-26), migration NOT applied
+- The GST switch is now 3-way: GST extra | GST included | No GST. Screens: New Sale, Quotation (carried into the sale), Rent Out (+ monthly bills), Admin Sell AMC, technician on-site invoice + AMC.
+- `20270101100000_no_gst_bill.sql` (+ rollback): `quotations.no_gst` and `rental_contracts.no_gst`, plus `p_no_gst` on 6 RPCs and `cart.no_gst` on create_sale. No GST = rate 0.
+
 ## build fix (2026-11-26)
 - `npm run build` was broken on main by leadCustomerEmbed.test.ts (node:fs). Fixed with Vite raw glob; the guard behaves the same.
 

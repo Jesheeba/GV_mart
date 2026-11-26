@@ -47,9 +47,10 @@ export function QuotationDetailPage() {
   // shown exactly as before (no GST lines). Uses today's org rate; a quote is
   // an estimate and create_sale recomputes at the rate in force when billed.
   const gstRate = settings ? Number(settings.gst_rate) : 0
-  const gstBill = quotation.gst_inclusive === null ? null : billBreakdown(quotation.total, 0, gstRate, quotation.gst_inclusive)
+  const gstBill = quotation.gst_inclusive === null ? null : billBreakdown(quotation.total, 0, quotation.no_gst ? 0 : gstRate, quotation.gst_inclusive)
   const payable = gstBill ? gstBill.total : quotation.total
-  const gstLabel = quotation.gst_inclusive ? t("sales.gst.includedAmount") : t("sales.summary.gst", { rate: gstRate })
+  // no_gst (no-gst-bill): GST 0, and the quotation total is the final amount.
+  const gstLabel = quotation.no_gst ? t("sales.gst.notCharged") : quotation.gst_inclusive ? t("sales.gst.includedAmount") : t("sales.summary.gst", { rate: gstRate })
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 pt-2">
@@ -172,7 +173,7 @@ export function QuotationDetailPage() {
                   <td colSpan={4} className={`${CELL} text-right`}>{gstLabel}</td>
                   <td className={`${CELL} text-right`}>{gstBill.gst.toFixed(2)}</td>
                 </tr>
-                {!quotation.gst_inclusive ? (
+                {!quotation.gst_inclusive && !quotation.no_gst ? (
                   <tr>
                     <td colSpan={4} className={`${CELL} text-right`}><b>{t("sales.invoice.totalWithGst")}</b></td>
                     <td className={`${CELL} text-right`}><b>{gstBill.total.toFixed(2)}</b></td>
@@ -249,7 +250,7 @@ export function QuotationDetailPage() {
                 <span>{gstLabel}</span>
                 <span>{formatCurrency(gstBill.gst)}</span>
               </div>
-              {!quotation.gst_inclusive ? (
+              {!quotation.gst_inclusive && !quotation.no_gst ? (
                 <div className="flex justify-between border-t border-border pt-1 text-base font-bold text-text">
                   <span>{t("sales.invoice.totalWithGst")}</span>
                   <span>{formatCurrency(gstBill.total)}</span>

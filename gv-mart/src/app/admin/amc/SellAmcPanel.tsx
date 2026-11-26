@@ -22,7 +22,7 @@ import { useTechnicians } from "@/hooks/useService"
 import { amcPlansHooks, useSettings } from "@/hooks/useMasters"
 import { sellAmcSchema, type SellAmcFormInput, type SellAmcInput } from "@/lib/validation/amc"
 import type { SellAmcResult } from "@/services/amc"
-import { formatCurrency } from "@/lib/sale-calc"
+import { defaultGstMode, formatCurrency, gstModeParts, type GstMode } from "@/lib/sale-calc"
 // Fix 1: price_per_year (falling back to price/years for any plan created
 // before that column existed) drives the live total below — shared with
 // CustomerAmcPage/AmcWarrantyListPage so every screen agrees (see the
@@ -52,8 +52,9 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
   const [confirmBackdated, setConfirmBackdated] = useState(false)
   const [sold, setSold] = useState<SellAmcResult | null>(null)
   // null = org default until staff flip the switch (gst-everywhere)
-  const [gstChoice, setGstChoice] = useState<boolean | null>(null)
-  const gstInclusive = gstChoice ?? !!orgSettings?.prices_include_gst
+  const [gstChoice, setGstChoice] = useState<GstMode | null>(null)
+  const gstMode = gstChoice ?? defaultGstMode(orgSettings?.prices_include_gst)
+  const { gstInclusive, noGst } = gstModeParts(gstMode, 0)
   const gstRate = Number(orgSettings?.gst_rate ?? 0)
 
   const form = useForm<SellAmcFormInput, unknown, SellAmcInput>({
@@ -87,6 +88,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
       txnId: values.paymentMethod === "transfer" ? values.txnId : null,
       paymentDescription: values.paymentMethod === "transfer" ? values.paymentDescription : null,
       gstInclusive,
+      noGst,
     })
     // visits that were not created are shown, never dropped silently: the user acknowledges them before the panel closes
     if (result.visits_skipped.length > 0) setSold(result)
@@ -196,7 +198,7 @@ export function SellAmcPanel({ onClose, onSold }: { onClose: () => void; onSold:
             })}
           </p>
           <p className="text-sm text-text">{t("amc.sellAmc.planPrice", { amount: formatCurrency(computedTotal) })}</p>
-          <GstSummary net={computedTotal} rate={gstRate} inclusive={gstInclusive} onInclusiveChange={setGstChoice} totalLabel={t("amc.sellAmc.payable")} />
+          <GstSummary net={computedTotal} rate={gstRate} mode={gstMode} onModeChange={setGstChoice} totalLabel={t("amc.sellAmc.payable")} />
         </div>
       ) : null}
 

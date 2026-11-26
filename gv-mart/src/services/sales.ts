@@ -26,6 +26,8 @@ export type SaleCart = {
   redeemPoints: number
   /** GST Included/Extra for this bill (2026-11-26). create_sale falls back to settings.prices_include_gst when absent. */
   gstInclusive: boolean
+  /** No GST on this bill (no-gst-bill, 2026-11-26): create_sale uses rate 0. Absent = false. */
+  noGst?: boolean
 }
 
 export type SaleResult = {
@@ -70,6 +72,7 @@ export async function createSale(
       txn_id: cart.txnId,
       payment_description: cart.paymentDescription,
       gst_inclusive: cart.gstInclusive,
+      no_gst: cart.noGst ?? false,
     },
     p_quotation_id: quotationId ?? null,
     p_redeem_points: cart.redeemPoints ?? 0,

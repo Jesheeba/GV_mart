@@ -23,7 +23,7 @@ import { useTechnicians } from "@/hooks/useService"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
 import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema, PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
 import { focusChoice } from "@/lib/utils"
-import { formatCurrency, findStockGap } from "@/lib/sale-calc"
+import { formatCurrency, findStockGap, defaultGstMode, gstModeParts, toGstMode, type GstMode } from "@/lib/sale-calc"
 import { ItemsStep } from "./ItemsStep"
 import { SaleFamilyReviewSection } from "./SaleFamilyReviewSection"
 import { SaleSummaryPanel } from "./SaleSummaryPanel"
@@ -54,6 +54,8 @@ type NewSaleDraftData = {
   amountPaidInput: string
   amountPaidTouched: boolean
   /** Optional so drafts saved before the GST switch existed still restore. */
+  gstModeChoice?: GstMode | null
+  /** Drafts saved before no-gst-bill (true = included). */
   gstInclusiveChoice?: boolean | null
   // Optional: drafts saved before 2026-11-26 don't have it (the referrer was silently dropped on restore).
   /** Pre-2026-11-26 drafts only; restored as a technician referrer. */
@@ -109,7 +111,7 @@ export function NewSalePage() {
   // sale requires typing a smaller number.
   const [amountPaidInput, setAmountPaidInput] = useState("")
   const [amountPaidTouched, setAmountPaidTouched] = useState(false)
-  const [gstInclusiveChoice, setGstInclusiveChoice] = useState<boolean | null>(null)
+  const [gstModeChoice, setGstModeChoice] = useState<GstMode | null>(null)
   const [referrer, setReferrer] = useState<ReferrerValue>(EMPTY_REFERRER)
 
   const { data: settings } = useSettings(orgId)
@@ -169,7 +171,8 @@ export function NewSalePage() {
     if (prefilledRef.current || !quotationData.data || !allProducts || !allSpares) return
     prefilledRef.current = true
     // Carry the quotation's GST choice into the bill so the customer pays what was quoted.
-    if (quotationData.data.gst_inclusive !== null) setGstInclusiveChoice(quotationData.data.gst_inclusive)
+    if (quotationData.data.no_gst) setGstModeChoice("none")
+    else if (quotationData.data.gst_inclusive !== null) setGstModeChoice(toGstMode(quotationData.data.gst_inclusive))
     const productLines: CartProductLine[] = []
     const spareLines: CartSpareLine[] = []
     for (const item of quotationData.data.quotation_items) {
@@ -238,7 +241,7 @@ export function NewSalePage() {
     redeemPointsInput,
     amountPaidInput,
     amountPaidTouched,
-    gstInclusiveChoice,
+    gstModeChoice,
     referrer,
   }
   const { restoredDraft, wasRestored, discardDraft, clearDraft } = useLocalDraft<NewSaleDraftData>(draftKey, draftSnapshot)
@@ -264,7 +267,8 @@ export function NewSalePage() {
     if (restoredDraft.redeemPointsInput != null) setRedeemPointsInput(restoredDraft.redeemPointsInput)
     if (restoredDraft.amountPaidInput != null) setAmountPaidInput(restoredDraft.amountPaidInput)
     if (restoredDraft.amountPaidTouched != null) setAmountPaidTouched(restoredDraft.amountPaidTouched)
-    if (restoredDraft.gstInclusiveChoice !== undefined) setGstInclusiveChoice(restoredDraft.gstInclusiveChoice)
+    const restoredGst = toGstMode(restoredDraft.gstModeChoice ?? restoredDraft.gstInclusiveChoice)
+    if (restoredGst) setGstModeChoice(restoredGst)
     if (restoredDraft.referrer) setReferrer(restoredDraft.referrer)
     else if (restoredDraft.referredByTechnicianId) setReferrer({ ...EMPTY_REFERRER, kind: "technician", userId: restoredDraft.referredByTechnicianId })
   }, [restoredDraft])
@@ -279,8 +283,9 @@ export function NewSalePage() {
 
   const gstRate = settings ? Number(settings.gst_rate) : 0
   // null = follow the org default (Masters -> Settings) until the cashier flips the switch.
-  const gstInclusive = gstInclusiveChoice ?? settings?.prices_include_gst ?? false
-  const computedPayable = payableTotal(cart, discountPercent, gstRate, redeemAmount, gstInclusive)
+  const gstMode = gstModeChoice ?? defaultGstMode(settings?.prices_include_gst)
+  const { gstInclusive, noGst, rate: billGstRate } = gstModeParts(gstMode, gstRate)
+  const computedPayable = payableTotal(cart, discountPercent, billGstRate, redeemAmount, gstInclusive)
   useEffect(() => {
     if (!amountPaidTouched) setAmountPaidInput(computedPayable.toFixed(2))
   }, [computedPayable, amountPaidTouched])
@@ -356,6 +361,7 @@ export function NewSalePage() {
         paymentDescription: paymentMethod === "transfer" ? paymentDescription : null,
         redeemPoints,
         gstInclusive,
+        noGst,
       },
       quotationId,
       referredByTechnicianId: referrer.kind === "technician" ? referrer.userId || null : null,
@@ -685,8 +691,8 @@ export function NewSalePage() {
           discountPercent={discountPercent}
           giftName={selectedGift?.name}
           redeemAmount={redeemAmount}
-          gstInclusive={gstInclusive}
-          onGstInclusiveChange={setGstInclusiveChoice}
+          gstMode={gstMode}
+          onGstModeChange={setGstModeChoice}
         />
       </div>
 

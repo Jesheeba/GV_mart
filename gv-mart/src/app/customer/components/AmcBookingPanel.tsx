@@ -137,7 +137,7 @@ export function AmcBookingPanel({
             className={cn("block h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none", FIELD_W.qty)}
           />
           <p className="text-sm text-text">{t("customerApp.amc.planPrice", { amount: formatCurrency(computedTotal) })}</p>
-          <GstSummary net={computedTotal} rate={gstRate} inclusive={gstInclusive} totalLabel={t("customerApp.amc.payable")} />
+          <GstSummary net={computedTotal} rate={gstRate} mode={gstInclusive ? "included" : "extra"} totalLabel={t("customerApp.amc.payable")} />
         </div>
       ) : null}
 

@@ -3150,6 +3150,7 @@ export type Database = {
           valid_until: string | null
           total: number
           gst_inclusive: boolean | null
+          no_gst: boolean
           lost_reason: string | null
           lead_id: string | null
           created_at: string
@@ -3163,6 +3164,7 @@ export type Database = {
           valid_until?: string | null
           total?: number
           gst_inclusive?: boolean | null
+          no_gst?: boolean
           lost_reason?: string | null
           lead_id?: string | null
           created_at?: string
@@ -3176,6 +3178,7 @@ export type Database = {
           valid_until?: string | null
           total?: number
           gst_inclusive?: boolean | null
+          no_gst?: boolean
           lost_reason?: string | null
           lead_id?: string | null
           created_at?: string
@@ -4969,6 +4972,7 @@ export type Database = {
           returned_at: string | null
           invoice_id: string | null
           gst_inclusive: boolean | null
+          no_gst: boolean
           created_at: string
           updated_at: string
         }
@@ -4986,6 +4990,7 @@ export type Database = {
           returned_at?: string | null
           invoice_id?: string | null
           gst_inclusive?: boolean | null
+          no_gst?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -5003,6 +5008,7 @@ export type Database = {
           returned_at?: string | null
           invoice_id?: string | null
           gst_inclusive?: boolean | null
+          no_gst?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -7958,6 +7964,7 @@ export type Database = {
           p_items: Json
           p_lead_id?: string | null
           p_gst_inclusive?: boolean | null
+          p_no_gst?: boolean | null
         }
         Returns: string
       }
@@ -8144,6 +8151,7 @@ export type Database = {
           p_txn_id?: string | null
           p_payment_description?: string | null
           p_gst_inclusive?: boolean | null
+          p_no_gst?: boolean | null
         }
         Returns: Json
       }
@@ -8212,6 +8220,7 @@ export type Database = {
           p_amount_paid?: number | null
           // gst-everywhere (20261230100000): null -> org default (settings.prices_include_gst).
           p_gst_inclusive?: boolean | null
+          p_no_gst?: boolean | null
         }
         Returns: Json
       }
@@ -8389,6 +8398,7 @@ export type Database = {
           p_amount_paid?: number | null
           // gst-everywhere (20261230100000): null -> org default (settings.prices_include_gst).
           p_gst_inclusive?: boolean | null
+          p_no_gst?: boolean | null
         }
         Returns: Json
       }
@@ -8409,6 +8419,7 @@ export type Database = {
           p_payment_description?: string | null
           // gst-everywhere (20261230100000): null -> org default (settings.prices_include_gst).
           p_gst_inclusive?: boolean | null
+          p_no_gst?: boolean | null
         }
         Returns: Json
       }

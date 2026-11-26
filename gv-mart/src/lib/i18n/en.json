@@ -1815,7 +1815,9 @@
       "extra": "GST extra",
       "included": "GST included",
       "includedLine": "Incl. GST {{rate}}%",
-      "includedAmount": "GST amount (included in price)"
+      "includedAmount": "GST amount (included in price)",
+      "none": "No GST",
+      "notCharged": "GST not charged"
     },
     "summary": {
       "title": "Summary",
