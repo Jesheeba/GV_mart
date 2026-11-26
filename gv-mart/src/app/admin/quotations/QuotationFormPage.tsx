@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { GstModeToggle } from "@/components/shared/GstModeToggle"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Loader2, Plus, Search, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,9 +14,9 @@ import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
-import { productsHooks, sparesHooks } from "@/hooks/useMasters"
+import { productsHooks, sparesHooks, useSettings } from "@/hooks/useMasters"
 import { useCreateQuotation } from "@/hooks/useQuotations"
-import { formatCurrency } from "@/lib/sale-calc"
+import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
 import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
 import type { Enums } from "@/types/database"
 
@@ -85,6 +86,11 @@ export function QuotationFormPage() {
   const updateLeadStatus = useUpdateLeadStatus()
 
   const total = useMemo(() => lines.reduce((sum, l) => sum + l.price * l.qty, 0), [lines])
+  const { data: settings } = useSettings(orgId)
+  const gstRate = settings ? Number(settings.gst_rate) : 0
+  const [gstInclusiveChoice, setGstInclusiveChoice] = useState<boolean | null>(null)
+  const gstInclusive = gstInclusiveChoice ?? settings?.prices_include_gst ?? false
+  const gstBill = billBreakdown(total, 0, gstRate, gstInclusive)
 
   // Seed the cart once from the lead's structured items (one entry per
   // product/spare the enquiry asked for), as soon as the products/spares
@@ -141,6 +147,7 @@ export function QuotationFormPage() {
       leadId,
       validUntil: validUntil || null,
       items: lines.map((l) => ({ itemType: l.itemType, itemId: l.itemId, qty: l.qty })),
+      gstInclusive,
     })
     if (leadId) {
       // Best-effort: the quotation is already created at this point, so a
@@ -261,9 +268,15 @@ export function QuotationFormPage() {
                 </Button>
               </div>
             ))}
-            <div className="flex justify-between border-t border-border px-1 pt-2 text-sm font-bold text-text">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-1 pt-2">
+              <GstModeToggle value={gstInclusive} onChange={setGstInclusiveChoice} />
+              <span className="text-sm text-text-muted">
+                {t(gstInclusive ? "sales.gst.includedLine" : "sales.summary.gst", { rate: gstRate })}: {formatCurrency(gstBill.gst)}
+              </span>
+            </div>
+            <div className="flex justify-between px-1 text-sm font-bold text-text">
               <span>{t("sales.summary.total")}</span>
-              <span>{formatCurrency(total)}</span>
+              <span>{formatCurrency(gstBill.total)}</span>
             </div>
           </div>
         )}

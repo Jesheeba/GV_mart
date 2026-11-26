@@ -82,7 +82,9 @@ export async function createQuotation(
   customerId: string | null,
   validUntil: string | null,
   items: QuotationCartItem[],
-  leadId: string | null = null
+  leadId: string | null = null,
+  /** null = org default (settings.prices_include_gst). */
+  gstInclusive: boolean | null = null
 ): Promise<string> {
   const { data, error } = await supabase.rpc("create_quotation", {
     p_org_id: orgId,
@@ -90,6 +92,7 @@ export async function createQuotation(
     p_valid_until: validUntil,
     p_items: items.map((i) => ({ item_type: i.itemType, item_id: i.itemId, qty: i.qty })),
     p_lead_id: leadId,
+    p_gst_inclusive: gstInclusive,
   })
   if (error) throw error
   return data as string

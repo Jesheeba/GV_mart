@@ -10,7 +10,8 @@ import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoade
 import { useProfile } from "@/hooks/useProfile"
 import { useMarkQuotationLost, useQuotation, useUpdateQuotationValidUntil } from "@/hooks/useQuotations"
 import { useOrganization } from "@/hooks/useSales"
-import { formatCurrency } from "@/lib/sale-calc"
+import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
+import { useSettings } from "@/hooks/useMasters"
 import { formatDate } from "@/lib/formatDate"
 import { amountInWords } from "@/lib/amount-in-words"
 import { toWhatsappLink } from "@/lib/whatsapp-link"
@@ -28,6 +29,7 @@ export function QuotationDetailPage() {
 
   const { data: quotation, isLoading, isError, refetch } = useQuotation(orgId, id)
   const { data: org } = useOrganization(orgId)
+  const { data: settings } = useSettings(orgId)
   const markLost = useMarkQuotationLost()
   const [lostReason, setLostReason] = useState("")
   const [showLostForm, setShowLostForm] = useState(false)
@@ -41,6 +43,13 @@ export function QuotationDetailPage() {
   }
 
   const quotationNo = quotation.id.slice(0, 8).toUpperCase()
+  // GST (2026-11-26): null = quotation made before the GST switch existed —
+  // shown exactly as before (no GST lines). Uses today's org rate; a quote is
+  // an estimate and create_sale recomputes at the rate in force when billed.
+  const gstRate = settings ? Number(settings.gst_rate) : 0
+  const gstBill = quotation.gst_inclusive === null ? null : billBreakdown(quotation.total, 0, gstRate, quotation.gst_inclusive)
+  const payable = gstBill ? gstBill.total : quotation.total
+  const gstLabel = quotation.gst_inclusive ? t("sales.gst.includedAmount") : t("sales.summary.gst", { rate: gstRate })
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 pt-2">
@@ -61,7 +70,7 @@ export function QuotationDetailPage() {
                 <a
                   href={toWhatsappLink(
                     quotation.customers.mobile,
-                    t("quotations.whatsappMessage", { id: quotationNo, total: formatCurrency(quotation.total) })
+                    t("quotations.whatsappMessage", { id: quotationNo, total: formatCurrency(payable) })
                   )}
                   target="_blank"
                   rel="noreferrer"
@@ -157,9 +166,23 @@ export function QuotationDetailPage() {
                 <b>{quotation.total.toFixed(2)}</b>
               </td>
             </tr>
+            {gstBill ? (
+              <>
+                <tr>
+                  <td colSpan={4} className={`${CELL} text-right`}>{gstLabel}</td>
+                  <td className={`${CELL} text-right`}>{gstBill.gst.toFixed(2)}</td>
+                </tr>
+                {!quotation.gst_inclusive ? (
+                  <tr>
+                    <td colSpan={4} className={`${CELL} text-right`}><b>{t("sales.invoice.totalWithGst")}</b></td>
+                    <td className={`${CELL} text-right`}><b>{gstBill.total.toFixed(2)}</b></td>
+                  </tr>
+                ) : null}
+              </>
+            ) : null}
             <tr>
               <td colSpan={5} className={CELL}>
-                <b>{amountInWords(quotation.total)}</b>
+                <b>{amountInWords(payable)}</b>
               </td>
             </tr>
           </tbody>
@@ -220,6 +243,20 @@ export function QuotationDetailPage() {
             <span>{t("sales.invoice.netAmount")}</span>
             <span>{formatCurrency(quotation.total)}</span>
           </div>
+          {gstBill ? (
+            <>
+              <div className="flex justify-between text-sm text-text-muted">
+                <span>{gstLabel}</span>
+                <span>{formatCurrency(gstBill.gst)}</span>
+              </div>
+              {!quotation.gst_inclusive ? (
+                <div className="flex justify-between border-t border-border pt-1 text-base font-bold text-text">
+                  <span>{t("sales.invoice.totalWithGst")}</span>
+                  <span>{formatCurrency(gstBill.total)}</span>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-1 pt-3">

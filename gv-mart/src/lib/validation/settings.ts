@@ -40,6 +40,7 @@ export const settingsSchema = z
     review_flag_min_visits: z.coerce.number().int().positive("settings.errors.positive"),
     default_min_stock: z.coerce.number().int().min(0, "settings.errors.nonNegative"),
     gst_rate: z.coerce.number().min(0).max(100, "settings.errors.percentRange"),
+    prices_include_gst: z.boolean(),
     sla_hours_very_urgent: z.coerce.number().positive("settings.errors.positive"),
     sla_hours_urgent: z.coerce.number().positive("settings.errors.positive"),
     sla_hours_normal: z.coerce.number().positive("settings.errors.positive"),

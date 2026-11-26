@@ -59,6 +59,7 @@ function toFormValues(settings: NonNullable<ReturnType<typeof useSettings>["data
     review_flag_min_visits: settings.review_flag_min_visits,
     default_min_stock: settings.default_min_stock,
     gst_rate: Number(settings.gst_rate),
+    prices_include_gst: settings.prices_include_gst ?? false,
     sla_hours_very_urgent: Number(settings.sla_hours_very_urgent),
     sla_hours_urgent: Number(settings.sla_hours_urgent),
     sla_hours_normal: Number(settings.sla_hours_normal),
@@ -99,7 +100,7 @@ const FIELD_GROUPS = {
     "lunch_minutes_red_threshold",
     "leave_notice_days",
   ],
-  gst: ["gst_rate"],
+  gst: ["gst_rate", "prices_include_gst"],
   sla: ["sla_hours_very_urgent", "sla_hours_urgent", "sla_hours_normal"],
   jobDuration: [
     "default_duration_paid_minutes",
@@ -288,6 +289,13 @@ export function SettingsTab() {
       <Card className="gap-4">
         <h3 className="px-1 text-sm font-semibold text-text">{t("settings.groups.discounts")}</h3>
         <div className="grid grid-cols-2 gap-3 px-1 sm:grid-cols-3">{field("gst_rate", t("settings.gstRate"), "number", "0.5")}</div>
+        <label className="mx-1 flex items-center gap-2.5 rounded-xl border border-border bg-surface-alt px-3.5 py-2.5 text-sm text-text">
+          <input type="checkbox" className="size-4 accent-accent" {...register("prices_include_gst", { onChange: () => setJustSavedGroup(null) })} />
+          <span>
+            <span className="block font-medium">{t("settings.pricesIncludeGst")}</span>
+            <span className="block text-xs text-text-muted">{t("settings.pricesIncludeGstHint")}</span>
+          </span>
+        </label>
         <GroupSaveRow groupKey="gst" />
       </Card>
 

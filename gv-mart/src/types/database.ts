@@ -3138,6 +3138,7 @@ export type Database = {
           status: Database["public"]["Enums"]["quotation_status"]
           valid_until: string | null
           total: number
+          gst_inclusive: boolean | null
           lost_reason: string | null
           lead_id: string | null
           created_at: string
@@ -3150,6 +3151,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["quotation_status"]
           valid_until?: string | null
           total?: number
+          gst_inclusive?: boolean | null
           lost_reason?: string | null
           lead_id?: string | null
           created_at?: string
@@ -3162,6 +3164,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["quotation_status"]
           valid_until?: string | null
           total?: number
+          gst_inclusive?: boolean | null
           lost_reason?: string | null
           lead_id?: string | null
           created_at?: string
@@ -3387,6 +3390,7 @@ export type Database = {
           subtotal: number
           discount: number
           gst: number
+          gst_inclusive: boolean
           total: number
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           txn_id: string | null
@@ -3406,6 +3410,7 @@ export type Database = {
           subtotal?: number
           discount?: number
           gst?: number
+          gst_inclusive?: boolean
           total?: number
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           txn_id?: string | null
@@ -3425,6 +3430,7 @@ export type Database = {
           subtotal?: number
           discount?: number
           gst?: number
+          gst_inclusive?: boolean
           total?: number
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           txn_id?: string | null
@@ -6757,6 +6763,7 @@ export type Database = {
           google_review_url: string | null
           default_min_stock: number
           gst_rate: number
+          prices_include_gst: boolean
           sla_hours_very_urgent: number
           sla_hours_urgent: number
           sla_hours_normal: number
@@ -6860,6 +6867,7 @@ export type Database = {
           google_review_url?: string | null
           default_min_stock?: number
           gst_rate?: number
+          prices_include_gst?: boolean
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
           sla_hours_normal?: number
@@ -6944,6 +6952,7 @@ export type Database = {
           google_review_url?: string | null
           default_min_stock?: number
           gst_rate?: number
+          prices_include_gst?: boolean
           sla_hours_very_urgent?: number
           sla_hours_urgent?: number
           sla_hours_normal?: number
@@ -7902,6 +7911,7 @@ export type Database = {
           p_valid_until: string | null
           p_items: Json
           p_lead_id?: string | null
+          p_gst_inclusive?: boolean | null
         }
         Returns: string
       }

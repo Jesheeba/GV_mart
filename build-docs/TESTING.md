@@ -76,3 +76,8 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - `supabase/tests/quick_add_complaint_type.test.sql`: **11/11 PASS on live, 2026-11-26**, run alone (not concatenated) after apply. Before/after counts identical (test orgs 0, complaint_types 71, test users 0, profiles 14), so nothing persisted. It covers ACL (no anon/PUBLIC), ops add, dedupe, cross-org isolation, sales/tech rejected, blank/long/null-category, RLS unchanged. It ends in RAISE RESULTS, so it is safe to run as migration+test in one request after GO APPLY.
 - Regression: full suite 1103 pass / 2 fail. The failures are the same 2 WhatsApp tests that were already failing on origin/main.
 - Migration applied live 2026-11-26 on owner's "go apply". ACL verified: anon no, authenticated yes, no PUBLIC grant.
+
+## gst-inclusive-toggle F2 — 2026-11-26
+- `src/lib/gstInclusive.test.ts`: 12/12 pass (AC numbers 11,800→1,800; 12,500→1,906.78; discount then GST; Extra unchanged; rate 0; 100% discount; payable follows the switch; redemption floor). Existing `sale-calc.test.ts` still green.
+- `supabase/tests/gst_inclusive_toggle.test.sql`: written, NOT RUN (migration not applied). It covers ACLs, one overload each, all 6 functions on `_gst_amount`, SQL math = JS math, create_sale included/extra/org-default/partial payment, create_quotation explicit/default/legacy NULL, and run_rental_billing on the org default.
+- Full suite 1114 pass / 2 fail (the same WhatsApp tests that were already failing on origin/main); tsc clean apart from the CustomerFormPage error that was already there.

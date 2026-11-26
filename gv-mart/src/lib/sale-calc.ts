@@ -3,10 +3,16 @@ export function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
-export function billBreakdown(subtotal: number, discountPercent: number, gstRatePercent: number) {
+/**
+ * `gstInclusive` (2026-11-26): prices already include GST, so GST is the
+ * share inside the discounted amount and the total doesn't grow. Mirrors
+ * public._gst_amount in 20261226110000_gst_inclusive_toggle.sql.
+ */
+export function billBreakdown(subtotal: number, discountPercent: number, gstRatePercent: number, gstInclusive = false) {
   const discount = round2((subtotal * discountPercent) / 100)
-  const gst = round2(((subtotal - discount) * gstRatePercent) / 100)
-  const total = round2(subtotal - discount + gst)
+  const net = subtotal - discount
+  const gst = gstRatePercent <= 0 ? 0 : round2(gstInclusive ? (net * gstRatePercent) / (100 + gstRatePercent) : (net * gstRatePercent) / 100)
+  const total = round2(gstInclusive ? net : net + gst)
   return { subtotal: round2(subtotal), discount, gst, total }
 }
 
