@@ -420,7 +420,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
           <Controller
             control={form.control}
             name="date"
-            render={({ field }) => <DatePicker id="pnl-expense-date" value={field.value ?? ""} onChange={field.onChange} />}
+            render={({ field }) => <DatePicker id="pnl-expense-date" value={field.value ?? ""} onChange={field.onChange} className="w-44" />}
           />
           {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
         </div>

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { useAddTaskLog, useTaskLogs } from "@/hooks/useTaskLogs"
 import type { TaskLog } from "@/services/taskLogs"
+import { formatShortDateTime } from "@/lib/formatDate"
 
 function describeEntry(log: TaskLog, t: TFunction): string {
   const who = log.actor_name ?? t("tasks.log.system")
@@ -93,7 +94,7 @@ export function TaskWorkLog({ orgId, taskId }: { orgId: string; taskId: string }
               ) : (
                 <p className="text-text-muted">{describeEntry(log, t)}</p>
               )}
-              <p className="mt-0.5 text-[10px] text-text-muted">{new Date(log.created_at).toLocaleString()}</p>
+              <p className="mt-0.5 whitespace-nowrap text-[10px] text-text-muted">{formatShortDateTime(log.created_at)}</p>
             </li>
           ))}
         </ul>

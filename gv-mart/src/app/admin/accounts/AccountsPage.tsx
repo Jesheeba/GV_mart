@@ -21,6 +21,7 @@ import { createExpenseSchema, type CreateExpenseFormInput, type CreateExpenseOut
 import { resolveLegacyExpenseCategoryEnum } from "@/services/reportMappers"
 import { formatCurrency } from "@/lib/sale-calc"
 import { cn } from "@/lib/utils"
+import { formatShortDate } from "@/lib/formatDate"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -223,7 +224,7 @@ function AccountsOverviewTab({ orgId }: { orgId: string | undefined }) {
                 <tbody>
                   {filteredExpenses.map((e) => (
                     <tr key={e.id} className="border-b border-[#F1EDE6]">
-                      <td className="py-2 pr-3 text-text-muted">{e.date}</td>
+                      <td className="whitespace-nowrap py-2 pr-3 text-text-muted">{formatShortDate(e.date)}</td>
                       <td className="py-2 pr-3 font-medium text-text">{e.categoryName ?? t("accounts.uncategorised")}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.staffName ?? "—"}</td>
                       <td className="py-2 pr-3 text-text-muted">{e.note ?? "—"}</td>
@@ -492,7 +493,7 @@ function LogExpensePanel({ orgId, onClose, onLogged }: { orgId: string | undefin
           <Controller
             control={form.control}
             name="date"
-            render={({ field }) => <DatePicker id="accounts-expense-date" value={field.value ?? ""} onChange={field.onChange} />}
+            render={({ field }) => <DatePicker id="accounts-expense-date" value={field.value ?? ""} onChange={field.onChange} className="w-44" />}
           />
           {form.formState.errors.date ? <p className="text-xs text-danger">{t(form.formState.errors.date.message!)}</p> : null}
         </div>

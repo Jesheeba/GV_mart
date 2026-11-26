@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { toLocalDateString } from "@/lib/local-date"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
@@ -44,7 +44,8 @@ import { cn } from "@/lib/utils"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocumentUpload"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
-import { formatDate, formatDateTime } from "@/lib/formatDate"
+import { formatDate, formatShortDateTime, formatTime } from "@/lib/formatDate"
+import { istDateOf } from "@/lib/ist"
 
 const SKILL_OPTIONS = TECHNICIAN_SKILL_OPTIONS
 // Indian mobile: 10 digits, starts 6-9 — same rule as lib/validation/technician.ts.
@@ -53,8 +54,10 @@ const MOBILE_REGEX = /^[6-9]\d{9}$/
 function fmtDate(iso: string | null | undefined) {
   return formatDate(iso)
 }
-function fmtDateTime(iso: string | null | undefined) {
-  return formatDateTime(iso)
+/** Time only when it falls on `dateStr` (the day heading already shows the date); otherwise the compact date-time. */
+function fmtTimeOn(iso: string | null | undefined, dateStr: string) {
+  if (!iso) return "—"
+  return istDateOf(iso) === dateStr ? formatTime(iso) : formatShortDateTime(iso)
 }
 /** Requirement 2/11 — convenience wrapper over the shared visit-duration.ts primitives, for Attendance's worked-hours readout (plain check-in/check-out, no persisted duration column). History's visit duration uses resolveVisitDurationMinutes directly (see below) to prefer the persisted actual_duration_minutes. */
 function fmtDuration(startIso: string, endIso: string): string {
@@ -573,7 +576,10 @@ function CurrentJobTab({
         <Field label={t("service.table.product")} value={job.productName ?? "—"} />
         <Field label={t("service.newComplaint.nameOfComplaint")} value={job.complaintName ?? "—"} />
         <Field label={t("service.table.area")} value={job.area ?? "—"} />
-        <Field label={t("service.table.appointment")} value={job.mode === "always" ? t("service.appointment.always") : fmtDateTime(job.scheduledAt)} />
+        <Field
+          label={t("service.table.appointment")}
+          value={<span className="whitespace-nowrap">{job.mode === "always" ? t("service.appointment.always") : formatShortDateTime(job.scheduledAt)}</span>}
+        />
         <Field label={t("customers.detail.call")} value={job.customerMobile ?? "—"} />
       </div>
       <Button size="sm" variant="outline" className="w-fit" onClick={() => onOpenTicket(job.ticketId)}>
@@ -583,7 +589,7 @@ function CurrentJobTab({
   )
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <div className="text-xs text-text-muted">{label}</div>
@@ -770,8 +776,8 @@ function AttendanceTab({ technicianId }: { technicianId: string | undefined }) {
               const isSelected = !!c.dateStr && c.dateStr === selectedDate
               const title = record
                 ? [
-                    record.check_in_at ? t("technicians.detail.attendance.checkedInAt", { time: fmtDateTime(record.check_in_at) }) : null,
-                    t("technicians.detail.attendance.checkedOutAt", { time: record.check_out_at ? fmtDateTime(record.check_out_at) : "—" }),
+                    record.check_in_at ? t("technicians.detail.attendance.checkedInAt", { time: fmtTimeOn(record.check_in_at, c.dateStr ?? "") }) : null,
+                    t("technicians.detail.attendance.checkedOutAt", { time: fmtTimeOn(record.check_out_at, c.dateStr ?? "") }),
                     !record.inside_geofence ? t("technicians.detail.outsideGeofence") : null,
                   ]
                     .filter(Boolean)
@@ -852,10 +858,8 @@ function DayDetailPanel({
         <p className="text-xs font-semibold text-text-muted uppercase">{t("technicians.detail.attendance.timeLogTitle")}</p>
         {record ? (
           <div className="space-y-1 rounded-lg bg-surface px-3 py-2.5">
-            <p className="text-sm text-text">{t("technicians.detail.attendance.checkedInAt", { time: record.check_in_at ? fmtDateTime(record.check_in_at) : "—" })}</p>
-            <p className="text-sm text-text">
-              {t("technicians.detail.attendance.checkedOutAt", { time: record.check_out_at ? fmtDateTime(record.check_out_at) : "—" })}
-            </p>
+            <p className="text-sm text-text">{t("technicians.detail.attendance.checkedInAt", { time: fmtTimeOn(record.check_in_at, dateStr) })}</p>
+            <p className="text-sm text-text">{t("technicians.detail.attendance.checkedOutAt", { time: fmtTimeOn(record.check_out_at, dateStr) })}</p>
             {record.check_in_at && record.check_out_at ? (
               <p className="text-sm text-text-muted">{t("technicians.detail.attendance.workedHours", { duration: fmtDuration(record.check_in_at, record.check_out_at) })}</p>
             ) : null}

@@ -41,7 +41,7 @@ import type { ConfirmedAvailabilityReason } from "@/services/service"
 import { ticketPhotoSignedUrl } from "@/services/ticketPhotos"
 import { paymentProofSignedUrl } from "@/services/paymentProofs"
 import { computeJobOverrun } from "@/lib/job-overrun"
-import { formatDate, formatDateTime } from "@/lib/formatDate"
+import { formatDate, formatDateTime, formatShortDateTime, formatShortDateTimeRange, formatTime } from "@/lib/formatDate"
 import { computeAllowedDurationMinutes, sumItemStandardMinutes } from "@/lib/job-allowance"
 import { resolveVisitDurationMinutes } from "@/lib/visit-duration"
 import { cn } from "@/lib/utils"
@@ -91,10 +91,7 @@ function PaymentProofCard({
       )}
       <div className="min-w-0 space-y-0.5 text-xs">
         <p className="text-text-muted">
-          {t("service.detail.paymentProof.date")}: <span className="text-text">{formatDate(paidAt)}</span>
-        </p>
-        <p className="text-text-muted">
-          {t("service.detail.paymentProof.time")}: <span className="text-text">{paidAt ? paidAt.toLocaleTimeString() : "—"}</span>
+          {t("service.detail.paymentProof.dateTime")}: <span className="whitespace-nowrap text-text">{formatShortDateTime(paidAt)}</span>
         </p>
         <p className="text-text-muted">
           {t("service.detail.paymentProof.method")}: <span className="text-text">{proof.payments?.payment_method ?? "—"}</span>
@@ -479,7 +476,10 @@ export function TicketDetailPage() {
           </div>
           <Field label={t("service.newComplaint.nameOfComplaint")} value={ticket.name_of_complaint || "—"} />
           <Field label={t("service.newComplaint.natureOfComplaint")} value={ticket.nature_of_complaint || "—"} />
-          <Field label={t("service.table.appointment")} value={appointment?.mode === "always" ? t("service.appointment.always") : appointment?.scheduled_at ? formatDateTime(appointment.scheduled_at) : "—"} />
+          <Field
+            label={t("service.table.appointment")}
+            value={<span className="whitespace-nowrap">{appointment?.mode === "always" ? t("service.appointment.always") : formatShortDateTime(appointment?.scheduled_at)}</span>}
+          />
           <Field label={t("service.detail.status")} value={t(`service.status.${ticket.status}`)} />
           {!editingAddress ? (
             <div>
@@ -867,7 +867,7 @@ export function TicketDetailPage() {
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <div className="space-y-1">
                   <Label htmlFor="avail-call-date">{t("service.detail.confirmedAvailability.date")}</Label>
-                  <DatePicker id="avail-call-date" value={availDate} onChange={setAvailDate} />
+                  <DatePicker id="avail-call-date" value={availDate} onChange={setAvailDate} className="w-44" />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="avail-call-from">{t("service.detail.confirmedAvailability.from")}</Label>
@@ -935,8 +935,9 @@ export function TicketDetailPage() {
         </div>
         {visit ? (
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <Field label={t("service.detail.startTime")} value={visit.timer_start ? formatDateTime(visit.timer_start) : "—"} />
-            <Field label={t("service.detail.closeTime")} value={visit.timer_end ? formatDateTime(visit.timer_end) : "—"} />
+            <div className="col-span-2">
+              <Field label={t("service.detail.startClose")} value={<span className="whitespace-nowrap">{formatShortDateTimeRange(visit.timer_start, visit.timer_end)}</span>} />
+            </div>
             <Field
               label={t("service.detail.totalTime")}
               value={
@@ -1275,7 +1276,7 @@ export function TicketDetailPage() {
                     <ul className="max-h-32 space-y-0.5 overflow-y-auto rounded-lg border border-border p-2 text-xs text-text-muted">
                       {v.locations.map((loc) => (
                         <li key={loc.id}>
-                          {loc.lat}, {loc.lng} @ {new Date(loc.recorded_at).toLocaleTimeString()}
+                          {loc.lat}, {loc.lng} @ <span className="whitespace-nowrap">{formatTime(loc.recorded_at)}</span>
                         </li>
                       ))}
                     </ul>

@@ -163,7 +163,7 @@ export function RentOutPanel({ onClose, onRented }: { onClose: () => void; onRen
         </div>
         <div className="space-y-1.5">
           <Label>{t("rentals.rentOut.startDate")}</Label>
-          <DatePicker value={form.watch("startDate")} onChange={(v) => form.setValue("startDate", v, { shouldValidate: true })} />
+          <DatePicker value={form.watch("startDate")} onChange={(v) => form.setValue("startDate", v, { shouldValidate: true })} className="w-44" />
         </div>
       </div>
 

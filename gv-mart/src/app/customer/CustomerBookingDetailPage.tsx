@@ -17,7 +17,7 @@ import { CompletionScreen } from "@/app/customer/components/tracking/CompletionS
 import { BookingConfirmedStrip } from "@/app/customer/components/tracking/BookingConfirmedStrip"
 import { useTicketDetail, useSubmitCustomerRating, useTechnicianPublicStats, useCustomerAppSettings } from "@/hooks/useCustomerApp"
 import { useLiveTracking } from "@/hooks/useLiveTracking"
-import { formatDate } from "@/lib/formatDate"
+import { formatDate, formatShortDate, formatTime } from "@/lib/formatDate"
 import { addressLocalityText } from "@/lib/address"
 import type { RouteInfo } from "@/app/customer/components/tracking/TrackingMap"
 
@@ -96,8 +96,7 @@ export function CustomerBookingDetailPage() {
   const etaWindowLabel = useMemo(() => {
     if (etaMinutes == null) return null
     const now = Date.now()
-    const fmt = (d: Date) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    return `${fmt(new Date(now + etaMinutes * 60_000))} - ${fmt(new Date(now + etaMinutes * 60_000 * 1.15))}`
+    return `${formatTime(now + etaMinutes * 60_000)} - ${formatTime(now + etaMinutes * 60_000 * 1.15)}`
   }, [etaMinutes])
 
   const [celebrationVisible, setCelebrationVisible] = useState(false)
@@ -188,27 +187,22 @@ export function CustomerBookingDetailPage() {
       {appt?.scheduled_at ? (
         <Card className="gap-1.5 lg:px-5 print:hidden">
           <h2 className="px-1 text-sm font-semibold text-text">{t("customerApp.bookingDetail.appointmentTitle")}</h2>
-          <div className="grid grid-cols-2 gap-y-1 px-1 text-sm">
-            <span className="text-text-muted">{t("customerApp.bookingDetail.appointmentDate")}</span>
-            <span className="text-text">{formatDate(appt.scheduled_at)}</span>
+          {/* Date · slot · visit window on one line (each piece unbreakable; pieces wrap only on very narrow screens). */}
+          <p className="flex flex-wrap gap-x-1.5 px-1 text-sm text-text">
+            <span className="whitespace-nowrap">{formatShortDate(appt.scheduled_at)}</span>
             {appt.appointment_slots ? (
               <>
-                <span className="text-text-muted">{t("customerApp.bookingDetail.appointmentSlot")}</span>
-                <span className="text-text">{appt.appointment_slots.name}</span>
-                <span className="text-text-muted">{t("customerApp.bookingDetail.estimatedVisitTime")}</span>
-                <span className="text-text">
-                  {appt.appointment_slots.start_time.slice(0, 5)}–{appt.appointment_slots.end_time.slice(0, 5)}
+                <span className="whitespace-nowrap">· {appt.appointment_slots.name}</span>
+                <span className="whitespace-nowrap">
+                  · {appt.appointment_slots.start_time.slice(0, 5)}–{appt.appointment_slots.end_time.slice(0, 5)}
                 </span>
               </>
             ) : appt.available_from ? (
-              <>
-                <span className="text-text-muted">{t("customerApp.bookingDetail.estimatedVisitTime")}</span>
-                <span className="text-text">
-                  {appt.available_from.slice(0, 5)}–{(appt.available_to ?? "").slice(0, 5)}
-                </span>
-              </>
+              <span className="whitespace-nowrap">
+                · {appt.available_from.slice(0, 5)}–{(appt.available_to ?? "").slice(0, 5)}
+              </span>
             ) : null}
-          </div>
+          </p>
           {appt.is_narrow_window || appt.next_day_priority ? (
             <div className="flex flex-wrap gap-1.5 px-1 pt-1">
               {appt.is_narrow_window ? (

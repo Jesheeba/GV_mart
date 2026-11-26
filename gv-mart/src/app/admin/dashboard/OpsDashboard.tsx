@@ -8,6 +8,7 @@ import { useAttendanceForDate } from "@/hooks/useTechniciansAdmin"
 import { useOverdueSlaTickets } from "@/hooks/useSystemPages"
 import { useKpiTiles } from "@/hooks/useKpiTiles"
 import { cn } from "@/lib/utils"
+import { formatTime } from "@/lib/formatDate"
 import { Button } from "@/components/ui/button"
 import { KpiCard } from "@/components/shared/KpiCard"
 import { HighlightKpiCard } from "@/components/shared/HighlightKpiCard"
@@ -122,8 +123,8 @@ export function OpsDashboard({ orgId, firstName }: { orgId: string; firstName: s
           ) : (
             appointments.slice(0, 6).map((ap, i) => (
               <div key={ap.id} className={cn("grid grid-cols-[0.8fr_1.6fr_1.3fr_1fr] items-center px-5.5 py-3.25", i < Math.min(appointments.length, 6) - 1 && "border-b border-[#F1EDE6]")}>
-                <span className="text-xs font-bold tabular-nums text-text">
-                  {ap.scheduled_at ? new Date(ap.scheduled_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                <span className="whitespace-nowrap text-xs font-bold tabular-nums text-text">
+                  {ap.scheduled_at ? formatTime(ap.scheduled_at) : "—"}
                 </span>
                 <span className="text-[13px] font-semibold text-text">{ap.service_tickets?.customers?.name ?? "—"}</span>
                 <span className="text-[13px] font-medium text-[#3A3A36]">{ap.technicians?.profiles?.full_name ?? t("dashboard.unassigned")}</span>

@@ -10,7 +10,7 @@ import { useOrgTasks, usePersonMinuteTotals, useSetOrgTaskStatus } from "@/hooks
 import type { OrgTask } from "@/services/tasks"
 import { PriorityBadge } from "@/app/admin/service/TicketBadges"
 import { cn } from "@/lib/utils"
-import { formatDate, formatDateTime } from "@/lib/formatDate"
+import { formatShortDate, formatShortDateTime } from "@/lib/formatDate"
 import { type CompleteBlockReason, canCompleteTask, compareTasksOverdueFirst, completeBlockReason, isTaskOverdue } from "@/lib/task-rules"
 import { getIstNow } from "@/lib/ist"
 import { userColour } from "@/lib/user-colour"
@@ -228,9 +228,9 @@ function TaskRow({
   const { t } = useTranslation()
   const isDone = task.status === "done"
   const dueLabel = task.due_at
-    ? formatDateTime(task.due_at)
+    ? formatShortDateTime(task.due_at)
     : task.due_date
-      ? formatDate(task.due_date)
+      ? formatShortDate(task.due_date)
       : null
 
   // A clickable row (whole-row "open detail") used to wrap the per-task
@@ -284,7 +284,7 @@ function TaskRow({
             {task.assignee?.full_name ?? t("tasks.unknownUser")}
           </span>
           {task.assigner ? <span>{t("tasks.assignedBy", { name: task.assigner.full_name })}</span> : null}
-          {dueLabel ? <span className={cn(overdue && "font-semibold text-danger")}>{t("tasks.due", { date: dueLabel })}</span> : null}
+          {dueLabel ? <span className={cn("whitespace-nowrap", overdue && "font-semibold text-danger")}>{t("tasks.due", { date: dueLabel })}</span> : null}
         </div>
         {!isDone && blockReason === "po_needs_master" ? <p className="text-xs font-medium text-warning">{t("tasks.cannotFinish.po_needs_master")}</p> : null}
       </button>

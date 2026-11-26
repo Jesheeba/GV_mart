@@ -264,6 +264,7 @@ export function TaskDetailDialog({
             <Label htmlFor="detailDueDate">{t("tasks.assignDialog.dueDate")}</Label>
             <DatePicker
               id="detailDueDate"
+              className="w-44"
               value={dueDate}
               onChange={(value) => {
                 setDueDate(value)

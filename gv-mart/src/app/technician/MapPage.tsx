@@ -12,6 +12,7 @@ import { useGeoPermissionRecheck } from "@/hooks/useGeoPermissionRecheck"
 import { arrivalMode, classifyGeoError, distanceKm, expectedMinutes, getCurrentPosition, isInsideGeofence, watchPosition, type GeoPoint } from "@/lib/offline/geo"
 import { findOpenVisit, isTicketClosed, OFFICE_LOCATION, queueArrivalAddressConfirm, queueArrivalBlock, queuePinCorrection, selectNextJob } from "@/services/technician"
 import { cn } from "@/lib/utils"
+import { formatTime } from "@/lib/formatDate"
 import { addressLine } from "@/lib/address"
 import { PhotoCapture } from "./components/PhotoCapture"
 
@@ -550,14 +551,14 @@ export function MapPage() {
               <div>
                 <p className="text-xs text-text-muted">{t("technician.map.expectedArrival")}</p>
                 <p className="text-sm font-medium text-text">
-                  {expectedArrivalAt ? expectedArrivalAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                  {expectedArrivalAt ? formatTime(expectedArrivalAt) : "—"}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-text-muted">{t("technician.map.scheduledAppointment")}</p>
                 <p className="text-sm font-medium text-text">
                   {destScheduledAt
-                    ? new Date(destScheduledAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                    ? formatTime(destScheduledAt)
                     : t("service.appointment.always")}
                 </p>
               </div>

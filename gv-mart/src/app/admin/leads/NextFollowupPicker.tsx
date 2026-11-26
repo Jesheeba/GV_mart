@@ -91,9 +91,21 @@ export function NextFollowupPicker({
         })}
       </div>
 
-      {activeChip === "custom" ? (
-        <DatePicker value={value.date ?? ""} min={now.date} onChange={(d) => onChange({ ...value, date: d })} aria-label={t("leads.followup.pickDate")} />
-      ) : null}
+      {/* Custom date picker and the "will be set for…" summary share one line. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {activeChip === "custom" ? (
+          <DatePicker value={value.date ?? ""} min={now.date} onChange={(d) => onChange({ ...value, date: d })} aria-label={t("leads.followup.pickDate")} className="w-44" />
+        ) : null}
+        <p className={cn("flex min-w-0 items-center gap-1.5 text-xs", inPast ? "text-danger" : "text-text-muted")}>
+          <CalendarClock className="size-3.5 shrink-0" />
+          {hasWhen
+            ? inPast
+              ? t("leads.followup.inPast")
+              : // non-breaking spaces keep the date-time itself on one line if the sentence wraps
+                t("leads.followup.willBeSetFor", { when: formatIstDateTime(toIso(value.date!, value.time!), lang).replace(/ /g, "\u00a0") })
+            : t("leads.followup.pickWhen")}
+        </p>
+      </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
         {TIME_CHIPS.map((c) => (
@@ -140,15 +152,6 @@ export function NextFollowupPicker({
           </Button>
         </div>
       ) : null}
-
-      <p className={cn("flex items-center gap-1.5 text-xs", inPast ? "text-danger" : "text-text-muted")}>
-        <CalendarClock className="size-3.5" />
-        {hasWhen
-          ? inPast
-            ? t("leads.followup.inPast")
-            : t("leads.followup.willBeSetFor", { when: formatIstDateTime(toIso(value.date!, value.time!), lang) })
-          : t("leads.followup.pickWhen")}
-      </p>
     </div>
   )
 }
