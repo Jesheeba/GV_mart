@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils"
 import { canCompleteTask, completeBlockReason } from "@/lib/task-rules"
 import { hasLookupableContact, isCustomerNeedsReviewTask } from "@/lib/customerNeedsReviewTask"
 import { TaskWorkLog } from "@/app/admin/tasks/TaskWorkLog"
+import { WaterFollowupTaskPanel } from "@/app/admin/tasks/WaterFollowupTaskPanel"
+import { isWaterFollowupTask } from "@/lib/waterFollowup"
 
 const PRIORITIES: PriorityLevel[] = ["normal", "urgent", "very_urgent"]
 
@@ -56,6 +58,9 @@ export function TaskDetailDialog({
   // ref_id is the customer whose pin a technician couldn't reach, same ref_id-is-a-customer
   // shape as isCustomerNeedsReviewTask below.
   const isArrivalLocationMismatchTask = task.ref_type === "arrival_location_mismatch"
+  // Water solution follow-up: its date moves only through Postpone (later date + reason), so the free date/recurring
+  // fields are hidden for it. See build-docs/features/water-solution-followup.md.
+  const isWaterFollowup = isWaterFollowupTask(task.ref_type)
   const { data: outstandingDetail } = useCustomerOutstandingDetail(
     isCustomerOutstandingTask && profile?.role === "master" ? (task.ref_id ?? undefined) : undefined
   )
@@ -243,6 +248,8 @@ export function TaskDetailDialog({
           </div>
         ) : null}
 
+        {isWaterFollowup ? <WaterFollowupTaskPanel task={task} canAct={canEdit} onDone={onClose} /> : null}
+
         <div className="space-y-1.5">
           <Label>{t("tasks.assignDialog.priority")}</Label>
           <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
@@ -259,6 +266,8 @@ export function TaskDetailDialog({
           </div>
         </div>
 
+        {isWaterFollowup ? null : (
+        <>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="detailDueDate">{t("tasks.assignDialog.dueDate")}</Label>
@@ -288,6 +297,8 @@ export function TaskDetailDialog({
           <span className="font-medium">{t("tasks.assignDialog.repeatMonthly")}</span>
         </label>
         {!dueDate ? <p className="text-xs text-text-muted">{t("tasks.assignDialog.repeatMonthlyHint")}</p> : null}
+        </>
+        )}
 
         <TaskWorkLog orgId={orgId} taskId={task.id} />
 

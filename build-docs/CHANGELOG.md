@@ -1,5 +1,15 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## customer-water-household + water-solution-followup (2026-11-26)
+- Edit customer showed Water & household twice: step-1 panel (customers row) and step-3 form (addresses row). Now one step 3 in both modes, backed only by the customers row.
+- Create no longer writes `addresses.water_*`, which nothing displayed. Water values typed at create now show on the detail page, technician job/history and customer app.
+- Family count removed from every Water & household block. The customer app's members and count now exclude moved-out members.
+- Added Total hardness and "Problems faced" (list, + add another). Health condition removed from all screens and dropped from the DB.
+- Added Recommended solution and Follow-up date. The date creates one task for the master. Tasks gets Postpone (later date + reason) and Convert to lead (opens New Lead prefilled, closes the task when saved). Daily 09:00 IST due reminder.
+- Shared `WaterHouseholdFields` (edit) / `WaterHouseholdSummary` (read-only) replace four hand-copied blocks.
+- Migrations `20261215100000`, `20261215110000` + rollbacks + SQL tests are written. **NOT applied, and the SQL rehearsal has not been run.**
+- Also removed a pre-existing unused `fullAddress` variable in CustomerFormPage (failed `tsc` on main).
+
 ## customer-form-map-search-prefill (2026-11-25)
 - Map search box on the customer Address step now mirrors the typed address fields (door/street/area/PIN/district/state) -- no retyping.
 - Mirrored text never auto-opens suggestions or spends a Places call; focusing the pre-filled box searches it once. User-typed text searches live as before.

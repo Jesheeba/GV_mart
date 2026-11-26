@@ -46,3 +46,10 @@
 - Pins are manual (user-chosen), not auto-ranked by usage.
 - Storage: localStorage `gv_mart_admin_sidebar_pins:<profile.id>` — user chose browser-only over a DB prefs table (no migration; pins don't sync across devices).
 - Pinned items stay in their original group too (user's choice) — nothing moves.
+
+## Customer water & household (2026-11-26, owner decisions)
+- Single store: the `customers` row. `addresses.water_*` and the health objects are dropped (owner chose "Drop from DB").
+- Problems faced are visible to all (plain column), unlike the old protected health table.
+- Follow-up date has no customer column: the open `customer_water_followup` task's `due_date` IS the date, so postponing on Tasks and the customer form can't disagree.
+- Recommended solution is free text. Postpone requires a reason and a later date.
+- Customer edit UI is master + sales_admin (route guard). The DB guard still also allows operation_admin.

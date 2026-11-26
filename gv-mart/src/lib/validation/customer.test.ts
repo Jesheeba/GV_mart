@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { canEditWaterHousehold, canSkipAddressPin, memberSchema, technicianCanSeeHealthCondition, waterProfileSchema } from "./customer"
+import { MAX_HOUSEHOLD_PROBLEMS, canEditWaterHousehold, canSkipAddressPin, cleanHouseholdProblems, memberSchema, waterProfileSchema } from "./customer"
 import { customerMemberSchema } from "./customerApp"
 
 const base = { name: "Asha Rao", mobile: "9876543210" }
@@ -81,11 +81,45 @@ describe("waterProfileSchema (FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md)", () 
     expect(waterProfileSchema.safeParse({ waterSource: "", waterSourceOther: "" }).success).toBe(true)
   })
 
-  it("healthCondition accepts the 4 levels and a blank placeholder, rejects anything else", () => {
-    for (const level of ["none", "normal", "medium", "high", ""]) {
-      expect(waterProfileSchema.safeParse({ healthCondition: level }).success, level).toBe(true)
-    }
-    expect(waterProfileSchema.safeParse({ healthCondition: "critical" }).success).toBe(false)
+  it("total hardness: negative rejected with the i18n key; 0 and blank (NaN) pass", () => {
+    const r = waterProfileSchema.safeParse({ waterHardnessPpm: -1 })
+    expect(r.success).toBe(false)
+    if (!r.success) expect(r.error.issues[0].message).toBe("customers.errors.waterHardnessInvalid")
+    expect(waterProfileSchema.safeParse({ waterHardnessPpm: 0 }).success).toBe(true)
+    expect(waterProfileSchema.safeParse({ waterHardnessPpm: 350 }).success).toBe(true)
+    expect(waterProfileSchema.safeParse({ waterHardnessPpm: Number.NaN }).success).toBe(true)
+  })
+
+  it("health condition is gone: the schema no longer carries it", () => {
+    const r = waterProfileSchema.safeParse({ healthCondition: "high" })
+    expect(r.success).toBe(true)
+    if (r.success) expect("healthCondition" in r.data).toBe(false)
+  })
+
+  it("problems faced: blank rows allowed, >100 chars rejected, more than the cap rejected", () => {
+    expect(waterProfileSchema.safeParse({ householdProblems: [{ value: "" }] }).success).toBe(true)
+    const long = waterProfileSchema.safeParse({ householdProblems: [{ value: "x".repeat(101) }] })
+    expect(long.success).toBe(false)
+    if (!long.success) expect(long.error.issues[0].message).toBe("customers.errors.problemTooLong")
+    expect(waterProfileSchema.safeParse({ householdProblems: [{ value: "x".repeat(100) }] }).success).toBe(true)
+    const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `p${i}` }))
+    expect(waterProfileSchema.safeParse({ householdProblems: rows(MAX_HOUSEHOLD_PROBLEMS) }).success).toBe(true)
+    const many = waterProfileSchema.safeParse({ householdProblems: rows(MAX_HOUSEHOLD_PROBLEMS + 1) })
+    expect(many.success).toBe(false)
+    if (!many.success) expect(many.error.issues[0].message).toBe("customers.errors.tooManyProblems")
+  })
+})
+
+describe("cleanHouseholdProblems (what actually gets saved)", () => {
+  it("trims, drops blanks, de-duplicates case-insensitively, keeps first spelling and order", () => {
+    expect(cleanHouseholdProblems([{ value: "  Hair fall " }, { value: "" }, { value: "   " }, { value: "hair FALL" }, { value: "Skin rash" }])).toEqual([
+      "Hair fall",
+      "Skin rash",
+    ])
+  })
+  it("empty / missing input saves an empty list, never null", () => {
+    expect(cleanHouseholdProblems(undefined)).toEqual([])
+    expect(cleanHouseholdProblems([])).toEqual([])
   })
 })
 
@@ -100,16 +134,5 @@ describe("canEditWaterHousehold (UI gate — DB is the real authority, see 20261
     expect(canEditWaterHousehold("customer")).toBe(false)
     expect(canEditWaterHousehold(undefined)).toBe(false)
     expect(canEditWaterHousehold(null)).toBe(false)
-  })
-})
-
-describe("technicianCanSeeHealthCondition (UI gate — fails closed)", () => {
-  it("is true only when the setting is explicitly true", () => {
-    expect(technicianCanSeeHealthCondition(true)).toBe(true)
-  })
-  it("is false when off, unset, or the settings row hasn't loaded yet", () => {
-    expect(technicianCanSeeHealthCondition(false)).toBe(false)
-    expect(technicianCanSeeHealthCondition(null)).toBe(false)
-    expect(technicianCanSeeHealthCondition(undefined)).toBe(false)
   })
 })

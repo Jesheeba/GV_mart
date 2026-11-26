@@ -426,6 +426,8 @@ export type JobDetail = ServiceTicketRow & {
     water_source_other: string | null
     water_tds_ppm: number | null
     water_ph: number | null
+    water_hardness_ppm?: number | null
+    household_problems?: string[]
     customer_members: {
       id: string
       name: string
@@ -487,25 +489,9 @@ export type JobDetail = ServiceTicketRow & {
 }
 
 const JOB_DETAIL_CUSTOMER_COLUMNS_BASE = "id,name,mobile,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
-const JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER = "id,name,mobile,water_source,water_source_other,water_tds_ppm,water_ph,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
+const JOB_DETAIL_CUSTOMER_COLUMNS_WITH_WATER = "id,name,mobile,water_source,water_source_other,water_tds_ppm,water_ph,water_hardness_ppm,household_problems,customer_members(id,name,mobile,is_primary,google_review_stars,google_review_photo_url)"
 const JOB_DETAIL_REST =
   "addresses(*), products(name, warranty_months, category), brands(name), models(name), appointments(scheduled_at, mode, status, technician_id, appointment_availability_calls(id, reason, confirmed_date, confirmed_from, confirmed_to, note, created_at)), service_visits(id, timer_start, timer_end, service_charge, before_image_url, after_image_url, arrival_selfie_url, evidence_photo_urls, service_spares_used(qty, spares(standard_time_minutes)), ratings(google_review_clicked), leads(id))"
-
-/**
- * Sensitive (FEATURE_CUSTOMER_WATER_HOUSEHOLD_PROFILE.md §3.5) — routed through
- * get_customer_health_condition rather than a raw column select (column-select-revoked on
- * customers for everyone). The function itself only returns a value to a technician when the
- * org's show_health_condition_to_technicians setting is on AND they have an appointment for
- * that customer — both checked server-side, not trusted from this layer.
- */
-export async function getCustomerHealthConditionForTechnician(customerId: string): Promise<Enums<"household_health_level"> | null> {
-  const { data, error } = await supabase.rpc("get_customer_health_condition", { p_customer_id: customerId })
-  if (error) {
-    if ((error as { code?: string }).code === "42883") return null // deploy-order safety (§6)
-    throw error
-  }
-  return data ?? null
-}
 
 export async function getJobDetail(ticketId: string): Promise<JobDetail> {
   if (navigator.onLine) {

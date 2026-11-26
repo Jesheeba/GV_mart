@@ -1,168 +1,269 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { Loader2, Pencil } from "lucide-react"
+import { useFieldArray, useForm, type UseFormReturn } from "react-hook-form"
+import { Loader2, Pencil, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SegButton } from "@/components/shared/SegButton"
-import { useUpdateCustomerWaterProfile, useUpsertCustomerHealthCondition } from "@/hooks/useCustomers"
-import { HEALTH_CONDITION_LEVELS, WATER_SOURCES, waterProfileSchema, type WaterProfileInput } from "@/lib/validation/customer"
+import { DatePicker } from "@/components/ui/date-picker"
+import { useCustomerWaterFollowup, useSaveWaterHousehold } from "@/hooks/useCustomers"
+import {
+  MAX_HOUSEHOLD_PROBLEMS,
+  WATER_SOURCES,
+  cleanHouseholdProblems,
+  followUpDateError,
+  waterProfileSchema,
+  type WaterProfileInput,
+} from "@/lib/validation/customer"
 import { formatDate } from "@/lib/formatDate"
+import { getIstNow } from "@/lib/ist"
+import type { WaterProfilePatch } from "@/services/customers"
 import type { CustomerMeasuredWaterReading } from "@/services/waterQuality"
+import { WaterHouseholdSummary, type WaterHouseholdValues } from "@/components/shared/WaterHouseholdSummary"
+
+export { waterValuesFromCustomer } from "@/components/shared/WaterHouseholdSummary"
+
+/** Form defaults for a saved profile; an empty problems list still shows one blank row to type into. */
+export function waterFormDefaults(v: Partial<WaterHouseholdValues> = {}, followUpDate: string | null = null): WaterProfileInput {
+  const problems = v.householdProblems ?? []
+  return {
+    waterSource: v.waterSource ?? "",
+    waterSourceOther: v.waterSourceOther ?? "",
+    waterTdsPpm: v.waterTdsPpm ?? undefined,
+    waterPh: v.waterPh ?? undefined,
+    waterHardnessPpm: v.waterHardnessPpm ?? undefined,
+    householdProblems: (problems.length ? problems : [""]).map((value) => ({ value })),
+    recommendedSolution: v.waterRecommendedSolution ?? "",
+    followUpDate: followUpDate ?? "",
+  }
+}
+
+/** Any profile field dirty (the follow-up date is the task's, not the profile's). */
+export function isWaterProfileDirty(dirtyFields: object): boolean {
+  return Object.keys(dirtyFields).some((k) => k !== "followUpDate")
+}
+
+/** Past-date guard shared by the form and the panel; sets the field error and returns false when blocked. */
+export function checkFollowUpDate(form: UseFormReturn<WaterProfileInput>, savedDate: string | null): boolean {
+  const key = followUpDateError(form.getValues("followUpDate"), savedDate, getIstNow().date)
+  if (key) form.setError("followUpDate", { message: key })
+  return !key
+}
+
+const numOrNull = (n: number | undefined) => (n == null || Number.isNaN(n) ? null : n)
+
+/** Parsed form values → the customers patch actually written. */
+export function waterFormToPatch(values: WaterProfileInput): WaterProfilePatch {
+  const source = values.waterSource || null
+  return {
+    waterSource: source,
+    waterSourceOther: source === "other" ? values.waterSourceOther?.trim() || null : null,
+    waterTdsPpm: numOrNull(values.waterTdsPpm),
+    waterPh: numOrNull(values.waterPh),
+    waterHardnessPpm: numOrNull(values.waterHardnessPpm),
+    householdProblems: cleanHouseholdProblems(values.householdProblems),
+    waterRecommendedSolution: values.recommendedSolution?.trim() || null,
+  }
+}
+
+/** True when the form holds nothing worth saving — lets a new customer skip the follow-up write. */
+export function isWaterPatchEmpty(p: WaterProfilePatch): boolean {
+  return (
+    !p.waterSource &&
+    p.waterTdsPpm == null &&
+    p.waterPh == null &&
+    p.waterHardnessPpm == null &&
+    !p.householdProblems?.length &&
+    !p.waterRecommendedSolution
+  )
+}
+
+/**
+ * The editable fields, shared by the customer form's Water & household step and the detail
+ * page's panel so both always show the same inputs.
+ */
+export function WaterHouseholdFields({ form }: { form: UseFormReturn<WaterProfileInput> }) {
+  const { t } = useTranslation()
+  const {
+    register,
+    watch,
+    setValue,
+    control,
+    formState: { errors },
+  } = form
+  const problems = useFieldArray({ control, name: "householdProblems" })
+  const watchedSource = watch("waterSource")
+  const numberField = (name: "waterTdsPpm" | "waterPh" | "waterHardnessPpm", label: string, extra: { step: string; max?: number }) => (
+    <div className="space-y-1.5">
+      <Label htmlFor={name}>{label}</Label>
+      <Input id={name} type="number" min={0} inputMode="decimal" aria-invalid={!!errors[name]} {...extra} {...register(name, { valueAsNumber: true })} />
+      {errors[name] ? <p className="text-xs text-danger">{t(errors[name]!.message!)}</p> : null}
+    </div>
+  )
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <Label>{t("customers.detail.waterSource")}</Label>
+        <div className="flex flex-wrap gap-1 rounded-full bg-surface-alt p-1">
+          {WATER_SOURCES.map((s) => (
+            <SegButton key={s} active={watchedSource === s} onClick={() => setValue("waterSource", s, { shouldValidate: true, shouldDirty: true })}>
+              {t(`customers.detail.waterSourceOptions.${s}`)}
+            </SegButton>
+          ))}
+        </div>
+      </div>
+      {watchedSource === "other" ? (
+        <div className="space-y-1.5">
+          <Input
+            aria-label={t("customers.detail.waterSourceOtherPlaceholder")}
+            placeholder={t("customers.detail.waterSourceOtherPlaceholder")}
+            {...register("waterSourceOther")}
+          />
+          {errors.waterSourceOther ? <p className="text-xs text-danger">{t(errors.waterSourceOther.message!)}</p> : null}
+        </div>
+      ) : null}
+      <div className="grid grid-cols-3 gap-2">
+        {numberField("waterTdsPpm", t("customers.detail.waterTds"), { step: "1" })}
+        {numberField("waterPh", t("customers.detail.waterPh"), { step: "0.1", max: 14 })}
+        {numberField("waterHardnessPpm", t("customers.detail.waterHardness"), { step: "1" })}
+      </div>
+      <fieldset className="space-y-1.5">
+        <legend className="mb-1.5 text-sm font-medium text-text">{t("customers.detail.problemsFaced")}</legend>
+        {problems.fields.map((field, index) => (
+          <div key={field.id} className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Input
+                aria-label={`${t("customers.detail.problemsFaced")} ${index + 1}`}
+                placeholder={t("customers.detail.problemPlaceholder")}
+                maxLength={100}
+                {...register(`householdProblems.${index}.value`)}
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label={t("customers.detail.removeProblem")}
+                title={t("customers.detail.removeProblem")}
+                onClick={() => (problems.fields.length > 1 ? problems.remove(index) : setValue(`householdProblems.${index}.value`, "", { shouldDirty: true }))}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            {errors.householdProblems?.[index]?.value ? (
+              <p className="text-xs text-danger">{t(errors.householdProblems[index]!.value!.message!)}</p>
+            ) : null}
+          </div>
+        ))}
+        {problems.fields.length < MAX_HOUSEHOLD_PROBLEMS ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            aria-label={t("customers.detail.addProblem")}
+            title={t("customers.detail.addProblem")}
+            onClick={() => problems.append({ value: "" })}
+          >
+            <Plus className="size-4" />
+          </Button>
+        ) : null}
+      </fieldset>
+      <div className="space-y-1.5">
+        <Label htmlFor="recommendedSolution">{t("customers.detail.recommendedSolution")}</Label>
+        <textarea
+          id="recommendedSolution"
+          rows={2}
+          maxLength={500}
+          placeholder={t("customers.detail.recommendedSolutionPlaceholder")}
+          aria-invalid={!!errors.recommendedSolution}
+          className="w-full resize-none rounded-xl border border-input bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+          {...register("recommendedSolution")}
+        />
+        {errors.recommendedSolution ? <p className="text-xs text-danger">{t(errors.recommendedSolution.message!)}</p> : null}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="followUpDate">{t("customers.detail.followUpDate")}</Label>
+        <div className="flex items-center gap-1.5">
+          <DatePicker
+            id="followUpDate"
+            value={watch("followUpDate") ?? ""}
+            min={getIstNow().date}
+            aria-invalid={!!errors.followUpDate}
+            onChange={(v) => {
+              form.clearErrors("followUpDate")
+              setValue("followUpDate", v, { shouldDirty: true, shouldValidate: true })
+            }}
+          />
+          {watch("followUpDate") ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={t("customers.detail.clearFollowUpDate")}
+              title={t("customers.detail.clearFollowUpDate")}
+              onClick={() => setValue("followUpDate", "", { shouldDirty: true })}
+            >
+              <X className="size-4" />
+            </Button>
+          ) : null}
+        </div>
+        <p className="text-xs text-text-muted">{t("customers.detail.followUpDateHint")}</p>
+        {errors.followUpDate ? <p className="text-xs text-danger">{t(errors.followUpDate.message!)}</p> : null}
+      </div>
+    </div>
+  )
+}
 
 type WaterHouseholdPanelProps = {
   customerId: string
-  orgId: string | undefined
-  waterSource: WaterProfileInput["waterSource"] | null
-  waterSourceOther: string | null
-  waterTdsPpm: number | null
-  waterPh: number | null
-  // undefined while health_condition is still loading — rendered as "—" the same as null, just
-  // kept distinct in the type so a caller can tell "not loaded yet" from "not set/not visible".
-  healthCondition: WaterProfileInput["healthCondition"] | null | undefined
-  /** customer_members where moved_out_at is null — always derived, never a stored column. */
-  familyMemberCount: number
+  values: WaterHouseholdValues
   /** The latest ro_checklists reading from a real service visit (separate, untouched table). */
   measuredReading?: CustomerMeasuredWaterReading | null
-  /** master, operation_admin or sales_admin — see 20261108100000_customer_water_profile.sql. */
+  /** master, operation_admin or sales_admin — see canEditWaterHousehold. */
   canEdit: boolean
 }
 
 /**
- * Renders bare (no outer Card), same convention as FamilyMembersPanel — drops into
- * CustomerDetailPage's "Water & household" tab or a Card already provided by CustomerFormPage's
- * edit step without doubling up the border/shadow.
+ * Customer detail page's "Water & household" tab: summary with an Edit toggle that saves
+ * straight to the customers row. Renders bare (no outer Card), same convention as FamilyMembersPanel.
  */
-export function WaterHouseholdPanel({
-  customerId,
-  orgId,
-  waterSource,
-  waterSourceOther,
-  waterTdsPpm,
-  waterPh,
-  healthCondition,
-  familyMemberCount,
-  measuredReading,
-  canEdit,
-}: WaterHouseholdPanelProps) {
+export function WaterHouseholdPanel({ customerId, values, measuredReading, canEdit }: WaterHouseholdPanelProps) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
-  const updateProfile = useUpdateCustomerWaterProfile(customerId)
-  const upsertHealth = useUpsertCustomerHealthCondition(customerId)
+  const save = useSaveWaterHousehold()
+  const followup = useCustomerWaterFollowup(canEdit ? customerId : undefined)
+  const savedFollowUpDate = followup.data?.dueDate ?? null
+  const form = useForm<WaterProfileInput>({ resolver: zodResolver(waterProfileSchema), mode: "onChange", defaultValues: waterFormDefaults(values) })
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<WaterProfileInput>({
-    resolver: zodResolver(waterProfileSchema),
-    mode: "onChange",
-    defaultValues: {
-      waterSource: waterSource ?? "",
-      waterSourceOther: waterSourceOther ?? "",
-      waterTdsPpm: waterTdsPpm ?? undefined,
-      waterPh: waterPh ?? undefined,
-      healthCondition: healthCondition ?? "",
-    },
-  })
-  const watchedSource = watch("waterSource")
-
-  const isSaving = updateProfile.isPending || upsertHealth.isPending
-
-  const onSave = handleSubmit(async (values) => {
-    if (canEdit) {
-      await updateProfile.mutateAsync({
-        waterSource: values.waterSource || null,
-        waterSourceOther: values.waterSource === "other" ? values.waterSourceOther?.trim() || null : null,
-        waterTdsPpm: values.waterTdsPpm == null || Number.isNaN(values.waterTdsPpm) ? null : values.waterTdsPpm,
-        waterPh: values.waterPh == null || Number.isNaN(values.waterPh) ? null : values.waterPh,
-      })
-    }
-    if (canEdit && values.healthCondition && orgId) {
-      await upsertHealth.mutateAsync({ orgId, healthCondition: values.healthCondition })
-    }
+  const startEditing = () => {
+    form.reset(waterFormDefaults(values, savedFollowUpDate))
+    setEditing(true)
+  }
+  const onSave = form.handleSubmit(async (parsed) => {
+    if (!checkFollowUpDate(form, savedFollowUpDate)) return
+    await save.mutateAsync({
+      customerId,
+      patch: waterFormToPatch(parsed),
+      profileDirty: isWaterProfileDirty(form.formState.dirtyFields),
+      followUpDate: parsed.followUpDate || null,
+      savedFollowUpDate,
+    })
     setEditing(false)
   })
 
   if (editing) {
     return (
       <form onSubmit={onSave} className="space-y-3">
-        <div className="space-y-1.5">
-          <Label>{t("customers.detail.waterSource")}</Label>
-          {canEdit ? (
-            <div className="flex flex-wrap gap-1 rounded-full bg-surface-alt p-1">
-              {WATER_SOURCES.map((s) => (
-                <SegButton key={s} active={watchedSource === s} onClick={() => setValue("waterSource", s, { shouldValidate: true })}>
-                  {t(`customers.detail.waterSourceOptions.${s}`)}
-                </SegButton>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-text">{waterSource ? t(`customers.detail.waterSourceOptions.${waterSource}`) : "—"}</p>
-          )}
-        </div>
-        {canEdit && watchedSource === "other" ? (
-          <div className="space-y-1.5">
-            <Input placeholder={t("customers.detail.waterSourceOtherPlaceholder")} {...register("waterSourceOther")} />
-            {errors.waterSourceOther ? <p className="text-xs text-danger">{t(errors.waterSourceOther.message!)}</p> : null}
-          </div>
-        ) : null}
-        <div className="flex gap-2">
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="waterTdsPpm">{t("customers.detail.waterTds")}</Label>
-            {canEdit ? (
-              <>
-                <Input id="waterTdsPpm" type="number" step="1" min={0} aria-invalid={!!errors.waterTdsPpm} {...register("waterTdsPpm", { valueAsNumber: true })} />
-                {errors.waterTdsPpm ? <p className="text-xs text-danger">{t(errors.waterTdsPpm.message!)}</p> : null}
-              </>
-            ) : (
-              <p className="text-sm text-text">{waterTdsPpm ?? "—"}</p>
-            )}
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="waterPh">{t("customers.detail.waterPh")}</Label>
-            {canEdit ? (
-              <>
-                <Input id="waterPh" type="number" step="0.1" min={0} max={14} aria-invalid={!!errors.waterPh} {...register("waterPh", { valueAsNumber: true })} />
-                {errors.waterPh ? <p className="text-xs text-danger">{t(errors.waterPh.message!)}</p> : null}
-              </>
-            ) : (
-              <p className="text-sm text-text">{waterPh ?? "—"}</p>
-            )}
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="healthCondition">{t("customers.detail.healthCondition")}</Label>
-          {canEdit ? (
-            <select
-              id="healthCondition"
-              defaultValue={healthCondition ?? ""}
-              className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
-              {...register("healthCondition")}
-            >
-              <option value="">{t("customers.detail.healthConditionPlaceholder")}</option>
-              {HEALTH_CONDITION_LEVELS.map((level) => (
-                <option key={level} value={level}>
-                  {t(`customers.detail.healthConditionLevels.${level}`)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="text-sm text-text">{healthCondition ? t(`customers.detail.healthConditionLevels.${healthCondition}`) : "—"}</p>
-          )}
-        </div>
-        {updateProfile.isError ? <p className="text-xs text-danger">{(updateProfile.error as Error).message}</p> : null}
-        {upsertHealth.isError ? <p className="text-xs text-danger">{(upsertHealth.error as Error).message}</p> : null}
+        <WaterHouseholdFields form={form} />
+        {save.isError ? <p className="text-xs text-danger">{(save.error as Error).message}</p> : null}
         <div className="flex justify-end gap-2">
           <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>
             {t("common.cancel")}
           </Button>
-          <Button type="submit" size="sm" disabled={isSaving}>
-            {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
+          <Button type="submit" size="sm" disabled={save.isPending}>
+            {save.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
           </Button>
         </div>
       </form>
@@ -174,32 +275,13 @@ export function WaterHouseholdPanel({
       <div className="flex items-center justify-between px-1">
         <h2 className="text-lg font-semibold text-text">{t("customers.detail.waterHouseholdTitle")}</h2>
         {canEdit ? (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+          <Button size="sm" variant="outline" onClick={startEditing} disabled={followup.isLoading}>
             <Pencil className="size-3.5" />
             {t("common.edit")}
           </Button>
         ) : null}
       </div>
-      <div className="grid grid-cols-2 gap-y-2 px-1 text-sm">
-        <span className="text-text-muted">{t("customers.detail.waterSource")}</span>
-        <span className="text-text">
-          {waterSource
-            ? waterSource === "other" && waterSourceOther
-              ? waterSourceOther
-              : t(`customers.detail.waterSourceOptions.${waterSource}`)
-            : "—"}
-        </span>
-        <span className="text-text-muted">{t("customers.detail.waterTds")}</span>
-        <span className="text-text">{waterTdsPpm ?? "—"}</span>
-        <span className="text-text-muted">{t("customers.detail.waterPh")}</span>
-        <span className="text-text">{waterPh ?? "—"}</span>
-        <span className="text-text-muted">{t("customers.detail.healthCondition")}</span>
-        <span className="text-text">
-          {healthCondition ? t(`customers.detail.healthConditionLevels.${healthCondition}`) : "—"}
-        </span>
-        <span className="text-text-muted">{t("customers.detail.familyMembersCount")}</span>
-        <span className="text-text">{familyMemberCount}</span>
-      </div>
+      <WaterHouseholdSummary values={values} followUpDate={canEdit ? savedFollowUpDate : undefined} />
       {measuredReading ? (
         <div className="rounded-xl bg-surface-alt px-3 py-2.5 text-xs text-text-muted">
           <p className="mb-1 font-semibold text-text">{t("customers.detail.latestReadingTitle", { date: formatDate(measuredReading.measuredAt) })}</p>

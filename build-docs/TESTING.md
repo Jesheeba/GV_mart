@@ -64,3 +64,11 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - `src/app/admin/nav.test.ts` › "sidebar-pinned-items": 6 tests (per-user key, corrupt storage, dedupe/order, pin order, unknown+Dashboard dropped, role-hidden key hidden) — PASS.
 - `tsc -b` clean. Full suite: 1084 pass, 2 fail — `waOutboxSentGuard.test.ts`, `wa-event-context.test.ts`: pre-existing on main, unrelated (don't import changed files).
 - Not covered by automated tests (no DOM test env): pin button render/hover, collapsed view — manual check needed.
+
+## customer-water-household + water-solution-followup (2026-11-26)
+- `src/lib/validation/customer.test.ts`: 18 pass (hardness, problems cap/length, health removed, cleanHouseholdProblems).
+- `src/app/admin/customers/waterHouseholdForm.test.ts`: WH-1 prefill round-trip, patch mapping, empty-patch detection, dirty rule, FU date rules (follow-up + postpone), schema limits. All pass.
+- `src/services/customerWaterHousehold.test.ts`: exact writes and order (profile before RPC), no address/health writes, when the RPC is or isn't called, error surfacing, moved-out filter (admin + customer app). All pass.
+- Subtotal for those 3 files: 42/42 pass. Full suite: 1110 pass, 2 fail. The 2 failures (`waOutboxSentGuard`, `wa-event-context`) also fail on clean origin/main (verified in a temp worktree), so they are unrelated. `tsc` clean, `vite build` ok.
+- DB: `supabase/tests/customer_water_household_v2.{fixtures,test}.sql`, about 70 checks (backfill mapping, real-org untouched, checks, guard, RPC security incl. cross-org/anon, unique index, postpone/convert/clear, reminder idempotency, cron). Rehearsal file is `_local_only/rehearsal-files/2026-11-26_customer_water_household_v2.rehearsal.sql` and passes the guard check. **Not run yet**: the live call is blocked pending owner approval.
+- Live read-only precheck (2026-11-26): every object to drop exists, nothing else depends on them; 2 address rows hold water data, 1 health row, tech flag off in all orgs.

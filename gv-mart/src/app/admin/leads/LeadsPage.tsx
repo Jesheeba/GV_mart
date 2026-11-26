@@ -7,6 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { KpiCard } from "@/components/shared/KpiCard"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { useProfile } from "@/hooks/useProfile"
+import { useCloseWaterFollowupAsLead } from "@/hooks/useCustomers"
+import { useToast } from "@/components/ui/toast-context"
+import type { WaterFollowupLeadState } from "@/app/admin/tasks/WaterFollowupTaskPanel"
 import { WaitingLeadsBanner } from "./WaitingLeadsBanner"
 import { useLeadFollowupActors, useLeads } from "@/hooks/useAutomation"
 import { LeadsKanban } from "./LeadsKanban"
@@ -59,6 +62,11 @@ export function LeadsPage() {
   const [newLeadForCustomer] = useState(
     () => (location.state as { newLeadForCustomer?: { id: string; name: string; mobile: string | null } } | null)?.newLeadForCustomer
   )
+  // Arrived from a water follow-up task's "Convert to lead": prefill the requirement, close the task once saved.
+  const [fromWaterFollowup] = useState(() => (location.state as Partial<WaterFollowupLeadState> | null)?.fromWaterFollowup)
+  const [waterFollowupPending, setWaterFollowupPending] = useState(!!fromWaterFollowup)
+  const closeWaterFollowup = useCloseWaterFollowupAsLead()
+  const { toast } = useToast()
   useEffect(() => {
     if (newLeadForCustomer) {
       setShowNew(true)
@@ -194,10 +202,22 @@ export function LeadsPage() {
       {showNew ? (
         <NewLeadForm
           existingCustomer={newLeadForCustomer}
+          initialRequirement={fromWaterFollowup?.requirement}
           onClose={() => setShowNew(false)}
-          onCreated={() => {
+          onCreated={(leadId) => {
             setShowNew(false)
             leads.refetch()
+            // Only the first lead saved from the follow-up closes it; later leads in the same visit are unrelated.
+            if (fromWaterFollowup && waterFollowupPending && leadId) {
+              setWaterFollowupPending(false)
+              closeWaterFollowup.mutate(
+                { taskId: fromWaterFollowup.taskId, leadId },
+                {
+                  onSuccess: () => toast.success(t("tasks.waterFollowup.convertedToLead")),
+                  onError: () => toast.error(t("tasks.waterFollowup.closeFailed")),
+                }
+              )
+            }
           }}
         />
       ) : null}

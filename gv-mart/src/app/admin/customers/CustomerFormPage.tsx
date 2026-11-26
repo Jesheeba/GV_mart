@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { useFieldArray, useForm, type Control, type FieldErrors, type UseFormRegister, type UseFormWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2, Pencil, Plus, Star, Trash2 } from "lucide-react"
+import { Loader2, Plus, Star, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,13 +18,22 @@ import { useToast } from "@/components/ui/toast-context"
 import { PreferredLanguageSelect } from "@/components/shared/PreferredLanguageSelect"
 import { StatusDot } from "@/components/shared/StatusDot"
 import { FamilyMembersPanel } from "./FamilyMembersPanel"
-import { WaterHouseholdPanel } from "./WaterHouseholdPanel"
+import {
+  WaterHouseholdFields,
+  checkFollowUpDate,
+  isWaterPatchEmpty,
+  isWaterProfileDirty,
+  waterFormDefaults,
+  waterFormToPatch,
+  waterValuesFromCustomer,
+} from "./WaterHouseholdPanel"
 import {
   addressStepSchema,
   peopleStepSchema,
   canSkipAddressPin,
   FAMILY_RELATIONS,
-  canEditWaterHousehold,
+  waterProfileSchema,
+  type WaterProfileInput,
   type AddressStepInput,
   type PeopleStepInput,
 } from "@/lib/validation/customer"
@@ -35,10 +44,10 @@ import { isPreciseGeocodeResult } from "@/services/maps"
 import {
   getPrimaryAddressId,
   setAddressStructuredFields,
-  setAddressWaterHousehold,
   setAddressZone,
   setCustomerPreferredLanguage,
   updateCustomerEmail,
+  saveWaterHousehold,
 } from "@/services/customers"
 import { composeFullAddress, splitAddressForForm, type StructuredAddressFields } from "@/lib/address"
 import {
@@ -53,6 +62,8 @@ import {
   useStreetCrossAutocomplete,
   useSubAreaAutocomplete,
   useUpdateCustomerEmail,
+  useCustomerWaterFollowup,
+  useSaveWaterHousehold,
   useUpsertPrimaryAddress,
 } from "@/hooks/useCustomers"
 import { canSubmitWithWarning, duplicateWarningKey } from "@/lib/duplicateContactWarning"
@@ -265,13 +276,15 @@ export function CustomerFormPage() {
       ownership: "own",
       lat: undefined,
       lng: undefined,
-      waterSource: "",
-      waterTds: undefined,
-      waterPh: undefined,
-      healthCondition: "",
     },
   })
-  const [waterEditing, setWaterEditing] = useState(false)
+  // Water & household step: the customer's one water profile (customers columns) — the same
+  // fields and the same row the detail page's Water & household tab edits.
+  const waterForm = useForm<WaterProfileInput>({ resolver: zodResolver(waterProfileSchema), mode: "onChange", defaultValues: waterFormDefaults() })
+  const saveWater = useSaveWaterHousehold()
+  // Edit mode: the open follow-up task's due date is the follow-up date (single store — see the feature doc).
+  const followup = useCustomerWaterFollowup(mode === "edit" ? id : undefined)
+  const savedFollowUpDate = followup.data?.dueDate ?? null
   // Shown only for a customer saved before the structured fields existed
   // (every structured column still empty) — editing their address falls
   // back to the old free-text box instead of looking blank. See
@@ -290,11 +303,6 @@ export function CustomerFormPage() {
   const state = addressForm.watch("state")
   const lat = addressForm.watch("lat")
   const lng = addressForm.watch("lng")
-  // The canonical composed text geocoding/compare/save all use — structured
-  // fields take over the moment any of them has text; otherwise this falls
-  // back to the old free-text full_address so a pre-redesign customer's
-  // address isn't silently dropped. See src/lib/address.ts.
-  const fullAddress = composeFullAddress({ doorNo, plotNo, buildingName, streetCross, subArea, area, landmark }) || legacyFullAddress
   // Each "recently used" query only turns on once its own field is actually
   // focused -- all 5 firing together the moment the Address step mounts was
   // 5 extra DB round-trips competing with everything else on page load,
@@ -412,10 +420,6 @@ export function CustomerFormPage() {
           ownership: primary.ownership,
           lat: primary.lat ?? undefined,
           lng: primary.lng ?? undefined,
-          waterSource: primary.water_source ?? "",
-          waterTds: primary.water_tds ?? undefined,
-          waterPh: primary.water_ph ?? undefined,
-          healthCondition: primary.health_condition ?? "",
         })
         const composed = composeFullAddress(split) || split.legacyFullAddress
         confirmedLocationTextRef.current = [composed, primary.pincode, primary.district, primary.state].filter(Boolean).join(", ")
@@ -423,6 +427,13 @@ export function CustomerFormPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, existing.data])
+
+  useEffect(() => {
+    if (mode === "edit" && existing.data && followup.isFetched) {
+      waterForm.reset(waterFormDefaults(waterValuesFromCustomer(existing.data), followup.data?.dueDate ?? null))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, existing.data, followup.data, followup.isFetched])
 
   const createCustomer = useCreateCustomer()
   const upsertAddress = useUpsertPrimaryAddress(orgId, id ?? "")
@@ -439,7 +450,7 @@ export function CustomerFormPage() {
   // here regardless.
   const savingRef = useRef(false)
 
-  if (mode === "edit" && existing.isLoading) return <FullPageLoader label={t("common.loading")} />
+  if (mode === "edit" && (existing.isLoading || followup.isLoading)) return <FullPageLoader label={t("common.loading")} />
   if (mode === "edit" && (existing.isError || !existing.data)) {
     return <FullPageError message={t("customers.error.loadFailed")} onRetry={() => existing.refetch()} retryLabel={t("common.retry")} />
   }
@@ -473,9 +484,10 @@ export function CustomerFormPage() {
   }
 
   async function handleSaveAndFinishInner() {
-    const valid = await addressForm.trigger()
-    if (!valid) return
+    const [valid, waterValid] = await Promise.all([addressForm.trigger(), waterForm.trigger()])
+    if (!valid || !waterValid || !checkFollowUpDate(waterForm, savedFollowUpDate)) return
     const addressValues = addressForm.getValues()
+    const waterPatch = waterFormToPatch(waterForm.getValues())
     // Structured fields are the source of truth the moment any is filled;
     // only a customer that still has nothing but the legacy fallback box
     // keeps that text as full_address. See composeFullAddress in src/lib/address.ts.
@@ -578,19 +590,17 @@ export function CustomerFormPage() {
           toast.error(t("common.actionFailed"))
         }
       }
-      // Water & household step — same follow-up-write reasoning as zone
-      // above (the create RPC has no slot for these), and the same guard:
-      // no addresses row exists at all unless some address text was given.
-      const hasWaterValues =
-        addressValues.waterSource?.trim() || addressValues.waterTds != null || addressValues.waterPh != null || addressValues.healthCondition?.trim()
-      if (hasWaterValues && hasAddressText(addressValues)) {
+      // Water & household step — the create RPC has no slot for these; same small follow-up
+      // write as the language field above, on the customers row that now exists.
+      const followUpDate = waterForm.getValues("followUpDate") || null
+      if (!isWaterPatchEmpty(waterPatch) || followUpDate) {
         try {
-          const primaryAddressId = await getPrimaryAddressId(newId)
-          await setAddressWaterHousehold(primaryAddressId, {
-            waterSource: addressValues.waterSource?.trim() || undefined,
-            waterTds: addressValues.waterTds,
-            waterPh: addressValues.waterPh,
-            healthCondition: addressValues.healthCondition?.trim() || undefined,
+          await saveWaterHousehold({
+            customerId: newId,
+            patch: waterPatch,
+            profileDirty: !isWaterPatchEmpty(waterPatch),
+            followUpDate,
+            savedFollowUpDate: null,
           })
         } catch {
           toast.error(t("common.actionFailed"))
@@ -606,11 +616,18 @@ export function CustomerFormPage() {
     if (existingAddressId || hasAddressText(addressValues)) {
       await upsertAddress.mutateAsync({ existingAddressId, patch: { ...addressValues, fullAddress: composedFullAddress } })
     }
+    await saveWater.mutateAsync({
+      customerId: id!,
+      patch: waterPatch,
+      profileDirty: isWaterProfileDirty(waterForm.formState.dirtyFields),
+      followUpDate: waterForm.getValues("followUpDate") || null,
+      savedFollowUpDate,
+    })
     navigate(`/admin/customers/${id}`)
   }
 
-  const isSaving = createCustomer.isPending || upsertAddress.isPending
-  const saveError = (createCustomer.error ?? upsertAddress.error) as Error | null
+  const isSaving = createCustomer.isPending || upsertAddress.isPending || saveWater.isPending
+  const saveError = (createCustomer.error ?? upsertAddress.error ?? saveWater.error) as Error | null
 
   return (
     <div className="mx-auto max-w-xl space-y-3 pt-2">
@@ -709,19 +726,6 @@ export function CustomerFormPage() {
                 </div>
               </div>
               <FamilyMembersPanel orgId={orgId} customerId={id!} members={existing.data!.customer_members} customerProfession={existing.data!.profession} />
-              <div className="border-t border-border pt-4">
-                <WaterHouseholdPanel
-                  customerId={id!}
-                  orgId={orgId}
-                  waterSource={existing.data!.water_source}
-                  waterSourceOther={existing.data!.water_source_other}
-                  waterTdsPpm={existing.data!.water_tds_ppm}
-                  waterPh={existing.data!.water_ph}
-                  healthCondition={existing.data!.health_condition}
-                  familyMemberCount={existing.data!.customer_members.length}
-                  canEdit={canEditWaterHousehold(profile?.role)}
-                />
-              </div>
             </>
           )}
         </Card>
@@ -963,70 +967,10 @@ export function CustomerFormPage() {
         </Card>
       ) : (
         <Card className={COMPACT_CARD}>
-          <div className="flex items-center justify-between px-1">
-            <Label>{t("customers.form.water.title")}</Label>
-            <Button type="button" size="sm" variant="outline" onClick={() => setWaterEditing((v) => !v)}>
-              <Pencil className="size-3.5" />
-              {t("customers.form.water.edit")}
-            </Button>
+          <h2 className="px-1 text-base font-semibold text-text">{t("customers.detail.waterHouseholdTitle")}</h2>
+          <div className="px-1">
+            <WaterHouseholdFields form={waterForm} />
           </div>
-          {waterEditing ? (
-            <div className="space-y-3 px-1">
-              <div className="space-y-1.5">
-                <Label htmlFor="waterSource">{t("customers.form.water.waterSource")}</Label>
-                <Input id="waterSource" placeholder={t("customers.form.water.waterSourcePlaceholder")} {...addressForm.register("waterSource")} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="waterTds">{t("customers.form.water.waterTds")}</Label>
-                  <Input
-                    id="waterTds"
-                    type="number"
-                    placeholder={t("customers.form.water.valuePlaceholder")}
-                    {...addressForm.register("waterTds", { setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)) })}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="waterPh">{t("customers.form.water.waterPh")}</Label>
-                  <Input
-                    id="waterPh"
-                    type="number"
-                    step="0.1"
-                    placeholder={t("customers.form.water.valuePlaceholder")}
-                    {...addressForm.register("waterPh", { setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)) })}
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="healthCondition">{t("customers.form.water.healthCondition")}</Label>
-                <Input
-                  id="healthCondition"
-                  placeholder={t("customers.form.water.healthConditionPlaceholder")}
-                  {...addressForm.register("healthCondition")}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="divide-y divide-border px-1">
-              {(
-                [
-                  [t("customers.form.water.waterSource"), addressForm.watch("waterSource")],
-                  [t("customers.form.water.waterTds"), addressForm.watch("waterTds")],
-                  [t("customers.form.water.waterPh"), addressForm.watch("waterPh")],
-                  [t("customers.form.water.healthCondition"), addressForm.watch("healthCondition")],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between py-2.5 text-sm">
-                  <span className="text-text-muted">{label}</span>
-                  <span className="font-medium text-text">{value || value === 0 ? value : "—"}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between py-2.5 text-sm">
-                <span className="text-text-muted">{t("customers.form.water.familyMembers")}</span>
-                <span className="font-medium text-text">{fields.length}</span>
-              </div>
-            </div>
-          )}
         </Card>
       )}
 
