@@ -40,7 +40,7 @@ import { PriorityBadge, TicketTypeBadge } from "@/app/admin/service/TicketBadges
 import { pickHistoryVisit, TECHNICIAN_SKILL_OPTIONS } from "@/services/techniciansAdmin"
 import type { AttendanceRow, TechnicianCurrentJob, TechnicianHistoryTicket, TechnicianKpiSummary, TechnicianRewardItem, TechnicianVisitForDate } from "@/services/techniciansAdmin"
 import { formatDurationMinutes, minutesBetween, resolveVisitDurationMinutes } from "@/lib/visit-duration"
-import { cn } from "@/lib/utils"
+import { cn, focusChoice } from "@/lib/utils"
 import { PasswordRevealDialog } from "@/app/admin/technicians/PasswordRevealDialog"
 import { TechnicianDocumentUpload } from "@/app/admin/technicians/TechnicianDocumentUpload"
 import { ATTENDANCE_STATUS_I18N_KEY, ATTENDANCE_STATUS_TONE } from "@/lib/attendance-status"
@@ -1038,12 +1038,19 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
   const deleteMut = useDeleteTechnicianAvailability()
 
   const [date, setDate] = useState(todayIso())
-  const [status, setStatus] = useState<(typeof AVAILABILITY_STATUS_OPTIONS)[number]>("leave")
+  // Unchosen until picked (choice-no-preselect).
+  const [status, setStatus] = useState<(typeof AVAILABILITY_STATUS_OPTIONS)[number] | "">("")
+  const [statusError, setStatusError] = useState(false)
   const [shiftStart, setShiftStart] = useState("")
   const [shiftEnd, setShiftEnd] = useState("")
 
   function submit() {
     if (!technicianId || !orgId || !date) return
+    if (!status) {
+      setStatusError(true)
+      focusChoice("avail-status")
+      return
+    }
     upsertMut.mutate(
       {
         org_id: orgId,
@@ -1056,7 +1063,7 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
       {
         onSuccess: () => {
           setDate(todayIso())
-          setStatus("leave")
+          setStatus("")
           setShiftStart("")
           setShiftEnd("")
         },
@@ -1082,15 +1089,28 @@ function AvailabilityTab({ technicianId, orgId }: { technicianId: string | undef
           <select
             id="avail-status"
             value={status}
-            onChange={(e) => setStatus(e.target.value as (typeof AVAILABILITY_STATUS_OPTIONS)[number])}
+            onChange={(e) => {
+              setStatus(e.target.value as (typeof AVAILABILITY_STATUS_OPTIONS)[number])
+              setStatusError(false)
+            }}
+            aria-invalid={statusError || undefined}
+            aria-describedby={statusError ? "avail-status-error" : undefined}
             className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
           >
+            <option value="" disabled>
+              {t("common.selectPlaceholder")}
+            </option>
             {AVAILABILITY_STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {t(`technicians.detail.availability.statusOptions.${s}`)}
               </option>
             ))}
           </select>
+          {statusError ? (
+            <p id="avail-status-error" role="alert" className="text-xs text-danger">
+              {t("common.chooseOption")}
+            </p>
+          ) : null}
         </div>
         <div className="space-y-1">
           <Label htmlFor="avail-shift-start">{t("technicians.detail.availability.shiftStart")}</Label>

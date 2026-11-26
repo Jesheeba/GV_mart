@@ -1,6 +1,6 @@
 # Feature: choice-no-preselect
 
-Status: PLANNED, awaiting owner approval. No migration.
+Status: BUILT on feat/choice-no-preselect (2026-11-26), not merged. No migration. OnSiteVisitPage payment method deliberately left at its default — see report (invoice is created before the payment step).
 
 ## Purpose
 Owner feedback (2026-11-26): either/or fields open with an option already chosen (e.g. Residential, Own, Cash), so staff save without deciding. About 49 such controls exist (inventory 2026-11-26).

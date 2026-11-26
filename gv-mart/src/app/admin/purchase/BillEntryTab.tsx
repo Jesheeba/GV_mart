@@ -12,7 +12,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useSuppliersList } from "@/hooks/useSuppliers"
 import { useCreateBillEntry, useLastBillEntry, usePurchaseBills, usePurchaseOrders } from "@/hooks/useAutomation"
 import { PoItemRows } from "./PoItemRows"
-import type { PoItemInput } from "@/lib/validation/automation"
+import { emptyPoItem, isCompletePoItem, type PoItemDraft } from "@/lib/validation/automation"
 import { expenseCategories } from "@/lib/validation/reports"
 import type { PurchaseBillRow } from "@/services/automation"
 import type { Enums } from "@/types/database"
@@ -31,7 +31,7 @@ export function BillEntryTab() {
 
   const [supplierId, setSupplierId] = useState("")
   const [poId, setPoId] = useState("")
-  const [items, setItems] = useState<PoItemInput[]>([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+  const [items, setItems] = useState<PoItemDraft[]>([emptyPoItem()])
   const [gst, setGst] = useState("0")
   const [billDate, setBillDate] = useState(getIstNow().date)
   // Build Order Step 1.3: was hardcoded to 'purchase' server-side regardless
@@ -56,7 +56,7 @@ export function BillEntryTab() {
   function clearPrefill() {
     setSupplierId("")
     setPoId("")
-    setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    setItems([emptyPoItem()])
     setIsPrefilled(false)
   }
 
@@ -65,7 +65,7 @@ export function BillEntryTab() {
       orgId: orgId!,
       supplierId,
       poId: poId || null,
-      items: items.filter((i) => i.itemId && i.qty > 0),
+      items: items.filter(isCompletePoItem),
       gst: Number(gst) || 0,
       billDate,
       billImageUrl: null,
@@ -73,7 +73,7 @@ export function BillEntryTab() {
     })
     setSupplierId("")
     setPoId("")
-    setItems([{ itemType: "spare", itemId: "", qty: 1, price: 0 }])
+    setItems([emptyPoItem()])
     setGst("0")
     setCategory("purchase")
     setIsPrefilled(false)

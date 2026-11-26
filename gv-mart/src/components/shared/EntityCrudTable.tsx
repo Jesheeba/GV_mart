@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
+import { initialFormValues, resolveOptions, selectNeedsChoice, validateFields } from "@/lib/crudForm"
+import { focusChoice } from "@/lib/utils"
 
 // Supabase/PostgREST rejections (PostgrestError) are plain objects with a
 // `.message` string but are not `instanceof Error`, so a naive instanceof
@@ -55,43 +57,10 @@ export type CrudFieldDef = {
   // onUpdate.
   readOnly?: boolean
   deriveValue?: (values: Record<string, string>) => string
-}
-
-function resolveOptions(field: CrudFieldDef, values: Record<string, string>): CrudFieldOption[] {
-  if (!field.options) return []
-  return typeof field.options === "function" ? field.options(values) : field.options
-}
-
-function validateFields(fields: CrudFieldDef[], values: Record<string, string>, t: (key: string, opts?: Record<string, unknown>) => string): string | null {
-  for (const f of fields) {
-    if (f.readOnly) continue
-    const raw = values[f.key] ?? ""
-    const value = raw.trim()
-    if (f.required && value === "") {
-      return t("common.errors.fieldRequired", { field: f.label })
-    }
-    if (value === "") continue
-    if (f.type === "number") {
-      const n = Number(value)
-      if (Number.isNaN(n)) return t("common.errors.fieldMustBeNumber", { field: f.label })
-      if (f.min != null && n < f.min) return t("common.errors.fieldMin", { field: f.label, min: f.min })
-      if (f.max != null && n > f.max) return t("common.errors.fieldMax", { field: f.label, max: f.max })
-    }
-    if (f.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      return t("common.errors.fieldInvalid", { field: f.label })
-    }
-    if (f.type === "url") {
-      try {
-        new URL(value)
-      } catch {
-        return t("common.errors.fieldInvalid", { field: f.label })
-      }
-    }
-    if (f.pattern && !new RegExp(`^(?:${f.pattern})$`).test(value)) {
-      return f.patternMessage ?? t("common.errors.fieldInvalid", { field: f.label })
-    }
-  }
-  return null
+  // What a brand-new row starts with. Only for status-like selects whose DB default matches (every
+  // is_active "true", a pending approval, a "No" flag) — any other select starts at "Select…" and must
+  // be picked (choice-no-preselect). Edit mode always shows the row's own value instead.
+  defaultValue?: string
 }
 
 /**
@@ -275,19 +244,18 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   // never appearing. Every onCreate/onUpdate/onDelete caller now passes a
   // mutateAsync-backed promise so we can catch and surface failures here.
   const [formError, setFormError] = useState<string | null>(null)
+  // Client-side validation failure, shown under the field it belongs to (server errors stay in formError).
+  const [fieldError, setFieldError] = useState<{ key: string; message: string } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
 
   function openAddForm() {
     setEditingId(null)
-    // Select fields must default to their first option's value, not "" — a
-    // <select> visually shows its first <option> even when the controlled
-    // value doesn't match any option, so an untouched select would submit ""
-    // while displaying something else entirely (and "" fails enum columns).
-    setValues(Object.fromEntries(fields.map((f) => [f.key, f.type === "select" ? (resolveOptions(f, {})[0]?.value ?? "") : ""])))
-    // "creatable" fields deliberately start empty (unlike "select" above) —
-    // there's no sensible first option to force on a brand-new Product.
+    // Selects start at a visible, disabled "Select…" placeholder (rendered below) instead of their first
+    // option, so what's shown always matches what would be submitted and staff must actually choose.
+    setValues(initialFormValues(fields))
     setFormError(null)
+    setFieldError(null)
     setFormOpen(true)
   }
   // Refetches before seeding the form — a stale client-side cache (e.g. a
@@ -319,12 +287,14 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
     setEditingId(id)
     setValues(toFormValues(fresh))
     setFormError(null)
+    setFieldError(null)
     setFormOpen(true)
   }
   function closeForm() {
     setFormOpen(false)
     setEditingId(null)
     setFormError(null)
+    setFieldError(null)
     setConfirmDiscardOpen(false)
   }
   // Discarding a fresh, still-empty Add form loses nothing, so it closes
@@ -338,8 +308,9 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   async function submit() {
     setFormError(null)
     const validationError = validateFields(fields, values, t)
+    setFieldError(validationError)
     if (validationError) {
-      setFormError(validationError)
+      focusChoice(`f-${validationError.key}`)
       return
     }
     try {
@@ -349,6 +320,10 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
     } catch (e) {
       setFormError(extractErrorMessage(e))
     }
+  }
+  function setField(key: string, next: string) {
+    setValues((v) => ({ ...v, [key]: next }))
+    setFieldError((e) => (e?.key === key ? null : e))
   }
   async function handleConfirmDelete(id: string) {
     setFormError(null)
@@ -466,15 +441,22 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     field={f}
                     value={values[f.key] ?? ""}
                     values={values}
-                    onChange={(next) => setValues((v) => ({ ...v, [f.key]: next }))}
+                    onChange={(next) => setField(f.key, next)}
                   />
                 ) : f.type === "select" ? (
                   <select
                     id={`f-${f.key}`}
                     value={values[f.key] ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                    onChange={(e) => setField(f.key, e.target.value)}
+                    aria-invalid={fieldError?.key === f.key || undefined}
+                    aria-describedby={fieldError?.key === f.key ? `f-${f.key}-error` : undefined}
                     className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
                   >
+                    {selectNeedsChoice(f, values) ? (
+                      <option value="" disabled>
+                        {t("common.selectPlaceholder")}
+                      </option>
+                    ) : null}
                     {resolveOptions(f, values).map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
@@ -487,7 +469,9 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     rows={3}
                     placeholder={f.placeholder}
                     value={values[f.key] ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                    onChange={(e) => setField(f.key, e.target.value)}
+                    aria-invalid={fieldError?.key === f.key || undefined}
+                    aria-describedby={fieldError?.key === f.key ? `f-${f.key}-error` : undefined}
                     className="w-full min-w-0 rounded-xl border border-input bg-surface px-3.5 py-2.5 text-sm text-text transition-colors outline-none placeholder:text-text-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
                   />
                 ) : f.readOnly ? (
@@ -502,9 +486,16 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
                     pattern={f.pattern}
                     placeholder={f.placeholder}
                     value={values[f.key] ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                    onChange={(e) => setField(f.key, e.target.value)}
+                    aria-invalid={fieldError?.key === f.key || undefined}
+                    aria-describedby={fieldError?.key === f.key ? `f-${f.key}-error` : undefined}
                   />
                 )}
+                {fieldError?.key === f.key ? (
+                  <p id={`f-${f.key}-error`} role="alert" className="text-xs text-danger">
+                    {fieldError.message}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>

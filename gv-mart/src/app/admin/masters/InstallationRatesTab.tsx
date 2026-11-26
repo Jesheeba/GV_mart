@@ -46,6 +46,7 @@ export function InstallationRatesTab() {
       key: "is_active",
       label: t("masters.installationRates.status"),
       type: "select",
+      defaultValue: "true",
       options: [
         { value: "true", label: t("masters.installationRates.active") },
         { value: "false", label: t("masters.installationRates.inactive") },

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { productAttributeKeysHooks, useSetProductCustomAttribute } from "@/hooks/useMasters"
 import type { Json } from "@/types/database"
+import { focusChoice } from "@/lib/utils"
 
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message
@@ -45,7 +46,9 @@ export function ProductAttributesPanel({
   const [valueInput, setValueInput] = useState("")
   const [newKeyName, setNewKeyName] = useState("")
   const [newKeyLabel, setNewKeyLabel] = useState("")
-  const [newKeyDataType, setNewKeyDataType] = useState<"text" | "number" | "boolean">("text")
+  // Unchosen until picked (choice-no-preselect).
+  const [newKeyDataType, setNewKeyDataType] = useState<"text" | "number" | "boolean" | "">("")
+  const [dataTypeError, setDataTypeError] = useState(false)
   const [showAddKey, setShowAddKey] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,12 +82,17 @@ export function ProductAttributesPanel({
 
   async function handleCreateKey() {
     if (!orgId || !newKeyName.trim() || !newKeyLabel.trim()) return
+    if (!newKeyDataType) {
+      setDataTypeError(true)
+      focusChoice("new-key-data-type")
+      return
+    }
     setError(null)
     try {
       await createKeyMut.mutateAsync({ org_id: orgId, key_name: newKeyName.trim(), label: newKeyLabel.trim(), data_type: newKeyDataType })
       setNewKeyName("")
       setNewKeyLabel("")
-      setNewKeyDataType("text")
+      setNewKeyDataType("")
       setShowAddKey(false)
     } catch (e) {
       setError(extractErrorMessage(e))
@@ -183,14 +191,29 @@ export function ProductAttributesPanel({
                   className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 />
                 <select
+                  id="new-key-data-type"
                   value={newKeyDataType}
-                  onChange={(e) => setNewKeyDataType(e.target.value as "text" | "number" | "boolean")}
+                  onChange={(e) => {
+                    setNewKeyDataType(e.target.value as "text" | "number" | "boolean")
+                    setDataTypeError(false)
+                  }}
+                  aria-label={t("masters.productEnquiryConfig.dataType")}
+                  aria-invalid={dataTypeError || undefined}
+                  aria-describedby={dataTypeError ? "new-key-data-type-error" : undefined}
                   className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
                 >
+                  <option value="" disabled>
+                    {t("common.selectPlaceholder")}
+                  </option>
                   <option value="text">{t("masters.productAttributes.dataType.text")}</option>
                   <option value="number">{t("masters.productAttributes.dataType.number")}</option>
                   <option value="boolean">{t("masters.productAttributes.dataType.boolean")}</option>
                 </select>
+                {dataTypeError ? (
+                  <p id="new-key-data-type-error" role="alert" className="text-xs text-danger">
+                    {t("common.chooseOption")}
+                  </p>
+                ) : null}
                 <div className="flex justify-end gap-1.5">
                   <Button size="sm" variant="ghost" onClick={() => setShowAddKey(false)}>
                     {t("common.cancel")}

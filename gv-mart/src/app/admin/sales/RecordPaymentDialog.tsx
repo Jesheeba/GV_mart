@@ -5,9 +5,10 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRecordAdditionalPayment } from "@/hooks/useSales"
-import { paymentDetailsSchema, isAmountPaidBlocked } from "@/lib/validation/sale"
+import { paymentDetailsSchema, isAmountPaidBlocked, PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
 import { formatCurrency } from "@/lib/sale-calc"
 import type { Enums } from "@/types/database"
+import { focusChoice } from "@/lib/utils"
 
 /** Top-up form for a partial/due invoice — the only settlement path besides UPI's own record_upi_payment (technician-only, always full amount). Opened from InvoicePage next to the payment-status badge. */
 export function RecordPaymentDialog({
@@ -24,7 +25,7 @@ export function RecordPaymentDialog({
   const { t } = useTranslation()
   const recordPayment = useRecordAdditionalPayment()
   const [amountInput, setAmountInput] = useState(remaining.toFixed(2))
-  const [method, setMethod] = useState<Enums<"payment_method">>("cash")
+  const [method, setMethod] = useState<Enums<"payment_method"> | null>(null)
   const [txnId, setTxnId] = useState("")
   const [description, setDescription] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -34,9 +35,12 @@ export function RecordPaymentDialog({
   function handleSubmit() {
     const result = paymentDetailsSchema.safeParse({ method, txnId, description, amountPaid: amount })
     if (!result.success) {
-      setError(result.error.issues[0]?.message ?? "sales.errors.paymentInvalid")
+      const message = result.error.issues[0]?.message ?? "sales.errors.paymentInvalid"
+      setError(message)
+      if (message === PAYMENT_METHOD_REQUIRED) focusChoice("record-payment-method")
       return
     }
+    if (!method) return
     if (amount <= 0 || isAmountPaidBlocked(amount, remaining)) {
       setError("sales.errors.recordPaymentInvalid")
       return
@@ -78,19 +82,32 @@ export function RecordPaymentDialog({
         </div>
 
         <div className="space-y-1.5">
-          <Label>{t("sales.payment.method")}</Label>
-          <div className="flex w-fit gap-1 rounded-full bg-surface-alt p-1">
+          <Label id="record-payment-method-label">{t("sales.payment.method")}</Label>
+          <div
+            id="record-payment-method"
+            role="group"
+            aria-labelledby="record-payment-method-label"
+            aria-describedby={error === PAYMENT_METHOD_REQUIRED ? "record-payment-method-error" : undefined}
+            className="flex w-fit gap-1 rounded-full bg-surface-alt p-1"
+          >
             {(["cash", "transfer"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
-                onClick={() => setMethod(m)}
+                aria-pressed={method === m}
+                onClick={() => {
+                  setMethod(m)
+                  if (error === PAYMENT_METHOD_REQUIRED) setError(null)
+                }}
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${method === m ? "bg-ink text-white" : "text-text-muted"}`}
               >
                 {t(`sales.payment.${m}`)}
               </button>
             ))}
           </div>
+          {error === PAYMENT_METHOD_REQUIRED ? (
+            <p id="record-payment-method-error" role="alert" className="text-xs text-danger">{t(error)}</p>
+          ) : null}
         </div>
 
         {method === "transfer" ? (
@@ -106,7 +123,7 @@ export function RecordPaymentDialog({
           </div>
         ) : null}
 
-        {error ? <p className="text-xs text-danger">{t(error)}</p> : null}
+        {error && error !== PAYMENT_METHOD_REQUIRED ? <p className="text-xs text-danger">{t(error)}</p> : null}
 
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>

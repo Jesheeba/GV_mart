@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase"
 import { useQuery } from "@tanstack/react-query"
 import { useAddMonthlyAdjustment, useMonthlyAdjustments } from "@/hooks/useMonthlyExpenses"
 import type { AdjustmentTarget } from "@/services/monthlyExpenses"
+import { focusChoice } from "@/lib/utils"
 
 /** Monthly Expenses spec Unit 4/§1.7 — top-ups and exclusions, scoped (per
  *  the owner's revision) to `recharge` and `bike_allowance` only. Petrol and
@@ -31,13 +32,21 @@ export function AdjustmentsTab() {
   const addAdjustment = useAddMonthlyAdjustment()
 
   const [profileId, setProfileId] = useState("")
-  const [target, setTarget] = useState<AdjustmentTarget>("recharge")
-  const [type, setType] = useState<"top_up" | "exclude">("top_up")
+  // Both unchosen until picked (choice-no-preselect).
+  const [target, setTarget] = useState<AdjustmentTarget | "">("")
+  const [type, setType] = useState<"top_up" | "exclude" | "">("")
+  const [choiceError, setChoiceError] = useState<"target" | "type" | null>(null)
   const [amount, setAmount] = useState("")
   const [reason, setReason] = useState("")
 
   async function submit() {
     if (!profile?.org_id || !profileId || !reason.trim()) return
+    if (!target || !type) {
+      const missing = !target ? "target" : "type"
+      setChoiceError(missing)
+      focusChoice(`adj-${missing}`)
+      return
+    }
     await addAdjustment.mutateAsync({
       orgId: profile.org_id,
       profileId,
@@ -49,6 +58,8 @@ export function AdjustmentsTab() {
     })
     setAmount("")
     setReason("")
+    setTarget("")
+    setType("")
   }
 
   return (
@@ -74,17 +85,53 @@ export function AdjustmentsTab() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="adj-target">{t("expenses.adjustments.target")}</Label>
-            <select id="adj-target" value={target} onChange={(e) => setTarget(e.target.value as AdjustmentTarget)} className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+            <select
+              id="adj-target"
+              value={target}
+              onChange={(e) => {
+                setTarget(e.target.value as AdjustmentTarget)
+                if (choiceError === "target") setChoiceError(null)
+              }}
+              aria-invalid={choiceError === "target" || undefined}
+              aria-describedby={choiceError === "target" ? "adj-target-error" : undefined}
+              className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            >
+              <option value="" disabled>
+                {t("common.selectPlaceholder")}
+              </option>
               <option value="recharge">{t("expenses.adjustments.targetValues.recharge")}</option>
               <option value="bike_allowance">{t("expenses.adjustments.targetValues.bike_allowance")}</option>
             </select>
+            {choiceError === "target" ? (
+              <p id="adj-target-error" role="alert" className="text-xs text-danger">
+                {t("common.chooseOption")}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1">
             <Label htmlFor="adj-type">{t("expenses.adjustments.type")}</Label>
-            <select id="adj-type" value={type} onChange={(e) => setType(e.target.value as "top_up" | "exclude")} className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none">
+            <select
+              id="adj-type"
+              value={type}
+              onChange={(e) => {
+                setType(e.target.value as "top_up" | "exclude")
+                if (choiceError === "type") setChoiceError(null)
+              }}
+              aria-invalid={choiceError === "type" || undefined}
+              aria-describedby={choiceError === "type" ? "adj-type-error" : undefined}
+              className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none"
+            >
+              <option value="" disabled>
+                {t("common.selectPlaceholder")}
+              </option>
               <option value="top_up">{t("expenses.adjustments.topUp")}</option>
               <option value="exclude">{t("expenses.adjustments.exclude")}</option>
             </select>
+            {choiceError === "type" ? (
+              <p id="adj-type-error" role="alert" className="text-xs text-danger">
+                {t("common.chooseOption")}
+              </p>
+            ) : null}
           </div>
           {type === "top_up" ? (
             <div className="space-y-1">

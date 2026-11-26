@@ -20,6 +20,7 @@ import { useProfile } from "@/hooks/useProfile"
 import type { ProductSpareScheduleRow } from "@/services/productLifecycle"
 import type { LifetimeUnit } from "@/types/productLifecycle"
 import { validateLifetime, validateSpareSchedules } from "@/types/productLifecycle"
+import { focusChoice } from "@/lib/utils"
 
 // Same "Supabase/PostgREST rejections aren't `instanceof Error`" helper as
 // ProductSparesPanel.tsx / ProductComplaintsPanel.tsx / EntityCrudTable —
@@ -32,17 +33,34 @@ function extractErrorMessage(e: unknown): string {
   return String(e)
 }
 
-type UnitSelectProps = { value: LifetimeUnit; onChange: (unit: LifetimeUnit) => void; disabled?: boolean }
+// `value: ""` (only the lifetime unit, before it's chosen) shows a "Select…" placeholder — choice-no-preselect.
+type UnitSelectProps = {
+  value: LifetimeUnit | ""
+  onChange: (unit: LifetimeUnit) => void
+  disabled?: boolean
+  id?: string
+  invalid?: boolean
+  describedBy?: string
+}
 
-function UnitSelect({ value, onChange, disabled }: UnitSelectProps) {
+function UnitSelect({ value, onChange, disabled, id, invalid, describedBy }: UnitSelectProps) {
   const { t } = useTranslation()
   return (
     <select
+      id={id}
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value as LifetimeUnit)}
+      aria-label={t("productLifecycle.lifetime.unitLabel")}
+      aria-invalid={invalid || undefined}
+      aria-describedby={describedBy}
       className="h-10 rounded-xl border border-border bg-surface px-3 text-sm text-text outline-none disabled:opacity-50"
     >
+      {value === "" ? (
+        <option value="" disabled>
+          {t("common.selectPlaceholder")}
+        </option>
+      ) : null}
       <option value="months">{t("productLifecycle.lifetime.unit.months")}</option>
       <option value="years">{t("productLifecycle.lifetime.unit.years")}</option>
     </select>
@@ -98,7 +116,8 @@ export function ProductLifecyclePanel({
 
   // ── Lifetime ────────────────────────────────────────────────────────────
   const [lifetimeValue, setLifetimeValue] = useState("")
-  const [lifetimeUnit, setLifetimeUnit] = useState<LifetimeUnit>("months")
+  // Unchosen until picked (or loaded from the saved config below).
+  const [lifetimeUnit, setLifetimeUnit] = useState<LifetimeUnit | "">("")
   const [lifetimeError, setLifetimeError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -111,6 +130,11 @@ export function ProductLifecyclePanel({
   async function handleSaveLifetime() {
     if (!orgId) return
     setLifetimeError(null)
+    if (!lifetimeUnit) {
+      setLifetimeError(t("productLifecycle.lifetime.errors.unitRequired"))
+      focusChoice("lifetime-unit")
+      return
+    }
     const parsed = Number(lifetimeValue)
     const result = validateLifetime({ lifetimeValue: parsed, lifetimeUnit })
     if (!result.valid) {
@@ -295,12 +319,22 @@ export function ProductLifecyclePanel({
                   aria-label={t("productLifecycle.lifetime.valueLabel")}
                   className="flex-1"
                 />
-                <UnitSelect value={lifetimeUnit} onChange={setLifetimeUnit} />
+                <UnitSelect
+                  id="lifetime-unit"
+                  value={lifetimeUnit}
+                  onChange={setLifetimeUnit}
+                  invalid={lifetimeError === t("productLifecycle.lifetime.errors.unitRequired")}
+                  describedBy={lifetimeError ? "lifetime-error" : undefined}
+                />
                 <Button size="sm" disabled={upsertConfigMut.isPending} onClick={handleSaveLifetime}>
                   {upsertConfigMut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : t("productLifecycle.lifetime.save")}
                 </Button>
               </div>
-              {lifetimeError ? <p className="text-xs text-danger">{lifetimeError}</p> : null}
+              {lifetimeError ? (
+                <p id="lifetime-error" role="alert" className="text-xs text-danger">
+                  {lifetimeError}
+                </p>
+              ) : null}
             </section>
 
             {/* Spare schedule repeater */}
