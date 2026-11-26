@@ -88,7 +88,8 @@ export type RoChecklistInput = z.infer<typeof roChecklistSchema>
 // staff billing).
 export const servicePaymentSchema = z
   .object({
-    method: z.enum(["cash", "transfer"]),
+    // "upi" is offered on-site when online payments are enabled; it is collected after the invoice (OnSiteVisitPage).
+    method: z.enum(["cash", "transfer", "upi"]),
     txnId: z.string().trim().max(120).optional().or(z.literal("")),
     description: z.string().trim().max(200).optional().or(z.literal("")),
   })

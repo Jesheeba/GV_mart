@@ -1,5 +1,10 @@
 # TESTING — Leads Dashboard Enhancement
 
+## onsite-payment-method (2026-11-26)
+- `technician.test.ts`: UPI accepted, missing method rejected (path "method"), transfer without reference rejected. The old "rejects an invalid method value" test used "upi" as its invalid example, which was wrong because UPI is an offered method; it now uses "cheque".
+- `tsc -b` clean, `vite build` OK, vitest serial 1212 passed / 2 failed (same pre-existing waOutboxSentGuard, wa-event-context). i18n parity OK.
+- NOT browser-checked: reaching the on-site invoice step needs a technician arrival + open visit, which would write real data.
+
 Test strategy per feature, mapped to each feature doc's acceptance criteria. Results filled in as each feature is implemented — none built yet.
 
 ## UX pass (choice-no-preselect, input-density, date-display) — 2026-11-26

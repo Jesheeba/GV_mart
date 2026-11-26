@@ -1,5 +1,9 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## onsite-payment-method (2026-11-26)
+- On-site payment method is chosen on the invoice step, unselected + required when the total is above 0, so the invoice records the real method and transfer reference (it always recorded "cash" before). Payment step shows it read-only.
+- `servicePaymentSchema` accepts `upi`, so UPI visits can complete. Doc: `features/onsite-payment-method.md`.
+
 ## customer-data-sync (2026-11-26)
 - See features/customer-data-sync.md for the 7 sweep fixes: primary member sync, one email box, app address no longer overwritten, profession no longer reverted, moved-out members never counted, drafts keep complaint type and referrer, lead fields card never stale.
 - Migration `20261216120000_primary_member_sync.sql` + rollback. **APPLIED LIVE 2026-11-26.**
