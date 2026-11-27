@@ -129,3 +129,9 @@
 - Owner chose a real no-GST bill (GST 0 on the invoice) on every staff GST switch, after being told that a GST-registered shop may only do this for exempt goods (audit risk accepted by the owner).
 - Control: a 3-way switch, GST extra | GST included | No GST. Never the default. Everyone who bills may choose it, technicians included.
 - Customer-app AMC renewal is out of scope (the customer doesn't choose).
+
+## Quotation edit + ₹ discount (2026-11-27, owner decisions, design only)
+- Reverses the 2026-09-16 "valid-until only" edit scope: Open quotes can now edit items, qty and a ₹ discount (on/off switch + reason). Converted/Lost are locked. Every edit is kept in quotation_revisions.
+- A direct quotation always creates a new lead (owner's choice; this can duplicate a customer's existing open lead).
+- Convert-to-sale bills the quoted prices, not today's master price.
+- The discount stays under the same cap as sales (settings.discount_admin_max). Spec: features/quotation-edit-discount.md.
