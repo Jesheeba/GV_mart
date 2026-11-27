@@ -60,7 +60,7 @@ export function SparesTab() {
     return ((rows ?? []) as SpareRow[]).filter((r) => {
       if (statusFilter === "active" && !r.is_active) return false
       if (statusFilter === "inactive" && r.is_active) return false
-      if (term && !r.name.toLowerCase().includes(term) && !(r.sku ?? "").toLowerCase().includes(term)) return false
+      if (term && !r.name.toLowerCase().includes(term)) return false
       return true
     })
   }, [rows, search, statusFilter])
@@ -89,7 +89,8 @@ export function SparesTab() {
 
   const fields: CrudFieldDef[] = [
     { key: "name", label: t("masters.spares.name"), type: "text", required: true },
-    { key: "sku", label: t("masters.spares.sku"), type: "text", placeholder: t("masters.spares.skuPlaceholder"), pattern: "[A-Za-z0-9_-]+", patternMessage: t("masters.errors.skuInvalid") },
+    // SKU removed from the form on the owner's request (2026-11-27). The column and existing values stay
+    // (bulk import + technician spare screens still read them); create/update never send it, so edits keep them.
     { key: "price", label: t("masters.spares.price"), type: "number", step: "0.01", required: true, min: 0 },
     { key: "cost_price", label: t("masters.spares.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet"), min: 0 },
     { key: "hsn_code", label: t("masters.spares.hsn"), type: "text", pattern: "\\d{4,8}", patternMessage: t("masters.errors.hsnInvalid") },
@@ -152,7 +153,6 @@ export function SparesTab() {
         emptyMessage={search || statusFilter !== "all" ? t("masters.spares.noResults") : t("masters.spares.empty")}
         toFormValues={(r) => ({
           name: r.name,
-          sku: r.sku ?? "",
           price: String(r.price),
           cost_price: r.cost_price != null ? String(r.cost_price) : "",
           hsn_code: r.hsn_code ?? "",
@@ -167,7 +167,6 @@ export function SparesTab() {
             render: (r) => <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleSelect(r.id)} />,
           },
           { key: "name", header: t("masters.spares.name"), render: (r) => <span className="font-medium text-text">{r.name}</span> },
-          { key: "sku", header: t("masters.spares.sku"), render: (r) => r.sku || "—" },
           { key: "price", header: t("masters.spares.price"), render: (r) => `₹${r.price}` },
           { key: "cost_price", header: t("masters.spares.costPrice"), render: (r) => (r.cost_price != null ? `₹${r.cost_price}` : t("masters.costPriceNotSet")) },
           { key: "hsn", header: t("masters.spares.hsn"), render: (r) => r.hsn_code || "—" },
@@ -207,7 +206,6 @@ export function SparesTab() {
           const created = await createMut.mutateAsync({
             org_id: orgId!,
             name: v.name,
-            sku: v.sku || null,
             price: Number(v.price) || 0,
             cost_price: v.cost_price ? Number(v.cost_price) : null,
             hsn_code: v.hsn_code || null,
@@ -221,7 +219,6 @@ export function SparesTab() {
             id,
             patch: {
               name: v.name,
-              sku: v.sku || null,
               price: Number(v.price) || 0,
               cost_price: v.cost_price ? Number(v.cost_price) : null,
               hsn_code: v.hsn_code || null,

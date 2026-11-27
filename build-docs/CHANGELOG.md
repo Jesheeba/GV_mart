@@ -1,5 +1,8 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## remove-spare-sku (2026-11-27)
+- Owner: SKU removed from the Add/Edit spare popup, the Spares table column and the Spares search. The spares.sku column and existing values are kept (bulk import + technician spare screens still read them). Create/update no longer send sku, so editing a spare never wipes a stored SKU.
+
 ## spare-stock-limits + productivity time (2026-11-27)
 - Add/Edit spare popup: Min stock (reorder at) + Max stock (refill to) = the warehouse inventory.min_stock / max_stock the auto purchase order uses. Saving upserts the warehouse row (stock untouched; created with stock 0 if none). Both or neither; whole numbers; max >= min. Also still editable on Inventory.
 - "Standard time" renamed "Productivity time" everywhere (en + ta, 8 strings). Label only, column unchanged.
