@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
@@ -411,18 +412,23 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <Button size="sm" variant={formOpen ? "outline" : "accent"} onClick={() => (formOpen ? requestCloseForm() : openAddForm())}>
-          {formOpen ? <X className="size-3.5" /> : <Plus className="size-3.5" />}
-          {formOpen ? t("common.cancel") : addLabel}
+        <Button size="sm" variant="accent" onClick={openAddForm}>
+          <Plus className="size-3.5" />
+          {addLabel}
         </Button>
       </div>
 
-      {formError ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{formError}</p> : null}
+      {formError && !formOpen ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{formError}</p> : null}
 
-      {formOpen ? (
-        <div className="rounded-xl border border-border p-3.5">
+      {/* Add/Edit opens as a popup (2026-11-27) instead of inline above the table, so it's visible
+          wherever the row's edit icon was clicked. Esc / backdrop / X go through requestCloseForm, so an
+          edit still asks before discarding. */}
+      <Dialog open={formOpen} onOpenChange={(open) => !open && requestCloseForm()}>
+        <DialogContent className="max-w-2xl">
+          <DialogTitle>{editingId ? t("masters.edit") : addLabel}</DialogTitle>
+          {formError ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{formError}</p> : null}
           {confirmDiscardOpen ? (
-            <p className="mb-3 flex flex-wrap items-center gap-1.5 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+            <p className="flex flex-wrap items-center gap-1.5 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
               {t("masters.confirmDiscard")}
               <button type="button" className="font-medium hover:underline" onClick={closeForm}>
                 {t("common.yes")}
@@ -503,7 +509,7 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
               </div>
             ))}
           </div>
-          <div className="mt-3 flex justify-end gap-2">
+          <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={requestCloseForm}>
               {t("common.cancel")}
             </Button>
@@ -511,8 +517,8 @@ export function EntityCrudTable<T extends Record<string, unknown>>({
               {isMutating ? <Loader2 className="size-3.5 animate-spin" /> : t("common.save")}
             </Button>
           </div>
-        </div>
-      ) : null}
+        </DialogContent>
+      </Dialog>
 
       <DataTable
         columns={[...columns, actionColumn]}

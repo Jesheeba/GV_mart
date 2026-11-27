@@ -1,5 +1,8 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## edit-in-popup (2026-11-27)
+- Shared EntityCrudTable (all Masters tabs, Suppliers, Automation tabs: 32 screens): Add/Edit form now opens in a popup Dialog instead of inline above the table. Esc/backdrop/X go through the same discard-confirm for edits. Delete errors still show above the table. Bespoke edit flows (customer detail, inventory, tickets, technicians) unchanged.
+
 ## amc-plan-cards-compact (2026-11-27)
 - AMC & Warranty plan cards: one column per plan name (Silver / Gold / Platinum / ...), cheapest group first, price options stacked small inside it. One colour per column (was cycling by index, so one name showed in 3 colours); the table swatch follows the same colour. Cards show years + services + active count. Helper `groupPlansByName` in lib/amc-window.ts.
 
