@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { normalizeIndianMobile, normalizeOptionalIndianMobile } from "./mobile"
+import { mobileSearchDigits, normalizeIndianMobile, normalizeOptionalIndianMobile } from "./mobile"
 
 describe("normalizeIndianMobile", () => {
   it("accepts a plain 10-digit number", () => {
@@ -54,5 +54,26 @@ describe("normalizeOptionalIndianMobile", () => {
   it("still validates a non-blank value", () => {
     expect(normalizeOptionalIndianMobile("+91 98765 43210")).toEqual({ ok: true, value: "9876543210" })
     expect(normalizeOptionalIndianMobile("123")).toEqual({ ok: false, reason: "invalid" })
+  })
+})
+
+describe("mobileSearchDigits (Sales list search by mobile, 2026-11-27)", () => {
+  it("full number typed with +91 / spaces / leading 0 → plain 10 digits", () => {
+    expect(mobileSearchDigits("+91 98765 43210")).toBe("9876543210")
+    expect(mobileSearchDigits("098765-43210")).toBe("9876543210")
+    expect(mobileSearchDigits("9876543210")).toBe("9876543210")
+  })
+  it("partial number typed with spaces → its digits", () => {
+    expect(mobileSearchDigits("98765 43")).toBe("9876543")
+    expect(mobileSearchDigits(" 432 ")).toBe("432")
+  })
+  it("anything with letters is not a mobile search", () => {
+    expect(mobileSearchDigits("24V adapter")).toBeNull()
+    expect(mobileSearchDigits("ramesh")).toBeNull()
+  })
+  it("empty or symbols-only → null", () => {
+    expect(mobileSearchDigits("")).toBeNull()
+    expect(mobileSearchDigits("   ")).toBeNull()
+    expect(mobileSearchDigits("+-")).toBeNull()
   })
 })

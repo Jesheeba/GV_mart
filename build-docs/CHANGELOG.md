@@ -1,5 +1,8 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## sales-search-mobile (2026-11-27)
+- Sales > Recent Invoices search now matches mobile numbers typed with +91, 0, spaces or dashes (was raw substring only). New `mobileSearchDigits` in lib/mobile.ts; text containing letters stays a name/item search. Placeholder now says "customer, mobile, items".
+
 ## sales-product-stock (2026-11-27)
 - New Sale > Items > Product search: each suggestion now shows "(N in stock)" like the Spares picker; 0 stock shown in red. Display only, no DB change. Stock = warehouse qty from useInventoryList(org, "product").
 

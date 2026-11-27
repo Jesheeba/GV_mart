@@ -1849,7 +1849,7 @@
       "stats": "{{amount}} this month · {{count}} invoices · {{quotationsOpen}} quotations open",
       "newQuotationButton": "New Quotation",
       "newSaleButton": "New Sale",
-      "search": "Search customer, items...",
+      "search": "Search customer, mobile, items...",
       "kpi": {
         "todaySales": "Today's Sales",
         "vsYesterday": "vs yesterday",

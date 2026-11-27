@@ -53,3 +53,18 @@ export function normalizeOptionalIndianMobile(input: string | null | undefined):
   if (!trimmed) return { ok: true, value: null }
   return normalizeIndianMobile(trimmed)
 }
+
+/**
+ * For list search boxes: if the query looks like a phone number (digits plus
+ * spaces, "+", "-", brackets only), returns the digits to substring-match against
+ * a stored mobile, with "+91"/"0" prefixes stripped when it's a full number.
+ * Returns null for anything with letters, so "24V adapter" stays an item search.
+ */
+export function mobileSearchDigits(query: string): string | null {
+  const q = query.trim()
+  if (!q || !/^[\d\s+\-()]+$/.test(q)) return null
+  const full = normalizeIndianMobile(q)
+  if (full.ok) return full.value
+  const digits = q.replace(/\D/g, "")
+  return digits || null
+}

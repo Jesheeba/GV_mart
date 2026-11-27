@@ -12,6 +12,7 @@ import { getIstNow } from "@/lib/ist"
 import { currentIstMonth, monthRange, previousDay } from "@/lib/salesKpi"
 import type { SalesKindStats } from "@/services/reports"
 import { formatCurrency } from "@/lib/sale-calc"
+import { mobileSearchDigits } from "@/lib/mobile"
 import { cn } from "@/lib/utils"
 import type { Enums } from "@/types/database"
 import { InvoiceTypeBadge, PaymentStatusBadge } from "./SalesBadges"
@@ -83,6 +84,8 @@ export function SalesListPage() {
   const kindUnavailable = !kpiLoading && !kpiError && !!todayQ.data && !todayQ.data.byKind
 
   const searchTerm = search.trim().toLowerCase()
+  // "+91 98765 43210", "98765 43" etc. match the stored 10-digit mobile.
+  const mobileTerm = mobileSearchDigits(search)
   const visibleRows = useMemo(
     () =>
       rows
@@ -92,9 +95,10 @@ export function SalesListPage() {
             !searchTerm ||
             (inv.customers?.name ?? "").toLowerCase().includes(searchTerm) ||
             (inv.customers?.mobile ?? "").includes(searchTerm) ||
+            (!!mobileTerm && (inv.customers?.mobile ?? "").replace(/\D/g, "").includes(mobileTerm)) ||
             inv.itemsSummary.toLowerCase().includes(searchTerm)
         ),
-    [rows, typeFilter, searchTerm]
+    [rows, typeFilter, searchTerm, mobileTerm]
   )
 
   return (
