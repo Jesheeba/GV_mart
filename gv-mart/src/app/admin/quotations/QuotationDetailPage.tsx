@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { FullPageError, FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
-import { useMarkQuotationLost, useQuotation, useUpdateQuotationValidUntil } from "@/hooks/useQuotations"
+import { useMarkQuotationLost, useQuotation, useQuotationRevisions } from "@/hooks/useQuotations"
 import { useOrganization } from "@/hooks/useSales"
 import { billBreakdown, formatCurrency } from "@/lib/sale-calc"
 import { useSettings } from "@/hooks/useMasters"
@@ -16,6 +16,7 @@ import { formatDate } from "@/lib/formatDate"
 import { amountInWords } from "@/lib/amount-in-words"
 import { toWhatsappLink } from "@/lib/whatsapp-link"
 import { QuotationOriginBadge } from "./QuotationBadges"
+import { QuotationEditDialog } from "./QuotationEditDialog"
 
 const STATUS_TONE: Record<string, StatusTone> = { open: "info", converted: "success", lost: "danger" }
 const CELL = "border border-[#444] p-2 align-top"
@@ -33,9 +34,8 @@ export function QuotationDetailPage() {
   const markLost = useMarkQuotationLost()
   const [lostReason, setLostReason] = useState("")
   const [showLostForm, setShowLostForm] = useState(false)
-  const updateValidUntil = useUpdateQuotationValidUntil()
-  const [showEditForm, setShowEditForm] = useState(false)
-  const [validUntilInput, setValidUntilInput] = useState("")
+  const [editOpen, setEditOpen] = useState(false)
+  const revisions = useQuotationRevisions(id)
 
   if (isLoading) return <FullPageLoader label={t("common.loading")} />
   if (isError || !quotation) {
@@ -43,6 +43,9 @@ export function QuotationDetailPage() {
   }
 
   const quotationNo = quotation.id.slice(0, 8).toUpperCase()
+  // quotation-edit-discount: total is NET of the ₹ discount; subtotal = what the lines add up to.
+  const discount = Number(quotation.discount_amount) || 0
+  const subtotal = quotation.total + discount
   // GST (2026-11-26): null = quotation made before the GST switch existed —
   // shown exactly as before (no GST lines). Uses today's org rate; a quote is
   // an estimate and create_sale recomputes at the rate in force when billed.
@@ -159,6 +162,18 @@ export function QuotationDetailPage() {
                 <td className={`${CELL} text-right`}>{(item.qty * item.price).toFixed(2)}</td>
               </tr>
             ))}
+            {discount > 0 ? (
+              <>
+                <tr>
+                  <td colSpan={4} className={`${CELL} text-right`}>{t("quotations.discount.subtotal")}</td>
+                  <td className={`${CELL} text-right`}>{subtotal.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={4} className={`${CELL} text-right`}>{t("quotations.discount.label")}</td>
+                  <td className={`${CELL} text-right`}>-{discount.toFixed(2)}</td>
+                </tr>
+              </>
+            ) : null}
             <tr>
               <td colSpan={4} className={`${CELL} text-right`}>
                 <b>{t("sales.invoice.netAmount")}</b>
@@ -240,6 +255,19 @@ export function QuotationDetailPage() {
         </div>
 
         <div className="ml-auto w-full max-w-64 space-y-1 px-1">
+          {discount > 0 ? (
+            <>
+              <div className="flex justify-between text-sm text-text-muted">
+                <span>{t("quotations.discount.subtotal")}</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-success">
+                <span>{t("quotations.discount.label")}</span>
+                <span>− {formatCurrency(discount)}</span>
+              </div>
+              {quotation.discount_reason ? <p className="text-right text-xs text-text-muted">{quotation.discount_reason}</p> : null}
+            </>
+          ) : null}
           <div className="flex justify-between border-t border-border pt-1 text-base font-bold text-text">
             <span>{t("sales.invoice.netAmount")}</span>
             <span>{formatCurrency(quotation.total)}</span>
@@ -275,40 +303,11 @@ export function QuotationDetailPage() {
             <Button type="button" variant="outline" onClick={() => setShowLostForm((v) => !v)}>
               {t("quotations.markLostButton")}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setValidUntilInput(quotation.valid_until ?? "")
-                setShowEditForm((v) => !v)
-              }}
-            >
+            <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
               {t("quotations.editButton")}
             </Button>
           </div>
-          {showEditForm ? (
-            <Card className="gap-2 px-5">
-              <label className="text-xs font-medium text-text-muted" htmlFor="quotation-valid-until">
-                {t("quotations.table.validUntil")}
-              </label>
-              <Input id="quotation-valid-until" type="date" value={validUntilInput} onChange={(e) => setValidUntilInput(e.target.value)} />
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={updateValidUntil.isPending}
-                  onClick={() =>
-                    updateValidUntil.mutate(
-                      { id: quotation.id, validUntil: validUntilInput || null },
-                      { onSuccess: () => setShowEditForm(false) }
-                    )
-                  }
-                >
-                  {t("common.save")}
-                </Button>
-              </div>
-            </Card>
-          ) : null}
+          {editOpen && orgId ? <QuotationEditDialog orgId={orgId} quotation={quotation} onClose={() => setEditOpen(false)} /> : null}
           {showLostForm ? (
             <Card className="gap-2 px-5">
               <Input value={lostReason} onChange={(e) => setLostReason(e.target.value)} placeholder={t("quotations.lostReasonPlaceholder")} />
@@ -324,6 +323,32 @@ export function QuotationDetailPage() {
             </Card>
           ) : null}
         </div>
+      ) : null}
+
+      {revisions.data && revisions.data.length > 0 ? (
+        <Card className="gap-2 px-5 print:hidden">
+          <p className="px-1 text-sm font-semibold text-text">{t("quotations.history.title")}</p>
+          <ul className="space-y-2 px-1">
+            {revisions.data.map((r) => (
+              <li key={r.id} className="rounded-xl border border-border px-3.5 py-2.5 text-sm">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-medium text-text">
+                    {formatCurrency(r.old_total)} → {formatCurrency(r.new_total)}
+                    {r.new_discount !== r.old_discount ? (
+                      <span className="ml-2 text-xs font-normal text-text-muted">
+                        {t("quotations.history.discountChange", { from: formatCurrency(r.old_discount), to: formatCurrency(r.new_discount) })}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    {formatDate(r.edited_at)} · {r.editor?.full_name ?? t("quotations.history.unknownEditor")}
+                  </span>
+                </div>
+                <p className="text-xs text-text-muted">{r.reason}</p>
+              </li>
+            ))}
+          </ul>
+        </Card>
       ) : null}
     </div>
   )

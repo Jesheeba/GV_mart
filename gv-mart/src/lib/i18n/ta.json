@@ -1976,6 +1976,31 @@
     "lostReasonLabel": "இழந்த காரணம்",
     "lostReasonPlaceholder": "இந்த மேற்கோள் ஏன் இழக்கப்பட்டது?",
     "editButton": "திருத்து",
+    "discount": {
+      "label": "தள்ளுபடி",
+      "amountLabel": "தள்ளுபடி (₹)",
+      "reasonLabel": "தள்ளுபடிக்கான காரணம்",
+      "reasonPlaceholder": "எ.கா. மொத்த ஆர்டர், பண்டிகை சலுகை",
+      "maxHint": "அதிகபட்சம் {{percent}}% ({{max}})",
+      "subtotal": "கூட்டுத்தொகை",
+      "errorNegative": "தள்ளுபடி எதிர்மறையாக இருக்க முடியாது.",
+      "errorOverCap": "தள்ளுபடி கூட்டுத்தொகையின் அதிகபட்சம் {{percent}}% ({{max}}) வரை மட்டுமே.",
+      "errorReason": "தள்ளுபடிக்கான காரணத்தைச் சேர்க்கவும்."
+    },
+    "edit": {
+      "title": "மேற்கோளைத் திருத்து",
+      "reasonLabel": "இந்த மாற்றத்திற்கான காரணம்",
+      "reasonPlaceholder": "எ.கா. வாடிக்கையாளருக்கு 3 யூனிட்கள் வேண்டும்",
+      "reasonRequired": "இந்த மாற்றத்திற்கான காரணத்தைச் சேர்க்கவும்."
+    },
+    "history": {
+      "title": "திருத்த வரலாறு",
+      "discountChange": "தள்ளுபடி {{from}} → {{to}}",
+      "unknownEditor": "ஊழியர்"
+    },
+    "lines": {
+      "qtyFor": "{{name}} அளவு"
+    },
     "print": "அச்சிடு",
     "shareWhatsapp": "வாட்ஸ்அப்பில் பகிர்",
     "whatsappMessage": "ஜிவி மார்ட் மேற்கோள் {{id}} — மொத்தம் {{total}}. உங்கள் ஆர்வத்திற்கு நன்றி!",

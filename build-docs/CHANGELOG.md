@@ -1,5 +1,11 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## quotation-edit-discount (2026-11-27), BUILT, DB NOT APPLIED
+- Open quotations: Edit popup for items, qty, ₹ discount (Yes/No switch + reason), valid-until + a required change reason; edit history on the quote. Converted/Lost locked (RPC + table trigger).
+- A direct quotation creates a new lead (source "Direct quotation", status Quoted, follow-up call booked 2 days out).
+- Convert to sale bills the quoted prices; the quote's ₹ discount is carried into the sale's discount step.
+- `quotations.total` is now NET of the discount. Migration 20270103100000 (+ rollback) and SQL test are written, not applied. **UI must not reach main before the migration is live.**
+
 ## quotation-kpi-compact (2026-11-27)
 - Quotations KPI cards are smaller (KpiCard `compact`) and show a corner pill: Open/Converted/Lost = % of all quotations; Conversion rate = converted/decided. Logic in lib/quotationStats.ts. KpiCard gains optional `corner` + `compact`; other 8 users unchanged.
 

@@ -86,7 +86,10 @@ export async function createQuotation(
   /** null = org default (settings.prices_include_gst). */
   gstInclusive: boolean | null = null,
   /** No GST (no-gst-bill): stored on the quotation and carried into the sale. */
-  noGst = false
+  noGst = false,
+  /** quotation-edit-discount: ₹ off the subtotal (capped like a sale's discount); reason required when > 0. */
+  discountAmount = 0,
+  discountReason: string | null = null
 ): Promise<string> {
   const { data, error } = await supabase.rpc("create_quotation", {
     p_org_id: orgId,
@@ -96,6 +99,8 @@ export async function createQuotation(
     p_lead_id: leadId,
     p_gst_inclusive: gstInclusive,
     p_no_gst: noGst,
+    p_discount_amount: discountAmount,
+    p_discount_reason: discountReason,
   })
   if (error) throw error
   return data as string
@@ -106,12 +111,38 @@ export async function markQuotationLost(id: string, reason: string) {
   if (error) throw error
 }
 
-/** Item 6 (2026-09-16), minor-fields-only edit scope — approved narrower
- * than a full line-item edit, so this is the one field on `quotations`
- * actually worth changing after creation. */
-export async function updateQuotationValidUntil(id: string, validUntil: string | null) {
-  const { error } = await supabase.from("quotations").update({ valid_until: validUntil }).eq("id", id)
+/** quotation-edit-discount (2026-11-27) — replaces the 2026-09-16 valid-until-only edit. Open quotations
+ * only (the RPC and a table trigger refuse otherwise); lines already on the quote keep their quoted price;
+ * every save writes a quotation_revisions row with `reason`. */
+export async function updateQuotation(input: {
+  id: string
+  items: QuotationCartItem[]
+  discountAmount: number
+  discountReason: string | null
+  validUntil: string | null
+  reason: string
+}) {
+  const { error } = await supabase.rpc("update_quotation", {
+    p_quotation_id: input.id,
+    p_items: input.items.map((i) => ({ item_type: i.itemType, item_id: i.itemId, qty: i.qty })),
+    p_discount_amount: input.discountAmount,
+    p_discount_reason: input.discountReason,
+    p_valid_until: input.validUntil,
+    p_reason: input.reason,
+  })
   if (error) throw error
+}
+
+export type QuotationRevision = Tables<"quotation_revisions"> & { editor: { full_name: string | null } | null }
+
+export async function listQuotationRevisions(quotationId: string): Promise<QuotationRevision[]> {
+  const { data, error } = await supabase
+    .from("quotation_revisions")
+    .select("*, editor:profiles!quotation_revisions_edited_by_fkey(full_name)")
+    .eq("quotation_id", quotationId)
+    .order("edited_at", { ascending: false })
+  if (error) throw error
+  return (data ?? []) as unknown as QuotationRevision[]
 }
 
 export type LeadQuotationListItem = Pick<QuotationRow, "id" | "status" | "total" | "created_at">

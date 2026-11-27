@@ -1976,6 +1976,31 @@
     "lostReasonLabel": "Lost reason",
     "lostReasonPlaceholder": "Why was this quotation lost?",
     "editButton": "Edit",
+    "discount": {
+      "label": "Discount",
+      "amountLabel": "Discount (₹)",
+      "reasonLabel": "Reason for discount",
+      "reasonPlaceholder": "e.g. bulk order, festival offer",
+      "maxHint": "Up to {{percent}}% ({{max}})",
+      "subtotal": "Subtotal",
+      "errorNegative": "Discount can't be negative.",
+      "errorOverCap": "Discount can be at most {{percent}}% of the subtotal ({{max}}).",
+      "errorReason": "Add a reason for the discount."
+    },
+    "edit": {
+      "title": "Edit quotation",
+      "reasonLabel": "Reason for this change",
+      "reasonPlaceholder": "e.g. customer wants 3 units",
+      "reasonRequired": "Add a reason for this change."
+    },
+    "history": {
+      "title": "Edit history",
+      "discountChange": "discount {{from}} → {{to}}",
+      "unknownEditor": "Staff"
+    },
+    "lines": {
+      "qtyFor": "Quantity for {{name}}"
+    },
     "print": "Print",
     "shareWhatsapp": "Share on WhatsApp",
     "whatsappMessage": "GV Mart quotation {{id}} — total {{total}}. Thank you for your interest!",

@@ -1,6 +1,6 @@
 # Quotation edit + ₹ discount + lead link (2026-11-27)
 
-Status: DESIGN — awaiting owner approval. Nothing built, no DB change.
+Status: BUILT on branch feat/quotation-edit-discount (owner approved 2026-11-27). DB migration written, NOT applied. Exact ₹ discount fix (step 5) not included.
 
 ## Purpose
 - A direct quotation (no lead) never reaches Leads / Daily Follow Up, so it can go cold unseen.
@@ -17,7 +17,7 @@ Status: DESIGN — awaiting owner approval. Nothing built, no DB change.
 DB (one migration + rollback):
 - `quotations`: `+ discount_amount numeric(12,2) not null default 0 check (>= 0)`, `+ discount_reason text`.
 - New `quotation_revisions` (org_id, quotation_id, edited_by, edited_at, old_total, new_total, old_discount, new_discount, reason, items_before jsonb, items_after jsonb). RLS: same staff read as quotations; insert only via RPC.
-- `create_quotation`: new `p_discount_amount`, `p_discount_reason`. When `p_lead_id` is null → insert a lead from the customer (name, mobile, source "Direct quotation", status quoted, assigned to the creator) and set `quotations.lead_id`.
+- `create_quotation`: new `p_discount_amount`, `p_discount_reason`. When `p_lead_id` is null → insert a lead from the customer (name, mobile, source "Direct quotation", status quoted, assigned to the creator) and set `quotations.lead_id`. Also logs `quotation_created` and books a follow-up call 2 days out (Daily Follow Up lists follow-ups, not bare leads); a refused follow-up is a warning, never blocks the quote.
 - New `update_quotation(p_id, p_items, p_discount_amount, p_discount_reason, p_valid_until, p_reason)`: refuses unless status = open (row locked `for update`); re-prices lines from master; writes a revision row; recomputes total.
 - `create_sale` / `_sale_create_line_invoice`: when `p_quotation_id` is given, price each line from `quotation_items.price` instead of the master.
 - Discount cap: `discount_amount <= subtotal × settings.discount_admin_max / 100` checked in both quotation RPCs, so a quote can't promise what the sale would reject.
@@ -35,6 +35,8 @@ UI:
 - Accounts/Reports: none changed. They read `invoices.discount`, which the sale already fills.
 - `listQuotations`/`getQuotation` and hand-patched `database.ts` types: add the new columns.
 - Lead detail quotations list: unchanged.
+- Lock trigger also covers direct table writes (staff RLS allows them), so Converted/Lost really can't change.
+- Rollout order: apply the migration FIRST, then merge the UI. Old UI on the new DB still works (new params have defaults).
 
 ## Edge cases
 - Quote edited in two tabs at once: `for update` lock, so the second save sees the latest version.

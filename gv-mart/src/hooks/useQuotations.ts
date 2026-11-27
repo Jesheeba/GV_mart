@@ -29,8 +29,26 @@ export function useCreateQuotation() {
       items: quotations.QuotationCartItem[]
       gstInclusive?: boolean | null
       noGst?: boolean
-    }) => quotations.createQuotation(input.orgId, input.customerId, input.validUntil, input.items, input.leadId ?? null, input.gstInclusive ?? null, input.noGst ?? false),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["quotations"] }),
+      discountAmount?: number
+      discountReason?: string | null
+    }) =>
+      quotations.createQuotation(
+        input.orgId,
+        input.customerId,
+        input.validUntil,
+        input.items,
+        input.leadId ?? null,
+        input.gstInclusive ?? null,
+        input.noGst ?? false,
+        input.discountAmount ?? 0,
+        input.discountReason ?? null
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["quotations"] })
+      // A direct quotation now opens a new lead + follow-up.
+      qc.invalidateQueries({ queryKey: ["leads"] })
+      qc.invalidateQueries({ queryKey: ["followups"] })
+    },
   })
 }
 
@@ -42,11 +60,19 @@ export function useMarkQuotationLost() {
   })
 }
 
-export function useUpdateQuotationValidUntil() {
+export function useUpdateQuotation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, validUntil }: { id: string; validUntil: string | null }) => quotations.updateQuotationValidUntil(id, validUntil),
+    mutationFn: quotations.updateQuotation,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quotations"] }),
+  })
+}
+
+export function useQuotationRevisions(quotationId: string | undefined) {
+  return useQuery({
+    queryKey: ["quotations", "revisions", quotationId],
+    queryFn: () => quotations.listQuotationRevisions(quotationId!),
+    enabled: !!quotationId,
   })
 }
 

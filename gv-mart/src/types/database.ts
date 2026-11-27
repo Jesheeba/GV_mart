@@ -3151,6 +3151,9 @@ export type Database = {
           total: number
           gst_inclusive: boolean | null
           no_gst: boolean
+          // Hand-patched, 20270103100000_quotation_edit_discount: total is NET of discount_amount.
+          discount_amount: number
+          discount_reason: string | null
           lost_reason: string | null
           lead_id: string | null
           created_at: string
@@ -3165,6 +3168,8 @@ export type Database = {
           total?: number
           gst_inclusive?: boolean | null
           no_gst?: boolean
+          discount_amount?: number
+          discount_reason?: string | null
           lost_reason?: string | null
           lead_id?: string | null
           created_at?: string
@@ -3179,6 +3184,8 @@ export type Database = {
           total?: number
           gst_inclusive?: boolean | null
           no_gst?: boolean
+          discount_amount?: number
+          discount_reason?: string | null
           lost_reason?: string | null
           lead_id?: string | null
           created_at?: string
@@ -3207,6 +3214,28 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      quotation_revisions: {
+        // Hand-patched, 20270103100000_quotation_edit_discount. Written only by update_quotation.
+        Row: {
+          id: string
+          org_id: string
+          quotation_id: string
+          edited_by: string | null
+          edited_at: string
+          reason: string
+          old_total: number
+          new_total: number
+          old_discount: number
+          new_discount: number
+          old_valid_until: string | null
+          new_valid_until: string | null
+          items_before: Json
+          items_after: Json
+        }
+        Insert: never
+        Update: never
+        Relationships: []
       }
       quotation_items: {
         Row: {
@@ -7995,6 +8024,8 @@ export type Database = {
           p_lead_id?: string | null
           p_gst_inclusive?: boolean | null
           p_no_gst?: boolean | null
+          p_discount_amount?: number
+          p_discount_reason?: string | null
         }
         Returns: string
       }
@@ -8837,6 +8868,17 @@ export type Database = {
       move_lead_to_customer: {
         Args: { p_lead_id: string }
         Returns: string
+      }
+      update_quotation: {
+        Args: {
+          p_quotation_id: string
+          p_items: Json
+          p_discount_amount: number
+          p_discount_reason: string | null
+          p_valid_until: string | null
+          p_reason: string
+        }
+        Returns: undefined
       }
       update_lead_status: {
         Args: { p_lead_id: string; p_status: Database["public"]["Enums"]["lead_status"]; p_reason?: string | null }

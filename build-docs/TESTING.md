@@ -238,3 +238,8 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Core rehearsal 1 (begin; migration + test; RAISE): 57/58 — FAIL "AC2 assigned to the original technician" = test fixture (window check's rework held tech1's 09:00 slot → technicianBusy, correct behaviour). Fixed in 156e0d5. Residue check: nothing persisted.
 - Core rehearsal 2: 58/58 PASS. `20270102100100_rework_core` APPLIED live (owner: "re-test, apply if all pass"); in-request checks + independent read-only post-check clean (1 invoice overload, no anon EXECUTE, 0 test residue, compute_salary md5 unchanged).
 - `20270102100200_rework_penalty_salary` NOT applied (payroll: needs typed APPROVED after its own rehearsal).
+
+## quotation-edit-discount (2026-11-27)
+- Vitest: `src/lib/quotationDiscount.test.ts` (AC4 cap/reason/negative, ₹→% for the sale step) 7/7. Related suites (quotations, sales, i18n parity/keys, services) 277 pass / 17 skipped. tsc clean, oxlint clean, `npm run build` OK.
+- SQL `supabase/tests/quotation_edit_discount.test.sql`, 20 checks (AC1–AC6, ACLs, lock trigger, re-convert refused, lead-linked quote makes no new lead). **Written, NOT run**: no DB write without the owner naming it. Run in the same rolled-back request as the migration (it ends in RAISE).
+- Not covered by automation: the Edit popup UI and sale prefill (no DOM test env). Check by hand after apply.

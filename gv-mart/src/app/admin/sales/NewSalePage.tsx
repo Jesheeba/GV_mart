@@ -21,6 +21,7 @@ import { useCreateSale, useCustomerReferralBalance } from "@/hooks/useSales"
 import { useQuotation } from "@/hooks/useQuotations"
 import { useTechnicians } from "@/hooks/useService"
 import { useLocalDraft } from "@/hooks/useLocalDraft"
+import { discountPercentOf } from "@/lib/quotationDiscount"
 import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema, PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
 import { focusChoice } from "@/lib/utils"
 import { formatCurrency, findStockGap, defaultGstMode, gstModeParts, toGstMode, type GstMode } from "@/lib/sale-calc"
@@ -149,8 +150,9 @@ export function NewSalePage() {
 
   // Convert-a-quotation: prefill the cart once from the quotation's items,
   // and preselect its customer — the sale itself is still built through the
-  // normal stepper (discount/gift/payment aren't carried over, matching
-  // "New Quotation = sale flow minus payment").
+  // normal stepper. quotation-edit-discount (2026-11-27): lines carry the QUOTED
+  // price (create_sale bills it too) and the quote's ₹ discount is pre-switched on;
+  // gift/payment still aren't carried over.
   const quotationData = useQuotation(orgId, quotationId ?? undefined)
   const { data: allBrands } = brandsHooks.useList(orgId)
   const { data: allModels } = modelsHooks.useList(orgId)
@@ -187,7 +189,7 @@ export function NewSalePage() {
           brandName: brand?.name ?? "—",
           modelName: model?.name ?? "—",
           category: p.category,
-          price: Number(p.price),
+          price: Number(item.price),
           qty: item.qty,
           warranty: false,
           warrantyMonths: p.warranty_months,
@@ -196,10 +198,17 @@ export function NewSalePage() {
       } else {
         const s = allSpares.find((x) => x.id === item.item_id)
         if (!s) continue
-        spareLines.push({ spareId: s.id, name: s.name, price: Number(s.price), qty: item.qty })
+        spareLines.push({ spareId: s.id, name: s.name, price: Number(item.price), qty: item.qty })
       }
     }
     setCart((c) => ({ ...c, productLines: [...c.productLines, ...productLines], spareLines: [...c.spareLines, ...spareLines] }))
+    const quotedDiscount = Number(quotationData.data.discount_amount) || 0
+    if (quotedDiscount > 0) {
+      const quotedSubtotal = [...productLines, ...spareLines].reduce((sum, l) => sum + l.price * l.qty, 0)
+      setDiscountEnabled(true)
+      setDiscountAmountInput(quotedDiscount.toFixed(2))
+      setDiscountInput(discountPercentOf(quotedSubtotal, quotedDiscount).toFixed(2))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quotationData.data, allProducts, allSpares, allBrands, allModels])
 

@@ -2,28 +2,23 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { GstModeToggle } from "@/components/shared/GstModeToggle"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Loader2, Plus, Search, Trash2 } from "lucide-react"
+import { Loader2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Autocomplete } from "@/components/shared/Autocomplete"
-import { SparePicker } from "@/components/shared/SparePicker"
 import { FullPageLoader } from "@/components/shared/FullPageLoader"
 import { useProfile } from "@/hooks/useProfile"
 import { useCustomerAutocomplete } from "@/hooks/useCustomers"
 import { useLogLeadActivity, useUpdateLeadStatus } from "@/hooks/useAutomation"
 import { productsHooks, sparesHooks, useSettings } from "@/hooks/useMasters"
 import { useCreateQuotation } from "@/hooks/useQuotations"
-import { billBreakdown, defaultGstMode, formatCurrency, gstModeParts, type GstMode } from "@/lib/sale-calc"
-import { productMatchesQuery, productSearchLabel } from "@/lib/productSearch"
+import { billBreakdown, defaultGstMode, gstModeParts, type GstMode } from "@/lib/sale-calc"
 import type { Enums } from "@/types/database"
-import { FIELD_W } from "@/lib/fieldWidth"
-import { cn } from "@/lib/utils"
-
-
-type QuoteLine = { itemType: Enums<"item_type">; itemId: string; name: string; price: number; qty: number }
+import { quotationDiscountProblem } from "@/lib/quotationDiscount"
+import { QuotationLinesEditor, type QuoteLine } from "./QuotationLinesEditor"
+import { QuotationDiscountField, QuotationTotals, type DiscountState } from "./QuotationDiscountField"
 
 // Set by LeadDetailPanel's "Create Quotation" quick action (navigate(...,
 // { state }) — see house style in HistoryPage.tsx/OnSiteVisitPage.tsx).
@@ -63,37 +58,22 @@ export function QuotationFormPage() {
 
   const { data: products } = productsHooks.useList(orgId)
   const { data: spares } = sparesHooks.useList(orgId)
-  // Skip/Revoke (20260923) — new lines only ever pick an active item; a
-  // seeded/existing reference to an archived one still resolves fine below
-  // since seeding looks it up in the full `products`/`spares` list, not
-  // these filtered ones.
-  const activeProducts = useMemo(() => (products ?? []).filter((p) => p.is_active), [products])
-  const activeSpares = useMemo(() => (spares ?? []).filter((s) => s.is_active), [spares])
-  const [productId, setProductId] = useState("")
-  const [productLabel, setProductLabel] = useState("")
-  const [productQuery, setProductQuery] = useState("")
-  // Brand/Model/Product are three master tables, but one search box: typing
-  // a brand name ("Amaron") surfaces its products the same as typing the
-  // product's own name would (see src/lib/productSearch.ts).
-  const productSuggestions = useMemo(
-    () => activeProducts.filter((p) => productMatchesQuery(p, productQuery)),
-    [activeProducts, productQuery]
-  )
-  const [spareId, setSpareId] = useState("")
-  const [productQty, setProductQty] = useState("1")
-  const [spareQty, setSpareQty] = useState("1")
+  const [discount, setDiscount] = useState<DiscountState>({ enabled: false, amount: "", reason: "" })
 
   const createQuotation = useCreateQuotation()
   const logLeadActivity = useLogLeadActivity()
   const updateLeadStatus = useUpdateLeadStatus()
 
-  const total = useMemo(() => lines.reduce((sum, l) => sum + l.price * l.qty, 0), [lines])
+  const subtotal = useMemo(() => lines.reduce((sum, l) => sum + l.price * l.qty, 0), [lines])
   const { data: settings } = useSettings(orgId)
+  const maxDiscountPct = settings ? Number(settings.discount_admin_max) : 10
+  const discountAmount = discount.enabled ? Number(discount.amount) || 0 : 0
+  const discountProblem = discount.enabled ? quotationDiscountProblem(subtotal, discountAmount, discount.reason, maxDiscountPct) : null
   const gstRate = settings ? Number(settings.gst_rate) : 0
   const [gstModeChoice, setGstModeChoice] = useState<GstMode | null>(null)
   const gstMode = gstModeChoice ?? defaultGstMode(settings?.prices_include_gst)
   const { gstInclusive, noGst, rate: billGstRate } = gstModeParts(gstMode, gstRate)
-  const gstBill = billBreakdown(total, 0, billGstRate, gstInclusive)
+  const gstBill = billBreakdown(subtotal - discountAmount, 0, billGstRate, gstInclusive)
 
   // Seed the cart once from the lead's structured items (one entry per
   // product/spare the enquiry asked for), as soon as the products/spares
@@ -122,28 +102,8 @@ export function QuotationFormPage() {
     if (seeded.length > 0) setLines((ls) => [...ls, ...seeded])
   }, [products, spares, navState])
 
-  function addProductLine() {
-    const p = (products ?? []).find((x) => x.id === productId)
-    if (!p) return
-    setLines((ls) => [...ls, { itemType: "product", itemId: p.id, name: p.name, price: Number(p.price), qty: Math.max(1, Math.floor(Number(productQty) || 1)) }])
-    setProductId("")
-    setProductLabel("")
-    setProductQuery("")
-    setProductQty("1")
-  }
-  function addSpareLine() {
-    const s = (spares ?? []).find((x) => x.id === spareId)
-    if (!s) return
-    setLines((ls) => [...ls, { itemType: "spare", itemId: s.id, name: s.name, price: Number(s.price), qty: Math.max(1, Math.floor(Number(spareQty) || 1)) }])
-    setSpareId("")
-    setSpareQty("1")
-  }
-  function removeLine(i: number) {
-    setLines((ls) => ls.filter((_, idx) => idx !== i))
-  }
-
   async function handleSubmit() {
-    if (!orgId || (!customerId && !leadId) || lines.length === 0) return
+    if (!orgId || (!customerId && !leadId) || lines.length === 0 || discountProblem) return
     const id = await createQuotation.mutateAsync({
       orgId,
       customerId,
@@ -152,6 +112,8 @@ export function QuotationFormPage() {
       items: lines.map((l) => ({ itemType: l.itemType, itemId: l.itemId, qty: l.qty })),
       gstInclusive,
       noGst,
+      discountAmount,
+      discountReason: discountAmount > 0 ? discount.reason.trim() : null,
     })
     if (leadId) {
       // Best-effort: the quotation is already created at this point, so a
@@ -208,82 +170,24 @@ export function QuotationFormPage() {
 
       <Card className="gap-3 px-5">
         <p className="px-1 text-sm font-semibold text-text">{t("quotations.form.itemsTitle")}</p>
-        <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
-          <Autocomplete
-            className="sm:col-span-2"
-            value={productId ? productLabel : productQuery}
-            onChange={(v) => {
-              setProductQuery(v)
-              setProductId("")
-            }}
-            onSelect={(p) => {
-              setProductId(p.id)
-              setProductLabel(productSearchLabel(p))
-            }}
-            suggestions={productSuggestions}
-            openOnFocus
-            placeholder={t("sales.items.selectProduct")}
-            emptyMessage={t("common.noData")}
-            getKey={(p) => p.id}
-            getLabel={(p) => (
-              <span>
-                {productSearchLabel(p)} <span className="text-text-muted">— {formatCurrency(Number(p.price))}</span>
-              </span>
-            )}
-            inputClassName="h-8"
-          />
-          <Input type="number" inputMode="numeric" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
-          <Button type="button" size="sm" variant="outline" disabled={!productId} onClick={addProductLine}>
-            <Plus className="size-3.5" />
-            {t("sales.items.add")}
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-4">
-          <SparePicker
-            className="sm:col-span-2"
-            inputClassName="h-8"
-            spares={activeSpares}
-            value={spareId}
-            onChange={setSpareId}
-            placeholder={t("sales.items.selectSpare")}
-            renderMeta={(s) => formatCurrency(Number(s.price))}
-          />
-          <Input type="number" inputMode="numeric" min={1} step={1} value={spareQty} onChange={(e) => setSpareQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
-          <Button type="button" size="sm" variant="outline" disabled={!spareId} onClick={addSpareLine}>
-            <Plus className="size-3.5" />
-            {t("sales.items.add")}
-          </Button>
-        </div>
-
-        {lines.length === 0 ? (
-          <p className="px-1 text-sm text-text-muted">{t("sales.items.emptyCart")}</p>
-        ) : (
-          <div className="space-y-2 px-1">
-            {lines.map((l, i) => (
-              <div key={`${l.itemId}-${i}`} className="flex items-center justify-between rounded-xl border border-border px-3.5 py-2.5">
-                <div>
-                  <p className="text-sm font-medium text-text">{l.name}</p>
-                  <p className="text-xs text-text-muted">
-                    {l.qty} × {formatCurrency(l.price)} = {formatCurrency(l.qty * l.price)}
-                  </p>
-                </div>
-                <Button type="button" size="icon-xs" variant="ghost" onClick={() => removeLine(i)}>
-                  <Trash2 className="size-3.5 text-danger" />
-                </Button>
-              </div>
-            ))}
+        <QuotationLinesEditor orgId={orgId} lines={lines} onChange={setLines} />
+        {lines.length > 0 ? (
+          <>
+            <div className="border-t border-border pt-3">
+              <QuotationDiscountField value={discount} onChange={setDiscount} subtotal={subtotal} maxPercent={maxDiscountPct} problem={discountProblem} />
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-1 pt-2">
               <GstModeToggle value={gstMode} onChange={setGstModeChoice} />
-              <span className="text-sm text-text-muted">
-                {noGst ? t("sales.gst.notCharged") : t(gstInclusive ? "sales.gst.includedLine" : "sales.summary.gst", { rate: gstRate })}: {formatCurrency(gstBill.gst)}
-              </span>
             </div>
-            <div className="flex justify-between px-1 text-sm font-bold text-text">
-              <span>{t("sales.summary.total")}</span>
-              <span>{formatCurrency(gstBill.total)}</span>
-            </div>
-          </div>
-        )}
+            <QuotationTotals
+              subtotal={subtotal}
+              discount={discountAmount}
+              gstLabel={noGst ? t("sales.gst.notCharged") : t(gstInclusive ? "sales.gst.includedLine" : "sales.summary.gst", { rate: gstRate })}
+              gst={gstBill.gst}
+              total={gstBill.total}
+            />
+          </>
+        ) : null}
       </Card>
 
       {createQuotation.isError ? (
@@ -294,7 +198,7 @@ export function QuotationFormPage() {
         <Button type="button" variant="outline" onClick={() => navigate(-1)}>
           {t("common.cancel")}
         </Button>
-        <Button type="button" disabled={(!customerId && !leadId) || lines.length === 0 || createQuotation.isPending} onClick={handleSubmit}>
+        <Button type="button" disabled={(!customerId && !leadId) || lines.length === 0 || !!discountProblem || createQuotation.isPending} onClick={handleSubmit}>
           {createQuotation.isPending ? <Loader2 className="size-4 animate-spin" /> : t("quotations.form.create")}
         </Button>
       </div>
