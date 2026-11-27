@@ -1,5 +1,8 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## sales-product-stock (2026-11-27)
+- New Sale > Items > Product search: each suggestion now shows "(N in stock)" like the Spares picker; 0 stock shown in red. Display only, no DB change. Stock = warehouse qty from useInventoryList(org, "product").
+
 ## no-gst-bill (2026-11-26), migration APPLIED LIVE 2026-11-26
 - The GST switch is now 3-way: GST extra | GST included | No GST. Screens: New Sale, Quotation (carried into the sale), Rent Out (+ monthly bills), Admin Sell AMC, technician on-site invoice + AMC.
 - `20270101100000_no_gst_bill.sql` (+ rollback): `quotations.no_gst` and `rental_contracts.no_gst`, plus `p_no_gst` on 6 RPCs and `cart.no_gst` on create_sale. No GST = rate 0.

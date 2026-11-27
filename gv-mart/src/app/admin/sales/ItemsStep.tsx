@@ -171,11 +171,15 @@ export function ItemsStep({ orgId, cart, setCart }: { orgId: string; cart: SaleC
                 placeholder={t("sales.items.selectProduct")}
                 emptyMessage={t("common.noData")}
                 getKey={(p) => p.id}
-                getLabel={(p) => (
-                  <span>
-                    {productSearchLabel(p)} <span className="text-text-muted">— {formatCurrency(Number(p.price))}</span>
-                  </span>
-                )}
+                getLabel={(p) => {
+                  const stock = stockFor(p.id, productStock) ?? 0
+                  return (
+                    <span>
+                      {productSearchLabel(p)} <span className="text-text-muted">— {formatCurrency(Number(p.price))}</span>{" "}
+                      <span className={stock > 0 ? "text-text-muted" : "text-danger"}>({t("sales.items.stockShort", { count: stock })})</span>
+                    </span>
+                  )
+                }}
                 inputClassName="h-8"
               />
               <Input type="number" inputMode="numeric" min={1} step={1} value={productQty} onChange={(e) => setProductQty(e.target.value)} placeholder={t("sales.items.qty")} aria-label={t("sales.items.qty")} className={cn("h-8", FIELD_W.qty)} />
