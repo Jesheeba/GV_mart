@@ -8,8 +8,9 @@ export type DiscountProblem = { key: string; params?: Record<string, string | nu
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
+/** Rounded DOWN to the paisa (DB: trunc), so the quoted ₹ never works out a hair over the sale's % cap. */
 export function maxQuotationDiscount(subtotal: number, maxPercent: number): number {
-  return round2((subtotal * maxPercent) / 100)
+  return Math.floor(subtotal * maxPercent + 1e-6) / 100
 }
 
 export function quotationDiscountProblem(subtotal: number, discount: number, reason: string, maxPercent: number): DiscountProblem {

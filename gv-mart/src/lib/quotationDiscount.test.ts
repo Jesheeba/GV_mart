@@ -21,8 +21,11 @@ describe("quotationDiscountProblem (AC4: same cap as a sale, reason required)", 
 })
 
 describe("maxQuotationDiscount / discountPercentOf", () => {
-  it("cap is rounded to paise", () => {
+  it("cap is rounded DOWN to the paisa, so the ₹ never works out over the sale's % cap", () => {
     expect(maxQuotationDiscount(333.33, 10)).toBe(33.33)
+    expect(maxQuotationDiscount(333.35, 10)).toBe(33.33) // 33.335 → 33.33, not 33.34 (= 10.002%)
+    expect(maxQuotationDiscount(31000, 10)).toBe(3100)
+    expect(maxQuotationDiscount(0.29, 10)).toBe(0.02) // float 2.8999… must not drop a paisa wrongly
   })
   it("₹ → % for the sale step (2 decimals); empty cart → 0", () => {
     expect(discountPercentOf(31000, 2000)).toBe(6.45)

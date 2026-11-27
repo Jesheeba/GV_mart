@@ -247,3 +247,8 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
   - Rehearsal 2: **21/21 PASS**. Leak check: nothing persisted.
   - APPLIED live as one guarded DO block (md5 guards, version row, grants/columns/triggers checks, existing quotation + invoice fingerprints unchanged): APPLY_OK. Post-check matches.
 - Not covered by automation: the Edit popup UI and sale prefill (no DOM test env). Check by hand after apply.
+
+## exact-rupee-discount (2026-11-27)
+- Vitest: `saleDiscountPercent` (₹2000 on ₹31000 → bill discount exactly 2000, product+spare split adds up, cap edge, junk input) + floored quotation cap (333.35 → 33.33). Related suites pass. The only failures are pre-existing and unrelated: waOutboxSentGuard (flags old 20261204220000) and otaManager (fails standalone too). tsc clean, build OK.
+- SQL `supabase/tests/exact_rupee_discount.test.sql` 7 checks. Precheck: live create_sale md5 552c6566… matched. Rehearsal 1: 5/5. It surfaced the quotation cap round-up edge, fixed with trunc. Rehearsal 2: **7/7 PASS**. Leak check clean.
+- APPLIED live (guarded DO block, APPLY_OK). New create_sale md5 6df514a55841a52b99337f6689f84d7e.

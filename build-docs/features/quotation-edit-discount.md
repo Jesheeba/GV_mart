@@ -1,6 +1,6 @@
 # Quotation edit + ₹ discount + lead link (2026-11-27)
 
-Status: BUILT on branch feat/quotation-edit-discount (owner approved 2026-11-27). Migration 20270103100000 APPLIED LIVE 2026-11-27 (rehearsal 21/21). Exact ₹ discount fix (step 5) not included.
+Status: BUILT on branch feat/quotation-edit-discount (owner approved 2026-11-27). Migration 20270103100000 APPLIED LIVE 2026-11-27 (rehearsal 21/21). Step 5 (exact ₹) DONE 2026-11-27: migration 20270104100000 LIVE.
 
 ## Purpose
 - A direct quotation (no lead) never reaches Leads / Daily Follow Up, so it can go cold unseen.

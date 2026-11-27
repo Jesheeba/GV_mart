@@ -24,7 +24,7 @@ import { useLocalDraft } from "@/hooks/useLocalDraft"
 import { discountPercentOf } from "@/lib/quotationDiscount"
 import { discountNeedsApproval, isAmountPaidBlocked, isDiscountBlocked, paymentDetailsSchema, PAYMENT_METHOD_REQUIRED } from "@/lib/validation/sale"
 import { focusChoice } from "@/lib/utils"
-import { formatCurrency, findStockGap, defaultGstMode, gstModeParts, toGstMode, type GstMode } from "@/lib/sale-calc"
+import { formatCurrency, findStockGap, defaultGstMode, gstModeParts, saleDiscountPercent, toGstMode, type GstMode } from "@/lib/sale-calc"
 import { ItemsStep } from "./ItemsStep"
 import { SaleFamilyReviewSection } from "./SaleFamilyReviewSection"
 import { SaleSummaryPanel } from "./SaleSummaryPanel"
@@ -47,6 +47,7 @@ type NewSaleDraftData = {
   discountEnabled: boolean
   discountInput: string
   discountAmountInput: string
+  discountByAmount?: boolean
   giftId: string | null
   paymentMethod: Enums<"payment_method"> | null
   txnId: string
@@ -98,7 +99,9 @@ export function NewSalePage() {
   const [discountEnabled, setDiscountEnabled] = useState(false)
   const [discountInput, setDiscountInput] = useState("0")
   const [discountAmountInput, setDiscountAmountInput] = useState("0")
-  const discountPercent = discountEnabled ? Math.max(0, Number(discountInput) || 0) : 0
+  // exact-rupee-discount: which box the cashier typed in. Typed in ₹ → create_sale gets the exact % so the
+  // bill's discount is exactly that ₹ amount; the other box is just shown derived.
+  const [discountByAmount, setDiscountByAmount] = useState(false)
   const [giftId, setGiftId] = useState<string | null>(null)
   // Unchosen until staff pick one (choice-no-preselect).
   const [paymentMethod, setPaymentMethod] = useState<Enums<"payment_method"> | null>(null)
@@ -206,6 +209,7 @@ export function NewSalePage() {
     if (quotedDiscount > 0) {
       const quotedSubtotal = [...productLines, ...spareLines].reduce((sum, l) => sum + l.price * l.qty, 0)
       setDiscountEnabled(true)
+      setDiscountByAmount(true)
       setDiscountAmountInput(quotedDiscount.toFixed(2))
       setDiscountInput(discountPercentOf(quotedSubtotal, quotedDiscount).toFixed(2))
     }
@@ -243,6 +247,7 @@ export function NewSalePage() {
     discountEnabled,
     discountInput,
     discountAmountInput,
+    discountByAmount,
     giftId,
     paymentMethod,
     txnId,
@@ -269,6 +274,7 @@ export function NewSalePage() {
     if (restoredDraft.discountEnabled != null) setDiscountEnabled(restoredDraft.discountEnabled)
     if (restoredDraft.discountInput != null) setDiscountInput(restoredDraft.discountInput)
     if (restoredDraft.discountAmountInput != null) setDiscountAmountInput(restoredDraft.discountAmountInput)
+    if (restoredDraft.discountByAmount != null) setDiscountByAmount(restoredDraft.discountByAmount)
     if (restoredDraft.giftId !== undefined) setGiftId(restoredDraft.giftId)
     if (restoredDraft.paymentMethod) setPaymentMethod(restoredDraft.paymentMethod)
     if (restoredDraft.txnId) setTxnId(restoredDraft.txnId)
@@ -285,6 +291,13 @@ export function NewSalePage() {
   const techMax = settings ? Number(settings.discount_tech_max) : 5
   const adminMax = settings ? Number(settings.discount_admin_max) : 10
   const combined = combinedSubtotal(cart)
+  const discountPercent = saleDiscountPercent({
+    enabled: discountEnabled,
+    byAmount: discountByAmount,
+    percentInput: discountInput,
+    amountInput: discountAmountInput,
+    subtotal: combined,
+  })
   // Skip/Revoke (20260923) — a new sale never offers an archived gift.
   const eligibleGifts = (gifts ?? []).filter((g) => g.is_active && combined >= Number(g.threshold_amount))
   const selectedGift = (gifts ?? []).find((g) => g.id === giftId) ?? null
@@ -606,6 +619,7 @@ export function NewSalePage() {
                           if (!v) {
                             setDiscountInput("0")
                             setDiscountAmountInput("0")
+                            setDiscountByAmount(false)
                           }
                         }}
                         className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${discountEnabled === v ? "bg-ink text-white" : "text-text-muted"}`}
@@ -628,9 +642,10 @@ export function NewSalePage() {
                           min={0}
                           max={adminMax}
                           step="0.5"
-                          value={discountInput}
+                          value={discountByAmount ? discountPercent.toFixed(2) : discountInput}
                           onChange={(e) => {
                             const raw = e.target.value
+                            setDiscountByAmount(false)
                             setDiscountInput(raw)
                             const pct = Math.max(0, Number(raw) || 0)
                             setDiscountAmountInput(((pct / 100) * combined).toFixed(2))
@@ -647,9 +662,10 @@ export function NewSalePage() {
                           type="number"
                           min={0}
                           step="0.01"
-                          value={discountAmountInput}
+                          value={discountByAmount ? discountAmountInput : ((discountPercent / 100) * combined).toFixed(2)}
                           onChange={(e) => {
                             const raw = e.target.value
+                            setDiscountByAmount(true)
                             setDiscountAmountInput(raw)
                             const amt = Math.max(0, Number(raw) || 0)
                             const pct = combined > 0 ? (amt / combined) * 100 : 0

@@ -62,3 +62,16 @@ export function findStockGap(
   }
   return null
 }
+
+/**
+ * The discount % a sale sends to create_sale (exact-rupee-discount, 2026-11-27). Typed in ₹ → the exact,
+ * unrounded % so the bill's discount equals the ₹ typed (a 2-decimal % could land up to ~₹1 off). Typed in % →
+ * that %. Off → 0.
+ */
+export function saleDiscountPercent(input: { enabled: boolean; byAmount: boolean; percentInput: string; amountInput: string; subtotal: number }): number {
+  if (!input.enabled) return 0
+  if (!input.byAmount) return Math.max(0, Number(input.percentInput) || 0)
+  const amount = Math.max(0, Number(input.amountInput) || 0)
+  // 8 decimals: drops float noise (10.000000000000002 → 10) that would trip the cap check; error < ₹0.0001.
+  return input.subtotal > 0 ? Math.round((amount / input.subtotal) * 100 * 1e8) / 1e8 : 0
+}

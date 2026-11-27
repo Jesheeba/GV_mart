@@ -1,5 +1,9 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## exact-rupee-discount (2026-11-27), migration 20270104100000 APPLIED LIVE
+- New Sale: a discount typed in ₹ is sent as the exact % (8 decimals). create_sale keeps full precision (was numeric(5,2)), so the bill's discount equals the ₹ typed (was up to ~₹1.5 off). Quotation → sale carries the ₹ this way.
+- Quotation ₹ cap now rounds DOWN to the paisa (DB trunc + screen), so a quote can't exceed the sale's % cap by a fraction.
+
 ## quotation-edit-discount (2026-11-27), migration 20270103100000 APPLIED LIVE 2026-11-27
 - Open quotations: Edit popup for items, qty, ₹ discount (Yes/No switch + reason), valid-until + a required change reason; edit history on the quote. Converted/Lost locked (RPC + table trigger).
 - A direct quotation creates a new lead (source "Direct quotation", status Quoted, follow-up call booked 2 days out).

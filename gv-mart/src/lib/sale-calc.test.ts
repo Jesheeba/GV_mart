@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { billBreakdown, findStockGap, formatCurrency, round2 } from "./sale-calc"
+import { billBreakdown, findStockGap, formatCurrency, round2, saleDiscountPercent } from "./sale-calc"
 
 describe("round2", () => {
   it("rounds up at the .005 boundary (Number.EPSILON nudge)", () => {
@@ -95,5 +95,31 @@ describe("findStockGap", () => {
 
   it("treats undefined stock data (not yet loaded) as no record for any line", () => {
     expect(findStockGap([{ itemId: "p1", name: "Widget", qty: 1 }], undefined)).toEqual({ kind: "no_record", name: "Widget" })
+  })
+})
+
+describe("saleDiscountPercent (exact-rupee-discount, 2026-11-27)", () => {
+  const base = { enabled: true, percentInput: "0", amountInput: "0", subtotal: 31000 }
+  it("₹2000 off ₹31000 → bill discount is exactly ₹2000 (a 2-decimal 6.45% gave ₹1999.50)", () => {
+    const pct = saleDiscountPercent({ ...base, byAmount: true, amountInput: "2000" })
+    expect(billBreakdown(31000, pct, 18).discount).toBe(2000)
+    expect(billBreakdown(31000, 6.45, 18).discount).toBe(1999.5)
+  })
+  it("split across a product bill and a spare bill still adds up to the ₹ typed", () => {
+    const pct = saleDiscountPercent({ ...base, byAmount: true, amountInput: "2000" })
+    expect(billBreakdown(21000, pct, 18).discount + billBreakdown(10000, pct, 18).discount).toBeCloseTo(2000, 2)
+  })
+  it("typed as % → that %; switched off → 0; empty cart → 0", () => {
+    expect(saleDiscountPercent({ ...base, byAmount: false, percentInput: "5" })).toBe(5)
+    expect(saleDiscountPercent({ ...base, enabled: false, byAmount: true, amountInput: "2000" })).toBe(0)
+    expect(saleDiscountPercent({ ...base, byAmount: true, amountInput: "2000", subtotal: 0 })).toBe(0)
+  })
+  it("a ₹ amount at exactly the cap stays at the cap (no float noise over it)", () => {
+    const pct = saleDiscountPercent({ ...base, byAmount: true, amountInput: "3333.33", subtotal: 33333.3 })
+    expect(pct).toBe(10)
+  })
+  it("negative or junk input → 0", () => {
+    expect(saleDiscountPercent({ ...base, byAmount: true, amountInput: "-5" })).toBe(0)
+    expect(saleDiscountPercent({ ...base, byAmount: false, percentInput: "abc" })).toBe(0)
   })
 })
