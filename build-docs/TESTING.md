@@ -252,3 +252,6 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 - Vitest: `saleDiscountPercent` (₹2000 on ₹31000 → bill discount exactly 2000, product+spare split adds up, cap edge, junk input) + floored quotation cap (333.35 → 33.33). Related suites pass. The only failures are pre-existing and unrelated: waOutboxSentGuard (flags old 20261204220000) and otaManager (fails standalone too). tsc clean, build OK.
 - SQL `supabase/tests/exact_rupee_discount.test.sql` 7 checks. Precheck: live create_sale md5 552c6566… matched. Rehearsal 1: 5/5. It surfaced the quotation cap round-up edge, fixed with trunc. Rehearsal 2: **7/7 PASS**. Leak check clean.
 - APPLIED live (guarded DO block, APPLY_OK). New create_sale md5 6df514a55841a52b99337f6689f84d7e.
+
+## spare-stock-limits (2026-11-27)
+- Vitest `src/lib/stockLimits.test.ts` 5 cases (none / set / one missing / non-whole / max < min). i18n parity + keys + crudForm 88 pass. tsc clean, build OK. No DB change (inventory RLS inventory_write_ops already allows master). Not hand-checked in the browser.

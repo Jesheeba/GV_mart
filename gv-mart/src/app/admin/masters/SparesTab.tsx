@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useQueryClient } from "@tanstack/react-query"
 import { Loader2, Upload, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,6 +8,9 @@ import { EntityCrudTable, type CrudFieldDef } from "@/components/shared/EntityCr
 import { sparesHooks, useBulkSetSparesActive } from "@/hooks/useMasters"
 import { spareHasReferences, type SpareRow } from "@/services/masters"
 import { useProfile } from "@/hooks/useProfile"
+import { useInventoryList } from "@/hooks/useInventory"
+import { setWarehouseStockLimits } from "@/services/inventory"
+import { parseStockLimits } from "@/lib/stockLimits"
 import { SpareBulkImportPanel } from "./SpareBulkImportPanel"
 import { SpareVideosPanel } from "./SpareVideosPanel"
 
@@ -22,6 +26,23 @@ export function SparesTab() {
   const updateMut = sparesHooks.useUpdate()
   const deleteMut = sparesHooks.useDelete()
   const bulkSetActive = useBulkSetSparesActive()
+  const qc = useQueryClient()
+  // spare-stock-limits: min/max warehouse stock (what the auto purchase order uses) edited right here.
+  const { data: spareStock } = useInventoryList(orgId, "spare")
+  const warehouseBySpare = useMemo(
+    () => new Map((spareStock ?? []).filter((r) => r.location === "warehouse").map((r) => [r.item_id, r])),
+    [spareStock]
+  )
+  function checkLimits(v: Record<string, string>) {
+    const limits = parseStockLimits(v.min_stock ?? "", v.max_stock ?? "")
+    if (limits.kind === "error") throw new Error(t(limits.key))
+    return limits
+  }
+  async function saveLimits(spareId: string, limits: ReturnType<typeof parseStockLimits>) {
+    if (limits.kind !== "set") return
+    await setWarehouseStockLimits(orgId!, "spare", spareId, limits.min, limits.max)
+    qc.invalidateQueries({ queryKey: ["inventory"] })
+  }
 
   // Task 6 (2026-07-30) — search/filter/bulk-select/bulk-import/enable-
   // disable. All client-side over the org's already-fetched spares list
@@ -68,7 +89,7 @@ export function SparesTab() {
 
   const fields: CrudFieldDef[] = [
     { key: "name", label: t("masters.spares.name"), type: "text", required: true },
-    { key: "sku", label: t("masters.spares.sku"), type: "text", pattern: "[A-Za-z0-9_-]+", patternMessage: t("masters.errors.skuInvalid") },
+    { key: "sku", label: t("masters.spares.sku"), type: "text", placeholder: t("masters.spares.skuPlaceholder"), pattern: "[A-Za-z0-9_-]+", patternMessage: t("masters.errors.skuInvalid") },
     { key: "price", label: t("masters.spares.price"), type: "number", step: "0.01", required: true, min: 0 },
     { key: "cost_price", label: t("masters.spares.costPrice"), type: "number", step: "0.01", placeholder: t("masters.costPriceNotSet"), min: 0 },
     { key: "hsn_code", label: t("masters.spares.hsn"), type: "text", pattern: "\\d{4,8}", patternMessage: t("masters.errors.hsnInvalid") },
@@ -79,6 +100,9 @@ export function SparesTab() {
     // InventoryTable.tsx) via the narrower set_item_standard_time RPC, since
     // this whole tab is master-only per RLS.
     { key: "standard_time_minutes", label: t("masters.spares.standardTime"), type: "number", step: "1", min: 0 },
+    // spare-stock-limits (2026-11-27): stock at/below min → auto purchase order drafted, refilling up to max.
+    { key: "min_stock", label: t("masters.spares.minStock"), type: "number", step: "1", min: 0, placeholder: t("masters.spares.minStockPlaceholder") },
+    { key: "max_stock", label: t("masters.spares.maxStock"), type: "number", step: "1", min: 0, placeholder: t("masters.spares.maxStockPlaceholder") },
   ]
 
   return (
@@ -133,6 +157,8 @@ export function SparesTab() {
           cost_price: r.cost_price != null ? String(r.cost_price) : "",
           hsn_code: r.hsn_code ?? "",
           standard_time_minutes: r.standard_time_minutes != null ? String(r.standard_time_minutes) : "",
+          min_stock: warehouseBySpare.get(r.id) ? String(warehouseBySpare.get(r.id)!.min_stock) : "",
+          max_stock: warehouseBySpare.get(r.id)?.max_stock != null ? String(warehouseBySpare.get(r.id)!.max_stock) : "",
         })}
         columns={[
           {
@@ -176,8 +202,9 @@ export function SparesTab() {
             ),
           },
         ]}
-        onCreate={(v) =>
-          createMut.mutateAsync({
+        onCreate={async (v) => {
+          const limits = checkLimits(v) // validated before the spare is created, so a bad pair creates nothing
+          const created = await createMut.mutateAsync({
             org_id: orgId!,
             name: v.name,
             sku: v.sku || null,
@@ -186,9 +213,11 @@ export function SparesTab() {
             hsn_code: v.hsn_code || null,
             standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
           })
-        }
-        onUpdate={(id, v) =>
-          updateMut.mutateAsync({
+          await saveLimits(created.id, limits)
+        }}
+        onUpdate={async (id, v) => {
+          const limits = checkLimits(v)
+          await updateMut.mutateAsync({
             id,
             patch: {
               name: v.name,
@@ -199,7 +228,8 @@ export function SparesTab() {
               standard_time_minutes: v.standard_time_minutes ? Number(v.standard_time_minutes) : null,
             },
           })
-        }
+          await saveLimits(id, limits)
+        }}
         onDelete={(id) => deleteMut.mutateAsync(id)}
         checkCanDelete={async (id) => !(await spareHasReferences(id))}
         cannotDeleteMessage={t("masters.cannotDeleteInUse")}

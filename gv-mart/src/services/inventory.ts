@@ -123,3 +123,15 @@ export async function adjustStock(input: {
 
   return nextQty
 }
+
+/** Spare form (spare-stock-limits, 2026-11-27): set an item's warehouse min/max stock — creating its warehouse
+ * row with stock 0 if it has none yet. Stock itself is never touched here (the upsert only sets these columns). */
+export async function setWarehouseStockLimits(orgId: string, itemType: ItemType, itemId: string, min: number, max: number) {
+  const { error } = await supabase
+    .from("inventory")
+    .upsert(
+      { org_id: orgId, item_type: itemType, item_id: itemId, location: "warehouse", min_stock: min, max_stock: max },
+      { onConflict: "org_id,item_type,item_id,location" }
+    )
+  if (error) throw error
+}

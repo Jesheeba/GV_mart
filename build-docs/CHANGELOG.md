@@ -1,5 +1,10 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## spare-stock-limits + productivity time (2026-11-27)
+- Add/Edit spare popup: Min stock (reorder at) + Max stock (refill to) = the warehouse inventory.min_stock / max_stock the auto purchase order uses. Saving upserts the warehouse row (stock untouched; created with stock 0 if none). Both or neither; whole numbers; max >= min. Also still editable on Inventory.
+- "Standard time" renamed "Productivity time" everywhere (en + ta, 8 strings). Label only, column unchanged.
+- SKU field gets a placeholder ("Your item code, e.g. FLT-100").
+
 ## exact-rupee-discount (2026-11-27), migration 20270104100000 APPLIED LIVE
 - New Sale: a discount typed in ₹ is sent as the exact % (8 decimals). create_sale keeps full precision (was numeric(5,2)), so the bill's discount equals the ₹ typed (was up to ~₹1.5 off). Quotation → sale carries the ₹ this way.
 - Quotation ₹ cap now rounds DOWN to the paisa (DB trunc + screen), so a quote can't exceed the sale's % cap by a fraction.
