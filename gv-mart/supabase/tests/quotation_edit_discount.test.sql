@@ -66,6 +66,8 @@ begin
   perform pg_temp.chk('AC1 lead has a quotation_created note and an open follow-up (Daily Follow Up)',
     exists (select 1 from lead_activities where lead_id = v_lead and type = 'quotation_created')
     and exists (select 1 from lead_followups where lead_id = v_lead and status = 'open'));
+  perform pg_temp.chk('AC1 lead is assigned to the staff member who made the quote',
+    (select assigned_to from leads where id = v_lead) = v_master);
   perform pg_temp.chk('AC2 create with ₹1000 discount: total net 19000, discount + reason stored',
     q.total = 19000 and q.discount_amount = 1000 and q.discount_reason = 'festival offer', format('%s/%s', q.total, q.discount_amount));
 

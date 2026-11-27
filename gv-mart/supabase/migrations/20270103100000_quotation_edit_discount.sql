@@ -245,8 +245,9 @@ begin
   -- quotation-edit-discount (owner D1): a direct quotation always opens a new lead from the
   -- customer, so it reaches Leads / Daily Follow Up.
   if v_lead_id is null then
-    insert into public.leads (org_id, customer_id, name, mobile, source, status, owner_id)
-    select p_org_id, c.id, c.name, c.mobile, 'direct_quotation', 'quoted', auth.uid()
+    -- (leads.owner_id references technicians, not staff, so it stays null; assignment is below.)
+    insert into public.leads (org_id, customer_id, name, mobile, source, status)
+    select p_org_id, c.id, c.name, c.mobile, 'direct_quotation', 'quoted'
       from public.customers c where c.id = p_customer_id and c.org_id = p_org_id
     returning id into v_lead_id;
     if v_lead_id is null then
@@ -291,7 +292,15 @@ begin
   if p_lead_id is null then
     perform public.add_lead_note(v_lead_id, null, 'quotation_created');
     -- Daily Follow Up lists scheduled follow-ups, not bare leads: book a call 2 days out.
-    -- A refused follow-up (e.g. round-robin handed the lead to someone else) must not block the quote.
+    -- Assign it to whoever made the quote (assign_lead only accepts an active master/sales_admin), then
+    -- book the call. Either step being refused must not block the quote itself.
+    begin
+      if (select assigned_to from public.leads where id = v_lead_id) is null then
+        perform public.assign_lead(v_lead_id, auth.uid(), 'Direct quotation');
+      end if;
+    exception when others then
+      raise warning 'create_quotation: lead % not assigned to the quote creator: %', v_lead_id, sqlerrm;
+    end;
     begin
       perform public.set_lead_followup(v_lead_id, now() + interval '2 days', 'call'::lead_followup_type, null, false);
     exception when others then

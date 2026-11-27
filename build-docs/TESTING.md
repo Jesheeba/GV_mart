@@ -241,5 +241,9 @@ Test strategy per feature, mapped to each feature doc's acceptance criteria. Res
 
 ## quotation-edit-discount (2026-11-27)
 - Vitest: `src/lib/quotationDiscount.test.ts` (AC4 cap/reason/negative, ₹→% for the sale step) 7/7. Related suites (quotations, sales, i18n parity/keys, services) 277 pass / 17 skipped. tsc clean, oxlint clean, `npm run build` OK.
-- SQL `supabase/tests/quotation_edit_discount.test.sql`, 20 checks (AC1–AC6, ACLs, lock trigger, re-convert refused, lead-linked quote makes no new lead). **Written, NOT run**: no DB write without the owner naming it. Run in the same rolled-back request as the migration (it ends in RAISE).
+- SQL `supabase/tests/quotation_edit_discount.test.sql`, 21 checks. 2026-11-27, owner chose "apply DB first, then merge":
+  - Precheck (read-only): live create_sale / create_quotation / _sale_create_line_invoice identical to the repo bodies.
+  - Rehearsal 1 (migration + test, rolled back by RAISE) FAILED: `leads_owner_id_fkey`. leads.owner_id references technicians, not staff. Fix: owner_id dropped; lead assigned to the creator via assign_lead (best-effort) + new test check.
+  - Rehearsal 2: **21/21 PASS**. Leak check: nothing persisted.
+  - APPLIED live as one guarded DO block (md5 guards, version row, grants/columns/triggers checks, existing quotation + invoice fingerprints unchanged): APPLY_OK. Post-check matches.
 - Not covered by automation: the Edit popup UI and sale prefill (no DOM test env). Check by hand after apply.
