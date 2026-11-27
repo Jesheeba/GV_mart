@@ -1,5 +1,7 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## amc-card-total (2026-11-27)
+- AMC plan cards show "₹per-year × N yr = ₹total". Total = price_per_year × years, or flat price when no per-year rate (same as technician Sell AMC). Helper `planTotalOf` in lib/amc-window.ts.
 ## edit-in-popup (2026-11-27)
 - Shared EntityCrudTable (all Masters tabs, Suppliers, Automation tabs: 32 screens): Add/Edit form now opens in a popup Dialog instead of inline above the table. Esc/backdrop/X go through the same discard-confirm for edits. Delete errors still show above the table. Bespoke edit flows (customer detail, inventory, tickets, technicians) unchanged.
 

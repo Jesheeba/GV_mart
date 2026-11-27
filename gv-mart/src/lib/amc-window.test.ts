@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { amcPlanSummary, groupPlansByName, isAmcRenewalOpen, pricePerYearOf } from "./amc-window"
+import { amcPlanSummary, groupPlansByName, isAmcRenewalOpen, planTotalOf, pricePerYearOf } from "./amc-window"
 
 const NOW = new Date("2026-07-10T00:00:00.000Z")
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -117,5 +117,19 @@ describe("groupPlansByName (AMC page plan columns, 2026-11-27)", () => {
   })
   it("empty list → no groups", () => {
     expect(groupPlansByName([])).toEqual([])
+  })
+})
+
+describe("planTotalOf (AMC card per-year × years = total, 2026-11-27)", () => {
+  it("per-year rate set → per-year × years", () => {
+    expect(planTotalOf({ price: 0, years: 3, price_per_year: 999 })).toBe(2997)
+    expect(planTotalOf({ price: 1199, years: 1, price_per_year: 1199 })).toBe(1199)
+  })
+  it("old plan with no per-year rate → flat price", () => {
+    expect(planTotalOf({ price: 2500, years: 2, price_per_year: null })).toBe(2500)
+    expect(planTotalOf({ price: 2500, years: 2 })).toBe(2500)
+  })
+  it("no float noise on paise", () => {
+    expect(planTotalOf({ price: 0, years: 3, price_per_year: 333.33 })).toBe(999.99)
   })
 })

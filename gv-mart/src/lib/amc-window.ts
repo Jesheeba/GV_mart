@@ -31,6 +31,12 @@ export function pricePerYearOf(plan: { price: number; years: number; price_per_y
   return plan.price_per_year ?? Math.round((plan.price / Math.max(plan.years, 1)) * 100) / 100
 }
 
+/** What a sale of this plan charges in total: per-year × years, or the flat `price` for an old plan
+ * with no per-year rate (same rule as the technician Sell AMC screen). */
+export function planTotalOf(plan: { price: number; years: number; price_per_year?: number | null }): number {
+  return plan.price_per_year != null ? Math.round(plan.price_per_year * plan.years * 100) / 100 : plan.price
+}
+
 const SUMMARY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 /**

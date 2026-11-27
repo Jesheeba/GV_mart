@@ -10,7 +10,7 @@ import { SegButton } from "@/components/shared/SegButton"
 import { useProfile } from "@/hooks/useProfile"
 import { useAmcContracts, useRefreshAmcStatuses, useWarranties } from "@/hooks/useAmc"
 import { amcPlansHooks, useSettings } from "@/hooks/useMasters"
-import { groupPlansByName, pricePerYearOf } from "@/lib/amc-window"
+import { groupPlansByName, planTotalOf, pricePerYearOf } from "@/lib/amc-window"
 import { AMC_STATUS_TONE } from "@/lib/amc-status"
 import { formatDate } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
@@ -301,7 +301,14 @@ function PlanTierCards({
                     <span className={cn("text-xs font-semibold", style.muted)}>{t("amc.plans.perYear")}</span>
                   </div>
                   <div className={cn("mt-0.5 text-xs font-medium", style.muted)}>
-                    {t("amc.plans.years", { count: plan.years })} · {t("amc.plans.servicesPerYear", { count: plan.visits_per_year })}
+                    {t("amc.plans.servicesPerYear", { count: plan.visits_per_year })}
+                  </div>
+                  <div className={cn("mt-0.5 text-xs font-medium", style.muted)}>
+                    {t("amc.plans.totalCalc", {
+                      perYear: `₹${pricePerYearOf(plan).toLocaleString("en-IN")}`,
+                      years: t("amc.plans.years", { count: plan.years }),
+                    })}{" "}
+                    <span className="font-bold">₹{planTotalOf(plan).toLocaleString("en-IN")}</span>
                   </div>
                   <div className="mt-0.5 text-xs font-semibold">
                     {t("amc.plans.activeCount", { count: activeCount })}

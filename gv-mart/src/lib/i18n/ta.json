@@ -2438,6 +2438,7 @@
       "perYear": "/ஆண்டு",
       "activeCount": "{{count}} செயலில்",
       "years": "{{count}} ஆண்டு",
+      "totalCalc": "{{perYear}} × {{years}} =",
       "mostPopular": "மிகவும் பிரபலமானது"
     },
     "status": {
