@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { DataTable, type DataTableColumn } from "@/components/shared/DataTable"
 import { StatusDot, type StatusTone } from "@/components/shared/StatusDot"
 import { KpiCard } from "@/components/shared/KpiCard"
+import { quotationStats } from "@/lib/quotationStats"
 import { useProfile } from "@/hooks/useProfile"
 import { useQuotationsList } from "@/hooks/useQuotations"
 import { formatCurrency } from "@/lib/sale-calc"
@@ -34,14 +35,7 @@ export function QuotationsListPage() {
     [allRows, searchTerm]
   )
 
-  const stats = useMemo(() => {
-    const open = allRows.filter((r) => r.status === "open").length
-    const converted = allRows.filter((r) => r.status === "converted").length
-    const lost = allRows.filter((r) => r.status === "lost").length
-    const decided = converted + lost
-    const rate = decided > 0 ? Math.round((converted / decided) * 100) : 0
-    return { open, converted, lost, rate }
-  }, [allRows])
+  const stats = useMemo(() => quotationStats(allRows), [allRows])
 
   const columns: DataTableColumn<QuotationListItem>[] = [
     {
@@ -75,10 +69,16 @@ export function QuotationsListPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label={t("quotations.stats.open")} value={stats.open} loading={isLoading} />
-        <KpiCard label={t("quotations.stats.converted")} value={stats.converted} loading={isLoading} />
-        <KpiCard label={t("quotations.stats.lost")} value={stats.lost} loading={isLoading} />
-        <KpiCard label={t("quotations.stats.conversionRate")} value={`${stats.rate}%`} loading={isLoading} />
+        <KpiCard compact label={t("quotations.stats.open")} value={stats.open} corner={`${stats.openPct}%`} loading={isLoading} />
+        <KpiCard compact label={t("quotations.stats.converted")} value={stats.converted} corner={`${stats.convertedPct}%`} loading={isLoading} />
+        <KpiCard compact label={t("quotations.stats.lost")} value={stats.lost} corner={`${stats.lostPct}%`} loading={isLoading} />
+        <KpiCard
+          compact
+          label={t("quotations.stats.conversionRate")}
+          value={`${stats.rate}%`}
+          corner={`${stats.converted}/${stats.decided}`}
+          loading={isLoading}
+        />
       </div>
 
       <Card size="default">
