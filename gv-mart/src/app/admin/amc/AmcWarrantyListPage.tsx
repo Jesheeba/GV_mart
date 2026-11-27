@@ -10,7 +10,7 @@ import { SegButton } from "@/components/shared/SegButton"
 import { useProfile } from "@/hooks/useProfile"
 import { useAmcContracts, useRefreshAmcStatuses, useWarranties } from "@/hooks/useAmc"
 import { amcPlansHooks, useSettings } from "@/hooks/useMasters"
-import { pricePerYearOf } from "@/lib/amc-window"
+import { groupPlansByName, pricePerYearOf } from "@/lib/amc-window"
 import { AMC_STATUS_TONE } from "@/lib/amc-status"
 import { formatDate } from "@/lib/formatDate"
 import { cn } from "@/lib/utils"
@@ -18,10 +18,15 @@ import { SellAmcPanel } from "./SellAmcPanel"
 import type { AmcContractListItem, WarrantyListItem } from "@/services/amc"
 import type { AmcPlanRow } from "@/services/masters"
 
-// Tier swatch colors cycle across plans sorted by price (design line 1078-1090:
+// Tier swatch colors by plan-name group, cheapest group first (design line 1078-1090:
 // Silver=#8A8A82, Gold=#F5612C, Platinum=#1A1A1A) — a presentational mapping
-// keyed to real plan order, not a hardcoded plan name.
+// keyed to real plan order, not a hardcoded plan name. Groups past the third stay dark.
 const TIER_COLORS = ["#8A8A82", "#F5612C", "#1A1A1A"]
+const TIER_STYLES = [
+  { card: "border border-border bg-surface-alt text-text", muted: "text-text-muted", swatch: "bg-gradient-to-br from-[#C9C4BA] to-[#A8A299]" },
+  { card: "bg-gradient-to-br from-accent to-[#FF7E47] text-white", muted: "text-white/85", swatch: "bg-gradient-to-br from-accent to-[#FF7E47]" },
+  { card: "bg-gradient-to-br from-ink to-[#33302C] text-white", muted: "text-white/75", swatch: "bg-gradient-to-br from-ink to-[#33302C]" },
+]
 
 // Matches the design's AMC table grid (design-template-decoded.html line 1098):
 // Customer / Product / Tier / Expiry / Next svc / Status.
@@ -111,11 +116,16 @@ export function AmcWarrantyListPage() {
     return bestCount > 0 && !tie ? best : null
   }, [sortedPlans, activeCountByPlan])
 
+  // One column per plan name (Silver / Gold / ...), each a single colour.
+  const planGroups = useMemo(
+    () => groupPlansByName(sortedPlans).map((g, i) => ({ ...g, tier: Math.min(i, TIER_COLORS.length - 1) })),
+    [sortedPlans]
+  )
   const tierColorByPlanId = useMemo(() => {
     const map = new Map<string, string>()
-    sortedPlans.forEach((p, i) => map.set(p.id, TIER_COLORS[i % TIER_COLORS.length]))
+    for (const g of planGroups) for (const p of g.plans) map.set(p.id, TIER_COLORS[g.tier])
     return map
-  }, [sortedPlans])
+  }, [planGroups])
 
   const searchTerm = search.trim().toLowerCase()
   const filteredContracts = useMemo(
@@ -181,7 +191,7 @@ export function AmcWarrantyListPage() {
       ) : null}
 
       <PlanTierCards
-        plans={sortedPlans}
+        groups={planGroups}
         loading={plansLoading}
         activeCountByPlan={activeCountByPlan}
         mostPopularPlanId={mostPopularPlanId}
@@ -237,29 +247,34 @@ export function AmcWarrantyListPage() {
 }
 
 function PlanTierCards({
-  plans,
+  groups,
   loading,
   activeCountByPlan,
   mostPopularPlanId,
 }: {
-  plans: AmcPlanRow[]
+  groups: { name: string; plans: AmcPlanRow[]; tier: number }[]
   loading: boolean
   activeCountByPlan: Map<string, number>
   mostPopularPlanId: string | null
 }) {
   const { t } = useTranslation()
+  const columns = "grid items-start gap-4 grid-cols-[repeat(auto-fit,minmax(190px,1fr))]"
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 lg:grid-cols-3">
+      <div className={columns}>
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-[158px] rounded-card" />
+          <div key={i} className="space-y-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-[72px] rounded-xl" />
+            <Skeleton className="h-[72px] rounded-xl" />
+          </div>
         ))}
       </div>
     )
   }
 
-  if (plans.length === 0) {
+  if (groups.length === 0) {
     return (
       <div className="rounded-card border border-border bg-surface-alt p-6 text-center">
         <p className="text-sm text-text-muted">{t("amc.plans.empty")}</p>
@@ -268,96 +283,36 @@ function PlanTierCards({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 lg:grid-cols-3">
-      {plans.map((plan, i) => (
-        <PlanTierCard
-          key={plan.id}
-          plan={plan}
-          tier={i % 3}
-          activeCount={activeCountByPlan.get(plan.id) ?? 0}
-          mostPopular={plan.id === mostPopularPlanId}
-        />
-      ))}
-    </div>
-  )
-}
-
-function PlanTierCard({
-  plan,
-  tier,
-  activeCount,
-  mostPopular,
-}: {
-  plan: AmcPlanRow
-  tier: number
-  activeCount: number
-  mostPopular: boolean
-}) {
-  const { t } = useTranslation()
-  const base = "relative flex min-h-[158px] flex-col justify-between overflow-hidden rounded-card p-5.5"
-  const servicesLabel = t("amc.plans.servicesPerYear", { count: plan.visits_per_year })
-  const activeLabel = `${t("amc.plans.activeCount", { count: activeCount })}${mostPopular ? ` · ${t("amc.plans.mostPopular")}` : ""}`
-
-  if (tier === 1) {
-    return (
-      <div className={cn(base, "bg-gradient-to-br from-accent to-[#FF7E47] text-white shadow-[0_14px_32px_-16px_rgba(245,97,44,.6)]")}>
-        <div className="absolute -right-7.5 -top-7.5 size-30 rounded-full bg-white/10" />
-        <div className="relative flex items-start justify-between">
-          <div>
-            <div className="text-[15px] font-bold">{plan.name}</div>
-            <div className="text-xs font-medium text-white/85">{servicesLabel}</div>
-          </div>
-          <span className="h-6 w-8.5 shrink-0 rounded-[5px] bg-white/35" />
-        </div>
-        <div className="relative">
-          <div className="text-[26px] font-extrabold tracking-tight">
-            ₹{pricePerYearOf(plan).toLocaleString("en-IN")}
-            <span className="text-[13px] font-semibold text-white/85">{t("amc.plans.perYear")}</span>
-          </div>
-          <div className="mt-1 text-xs font-semibold text-white/90">{activeLabel}</div>
-        </div>
-      </div>
-    )
-  }
-
-  if (tier === 2) {
-    return (
-      <div className={cn(base, "bg-gradient-to-br from-ink to-[#33302C] text-white shadow-[0_14px_30px_-18px_rgba(26,26,26,.6)]")}>
-        <div className="absolute -right-6 -top-6 size-27.5 rounded-full bg-accent/[.18]" />
-        <div className="relative flex items-start justify-between">
-          <div>
-            <div className="text-[15px] font-bold">{plan.name}</div>
-            <div className="text-xs font-medium text-white/75">{servicesLabel}</div>
-          </div>
-          <span className="h-6 w-8.5 shrink-0 rounded-[5px] bg-gradient-to-br from-accent to-[#FF7E47]" />
-        </div>
-        <div className="relative">
-          <div className="text-[26px] font-extrabold tracking-tight">
-            ₹{pricePerYearOf(plan).toLocaleString("en-IN")}
-            <span className="text-[13px] font-semibold text-white/75">{t("amc.plans.perYear")}</span>
-          </div>
-          <div className="mt-1 text-xs font-semibold text-white/85">{activeLabel}</div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className={cn(base, "border border-border bg-surface-alt")}>
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-[15px] font-bold text-text">{plan.name}</div>
-          <div className="text-xs font-medium text-text-muted">{servicesLabel}</div>
-        </div>
-        <span className="h-6 w-8.5 shrink-0 rounded-[5px] bg-gradient-to-br from-[#C9C4BA] to-[#A8A299]" />
-      </div>
-      <div>
-        <div className="text-[26px] font-extrabold tracking-tight text-text">
-          ₹{pricePerYearOf(plan).toLocaleString("en-IN")}
-          <span className="text-[13px] font-semibold text-text-muted">{t("amc.plans.perYear")}</span>
-        </div>
-        <div className="mt-1 text-xs font-semibold text-text-muted">{activeLabel}</div>
-      </div>
+    <div className={columns}>
+      {groups.map((group) => {
+        const style = TIER_STYLES[group.tier]
+        return (
+          <section key={group.name} aria-label={group.name} className="space-y-2">
+            <h3 className="flex items-center gap-2 px-1 text-sm font-bold text-text">
+              <span className={cn("size-3 shrink-0 rounded-[3px]", style.swatch)} />
+              {group.name}
+            </h3>
+            {group.plans.map((plan) => {
+              const activeCount = activeCountByPlan.get(plan.id) ?? 0
+              return (
+                <div key={plan.id} className={cn("rounded-xl px-3.5 py-3", style.card)}>
+                  <div className="text-xl font-extrabold tracking-tight">
+                    ₹{pricePerYearOf(plan).toLocaleString("en-IN")}
+                    <span className={cn("text-xs font-semibold", style.muted)}>{t("amc.plans.perYear")}</span>
+                  </div>
+                  <div className={cn("mt-0.5 text-xs font-medium", style.muted)}>
+                    {t("amc.plans.years", { count: plan.years })} · {t("amc.plans.servicesPerYear", { count: plan.visits_per_year })}
+                  </div>
+                  <div className="mt-0.5 text-xs font-semibold">
+                    {t("amc.plans.activeCount", { count: activeCount })}
+                    {plan.id === mostPopularPlanId ? ` · ${t("amc.plans.mostPopular")}` : ""}
+                  </div>
+                </div>
+              )
+            })}
+          </section>
+        )
+      })}
     </div>
   )
 }

@@ -2437,6 +2437,7 @@
       "servicesPerYear": "ஆண்டுக்கு {{count}} சேவைகள்",
       "perYear": "/ஆண்டு",
       "activeCount": "{{count}} செயலில்",
+      "years": "{{count}} ஆண்டு",
       "mostPopular": "மிகவும் பிரபலமானது"
     },
     "status": {

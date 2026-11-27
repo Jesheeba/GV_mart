@@ -1,5 +1,8 @@
 # CHANGELOG — Leads Dashboard Enhancement
 
+## amc-plan-cards-compact (2026-11-27)
+- AMC & Warranty plan cards: one column per plan name (Silver / Gold / Platinum / ...), cheapest group first, price options stacked small inside it. One colour per column (was cycling by index, so one name showed in 3 colours); the table swatch follows the same colour. Cards show years + services + active count. Helper `groupPlansByName` in lib/amc-window.ts.
+
 ## sales-search-mobile (2026-11-27)
 - Sales > Recent Invoices search now matches mobile numbers typed with +91, 0, spaces or dashes (was raw substring only). New `mobileSearchDigits` in lib/mobile.ts; text containing letters stays a name/item search. Placeholder now says "customer, mobile, items".
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { amcPlanSummary, isAmcRenewalOpen, pricePerYearOf } from "./amc-window"
+import { amcPlanSummary, groupPlansByName, isAmcRenewalOpen, pricePerYearOf } from "./amc-window"
 
 const NOW = new Date("2026-07-10T00:00:00.000Z")
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -90,5 +90,32 @@ describe("amcPlanSummary", () => {
   })
   it("no start date: counts still work, no expiry", () => {
     expect(amcPlanSummary({ years: 2, visits_per_year: 3 }, "")).toEqual({ years: 2, visits: 6, expiryDate: null, expiryLabel: null })
+  })
+})
+
+describe("groupPlansByName (AMC page plan columns, 2026-11-27)", () => {
+  it("one group per name, groups and members keep price order", () => {
+    const plans = [
+      { id: "s1", name: "Silver" },
+      { id: "s2", name: "Silver" },
+      { id: "g1", name: "Gold" },
+      { id: "s3", name: "Silver" },
+      { id: "p1", name: "Platinum" },
+    ]
+    expect(groupPlansByName(plans).map((g) => [g.name, g.plans.map((p) => p.id)])).toEqual([
+      ["Silver", ["s1", "s2", "s3"]],
+      ["Gold", ["g1"]],
+      ["Platinum", ["p1"]],
+    ])
+  })
+  it("names differing only by case or spaces land in the same group", () => {
+    const groups = groupPlansByName([{ name: "Gold " }, { name: "gold" }, { name: "Platinum Plus" }])
+    expect(groups.map((g) => [g.name, g.plans.length])).toEqual([
+      ["Gold", 2],
+      ["Platinum Plus", 1],
+    ])
+  })
+  it("empty list → no groups", () => {
+    expect(groupPlansByName([])).toEqual([])
   })
 })

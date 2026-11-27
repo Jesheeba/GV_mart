@@ -53,3 +53,20 @@ export function amcPlanSummary(
   const expiryDate = `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`
   return { years, visits, expiryDate, expiryLabel: `${d} ${SUMMARY_MONTHS[mo - 1]} ${y}` }
 }
+
+/**
+ * AMC page plan columns (2026-11-27): groups plans by name (trimmed,
+ * case-insensitive), keeping the input order inside each group and ordering
+ * groups by where their first plan appears — pass plans sorted by price and the
+ * cheapest tier comes first.
+ */
+export function groupPlansByName<P extends { name: string }>(plans: P[]): { name: string; plans: P[] }[] {
+  const groups = new Map<string, { name: string; plans: P[] }>()
+  for (const p of plans) {
+    const key = p.name.trim().toLowerCase()
+    const g = groups.get(key)
+    if (g) g.plans.push(p)
+    else groups.set(key, { name: p.name.trim(), plans: [p] })
+  }
+  return [...groups.values()]
+}
